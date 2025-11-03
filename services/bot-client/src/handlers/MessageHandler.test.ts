@@ -11,6 +11,9 @@ import type { ReferencedMessage, ConversationMessage } from '@tzurot/common-type
 // Mock dependencies
 vi.mock('../gateway/GatewayClient.js');
 vi.mock('../webhooks/WebhookManager.js');
+vi.mock('../redis.js', () => ({
+  getWebhookPersonality: vi.fn().mockResolvedValue(null), // Default: not a webhook message
+}));
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -54,14 +57,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'testuser',
           authorDisplayName: 'Test User Discord Name',
           content: 'Hello world',
           embeds: '',
           timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#general',
+          locationContext: 'Test Guild > #general',
         },
       ];
 
@@ -98,14 +101,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-456',
           discordUserId: 'user-456',
           authorUsername: 'otheruser',
           authorDisplayName: 'Other User Discord Name',
           content: 'Test message',
           embeds: '',
           timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#random',
+          locationContext: 'Test Guild > #random',
         },
       ];
 
@@ -145,14 +148,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-789',
           discordUserId: 'user-789',
-          authorUsername: 'missinguser',
-          authorDisplayName: 'Original Discord Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#test',
+                    authorUsername: 'missinguser',
+                    authorDisplayName: 'Original Discord Name',
+                    content: 'Test',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #test',
         },
       ];
 
@@ -179,14 +182,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-error',
           discordUserId: 'user-error',
-          authorUsername: 'erroruser',
-          authorDisplayName: 'Fallback Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#test',
+                    authorUsername: 'erroruser',
+                    authorDisplayName: 'Fallback Name',
+                    content: 'Test',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #test',
         },
       ];
 
@@ -214,14 +217,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'testuser',
           authorDisplayName: originalDisplayName,
           content: 'Test',
           embeds: '',
           timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#test',
+          locationContext: 'Test Guild > #test',
         },
       ];
 
@@ -265,25 +268,25 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-1',
           discordUserId: 'user-1',
-          authorUsername: 'user1',
-          authorDisplayName: 'User 1 Discord',
-          content: 'First message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#general',
+                    authorUsername: 'user1',
+                    authorDisplayName: 'User 1 Discord',
+                    content: 'First message',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #general',
         },
         {
           referenceNumber: 2,
+          discordMessageId: 'msg-2',
           discordUserId: 'user-2',
-          authorUsername: 'user2',
-          authorDisplayName: 'User 2 Discord',
-          content: 'Second message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#general',
+                    authorUsername: 'user2',
+                    authorDisplayName: 'User 2 Discord',
+                    content: 'Second message',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #general',
         },
       ];
 
@@ -328,14 +331,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'msg-123',
           discordUserId: 'user-123',
-          authorUsername: 'testuser',
-          authorDisplayName: 'Discord Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Test Guild',
-          channelName: '#test',
+                    authorUsername: 'testuser',
+                    authorDisplayName: 'Discord Name',
+                    content: 'Test',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #test',
         },
       ];
 
@@ -374,14 +377,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'discord-123',
           discordUserId: 'discord-123',
-          authorUsername: 'testuser',
-          authorDisplayName: 'Test Display Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Guild',
-          channelName: '#channel',
+                    authorUsername: 'testuser',
+                    authorDisplayName: 'Test Display Name',
+                    content: 'Test',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Guild > #channel',
         },
       ];
 
@@ -407,14 +410,14 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'discord-456',
           discordUserId: 'discord-456',
-          authorUsername: 'user',
-          authorDisplayName: 'Display',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          guildName: 'Guild',
-          channelName: '#channel',
+                    authorUsername: 'user',
+                    authorDisplayName: 'Display',
+                    content: 'Test',
+                    embeds: '',
+                    timestamp: new Date().toISOString(),
+          locationContext: 'Guild > #channel',
         },
       ];
 
