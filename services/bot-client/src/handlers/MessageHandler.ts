@@ -582,6 +582,18 @@ export class MessageHandler {
       let personaId: string | undefined;
 
       try {
+        // Check if this is a webhook message from the bot (AI personality response)
+        // If so, skip persona creation - we don't want to create personas for AI personalities
+        const webhookPersonality = await getWebhookPersonality(reference.discordMessageId);
+        if (webhookPersonality) {
+          logger.debug({
+            referenceNumber: reference.referenceNumber,
+            personalityName: webhookPersonality,
+            authorDisplayName: reference.authorDisplayName
+          }, '[MessageHandler] Skipping persona enrichment - message is from AI personality webhook');
+          continue; // Skip this reference, keep original display name
+        }
+
         // Get or create the user record (creates default persona if needed)
         // Use the actual Discord display name from the reference (includes server nickname/global display name)
         userId = await this.userService.getOrCreateUser(
