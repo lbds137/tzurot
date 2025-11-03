@@ -214,6 +214,41 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
       // Verify: Display name unchanged
       expect(references[0].authorDisplayName).toBe('System Member');
     });
+
+    it('should fall back to webhookId when Redis lookup fails', async () => {
+      // Setup: Mock Redis to throw an error
+      const { getWebhookPersonality } = await import('../redis.js');
+      vi.mocked(getWebhookPersonality).mockRejectedValueOnce(new Error('Redis connection failed'));
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'webhook-msg-redis-error',
+          webhookId: 'webhook-789', // Fallback detection via webhookId
+          discordUserId: 'bot-user-id',
+          authorUsername: 'Tzurot',
+          authorDisplayName: 'HOT | תשב',
+          content: 'AI message when Redis is down',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #errors',
+        },
+      ];
+
+      const history: ConversationMessage[] = [];
+
+      // Execute
+      await (messageHandler as any).enrichReferencesWithPersonaNames(
+        references,
+        history,
+        'personality-id'
+      );
+
+      // Verify: getOrCreateUser was NOT called (fell back to webhookId detection)
+      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
+      // Verify: Display name unchanged (webhook detected despite Redis error)
+      expect(references[0].authorDisplayName).toBe('HOT | תשב');
+    });
   });
 
   describe('error handling', () => {
