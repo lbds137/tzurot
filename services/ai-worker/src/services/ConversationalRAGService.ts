@@ -19,6 +19,7 @@ import {
   createLogger,
   type LoadedPersonality,
   type AttachmentMetadata,
+  type ReferencedMessage,
   AI_DEFAULTS,
   TEXT_LIMITS,
   TIMEOUTS,
@@ -78,17 +79,6 @@ export interface DiscordEnvironment {
       type: string;
     };
   };
-}
-
-export interface ReferencedMessage {
-  referenceNumber: number;
-  authorUsername: string;
-  authorDisplayName: string;
-  content: string;
-  embeds: string;
-  timestamp: string;
-  guildName: string;
-  channelName: string;
 }
 
 export interface ConversationContext {
