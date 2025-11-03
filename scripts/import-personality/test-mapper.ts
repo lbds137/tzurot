@@ -12,7 +12,7 @@ import type { ShapesIncPersonalityConfig } from './types.js';
 
 async function testMapper() {
   console.log('🧪 Testing PersonalityMapper\n');
-  console.log('=' .repeat(80));
+  console.log('='.repeat(80));
 
   try {
     // Load test data
@@ -66,7 +66,9 @@ async function testMapper() {
     console.log(`  Voice Enabled: ${v3Data.personality.voiceEnabled}`);
     console.log(`  Image Enabled: ${v3Data.personality.imageEnabled}`);
     console.log(`  Character Info Length: ${v3Data.personality.characterInfo.length} chars`);
-    console.log(`  Personality Traits: ${v3Data.personality.personalityTraits.substring(0, 60)}...`);
+    console.log(
+      `  Personality Traits: ${v3Data.personality.personalityTraits.substring(0, 60)}...`
+    );
     console.log(`  Personality Tone: ${v3Data.personality.personalityTone}`);
     console.log(`  Personality Age: ${v3Data.personality.personalityAge}`);
 
@@ -96,15 +98,20 @@ async function testMapper() {
     // Verify critical mappings
     console.log('\n✅ Critical Verifications:');
     console.log(`  ✓ Model mapped: ${shapesConfig.engine_model} → ${v3Data.llmConfig.model}`);
-    console.log(`  ✓ Temperature preserved: ${shapesConfig.engine_temperature} → ${v3Data.llmConfig.temperature}`);
-    console.log(`  ✓ STM window preserved: ${shapesConfig.stm_window} → ${v3Data.llmConfig.contextWindowSize}`);
-    console.log(`  ✓ LTM threshold preserved: ${shapesConfig.ltm_threshold} → ${v3Data.llmConfig.memoryScoreThreshold}`);
+    console.log(
+      `  ✓ Temperature preserved: ${shapesConfig.engine_temperature} → ${v3Data.llmConfig.temperature}`
+    );
+    console.log(
+      `  ✓ STM window preserved: ${shapesConfig.stm_window} → ${v3Data.llmConfig.contextWindowSize}`
+    );
+    console.log(
+      `  ✓ LTM threshold preserved: ${shapesConfig.ltm_threshold} → ${v3Data.llmConfig.memoryScoreThreshold}`
+    );
     console.log(`  ✓ Slug preserved: ${shapesConfig.username} → ${v3Data.personality.slug}`);
 
     console.log('\n' + '='.repeat(80));
     console.log('✅ All tests passed!');
     console.log('='.repeat(80) + '\n');
-
   } catch (error) {
     console.error('\n❌ Test failed:', error);
     if (error instanceof Error) {

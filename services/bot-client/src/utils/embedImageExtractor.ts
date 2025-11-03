@@ -27,7 +27,7 @@ export function extractEmbedImages(embeds: Embed[]): AttachmentMetadata[] | unde
         url: embed.image.url,
         contentType: 'image/png', // Discord embeds are typically PNG
         name: `embed-image-${imageAttachments.length + 1}.png`,
-        size: undefined // Size not available for embed images
+        size: undefined, // Size not available for embed images
       });
     }
 
@@ -37,7 +37,7 @@ export function extractEmbedImages(embeds: Embed[]): AttachmentMetadata[] | unde
         url: embed.thumbnail.url,
         contentType: 'image/png',
         name: `embed-thumbnail-${imageAttachments.length + 1}.png`,
-        size: undefined
+        size: undefined,
       });
     }
   }

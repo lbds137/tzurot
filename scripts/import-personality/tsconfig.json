@@ -8,10 +8,6 @@
     "declarationMap": false,
     "incremental": false
   },
-  "include": [
-    "./**/*.ts"
-  ],
-  "references": [
-    { "path": "../../packages/common-types" }
-  ]
+  "include": ["./**/*.ts"],
+  "references": [{ "path": "../../packages/common-types" }]
 }

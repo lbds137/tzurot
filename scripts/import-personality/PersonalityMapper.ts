@@ -163,7 +163,9 @@ export class PersonalityMapper {
 
     // Validate slug format (username)
     if (config.username && !/^[a-z0-9-]+$/.test(config.username)) {
-      errors.push(`Invalid slug format: ${config.username} (must be lowercase alphanumeric with hyphens)`);
+      errors.push(
+        `Invalid slug format: ${config.username} (must be lowercase alphanumeric with hyphens)`
+      );
     }
 
     // Validate temperature range

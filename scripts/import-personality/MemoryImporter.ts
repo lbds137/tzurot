@@ -13,11 +13,7 @@
 import type { QdrantClient } from '@qdrant/js-client-rest';
 import type { OpenAI } from 'openai';
 import type { PrismaClient } from '@prisma/client';
-import type {
-  ShapesIncMemory,
-  V3MemoryMetadata,
-  MemoryImportResult,
-} from './types.js';
+import type { ShapesIncMemory, V3MemoryMetadata, MemoryImportResult } from './types.js';
 import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 
 // UUID namespace for generating deterministic memory copy IDs
@@ -69,13 +65,16 @@ export class MemoryImporter {
 
     // Phase 1: Collect all points to insert (grouped by collection)
     console.log('  Phase 1: Preparing memory points...');
-    const pointsByCollection = new Map<string, Array<{
-      id: string;
-      vector: number[];
-      payload: Record<string, any>;
-      memoryId: string;
-      shapesUserId: string;
-    }>>();
+    const pointsByCollection = new Map<
+      string,
+      Array<{
+        id: string;
+        vector: number[];
+        payload: Record<string, any>;
+        memoryId: string;
+        shapesUserId: string;
+      }>
+    >();
 
     for (const memory of shapesMemories) {
       try {
@@ -112,13 +111,15 @@ export class MemoryImporter {
    * Prepare memory points for batched insert (doesn't actually upsert)
    * Returns array of points ready to be batched
    */
-  private async prepareMemoryPoints(memory: ShapesIncMemory): Promise<Array<{
-    id: string;
-    vector: number[];
-    payload: Record<string, any>;
-    memoryId: string;
-    shapesUserId: string;
-  }>> {
+  private async prepareMemoryPoints(memory: ShapesIncMemory): Promise<
+    Array<{
+      id: string;
+      vector: number[];
+      payload: Record<string, any>;
+      memoryId: string;
+      shapesUserId: string;
+    }>
+  > {
     if (!memory.senders || memory.senders.length === 0) {
       throw new Error('No senders found in memory');
     }
@@ -152,9 +153,10 @@ export class MemoryImporter {
 
       // Generate unique memory ID for this sender's copy
       const baseMemoryId = memory.id.split('/')[0];
-      const memoryCopyId = memory.senders.length > 1
-        ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
-        : baseMemoryId;
+      const memoryCopyId =
+        memory.senders.length > 1
+          ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
+          : baseMemoryId;
 
       // Check if skipExisting is enabled and memory already exists
       if (this.options.skipExisting && !this.options.dryRun) {
@@ -242,13 +244,15 @@ export class MemoryImporter {
 
     // Batch size: 250 points (Gemini recommended 50-1024, balancing throughput vs. request size)
     const BATCH_SIZE = 250;
-    const batches: typeof points[] = [];
+    const batches: (typeof points)[] = [];
 
     for (let i = 0; i < points.length; i += BATCH_SIZE) {
       batches.push(points.slice(i, i + BATCH_SIZE));
     }
 
-    console.log(`  📤 Upserting ${points.length} points to ${collectionName} in ${batches.length} batches...`);
+    console.log(
+      `  📤 Upserting ${points.length} points to ${collectionName} in ${batches.length} batches...`
+    );
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
@@ -263,7 +267,10 @@ export class MemoryImporter {
         // Timeout: 30s for all batches (no indexing wait)
         const timeoutMs = 30000;
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Batch upsert timed out after ${timeoutMs/1000}s`)), timeoutMs)
+          setTimeout(
+            () => reject(new Error(`Batch upsert timed out after ${timeoutMs / 1000}s`)),
+            timeoutMs
+          )
         );
 
         await Promise.race([
@@ -275,10 +282,12 @@ export class MemoryImporter {
               payload: p.payload,
             })),
           }),
-          timeoutPromise
+          timeoutPromise,
         ]);
 
-        console.log(`     ✅ Batch ${i + 1}/${batches.length} ${shouldWait ? '(verified)' : '(sent)'} (${batch.length} points)`);
+        console.log(
+          `     ✅ Batch ${i + 1}/${batches.length} ${shouldWait ? '(verified)' : '(sent)'} (${batch.length} points)`
+        );
 
         // Add small delay between batches (skip after last batch)
         if (!isLastBatch) {
@@ -341,9 +350,10 @@ export class MemoryImporter {
       // Shapes.inc memory IDs have format: {uuid}/{uuid} or {uuid}/{uuid}/sender-{uuid}
       // Extract the first UUID as the base, then create deterministic IDs for each sender
       const baseMemoryId = memory.id.split('/')[0];
-      const memoryCopyId = memory.senders.length > 1
-        ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
-        : baseMemoryId;
+      const memoryCopyId =
+        memory.senders.length > 1
+          ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
+          : baseMemoryId;
 
       // Check if skipExisting is enabled and memory already exists
       if (this.options.skipExisting && !this.options.dryRun) {
@@ -380,7 +390,7 @@ export class MemoryImporter {
         try {
           await Promise.race([
             this.storeInQdrant(memoryCopyId, summaryText, embedding, v3Metadata),
-            timeoutPromise
+            timeoutPromise,
           ]);
 
           if (resolution.v3PersonaId) {
@@ -410,7 +420,9 @@ export class MemoryImporter {
           }
         } catch (error) {
           // If Qdrant times out or fails, log and skip this sender's copy
-          console.error(`  ⚠️  Failed to import memory ${memoryCopyId} for sender ${shapesUserId}:`);
+          console.error(
+            `  ⚠️  Failed to import memory ${memoryCopyId} for sender ${shapesUserId}:`
+          );
           console.error(`     ${error instanceof Error ? error.message : String(error)}`);
           this.stats.failed++;
           this.stats.errors.push({
@@ -527,10 +539,7 @@ export class MemoryImporter {
   /**
    * Ensure Qdrant collection exists with proper configuration
    */
-  private async ensureCollection(
-    collectionName: string,
-    vectorSize: number
-  ): Promise<void> {
+  private async ensureCollection(collectionName: string, vectorSize: number): Promise<void> {
     if (!this.options.qdrant) {
       throw new Error('Qdrant client not configured');
     }
@@ -605,9 +614,9 @@ export class MemoryImporter {
       where: { discordId },
       include: {
         defaultPersonaLink: {
-          select: { personaId: true }
-        }
-      }
+          select: { personaId: true },
+        },
+      },
     });
 
     const personaId = user?.defaultPersonaLink?.personaId || null;
@@ -706,8 +715,8 @@ export class MemoryImporter {
     }
 
     const timestamps = memories
-      .map((m) => m.metadata.created_at)
-      .filter((t) => t > 0)
+      .map(m => m.metadata.created_at)
+      .filter(t => t > 0)
       .sort((a, b) => a - b);
 
     if (timestamps.length === 0) {

@@ -5,13 +5,16 @@ This directory contains the tooling for importing personalities from shapes.inc 
 ## ✅ Completed Components
 
 ### 1. Type Definitions (`types.ts`)
+
 - **Shapes.inc format types**: Maps the 385-line shapes.inc JSON structure
 - **V3 format types**: Target schema for PostgreSQL and Qdrant
 - **Import tool types**: Options, results, validation types
 - **Custom fields preserved**: `favorite_reacts`, `keywords`, `search_description`, custom messages
 
 ### 2. PersonalityMapper (`PersonalityMapper.ts`)
+
 Maps shapes.inc personality config to v3 normalized schema:
+
 - **Personality table**: Core fields, traits, goals, examples
 - **System prompt table**: Extracted from `jailbreak` field
 - **LLM config table**: Model, temperature, penalties, memory settings
@@ -21,7 +24,9 @@ Maps shapes.inc personality config to v3 normalized schema:
 - **✅ Tested**: Successfully maps cold-kerach-batuach config
 
 ### 3. AvatarDownloader (`AvatarDownloader.ts`)
+
 Downloads and stores personality avatars:
+
 - **Download**: Fetches from shapes.inc URLs
 - **Storage**: Saves to Railway volume (`/data/avatars`)
 - **Fallback**: Uses default avatar if download fails
@@ -29,7 +34,9 @@ Downloads and stores personality avatars:
 - **Public URLs**: Generates URLs for API gateway serving
 
 ### 4. UUIDMapper (`UUIDMapper.ts`)
+
 Resolves UUID mappings between shapes.inc and v3:
+
 - **User resolution**: Shapes.inc UUID → Discord ID → V3 Persona UUID
 - **Orphan handling**: Assigns orphaned persona when user can't be resolved
 - **Caching**: Avoids repeated database queries
@@ -37,7 +44,9 @@ Resolves UUID mappings between shapes.inc and v3:
 - **Statistics**: Track resolution success rate
 
 ### 5. MemoryImporter (`MemoryImporter.ts`)
+
 Imports LTM memories to Qdrant:
+
 - **Format mapping**: Shapes.inc memory → V3 Qdrant metadata
 - **User resolution**: Uses UUIDMapper for persona assignment
 - **Orphan tracking**: Counts and handles orphaned memories
@@ -48,7 +57,9 @@ Imports LTM memories to Qdrant:
 ## 🚧 Remaining Work
 
 ### 6. Main CLI Tool (`import-personality.ts`)
+
 Orchestrates the import process:
+
 - [ ] Parse command-line arguments
 - [ ] Load shapes.inc backup files
 - [ ] Initialize Prisma, Qdrant clients
@@ -58,7 +69,9 @@ Orchestrates the import process:
 - [ ] Display progress and results
 
 ### 7. Qdrant Cleanup Tool (`QdrantMigrator.ts`)
+
 Standardize existing Qdrant memories:
+
 - [ ] Find memories with old personality collection format
 - [ ] Find orphaned entries (Lilith and others)
 - [ ] Update metadata to standardized v3 format
@@ -71,6 +84,7 @@ Standardize existing Qdrant memories:
 ### 8. Integration Points
 
 #### Database Operations
+
 - [ ] Create personality in PostgreSQL
 - [ ] Create system prompt record
 - [ ] Create LLM config record
@@ -78,11 +92,13 @@ Standardize existing Qdrant memories:
 - [ ] Create/ensure orphaned persona
 
 #### Qdrant Operations
+
 - [ ] Generate embeddings (OpenAI API)
 - [ ] Store memories with vectors and metadata
 - [ ] Handle Qdrant errors and retries
 
 #### Avatar Operations
+
 - [ ] Download avatar from shapes.inc
 - [ ] Save to Railway volume
 - [ ] Update personality avatar URL
@@ -91,6 +107,7 @@ Standardize existing Qdrant memories:
 ## 📊 Test Data
 
 Using **cold-kerach-batuach** as test personality:
+
 - **Config**: 30KB JSON, 385 lines
 - **Memories**: 107 LTM summaries (~1.2MB)
 - **Chat history**: 625 messages (~500KB)
@@ -119,7 +136,9 @@ pnpm import-personality cold-kerach-batuach --rename=cold-v2
 ## 📝 Notes
 
 ### Custom Fields Preserved
+
 All shapes.inc-specific fields are preserved in the `customFields` JSON column:
+
 - `favoriteReacts`: Emoji reactions (e.g., ["🧊", "📊", "🔍"])
 - `keywords`: Search keywords (e.g., ["COLD", "efficiency", "data"])
 - `searchDescription`: Brief personality description
@@ -127,19 +146,24 @@ All shapes.inc-specific fields are preserved in the `customFields` JSON column:
 - `shapesIncId`: Original shapes.inc UUID for reference
 
 ### Model Names
+
 Shapes.inc used OpenRouter (same as v3), so model names are passed through as-is:
+
 - `openai/gpt-oss-120b` → `openai/gpt-oss-120b` (preserved)
 - `anthropic/claude-3.5-sonnet` → `anthropic/claude-3.5-sonnet` (preserved)
 - No mapping needed!
 
 ### Avatar Handling
+
 - Shapes.inc avatars are at `https://files.shapes.inc/api/files/avatar_{uuid}.png`
 - No avatars in legacy backups (must download fresh)
 - Download during import, store in `/data/avatars`
 - Serve via API gateway at `/avatars/{slug}.ext`
 
 ### Orphaned Memories
+
 When user UUID can't be resolved:
+
 - Assign to dedicated orphaned persona (`00000000-0000-0000-0000-000000000000`)
 - Mark as `canonScope: 'shared'` (not personal)
 - Track orphan count in import stats

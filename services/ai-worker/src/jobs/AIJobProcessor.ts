@@ -7,7 +7,10 @@
  */
 
 import { Job } from 'bullmq';
-import { ConversationalRAGService, type RAGResponse } from '../services/ConversationalRAGService.js';
+import {
+  ConversationalRAGService,
+  type RAGResponse,
+} from '../services/ConversationalRAGService.js';
 import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
 import {
   MessageContent,
@@ -157,8 +160,8 @@ export class AIJobProcessor {
 
     try {
       // Find voice attachment
-      const voiceAttachment = context.attachments?.find(a =>
-        a.contentType.startsWith('audio/') || a.isVoiceMessage
+      const voiceAttachment = context.attachments?.find(
+        a => a.contentType.startsWith('audio/') || a.isVoiceMessage
       );
 
       if (!voiceAttachment) {
@@ -179,10 +182,9 @@ export class AIJobProcessor {
         success: true,
         content: transcript,
         metadata: {
-          processingTimeMs
-        }
+          processingTimeMs,
+        },
       };
-
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
       logger.error({ err: error }, `[AIJobProcessor] Transcribe job ${job.id} failed`);
@@ -192,8 +194,8 @@ export class AIJobProcessor {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         metadata: {
-          processingTimeMs
-        }
+          processingTimeMs,
+        },
       };
     }
   }
@@ -205,15 +207,17 @@ export class AIJobProcessor {
     const startTime = Date.now();
     const { requestId, personality, message, context, userApiKey } = job.data;
 
-    logger.info(`[AIJobProcessor] Processing generate job ${job.id} (${requestId}) for ${personality.name}`);
+    logger.info(
+      `[AIJobProcessor] Processing generate job ${job.id} (${requestId}) for ${personality.name}`
+    );
 
     // Debug: Check if referencedMessages exists in job data
     logger.info(
       `[AIJobProcessor] Job data context inspection: ` +
-      `hasReferencedMessages=${!!context.referencedMessages}, ` +
-      `count=${context.referencedMessages?.length || 0}, ` +
-      `type=${typeof context.referencedMessages}, ` +
-      `contextKeys=[${Object.keys(context).join(', ')}]`
+        `hasReferencedMessages=${!!context.referencedMessages}, ` +
+        `count=${context.referencedMessages?.length || 0}, ` +
+        `type=${typeof context.referencedMessages}, ` +
+        `contextKeys=[${Object.keys(context).join(', ')}]`
     );
 
     try {
@@ -221,12 +225,14 @@ export class AIJobProcessor {
       let oldestHistoryTimestamp: number | undefined;
       if (context.conversationHistory && context.conversationHistory.length > 0) {
         const timestamps = context.conversationHistory
-          .map(msg => msg.createdAt ? new Date(msg.createdAt).getTime() : null)
+          .map(msg => (msg.createdAt ? new Date(msg.createdAt).getTime() : null))
           .filter((t): t is number => t !== null);
 
         if (timestamps.length > 0) {
           oldestHistoryTimestamp = Math.min(...timestamps);
-          logger.debug(`[AIJobProcessor] Oldest conversation message: ${new Date(oldestHistoryTimestamp).toISOString()}`);
+          logger.debug(
+            `[AIJobProcessor] Oldest conversation message: ${new Date(oldestHistoryTimestamp).toISOString()}`
+          );
         }
       }
 
@@ -261,7 +267,7 @@ export class AIJobProcessor {
           participants,
           attachments: context.attachments,
           environment: context.environment,
-          referencedMessages: context.referencedMessages
+          referencedMessages: context.referencedMessages,
         },
         userApiKey
       );
@@ -283,14 +289,13 @@ export class AIJobProcessor {
           retrievedMemories: response.retrievedMemories,
           tokensUsed: response.tokensUsed,
           processingTimeMs,
-          modelUsed: response.modelUsed
-        }
+          modelUsed: response.modelUsed,
+        },
       };
 
       logger.debug({ jobResult }, '[AIJobProcessor] Returning job result');
 
       return jobResult;
-
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
 
@@ -302,8 +307,8 @@ export class AIJobProcessor {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         metadata: {
-          processingTimeMs
-        }
+          processingTimeMs,
+        },
       };
     }
   }
@@ -324,23 +329,33 @@ export class AIJobProcessor {
   ): Array<{ personaId: string; personaName: string; isActive: boolean }> {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
-    const userMessagesWithPersona = history.filter(m => m.role === 'user' && m.personaId && m.personaName).length;
-    logger.debug(`[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`);
+    const userMessagesWithPersona = history.filter(
+      m => m.role === 'user' && m.personaId && m.personaName
+    ).length;
+    logger.debug(
+      `[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`
+    );
 
     // Extract from history
     for (const msg of history) {
       if (msg.role === 'user' && msg.personaId && msg.personaName) {
-        logger.debug(`[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`);
+        logger.debug(
+          `[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`
+        );
         uniquePersonas.set(msg.personaId, msg.personaName);
       }
     }
 
     // Ensure active persona is included (even if not in history yet)
     if (activePersonaId && activePersonaName) {
-      logger.debug(`[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`);
+      logger.debug(
+        `[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`
+      );
       uniquePersonas.set(activePersonaId, activePersonaName);
     } else {
-      logger.debug(`[AIJobProcessor] Active persona not included - hasActivePersonaId: ${!!activePersonaId}, hasActivePersonaName: ${!!activePersonaName}, activePersonaId: ${activePersonaId}, activePersonaName: ${activePersonaName}`);
+      logger.debug(
+        `[AIJobProcessor] Active persona not included - hasActivePersonaId: ${!!activePersonaId}, hasActivePersonaName: ${!!activePersonaName}, activePersonaId: ${activePersonaId}, activePersonaName: ${activePersonaName}`
+      );
     }
 
     logger.debug(`[AIJobProcessor] Found ${uniquePersonas.size} unique participant(s)`);
@@ -349,7 +364,7 @@ export class AIJobProcessor {
     return Array.from(uniquePersonas.entries()).map(([personaId, personaName]) => ({
       personaId,
       personaName,
-      isActive: personaId === activePersonaId
+      isActive: personaId === activePersonaId,
     }));
   }
 

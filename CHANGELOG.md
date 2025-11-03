@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.23] - 2025-11-03
 
 ### Added
+
 - **Persona Name Enrichment for References (PR #210)** - Referenced messages now show persona names instead of Discord nicknames
   - Added `discordUserId` field to `ReferencedMessage` schema for persona lookup
   - Implemented `enrichReferencesWithPersonaNames()` method in MessageHandler
@@ -20,17 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive test coverage: 10 new unit tests (100% passing)
 
 ### Fixed
+
 - Discord display names now properly preserved when creating user records
   - Uses actual Discord display name (server nickname/global name) instead of username
   - Better for user management and debugging
   - Fixes issue where username was used twice in `getOrCreateUser()` calls
 
 ### Improved
+
 - Enhanced error logging with additional context (personalityId, userId, personaId)
 - Added detailed documentation for conversation history stability assumptions
 - Type safety improvements for null/undefined handling in persona name fetches
 
 ### Documentation
+
 - Added comprehensive multi-personality support improvement document
   - Documents future enhancement for multiple @mentions per message
   - Includes implementation challenges, test cases, and phased plan
@@ -40,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.22] - 2025-11-03
 
 ### Fixed
+
 - **Message Reference System (PR #208)** - Complete fix for reference extraction and AI visibility
   - **Critical**: GatewayClient was stripping `referencedMessagesDescriptions` from job results
   - **Critical**: References were in system prompt but separated from user message marker
@@ -55,12 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 100% consistency between current prompt, database storage, and conversation history
 
 ### Added
+
 - Diagnostic logging for reference formatting preview (first 500 chars)
 - API response fields: `referencedMessagesDescriptions` in GenerateResponse and JobResult
 
 ## [3.0.0-alpha.21] - 2025-11-02
 
 ### Fixed
+
 - **Deployment Failure** - Emergency fix for pnpm lockfile mismatch
   - Regenerated pnpm-lock.yaml after Qdrant dependency removal
   - Lockfile still contained `@qdrant/js-client-rest` causing frozen-lockfile errors
@@ -69,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.20] - 2025-11-02
 
 ### Fixed
+
 - **Response Cleanup Storage** - Personality prefixes now stripped before saving to database
   - AI-generated prefixes like "Emily: [now]" are now removed before storage
   - Applied cleanup to both conversation_history and long-term memory (LTM)
@@ -76,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ensures clean data in conversation context and memory retrieval
 
 ### Removed
+
 - **Qdrant vector database dependency** - Replaced by pgvector (PostgreSQL extension)
   - Removed `@qdrant/js-client-rest` npm package from dependencies
   - Removed environment variables: `QDRANT_URL`, `QDRANT_API_KEY`, `DEV_QDRANT_URL`, `DEV_QDRANT_API_KEY`, `PROD_QDRANT_URL`, `PROD_QDRANT_API_KEY`
@@ -86,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.19] - 2025-11-01
 
 ### Fixed
+
 - **Current Speaker Detection** - LLM now correctly identifies who is currently speaking in group conversations
   - Added "Current Message" section RIGHT BEFORE user input to leverage LLM recency bias
   - Previously, the LLM would get confused when speaker changed between turns
@@ -105,6 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Previously stored messages with headers will rotate out naturally
 
 ### Changed
+
 - **Performance Optimization** - Personality mention parser now uses batched lookups
   - Single `Promise.all()` batch instead of sequential async calls
   - Deduplication via Map prevents redundant database queries
@@ -113,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.13] - 2025-10-29
 
 ### Fixed
+
 - **LLM API Timeout** - Added 3-minute timeout for LLM API calls
   - Prevents hanging requests when LLM provider is slow or unresponsive
   - Applies to all personality response generation
@@ -126,6 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.12] - 2025-10-28
 
 ### Added
+
 - **Automatic Voice Message Transcription** - Bot can now transcribe voice messages and reply with searchable text
   - Environment toggle via `AUTO_TRANSCRIBE_VOICE=true` to prevent conflicts with dev/prod bots in same server
   - Voice messages automatically transcribed using Whisper API
@@ -146,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Temporary attachment storage preserves both URLs
 
 ### Changed
+
 - **AIJobProcessor** - Added routing for `transcribe` job type
   - New `processTranscribeJob()` handler for voice-only processing
   - Existing `processGenerateJob()` unchanged for personality responses
@@ -155,6 +169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced logging for cache hits/misses
 
 ### Fixed
+
 - **Message Chunking Bug** - Fixed critical text loss in long transcripts
   - Sentence splitting regex was silently dropping unpunctuated text
   - Changed from `.match()` to `.split()` approach to preserve all content
@@ -165,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better error messages for timeout scenarios
 
 ### Documentation
+
 - **GitHub Workflows** - Added Claude Code PR review automation
   - Automatic code review on pull requests
   - Claude PR assistant workflow
@@ -172,6 +188,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.10] - 2025-10-27
 
 ### Added
+
 - **Database-Based Avatar Storage** - Store personality avatars directly in PostgreSQL
   - Avatars stored as base64-encoded PNGs in `avatar_data` column
   - Automatic image processing: resize to 256x256, optimize to <200KB target
@@ -205,6 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Verification and setup scripts
 
 ### Changed
+
 - **API Gateway Personality Endpoints** - Enhanced POST/PATCH `/admin/personality` endpoints
   - Accept all personality fields including appearance, goals, examples
   - Avatar processing with automatic optimization
@@ -219,6 +237,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prompts now include complete personality data
 
 ### Documentation
+
 - **Git Workflow Guide** - Critical clarifications in CLAUDE.md
   - Prominent warnings: REBASE-ONLY workflow (no squash, no merge)
   - Always target `develop` for feature PRs, never `main`
@@ -227,6 +246,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents confusion from duplicate commits with different hashes
 
 ### Migration Notes
+
 - Run migrations: `npx prisma migrate deploy`
   - `20251027155005_add_avatar_data_to_personalities` - Adds avatar_data TEXT
   - `20251027163723_add_is_default_to_llm_configs` - Adds is_default BOOLEAN + unique index
@@ -238,6 +258,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.9] - 2025-10-26
 
 ### Added
+
 - **Personality Import Tool** - Import personalities and memories from shapes.inc backups
   - Imported Ha-shem, Emily, and Lucifer personalities with full memory history
   - Fixed schema compatibility issues (removed avatarUrl field)
@@ -248,6 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Served via api-gateway at /avatars endpoint
 
 ### Fixed
+
 - **Personality Mention Regex** - Support hyphens in personality names (@Ha-Shem, @emily-tzudad-seraph-ditza)
   - Updated regex pattern from `\w+` to `[\w-]+` with proper word boundaries
   - Matches v2 behavior for hyphenated personality names
@@ -260,12 +282,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.10] - 2025-08-13
 
 ### Fixed
+
 - **Critical Reply Bug** - Fixed crash when replying to personality messages
   - `getPersonalityApplicationService()` was returning undefined due to incorrect property path
   - This affected reply processing, DM handling, alias resolution, and error handling
   - One-line fix resolved multiple breaking issues across the bot
 
 ### Added
+
 - **Testing Infrastructure** - Comprehensive test utilities for safer development
   - Discord.js mock factories for creating test objects
   - Message factory with fluent builder pattern
@@ -273,6 +297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Test helpers and migration utilities
 
 ### Changed
+
 - **Documentation Organization** - Improved documentation structure and discoverability
   - Reorganized docs into appropriate subdirectories
   - Added CURRENT_WORK.md for tracking active development
@@ -283,6 +308,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.9] - 2025-08-12
 
 ### Fixed
+
 - **Multi-word Tag Parsing** - Fixed bug where multi-word personality aliases like `@cash money` weren't being recognized
   - Max alias word count was being calculated before personalities were loaded from disk
   - Now properly recalculates after loading personalities to support multi-word aliases
@@ -294,12 +320,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improves flexibility for different bot instances
 
 ### Changed
+
 - **Internal Refactoring** - Removed unnecessary PersonalityRouter abstraction layer
   - Simplified architecture by using PersonalityApplicationService directly
   - Improved code clarity with consistent service terminology
   - No user-facing changes
 
 ### Documentation
+
 - Created comprehensive bug tracking document in `docs/development/KNOWN_BUGS.md`
 - Consolidated feature ideas in `docs/improvements/post-ddd/FEATURE_IDEAS.md`
 - Updated DDD migration documentation to reflect current reality
@@ -307,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.8] - 2025-07-25
 
 ### Fixed
+
 - **Feature Flag System** - Removed leftover DDD migration artifacts and cleaned up feature flag warnings
   - Removed "🆕 Using new DDD system" indicators from command responses (info, list, reset commands)
   - Fixed console warnings about unknown `features.enhanced-context` feature flag
@@ -316,6 +345,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.7] - 2025-07-26
 
 ### Fixed
+
 - Code quality improvements and linter cleanup
 - Removed deprecated domain object methods that were no longer used
 - Fixed timer pattern compliance for better test performance
@@ -323,6 +353,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved test coverage for message formatting (87.64% coverage)
 
 ### Removed
+
 - Removed contentSanitizer utility that was solving a non-existent problem
 - Removed legacy dataStorage.js module and related unused code
 - Removed DDD system feature flags that were no longer needed
@@ -330,6 +361,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.6] - 2025-07-25
 
 ### Fixed
+
 - **Message Deletion Bug** - Removed unwanted error filtering functionality that was automatically deleting AI personality responses
   - AI responses containing common phrases like "trouble", "issue", or "feeling okay" were being incorrectly flagged as errors
   - Removed aggressive error filtering system including errorHandler.js and related components
@@ -339,6 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.5] - 2025-07-22
 
 ### Fixed
+
 - **API Error Handling in Threads** - Fixed post-deployment bug where AI service API errors in threads were falling back to direct send format
   - API errors (502, 429, etc.) now properly display personality-specific error messages via webhooks
   - Maintains immersive experience across all contexts (channels, threads, DMs)
@@ -348,18 +381,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.4] - 2025-07-21
 
 ### Fixed
+
 - **Discord 2000 Character Limit Overflow** - Fixed critical bug where model indicators could push messages over Discord's limit
   - Model indicators (e.g., "(Model: gpt-4)") are now added BEFORE message splitting
   - Prevents messages near 2000 characters from failing to send
   - Affects all message types: regular webhooks, threads, and DMs
 
 ### Changed
+
 - **Message Splitting Refactored** - Centralized message splitting logic for better maintainability
   - Created new `messageSplitting.js` utility module
   - Removed 200+ lines of duplicate code across webhook handlers
   - Ensures consistent splitting behavior across all message types
 
 ### Improved
+
 - **Error Handling** - Fixed confusing behavior where errors appeared as personality messages
   - Raw error messages no longer sent via webhook
   - Improved error logging in personality handler
@@ -368,15 +404,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.3] - 2025-01-18
 
 ### Fixed
+
 - **Personality Error Messages** - Fixed personality-specific error messages not displaying
   - PersonalityRouter was returning raw Personality aggregate objects
   - Added `toJSON()` serialization to access error message property
-  - Personalities now correctly show their custom error messages (e.g., "*sighs dramatically* Something went wrong!")
+  - Personalities now correctly show their custom error messages (e.g., "_sighs dramatically_ Something went wrong!")
   - Includes enhanced debug logging for troubleshooting
 
 ## [2.2.2] - 2025-01-18
 
 ### Changed
+
 - **Model Indicator Terminology** - Updated model indicator text for consistency
   - Changed "Main Model Used (Premium)" to "Primary Model Used (Premium)"
   - Changed "Main Model Used (Free)" to "Primary Model Used (Free)"
@@ -385,6 +423,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.1] - 2025-01-18
 
 ### Fixed
+
 - **PluralKit Authentication Issue** - Fixed authentication errors for PluralKit webhook messages
   - Resolved error: "User [webhook_id] is not authenticated" for PluralKit users
   - Fixed `handlePersonalityInteraction` to use real user ID instead of webhook user ID for authentication
@@ -395,6 +434,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.0] - 2025-01-18
 
 ### Added
+
 - **Fallback Engine Indicators** - Messages now display model usage information
   - "Primary Model Used (Premium)" when using premium model with `is_premium: true`
   - "Primary Model Used (Free)" when using standard model with `is_premium: false`
@@ -403,12 +443,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Works across all message types: DMs, regular channels, and threads
 
 ### Changed
+
 - **Extended Personality Reference Optimization** - Same-personality reference time window extended from 1 hour to 24 hours
   - Personalities can now reference their own recent messages from up to 24 hours ago
   - Improves conversation continuity for longer interactions
   - Reduces redundant context building for active personalities
 
 ### Fixed
+
 - **Blacklist Migration Cleanup** - Removed unnecessary migration code and tests
   - Cleaned up deprecated `migrateBlacklistData` function and related tests
   - Simplified FileBlacklistRepository initialization
@@ -417,6 +459,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.1] - 2025-07-10
 
 ### Fixed
+
 - **Webhook URL Corruption in Thread Messages** - Fixed critical production issue causing thread message failures
   - Root cause: Inconsistent webhook client construction between threadHandler and webhookCache
   - threadHandler was using `new WebhookClient({ url: webhook.url })` while webhookCache used `{ id, token }`
@@ -429,6 +472,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2025-07-10
 
 ### Added
+
 - **Context Metadata for Personalities** - AI personalities now receive temporal and location context
   - Messages include Discord server name, channel name, and timestamps in ISO format
   - Helps personalities understand conversation flow and respond more appropriately to time-sensitive topics
@@ -440,6 +484,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings persist across bot restarts
 
 ### Changed
+
 - **Major Architecture Refactoring** - Completed migration from legacy PersonalityManager to Domain-Driven Design
   - Removed entire `src/core/personality/` directory (PersonalityManager, PersonalityRegistry, etc.)
   - All personality operations now use clean DDD patterns through PersonalityApplicationService
@@ -447,6 +492,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduced codebase by ~5,000 lines while maintaining all functionality
 
 ### Fixed
+
 - **Circular Dependencies** - Resolved module loading issues causing "getApplicationBootstrap is not a function" errors
   - Introduced MessageHandlerConfig to break circular dependency chains
   - Fixed aliasResolver to use setter injection pattern
@@ -456,6 +502,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated Personality domain model to handle configuration updates correctly
 
 ### Removed
+
 - **Legacy Personality System** - Completely removed deprecated PersonalityManager and related components
   - Deleted PersonalityManager.js, PersonalityRegistry.js, PersonalityValidator.js, PersonalityPersistence.js
   - Removed embedBuilders.js utility (functionality moved to appropriate domain services)
@@ -464,6 +511,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.10] - 2025-07-09
 
 ### Fixed
+
 - **Pluralkit Support** - Comprehensive fix for Pluralkit integration issues
   - Fixed authentication to use real user ID instead of webhook ID for Pluralkit messages
   - Added reply tracking system to restore lost Discord references when Pluralkit processes messages
@@ -473,6 +521,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed square brackets from proxy message format for cleaner appearance
 
 ### Changed
+
 - **Documentation Organization** - Cleaned up root directory
   - Consolidated temporary issue summaries into docs/development/ISSUE_RESOLUTIONS.md
   - Moved coverage reports to docs/testing/coverage-reports/
@@ -481,6 +530,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.9] - 2025-07-08
 
 ### Fixed
+
 - **Avatar URL Access in Threads** - Fixed avatars not showing in thread messages
   - Updated threadHandler.js to access personality.profile.avatarUrl instead of personality.avatarUrl
   - Fixed all remaining instances of direct personality.avatarUrl access throughout codebase
@@ -492,6 +542,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.8] - 2025-07-08
 
 ### Fixed
+
 - **Webhook Profile Pictures** - Fixed avatars not showing in Discord webhooks after DDD migration
   - Added avatarStorage initialization to ApplicationBootstrap (was only in legacy PersonalityManager)
   - Added avatar pre-downloading when registering personalities in DDD system
@@ -501,6 +552,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.7] - 2025-07-08
 
 ### Fixed
+
 - **Webhook Display Names** - Fixed warning "displayName missing for personality" in webhook manager
   - Updated `getStandardizedUsername` to correctly access `personality.profile.displayName` in DDD structure
   - Fixed avatar URL resolution to use `personality.profile.avatarUrl` for proper webhook profile pictures
@@ -510,6 +562,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.6] - 2025-07-08
 
 ### Fixed
+
 - **Personality Error Messages** - Fixed bug where personalities showed generic error messages instead of personality-specific ones
   - Personality mentions (like `&cold hi`) now work correctly and show proper character responses
   - Resolved "personalityName is required but was not provided" error that caused default bot messages
@@ -519,7 +572,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed "ApplicationBootstrap not initialized" errors in production
   - Improved error handling and dependency injection throughout the system
 
-### Changed  
+### Changed
+
 - **Internal Architecture** - Completed migration to Domain-Driven Design (DDD) architecture
   - Removed all feature flags for DDD system (now primary architecture)
   - Converted singleton patterns to factory functions for better testability
@@ -529,6 +583,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.5] - 2025-06-22
 
 ### Fixed
+
 - **Status Command** - Fixed -1ms ping display when Discord websocket is not ready
   - Now shows "Calculating..." instead of -1ms when websocket ping is not available
   - Also fixed to use DDD personality service when available instead of legacy registry
@@ -558,6 +613,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed automatic `isDirectMessage` defaulting that interfered with platform-specific logic
 
 ### Changed
+
 - **Age Verification Message** - Made error message more helpful
   - Now includes full command with prefix (e.g., `!tz verify`)
   - Explicitly mentions the command must be used in an NSFW channel
@@ -567,6 +623,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Commands now properly display the actual configured prefix in all messages
 
 ### Added
+
 - **Phase 2.2 Integration Testing** - Completed comprehensive testing of all 19 commands
   - Created detailed testing checklist documenting all functionality
   - Added helper scripts for integration testing
@@ -575,6 +632,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.4] - 2025-06-21
 
 ### Fixed
+
 - **DDD Personality Error Messages** - Fixed bug where personality-specific error messages weren't being used when DDD is enabled
   - Updated `aiErrorHandler` to check DDD feature flag and use PersonalityRouter when enabled
   - Fixed `PersonalityRouter._convertDDDToLegacyFormat` to include the `errorMessage` field
@@ -584,12 +642,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.3] - 2025-06-20
 
 ### Fixed
+
 - **Feature Flag Loading** - Fixed critical bug where hyphenated feature flags couldn't be loaded from environment variables
   - Flags like `enhanced-context`, `comparison-testing`, and `dual-write` now properly load when set via environment
   - Added special handling in `FeatureFlags._loadFromEnvironment()` to correctly map underscores to hyphens
   - This fix enables proper feature flag configuration in production environments
 
 ### Changed
+
 - **Feature Flag Cleanup** - Removed 15 unused feature flags from the codebase
   - Removed flags that were defined but never referenced in code
   - Removed `ddd.commands.hideLegacy` flag that was only used in an empty TODO
@@ -612,6 +672,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.2] - 2025-06-20
 
 ### Fixed
+
 - **Multi-Word Alias Validation** - Fixed critical bug preventing multi-word aliases from loading
   - Removed strict validation that rejected leading/trailing spaces in Alias domain model
   - Multi-word aliases like "angel dust" and "melek taus" now load correctly from stored data
@@ -622,6 +683,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.1] - 2025-06-20
 
 ### Fixed
+
 - **Personality Alias Conflict Resolution** - Fixed regression where personality seeding would fail when display name aliases conflicted
   - Personality seeding now generates unique aliases when conflicts occur, replicating legacy system behavior
   - Smart alias generation tries using parts of full personality name (e.g., "claude" → "claude-3" for "claude-3-sonnet")
@@ -645,6 +707,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added proper alias resolution in CommandIntegrationAdapter to check the primary command name for category routing
 
 ### Changed
+
 - **Documentation Updates** - Enhanced development workflow documentation
   - Added rebase strategy documentation for release merges to main branch
   - Updated LICENSE file for 2025
@@ -652,6 +715,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - 2025-06-19
 
 ### Added
+
 - **🏗️ Complete DDD Architecture Implementation** - Major infrastructure transformation with Domain-Driven Design
   - Built comprehensive dual-architecture system with feature flag controls
   - **18 commands reimplemented** with modern DDD patterns and clean architecture
@@ -712,6 +776,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provides up to 10 recent messages, 5 memories, and 3 knowledge items in context
 
 ### Fixed
+
 - **🔐 Enhanced Security & Authentication** - Multiple security and stability improvements
   - **DDD-aware personality lookups**: Enhanced personality resolution for replies and references
   - **Enhanced NSFW verification**: Better thread support and edge case handling
@@ -731,6 +796,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Better foundation for addressing technical debt**: DDD system provides clean patterns for future improvements
 
 ### Changed
+
 - **🏗️ Architecture Evolution** - Preparation for future migration
   - **Dual-system approach**: Both legacy and DDD systems running in parallel
   - **Feature flag controlled**: All new functionality controlled by feature flags
@@ -750,12 +816,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Documentation standards**: Comprehensive documentation for all new features
 
 ### Technical Details
+
 - **201 commits** between versions with **564 files** modified
 - **90,341 insertions** and **20,471 deletions** showing massive transformation
 - **Major version**: DDD system will be activated in production via feature flags
 - **Production ready**: New DDD system fully tested and ready for deployment
 
 ### Breaking Changes
+
 - **Architecture Migration**: While user-facing functionality remains identical, the underlying architecture has been completely rebuilt with DDD patterns
 - **Feature Flag Activation**: DDD system will be enabled in production, representing a major architectural change
 - **Command System**: All commands now run on the new DDD architecture (transparent to users)
@@ -764,6 +832,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.2] - 2025-06-06
 
 ### Fixed
+
 - **Release Notification Categorization** - Fixed incorrect categorization of changelog sections
   - "Changed" sections no longer appear as "Breaking Changes" in notifications
   - Changed sections now correctly display under "Other Changes" with a wrench icon
@@ -772,6 +841,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.1] - 2025-06-06
 
 ### Changed
+
 - **Environment Variable Standardization** - Simplified configuration across environments (#84)
   - Unified variable names (removed DEV-specific variants like `DISCORD_DEV_TOKEN`)
   - All bot-specific variables now use `BOT_` prefix for consistency
@@ -782,6 +852,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2025-06-06
 
 ### Added
+
 - **Local Avatar Storage System** - Bot now downloads and serves personality avatars locally (#79)
   - Prevents Discord from blocking external avatar URLs
   - Implements lazy loading with checksum-based change detection
@@ -790,6 +861,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full support for thread messages and webhook messages
 
 ### Fixed
+
 - **Critical: Duplicate AI Request Prevention** - Enhanced request deduplication to prevent multiple API calls (#78)
   - Adds Discord message ID to request tracking for better uniqueness
   - Implements content hashing for improved deduplication
@@ -808,6 +880,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Eliminates code duplication between regular and thread message paths
 
 ### Changed
+
 - **Timer Pattern Enforcement** - Enhanced test infrastructure
   - Timer pattern checker now detects indirect timer usage
   - Added test timeout detection to pre-commit hooks
@@ -816,6 +889,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.1] - 2025-06-06
 
 ### Fixed
+
 - **First-run notification system** - Fixed multiple issues preventing first-time users from receiving release notifications (#72, #73, #75)
   - Clear orphaned version files when no notifications have been sent
   - Migrate existing authenticated users to notification system on startup
@@ -830,6 +904,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ensures correct prefix display in both production (!tz) and development (!rtz)
 
 ### Added
+
 - Comprehensive test coverage for notification system edge cases
 - Mock method verification script and documentation
 - Hardcoded prefix detection script with pre-commit enforcement
@@ -837,6 +912,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2025-06-05
 
 ### Added
+
 - **Modular HTTP Server** - New lightweight HTTP server infrastructure for health checks and webhooks (#69)
   - Health check endpoint at `/health` with comprehensive system metrics
   - GitHub webhook endpoint at `/webhook/github` for automated release notifications
@@ -852,17 +928,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents notification spam during rapid deployments
 
 ### Fixed
+
 - **Critical**: Discord status display bug - Status 0 (READY) was incorrectly showing as DISCONNECTED in health checks
 - Webhook route tests converted from callback-style to promise-based async patterns
 - All ESLint `jest/no-done-callback` errors in webhook tests
 
 ### Changed
+
 - Added `createGitHubWebhookHandler` export for better testability of webhook routes
 - Improved GitHubReleaseClient version filtering logic
 
 ## [1.1.0] - 2025-06-05
 
 ### Added
+
 - **Release Notification System** - Bot now automatically notifies authenticated users via DM when new versions are deployed (#65)
   - Automatic version checking on bot startup
   - Opt-in by default with customizable preferences
@@ -873,36 +952,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced versioning documentation with Discord bot-specific guidance
 
 ### Fixed
+
 - **Personality error messages** - Custom error messages now properly display for all error types including empty_response (#64)
 - Added lazy loading for personalities missing the errorMessage field (registered before the feature existed)
 
 ### Changed
+
 - Updated anti-pattern checker to better handle fs.promises operations
 
 ## [1.0.2] - 2025-06-05
 
 ### Fixed
+
 - **Critical**: Webhook personality detection for usernames with pipe characters - handles usernames like "Desidara | תשב" (#62)
 - **Critical**: Race condition in AI service causing duplicate API calls and message duplication (#61)
 
 ### Changed
+
 - Improved webhook username parsing to extract base name before pipe character
 - Increased AI request timeout from 1 minute to 5 minutes for slow API responses
 - Fixed function calls from refactor (`listPersonalitiesForUser` → `getAllPersonalities`)
 
 ### Added
+
 - Comprehensive test coverage for webhook username parsing (24 new tests)
 - Documentation for webhook personality detection patterns
 
 ## [1.0.1] - 2025-06-04
 
 ### Fixed
+
 - **Critical**: Remove command parameter order bug - users can now successfully remove personalities (#59)
 - Fixed test parameter calls in info command tests to match actual PersonalityManager API
 
 ## [1.0.0] - 2025-06-04
 
 ### Added
+
 - Personality-specific error messages - errors now use personality-appropriate responses (#54)
 - Enhanced debug commands:
   - `!tz debug unverify` - for testing NSFW verification flows
@@ -911,18 +997,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test coverage for thread NSFW verification (15 new tests)
 
 ### Fixed
+
 - **Critical**: Add command parameter order bug - users can now properly add personalities (#56)
 - **Critical**: NSFW verification for threads and forums - threads now inherit NSFW status from parent channels (#57)
 - NSFW verification requirement for DMs - DMs now properly require verification (#53)
 - Webhook handling and various NSFW verification edge cases (#52)
 
 ### Changed
+
 - Improved NSFW error messages with clearer instructions
 - Enhanced debug output formatting
 
 ## [0.1.0] - Initial Release
 
 ### Added
+
 - Core Discord bot functionality with webhook personality system
 - Basic command system
 - NSFW verification system

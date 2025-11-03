@@ -17,12 +17,14 @@ Redis timeouts are occurring across all services (api-gateway, ai-worker, bot-cl
 **Problem**: Without explicit timeouts, connections can hang indefinitely waiting for Redis responses.
 
 **Affected Files**:
+
 - `services/api-gateway/src/queue.ts` (BullMQ Queue + QueueEvents)
 - `services/ai-worker/src/index.ts` (BullMQ Worker)
 - `services/ai-worker/src/redis.ts` (redis client)
 - `services/bot-client/src/redis.ts` (redis client)
 
 **Missing Configurations**:
+
 ```typescript
 {
   socket: {
@@ -42,6 +44,7 @@ Redis timeouts are occurring across all services (api-gateway, ai-worker, bot-cl
 **Problem**: Unlimited connections can exhaust Railway's Redis connection limits or create resource leaks.
 
 **Recommendation**: Set reasonable connection pool limits:
+
 ```typescript
 {
   socket: {
@@ -60,6 +63,7 @@ Redis timeouts are occurring across all services (api-gateway, ai-worker, bot-cl
 **Location**: `services/api-gateway/src/routes/ai.ts:152`
 
 **Problem**: If Redis pub/sub is unreliable due to timeouts, this can cause:
+
 - API requests hanging until timeout
 - Memory leaks from waiting promises
 - Cascading failures in bot-client
@@ -75,6 +79,7 @@ Redis timeouts are occurring across all services (api-gateway, ai-worker, bot-cl
 **Problem**: If Railway's IPv6 network has issues (as might have occurred during downtime), all Redis connections fail.
 
 **Recommendation**: Add fallback to IPv4 or make it configurable:
+
 ```typescript
 {
   socket: {
@@ -91,6 +96,7 @@ Redis timeouts are occurring across all services (api-gateway, ai-worker, bot-cl
 **Problem**: Services don't proactively detect degraded Redis connections until a command fails.
 
 **Recommendation**: Add connection event handlers:
+
 ```typescript
 redis.on('reconnecting', () => {
   logger.warn('[Redis] Attempting to reconnect...');
@@ -106,13 +112,17 @@ Note: bot-client has some of these handlers (`services/bot-client/src/redis.ts:4
 ## Connection Lifecycle Analysis
 
 ### Startup
+
 ✅ **Good**: All services connect to Redis on startup and log connection status.
 
 ### Runtime
+
 ⚠️ **Issue**: No automatic reconnection configuration or circuit breaker pattern.
 
 ### Shutdown
+
 ✅ **Good**: All services properly close Redis connections in graceful shutdown handlers:
+
 - `api-gateway/src/queue.ts:86-91` - Closes QueueEvents and Queue
 - `ai-worker/src/redis.ts:73-77` - Closes Redis client
 - `bot-client/src/redis.ts:151-155` - Closes Redis client
@@ -145,9 +155,9 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisCon
       host: config.host,
       port: config.port,
       family: config.family || 6,
-      connectTimeout: 10000,     // 10s to establish connection
-      commandTimeout: 5000,       // 5s per command
-      keepAlive: 30000,          // 30s TCP keepalive
+      connectTimeout: 10000, // 10s to establish connection
+      commandTimeout: 5000, // 5s per command
+      keepAlive: 30000, // 30s TCP keepalive
       reconnectStrategy: (retries: number) => {
         if (retries > 10) {
           // After 10 retries (30+ seconds), give up
@@ -155,13 +165,13 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisCon
         }
         // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
         return Math.min(retries * 100, 3000);
-      }
+      },
     },
     password: config.password,
     username: config.username,
     maxRetriesPerRequest: 3,
-    lazyConnect: false,          // Fail fast on startup
-    enableReadyCheck: true,      // Verify Redis is ready
+    lazyConnect: false, // Fail fast on startup
+    enableReadyCheck: true, // Verify Redis is ready
   };
 }
 ```
@@ -169,6 +179,7 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisCon
 ### Priority 2: Update All Services to Use New Config (Critical)
 
 **Files to Update**:
+
 1. `services/api-gateway/src/queue.ts`
 2. `services/ai-worker/src/index.ts`
 3. `services/ai-worker/src/redis.ts`
@@ -183,15 +194,14 @@ const redisConfig = {
   port: config.REDIS_PORT,
   password: config.REDIS_PASSWORD,
   family: 6,
-  ...(config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : {})
+  ...(config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : {}),
 };
 
 // AFTER
 import { parseRedisUrl, createRedisSocketConfig } from '@tzurot/common-types';
 
-const parsedUrl = config.REDIS_URL && config.REDIS_URL.length > 0
-  ? parseRedisUrl(config.REDIS_URL)
-  : null;
+const parsedUrl =
+  config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
 
 const redisConfig = createRedisSocketConfig({
   host: parsedUrl?.host || config.REDIS_HOST,
@@ -205,6 +215,7 @@ const redisConfig = createRedisSocketConfig({
 ### Priority 3: Add Connection Event Handlers (Important)
 
 **Files to Update**:
+
 1. `services/api-gateway/src/queue.ts` (add to queueEvents)
 2. `services/ai-worker/src/index.ts` (add to worker)
 
@@ -293,6 +304,7 @@ After applying fixes:
 ## Monitoring Recommendations
 
 Add metrics for:
+
 - Redis connection failures
 - Command timeout rate
 - Reconnection attempts

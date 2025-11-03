@@ -9,6 +9,7 @@
 This plan outlines the implementation of the Message Reference System, which extracts context from Discord replies and message links, adding up to 10 referenced messages to the AI's context.
 
 **Key Features:**
+
 - Extract content from replied-to messages
 - Parse Discord message links in user messages
 - Replace links with numbered references (Reference 1, Reference 2, etc.)
@@ -23,6 +24,7 @@ This plan outlines the implementation of the Message Reference System, which ext
 ### Overall Complexity: **Medium** 🟡
 
 **Why Medium:**
+
 - ✅ **Low Complexity**: Discord API for message fetching is straightforward
 - ✅ **Low Complexity**: Link parsing with regex is simple
 - 🟡 **Medium Complexity**: Coordinating numbered references across message and prompt
@@ -31,6 +33,7 @@ This plan outlines the implementation of the Message Reference System, which ext
 - 🟡 **Medium Complexity**: Persona lookups for referenced message authors
 
 **Estimated Effort:**
+
 - Implementation: 1.5-2 days
 - Testing: 0.5-1 day
 - **Total: 2-3 days**
@@ -42,9 +45,11 @@ This plan outlines the implementation of the Message Reference System, which ext
 ### New Files in bot-client
 
 #### 1. `services/bot-client/src/context/MessageReferenceExtractor.ts`
+
 **Purpose**: Core orchestration - extracts references from Discord messages
 
 **Responsibilities:**
+
 - Detect reply-to message (from `message.reference`)
 - Parse Discord message links from message content
 - Fetch referenced messages from Discord API
@@ -54,6 +59,7 @@ This plan outlines the implementation of the Message Reference System, which ext
 - Return structured reference data with numbering
 
 **Key Methods:**
+
 ```typescript
 export class MessageReferenceExtractor {
   constructor(
@@ -81,15 +87,18 @@ export class MessageReferenceExtractor {
 ---
 
 #### 2. `services/bot-client/src/utils/EmbedParser.ts`
+
 **Purpose**: Parse Discord embeds into LLM-friendly text format
 
 **Responsibilities:**
+
 - Extract title, description, fields, images, footers from embeds
 - Format into readable text structure
 - Handle all Discord embed types (rich, image, video, link, etc.)
 - Preserve important metadata (timestamps, URLs)
 
 **Key Methods:**
+
 ```typescript
 export class EmbedParser {
   parseEmbeds(embeds: Discord.Embed[]): string {
@@ -112,15 +121,18 @@ export class EmbedParser {
 ---
 
 #### 3. `services/bot-client/src/utils/MessageLinkParser.ts`
+
 **Purpose**: Parse Discord message links and extract IDs
 
 **Responsibilities:**
+
 - Regex pattern for Discord message links
 - Extract guild/channel/message IDs from URLs
 - Validate link format
 - Handle different Discord URL formats (discord.com, ptb, canary, discordapp.com)
 
 **Key Methods:**
+
 ```typescript
 export class MessageLinkParser {
   static readonly MESSAGE_LINK_REGEX =
@@ -131,10 +143,7 @@ export class MessageLinkParser {
     // Return array of { guildId, channelId, messageId, fullUrl }
   }
 
-  replaceLinksWithReferences(
-    content: string,
-    linkMap: Map<string, number>
-  ): string {
+  replaceLinksWithReferences(content: string, linkMap: Map<string, number>): string {
     // Replace URLs with "Reference N"
   }
 }
@@ -147,6 +156,7 @@ export class MessageLinkParser {
 #### 4. Test Files
 
 **`services/bot-client/src/context/MessageReferenceExtractor.test.ts`**
+
 - Test reply-to message extraction
 - Test message link parsing
 - Test max reference limit (10)
@@ -158,6 +168,7 @@ export class MessageLinkParser {
 **Estimated Lines**: ~250-300
 
 **`services/bot-client/src/utils/EmbedParser.test.ts`**
+
 - Test all embed types (rich, image, video, link)
 - Test field formatting
 - Test missing/optional embed data
@@ -167,6 +178,7 @@ export class MessageLinkParser {
 **Estimated Lines**: ~150-200
 
 **`services/bot-client/src/utils/MessageLinkParser.test.ts`**
+
 - Test link parsing (all URL formats)
 - Test link replacement with numbers
 - Test invalid URLs
@@ -181,7 +193,9 @@ export class MessageLinkParser {
 ### bot-client Modifications
 
 #### 1. `services/bot-client/src/handlers/MessageHandler.ts`
+
 **Changes Needed:**
+
 - **Add 2-3 second delay after message received** to allow Discord embed processing
 - **Re-fetch message to get processed embeds**
 - Extract embeds from main message using EmbedParser
@@ -194,6 +208,7 @@ export class MessageLinkParser {
 **Lines Changed**: ~50-60 (increased due to embed extraction)
 
 **Example:**
+
 ```typescript
 // After line ~250 (before calling gateway)
 
@@ -217,27 +232,28 @@ const referencesData = await this.referenceExtractor.extractReferences(
 );
 
 // Replace links in content
-const processedContent = referencesData.linkMap.size > 0
-  ? MessageLinkParser.replaceLinksWithReferences(content, referencesData.linkMap)
-  : content;
+const processedContent =
+  referencesData.linkMap.size > 0
+    ? MessageLinkParser.replaceLinksWithReferences(content, referencesData.linkMap)
+    : content;
 
 // Combine message content with embeds
-const fullContent = embedContent
-  ? `${processedContent}\n\n${embedContent}`
-  : processedContent;
+const fullContent = embedContent ? `${processedContent}\n\n${embedContent}` : processedContent;
 
 // Add to context
 const context: MessageContext = {
   // ... existing fields
   referencedMessages: referencesData.references,
-  messageContent: fullContent
+  messageContent: fullContent,
 };
 ```
 
 ---
 
 #### 2. `services/bot-client/src/types.ts`
+
 **Changes Needed:**
+
 - Extend `MessageContext` interface to include `referencedMessages` array
 - Remove simple `referencedMessage` field (replacing with richer structure)
 
@@ -245,6 +261,7 @@ const context: MessageContext = {
 **Lines Changed**: ~15-20
 
 **Example:**
+
 ```typescript
 export interface MessageContext extends Omit<RequestContext, 'conversationHistory'> {
   messageContent: string;
@@ -267,7 +284,9 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
 ### common-types Modifications
 
 #### 3. `packages/common-types/src/schemas.ts`
+
 **Changes Needed:**
+
 - Add `referencedMessages` field to `requestContextSchema`
 - Add `maxReferencedMessages` field to `personalityConfigSchema`
 
@@ -275,21 +294,24 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
 **Lines Changed**: ~25-30
 
 **Example:**
+
 ```typescript
 // In requestContextSchema:
-referencedMessages: z.array(z.object({
-  number: z.number(),
-  author: z.string(),
-  authorPersonaId: z.string().optional(),
-  authorPersonaName: z.string().optional(),
-  content: z.string(),
-  embeds: z.string().optional(),
-  timestamp: z.string(),
-  messageUrl: z.string()
-})).optional()
+referencedMessages: z.array(
+  z.object({
+    number: z.number(),
+    author: z.string(),
+    authorPersonaId: z.string().optional(),
+    authorPersonaName: z.string().optional(),
+    content: z.string(),
+    embeds: z.string().optional(),
+    timestamp: z.string(),
+    messageUrl: z.string(),
+  })
+).optional();
 
 // In personalityConfigSchema:
-maxReferencedMessages: z.number().optional() // Default: 10
+maxReferencedMessages: z.number().optional(); // Default: 10
 ```
 
 ---
@@ -297,7 +319,9 @@ maxReferencedMessages: z.number().optional() // Default: 10
 ### ai-worker Modifications
 
 #### 4. `services/ai-worker/src/services/ConversationalRAGService.ts`
+
 **Changes Needed:**
+
 - Add "Referenced Messages" section to system prompt when references exist
 - Format referenced messages with numbered headers
 - Include persona info if available
@@ -306,21 +330,25 @@ maxReferencedMessages: z.number().optional() // Default: 10
 **Lines Changed**: ~40-50
 
 **Example:**
+
 ```typescript
 // In buildFullSystemPrompt() method, after memoryContext:
 
 // Referenced messages (if any)
-const referencedMessagesContext = context.referencedMessages && context.referencedMessages.length > 0
-  ? '\n\n## Referenced Messages\n' +
-    context.referencedMessages.map((ref) => {
-      const header = `[Reference ${ref.number}]`;
-      const author = ref.authorPersonaName || ref.author;
-      const timestamp = formatMemoryTimestamp(ref.timestamp);
-      const embedInfo = ref.embeds ? `\n${ref.embeds}` : '';
+const referencedMessagesContext =
+  context.referencedMessages && context.referencedMessages.length > 0
+    ? '\n\n## Referenced Messages\n' +
+      context.referencedMessages
+        .map(ref => {
+          const header = `[Reference ${ref.number}]`;
+          const author = ref.authorPersonaName || ref.author;
+          const timestamp = formatMemoryTimestamp(ref.timestamp);
+          const embedInfo = ref.embeds ? `\n${ref.embeds}` : '';
 
-      return `${header} ${author} [${timestamp}]:\n${ref.content}${embedInfo}`;
-    }).join('\n\n')
-  : '';
+          return `${header} ${author} [${timestamp}]:\n${ref.content}${embedInfo}`;
+        })
+        .join('\n\n')
+    : '';
 
 const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${participantsContext}${memoryContext}${referencedMessagesContext}`;
 ```
@@ -332,12 +360,14 @@ const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${pa
 ### Unit Tests (Priority 1)
 
 **MessageLinkParser Tests:**
+
 - ✅ Parse various Discord URL formats
 - ✅ Handle invalid URLs
 - ✅ Replace links with numbered references
 - ✅ Preserve non-link text
 
 **EmbedParser Tests:**
+
 - ✅ Parse rich embeds (title, description, fields)
 - ✅ Parse image embeds
 - ✅ Parse video embeds
@@ -346,6 +376,7 @@ const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${pa
 - ✅ Verify LLM-friendly output
 
 **MessageReferenceExtractor Tests:**
+
 - ✅ Extract reply-to message
 - ✅ Parse message links from content
 - ✅ Deduplicate references
@@ -359,6 +390,7 @@ const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${pa
 ### Integration Tests (Priority 2)
 
 **Full Message Flow:**
+
 - Reply to bot message → Reference extracted
 - Message with Discord link → Link replaced with "Reference 1"
 - Message with multiple links → All replaced with numbers
@@ -388,6 +420,7 @@ const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${pa
 **Good News:** No blocking refactoring needed! The current architecture supports this feature cleanly.
 
 **Why This Works:**
+
 - `MessageHandler` already has extension points (before gateway call)
 - `MessageContext` type is extensible (just add field)
 - `RequestContext` schema accepts additions
@@ -415,12 +448,14 @@ These could improve code quality but aren't blockers:
 ### External Dependencies
 
 **Discord.js API:**
+
 - `message.reference.messageId` - Built-in
 - `channel.messages.fetch(messageId)` - Built-in
 - `message.embeds` - Built-in
 - No new dependencies needed! ✅
 
 **Internal Dependencies:**
+
 - `UserService` (existing) - For persona lookups
 - `ConversationHistoryService` (existing) - Might be useful for caching
 - No new services needed! ✅
@@ -428,23 +463,28 @@ These could improve code quality but aren't blockers:
 ### Integration Points
 
 **1. MessageHandler → MessageReferenceExtractor**
+
 - Call before gateway
 - Pass Discord message object
 - Get back structured reference data
 
 **2. MessageHandler → GatewayClient**
+
 - Include `referencedMessages` in context
 - Pass processed content (links replaced)
 
 **3. GatewayClient → API Gateway**
+
 - Forward `referencedMessages` in request body
 - Validated by schema
 
 **4. API Gateway → AI Worker**
+
 - Pass through in job data
 - No transformation needed
 
 **5. AI Worker → ConversationalRAGService**
+
 - Build "Referenced Messages" prompt section
 - Format with numbering
 
@@ -484,6 +524,7 @@ These could improve code quality but aren't blockers:
    - Continue
 
 **Error Logging:**
+
 - DEBUG level: Normal skips (inaccessible channels)
 - WARN level: Unexpected failures (API errors)
 - ERROR level: Critical failures (should never happen)
@@ -497,6 +538,7 @@ These could improve code quality but aren't blockers:
 **Concern**: Fetching 10 messages sequentially could be slow
 
 **Solution**: Fetch in parallel
+
 ```typescript
 const fetchPromises = linksToParse.map(link =>
   this.fetchMessage(link).catch(err => {
@@ -512,11 +554,13 @@ const results = await Promise.allSettled(fetchPromises);
 ### Caching Opportunities
 
 **Message Cache** (Future Enhancement):
+
 - Cache fetched messages for 5 minutes
 - Key: `${guildId}:${channelId}:${messageId}`
 - Reduces duplicate fetches in rapid conversations
 
 **Persona Cache** (Already Exists):
+
 - UserService already caches personas
 - No additional work needed ✅
 
@@ -527,6 +571,7 @@ const results = await Promise.allSettled(fetchPromises);
 ### Personality Config
 
 Add to `personality.json` files:
+
 ```json
 {
   "maxReferencedMessages": 10
@@ -539,6 +584,7 @@ Add to `personality.json` files:
 ### Global Config (Future)
 
 Could add to bot config later:
+
 - `MAX_REFERENCE_DEPTH` - How many levels deep (currently: 1)
 - `REFERENCE_CACHE_TTL` - Cache duration for fetched messages
 - Not needed for v1 ✅
@@ -690,6 +736,7 @@ These are explicitly NOT part of v1:
 **Files to Modify:** 4 files across services
 
 **Tests Needed:**
+
 - 9+ unit test suites
 - 6+ integration test scenarios
 - 8 manual test scenarios
@@ -697,6 +744,7 @@ These are explicitly NOT part of v1:
 **Blockers:** None! Ready to implement.
 
 **Next Steps:**
+
 1. Review this plan with user
 2. Create feature branch
 3. Start Day 1 implementation
@@ -704,4 +752,4 @@ These are explicitly NOT part of v1:
 
 ---
 
-*Last Updated: 2025-11-02*
+_Last Updated: 2025-11-02_

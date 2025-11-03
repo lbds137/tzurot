@@ -59,10 +59,12 @@
 ### 📦 Deliverables
 
 **Scripts** (2):
+
 - `pnpm import-personality <slug>` - Main import CLI
 - `pnpm cleanup-qdrant` - Qdrant cleanup tool
 
 **Components** (10 files):
+
 - `types.ts` - Type definitions
 - `PersonalityMapper.ts` - Config mapping
 - `AvatarDownloader.ts` - Avatar management
@@ -75,12 +77,14 @@
 - `test-custom-fields.ts` - Field tests
 
 **Documentation** (4 files):
+
 - `README.md` - Component overview
 - `PROGRESS.md` - Development progress
 - `SHAPES_INC_IMPORT_PLAN.md` - Complete import plan
 - `RAILWAY_VOLUME_SETUP.md` - Avatar storage guide
 
 **Integration** (3 files):
+
 - `services/api-gateway/src/index.ts` - Avatar serving
 - `services/api-gateway/src/types.ts` - Health response types
 - `package.json` - CLI commands
@@ -127,11 +131,13 @@ pnpm cleanup-qdrant --collection persona-{uuid}
 ## 🧪 Testing Status
 
 ### ✅ Tested
+
 - PersonalityMapper with cold-kerach-batuach config
 - Custom fields extraction
 - TypeScript builds (all services)
 
 ### ⏳ Pending
+
 - Full end-to-end import (needs Railway environment)
 - Avatar download and serving
 - Qdrant memory storage
@@ -141,6 +147,7 @@ pnpm cleanup-qdrant --collection persona-{uuid}
 ## 📋 Next Steps
 
 ### Immediate (Before Merge)
+
 1. **Test with cold-kerach-batuach**
    - Run full import in Railway environment
    - Verify PostgreSQL records
@@ -154,6 +161,7 @@ pnpm cleanup-qdrant --collection persona-{uuid}
    - Standardize metadata
 
 ### Short Term (After Merge)
+
 3. **Import Lilith**
    - Full import from shapes.inc backup
    - Compare with existing Lilith data
@@ -165,6 +173,7 @@ pnpm cleanup-qdrant --collection persona-{uuid}
    - Track orphaned memories
 
 ### Long Term
+
 5. **Slash Commands**
    - Convert scripts to `/admin import` commands
    - Use command subgroups
@@ -251,6 +260,7 @@ pnpm cleanup-qdrant --collection persona-{uuid}
 ## 🎉 Success Metrics
 
 ### Functionality
+
 - ✅ All 6 core components implemented
 - ✅ All 3 integration points complete
 - ✅ Error handling comprehensive
@@ -258,6 +268,7 @@ pnpm cleanup-qdrant --collection persona-{uuid}
 - ✅ TypeScript builds passing
 
 ### Code Quality
+
 - ✅ Type-safe throughout
 - ✅ Clear separation of concerns
 - ✅ Reusable components
@@ -265,6 +276,7 @@ pnpm cleanup-qdrant --collection persona-{uuid}
 - ✅ Pre-commit checks passing
 
 ### User Experience
+
 - ✅ Clear CLI help text
 - ✅ Progress indicators
 - ✅ Dry run validation
@@ -274,21 +286,25 @@ pnpm cleanup-qdrant --collection persona-{uuid}
 ## 🔮 Future Enhancements
 
 1. **Batch Import**
+
    ```bash
    pnpm import-all-personalities --parallel=3
    ```
 
 2. **Migration Tools**
+
    ```bash
    pnpm migrate-orphaned-memories --from=orphaned --to={uuid}
    ```
 
 3. **LTM Regeneration**
+
    ```bash
    pnpm import-personality lilith --regenerate-ltms
    ```
 
 4. **Interactive Mode**
+
    ```bash
    pnpm import-personality-interactive
    ```

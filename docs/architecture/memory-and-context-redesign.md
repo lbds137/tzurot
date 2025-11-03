@@ -5,11 +5,13 @@
 ### Issue 1: Context Window Size Should Be in LLM Config
 
 **Current State:**
+
 - `contextWindowSize` is on `Personality` model (hardcoded to 20)
 - `AI_DEFAULTS.CONTEXT_WINDOW = 20` constant used as fallback
 - All LLM configs share the same context window
 
 **Problem:**
+
 - Different LLM configs might need different context windows
 - Claude Opus might handle 100 messages well
 - GPT-3.5 might work best with 10 messages
@@ -39,6 +41,7 @@ model Personality {
 ```
 
 **Migration:**
+
 1. Add `contextWindowSize` to `LlmConfig` (default 20)
 2. Copy existing `Personality.contextWindowSize` values to their linked `LlmConfig`
 3. Drop `Personality.contextWindowSize` column
@@ -48,6 +51,7 @@ model Personality {
 ### Issue 2: Long-Term Memory Should Be Per-Persona, Not Per-User
 
 **Current State:**
+
 ```typescript
 // Memories stored per-personality
 const collectionName = `personality-${personalityId}`;
@@ -65,6 +69,7 @@ await this.qdrant.search(collectionName, {
 ```
 
 **Problem:**
+
 - If user has multiple personas (casual vs professional), memories are shared
 - "Casual Alice" and "Professional Alice" should have completely separate memories
 - Current design: memories tied to personality, filtered by user
@@ -73,10 +78,12 @@ await this.qdrant.search(collectionName, {
 **Why This Matters:**
 
 Imagine user Alice has two personas:
+
 - **Casual Alice**: "She/her, loves gaming and memes, informal"
 - **Professional Alice**: "She/her, software engineer, formal and technical"
 
 When talking to WorkBot:
+
 - With current design: Both personas see the same memories (confusing!)
 - With new design: Professional Alice has work-related memories, Casual Alice has gaming memories
 
@@ -114,6 +121,7 @@ metadata: {
 ```
 
 **Benefits:**
+
 1. ✅ Each persona has completely separate memories
 2. ✅ Cleaner data model (persona IS the memory boundary)
 3. ✅ No need for userId filtering (persona already scoped)
@@ -203,6 +211,7 @@ model Personality {
 ## Qdrant Migration Strategy
 
 ### Current Collections
+
 ```
 personality-{lilithId}/
   ├─ vectors for User A (filtered by userId in metadata)
@@ -211,6 +220,7 @@ personality-{lilithId}/
 ```
 
 ### New Collections
+
 ```
 persona-{aliceCasualId}/
   └─ vectors for Alice's casual persona memories
@@ -243,15 +253,15 @@ async function migrateQdrantCollections() {
   const users = await prisma.user.findMany({
     include: {
       defaultPersonaLink: {
-        include: { persona: true }
-      }
-    }
+        include: { persona: true },
+      },
+    },
   });
 
   // 2. Get all personality collections
   const collections = await qdrant.getCollections();
-  const personalityCollections = collections.collections.filter(
-    c => c.name.startsWith('personality-')
+  const personalityCollections = collections.collections.filter(c =>
+    c.name.startsWith('personality-')
   );
 
   for (const collection of personalityCollections) {
@@ -261,7 +271,7 @@ async function migrateQdrantCollections() {
     const points = await qdrant.scroll(collection.name, {
       limit: 10000, // Adjust if you have more
       with_payload: true,
-      with_vector: true
+      with_vector: true,
     });
 
     // 4. Group by userId
@@ -298,12 +308,12 @@ async function migrateQdrantCollections() {
           ...point.payload,
           personaId: personaId,
           // Remove userId (no longer needed)
-          userId: undefined
-        }
+          userId: undefined,
+        },
       }));
 
       await qdrant.upsert(newCollectionName, {
-        points: newPoints
+        points: newPoints,
       });
 
       console.log(`Migrated ${newPoints.length} points for user ${userId} to ${newCollectionName}`);
@@ -317,6 +327,7 @@ async function migrateQdrantCollections() {
 ### Backup Strategy
 
 Before running migration:
+
 ```bash
 # 1. Export all collections (Qdrant Cloud has backup feature)
 # Or manually snapshot each collection
@@ -344,7 +355,7 @@ export class QdrantMemoryService {
    * NEW: searchMemories(personaId, query, options)
    */
   async searchMemories(
-    personaId: string,        // Changed from personalityId
+    personaId: string, // Changed from personalityId
     query: string,
     options: MemorySearchOptions = {}
   ): Promise<Memory[]> {
@@ -352,7 +363,7 @@ export class QdrantMemoryService {
       limit = 10,
       scoreThreshold = 0.7,
       excludeNewerThan,
-      personalityId,          // NEW: optional filter by personality
+      personalityId, // NEW: optional filter by personality
     } = options;
 
     try {
@@ -364,11 +375,11 @@ export class QdrantMemoryService {
       const queryEmbedding = await this.getEmbedding(query);
 
       // Build filter conditions (optional personality filter)
-      const filter = personalityId ? {
-        must: [
-          { key: 'personalityId', match: { value: personalityId } }
-        ]
-      } : undefined;
+      const filter = personalityId
+        ? {
+            must: [{ key: 'personalityId', match: { value: personalityId } }],
+          }
+        : undefined;
 
       // Search in Qdrant
       const searchResults = await this.qdrant.search(collectionName, {
@@ -392,7 +403,6 @@ export class QdrantMemoryService {
         },
         score: result.score,
       }));
-
     } catch (error) {
       logger.error({ err: error }, `Failed to search memories for persona ${personaId}`);
       return [];
@@ -406,10 +416,10 @@ export class QdrantMemoryService {
    * NEW: addMemory(personaId, content, metadata)
    */
   async addMemory(
-    personaId: string,        // Changed from personalityId
+    personaId: string, // Changed from personalityId
     content: string,
     metadata: {
-      personalityId: string;  // Which personality conversation was with
+      personalityId: string; // Which personality conversation was with
       sessionId?: string;
       channelId?: string;
       // userId removed
@@ -450,22 +460,18 @@ export class QdrantMemoryService {
 
 ```typescript
 // OLD:
-const memories = await this.memoryService.searchMemories(
-  personalityId,
-  query,
-  {
-    userId: userId,
-    limit: memoryLimit
-  }
-);
+const memories = await this.memoryService.searchMemories(personalityId, query, {
+  userId: userId,
+  limit: memoryLimit,
+});
 
 // NEW:
 const memories = await this.memoryService.searchMemories(
-  personaId,  // Pass persona instead of personality
+  personaId, // Pass persona instead of personality
   query,
   {
     personalityId: personalityId, // Optional filter
-    limit: memoryLimit
+    limit: memoryLimit,
   }
 );
 ```
@@ -478,21 +484,21 @@ Need to resolve persona before calling memory service:
 // 1. Get user's persona (default or personality-specific override)
 const userConfig = await prisma.userPersonalityConfig.findUnique({
   where: {
-    userId_personalityId: { userId, personalityId }
+    userId_personalityId: { userId, personalityId },
   },
-  include: { persona: true }
+  include: { persona: true },
 });
 
-const persona = userConfig?.persona ||
-                await getUserDefaultPersona(userId) ||
-                await createDefaultPersona(userId);
+const persona =
+  userConfig?.persona ||
+  (await getUserDefaultPersona(userId)) ||
+  (await createDefaultPersona(userId));
 
 // 2. Use persona for memory retrieval
-const memories = await memoryService.searchMemories(
-  persona.id,
-  query,
-  { personalityId, limit: llmConfig.memoryLimit }
-);
+const memories = await memoryService.searchMemories(persona.id, query, {
+  personalityId,
+  limit: llmConfig.memoryLimit,
+});
 
 // 3. Use persona for context building
 const context = await contextBuilder.buildGroupContext(
@@ -508,6 +514,7 @@ const context = await contextBuilder.buildGroupContext(
 ## Implementation Checklist
 
 ### Phase 1: Schema Migration (Postgres)
+
 - [ ] Move `contextWindowSize` from `Personality` to `LlmConfig`
 - [ ] Create `UserDefaultPersona` table
 - [ ] Create `PersonalityDefaultConfig` table
@@ -518,6 +525,7 @@ const context = await contextBuilder.buildGroupContext(
 - [ ] Drop old columns
 
 ### Phase 2: Qdrant Migration
+
 - [ ] Backup all existing Qdrant collections
 - [ ] Write migration script (personality → persona collections)
 - [ ] Run migration in development
@@ -527,6 +535,7 @@ const context = await contextBuilder.buildGroupContext(
 - [ ] Keep old collections as backup for 1 week
 
 ### Phase 3: Application Code
+
 - [ ] Update `QdrantMemoryService` (personaId instead of userId)
 - [ ] Update `ConversationalRAGService` (resolve persona before memory search)
 - [ ] Update `AIJobProcessor` (pass persona to memory service)
@@ -534,6 +543,7 @@ const context = await contextBuilder.buildGroupContext(
 - [ ] Use `llmConfig.contextWindowSize` instead of personality or constant
 
 ### Phase 4: Testing
+
 - [ ] Test persona-scoped memories (create multiple personas for one user)
 - [ ] Test memory isolation (persona A shouldn't see persona B's memories)
 - [ ] Test context window variations (different LLM configs)
@@ -544,12 +554,14 @@ const context = await contextBuilder.buildGroupContext(
 ## Benefits Summary
 
 ### Context Window in LLM Config
+
 ✅ Different models can have different context windows
 ✅ Users can customize per-config
 ✅ Better token management
 ✅ More flexible system
 
 ### Persona-Scoped Memories
+
 ✅ Complete memory isolation per persona
 ✅ Users can have multiple personas with separate experiences
 ✅ Cleaner data model (no userId filtering needed)
@@ -563,10 +575,12 @@ const context = await contextBuilder.buildGroupContext(
 **Collection naming**: Should we keep `persona-{uuid}` or use something more readable?
 
 **Option A**: `persona-{uuid}` (current proposal)
+
 - Pro: Guaranteed unique, works with UUIDs
 - Con: Hard to debug/inspect
 
 **Option B**: `user-{userId}-persona-{personaName}`
+
 - Pro: Human-readable
 - Con: Need to handle name changes, special characters
 - Con: Longer names

@@ -25,7 +25,5 @@ export function replacePromptPlaceholders(
   userName: string,
   assistantName: string
 ): string {
-  return text
-    .replace(/\{user\}/g, userName)
-    .replace(/\{assistant\}/g, assistantName);
+  return text.replace(/\{user\}/g, userName).replace(/\{assistant\}/g, assistantName);
 }

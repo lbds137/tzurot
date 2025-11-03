@@ -120,6 +120,7 @@ Creates verified mapping + updates all memories
 ## Query Patterns
 
 ### Current Persona Memories (for RAG)
+
 ```sql
 -- Get memories for current conversations
 SELECT * FROM memories
@@ -130,6 +131,7 @@ LIMIT 10;
 ```
 
 ### Legacy Unmapped Memories (for admin review)
+
 ```sql
 -- Find all unmapped legacy memories
 SELECT
@@ -144,6 +146,7 @@ ORDER BY memory_count DESC;
 ```
 
 ### User's Total Memories (mapped + legacy)
+
 ```sql
 -- All memories for a persona (including claimed legacy)
 SELECT * FROM memories
@@ -163,11 +166,13 @@ ORDER BY created_at DESC;
 ### Foreign Key Strategy
 
 **persona_id:**
+
 - Nullable for unmapped legacy memories
 - Has FK constraint when populated
 - CASCADE delete: if persona deleted, memories are deleted too
 
 **legacy_shapes_user_id:**
+
 - No FK constraint (shapes.inc users don't exist in our DB)
 - Just a string UUID for tracking
 - Never NULL for legacy memories
@@ -184,6 +189,7 @@ ORDER BY created_at DESC;
 ## Migration SQL
 
 ### Create shapes_persona_mappings table
+
 ```sql
 CREATE TABLE shapes_persona_mappings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -198,6 +204,7 @@ CREATE INDEX idx_shapes_persona_mappings_persona ON shapes_persona_mappings(pers
 ```
 
 ### Alter memories table
+
 ```sql
 -- Make persona_id nullable
 ALTER TABLE memories ALTER COLUMN persona_id DROP NOT NULL;
@@ -259,11 +266,13 @@ If we need to revert:
 **User "Lila" (Discord: 278863839632818186):**
 
 Current state:
+
 - Has tzurot v3 user account
 - Has default persona UUID: `57240faf-...`
 - Used shapes.inc with user UUID: `98a94b95-...`
 
 After migration:
+
 1. **Import:** 1,234 memories with `legacy_shapes_user_id = 98a94b95-...`, `persona_id = NULL`
 2. **User runs:** `/claim-legacy-data 98a94b95-cbd0-430b-8be2-602e1c75d8b0`
 3. **Mapping created:** `98a94b95-...` → `57240faf-...`

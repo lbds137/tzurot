@@ -9,16 +9,19 @@ Yes, databases are scarier than JSON files for backups. JSON files are just... f
 ### Layer 1: Railway Automatic Backups (Built-in)
 
 Railway Postgres includes:
+
 - **Automatic daily backups** (retained for 7 days on Hobby plan, 14 days on Pro)
 - **Point-in-time recovery** (PITR) for Pro plans
 - **One-click restore** via Railway dashboard
 
 **Pros:**
+
 - Zero config required
 - Automatic and reliable
 - Quick recovery
 
 **Cons:**
+
 - Limited retention (7-14 days)
 - Tied to Railway platform
 - No local copy
@@ -58,13 +61,14 @@ rm "$BACKUP_FILE"
 ```
 
 **Set up via GitHub Actions:**
+
 ```yaml
 # .github/workflows/backup-database.yml
 name: Daily Database Backup
 on:
   schedule:
-    - cron: '0 3 * * *'  # 3 AM daily
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 3 * * *' # 3 AM daily
+  workflow_dispatch: # Manual trigger
 
 jobs:
   backup:
@@ -84,12 +88,14 @@ jobs:
 ```
 
 **Pros:**
+
 - External storage (survives Railway issues)
 - Long retention (30+ days)
 - Automated
 - Cheap ($0.50-1/month for storage)
 
 **Cons:**
+
 - Requires setup
 - Additional service dependency
 
@@ -111,12 +117,14 @@ git push
 ```
 
 **Pros:**
+
 - Human-readable format
 - Version controlled in git
 - Easy to inspect/edit manually
 - Can restore without database
 
 **Cons:**
+
 - Not a full backup (just personalities)
 - Manual intervention possible
 
@@ -133,18 +141,19 @@ psql -d tzurot_dev < local-backup.sql
 ```
 
 **Pros:**
+
 - Another copy of data
 - Can test restores locally
 - Development seed data
 
 ## Backup Retention Policy
 
-| Backup Type | Frequency | Retention | Location |
-|-------------|-----------|-----------|----------|
-| Railway automatic | Daily | 7-14 days | Railway |
-| pg_dump to S3/R2 | Daily | 30 days | External storage |
-| JSON export | Weekly | Forever (git) | Git repo |
-| Local dev | On-demand | Varies | Developer machines |
+| Backup Type       | Frequency | Retention     | Location           |
+| ----------------- | --------- | ------------- | ------------------ |
+| Railway automatic | Daily     | 7-14 days     | Railway            |
+| pg_dump to S3/R2  | Daily     | 30 days       | External storage   |
+| JSON export       | Weekly    | Forever (git) | Git repo           |
+| Local dev         | On-demand | Varies        | Developer machines |
 
 ## Disaster Recovery Plan
 
@@ -179,6 +188,7 @@ psql -d tzurot_dev < local-backup.sql
 ## Testing Backup Restoration
 
 **Monthly drill:**
+
 ```bash
 # 1. Download latest backup
 aws s3 cp s3://tzurot-backups/latest.sql.gz .
@@ -200,6 +210,7 @@ psql -c "DROP DATABASE tzurot_restore_test;"
 ## Monitoring & Alerts
 
 **Set up alerts for:**
+
 - Backup job failures (GitHub Actions email)
 - S3/R2 upload failures (webhook to Discord)
 - Railway backup age > 2 days
@@ -207,12 +218,12 @@ psql -c "DROP DATABASE tzurot_restore_test;"
 
 ## Cost Estimate
 
-| Service | Cost | Notes |
-|---------|------|-------|
-| Railway Postgres | $5/month | Hobby plan |
-| Cloudflare R2 | $0.50/month | 10GB storage, no egress |
-| GitHub Actions | Free | 2000 minutes/month |
-| **Total** | **$5.50/month** | |
+| Service          | Cost            | Notes                   |
+| ---------------- | --------------- | ----------------------- |
+| Railway Postgres | $5/month        | Hobby plan              |
+| Cloudflare R2    | $0.50/month     | 10GB storage, no egress |
+| GitHub Actions   | Free            | 2000 minutes/month      |
+| **Total**        | **$5.50/month** |                         |
 
 ## Implementation Checklist
 
@@ -228,23 +239,24 @@ psql -c "DROP DATABASE tzurot_restore_test;"
 
 ## JSON Files vs Database: The Real Comparison
 
-| Aspect | JSON Files | Postgres + Backups |
-|--------|-----------|-------------------|
-| **Simplicity** | ✅ Just files | ⚠️ Requires strategy |
-| **Version Control** | ✅ Native git | ⚠️ Requires export |
-| **Backup** | ✅ `cp` works | ⚠️ Multiple layers needed |
-| **Restore** | ✅ `cp` back | ⚠️ pg_restore |
-| **Concurrent Access** | ❌ File locks | ✅ ACID transactions |
-| **Relationships** | ❌ Manual | ✅ Foreign keys |
-| **Query Performance** | ❌ Load all | ✅ Indexed |
-| **Schema Evolution** | ❌ Migration hell | ✅ ALTER TABLE |
-| **Data Integrity** | ❌ Hope for best | ✅ Constraints |
+| Aspect                | JSON Files        | Postgres + Backups        |
+| --------------------- | ----------------- | ------------------------- |
+| **Simplicity**        | ✅ Just files     | ⚠️ Requires strategy      |
+| **Version Control**   | ✅ Native git     | ⚠️ Requires export        |
+| **Backup**            | ✅ `cp` works     | ⚠️ Multiple layers needed |
+| **Restore**           | ✅ `cp` back      | ⚠️ pg_restore             |
+| **Concurrent Access** | ❌ File locks     | ✅ ACID transactions      |
+| **Relationships**     | ❌ Manual         | ✅ Foreign keys           |
+| **Query Performance** | ❌ Load all       | ✅ Indexed                |
+| **Schema Evolution**  | ❌ Migration hell | ✅ ALTER TABLE            |
+| **Data Integrity**    | ❌ Hope for best  | ✅ Constraints            |
 
 ## The Reality
 
 **JSON files are simpler... until they're not.**
 
 Once you need:
+
 - Multiple users editing same personality
 - Transactional updates
 - Complex queries
@@ -256,14 +268,17 @@ Once you need:
 ## Quick Win: Start Simple
 
 **Phase 1 (Day 1):**
+
 - Use Railway automatic backups only
 - **This is already better than JSON files** (automatic, tested, reliable)
 
 **Phase 2 (Week 1):**
+
 - Add S3/R2 daily dumps
 - Sleep better at night
 
 **Phase 3 (Month 1):**
+
 - Add JSON exports for compatibility
 - Test restore process
 - Set up monitoring

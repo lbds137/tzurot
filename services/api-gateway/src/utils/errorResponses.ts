@@ -21,7 +21,7 @@ export enum ErrorCode {
   JOB_NOT_FOUND = 'JOB_NOT_FOUND',
   PROCESSING_ERROR = 'PROCESSING_ERROR',
   SYNC_ERROR = 'SYNC_ERROR',
-  METRICS_ERROR = 'METRICS_ERROR'
+  METRICS_ERROR = 'METRICS_ERROR',
 }
 
 /**
@@ -38,7 +38,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = {
   [ErrorCode.JOB_NOT_FOUND]: 404,
   [ErrorCode.PROCESSING_ERROR]: 500,
   [ErrorCode.SYNC_ERROR]: 500,
-  [ErrorCode.METRICS_ERROR]: 500
+  [ErrorCode.METRICS_ERROR]: 500,
 };
 
 /**
@@ -58,7 +58,7 @@ export function createErrorResponse(
     error: errorCode,
     message,
     ...(requestId && { requestId }),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 }
 
@@ -97,8 +97,10 @@ export const ErrorResponses = {
   validationError: (message: string, requestId?: string) =>
     createErrorResponse(ErrorCode.VALIDATION_ERROR, message, requestId),
 
-  unauthorized: (message: string = 'This endpoint is only available to the bot owner', requestId?: string) =>
-    createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
+  unauthorized: (
+    message: string = 'This endpoint is only available to the bot owner',
+    requestId?: string
+  ) => createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
 
   notFound: (resource: string, requestId?: string) =>
     createErrorResponse(ErrorCode.NOT_FOUND, `${resource} not found`, requestId),
@@ -125,5 +127,5 @@ export const ErrorResponses = {
     createErrorResponse(ErrorCode.SYNC_ERROR, message, requestId),
 
   metricsError: (message: string, requestId?: string) =>
-    createErrorResponse(ErrorCode.METRICS_ERROR, message, requestId)
+    createErrorResponse(ErrorCode.METRICS_ERROR, message, requestId),
 };

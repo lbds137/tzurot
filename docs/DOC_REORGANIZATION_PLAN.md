@@ -138,6 +138,7 @@ tzurot/
 ## Guidelines for Future Docs
 
 ### Root Level (Only 4 files)
+
 - `README.md` - Project overview, quick start
 - `CHANGELOG.md` - Version history
 - `CLAUDE.md` - Claude Code instructions
@@ -146,36 +147,47 @@ tzurot/
 ### docs/ Categories
 
 **architecture/** - Design decisions, patterns, system design
+
 - Naming: Describe the topic, not the action (e.g., "Memory Format" not "Memory Format Comparison")
 
 **deployment/** - Deployment procedures and guides
+
 - Railway configuration, environment setup, deployment checklist
 
 **guides/** - How-to guides for developers
+
 - Development setup, testing, debugging
 
 **migration/** - Data migration guides
+
 - Step-by-step migration procedures with examples
 
 **planning/** - Project planning and roadmaps
+
 - Feature planning, code reviews, tracking docs
 
 **features/** - Feature-specific documentation
+
 - Detailed feature specs, user stories
 
 **improvements/** - Improvement proposals
+
 - Not-yet-implemented enhancements
 
 **operations/** - Operational procedures
+
 - Backup, monitoring, incident response
 
 **reference/** - Reference documentation
+
 - CLI references, API docs, configuration options
 
 **templates/** - Reusable document templates
+
 - Use these to maintain consistency
 
 **archive/** - Completed/obsolete documentation
+
 - One-time audits, completed plans, historical records
 
 ## Next Steps

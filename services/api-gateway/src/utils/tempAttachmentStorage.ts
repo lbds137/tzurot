@@ -24,10 +24,7 @@ const TEMP_STORAGE_BASE = '/data/temp-attachments';
  * Resize image if it exceeds the maximum size limit
  * Returns the resized buffer or original if no resize needed
  */
-async function resizeImageIfNeeded(
-  buffer: Buffer,
-  contentType: string
-): Promise<Buffer> {
+async function resizeImageIfNeeded(buffer: Buffer, contentType: string): Promise<Buffer> {
   const originalSize = buffer.byteLength;
 
   // Only resize images
@@ -136,7 +133,7 @@ export async function downloadAndStoreAttachments(
       ...attachment,
       originalUrl: attachment.url, // Discord CDN URL (for caching lookups)
       url: localUrl, // Local Railway URL (for fetching)
-      size: buffer.byteLength
+      size: buffer.byteLength,
     };
   });
 
@@ -170,9 +167,6 @@ export async function cleanupAttachments(requestId: string): Promise<void> {
     await rm(requestDir, { recursive: true, force: true });
     logger.info({ requestId }, 'Cleaned up temporary attachments');
   } catch (error) {
-    logger.error(
-      { err: error, requestId },
-      'Failed to clean up temporary attachments'
-    );
+    logger.error({ err: error, requestId }, 'Failed to clean up temporary attachments');
   }
 }

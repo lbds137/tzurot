@@ -15,9 +15,13 @@ export {
   createBullMQRedisConfig,
   type RedisConnectionConfig,
   type RedisSocketConfig,
-  type BullMQRedisConfig
+  type BullMQRedisConfig,
 } from './redis-utils.js';
-export { CircuitBreaker, type CircuitState, type CircuitBreakerOptions } from './circuit-breaker.js';
+export {
+  CircuitBreaker,
+  type CircuitState,
+  type CircuitBreakerOptions,
+} from './circuit-breaker.js';
 
 // Export services
 export * from './services/prisma.js';

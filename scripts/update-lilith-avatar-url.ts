@@ -23,8 +23,8 @@ async function main() {
     select: {
       id: true,
       name: true,
-      avatarUrl: true
-    }
+      avatarUrl: true,
+    },
   });
 
   console.log('✓ Updated personality:', result.name);
@@ -35,7 +35,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('❌ Error:', error);
   process.exit(1);
 });

@@ -19,8 +19,8 @@ export interface ConversationHistory {
   }[];
 }
 
-export type MessageContent = 
-  | string 
+export type MessageContent =
+  | string
   | {
       content: string;
       referencedMessage?: {

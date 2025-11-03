@@ -9,7 +9,7 @@ import {
   createMockTextChannel,
   createMockUser,
   createMockGuild,
-  createMockCollection
+  createMockCollection,
 } from '../test/mocks/Discord.mock.js';
 import type { Client, Message, TextChannel } from 'discord.js';
 
@@ -19,8 +19,8 @@ vi.mock('@tzurot/common-types', () => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
-  }))
+    error: vi.fn(),
+  })),
 }));
 
 describe('MessageReferenceExtractor', () => {
@@ -31,7 +31,7 @@ describe('MessageReferenceExtractor', () => {
     // Use 0ms delay for faster tests
     extractor = new MessageReferenceExtractor({
       maxReferences: 10,
-      embedProcessingDelayMs: 0
+      embedProcessingDelayMs: 0,
     });
   });
 
@@ -42,7 +42,7 @@ describe('MessageReferenceExtractor', () => {
     return createMockTextChannel({
       isDMBased: vi.fn(() => false),
       isTextBased: vi.fn(() => true),
-      ...overrides
+      ...overrides,
     });
   }
 
@@ -50,14 +50,14 @@ describe('MessageReferenceExtractor', () => {
     it('should return empty array for message with no references', async () => {
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(createMockMessage())
-        }
+          fetch: vi.fn().mockResolvedValue(createMockMessage()),
+        },
       });
 
       const message = createMockMessage({
         content: 'Hello world',
         reference: null,
-        channel: mockChannel
+        channel: mockChannel,
       });
 
       const references = await extractor.extractReferences(message);
@@ -73,7 +73,7 @@ describe('MessageReferenceExtractor', () => {
         content: 'Original message',
         author: createMockUser({ username: 'OriginalUser' }),
         createdAt: new Date('2025-11-02T12:00:00Z'),
-        channel: referencedChannel
+        channel: referencedChannel,
       });
 
       // Create channel first
@@ -85,12 +85,12 @@ describe('MessageReferenceExtractor', () => {
         content: 'Reply message',
         channel: mockChannel,
         reference: { messageId: 'referenced-123' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
       });
 
       // Configure channel to return this message when fetched
       mockChannel.messages = {
-        fetch: vi.fn().mockResolvedValue(message)
+        fetch: vi.fn().mockResolvedValue(message),
       };
 
       const references = await extractor.extractReferences(message);
@@ -107,41 +107,37 @@ describe('MessageReferenceExtractor', () => {
         id: 'linked-456',
         content: 'Linked message content',
         author: createMockUser({ username: 'LinkedUser' }),
-        channel: linkedChannel
+        channel: linkedChannel,
       });
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn().mockResolvedValue(linkedMessage)
-        }
+          fetch: vi.fn().mockResolvedValue(linkedMessage),
+        },
       });
 
       guild.channels = {
-        cache: createMockCollection([
-          [linkTargetChannel.id, linkTargetChannel]
-        ])
+        cache: createMockCollection([[linkTargetChannel.id, linkTargetChannel]]),
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([
-            [guild.id, guild]
-          ])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       const message = createMockMessage({
         content: 'Check this https://discord.com/channels/123/456/789',
         reference: null,
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -158,7 +154,7 @@ describe('MessageReferenceExtractor', () => {
         id: 'referenced-123',
         content: 'Original',
         author: createMockUser({ username: 'User1' }),
-        channel: referencedChannel
+        channel: referencedChannel,
       });
 
       const linkedChannel = createConfiguredChannel({});
@@ -166,42 +162,38 @@ describe('MessageReferenceExtractor', () => {
         id: 'linked-456',
         content: 'Linked',
         author: createMockUser({ username: 'User2' }),
-        channel: linkedChannel
+        channel: linkedChannel,
       });
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn().mockResolvedValue(linkedMessage)
-        }
+          fetch: vi.fn().mockResolvedValue(linkedMessage),
+        },
       });
 
       guild.channels = {
-        cache: createMockCollection([
-          [linkTargetChannel.id, linkTargetChannel]
-        ])
+        cache: createMockCollection([[linkTargetChannel.id, linkTargetChannel]]),
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([
-            [guild.id, guild]
-          ])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       const message = createMockMessage({
         content: 'Check https://discord.com/channels/123/456/789',
         reference: { messageId: 'referenced-123' } as any,
         fetchReference: vi.fn().mockResolvedValue(referencedMessage),
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -217,57 +209,72 @@ describe('MessageReferenceExtractor', () => {
     it('should limit references to maxReferences', async () => {
       extractor = new MessageReferenceExtractor({
         maxReferences: 2,
-        embedProcessingDelayMs: 0
+        embedProcessingDelayMs: 0,
       });
 
       const referencedChannel = createConfiguredChannel({});
       const referencedMessage = createMockMessage({
         content: 'Referenced',
         author: createMockUser({ username: 'User1' }),
-        channel: referencedChannel
+        channel: referencedChannel,
       });
 
       const linkedChannel = createConfiguredChannel({});
       const linkedMessages = [
-        createMockMessage({ id: 'link-1', content: 'Link 1', author: createMockUser({ username: 'User2' }), channel: linkedChannel }),
-        createMockMessage({ id: 'link-2', content: 'Link 2', author: createMockUser({ username: 'User3' }), channel: linkedChannel }),
-        createMockMessage({ id: 'link-3', content: 'Link 3', author: createMockUser({ username: 'User4' }), channel: linkedChannel })
+        createMockMessage({
+          id: 'link-1',
+          content: 'Link 1',
+          author: createMockUser({ username: 'User2' }),
+          channel: linkedChannel,
+        }),
+        createMockMessage({
+          id: 'link-2',
+          content: 'Link 2',
+          author: createMockUser({ username: 'User3' }),
+          channel: linkedChannel,
+        }),
+        createMockMessage({
+          id: 'link-3',
+          content: 'Link 3',
+          author: createMockUser({ username: 'User4' }),
+          channel: linkedChannel,
+        }),
       ];
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn()
+          fetch: vi
+            .fn()
             .mockResolvedValueOnce(linkedMessages[0])
             .mockResolvedValueOnce(linkedMessages[1])
-            .mockResolvedValueOnce(linkedMessages[2])
-        }
+            .mockResolvedValueOnce(linkedMessages[2]),
+        },
       });
 
       guild.channels = {
-        cache: createMockCollection([
-          [linkTargetChannel.id, linkTargetChannel]
-        ])
+        cache: createMockCollection([[linkTargetChannel.id, linkTargetChannel]]),
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([[guild.id, guild]])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       const message = createMockMessage({
-        content: 'https://discord.com/channels/123/456/1 https://discord.com/channels/123/456/2 https://discord.com/channels/123/456/3',
+        content:
+          'https://discord.com/channels/123/456/1 https://discord.com/channels/123/456/2 https://discord.com/channels/123/456/3',
         reference: { messageId: 'referenced-123' } as any,
         fetchReference: vi.fn().mockResolvedValue(referencedMessage),
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -280,13 +287,13 @@ describe('MessageReferenceExtractor', () => {
       const message = createMockMessage({
         content: 'Reply to deleted message',
         reference: { messageId: 'deleted-123' } as any,
-        fetchReference: vi.fn().mockRejectedValue(new Error('Unknown Message'))
+        fetchReference: vi.fn().mockRejectedValue(new Error('Unknown Message')),
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -298,20 +305,20 @@ describe('MessageReferenceExtractor', () => {
     it('should skip inaccessible guild references silently', async () => {
       const client = {
         guilds: {
-          cache: createMockCollection() // Empty - guild not accessible
-        }
+          cache: createMockCollection(), // Empty - guild not accessible
+        },
       } as any as Client;
 
       const message = createMockMessage({
         content: 'Link to inaccessible guild https://discord.com/channels/999/456/789',
         reference: null,
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -323,25 +330,25 @@ describe('MessageReferenceExtractor', () => {
     it('should skip inaccessible channel references silently', async () => {
       const guild = createMockGuild({ id: '123' });
       guild.channels = {
-        cache: createMockCollection() // Empty - channel not accessible
+        cache: createMockCollection(), // Empty - channel not accessible
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([[guild.id, guild]])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       const message = createMockMessage({
         content: 'Link to inaccessible channel https://discord.com/channels/123/999/789',
         reference: null,
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -359,22 +366,22 @@ describe('MessageReferenceExtractor', () => {
           {
             toJSON: () => ({
               title: 'Embed Title',
-              description: 'Embed Description'
-            })
-          }
-        ] as any
+              description: 'Embed Description',
+            }),
+          },
+        ] as any,
       });
 
       const message = createMockMessage({
         content: 'Reply',
         reference: { messageId: 'ref-123' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -392,19 +399,19 @@ describe('MessageReferenceExtractor', () => {
       const referencedMessage = createMockMessage({
         content: 'Message',
         guild,
-        channel
+        channel,
       });
 
       const message = createMockMessage({
         content: 'Reply',
         reference: { messageId: 'ref-123' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -420,20 +427,20 @@ describe('MessageReferenceExtractor', () => {
       const referencedMessage = createMockMessage({
         content: 'DM message',
         guild: null,
-        channel: referencedChannel
+        channel: referencedChannel,
       });
 
       const message = createMockMessage({
         content: 'DM reply',
         guild: null,
         reference: { messageId: 'dm-ref' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -445,12 +452,16 @@ describe('MessageReferenceExtractor', () => {
   });
 
   describe('Conversation History Deduplication', () => {
+    // Deduplication uses EXACT Discord message ID matching only
+    // Fuzzy timestamp matching was removed in PR #212 because it incorrectly
+    // excluded messages from different channels with overlapping timestamps
+
     it('should exclude referenced message that is already in conversation history (exact match)', async () => {
       // Setup: Create extractor with conversation history message IDs
       const historyMessageIds = ['msg-in-history-123'];
       const extractor = new MessageReferenceExtractor({
         conversationHistoryMessageIds: historyMessageIds,
-        embedProcessingDelayMs: 0
+        embedProcessingDelayMs: 0,
       });
 
       const referencedChannel = createConfiguredChannel({});
@@ -459,20 +470,20 @@ describe('MessageReferenceExtractor', () => {
         content: 'Already in history',
         author: createMockUser({ username: 'HistoryUser' }),
         channel: referencedChannel,
-        createdAt: new Date('2025-11-02T10:00:00Z')
+        createdAt: new Date('2025-11-02T10:00:00Z'),
       });
 
       // Create message that replies to msg-in-history-123
       const message = createMockMessage({
         content: 'Reply to history message',
         reference: { messageId: 'msg-in-history-123' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -483,13 +494,12 @@ describe('MessageReferenceExtractor', () => {
       expect(references).toHaveLength(0);
     });
 
-
     it('should exclude message link reference that is in conversation history', async () => {
       // Setup: Create extractor with conversation history message IDs
       const historyMessageIds = ['msg-in-history-999'];
       const extractor = new MessageReferenceExtractor({
         conversationHistoryMessageIds: historyMessageIds,
-        embedProcessingDelayMs: 0
+        embedProcessingDelayMs: 0,
       });
 
       const linkedChannel = createConfiguredChannel({});
@@ -497,41 +507,37 @@ describe('MessageReferenceExtractor', () => {
         id: 'msg-in-history-999',
         content: 'Message already in history',
         author: createMockUser({ username: 'LinkedHistoryUser' }),
-        channel: linkedChannel
+        channel: linkedChannel,
       });
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn().mockResolvedValue(linkedMessage)
-        }
+          fetch: vi.fn().mockResolvedValue(linkedMessage),
+        },
       });
 
       guild.channels = {
-        cache: createMockCollection([
-          [linkTargetChannel.id, linkTargetChannel]
-        ])
+        cache: createMockCollection([[linkTargetChannel.id, linkTargetChannel]]),
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([
-            [guild.id, guild]
-          ])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       const message = createMockMessage({
         content: 'Check this https://discord.com/channels/123/456/999',
         reference: null,
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -546,7 +552,7 @@ describe('MessageReferenceExtractor', () => {
       const historyMessageIds = ['msg-exact-match'];
       const extractor = new MessageReferenceExtractor({
         conversationHistoryMessageIds: historyMessageIds,
-        embedProcessingDelayMs: 0
+        embedProcessingDelayMs: 0,
       });
 
       // Reply reference: exact match (should be excluded)
@@ -555,7 +561,7 @@ describe('MessageReferenceExtractor', () => {
         id: 'msg-exact-match',
         content: 'Exact match message',
         author: createMockUser({ username: 'ExactUser' }),
-        channel: referencedChannel
+        channel: referencedChannel,
       });
 
       // Link: no match (should be included)
@@ -564,42 +570,38 @@ describe('MessageReferenceExtractor', () => {
         id: 'msg-not-in-history',
         content: 'Not in history',
         author: createMockUser({ username: 'OtherUser' }),
-        channel: linkedChannel
+        channel: linkedChannel,
       });
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn().mockResolvedValue(linkedMessage)
-        }
+          fetch: vi.fn().mockResolvedValue(linkedMessage),
+        },
       });
 
       guild.channels = {
-        cache: createMockCollection([
-          [linkTargetChannel.id, linkTargetChannel]
-        ])
+        cache: createMockCollection([[linkTargetChannel.id, linkTargetChannel]]),
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([
-            [guild.id, guild]
-          ])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       const message = createMockMessage({
         content: 'Reply with link https://discord.com/channels/123/456/999',
         reference: { messageId: 'msg-exact-match' } as any,
         fetchReference: vi.fn().mockResolvedValue(referencedMessage),
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 
@@ -615,7 +617,7 @@ describe('MessageReferenceExtractor', () => {
     it('should deduplicate within references even when not in conversation history', async () => {
       // Setup: No conversation history provided
       const extractor = new MessageReferenceExtractor({
-        embedProcessingDelayMs: 0
+        embedProcessingDelayMs: 0,
       });
 
       // Reply and link both point to the same message
@@ -624,29 +626,25 @@ describe('MessageReferenceExtractor', () => {
         id: 'same-message-123',
         content: 'Referenced twice',
         author: createMockUser({ username: 'SameUser' }),
-        channel: referencedChannel
+        channel: referencedChannel,
       });
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn().mockResolvedValue(referencedMessage)
-        }
+          fetch: vi.fn().mockResolvedValue(referencedMessage),
+        },
       });
 
       guild.channels = {
-        cache: createMockCollection([
-          [linkTargetChannel.id, linkTargetChannel]
-        ])
+        cache: createMockCollection([[linkTargetChannel.id, linkTargetChannel]]),
       } as any;
 
       const client = {
         guilds: {
-          cache: createMockCollection([
-            [guild.id, guild]
-          ])
-        }
+          cache: createMockCollection([[guild.id, guild]]),
+        },
       } as any as Client;
 
       // Reply to a message AND link to the same message
@@ -654,13 +652,13 @@ describe('MessageReferenceExtractor', () => {
         content: 'Check this https://discord.com/channels/123/456/same-message-123',
         reference: { messageId: 'same-message-123' } as any,
         fetchReference: vi.fn().mockResolvedValue(referencedMessage),
-        client
+        client,
       });
 
       const mockChannel = createConfiguredChannel({
         messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
+          fetch: vi.fn().mockResolvedValue(message),
+        },
       });
       message.channel = mockChannel;
 

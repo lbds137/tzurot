@@ -36,10 +36,7 @@ router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) 
     logger.info({ dryRun }, '[Admin] Starting database sync');
 
     // Execute sync
-    const syncService = new DatabaseSyncService(
-      config.DEV_DATABASE_URL,
-      config.PROD_DATABASE_URL
-    );
+    const syncService = new DatabaseSyncService(config.DEV_DATABASE_URL, config.PROD_DATABASE_URL);
 
     const result = await syncService.sync({ dryRun });
 
@@ -48,9 +45,8 @@ router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) 
     res.json({
       success: true,
       ...result,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     logger.error({ err: error }, '[Admin] Database sync failed');
 
@@ -82,7 +78,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       conversationalGoals,
       conversationalExamples,
       customFields,
-      avatarData
+      avatarData,
     } = req.body;
 
     // Validate required fields
@@ -105,7 +101,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
 
     // Check if personality already exists
     const existing = await prisma.personality.findUnique({
-      where: { slug }
+      where: { slug },
     });
 
     if (existing) {
@@ -129,11 +125,12 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         );
 
         if (result.exceedsTarget) {
-          logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`);
+          logger.warn(
+            `[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`
+          );
         }
 
         processedAvatarData = result.buffer;
-
       } catch (error) {
         logger.error({ err: error }, '[Admin] Failed to process avatar');
         const errorResponse = ErrorResponses.processingError(
@@ -162,8 +159,8 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         customFields: customFields || null,
         avatarData: processedAvatarData ? new Uint8Array(processedAvatarData) : null,
         voiceEnabled: false,
-        imageEnabled: false
-      }
+        imageEnabled: false,
+      },
     });
 
     logger.info(`[Admin] Created personality: ${slug} (${personality.id})`);
@@ -173,20 +170,22 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       const defaultLlmConfig = await prisma.llmConfig.findFirst({
         where: {
           isGlobal: true,
-          isDefault: true
-        }
+          isDefault: true,
+        },
       });
 
       if (defaultLlmConfig) {
         await prisma.personalityDefaultConfig.create({
           data: {
             personalityId: personality.id,
-            llmConfigId: defaultLlmConfig.id
-          }
+            llmConfigId: defaultLlmConfig.id,
+          },
         });
         logger.info(`[Admin] Set default LLM config for ${slug}: ${defaultLlmConfig.name}`);
       } else {
-        logger.warn('[Admin] No default global LLM config found, skipping default config assignment');
+        logger.warn(
+          '[Admin] No default global LLM config found, skipping default config assignment'
+        );
       }
     } catch (error) {
       // Non-critical error, log but don't fail the request
@@ -200,11 +199,10 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         name: personality.name,
         slug: personality.slug,
         displayName: personality.displayName,
-        hasAvatar: !!processedAvatarData
+        hasAvatar: !!processedAvatarData,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     logger.error({ err: error }, '[Admin] Failed to create personality');
 
@@ -236,12 +234,12 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
       conversationalGoals,
       conversationalExamples,
       customFields,
-      avatarData
+      avatarData,
     } = req.body;
 
     // Check if personality exists
     const existing = await prisma.personality.findUnique({
-      where: { slug }
+      where: { slug },
     });
 
     if (!existing) {
@@ -263,11 +261,12 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
         );
 
         if (result.exceedsTarget) {
-          logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`);
+          logger.warn(
+            `[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`
+          );
         }
 
         processedAvatarData = result.buffer;
-
       } catch (error) {
         logger.error({ err: error }, '[Admin] Failed to process avatar');
         const errorResponse = ErrorResponses.processingError(
@@ -286,18 +285,21 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
     if (displayName !== undefined) updateData.displayName = displayName;
     if (personalityTone !== undefined) updateData.personalityTone = personalityTone;
     if (personalityAge !== undefined) updateData.personalityAge = personalityAge;
-    if (personalityAppearance !== undefined) updateData.personalityAppearance = personalityAppearance;
+    if (personalityAppearance !== undefined)
+      updateData.personalityAppearance = personalityAppearance;
     if (personalityLikes !== undefined) updateData.personalityLikes = personalityLikes;
     if (personalityDislikes !== undefined) updateData.personalityDislikes = personalityDislikes;
     if (conversationalGoals !== undefined) updateData.conversationalGoals = conversationalGoals;
-    if (conversationalExamples !== undefined) updateData.conversationalExamples = conversationalExamples;
+    if (conversationalExamples !== undefined)
+      updateData.conversationalExamples = conversationalExamples;
     if (customFields !== undefined) updateData.customFields = customFields;
-    if (processedAvatarData !== undefined) updateData.avatarData = new Uint8Array(processedAvatarData);
+    if (processedAvatarData !== undefined)
+      updateData.avatarData = new Uint8Array(processedAvatarData);
 
     // Update personality in database
     const personality = await prisma.personality.update({
       where: { slug },
-      data: updateData
+      data: updateData,
     });
 
     logger.info(`[Admin] Updated personality: ${slug} (${personality.id})`);
@@ -309,11 +311,10 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
         name: personality.name,
         slug: personality.slug,
         displayName: personality.displayName,
-        hasAvatar: !!personality.avatarData
+        hasAvatar: !!personality.avatarData,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     logger.error({ err: error }, '[Admin] Failed to edit personality');
 

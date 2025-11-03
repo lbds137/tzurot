@@ -5,6 +5,7 @@
 This guide explains how to safely migrate the `conversation_history` table from `user_id` to `persona_id` based segmentation.
 
 **Why This Migration?**
+
 - Fixes bug where users with multiple personas had shared conversation history
 - Aligns STM (PostgreSQL) with LTM (Qdrant) segmentation strategy
 - Both now segment by `persona_id` instead of mixed `user_id`/`persona_id`
@@ -33,6 +34,7 @@ PGPASSWORD=<password> psql -h <host> -p <port> -U postgres -d railway \
 ```
 
 The script will:
+
 1. Add `persona_id` column (nullable)
 2. Populate `persona_id` from `user_id`
 3. Make `persona_id` NOT NULL
@@ -75,6 +77,7 @@ railway run --environment production psql
 ```
 
 Run this SQL:
+
 ```sql
 ALTER TABLE "conversation_history" ADD COLUMN "persona_id" UUID;
 CREATE INDEX "conversation_history_persona_id_idx" ON "conversation_history"("persona_id");
@@ -83,6 +86,7 @@ ALTER TABLE "conversation_history" ADD CONSTRAINT "conversation_history_persona_
 ```
 
 Mark migration as applied:
+
 ```bash
 railway run --environment production \
   npx prisma migrate resolve --applied 20251026163739_add_persona_id_to_conversation_history
@@ -96,6 +100,7 @@ railway run --environment production \
 ```
 
 **Expected output**:
+
 ```
 🔄 Starting conversation_history migration...
 📊 Found 3,371 conversation_history rows
@@ -113,6 +118,7 @@ railway run --environment production npx prisma migrate deploy
 ```
 
 Or run SQL manually:
+
 ```sql
 ALTER TABLE "conversation_history" ALTER COLUMN "persona_id" SET NOT NULL;
 ALTER TABLE "conversation_history" DROP CONSTRAINT "conversation_history_user_id_fkey";
@@ -173,6 +179,7 @@ npx prisma migrate resolve --rolled-back 20251026163739_add_persona_id_to_conver
 ⚠️ **Cannot rollback** - `user_id` data is lost!
 
 This is why we recommend:
+
 1. Test in development first
 2. Backup production database before migration
 3. Run migration during low-traffic period
@@ -186,6 +193,7 @@ This is why we recommend:
 Development database was migrated during implementation. No action needed.
 
 To verify:
+
 ```bash
 railway run npx prisma migrate status
 

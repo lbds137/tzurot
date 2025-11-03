@@ -5,7 +5,15 @@
  */
 
 import { Queue, QueueEvents } from 'bullmq';
-import { createLogger, getConfig, TIMEOUTS, INTERVALS, QUEUE_CONFIG, parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  TIMEOUTS,
+  INTERVALS,
+  QUEUE_CONFIG,
+  parseRedisUrl,
+  createBullMQRedisConfig,
+} from '@tzurot/common-types';
 import { cleanupAttachments } from './utils/tempAttachmentStorage.js';
 
 const logger = createLogger('Queue');
@@ -13,9 +21,8 @@ const config = getConfig();
 
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
-const parsedUrl = config.REDIS_URL && config.REDIS_URL.length > 0
-  ? parseRedisUrl(config.REDIS_URL)
-  : null;
+const parsedUrl =
+  config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
 
 const redisConfig = createBullMQRedisConfig({
   host: parsedUrl?.host || config.REDIS_HOST,
@@ -25,13 +32,16 @@ const redisConfig = createBullMQRedisConfig({
   family: 6, // Railway private network uses IPv6
 });
 
-logger.info({
-  host: redisConfig.host,
-  port: redisConfig.port,
-  hasPassword: redisConfig.password !== undefined,
-  connectTimeout: redisConfig.connectTimeout,
-  commandTimeout: redisConfig.commandTimeout
-}, '[Queue] Redis config:');
+logger.info(
+  {
+    host: redisConfig.host,
+    port: redisConfig.port,
+    hasPassword: redisConfig.password !== undefined,
+    connectTimeout: redisConfig.connectTimeout,
+    commandTimeout: redisConfig.commandTimeout,
+  },
+  '[Queue] Redis config:'
+);
 
 // Queue name
 const QUEUE_NAME = config.QUEUE_NAME;
@@ -43,16 +53,16 @@ export const aiQueue = new Queue(QUEUE_NAME, {
     attempts: 3, // Retry failed jobs up to 3 times
     backoff: {
       type: 'exponential',
-      delay: TIMEOUTS.QUEUE_RETRY_DELAY
+      delay: TIMEOUTS.QUEUE_RETRY_DELAY,
     },
     removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
-    removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT }
-  }
+    removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
+  },
 });
 
 // Create queue events listener
 export const queueEvents = new QueueEvents(QUEUE_NAME, {
-  connection: redisConfig
+  connection: redisConfig,
 });
 
 // Event handlers
@@ -82,7 +92,7 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
   }
 });
 
-queueEvents.on('error', (error) => {
+queueEvents.on('error', error => {
   logger.error({ err: error }, '[Queue] Queue error');
 });
 

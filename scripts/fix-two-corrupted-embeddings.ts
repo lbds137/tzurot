@@ -14,10 +14,7 @@ const openai = new OpenAI({
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 
 // The two memory IDs with bad embeddings
-const MEMORY_IDS = [
-  '0c7a2a2b-3ed7-54bc-aed4-a926b51d1b0b',
-  'ce5856e0-07b5-5bb4-8d42-30f6d822a354',
-];
+const MEMORY_IDS = ['0c7a2a2b-3ed7-54bc-aed4-a926b51d1b0b', 'ce5856e0-07b5-5bb4-8d42-30f6d822a354'];
 
 async function main() {
   console.log('=== Fixing embeddings for 2 specific memories ===');
@@ -63,7 +60,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('Fatal error:', error);
   process.exit(1);
 });

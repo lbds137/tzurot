@@ -9,6 +9,7 @@
 ## ✅ COMPLETED (Data Layer)
 
 ### Database Setup
+
 - [x] Created new Railway Postgres instance with pgvector
 - [x] Enabled pgvector extension (0.8.1)
 - [x] Created Memory schema with vector(1536)
@@ -20,6 +21,7 @@
   - All config tables
 
 ### Memory Population
+
 - [x] Rebuilt 2,170 memories from conversation_history
   - All with OpenAI embeddings
   - All with deterministic UUIDs
@@ -34,18 +36,21 @@
 ## 🔄 IN PROGRESS (Code Layer)
 
 ### Step 1: Create Pgvector Memory Adapter
+
 **File:** `services/ai-worker/src/memory/PgvectorMemoryAdapter.ts`
 
 **Interface to implement** (same as QdrantMemoryAdapter):
+
 ```typescript
 class PgvectorMemoryAdapter {
-  async queryMemories(query: string, options: MemoryQueryOptions): Promise<MemoryDocument[]>
-  async addMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void>
-  async healthCheck(): Promise<boolean>
+  async queryMemories(query: string, options: MemoryQueryOptions): Promise<MemoryDocument[]>;
+  async addMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void>;
+  async healthCheck(): Promise<boolean>;
 }
 ```
 
 **Implementation details:**
+
 - Use Prisma for database access
 - Generate embeddings with OpenAI
 - Use raw SQL for vector similarity search:
@@ -65,7 +70,9 @@ class PgvectorMemoryAdapter {
 ---
 
 ### Step 2: Update ai-worker to use Pgvector
+
 **Files to modify:**
+
 1. `services/ai-worker/src/services/ConversationalRAGService.ts`
    - Replace `QdrantMemoryAdapter` import with `PgvectorMemoryAdapter`
    - Update constructor
@@ -77,7 +84,9 @@ class PgvectorMemoryAdapter {
 ---
 
 ### Step 3: Deploy to Railway
+
 **Steps:**
+
 1. Update .env locally to confirm everything works
 2. Build all services: `pnpm build`
 3. Push to develop: `git add . && git commit && git push`
@@ -91,6 +100,7 @@ class PgvectorMemoryAdapter {
 ## 📋 TODO AFTER BOT IS ONLINE
 
 ### Verification (First Hour)
+
 - [ ] Test `/ping` command
 - [ ] Test personality interaction with memory retrieval
 - [ ] Verify memory creation in new conversations
@@ -98,7 +108,9 @@ class PgvectorMemoryAdapter {
 - [ ] Monitor database connection pool
 
 ### Environment Variables Cleanup
+
 **Remove from Railway (after 7 days stable):**
+
 ```bash
 QDRANT_URL
 QDRANT_API_KEY
@@ -109,6 +121,7 @@ PROD_QDRANT_API_KEY
 ```
 
 ### Code Cleanup (after 7 days stable)
+
 - [ ] Delete `services/ai-worker/src/memory/QdrantMemoryAdapter.ts`
 - [ ] Delete `services/api-gateway/src/services/QdrantSyncService.ts`
 - [ ] Delete `packages/common-types/src/services/QdrantMemoryService.ts`
@@ -116,9 +129,11 @@ PROD_QDRANT_API_KEY
 - [ ] Remove Qdrant from package.json dependencies
 
 ### Database Sync Script Updates
+
 **File:** `services/api-gateway/src/services/DatabaseSyncService.ts`
 
 **Add to SYNC_CONFIG:**
+
 ```typescript
 memories: {
   pk: 'id',
@@ -130,12 +145,14 @@ memories: {
 ```
 
 **Considerations:**
-- Vector embeddings are large (1536 dims * 4 bytes = 6KB each)
-- 2,170 memories * 6KB = ~13MB just for vectors
+
+- Vector embeddings are large (1536 dims \* 4 bytes = 6KB each)
+- 2,170 memories \* 6KB = ~13MB just for vectors
 - May need batching or parallel sync
 - Consider regenerating embeddings on target DB instead of copying
 
 ### Infrastructure Decommission (after 7 days stable)
+
 - [ ] Cancel Qdrant Cloud subscription ($25/month saved)
 - [ ] Delete old Railway Postgres instance
 - [ ] Update documentation to remove Qdrant references
@@ -158,21 +175,25 @@ memories: {
 ## 📊 Migration Metrics
 
 **Database:**
+
 - Old: PostgreSQL + Qdrant Cloud (~131 collections before consolidation)
 - New: PostgreSQL with pgvector (single database)
 
 **Memory Counts:**
+
 - conversation_history: 4,364 messages
 - Memories built: 2,170 (from recent conversations)
 - shapes.inc legacy: 0 (all users unmapped - expected)
 
 **Performance Targets:**
+
 - Memory query latency: < 200ms
 - Bot response time: similar to before
 - No timeout errors
 - No Qdrant-related errors in logs
 
 **Cost Savings:**
+
 - Qdrant Cloud: -$25/month
 - Simpler architecture: less maintenance overhead
 - Single database: easier backups and migrations
@@ -192,13 +213,14 @@ memories: {
 4. Keep Qdrant subscription active
 
 **Old DB URL** (for emergency):
+
 ```
 postgresql://postgres:WuKBVblJOTDcuPULuPAeuDXstDMaFxid@nozomi.proxy.rlwy.net:48102/railway
 ```
 
 ---
 
-##  Questions?
+## Questions?
 
 **Me:** Ready to implement PgvectorMemoryAdapter?
 **You:** Say "yes" and I'll create it now!

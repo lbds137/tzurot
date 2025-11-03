@@ -3,6 +3,7 @@
 ## Current Issues
 
 ### 1. Missing Knowledge Ingestion
+
 - **Problem**: Only memories are ingested to Qdrant, knowledge items are ignored
 - **Files**: `*_knowledge.json` contains 10 reference items (poems, writings) not ingested
 - **Impact**: Missing personality-wide reference material
@@ -10,6 +11,7 @@
 ### 2. Metadata Issues
 
 **Current metadata structure lacks context:**
+
 ```javascript
 {
   personalityId: "uuid",
@@ -26,6 +28,7 @@
 ```
 
 **Problems:**
+
 - Names in content ("Lila", "Lilith") without ID references
 - User UUID in senders not linked to persona record
 - No `userPersonaId` field
@@ -35,11 +38,13 @@
 ### 3. Memory vs Knowledge Distinction
 
 **Memories** (user-specific):
+
 - Generated summaries of conversations
 - Should filter by userId/senders
 - Scope: personal
 
 **Knowledge** (personality-wide):
+
 - Reference material, lore, poems
 - Available to all users
 - Scope: global
@@ -74,6 +79,7 @@ async function ingestKnowledge(knowledgeItems, personalityId, personalityName) {
 ### 2. Improve Memory Metadata
 
 **Minimal improvement:**
+
 ```javascript
 {
   type: 'memory',
@@ -94,6 +100,7 @@ async function ingestKnowledge(knowledgeItems, personalityId, personalityName) {
 ```
 
 **Better improvement (contextualized content):**
+
 ```javascript
 {
   // ... same as above ...
@@ -103,6 +110,7 @@ async function ingestKnowledge(knowledgeItems, personalityId, personalityName) {
 ```
 
 **Future enhancements:**
+
 ```javascript
 {
   // ... existing fields ...

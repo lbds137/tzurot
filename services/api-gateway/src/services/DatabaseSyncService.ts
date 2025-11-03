@@ -160,11 +160,7 @@ export class DatabaseSyncService {
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
         logger.info({ table: tableName }, '[Sync] Syncing table');
 
-        const tableStats = await this.syncTable(
-          tableName,
-          config,
-          options.dryRun
-        );
+        const tableStats = await this.syncTable(tableName, config, options.dryRun);
 
         stats[tableName] = tableStats;
 
@@ -182,7 +178,6 @@ export class DatabaseSyncService {
         stats,
         warnings,
       };
-
     } finally {
       await this.devClient.$disconnect();
       await this.prodClient.$disconnect();
@@ -211,9 +206,9 @@ export class DatabaseSyncService {
     if (devVersion !== prodVersion) {
       throw new Error(
         `Schema version mismatch!\n` +
-        `Dev: ${devVersion}\n` +
-        `Prod: ${prodVersion}\n\n` +
-        `Both databases must be on the same schema version before syncing.`
+          `Dev: ${devVersion}\n` +
+          `Prod: ${prodVersion}\n\n` +
+          `Both databases must be on the same schema version before syncing.`
       );
     }
 
@@ -252,7 +247,9 @@ export class DatabaseSyncService {
       const actualColumns = schemaMap.get(tableName);
 
       if (!actualColumns) {
-        warnings.push(`⚠️  SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`);
+        warnings.push(
+          `⚠️  SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`
+        );
         continue;
       }
 
@@ -303,7 +300,7 @@ export class DatabaseSyncService {
    */
   private async syncTable(
     tableName: string,
-    config: typeof SYNC_CONFIG[keyof typeof SYNC_CONFIG],
+    config: (typeof SYNC_CONFIG)[keyof typeof SYNC_CONFIG],
     dryRun: boolean
   ): Promise<{ devToProd: number; prodToDev: number; conflicts: number }> {
     // Fetch all rows from both databases
@@ -328,13 +325,27 @@ export class DatabaseSyncService {
       if (!devRow && prodRow) {
         // Row only in prod - copy to dev
         if (!dryRun) {
-          await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns, config.timestampColumns || []);
+          await this.upsertRow(
+            this.devClient,
+            tableName,
+            prodRow,
+            config.pk,
+            config.uuidColumns,
+            config.timestampColumns || []
+          );
         }
         prodToDev++;
       } else if (devRow && !prodRow) {
         // Row only in dev - copy to prod
         if (!dryRun) {
-          await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns, config.timestampColumns || []);
+          await this.upsertRow(
+            this.prodClient,
+            tableName,
+            devRow,
+            config.pk,
+            config.uuidColumns,
+            config.timestampColumns || []
+          );
         }
         devToProd++;
       } else if (devRow && prodRow) {
@@ -343,13 +354,27 @@ export class DatabaseSyncService {
 
         if (comparison === 'dev-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns, config.timestampColumns || []);
+            await this.upsertRow(
+              this.prodClient,
+              tableName,
+              devRow,
+              config.pk,
+              config.uuidColumns,
+              config.timestampColumns || []
+            );
           }
           devToProd++;
           conflicts++;
         } else if (comparison === 'prod-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns, config.timestampColumns || []);
+            await this.upsertRow(
+              this.devClient,
+              tableName,
+              prodRow,
+              config.pk,
+              config.uuidColumns,
+              config.timestampColumns || []
+            );
           }
           prodToDev++;
           conflicts++;
@@ -386,10 +411,7 @@ export class DatabaseSyncService {
   /**
    * Build a map of rows keyed by primary key(s)
    */
-  private buildRowMap(
-    rows: unknown[],
-    pkField: string | readonly string[]
-  ): Map<string, unknown> {
+  private buildRowMap(rows: unknown[], pkField: string | readonly string[]): Map<string, unknown> {
     const map = new Map();
 
     for (const row of rows) {
@@ -425,7 +447,7 @@ export class DatabaseSyncService {
   private compareTimestamps(
     devRow: unknown,
     prodRow: unknown,
-    config: typeof SYNC_CONFIG[keyof typeof SYNC_CONFIG]
+    config: (typeof SYNC_CONFIG)[keyof typeof SYNC_CONFIG]
   ): 'dev-newer' | 'prod-newer' | 'same' {
     const devObj = devRow as Record<string, unknown>;
     const prodObj = prodRow as Record<string, unknown>;
@@ -487,33 +509,31 @@ export class DatabaseSyncService {
     });
 
     // Build parameterized query with type casting where needed
-    const placeholders = columns.map((col, i) => {
-      const placeholder = `$${i + 1}`;
-      // Cast to vector for embedding column in memories table
-      if (tableName === 'memories' && col === 'embedding') {
-        return `${placeholder}::vector`;
-      }
-      // Cast to UUID if this column is a UUID type
-      if (uuidColumns.includes(col)) {
-        return `${placeholder}::uuid`;
-      }
-      // Cast to timestamptz if this column is a timestamp type
-      if (timestampColumns.includes(col)) {
-        return `${placeholder}::timestamptz`;
-      }
-      return placeholder;
-    }).join(', ');
+    const placeholders = columns
+      .map((col, i) => {
+        const placeholder = `$${i + 1}`;
+        // Cast to vector for embedding column in memories table
+        if (tableName === 'memories' && col === 'embedding') {
+          return `${placeholder}::vector`;
+        }
+        // Cast to UUID if this column is a UUID type
+        if (uuidColumns.includes(col)) {
+          return `${placeholder}::uuid`;
+        }
+        // Cast to timestamptz if this column is a timestamp type
+        if (timestampColumns.includes(col)) {
+          return `${placeholder}::timestamptz`;
+        }
+        return placeholder;
+      })
+      .join(', ');
     const columnList = columns.map(c => `"${c}"`).join(', ');
 
     // Build UPDATE SET clause for conflict resolution
-    const updateSet = columns
-      .map(c => `"${c}" = EXCLUDED."${c}"`)
-      .join(', ');
+    const updateSet = columns.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
 
     // Determine conflict columns (primary key only)
-    const pkColumns = typeof pkField === 'string'
-      ? [pkField]
-      : Array.from(pkField);
+    const pkColumns = typeof pkField === 'string' ? [pkField] : Array.from(pkField);
     const conflictColumns = pkColumns.map(c => `"${c}"`).join(', ');
 
     const query = `

@@ -9,17 +9,20 @@
 ## Problem Statement
 
 **Current:** Verbatim message storage in Qdrant
+
 ```
 User: "hey there!!! 😊 *waves excitedly*"
 Stored: "hey there!!! 😊 *waves excitedly*"
 ```
 
 **Issues:**
-- Roleplay formatting (*actions*, emojis) clutters semantic search
+
+- Roleplay formatting (_actions_, emojis) clutters semantic search
 - Long conversations = large vectors (storage cost)
 - Exact wording less useful than semantic meaning over time
 
 **Shapes.inc Approach:**
+
 - Separate summarizer LLM config
 - Configurable summarizer system prompt
 - Condensed memories without losing semantic meaning
@@ -29,7 +32,7 @@ Stored: "hey there!!! 😊 *waves excitedly*"
 ## Design Goals
 
 1. ✅ Preserve semantic meaning (what was discussed)
-2. ✅ Remove roleplay formatting noise (*asterisks*, excessive emojis)
+2. ✅ Remove roleplay formatting noise (_asterisks_, excessive emojis)
 3. ✅ Reduce storage cost (shorter vectors)
 4. ✅ Configurable per-personality (some might want verbatim)
 5. ✅ Don't lose important details (names, facts, dates)
@@ -83,6 +86,7 @@ model SystemPrompt {
 ### Summarizer System Prompt Examples
 
 **Default Summarizer Prompt:**
+
 ```
 You are a memory summarizer. Your job is to extract the semantic meaning from conversations while removing formatting artifacts.
 
@@ -103,6 +107,7 @@ Now summarize the following conversation exchange:
 ```
 
 **Personality-Specific Summarizer:**
+
 ```
 You are summarizing memories for Lilith, a sarcastic AI personality.
 
@@ -140,8 +145,8 @@ class MemorySummarizationService {
       where: { id: personalityId },
       include: {
         summarizerLlmConfig: true,
-        summarizerSystemPrompt: true
-      }
+        summarizerSystemPrompt: true,
+      },
     });
 
     // If summarization disabled, return verbatim
@@ -164,8 +169,8 @@ Summarize this exchange into a concise memory that preserves meaning but removes
     // 3. Use summarizer LLM config (or default to cheap model)
     const summarizerConfig = personality.summarizerLlmConfig || {
       model: 'anthropic/claude-haiku', // Cheap, fast model
-      temperature: 0.3,  // Low temperature for consistency
-      maxTokens: 200     // Keep summaries concise
+      temperature: 0.3, // Low temperature for consistency
+      maxTokens: 200, // Keep summaries concise
     };
 
     const model = createChatModel(summarizerConfig);
@@ -173,7 +178,7 @@ Summarize this exchange into a concise memory that preserves meaning but removes
     // 4. Generate summary
     const response = await model.invoke([
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
+      { role: 'user', content: userPrompt },
     ]);
 
     return response.content;
@@ -192,14 +197,11 @@ Summarize this exchange into a concise memory that preserves meaning but removes
     const exchanges = this.groupIntoExchanges(conversationHistory);
 
     for (const exchange of exchanges) {
-      const summary = await this.summarizeForMemory(
-        personalityId,
-        {
-          user: exchange.userMessage,
-          assistant: exchange.assistantMessage,
-          context: exchange.precedingContext
-        }
-      );
+      const summary = await this.summarizeForMemory(personalityId, {
+        user: exchange.userMessage,
+        assistant: exchange.assistantMessage,
+        context: exchange.precedingContext,
+      });
 
       summaries.push(summary);
     }
@@ -341,6 +343,7 @@ async storeConversationMemories(
 ## Storage Comparison
 
 ### Verbatim Storage
+
 ```
 Input (273 chars):
 "*bounces excitedly* omg omg omg!!! 😊✨ I just finished that Rust project we talked about last week!!! 🦀 *does a little dance* The borrow checker finally makes sense now lol 😅 thank you so much for all your help!!! *hugs*"
@@ -349,6 +352,7 @@ Stored: [same 273 chars]
 ```
 
 ### Summarized Storage
+
 ```
 Input: [same 273 chars]
 
@@ -359,11 +363,13 @@ Reduction: 67% smaller
 ```
 
 **At Scale:**
+
 - 1000 messages verbatim: ~273 KB
 - 1000 messages summarized: ~89 KB
 - **Savings: ~184 KB per 1000 messages**
 
 For vector embeddings (1536 dimensions):
+
 - Verbatim: More vectors needed for long text
 - Summarized: Denser semantic meaning in fewer vectors
 
@@ -409,15 +415,19 @@ For vector embeddings (1536 dimensions):
 ## Migration Strategy (When Implemented)
 
 ### Existing Memories
+
 **Option 1:** Leave as-is (verbatim), only summarize new memories
 
 **Option 2:** Batch re-summarize existing memories
+
 - Pro: Consistent format, storage savings
 - Con: Expensive (LLM calls for all existing memories)
 - Recommendation: Only if storage becomes problem
 
 ### User Communication
+
 When enabling:
+
 ```
 "Lilith will now store conversation memories in a more efficient format.
 This helps with storage and improves recall of important details.
@@ -429,12 +439,14 @@ Your conversation history quality won't change - just more focused!"
 ## When to Implement
 
 **Triggers:**
+
 1. Storage costs become significant (>$X/month for Qdrant)
 2. Users complain about irrelevant memory retrieval (too much noise)
 3. Vector search quality degrades from verbose memories
 4. Users explicitly request it
 
 **Effort:** ~6-8 hours
+
 - Schema changes: 1 hour
 - Summarization service: 3 hours
 - Integration: 2 hours
@@ -457,11 +469,13 @@ Store BOTH verbatim and summarized:
 ```
 
 **Pros:**
+
 - Best of both worlds
 - Can retrieve exact wording if needed
 - Semantic search uses clean summary
 
 **Cons:**
+
 - No storage savings
 - More complex
 

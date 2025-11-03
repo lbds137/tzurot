@@ -11,7 +11,7 @@ import {
   createErrorResponse,
   getStatusCode,
   createErrorFromException,
-  ErrorResponses
+  ErrorResponses,
 } from './errorResponses.js';
 
 describe('errorResponses', () => {
@@ -27,38 +27,28 @@ describe('errorResponses', () => {
     });
 
     it('should create error response with all required fields', () => {
-      const response = createErrorResponse(
-        ErrorCode.VALIDATION_ERROR,
-        'Invalid input'
-      );
+      const response = createErrorResponse(ErrorCode.VALIDATION_ERROR, 'Invalid input');
 
       expect(response).toEqual({
         error: 'VALIDATION_ERROR',
         message: 'Invalid input',
-        timestamp: '2025-11-02T12:00:00.000Z'
+        timestamp: '2025-11-02T12:00:00.000Z',
       });
     });
 
     it('should include requestId when provided', () => {
-      const response = createErrorResponse(
-        ErrorCode.VALIDATION_ERROR,
-        'Invalid input',
-        'req-123'
-      );
+      const response = createErrorResponse(ErrorCode.VALIDATION_ERROR, 'Invalid input', 'req-123');
 
       expect(response).toEqual({
         error: 'VALIDATION_ERROR',
         message: 'Invalid input',
         requestId: 'req-123',
-        timestamp: '2025-11-02T12:00:00.000Z'
+        timestamp: '2025-11-02T12:00:00.000Z',
       });
     });
 
     it('should omit requestId when not provided', () => {
-      const response = createErrorResponse(
-        ErrorCode.NOT_FOUND,
-        'Resource not found'
-      );
+      const response = createErrorResponse(ErrorCode.NOT_FOUND, 'Resource not found');
 
       expect(response).not.toHaveProperty('requestId');
     });
@@ -138,7 +128,7 @@ describe('errorResponses', () => {
       expect(response).toEqual({
         error: 'INTERNAL_ERROR',
         message: 'Something went wrong',
-        timestamp: '2025-11-02T12:00:00.000Z'
+        timestamp: '2025-11-02T12:00:00.000Z',
       });
     });
 
@@ -148,20 +138,17 @@ describe('errorResponses', () => {
       expect(response).toEqual({
         error: 'INTERNAL_ERROR',
         message: 'An unexpected error occurred',
-        timestamp: '2025-11-02T12:00:00.000Z'
+        timestamp: '2025-11-02T12:00:00.000Z',
       });
     });
 
     it('should use custom fallback message', () => {
-      const response = createErrorFromException(
-        null,
-        'Custom fallback message'
-      );
+      const response = createErrorFromException(null, 'Custom fallback message');
 
       expect(response).toEqual({
         error: 'INTERNAL_ERROR',
         message: 'Custom fallback message',
-        timestamp: '2025-11-02T12:00:00.000Z'
+        timestamp: '2025-11-02T12:00:00.000Z',
       });
     });
 
@@ -173,7 +160,7 @@ describe('errorResponses', () => {
         error: 'INTERNAL_ERROR',
         message: 'Test error',
         requestId: 'req-456',
-        timestamp: '2025-11-02T12:00:00.000Z'
+        timestamp: '2025-11-02T12:00:00.000Z',
       });
     });
 
@@ -209,7 +196,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'VALIDATION_ERROR',
           message: 'Invalid request body',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
 
@@ -227,7 +214,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'UNAUTHORIZED',
           message: 'This endpoint is only available to the bot owner',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
 
@@ -245,7 +232,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'NOT_FOUND',
           message: 'Personality not found',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
 
@@ -262,7 +249,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'CONFLICT',
           message: 'Resource already exists',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
     });
@@ -274,7 +261,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'INTERNAL_ERROR',
           message: 'An internal error occurred',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
 
@@ -292,7 +279,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'CONFIGURATION_ERROR',
           message: 'Missing API key',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
     });
@@ -304,7 +291,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'JOB_FAILED',
           message: 'Job processing failed',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
     });
@@ -316,7 +303,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'JOB_NOT_FOUND',
           message: 'Job job-123 not found',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
 
@@ -334,7 +321,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'PROCESSING_ERROR',
           message: 'Image processing failed',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
     });
@@ -346,7 +333,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'SYNC_ERROR',
           message: 'Database sync failed',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
     });
@@ -358,7 +345,7 @@ describe('errorResponses', () => {
         expect(response).toEqual({
           error: 'METRICS_ERROR',
           message: 'Failed to retrieve metrics',
-          timestamp: '2025-11-02T12:00:00.000Z'
+          timestamp: '2025-11-02T12:00:00.000Z',
         });
       });
     });
@@ -396,11 +383,7 @@ describe('errorResponses', () => {
 
     it('should handle special characters in requestId', () => {
       const requestId = 'req-123-abc_DEF.456';
-      const response = createErrorResponse(
-        ErrorCode.VALIDATION_ERROR,
-        'Test',
-        requestId
-      );
+      const response = createErrorResponse(ErrorCode.VALIDATION_ERROR, 'Test', requestId);
 
       expect(response.requestId).toBe(requestId);
     });

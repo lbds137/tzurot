@@ -18,24 +18,24 @@ const prisma = new PrismaClient();
 const AVATAR_MAPPINGS = [
   {
     slug: 'lilith-tzel-shani',
-    filename: 'lilith-tzel-shani.png'
+    filename: 'lilith-tzel-shani.png',
   },
   {
     slug: 'cold-kerach-batuach',
-    filename: 'cold-kerach-batuach.png'
+    filename: 'cold-kerach-batuach.png',
   },
   {
     slug: 'ha-shem-keev-ima',
-    filename: 'ha-shem-keev-ima.png'
+    filename: 'ha-shem-keev-ima.png',
   },
   {
     slug: 'emily-tzudad-seraph-ditza',
-    filename: 'emily-tzudad-seraph-ditza.png'
+    filename: 'emily-tzudad-seraph-ditza.png',
   },
   {
     slug: 'lucifer-kochav-shenafal',
-    filename: 'lucifer-kochav-shenafal.png'
-  }
+    filename: 'lucifer-kochav-shenafal.png',
+  },
 ];
 
 async function populateAvatarData() {
@@ -45,7 +45,7 @@ async function populateAvatarData() {
     try {
       // Check if personality exists
       const personality = await prisma.personality.findUnique({
-        where: { slug: mapping.slug }
+        where: { slug: mapping.slug },
       });
 
       if (!personality) {
@@ -60,7 +60,14 @@ async function populateAvatarData() {
       }
 
       // Read avatar file
-      const avatarPath = join(__dirname, '..', 'services', 'api-gateway', 'avatars-to-migrate', mapping.filename);
+      const avatarPath = join(
+        __dirname,
+        '..',
+        'services',
+        'api-gateway',
+        'avatars-to-migrate',
+        mapping.filename
+      );
 
       let avatarBuffer: Buffer;
       try {
@@ -82,11 +89,10 @@ async function populateAvatarData() {
       // Update personality with base64 data
       await prisma.personality.update({
         where: { slug: mapping.slug },
-        data: { avatarData: base64Data }
+        data: { avatarData: base64Data },
       });
 
       console.log(`   ✅ Stored in database\n`);
-
     } catch (error) {
       console.error(`❌ Error processing ${mapping.slug}:`, error);
     }

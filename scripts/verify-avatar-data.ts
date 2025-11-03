@@ -12,12 +12,12 @@ async function verifyAvatarData() {
 
   const personalities = await prisma.personality.findMany({
     where: {
-      avatarData: { not: null }
+      avatarData: { not: null },
     },
     select: {
       slug: true,
-      avatarData: true
-    }
+      avatarData: true,
+    },
   });
 
   console.log(`Found ${personalities.length} personalities with avatar data:\n`);

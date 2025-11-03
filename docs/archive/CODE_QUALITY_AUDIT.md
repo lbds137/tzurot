@@ -17,6 +17,7 @@ The Tzurot v3 codebase is well-structured with clean architecture and TypeScript
 #### 1.1 Timeout Values (Inconsistent)
 
 **Files Affected**:
+
 - `services/ai-worker/src/services/MultimodalProcessor.ts` (lines 200, 291)
   - Hardcoded `30000ms` timeout for vision model invocation (appears 2 times)
 
@@ -27,17 +28,19 @@ The Tzurot v3 codebase is well-structured with clean architecture and TypeScript
 **Issue**: These timeout values are scattered and duplicated.
 
 **Recommendation**: Add to `packages/common-types/src/constants.ts`:
+
 ```typescript
 export const TIMEOUTS = {
-  VISION_MODEL: 30000,          // 30 seconds
-  JOB_WAIT: 270000,              // 4.5 minutes
-  JOB_BASE: 120000,              // 2 minutes
+  VISION_MODEL: 30000, // 30 seconds
+  JOB_WAIT: 270000, // 4.5 minutes
+  JOB_BASE: 120000, // 2 minutes
 } as const;
 ```
 
 #### 1.2 Cache & Cleanup Intervals
 
 **Files Affected**:
+
 - `services/bot-client/src/webhooks/manager.ts` (lines 28, 193)
   - `10 * 60 * 1000` (10 minutes) cache timeout
   - `60000` (1 minute) cleanup interval
@@ -53,26 +56,29 @@ export const TIMEOUTS = {
   - `8000` (8 seconds) typing indicator refresh interval
 
 **Recommendation**: Add to constants:
+
 ```typescript
 export const INTERVALS = {
-  WEBHOOK_CACHE_TTL: 10 * 60 * 1000,        // 10 minutes
-  WEBHOOK_CLEANUP: 60000,                    // 1 minute
-  REQUEST_DEDUP_WINDOW: 5000,                // 5 seconds
-  REQUEST_DEDUP_CLEANUP: 10000,              // 10 seconds
-  ATTACHMENT_CLEANUP_DELAY: 5000,            // 5 seconds
-  TYPING_INDICATOR_REFRESH: 8000,            // 8 seconds
+  WEBHOOK_CACHE_TTL: 10 * 60 * 1000, // 10 minutes
+  WEBHOOK_CLEANUP: 60000, // 1 minute
+  REQUEST_DEDUP_WINDOW: 5000, // 5 seconds
+  REQUEST_DEDUP_CLEANUP: 10000, // 10 seconds
+  ATTACHMENT_CLEANUP_DELAY: 5000, // 5 seconds
+  TYPING_INDICATOR_REFRESH: 8000, // 8 seconds
 } as const;
 ```
 
 #### 1.3 Job Queue Configuration
 
 **Files**:
+
 - `services/api-gateway/src/queue.ts` (lines 44-45)
 - `services/ai-worker/src/index.ts` (mirrors same values)
   - `100` - completed job history limit
   - `500` - failed job history limit
 
 **Recommendation**:
+
 ```typescript
 export const QUEUE_CONFIG = {
   COMPLETED_HISTORY_LIMIT: 100,
@@ -83,19 +89,22 @@ export const QUEUE_CONFIG = {
 #### 1.4 Buffer Times & Timestamps
 
 **File**: `services/ai-worker/src/services/MultimodalProcessor.ts` (line 401)
+
 - `5 * 60 * 1000` (5 minutes) buffer for Discord URL expiration checking
 
 **Recommendation**:
+
 ```typescript
 export const BUFFERS = {
-  DISCORD_URL_EXPIRATION: 5 * 60 * 1000,  // 5 minutes
-  STM_LTM_BUFFER_MS: 10000,               // Already exists
+  DISCORD_URL_EXPIRATION: 5 * 60 * 1000, // 5 minutes
+  STM_LTM_BUFFER_MS: 10000, // Already exists
 } as const;
 ```
 
 #### 1.5 Text Truncation Limits
 
 **Files Affected**:
+
 - `services/ai-worker/src/services/ConversationalRAGService.ts` (lines 135, 163, 361)
   - `100` - persona truncation in logging
   - `150` - message content preview in logging
@@ -106,11 +115,12 @@ export const BUFFERS = {
   - `1024` - warnings field truncation (Discord embed limit)
 
 **Recommendation**:
+
 ```typescript
 export const TEXT_LIMITS = {
-  LOG_PREVIEW: 150,                      // Characters for log previews
-  LOG_PERSONA_PREVIEW: 100,              // Characters for persona preview
-  LOG_FULL_PROMPT: 2000,                 // Character limit before truncating
+  LOG_PREVIEW: 150, // Characters for log previews
+  LOG_PERSONA_PREVIEW: 100, // Characters for persona preview
+  LOG_FULL_PROMPT: 2000, // Character limit before truncating
   ADMIN_SUMMARY_TRUNCATE: 1000,
   DISCORD_EMBED_FIELD: 1024,
 } as const;
@@ -125,9 +135,11 @@ export const TEXT_LIMITS = {
 ### Files Exceeding 500+ Lines (Critical)
 
 #### 2.1 ConversationalRAGService.ts - 757 lines
+
 **Location**: `services/ai-worker/src/services/ConversationalRAGService.ts`
 
 **Responsibilities**:
+
 - Memory retrieval
 - Prompt building
 - Interaction storage
@@ -135,6 +147,7 @@ export const TEXT_LIMITS = {
 - Persona fetching
 
 **Refactoring Recommendation**: Extract into separate classes:
+
 - `PromptBuilder` - buildSystemPrompt, buildFullSystemPrompt
 - `InteractionStorage` - storeInteraction
 - `UserPersonaManager` - getUserPersona, getUserPersonaForPersonality
@@ -143,15 +156,18 @@ export const TEXT_LIMITS = {
 **Priority**: Medium (defer until development slows down)
 
 #### 2.2 MultimodalProcessor.ts - 621 lines
+
 **Location**: `services/ai-worker/src/services/MultimodalProcessor.ts`
 
 **Responsibilities**:
+
 - Image description
 - Audio transcription
 - URL expiration checking
 - Image resizing
 
 **Refactoring Recommendation**: Extract into:
+
 - `VisionService` - describeImage, describeWithVisionModel, describeWithFallbackVision
 - `AudioTranscriptionService` - transcribeAudio
 - `ImageProcessor` - fetchAsBase64, resizeImage
@@ -177,6 +193,7 @@ export const TEXT_LIMITS = {
 **Files**: `services/ai-worker/src/services/MultimodalProcessor.ts` (lines 169-182, 264-273)
 
 **Duplicate Pattern**:
+
 ```typescript
 if (isDiscordUrlExpired(attachment.url)) {
   logger.info({ url: attachment.url }, 'Discord URL expired...');
@@ -189,11 +206,9 @@ if (isDiscordUrlExpired(attachment.url)) {
 ```
 
 **Recommendation**: Extract helper:
+
 ```typescript
-async function resolveImageUrl(
-  attachment: AttachmentMetadata,
-  logger: Logger
-): Promise<string> {
+async function resolveImageUrl(attachment: AttachmentMetadata, logger: Logger): Promise<string> {
   if (isDiscordUrlExpired(attachment.url)) {
     logger.info({ url: attachment.url }, 'Discord URL expired, using base64');
     const base64 = await fetchAsBase64(attachment.url);
@@ -209,6 +224,7 @@ async function resolveImageUrl(
 **Files**: `services/ai-worker/src/services/MultimodalProcessor.ts` (lines 206-223, 297-315)
 
 **Duplicate Pattern**:
+
 ```typescript
 const errorDetails: ErrorDetails = {
   errorType: error?.constructor?.name,
@@ -223,6 +239,7 @@ if (error && typeof error === 'object') {
 ```
 
 **Recommendation**: Extract utility:
+
 ```typescript
 function extractErrorDetails(error: unknown, modelName?: string): ErrorDetails {
   const details: ErrorDetails = {
@@ -246,6 +263,7 @@ function extractErrorDetails(error: unknown, modelName?: string): ErrorDetails {
 **Files**: `services/api-gateway/src/queue.ts` (lines 61-66, 73-78)
 
 **Duplicate Pattern**:
+
 ```typescript
 if (jobId.startsWith('req-')) {
   const requestId = jobId.substring(4);
@@ -256,6 +274,7 @@ if (jobId.startsWith('req-')) {
 ```
 
 **Recommendation**: Extract helper:
+
 ```typescript
 function scheduleAttachmentCleanup(jobId: string): void {
   if (jobId.startsWith('req-')) {
@@ -284,6 +303,7 @@ function scheduleAttachmentCleanup(jobId: string): void {
 **Usage**: 'user', 'assistant', 'system' appear across multiple files
 
 **Recommendation**: Create enum:
+
 ```typescript
 export enum MessageRole {
   User = 'user',
@@ -297,6 +317,7 @@ export enum MessageRole {
 **Usage**: 'queued', 'completed', 'failed' used in multiple places
 
 **Recommendation**:
+
 ```typescript
 export enum JobStatus {
   Queued = 'queued',
@@ -310,6 +331,7 @@ export enum JobStatus {
 **Usage**: 'image', 'audio' attachment types
 
 **Recommendation**:
+
 ```typescript
 export enum AttachmentType {
   Image = 'image',
@@ -326,6 +348,7 @@ export enum AttachmentType {
 ### Issue
 
 TypeScript file naming is inconsistent across the codebase. The standard convention is:
+
 - **PascalCase** for files exporting a single class/component
 - **camelCase** for utilities, helpers, or files with multiple exports
 - **kebab-case** for scripts and configuration files
@@ -333,6 +356,7 @@ TypeScript file naming is inconsistent across the codebase. The standard convent
 ### Files Needing Rename
 
 **bot-client service:**
+
 - `src/webhooks/manager.ts` → `WebhookManager.ts` (exports WebhookManager class)
 - `src/handlers/messageHandler.ts` → `MessageHandler.ts` (exports MessageHandler class)
 - `src/handlers/commandHandler.ts` → `CommandHandler.ts` (exports CommandHandler class)
@@ -340,11 +364,13 @@ TypeScript file naming is inconsistent across the codebase. The standard convent
 - `src/gateway/client.ts` → `GatewayClient.ts` (exports GatewayClient class)
 
 **api-gateway service:**
+
 - `src/services/DatabaseSyncService.ts` → ✅ Already correct
 - `src/utils/tempAttachmentStorage.ts` → Keep as-is (utility functions, not a class)
 - `src/utils/requestDeduplication.ts` → Keep as-is (utility functions, not a class)
 
 **ai-worker service:**
+
 - All service files already follow PascalCase ✅
 
 ### Recommendation
@@ -362,6 +388,7 @@ Rename files to match the exported class name. This improves discoverability and
 ### 6.1 Tightly Coupled Dependencies
 
 **File**: `services/bot-client/src/handlers/messageHandler.ts`
+
 - **Line 12**: Imports 5 services directly
 - **Line 35-37**: Instantiates all services in constructor
 - **Issue**: Cannot easily mock services for testing
@@ -373,6 +400,7 @@ Rename files to match the exported class name. This improves discoverability and
 ### 6.2 Direct Database Access
 
 **File**: `services/ai-worker/src/services/ConversationalRAGService.ts`
+
 - **Lines 454-560**: Direct Prisma calls for interaction storage
 - **Lines 618-663**: Direct user persona fetches
 - **Issue**: Hard to test without database
@@ -382,6 +410,7 @@ Rename files to match the exported class name. This improves discoverability and
 ### 6.3 Global State / Module-Level Variables
 
 **File**: `services/api-gateway/src/utils/requestDeduplication.ts`
+
 - **Line 17**: `const requestCache = new Map<string, CachedRequest>();`
 - **Line 26**: `let cleanupTimer: NodeJS.Timeout | undefined;`
 - **Issue**: Global state makes tests interfere with each other
@@ -473,16 +502,16 @@ Completed work:
 
 ## SUMMARY TABLE
 
-| Category | Count | Severity | Effort | Phase |
-|----------|-------|----------|--------|-------|
-| Magic Numbers | 15+ instances | Medium | Medium | 1 |
-| Large Files | 2 critical, 4 monitor | Medium | High | 3 |
-| Duplicate Code | 4 patterns | Low-Med | Low | 2 |
-| Test Coupling | 6 locations | Medium | High | 3 |
-| Config Strings | 20+ instances | Low | Low | 1 |
-| File Naming | 4 files | Low | Low | 1 |
-| Global State | 2 locations | Medium | Medium | 3 |
-| TODO Items | 2 | Low | Low | - |
+| Category       | Count                 | Severity | Effort | Phase |
+| -------------- | --------------------- | -------- | ------ | ----- |
+| Magic Numbers  | 15+ instances         | Medium   | Medium | 1     |
+| Large Files    | 2 critical, 4 monitor | Medium   | High   | 3     |
+| Duplicate Code | 4 patterns            | Low-Med  | Low    | 2     |
+| Test Coupling  | 6 locations           | Medium   | High   | 3     |
+| Config Strings | 20+ instances         | Low      | Low    | 1     |
+| File Naming    | 4 files               | Low      | Low    | 1     |
+| Global State   | 2 locations           | Medium   | Medium | 3     |
+| TODO Items     | 2                     | Low      | Low    | -     |
 
 ---
 
@@ -498,6 +527,7 @@ The Tzurot v3 codebase demonstrates solid architectural decisions and clean code
 **Current Status**: Working on Phase 1 (Quick Wins) on branch `chore/code-quality-audit`
 
 **Next Steps**:
+
 1. Check for outdated npm dependencies
 2. Implement Phase 1 constants consolidation
 3. Replace magic numbers throughout codebase

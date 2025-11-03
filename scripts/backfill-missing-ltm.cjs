@@ -32,9 +32,9 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
     where: { id: userId },
     include: {
       defaultPersonaLink: {
-        select: { personaId: true }
-      }
-    }
+        select: { personaId: true },
+      },
+    },
   });
 
   if (!user) {
@@ -62,7 +62,7 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
       role: true,
       content: true,
       createdAt: true,
-    }
+    },
   });
 
   console.log(`📊 PostgreSQL conversation_history: ${conversations.length} messages`);
@@ -74,10 +74,12 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
   try {
     const scrollResult = await qdrant.scroll(collectionName, {
       filter: {
-        must: [{
-          key: 'personalityId',
-          match: { value: personalityId }
-        }]
+        must: [
+          {
+            key: 'personalityId',
+            match: { value: personalityId },
+          },
+        ],
       },
       limit: 10000,
       with_payload: true,
@@ -118,9 +120,7 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
 
   const missing = conversationPairs.filter(pair => {
     const pairTime = pair.timestamp.getTime();
-    const hasMatch = memoryTimestamps.some(memTime =>
-      Math.abs(memTime - pairTime) <= TOLERANCE_MS
-    );
+    const hasMatch = memoryTimestamps.some(memTime => Math.abs(memTime - pairTime) <= TOLERANCE_MS);
     return !hasMatch;
   });
 
@@ -136,7 +136,10 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
     return;
   }
 
-  const coveragePercent = ((conversationPairs.length - missing.length) / conversationPairs.length * 100).toFixed(1);
+  const coveragePercent = (
+    ((conversationPairs.length - missing.length) / conversationPairs.length) *
+    100
+  ).toFixed(1);
   console.log(`   Coverage: ${coveragePercent}%`);
 
   console.log(`\n🔧 Backfilling ${missing.length} missing conversations...\n`);
@@ -147,7 +150,7 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
   // Get personality info for metadata
   const personality = await prisma.personality.findUnique({
     where: { id: personalityId },
-    select: { name: true }
+    select: { name: true },
   });
 
   for (const pair of missing) {
@@ -179,7 +182,7 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
         timestamp: timestamp.getTime(),
         summaryType: 'conversation',
         contextType: 'channel', // Assume channel since we don't have the info
-        createdAt: timestamp.getTime() // For audit script matching
+        createdAt: timestamp.getTime(), // For audit script matching
       };
 
       // Store in Qdrant
@@ -191,15 +194,14 @@ async function backfillMissingLTM(userId, personalityId, dryRun = false) {
             vector: embedding,
             payload: {
               text: interactionText,
-              ...metadata
-            }
-          }
-        ]
+              ...metadata,
+            },
+          },
+        ],
       });
 
       console.log(`   ✅ Successfully stored to Qdrant`);
       successCount++;
-
     } catch (error) {
       console.error(`   ❌ Failed to store: ${error.message}`);
       failCount++;
@@ -226,7 +228,9 @@ async function main() {
     console.error('  --dry-run  Show what would be done without making changes');
     console.error('');
     console.error('Example:');
-    console.error('  node backfill-missing-ltm.cjs e64fcc09-e4db-5902-b1c9-5750141e3bf2 c296b337-4e67-5337-99a3-4ca105cbbd68');
+    console.error(
+      '  node backfill-missing-ltm.cjs e64fcc09-e4db-5902-b1c9-5750141e3bf2 c296b337-4e67-5337-99a3-4ca105cbbd68'
+    );
     console.error('  node backfill-missing-ltm.cjs <userId> <personalityId> --dry-run');
     process.exit(1);
   }

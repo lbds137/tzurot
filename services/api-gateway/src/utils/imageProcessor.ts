@@ -53,7 +53,7 @@ const DEFAULT_OPTIONS: Required<AvatarOptimizationOptions> = {
   maxSizeBytes: 200 * 1024, // 200KB
   initialQuality: 90,
   minQuality: 50,
-  qualityStep: 10
+  qualityStep: 10,
 };
 
 /**
@@ -79,11 +79,15 @@ export async function optimizeAvatar(
 
   // Validate configuration - check individual values first, then relationships
   if (opts.minQuality < 1 || opts.minQuality > 100) {
-    throw new Error(`Invalid configuration: minQuality must be between 1 and 100, got ${opts.minQuality}`);
+    throw new Error(
+      `Invalid configuration: minQuality must be between 1 and 100, got ${opts.minQuality}`
+    );
   }
 
   if (opts.initialQuality < 1 || opts.initialQuality > 100) {
-    throw new Error(`Invalid configuration: initialQuality must be between 1 and 100, got ${opts.initialQuality}`);
+    throw new Error(
+      `Invalid configuration: initialQuality must be between 1 and 100, got ${opts.initialQuality}`
+    );
   }
 
   if (opts.minQuality > opts.initialQuality) {
@@ -93,11 +97,15 @@ export async function optimizeAvatar(
   }
 
   if (opts.targetWidth <= 0 || opts.targetHeight <= 0) {
-    throw new Error(`Invalid configuration: dimensions must be positive (width: ${opts.targetWidth}, height: ${opts.targetHeight})`);
+    throw new Error(
+      `Invalid configuration: dimensions must be positive (width: ${opts.targetWidth}, height: ${opts.targetHeight})`
+    );
   }
 
   if (opts.maxSizeBytes < 0) {
-    throw new Error(`Invalid configuration: maxSizeBytes cannot be negative, got ${opts.maxSizeBytes}`);
+    throw new Error(
+      `Invalid configuration: maxSizeBytes cannot be negative, got ${opts.maxSizeBytes}`
+    );
   }
 
   if (opts.qualityStep <= 0) {
@@ -121,7 +129,7 @@ export async function optimizeAvatar(
     let processed = await sharp(originalBuffer)
       .resize(opts.targetWidth, opts.targetHeight, {
         fit: 'cover',
-        position: 'center'
+        position: 'center',
       })
       .png({ quality })
       .toBuffer();
@@ -132,7 +140,7 @@ export async function optimizeAvatar(
       processed = await sharp(originalBuffer)
         .resize(opts.targetWidth, opts.targetHeight, {
           fit: 'cover',
-          position: 'center'
+          position: 'center',
         })
         .png({ quality })
         .toBuffer();
@@ -156,12 +164,14 @@ export async function optimizeAvatar(
       originalSizeKB: Number(originalSizeKB.toFixed(2)),
       processedSizeKB: Number(processedSizeKB.toFixed(2)),
       quality,
-      exceedsTarget
+      exceedsTarget,
     };
   } catch (error) {
     const originalMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error({ err: error }, '[ImageProcessor] Failed to process avatar image');
-    throw new Error(`Failed to process avatar image: ${originalMessage}. Ensure it is a valid image format.`);
+    throw new Error(
+      `Failed to process avatar image: ${originalMessage}. Ensure it is a valid image format.`
+    );
   }
 }
 

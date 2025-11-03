@@ -15,9 +15,7 @@ async function test() {
   const result1 = await qdrant.scroll(collectionName, {
     limit: 3,
     filter: {
-      must: [
-        { key: 'userId', match: { value: userId } }
-      ]
+      must: [{ key: 'userId', match: { value: userId } }],
     },
     with_payload: true,
     with_vector: false,
@@ -30,8 +28,8 @@ async function test() {
     filter: {
       must: [
         { key: 'userId', match: { value: userId } },
-        { key: 'personalityId', match: { value: personalityId } }
-      ]
+        { key: 'personalityId', match: { value: personalityId } },
+      ],
     },
     with_payload: true,
     with_vector: false,
@@ -42,10 +40,7 @@ async function test() {
   const result3 = await qdrant.scroll(collectionName, {
     limit: 3,
     filter: {
-      should: [
-        { is_empty: { key: 'userId' } },
-        { key: 'userId', match: { value: userId } }
-      ]
+      should: [{ is_empty: { key: 'userId' } }, { key: 'userId', match: { value: userId } }],
     },
     with_payload: true,
     with_vector: false,

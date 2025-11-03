@@ -25,9 +25,9 @@ async function auditLTMCoverage(userId, personalityId) {
     where: { id: userId },
     include: {
       defaultPersonaLink: {
-        select: { personaId: true }
-      }
-    }
+        select: { personaId: true },
+      },
+    },
   });
 
   if (!user) {
@@ -55,7 +55,7 @@ async function auditLTMCoverage(userId, personalityId) {
       role: true,
       content: true,
       createdAt: true,
-    }
+    },
   });
 
   console.log(`📊 PostgreSQL conversation_history: ${conversations.length} messages`);
@@ -67,10 +67,12 @@ async function auditLTMCoverage(userId, personalityId) {
   try {
     const scrollResult = await qdrant.scroll(collectionName, {
       filter: {
-        must: [{
-          key: 'personalityId',
-          match: { value: personalityId }
-        }]
+        must: [
+          {
+            key: 'personalityId',
+            match: { value: personalityId },
+          },
+        ],
       },
       limit: 10000,
       with_payload: true,
@@ -118,9 +120,7 @@ async function auditLTMCoverage(userId, personalityId) {
     const pairTime = pair.timestamp.getTime();
 
     // Check if any memory timestamp is within tolerance
-    const hasMatch = memoryTimestamps.some(memTime =>
-      Math.abs(memTime - pairTime) <= TOLERANCE_MS
-    );
+    const hasMatch = memoryTimestamps.some(memTime => Math.abs(memTime - pairTime) <= TOLERANCE_MS);
 
     return !hasMatch;
   });
@@ -132,7 +132,10 @@ async function auditLTMCoverage(userId, personalityId) {
   console.log(`   Missing from LTM: ${missing.length}`);
 
   if (missing.length > 0) {
-    const coveragePercent = ((conversationPairs.length - missing.length) / conversationPairs.length * 100).toFixed(1);
+    const coveragePercent = (
+      ((conversationPairs.length - missing.length) / conversationPairs.length) *
+      100
+    ).toFixed(1);
     console.log(`   Coverage: ${coveragePercent}%`);
   } else {
     console.log(`   Coverage: 100% ✅`);
@@ -170,7 +173,9 @@ async function main() {
     console.error('Usage: node audit-ltm-coverage.cjs <userId> <personalityId>');
     console.error('');
     console.error('Example:');
-    console.error('  node audit-ltm-coverage.cjs e64fcc09-e4db-5902-b1c9-5750141e3bf2 c296b337-4e67-5337-99a3-4ca105cbbd68');
+    console.error(
+      '  node audit-ltm-coverage.cjs e64fcc09-e4db-5902-b1c9-5750141e3bf2 c296b337-4e67-5337-99a3-4ca105cbbd68'
+    );
     process.exit(1);
   }
 

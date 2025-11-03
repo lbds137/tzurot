@@ -6,11 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import {
-  extractOwnerId,
-  isValidOwner,
-  requireOwnerAuth
-} from './authMiddleware.js';
+import { extractOwnerId, isValidOwner, requireOwnerAuth } from './authMiddleware.js';
 import * as commonTypes from '@tzurot/common-types';
 
 // Mock getConfig
@@ -18,7 +14,7 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getConfig: vi.fn()
+    getConfig: vi.fn(),
   };
 });
 
@@ -27,7 +23,7 @@ describe('authMiddleware', () => {
     it('should extract owner ID from header', () => {
       const req = {
         headers: { 'x-owner-id': '123456789' },
-        body: {}
+        body: {},
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBe('123456789');
@@ -36,7 +32,7 @@ describe('authMiddleware', () => {
     it('should extract owner ID from body when header not present', () => {
       const req = {
         headers: {},
-        body: { ownerId: '987654321' }
+        body: { ownerId: '987654321' },
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBe('987654321');
@@ -45,7 +41,7 @@ describe('authMiddleware', () => {
     it('should prefer header over body when both present', () => {
       const req = {
         headers: { 'x-owner-id': 'header-id' },
-        body: { ownerId: 'body-id' }
+        body: { ownerId: 'body-id' },
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBe('header-id');
@@ -54,7 +50,7 @@ describe('authMiddleware', () => {
     it('should return undefined when neither header nor body present', () => {
       const req = {
         headers: {},
-        body: {}
+        body: {},
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBeUndefined();
@@ -63,7 +59,7 @@ describe('authMiddleware', () => {
     it('should return undefined when header is array', () => {
       const req = {
         headers: { 'x-owner-id': ['id1', 'id2'] },
-        body: {}
+        body: {},
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBeUndefined();
@@ -72,7 +68,7 @@ describe('authMiddleware', () => {
     it('should return undefined when body.ownerId is not string', () => {
       const req = {
         headers: {},
-        body: { ownerId: 123 }
+        body: { ownerId: 123 },
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBeUndefined();
@@ -81,7 +77,7 @@ describe('authMiddleware', () => {
     it('should return undefined when body is null', () => {
       const req = {
         headers: {},
-        body: null
+        body: null,
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBeUndefined();
@@ -90,7 +86,7 @@ describe('authMiddleware', () => {
     it('should handle empty string in header', () => {
       const req = {
         headers: { 'x-owner-id': '' },
-        body: {}
+        body: {},
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBe('');
@@ -99,7 +95,7 @@ describe('authMiddleware', () => {
     it('should handle empty string in body', () => {
       const req = {
         headers: {},
-        body: { ownerId: '' }
+        body: { ownerId: '' },
       } as unknown as Request;
 
       expect(extractOwnerId(req)).toBe('');
@@ -113,7 +109,7 @@ describe('authMiddleware', () => {
 
     it('should return true when owner ID matches config', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner-id'
+        BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
       expect(isValidOwner('valid-owner-id')).toBe(true);
@@ -121,7 +117,7 @@ describe('authMiddleware', () => {
 
     it('should return false when owner ID does not match', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner-id'
+        BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
       expect(isValidOwner('wrong-owner-id')).toBe(false);
@@ -129,7 +125,7 @@ describe('authMiddleware', () => {
 
     it('should return false when owner ID is undefined', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner-id'
+        BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
       expect(isValidOwner(undefined)).toBe(false);
@@ -137,7 +133,7 @@ describe('authMiddleware', () => {
 
     it('should return false when BOT_OWNER_ID is not configured', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: undefined
+        BOT_OWNER_ID: undefined,
       } as any);
 
       expect(isValidOwner('some-id')).toBe(false);
@@ -145,7 +141,7 @@ describe('authMiddleware', () => {
 
     it('should return false when both are undefined', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: undefined
+        BOT_OWNER_ID: undefined,
       } as any);
 
       expect(isValidOwner(undefined)).toBe(false);
@@ -153,7 +149,7 @@ describe('authMiddleware', () => {
 
     it('should return false when owner ID is empty string', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner-id'
+        BOT_OWNER_ID: 'valid-owner-id',
       } as any);
 
       expect(isValidOwner('')).toBe(false);
@@ -161,7 +157,7 @@ describe('authMiddleware', () => {
 
     it('should handle case-sensitive comparison', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'CaseSensitiveId'
+        BOT_OWNER_ID: 'CaseSensitiveId',
       } as any);
 
       expect(isValidOwner('casesensitiveid')).toBe(false);
@@ -179,12 +175,12 @@ describe('authMiddleware', () => {
 
       mockReq = {
         headers: {},
-        body: {}
+        body: {},
       };
 
       mockRes = {
         status: vi.fn().mockReturnThis(),
-        json: vi.fn().mockReturnThis()
+        json: vi.fn().mockReturnThis(),
       };
 
       mockNext = vi.fn();
@@ -192,7 +188,7 @@ describe('authMiddleware', () => {
 
     it('should call next() when owner ID is valid', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       mockReq.headers = { 'x-owner-id': 'valid-owner' };
@@ -207,7 +203,7 @@ describe('authMiddleware', () => {
 
     it('should return 403 when owner ID is invalid', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       mockReq.headers = { 'x-owner-id': 'invalid-owner' };
@@ -220,14 +216,14 @@ describe('authMiddleware', () => {
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'UNAUTHORIZED',
-          message: 'This endpoint is only available to the bot owner'
+          message: 'This endpoint is only available to the bot owner',
         })
       );
     });
 
     it('should return 403 when owner ID is missing', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       const middleware = requireOwnerAuth();
@@ -239,7 +235,7 @@ describe('authMiddleware', () => {
 
     it('should use custom message when provided', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       mockReq.headers = { 'x-owner-id': 'invalid-owner' };
@@ -249,14 +245,14 @@ describe('authMiddleware', () => {
 
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: 'Custom unauthorized message'
+          message: 'Custom unauthorized message',
         })
       );
     });
 
     it('should work with owner ID in body', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       mockReq.body = { ownerId: 'valid-owner' };
@@ -269,7 +265,7 @@ describe('authMiddleware', () => {
 
     it('should include timestamp in error response', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       const middleware = requireOwnerAuth();
@@ -277,14 +273,14 @@ describe('authMiddleware', () => {
 
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          timestamp: expect.any(String)
+          timestamp: expect.any(String),
         })
       );
     });
 
     it('should not call next() when BOT_OWNER_ID is not configured', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: undefined
+        BOT_OWNER_ID: undefined,
       } as any);
 
       mockReq.headers = { 'x-owner-id': 'some-id' };
@@ -298,7 +294,7 @@ describe('authMiddleware', () => {
 
     it('should handle empty string owner ID', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        BOT_OWNER_ID: 'valid-owner'
+        BOT_OWNER_ID: 'valid-owner',
       } as any);
 
       mockReq.headers = { 'x-owner-id': '' };

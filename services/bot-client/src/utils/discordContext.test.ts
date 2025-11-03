@@ -116,7 +116,11 @@ describe('extractDiscordEnvironment', () => {
 
     it('should set parent as main channel for threads', () => {
       const guild = createMockGuild();
-      const parentChannel = createMockTextChannel({ id: 'parent-123', name: 'announcements', guild });
+      const parentChannel = createMockTextChannel({
+        id: 'parent-123',
+        name: 'announcements',
+        guild,
+      });
       const thread = createMockThreadChannel({
         name: 'Update Thread',
         parent: parentChannel,
@@ -190,7 +194,9 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toBe('This conversation is taking place in a **Direct Message** (private one-on-one chat).');
+      expect(result).toBe(
+        'This conversation is taking place in a **Direct Message** (private one-on-one chat).'
+      );
     });
   });
 

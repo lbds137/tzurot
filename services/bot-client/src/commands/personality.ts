@@ -12,7 +12,7 @@ import {
   ModalBuilder,
   ActionRowBuilder,
   TextInputBuilder,
-  TextInputStyle
+  TextInputStyle,
 } from 'discord.js';
 import { getConfig, createLogger } from '@tzurot/common-types';
 
@@ -26,10 +26,7 @@ export const data = new SlashCommandBuilder()
       .setName('create')
       .setDescription('Create a new AI personality')
       .addStringOption(option =>
-        option
-          .setName('name')
-          .setDescription('Display name of the personality')
-          .setRequired(true)
+        option.setName('name').setDescription('Display name of the personality').setRequired(true)
       )
       .addStringOption(option =>
         option
@@ -68,16 +65,10 @@ export const data = new SlashCommandBuilder()
           .setRequired(false)
       )
       .addStringOption(option =>
-        option
-          .setName('age')
-          .setDescription('Apparent age')
-          .setRequired(false)
+        option.setName('age').setDescription('Apparent age').setRequired(false)
       )
       .addStringOption(option =>
-        option
-          .setName('likes')
-          .setDescription('Things this personality likes')
-          .setRequired(false)
+        option.setName('likes').setDescription('Things this personality likes').setRequired(false)
       )
       .addStringOption(option =>
         option
@@ -97,10 +88,7 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
       )
       .addStringOption(option =>
-        option
-          .setName('name')
-          .setDescription('Display name of the personality')
-          .setRequired(false)
+        option.setName('name').setDescription('Display name of the personality').setRequired(false)
       )
       .addStringOption(option =>
         option
@@ -133,16 +121,10 @@ export const data = new SlashCommandBuilder()
           .setRequired(false)
       )
       .addStringOption(option =>
-        option
-          .setName('age')
-          .setDescription('Apparent age')
-          .setRequired(false)
+        option.setName('age').setDescription('Apparent age').setRequired(false)
       )
       .addStringOption(option =>
-        option
-          .setName('likes')
-          .setDescription('Things this personality likes')
-          .setRequired(false)
+        option.setName('likes').setDescription('Things this personality likes').setRequired(false)
       )
       .addStringOption(option =>
         option
@@ -168,7 +150,9 @@ export const data = new SlashCommandBuilder()
       .setDescription('Create a new AI personality using an interactive form')
   );
 
-export async function execute(interaction: ChatInputCommandInteraction | ModalSubmitInteraction): Promise<void> {
+export async function execute(
+  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
+): Promise<void> {
   const config = getConfig();
   const ownerId = config.BOT_OWNER_ID;
 
@@ -176,7 +160,7 @@ export async function execute(interaction: ChatInputCommandInteraction | ModalSu
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
       content: '❌ This command is only available to the bot owner.',
-      flags: MessageFlags.Ephemeral
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -205,7 +189,7 @@ export async function execute(interaction: ChatInputCommandInteraction | ModalSu
     default:
       await interaction.reply({
         content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral
+        flags: MessageFlags.Ephemeral,
       });
   }
 }
@@ -238,7 +222,7 @@ async function handleCreate(
     if (!/^[a-z0-9-]+$/.test(slug)) {
       await interaction.editReply(
         '❌ Invalid slug format. Use only lowercase letters, numbers, and hyphens.\n' +
-        `Example: \`${name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+          `Example: \`${name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
       );
       return;
     }
@@ -271,8 +255,9 @@ async function handleCreate(
         // For now, store original - resize will be handled by API gateway
         avatarBase64 = buffer.toString('base64');
 
-        logger.info(`[Personality Create] Downloaded avatar: ${avatarAttachment.name} (${(buffer.length / 1024).toFixed(2)} KB)`);
-
+        logger.info(
+          `[Personality Create] Downloaded avatar: ${avatarAttachment.name} (${(buffer.length / 1024).toFixed(2)} KB)`
+        );
       } catch (error) {
         logger.error({ err: error }, 'Failed to download avatar');
         await interaction.editReply('❌ Failed to download avatar image');
@@ -292,7 +277,7 @@ async function handleCreate(
       personalityLikes: likes || undefined,
       personalityDislikes: dislikes || undefined,
       avatarData: avatarBase64,
-      ownerId: interaction.user.id
+      ownerId: interaction.user.id,
     };
 
     // Call API Gateway to create personality
@@ -301,9 +286,9 @@ async function handleCreate(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Owner-Id': interaction.user.id
+        'X-Owner-Id': interaction.user.id,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -314,14 +299,14 @@ async function handleCreate(
       if (response.status === 409) {
         await interaction.editReply(
           `❌ A personality with the slug \`${slug}\` already exists.\n` +
-          'Please choose a different slug.'
+            'Please choose a different slug.'
         );
         return;
       }
 
       await interaction.editReply(
         `❌ Failed to create personality (HTTP ${response.status}):\n` +
-        `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+          `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
       );
       return;
     }
@@ -330,7 +315,7 @@ async function handleCreate(
 
     // Build success embed
     const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
+      .setColor(0x00ff00)
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created new personality: **${name}** (\`${slug}\`)`)
       .addFields(
@@ -355,12 +340,11 @@ async function handleCreate(
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(`[Personality Create] Created personality: ${slug} by ${interaction.user.tag}`);
-
   } catch (error) {
     logger.error({ err: error }, 'Error creating personality');
     await interaction.editReply(
       '❌ An unexpected error occurred while creating the personality.\n' +
-      'Check bot logs for details.'
+        'Check bot logs for details.'
     );
   }
 }
@@ -390,10 +374,20 @@ async function handleEdit(
     const avatarAttachment = interaction.options.getAttachment('avatar');
 
     // Validate at least one field is provided
-    if (!name && !characterInfo && !personalityTraits && !displayName && !tone && !age && !likes && !dislikes && !avatarAttachment) {
+    if (
+      !name &&
+      !characterInfo &&
+      !personalityTraits &&
+      !displayName &&
+      !tone &&
+      !age &&
+      !likes &&
+      !dislikes &&
+      !avatarAttachment
+    ) {
       await interaction.editReply(
         '❌ You must provide at least one field to update.\n' +
-        'Use the command options to specify what you want to change.'
+          'Use the command options to specify what you want to change.'
       );
       return;
     }
@@ -424,8 +418,9 @@ async function handleEdit(
         const buffer = Buffer.from(arrayBuffer);
         avatarBase64 = buffer.toString('base64');
 
-        logger.info(`[Personality Edit] Downloaded avatar: ${avatarAttachment.name} (${(buffer.length / 1024).toFixed(2)} KB)`);
-
+        logger.info(
+          `[Personality Edit] Downloaded avatar: ${avatarAttachment.name} (${(buffer.length / 1024).toFixed(2)} KB)`
+        );
       } catch (error) {
         logger.error({ err: error }, 'Failed to download avatar');
         await interaction.editReply('❌ Failed to download avatar image');
@@ -436,7 +431,7 @@ async function handleEdit(
     // Build request payload with only provided fields
     const payload: Record<string, unknown> = {
       slug,
-      ownerId: interaction.user.id
+      ownerId: interaction.user.id,
     };
 
     if (name !== null) payload.name = name;
@@ -455,9 +450,9 @@ async function handleEdit(
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'X-Owner-Id': interaction.user.id
+        'X-Owner-Id': interaction.user.id,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -467,15 +462,14 @@ async function handleEdit(
       // Check for common errors
       if (response.status === 404) {
         await interaction.editReply(
-          `❌ Personality with slug \`${slug}\` not found.\n` +
-          'Check the slug and try again.'
+          `❌ Personality with slug \`${slug}\` not found.\n` + 'Check the slug and try again.'
         );
         return;
       }
 
       await interaction.editReply(
         `❌ Failed to edit personality (HTTP ${response.status}):\n` +
-        `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+          `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
       );
       return;
     }
@@ -484,7 +478,7 @@ async function handleEdit(
 
     // Build success embed
     const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
+      .setColor(0x00ff00)
       .setTitle('✅ Personality Updated Successfully')
       .setDescription(`Updated personality: **${name || slug}** (\`${slug}\`)`)
       .setTimestamp();
@@ -505,12 +499,11 @@ async function handleEdit(
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(`[Personality Edit] Updated personality: ${slug} by ${interaction.user.tag}`);
-
   } catch (error) {
     logger.error({ err: error }, 'Error editing personality');
     await interaction.editReply(
       '❌ An unexpected error occurred while editing the personality.\n' +
-      'Check bot logs for details.'
+        'Check bot logs for details.'
     );
   }
 }
@@ -550,13 +543,13 @@ async function handleImport(
       const text = await response.text();
       personalityData = JSON.parse(text);
 
-      logger.info(`[Personality Import] Downloaded JSON: ${fileAttachment.name} (${(text.length / 1024).toFixed(2)} KB)`);
-
+      logger.info(
+        `[Personality Import] Downloaded JSON: ${fileAttachment.name} (${(text.length / 1024).toFixed(2)} KB)`
+      );
     } catch (error) {
       logger.error({ err: error }, 'Failed to download or parse JSON');
       await interaction.editReply(
-        '❌ Failed to parse JSON file.\n' +
-        'Make sure the file is valid JSON format.'
+        '❌ Failed to parse JSON file.\n' + 'Make sure the file is valid JSON format.'
       );
       return;
     }
@@ -568,7 +561,7 @@ async function handleImport(
     if (missingFields.length > 0) {
       await interaction.editReply(
         `❌ Missing required fields: ${missingFields.join(', ')}\n` +
-        'JSON must include: name, slug, characterInfo, personalityTraits'
+          'JSON must include: name, slug, characterInfo, personalityTraits'
       );
       return;
     }
@@ -578,7 +571,7 @@ async function handleImport(
     if (!/^[a-z0-9-]+$/.test(slug)) {
       await interaction.editReply(
         '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
-        `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+          `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
       );
       return;
     }
@@ -599,7 +592,7 @@ async function handleImport(
       conversationalExamples: personalityData.conversationalExamples || undefined,
       customFields: personalityData.customFields || undefined,
       avatarData: personalityData.avatarData || undefined,
-      ownerId: interaction.user.id
+      ownerId: interaction.user.id,
     };
 
     // Call API Gateway to create personality
@@ -608,9 +601,9 @@ async function handleImport(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Owner-Id': interaction.user.id
+        'X-Owner-Id': interaction.user.id,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -621,14 +614,14 @@ async function handleImport(
       if (response.status === 409) {
         await interaction.editReply(
           `❌ A personality with the slug \`${slug}\` already exists.\n` +
-          'Either change the slug in the JSON file or delete the existing personality first.'
+            'Either change the slug in the JSON file or delete the existing personality first.'
         );
         return;
       }
 
       await interaction.editReply(
         `❌ Failed to import personality (HTTP ${response.status}):\n` +
-        `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+          `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
       );
       return;
     }
@@ -637,7 +630,7 @@ async function handleImport(
 
     // Build success embed
     const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
+      .setColor(0x00ff00)
       .setTitle('✅ Personality Imported Successfully')
       .setDescription(`Imported personality: **${payload.name}** (\`${slug}\`)`)
       .setTimestamp();
@@ -662,12 +655,11 @@ async function handleImport(
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(`[Personality Import] Imported personality: ${slug} by ${interaction.user.tag}`);
-
   } catch (error) {
     logger.error({ err: error }, 'Error importing personality');
     await interaction.editReply(
       '❌ An unexpected error occurred while importing the personality.\n' +
-      'Check bot logs for details.'
+        'Check bot logs for details.'
     );
   }
 }
@@ -733,7 +725,7 @@ async function handleCreateModal(interaction: ChatInputCommandInteraction): Prom
     new ActionRowBuilder<TextInputBuilder>().addComponents(slugInput),
     new ActionRowBuilder<TextInputBuilder>().addComponents(characterInfoInput),
     new ActionRowBuilder<TextInputBuilder>().addComponents(personalityTraitsInput),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(displayNameInput)
+    new ActionRowBuilder<TextInputBuilder>().addComponents(displayNameInput),
   ];
 
   modal.addComponents(...rows);
@@ -754,7 +746,7 @@ async function handleModalSubmit(
   if (interaction.customId !== 'personality-create') {
     await interaction.reply({
       content: '❌ Unknown modal submission',
-      flags: MessageFlags.Ephemeral
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -773,7 +765,7 @@ async function handleModalSubmit(
     if (!/^[a-z0-9-]+$/.test(slug)) {
       await interaction.editReply(
         '❌ Invalid slug format. Use only lowercase letters, numbers, and hyphens.\n' +
-        `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+          `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
       );
       return;
     }
@@ -785,7 +777,7 @@ async function handleModalSubmit(
       characterInfo,
       personalityTraits,
       displayName,
-      ownerId: interaction.user.id
+      ownerId: interaction.user.id,
     };
 
     // Call API Gateway to create personality
@@ -794,9 +786,9 @@ async function handleModalSubmit(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Owner-Id': interaction.user.id
+        'X-Owner-Id': interaction.user.id,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -806,14 +798,14 @@ async function handleModalSubmit(
       if (response.status === 409) {
         await interaction.editReply(
           `❌ A personality with the slug \`${slug}\` already exists.\n` +
-          'Either use a different slug or delete the existing personality first.'
+            'Either use a different slug or delete the existing personality first.'
         );
         return;
       }
 
       await interaction.editReply(
         `❌ Failed to create personality (HTTP ${response.status}):\n` +
-        `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+          `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
       );
       return;
     }
@@ -822,25 +814,30 @@ async function handleModalSubmit(
 
     // Success!
     const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
+      .setColor(0x00ff00)
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created personality: **${name}** (\`${slug}\`)`)
       .addFields(
         { name: 'Character Info', value: `${characterInfo.substring(0, 200)}...`, inline: false },
-        { name: 'Personality Traits', value: `${personalityTraits.substring(0, 200)}...`, inline: false }
+        {
+          name: 'Personality Traits',
+          value: `${personalityTraits.substring(0, 200)}...`,
+          inline: false,
+        }
       )
       .setFooter({ text: 'Use /personality edit to add more details (appearance, likes, etc.)' })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info(`[Personality Create Modal] Created personality: ${slug} by ${interaction.user.tag}`);
-
+    logger.info(
+      `[Personality Create Modal] Created personality: ${slug} by ${interaction.user.tag}`
+    );
   } catch (error) {
     logger.error({ err: error }, 'Error creating personality from modal');
     await interaction.editReply(
       '❌ An unexpected error occurred while creating the personality.\n' +
-      'Check bot logs for details.'
+        'Check bot logs for details.'
     );
   }
 }

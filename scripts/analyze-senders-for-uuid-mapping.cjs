@@ -26,7 +26,7 @@ async function analyzeSenders() {
 
   // Get current Postgres users for reference
   const pgUsers = await prisma.user.findMany({
-    select: { id: true, username: true, discordId: true }
+    select: { id: true, username: true, discordId: true },
   });
 
   const knownUsers = new Map(pgUsers.map(u => [u.id, u.username]));
@@ -122,7 +122,9 @@ async function analyzeSenders() {
     for (const [otherId, count] of coOccurs) {
       const otherName = knownUsers.get(otherId) || '(unknown)';
       const status = knownUsers.has(otherId) ? '✓' : '✗';
-      console.log(`    ${status} ${otherId}: ${count} shared conversations ${otherName !== '(unknown)' ? `(${otherName})` : ''}`);
+      console.log(
+        `    ${status} ${otherId}: ${count} shared conversations ${otherName !== '(unknown)' ? `(${otherName})` : ''}`
+      );
     }
   }
 

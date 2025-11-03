@@ -42,7 +42,7 @@ export class MessageLinkParser {
         guildId: match[2],
         channelId: match[3],
         messageId: match[4],
-        fullUrl: match[0]
+        fullUrl: match[0],
       });
     }
 
@@ -55,16 +55,11 @@ export class MessageLinkParser {
    * @param linkMap - Map of full URL to reference number
    * @returns Content with links replaced by "[Reference N]"
    */
-  static replaceLinksWithReferences(
-    content: string,
-    linkMap: Map<string, number>
-  ): string {
+  static replaceLinksWithReferences(content: string, linkMap: Map<string, number>): string {
     let result = content;
 
     // Sort by URL length (longest first) to avoid partial replacements
-    const sortedEntries = Array.from(linkMap.entries()).sort(
-      (a, b) => b[0].length - a[0].length
-    );
+    const sortedEntries = Array.from(linkMap.entries()).sort((a, b) => b[0].length - a[0].length);
 
     for (const [url, number] of sortedEntries) {
       // Use replaceAll to replace all occurrences (handles duplicate links)

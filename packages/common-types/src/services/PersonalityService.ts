@@ -102,7 +102,9 @@ export class PersonalityService {
   static deriveAvatarUrl(slug: string): string | undefined {
     const publicUrl = process.env.PUBLIC_GATEWAY_URL || process.env.GATEWAY_URL;
     if (!publicUrl) {
-      logger.warn('[PersonalityService] No PUBLIC_GATEWAY_URL or GATEWAY_URL configured, cannot derive avatar URL');
+      logger.warn(
+        '[PersonalityService] No PUBLIC_GATEWAY_URL or GATEWAY_URL configured, cannot derive avatar URL'
+      );
       return undefined;
     }
 
@@ -121,7 +123,9 @@ export class PersonalityService {
 
     try {
       // Check if nameOrId is a valid UUID (to avoid Prisma UUID parsing errors)
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        nameOrId
+      );
 
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
@@ -167,7 +171,6 @@ export class PersonalityService {
 
       logger.info(`Loaded personality: ${personality.name}`);
       return personality;
-
     } catch (error) {
       logger.error({ err: error }, `Failed to load personality: ${nameOrId}`);
       return null;
@@ -217,7 +220,6 @@ export class PersonalityService {
 
       logger.info(`Loaded ${personalities.length} personalities from database`);
       return personalities;
-
     } catch (error) {
       logger.error({ err: error }, 'Failed to load all personalities');
       return [];
@@ -232,15 +234,11 @@ export class PersonalityService {
     const llmConfig = db.defaultConfigLink?.llmConfig;
 
     // Convert Decimal types to numbers, providing defaults where needed
-    const temperature = llmConfig?.temperature
-      ? parseFloat(llmConfig.temperature.toString())
-      : 0.7; // Default temperature
+    const temperature = llmConfig?.temperature ? parseFloat(llmConfig.temperature.toString()) : 0.7; // Default temperature
 
     const maxTokens = llmConfig?.maxTokens ?? 4096; // Default max tokens
 
-    const topP = llmConfig?.topP
-      ? parseFloat(llmConfig.topP.toString())
-      : undefined;
+    const topP = llmConfig?.topP ? parseFloat(llmConfig.topP.toString()) : undefined;
 
     const frequencyPenalty = llmConfig?.frequencyPenalty
       ? parseFloat(llmConfig.frequencyPenalty.toString())
@@ -345,5 +343,4 @@ export class PersonalityService {
       logger.debug(`[PersonalityService] Evicted LRU cache entry: ${lruKey}`);
     }
   }
-
 }

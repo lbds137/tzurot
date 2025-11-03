@@ -72,7 +72,10 @@ export function generateConversationHistoryUuid(
   createdAt: Date
 ): string {
   const timestamp = createdAt.getTime();
-  return uuidv5(`conversation_history:${channelId}:${personalityId}:${userId}:${timestamp}`, TZUROT_NAMESPACE);
+  return uuidv5(
+    `conversation_history:${channelId}:${personalityId}:${userId}:${timestamp}`,
+    TZUROT_NAMESPACE
+  );
 }
 
 /**

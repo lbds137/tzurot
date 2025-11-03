@@ -42,12 +42,12 @@ export class PendingMemoryProcessor {
       // Fetch pending memories that haven't exceeded retry limit
       const pendingMemories = await this.prisma.pendingMemory.findMany({
         where: {
-          attempts: { lt: maxAttempts }
+          attempts: { lt: maxAttempts },
         },
         orderBy: {
-          createdAt: 'asc' // Process oldest first
+          createdAt: 'asc', // Process oldest first
         },
-        take: 100 // Process up to 100 at a time to avoid overwhelming the system
+        take: 100, // Process up to 100 at a time to avoid overwhelming the system
       });
 
       if (pendingMemories.length === 0) {
@@ -64,17 +64,16 @@ export class PendingMemoryProcessor {
           // Attempt to store the memory
           await this.memoryAdapter.addMemory({
             text: pending.text,
-            metadata: pending.metadata as any // Cast from Json to MemoryMetadata
+            metadata: pending.metadata as any, // Cast from Json to MemoryMetadata
           });
 
           // Success! Delete the pending memory
           await this.prisma.pendingMemory.delete({
-            where: { id: pending.id }
+            where: { id: pending.id },
           });
 
           stats.succeeded++;
           logger.debug(`[PendingMemory] Successfully stored pending memory ${pending.id}`);
-
         } catch (error) {
           // Failed - update attempt count and error message
           const newAttempts = pending.attempts + 1;
@@ -85,8 +84,8 @@ export class PendingMemoryProcessor {
             data: {
               attempts: newAttempts,
               lastAttemptAt: new Date(),
-              error: error instanceof Error ? error.message : String(error)
-            }
+              error: error instanceof Error ? error.message : String(error),
+            },
           });
 
           stats.failed++;
@@ -111,7 +110,6 @@ export class PendingMemoryProcessor {
       );
 
       return stats;
-
     } catch (error) {
       logger.error({ err: error }, '[PendingMemory] Failed to process pending memories');
       return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
@@ -127,7 +125,7 @@ export class PendingMemoryProcessor {
   }> {
     try {
       const pending = await this.prisma.pendingMemory.findMany({
-        select: { attempts: true }
+        select: { attempts: true },
       });
 
       const byAttempts: Record<number, number> = {};
@@ -137,7 +135,7 @@ export class PendingMemoryProcessor {
 
       return {
         total: pending.length,
-        byAttempts
+        byAttempts,
       };
     } catch (error) {
       logger.error({ err: error }, '[PendingMemory] Failed to get stats');

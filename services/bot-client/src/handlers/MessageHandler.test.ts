@@ -144,6 +144,78 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
     });
   });
 
+  describe('webhook detection', () => {
+    it('should skip persona creation for webhook messages (cached in Redis)', async () => {
+      // Setup: Mock Redis to return a personality for this message
+      const { getWebhookPersonality } = await import('../redis.js');
+      vi.mocked(getWebhookPersonality).mockResolvedValueOnce('COLD | תשב');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'webhook-msg-123',
+          webhookId: 'webhook-123',
+          discordUserId: 'bot-user-id',
+          authorUsername: 'Tzurot',
+          authorDisplayName: 'COLD | תשב',
+          content: 'AI response here',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #general',
+        },
+      ];
+
+      const history: ConversationMessage[] = [];
+
+      // Execute
+      await (messageHandler as any).enrichReferencesWithPersonaNames(
+        references,
+        history,
+        'personality-id'
+      );
+
+      // Verify: getOrCreateUser was NOT called (persona creation skipped)
+      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
+      // Verify: Display name unchanged (preserved AI personality name)
+      expect(references[0].authorDisplayName).toBe('COLD | תשב');
+    });
+
+    it('should skip persona creation for webhook messages (via webhookId property)', async () => {
+      // Setup: Redis returns null (not cached), but message has webhookId
+      const { getWebhookPersonality } = await import('../redis.js');
+      vi.mocked(getWebhookPersonality).mockResolvedValueOnce(null);
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'old-webhook-msg',
+          webhookId: 'webhook-456', // Discord.js provides this
+          discordUserId: 'bot-user-id',
+          authorUsername: 'PluralKit',
+          authorDisplayName: 'System Member',
+          content: 'Proxied message',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Test Guild > #chat',
+        },
+      ];
+
+      const history: ConversationMessage[] = [];
+
+      // Execute
+      await (messageHandler as any).enrichReferencesWithPersonaNames(
+        references,
+        history,
+        'personality-id'
+      );
+
+      // Verify: getOrCreateUser was NOT called (detected via webhookId)
+      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
+      // Verify: Display name unchanged
+      expect(references[0].authorDisplayName).toBe('System Member');
+    });
+  });
+
   describe('error handling', () => {
     it('should handle missing persona gracefully', async () => {
       // Setup: Create referenced messages
@@ -153,11 +225,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'msg-789',
           webhookId: undefined,
           discordUserId: 'user-789',
-                    authorUsername: 'missinguser',
-                    authorDisplayName: 'Original Discord Name',
-                    content: 'Test',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'missinguser',
+          authorDisplayName: 'Original Discord Name',
+          content: 'Test',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Test Guild > #test',
         },
       ];
@@ -188,11 +260,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'msg-error',
           webhookId: undefined,
           discordUserId: 'user-error',
-                    authorUsername: 'erroruser',
-                    authorDisplayName: 'Fallback Name',
-                    content: 'Test',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'erroruser',
+          authorDisplayName: 'Fallback Name',
+          content: 'Test',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Test Guild > #test',
         },
       ];
@@ -276,11 +348,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'msg-1',
           webhookId: undefined,
           discordUserId: 'user-1',
-                    authorUsername: 'user1',
-                    authorDisplayName: 'User 1 Discord',
-                    content: 'First message',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'user1',
+          authorDisplayName: 'User 1 Discord',
+          content: 'First message',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Test Guild > #general',
         },
         {
@@ -288,11 +360,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'msg-2',
           webhookId: undefined,
           discordUserId: 'user-2',
-                    authorUsername: 'user2',
-                    authorDisplayName: 'User 2 Discord',
-                    content: 'Second message',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'user2',
+          authorDisplayName: 'User 2 Discord',
+          content: 'Second message',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Test Guild > #general',
         },
       ];
@@ -315,7 +387,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         .mockResolvedValueOnce('user-uuid-2');
 
       mockUserService.getPersonaForUser
-        .mockResolvedValueOnce('persona-1')  // First user - in history
+        .mockResolvedValueOnce('persona-1') // First user - in history
         .mockResolvedValueOnce('persona-2'); // Second user - not in history
 
       mockUserService.getPersonaName.mockResolvedValueOnce('Persona Two');
@@ -341,11 +413,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'msg-123',
           webhookId: undefined,
           discordUserId: 'user-123',
-                    authorUsername: 'testuser',
-                    authorDisplayName: 'Discord Name',
-                    content: 'Test',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'testuser',
+          authorDisplayName: 'Discord Name',
+          content: 'Test',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Test Guild > #test',
         },
       ];
@@ -388,11 +460,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'discord-123',
           webhookId: undefined,
           discordUserId: 'discord-123',
-                    authorUsername: 'testuser',
-                    authorDisplayName: 'Test Display Name',
-                    content: 'Test',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test Display Name',
+          content: 'Test',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Guild > #channel',
         },
       ];
@@ -422,11 +494,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           discordMessageId: 'discord-456',
           webhookId: undefined,
           discordUserId: 'discord-456',
-                    authorUsername: 'user',
-                    authorDisplayName: 'Display',
-                    content: 'Test',
-                    embeds: '',
-                    timestamp: new Date().toISOString(),
+          authorUsername: 'user',
+          authorDisplayName: 'Display',
+          content: 'Test',
+          embeds: '',
+          timestamp: new Date().toISOString(),
           locationContext: 'Guild > #channel',
         },
       ];

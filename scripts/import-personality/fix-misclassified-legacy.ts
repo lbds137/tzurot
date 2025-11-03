@@ -37,9 +37,7 @@ async function findMisclassifiedCollections(): Promise<MisclassifiedCollection[]
 
   // Get all legacy collections
   const response = await qdrant.getCollections();
-  const legacyCollections = response.collections.filter(c =>
-    c.name.startsWith('persona-legacy-')
-  );
+  const legacyCollections = response.collections.filter(c => c.name.startsWith('persona-legacy-'));
 
   console.log(`Found ${legacyCollections.length} legacy collections\n`);
 
@@ -198,7 +196,9 @@ async function fixCollection(
     });
 
     moved += batch.length;
-    console.log(`   ✅ Moved batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories (${moved}/${pointsToMove.length})`);
+    console.log(
+      `   ✅ Moved batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories (${moved}/${pointsToMove.length})`
+    );
 
     // Small delay
     await new Promise(resolve => setTimeout(resolve, 100));

@@ -32,14 +32,16 @@ async function main() {
 
   while (hasMore) {
     // Fetch batch with persona and personality names
-    const memories = await prisma.$queryRaw<Array<{
-      id: string;
-      content: string;
-      source_system: string;
-      persona_name: string;
-      personality_display_name: string | null;
-      personality_name: string;
-    }>>`
+    const memories = await prisma.$queryRaw<
+      Array<{
+        id: string;
+        content: string;
+        source_system: string;
+        persona_name: string;
+        personality_display_name: string | null;
+        personality_name: string;
+      }>
+    >`
       SELECT
         m.id,
         m.content,
@@ -118,10 +120,14 @@ async function main() {
               WHERE id = ${memory.id}::uuid
             `;
           }
-          logger.debug(`  ✅ Updated memory ${memory.id.substring(0, 8)}... (${memory.source_system})`);
+          logger.debug(
+            `  ✅ Updated memory ${memory.id.substring(0, 8)}... (${memory.source_system})`
+          );
           totalUpdated++;
         } else {
-          logger.debug(`  ⏭️  Skipped memory ${memory.id.substring(0, 8)}... (already uses tokens or no names found)`);
+          logger.debug(
+            `  ⏭️  Skipped memory ${memory.id.substring(0, 8)}... (already uses tokens or no names found)`
+          );
           totalSkipped++;
         }
       } catch (error) {
@@ -143,7 +149,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error');
   process.exit(1);
 });

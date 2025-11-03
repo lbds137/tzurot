@@ -18,4 +18,4 @@ export const MODEL_DEFAULTS = {
 /**
  * Model name type derived from defaults
  */
-export type DefaultModelName = typeof MODEL_DEFAULTS[keyof typeof MODEL_DEFAULTS];
+export type DefaultModelName = (typeof MODEL_DEFAULTS)[keyof typeof MODEL_DEFAULTS];

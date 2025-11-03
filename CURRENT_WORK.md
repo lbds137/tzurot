@@ -7,6 +7,7 @@
 **Current Phase**: Systematic refactoring and test coverage improvements
 
 **Recent Completion**:
+
 - ✅ PR #203, #204 merged and released as v3.0.0-alpha.21
 - ✅ Emergency fix for Qdrant lockfile issue deployed
 - ✅ Completed first refactoring chunk (api-gateway utilities)
@@ -17,22 +18,26 @@
 ## Active Work
 
 ### API Gateway Refactoring & Testing (In Progress)
+
 **Branch**: `refactor/api-gateway-utilities`
 **Status**: First chunk complete, ready for PR
 
 **Completed**:
+
 - ✅ `errorResponses.ts` - Centralized error response creation (41 tests)
 - ✅ `authMiddleware.ts` - Owner authentication middleware (24 tests)
 - ✅ `imageProcessor.ts` - Avatar optimization utility (30 tests)
 - ✅ Refactored `admin.ts` to use all new utilities
 
 **Impact**:
+
 - **Code reduction**: 437 → 328 lines in admin.ts (25% reduction)
 - **Test coverage**: Added 95 comprehensive tests
 - **Maintainability**: Eliminated duplicate error handling, auth checks, and image processing logic
 - **Type safety**: Full TypeScript coverage with proper error code enums
 
 **Next Steps** (separate PRs):
+
 - Refactor `ai.ts` routes to use error response utilities
 - Additional test coverage for route handlers
 - More duplicate code elimination
@@ -40,10 +45,12 @@
 ## Planned Features (Priority Order)
 
 ### 1. Unit Testing Infrastructure 🧪✨
+
 **Priority**: High - Foundation for quality
 **Status**: **Active Development** (Branch: `feat/unit-test-infrastructure`)
 
 **Completed**:
+
 - ✅ Vitest configuration (root + service-specific)
 - ✅ Pragmatic mock factory pattern (after 5.5hr journey through 4 iterations)
 - ✅ Discord.js mock factories (User, Guild, Channel, Message, etc.)
@@ -53,6 +60,7 @@
 - ✅ Gemini MCP consultation integration
 
 **Architecture Highlights**:
+
 - Co-located tests (`.test.ts` next to source)
 - **Pragmatic factory pattern**: Type-safe without over-engineering
   - `Partial<T>` for overrides
@@ -67,11 +75,13 @@
 After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patterns, we landed on a pragmatic approach that prioritizes runtime correctness over compile-time perfection. See `docs/architecture/TESTING_LESSONS_LEARNED.md` for the full 5.5-hour journey.
 
 **Key Files**:
+
 - `services/bot-client/src/test/mocks/Discord.mock.ts` - Core mock factories
 - `services/bot-client/src/test/types.ts` - Utility types
 - `docs/architecture/TESTING_LESSONS_LEARNED.md` - Comprehensive post-mortem
 
 **Next Targets** (prioritized by complexity):
+
 1. **ConversationManager** (158 lines) - Focused service, no external deps
 2. **CommandHandler** (149 lines) - Slash command routing
 3. **WebhookManager** (249 lines) - Discord webhook management
@@ -79,6 +89,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 5. Integration test patterns
 
 **Files Needing Tests**:
+
 - ✅ `utils/personalityMentionParser.ts` - Done
 - ✅ `utils/discordContext.ts` - Done
 - 🎯 `memory/ConversationManager.ts` - Next up (158 lines)
@@ -91,6 +102,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ---
 
 ### 2. Transcription Cleanup Feature 🎤
+
 **Priority**: Medium - Quality of life improvement
 **Status**: Needs architectural planning
 
@@ -99,17 +111,20 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 **Problem**: Whisper transcriptions lack punctuation, making them hard to read.
 
 **Solution**: Add second LLM pass to clean up transcriptions:
+
 - Add punctuation
 - Add formatting
 - Add paragraphs for long messages
 - **Don't change underlying content** (just formatting)
 
 **Technical Approach**:
+
 - Use cheaper model (Claude Haiku suggested)
 - New service or utility in ai-worker
 - Consider making it optional (config flag?)
 
 **Open Questions**:
+
 - Should this be opt-in or default?
 - How to handle cost (already transcribing + LLM response, now adding cleanup LLM too)?
 - Should cleanup be cached with the transcript?
@@ -117,12 +132,14 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ---
 
 ### 3. Message Reference System 🔗
+
 **Priority**: Medium - Feature parity with v2
 **Status**: Architecture designed, ready for implementation
 
 **Goal**: Extract context from Discord replies and message links
 
 **Features**:
+
 - Extract content from replied-to messages
 - Parse Discord message links (format: `https://discord.com/channels/guild/channel/message`)
 - Look up or create default personas for referenced message authors
@@ -131,6 +148,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Replace message links in user's message with numbered references (e.g., "Reference 1", "Reference 2")
 
 **Technical Approach**:
+
 - New module: `context/MessageReferenceExtractor.ts`
 - New module: `utils/EmbedParser.ts`
 - Separate prompt section: "## Referenced Messages"
@@ -142,6 +160,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - LLM-friendly embed formatting
 
 **Design Decisions**:
+
 - **Max references**: 10 referenced messages (configurable in personality LLM config)
 - **Embed extraction**: Yes - extract and format all embed fields from referenced messages
 - **Inaccessible channels**: Skip silently (don't error, just exclude)
@@ -149,6 +168,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - **Numbering**: Consistent numbering between user message and context section for LLM clarity
 
 **v2 Reference** (read-only, don't copy bad patterns):
+
 - `origin/feature/enhanced-context-metadata` branch
 - Problems with v2: messy structure, mixed concerns, not modular
 - Keep v3's clean prompt format
@@ -156,23 +176,27 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ---
 
 ### 4. PluralKit Proxy Support 🎭
+
 **Priority**: Medium - Quality of life for many users
 **Status**: Requires implementation (not working correctly now)
 
 **Goal**: Detect PluralKit proxies and link system member personas to the original Discord user
 
 **Context**: PluralKit is a popular Discord bot that allows users with DID/OSDD or similar to have multiple "system members" speaking through proxied webhook messages. When a user sends a message with a PluralKit trigger, PluralKit:
+
 1. Deletes the original message
 2. Creates a webhook message with the system member's name/avatar
 3. This happens within 1-3 seconds
 
 **Current Behavior** (BROKEN):
+
 - We respond to the original message before PluralKit proxies it
 - We don't wait to see if it gets proxied
 - Webhook messages create personas but they're not linked to the original user
 - No correlation between webhook personas and Discord user IDs
 
 **Correct Behavior** (what we need):
+
 - See the original message, track it
 - Wait 2-3 seconds (already in place from Message References!)
 - If message gets deleted AND webhook appears → PK proxy detected
@@ -186,6 +210,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
   - etc.
 
 **Technical Approach**:
+
 - **Message deletion tracking**: Watch for deletions within 3s of send
 - **Webhook correlation**: Match webhook message to deleted message by content/channel/timing
 - **User association cache**: Map webhook message → original Discord user ID
@@ -193,6 +218,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - **Process webhook message**: Use the webhook message content, not original
 
 **Implementation Needs**:
+
 - New service: `PluralKitDetector`
 - Message deletion event handler
 - Temporary message store (content, user, channel, timestamp)
@@ -201,11 +227,13 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Persona lookup by `(userId, memberName)` instead of just `userId`
 
 **v2 Reference** (patterns to extract, not copy):
+
 - `src/utils/pluralkitMessageStore.js` - Deletion tracking pattern
 - `src/utils/webhookUserTracker.js` - User association pattern
 - `src/handlers/referenceHandler.js` - Correlation logic pattern
 
 **Benefits of Implementing After Message References**:
+
 - The 2-3s delay is already implemented
 - Message refetch logic already in place
 - Infrastructure for tracking and correlation is similar
@@ -214,6 +242,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ---
 
 ### 5. Multi-Personality Response Feature 🎭
+
 **Priority**: Low - New feature, not v2 parity
 **Status**: Concept phase
 
@@ -222,6 +251,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 **Example**: `@Lilith @Sarcastic hey both of you` → Both Lilith and Sarcastic respond
 
 **Technical Challenges**:
+
 - `findPersonalityMention()` needs to return array of personalities (not just one)
 - MessageHandler creates multiple jobs (one per personality)
 - Each personality needs context: "who else was tagged?"
@@ -229,6 +259,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Response ordering/timing considerations
 
 **Open Questions**:
+
 - Do we track "Lilith and Sarcastic were both tagged" in conversation history?
 - How do we handle if one personality's job fails but another succeeds?
 - Should personalities be aware of each other's responses in real-time?
@@ -239,11 +270,13 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ## v3 Current State
 
 **Deployment**: Railway development environment (private testing)
+
 - Branch: `develop`
 - Status: Stable and operational
 - **NOT PUBLIC**: No BYOK yet, all API costs on owner
 
 ### ✅ Features Working
+
 - @personality mentions (@lilith, @default, @sarcastic)
 - Reply detection (reply to bot messages)
 - Webhook management (unique avatar/name per personality)
@@ -257,6 +290,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Basic slash commands (/ping, /help)
 
 ### 📋 Not Yet Ported from v2
+
 - Auto-response (activated channels)
 - Full slash command system
 - Rate limiting
@@ -264,7 +298,9 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Request deduplication
 
 ### 🚧 Blockers for Public Launch
+
 **Critical**:
+
 - **BYOK (Bring Your Own Key)**: Users provide own API keys
 - **Admin Commands**: Server management for bot owner
 
@@ -273,17 +309,20 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ## Quick Links
 
 ### Planning Docs
+
 - [docs/planning/V3_REFINEMENT_ROADMAP.md](docs/planning/V3_REFINEMENT_ROADMAP.md) - Comprehensive improvement roadmap
 - [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - Feature parity tracking
 
 ### Architecture
+
 - [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
 - [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) - Railway deployment guide
 
 ### Development
+
 - [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) - Local development setup
 - [CLAUDE.md](CLAUDE.md) - AI assistant rules and project context
 
 ---
 
-*This file reflects current focus and planned work. Updated when switching context.*
+_This file reflects current focus and planned work. Updated when switching context._

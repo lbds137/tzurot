@@ -14,7 +14,7 @@ async function checkMemory() {
   const response = await qdrant.retrieve(collectionName, {
     ids: [targetId],
     with_payload: true,
-    with_vector: false
+    with_vector: false,
   });
 
   if (response.length === 0) {

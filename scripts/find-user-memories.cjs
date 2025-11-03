@@ -41,7 +41,7 @@ async function searchByKeywords(keywords, limit = 50) {
         if (!userMemoryCounts[userId]) {
           userMemoryCounts[userId] = {
             count: 0,
-            samples: []
+            samples: [],
           };
         }
 
@@ -62,8 +62,7 @@ async function searchByKeywords(keywords, limit = 50) {
   console.log(`\nFound ${totalMatches} total memories containing "${keywords}"\n`);
 
   // Sort by count
-  const sorted = Object.entries(userMemoryCounts)
-    .sort(([, a], [, b]) => b.count - a.count);
+  const sorted = Object.entries(userMemoryCounts).sort(([, a], [, b]) => b.count - a.count);
 
   for (const [userId, data] of sorted.slice(0, limit)) {
     console.log(`User ID: ${userId}`);

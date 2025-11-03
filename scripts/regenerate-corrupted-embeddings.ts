@@ -27,7 +27,9 @@ async function main() {
 
   try {
     // Find ALL memories with corrupted timestamps (year > 9999)
-    const corrupted = await prisma.$queryRaw<Array<{ id: string; content: string; created_at: Date }>>`
+    const corrupted = await prisma.$queryRaw<
+      Array<{ id: string; content: string; created_at: Date }>
+    >`
       SELECT id, content, created_at
       FROM memories
       WHERE created_at > '9999-12-31'::timestamptz
@@ -72,7 +74,6 @@ async function main() {
     }
 
     log(`✅ Regenerated embeddings for ${corrupted.length} memories!`);
-
   } catch (error) {
     log('ERROR:', error);
     throw error;
@@ -81,7 +82,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch(error => {
   log('Fatal error:', error);
   process.exit(1);
 });

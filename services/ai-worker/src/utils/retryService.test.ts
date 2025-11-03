@@ -6,12 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from 'pino';
-import {
-  withRetry,
-  withTimeout,
-  withParallelRetry,
-  RetryError
-} from './retryService.js';
+import { withRetry, withTimeout, withParallelRetry, RetryError } from './retryService.js';
 
 describe('retryService', () => {
   let mockLogger: Logger;
@@ -21,7 +16,7 @@ describe('retryService', () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      debug: vi.fn()
+      debug: vi.fn(),
     } as unknown as Logger;
     vi.useFakeTimers();
   });
@@ -45,7 +40,8 @@ describe('retryService', () => {
     });
 
     it('should retry and eventually succeed', async () => {
-      const fn = vi.fn()
+      const fn = vi
+        .fn()
         .mockRejectedValueOnce(new Error('Attempt 1 failed'))
         .mockRejectedValueOnce(new Error('Attempt 2 failed'))
         .mockResolvedValue('success');
@@ -54,7 +50,7 @@ describe('retryService', () => {
         maxAttempts: 3,
         initialDelayMs: 100,
         logger: mockLogger,
-        operationName: 'test-op'
+        operationName: 'test-op',
       });
 
       await vi.runAllTimersAsync();
@@ -75,7 +71,7 @@ describe('retryService', () => {
       const promise = withRetry(fn, {
         maxAttempts: 3,
         initialDelayMs: 100,
-        logger: mockLogger
+        logger: mockLogger,
       });
 
       // 2. Attach the assertion handler BEFORE advancing timers
@@ -93,7 +89,8 @@ describe('retryService', () => {
     });
 
     it('should use exponential backoff', async () => {
-      const fn = vi.fn()
+      const fn = vi
+        .fn()
         .mockRejectedValueOnce(new Error('Fail 1'))
         .mockRejectedValueOnce(new Error('Fail 2'))
         .mockResolvedValue('success');
@@ -102,7 +99,7 @@ describe('retryService', () => {
         maxAttempts: 3,
         initialDelayMs: 1000,
         backoffMultiplier: 2,
-        logger: mockLogger
+        logger: mockLogger,
       });
 
       // First attempt - immediate
@@ -123,15 +120,13 @@ describe('retryService', () => {
     });
 
     it('should respect maxDelayMs cap', async () => {
-      const fn = vi.fn()
-        .mockRejectedValueOnce(new Error('Fail'))
-        .mockResolvedValue('success');
+      const fn = vi.fn().mockRejectedValueOnce(new Error('Fail')).mockResolvedValue('success');
 
       const promise = withRetry(fn, {
         maxAttempts: 2,
         initialDelayMs: 10000,
         maxDelayMs: 500,
-        logger: mockLogger
+        logger: mockLogger,
       });
 
       await vi.advanceTimersByTimeAsync(0);
@@ -156,7 +151,7 @@ describe('retryService', () => {
         backoffMultiplier: 2,
         globalTimeoutMs: 500, // Global timeout shorter than sum of retry delays
         logger: mockLogger,
-        operationName: 'slow-op'
+        operationName: 'slow-op',
       });
 
       // Attach handler before advancing timers
@@ -185,11 +180,13 @@ describe('retryService', () => {
 
       const promise = withRetry(fn, {
         maxAttempts: 1,
-        operationName: 'custom-operation'
+        operationName: 'custom-operation',
       });
 
       // Attach handler before advancing timers
-      const assertionPromise = expect(promise).rejects.toThrow('custom-operation failed after 1 attempts');
+      const assertionPromise = expect(promise).rejects.toThrow(
+        'custom-operation failed after 1 attempts'
+      );
 
       await vi.runAllTimersAsync();
 
@@ -254,7 +251,7 @@ describe('retryService', () => {
 
       const promise = withParallelRetry(items, fn, {
         maxAttempts: 3,
-        logger: mockLogger
+        logger: mockLogger,
       });
 
       await vi.runAllTimersAsync();
@@ -274,7 +271,8 @@ describe('retryService', () => {
       const fn = vi.fn((item: string) => {
         attemptCount++;
         // Fail first 2 attempts for item 'b'
-        if (item === 'b' && attemptCount <= 4) { // attempts 2 and 4 (b's 1st and 2nd)
+        if (item === 'b' && attemptCount <= 4) {
+          // attempts 2 and 4 (b's 1st and 2nd)
           return Promise.reject(new Error('Fail b'));
         }
         return Promise.resolve(item.toUpperCase());
@@ -283,7 +281,7 @@ describe('retryService', () => {
       const promise = withParallelRetry(items, fn, {
         maxAttempts: 3,
         logger: mockLogger,
-        operationName: 'uppercase'
+        operationName: 'uppercase',
       });
 
       await vi.runAllTimersAsync();
@@ -310,7 +308,7 @@ describe('retryService', () => {
 
       const promise = withParallelRetry(items, fn, {
         maxAttempts: 3,
-        logger: mockLogger
+        logger: mockLogger,
       });
 
       await vi.runAllTimersAsync();
@@ -322,7 +320,7 @@ describe('retryService', () => {
         index: 1,
         status: 'failed',
         error,
-        attempts: 3
+        attempts: 3,
       });
       expect(results[2]).toEqual({ index: 2, status: 'success', value: 6, attempts: 1 });
     });
@@ -342,7 +340,7 @@ describe('retryService', () => {
 
       const promise = withParallelRetry(items, fn, {
         maxAttempts: 5, // Allow many attempts
-        logger: mockLogger
+        logger: mockLogger,
       });
 
       await vi.runAllTimersAsync();
@@ -378,7 +376,7 @@ describe('retryService', () => {
       const promise = withParallelRetry(items, fn, {
         maxAttempts: 2,
         logger: mockLogger,
-        operationName: 'multiply'
+        operationName: 'multiply',
       });
 
       await vi.runAllTimersAsync();

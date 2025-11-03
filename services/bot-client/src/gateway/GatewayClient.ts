@@ -43,9 +43,9 @@ export class GatewayClient {
       // Debug: Check what fields are in context before sending
       logger.info(
         `[GatewayClient] Sending context: ` +
-        `hasReferencedMessages=${!!(context as any).referencedMessages}, ` +
-        `count=${((context as any).referencedMessages as any)?.length || 0}, ` +
-        `contextKeys=[${Object.keys(context).join(', ')}]`
+          `hasReferencedMessages=${!!(context as any).referencedMessages}, ` +
+          `count=${((context as any).referencedMessages as any)?.length || 0}, ` +
+          `contextKeys=[${Object.keys(context).join(', ')}]`
       );
 
       // Use wait=true to eliminate polling and use Redis pub/sub instead
@@ -53,7 +53,7 @@ export class GatewayClient {
       const response = await fetch(`${this.baseUrl}/ai/generate?wait=true`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           personality: personality, // Pass entire LoadedPersonality object
@@ -62,9 +62,9 @@ export class GatewayClient {
           context: {
             ...context,
             // Ensure conversationHistory is always an array
-            conversationHistory: context.conversationHistory || []
-          }
-        })
+            conversationHistory: context.conversationHistory || [],
+          },
+        }),
       });
 
       if (!response.ok) {
@@ -73,25 +73,31 @@ export class GatewayClient {
       }
 
       // With wait=true, the response contains the result directly (no polling needed!)
-      const data = await response.json() as JobResult;
+      const data = (await response.json()) as JobResult;
 
       logger.debug({ jobResult: data }, '[GatewayClient] Received job result');
 
       // Validate result
       if (data.status !== 'completed') {
-        logger.error({
-          jobId: data.jobId,
-          status: data.status
-        }, '[GatewayClient] Job not completed');
+        logger.error(
+          {
+            jobId: data.jobId,
+            status: data.status,
+          },
+          '[GatewayClient] Job not completed'
+        );
         throw new Error(`Job ${data.jobId} status: ${data.status}`);
       }
 
       if (data.result?.content === undefined) {
-        logger.error({
-          jobId: data.jobId,
-          hasResult: !!data.result,
-          resultKeys: data.result ? Object.keys(data.result) : []
-        }, '[GatewayClient] Job result missing content');
+        logger.error(
+          {
+            jobId: data.jobId,
+            hasResult: !!data.result,
+            resultKeys: data.result ? Object.keys(data.result) : [],
+          },
+          '[GatewayClient] Job result missing content'
+        );
         throw new Error('No content in job result');
       }
 
@@ -99,7 +105,6 @@ export class GatewayClient {
 
       // Return entire result object to avoid manual field omissions causing bugs
       return data.result;
-
     } catch (error) {
       logger.error({ err: error }, '[GatewayClient] Generation failed');
       throw error;
@@ -129,11 +134,11 @@ export class GatewayClient {
       const response = await fetch(`${this.baseUrl}/ai/transcribe?wait=true`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          attachments
-        })
+          attachments,
+        }),
       });
 
       if (!response.ok) {
@@ -141,7 +146,7 @@ export class GatewayClient {
         throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
       }
 
-      const data = await response.json() as JobResult;
+      const data = (await response.json()) as JobResult;
 
       if (data.status !== 'completed') {
         throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
@@ -155,9 +160,8 @@ export class GatewayClient {
 
       return {
         content: data.result.content,
-        metadata: data.result.metadata
+        metadata: data.result.metadata,
       };
-
     } catch (error) {
       logger.error({ err: error }, '[GatewayClient] Transcription failed');
       throw error;
