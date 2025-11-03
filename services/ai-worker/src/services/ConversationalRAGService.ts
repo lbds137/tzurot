@@ -31,7 +31,7 @@ import {
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
-import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
+import { processAttachments, type ProcessedAttachment, transcribeAudio } from './MultimodalProcessor.js';
 import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
 import { logAndThrow, logAndReturnFallback } from '../utils/errorHandling.js';
 
@@ -281,7 +281,7 @@ export class ConversationalRAGService {
       const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
       // 6. Build the prompt with ALL participant personas and memory context
-      const fullSystemPrompt = this.buildFullSystemPrompt(personality, participantPersonas, relevantMemories, context);
+      const fullSystemPrompt = await this.buildFullSystemPrompt(personality, participantPersonas, relevantMemories, context);
 
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
@@ -465,12 +465,12 @@ export class ConversationalRAGService {
   /**
    * Build full system prompt with personas, memories, and date context
    */
-  private buildFullSystemPrompt(
+  private async buildFullSystemPrompt(
     personality: LoadedPersonality,
     participantPersonas: Map<string, { content: string; isActive: boolean }>,
     relevantMemories: MemoryDocument[],
     context: ConversationContext
-  ): string {
+  ): Promise<string> {
     const systemPrompt = this.buildSystemPrompt(
       personality,
       context.activePersonaName || 'User',
@@ -488,7 +488,7 @@ export class ConversationalRAGService {
 
     // Referenced messages (from replies and message links)
     const referencesContext = context.referencedMessages && context.referencedMessages.length > 0
-      ? `\n\n${this.formatReferencedMessages(context.referencedMessages)}`
+      ? `\n\n${await this.formatReferencedMessages(context.referencedMessages, personality)}`
       : '';
 
     // Conversation participants - ALL people involved
@@ -607,7 +607,10 @@ export class ConversationalRAGService {
   /**
    * Format referenced messages for inclusion in system prompt
    */
-  private formatReferencedMessages(references: ReferencedMessage[]): string {
+  private async formatReferencedMessages(
+    references: ReferencedMessage[],
+    personality: LoadedPersonality
+  ): Promise<string> {
     const lines: string[] = [];
     lines.push('## Referenced Messages\n');
     lines.push('The user is referencing the following messages:\n');
@@ -624,6 +627,40 @@ export class ConversationalRAGService {
 
       if (ref.embeds) {
         lines.push(`\n${ref.embeds}`);
+      }
+
+      // Process attachments (images, voice messages, etc.)
+      if (ref.attachments && ref.attachments.length > 0) {
+        lines.push('\nAttachments:');
+
+        for (const attachment of ref.attachments) {
+          // Handle voice messages - transcribe them for AI context
+          if (attachment.isVoiceMessage) {
+            try {
+              logger.info({
+                referenceNumber: ref.referenceNumber,
+                url: attachment.url,
+                duration: attachment.duration
+              }, 'Transcribing voice message in referenced message');
+
+              const transcription = await transcribeAudio(attachment, personality);
+
+              lines.push(`- Voice Message (${attachment.duration}s): "${transcription}"`);
+            } catch (error) {
+              logger.error({
+                err: error,
+                referenceNumber: ref.referenceNumber,
+                url: attachment.url
+              }, 'Failed to transcribe voice message in referenced message');
+
+              lines.push(`- Voice Message (${attachment.duration}s) [transcription failed]`);
+            }
+          } else {
+            // For other attachments, just note them
+            const attachmentType = attachment.contentType?.startsWith('image/') ? 'Image' : 'File';
+            lines.push(`- ${attachmentType}: ${attachment.name} (${attachment.contentType})`);
+          }
+        }
       }
 
       lines.push(''); // Empty line between references
