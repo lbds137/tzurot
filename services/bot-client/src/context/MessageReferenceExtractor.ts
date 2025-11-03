@@ -430,6 +430,11 @@ export class MessageReferenceExtractor {
   private shouldIncludeReference(message: Message): boolean {
     // Exact match: Check if Discord message ID is in conversation history
     if (this.conversationHistoryMessageIds.has(message.id)) {
+      logger.debug({
+        messageId: message.id,
+        author: message.author.username,
+        reason: 'exact Discord ID match'
+      }, '[MessageReferenceExtractor] Excluding reference - found in conversation history');
       return false; // Exclude - already in conversation history
     }
 
@@ -440,10 +445,29 @@ export class MessageReferenceExtractor {
       const oldestTimestamp = this.conversationHistoryTimeRange.oldest.getTime();
       const newestTimestamp = this.conversationHistoryTimeRange.newest.getTime();
 
+      logger.debug({
+        messageId: message.id,
+        author: message.author.username,
+        messageTime: new Date(messageTimestamp).toISOString(),
+        historyOldest: new Date(oldestTimestamp).toISOString(),
+        historyNewest: new Date(newestTimestamp).toISOString(),
+        inRange: messageTimestamp >= oldestTimestamp && messageTimestamp <= newestTimestamp
+      }, '[MessageReferenceExtractor] Fuzzy timestamp check');
+
       if (messageTimestamp >= oldestTimestamp && messageTimestamp <= newestTimestamp) {
+        logger.debug({
+          messageId: message.id,
+          author: message.author.username,
+          reason: 'fuzzy timestamp match'
+        }, '[MessageReferenceExtractor] Excluding reference - timestamp within conversation history range');
         return false; // Exclude - likely in conversation history based on timestamp
       }
     }
+
+    logger.debug({
+      messageId: message.id,
+      author: message.author.username
+    }, '[MessageReferenceExtractor] Including reference - not found in conversation history');
 
     return true; // Include - not found in conversation history
   }
