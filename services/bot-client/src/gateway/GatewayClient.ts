@@ -39,6 +39,14 @@ export class GatewayClient {
     };
   }> {
     try {
+      // Debug: Check what fields are in context before sending
+      logger.info(
+        `[GatewayClient] Sending context: ` +
+        `hasReferencedMessages=${!!(context as any).referencedMessages}, ` +
+        `count=${((context as any).referencedMessages as any)?.length || 0}, ` +
+        `contextKeys=[${Object.keys(context).join(', ')}]`
+      );
+
       // Use wait=true to eliminate polling and use Redis pub/sub instead
       // Gateway will wait for job completion internally using BullMQ's waitUntilFinished
       const response = await fetch(`${this.baseUrl}/ai/generate?wait=true`, {
