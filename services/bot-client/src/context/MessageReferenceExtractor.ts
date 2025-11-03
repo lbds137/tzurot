@@ -34,6 +34,16 @@ export interface ReferencedMessage {
 }
 
 /**
+ * Result of reference extraction with link replacement
+ */
+export interface ReferenceExtractionResult {
+  /** Extracted referenced messages */
+  references: ReferencedMessage[];
+  /** Updated message content with Discord links replaced by [Reference N] */
+  updatedContent: string;
+}
+
+/**
  * Options for message reference extraction
  */
 export interface ReferenceExtractionOptions {
@@ -76,7 +86,19 @@ export class MessageReferenceExtractor {
    * @returns Array of referenced messages
    */
   async extractReferences(message: Message): Promise<ReferencedMessage[]> {
+    const result = await this.extractReferencesWithReplacement(message);
+    return result.references;
+  }
+
+  /**
+   * Extract all referenced messages and replace Discord links with [Reference N]
+   * @param message - Discord message to extract references from
+   * @returns References and updated content with links replaced
+   */
+  async extractReferencesWithReplacement(message: Message): Promise<ReferenceExtractionResult> {
     const references: ReferencedMessage[] = [];
+    const extractedMessageIds = new Set<string>(); // Track message IDs to prevent duplicates
+    const linkMap = new Map<string, number>(); // Map Discord URL to reference number for replacement
 
     // Wait for Discord to process embeds
     await this.delay(this.embedProcessingDelayMs);
@@ -86,77 +108,115 @@ export class MessageReferenceExtractor {
 
     // Extract reply-to reference (if present)
     if (updatedMessage.reference?.messageId) {
-      const replyReference = await this.extractReplyReference(updatedMessage);
-      if (replyReference) {
-        references.push(replyReference);
+      try {
+        const referencedMessage = await updatedMessage.fetchReference();
+
+        // Skip if message is already in conversation history
+        if (!this.shouldIncludeReference(referencedMessage)) {
+          logger.debug(`[MessageReferenceExtractor] Skipping reply reference ${referencedMessage.id} - already in conversation history`);
+        } else {
+          // Format and add the reply reference
+          const replyReference = this.formatReferencedMessage(referencedMessage, 1);
+          references.push(replyReference);
+        }
+
+        // Always track the message ID to prevent duplicates in links
+        extractedMessageIds.add(referencedMessage.id);
+      } catch (error) {
+        // Silently skip inaccessible messages
+        logger.debug(`[MessageReferenceExtractor] Could not fetch reply reference: ${(error as Error).message}`);
       }
     }
 
-    // Extract message link references
+    // Extract message link references (excluding any already extracted from reply)
     if (updatedMessage.content) {
-      const linkReferences = await this.extractLinkReferences(updatedMessage);
+      // Pass the current reference count so link references can be numbered correctly
+      const startNumber = references.length + 1;
+      const [linkReferences, linkToRefMap] = await this.extractLinkReferences(
+        updatedMessage,
+        extractedMessageIds,
+        startNumber
+      );
       references.push(...linkReferences);
+
+      // Merge the link map for replacement
+      for (const [url, refNum] of linkToRefMap) {
+        linkMap.set(url, refNum);
+      }
     }
 
     // Limit to max references
     if (references.length > this.maxReferences) {
       logger.info(`[MessageReferenceExtractor] Limiting ${references.length} references to ${this.maxReferences}`);
-      return references.slice(0, this.maxReferences);
-    }
+      const limitedReferences = references.slice(0, this.maxReferences);
 
-    return references;
-  }
-
-  /**
-   * Extract reference from reply-to message
-   * @param message - Discord message with reference
-   * @returns Referenced message or null if not accessible
-   */
-  private async extractReplyReference(message: Message): Promise<ReferencedMessage | null> {
-    try {
-      const referencedMessage = await message.fetchReference();
-
-      // Skip if message is already in conversation history
-      if (!this.shouldIncludeReference(referencedMessage)) {
-        logger.debug(`[MessageReferenceExtractor] Skipping reply reference ${referencedMessage.id} - already in conversation history`);
-        return null;
+      // Update linkMap to only include references that made the cut
+      const limitedRefNumbers = new Set(limitedReferences.map(r => r.referenceNumber));
+      for (const [url, refNum] of linkMap) {
+        if (!limitedRefNumbers.has(refNum)) {
+          linkMap.delete(url);
+        }
       }
 
-      return this.formatReferencedMessage(referencedMessage, 1);
-    } catch (error) {
-      // Silently skip inaccessible messages
-      logger.debug(`[MessageReferenceExtractor] Could not fetch reply reference: ${(error as Error).message}`);
-      return null;
+      // Replace links in content
+      const updatedContent = MessageLinkParser.replaceLinksWithReferences(
+        updatedMessage.content,
+        linkMap
+      );
+
+      return { references: limitedReferences, updatedContent };
     }
+
+    // Replace links in content
+    const updatedContent = MessageLinkParser.replaceLinksWithReferences(
+      updatedMessage.content,
+      linkMap
+    );
+
+    return { references, updatedContent };
   }
 
   /**
    * Extract references from message links in content
    * @param message - Discord message containing links
-   * @returns Array of referenced messages
+   * @param extractedMessageIds - Set of already-extracted message IDs to prevent duplicates
+   * @param startNumber - Reference number to start from (accounts for any reply references)
+   * @returns Tuple of [referenced messages, link URL to reference number map]
    */
-  private async extractLinkReferences(message: Message): Promise<ReferencedMessage[]> {
+  private async extractLinkReferences(
+    message: Message,
+    extractedMessageIds: Set<string>,
+    startNumber: number
+  ): Promise<[ReferencedMessage[], Map<string, number>]> {
     const links = MessageLinkParser.parseMessageLinks(message.content);
     const references: ReferencedMessage[] = [];
+    const linkMap = new Map<string, number>(); // Map Discord URL to reference number
 
-    // Start numbering after reply-to (if present)
-    let startNumber = message.reference?.messageId ? 2 : 1;
+    let currentNumber = startNumber;
 
     for (const link of links) {
       const referencedMessage = await this.fetchMessageFromLink(link, message);
       if (referencedMessage) {
+        // Skip if this exact message was already extracted (e.g., from reply)
+        if (extractedMessageIds.has(referencedMessage.id)) {
+          logger.debug(`[MessageReferenceExtractor] Skipping duplicate link reference ${referencedMessage.id} - already extracted from reply`);
+          continue;
+        }
+
         // Skip if message is already in conversation history
         if (!this.shouldIncludeReference(referencedMessage)) {
           logger.debug(`[MessageReferenceExtractor] Skipping link reference ${referencedMessage.id} - already in conversation history`);
           continue;
         }
 
-        references.push(this.formatReferencedMessage(referencedMessage, startNumber));
-        startNumber++;
+        references.push(this.formatReferencedMessage(referencedMessage, currentNumber));
+        linkMap.set(link.fullUrl, currentNumber); // Map the Discord URL to this reference number
+        extractedMessageIds.add(referencedMessage.id); // Track this ID to prevent duplicates within links
+        currentNumber++;
       }
     }
 
-    return references;
+    return [references, linkMap];
   }
 
   /**
@@ -291,62 +351,4 @@ export class MessageReferenceExtractor {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /**
-   * Format references for LLM prompt
-   * @param references - Array of referenced messages
-   * @param originalContent - Original message content
-   * @returns Formatted reference section and updated content
-   */
-  static formatReferencesForPrompt(
-    references: ReferencedMessage[],
-    originalContent: string
-  ): { updatedContent: string; referenceSection: string } {
-    if (references.length === 0) {
-      return {
-        updatedContent: originalContent,
-        referenceSection: ''
-      };
-    }
-
-    // Build link map for replacement
-    const linkMap = new Map<string, number>();
-    references.forEach(ref => {
-      // Find the original link for this reference
-      // This is a bit tricky - we need to match back to the original links
-      // For now, we'll use the reference number directly
-      linkMap.set(`Reference ${ref.referenceNumber}`, ref.referenceNumber);
-    });
-
-    // Replace message links in content
-    const updatedContent = MessageLinkParser.replaceLinksWithReferences(
-      originalContent,
-      linkMap
-    );
-
-    // Build reference section
-    const referenceLines: string[] = [];
-    referenceLines.push('## Referenced Messages\n');
-
-    for (const ref of references) {
-      referenceLines.push(`[Reference ${ref.referenceNumber}]`);
-      referenceLines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
-      referenceLines.push(`Location: ${ref.guildName} > ${ref.channelName}`);
-      referenceLines.push(`Time: ${ref.timestamp}`);
-
-      if (ref.content) {
-        referenceLines.push(`\nContent:\n${ref.content}`);
-      }
-
-      if (ref.embeds) {
-        referenceLines.push(`\n${ref.embeds}`);
-      }
-
-      referenceLines.push(''); // Empty line between references
-    }
-
-    return {
-      updatedContent,
-      referenceSection: referenceLines.join('\n')
-    };
-  }
 }

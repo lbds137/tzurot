@@ -229,9 +229,9 @@ describe('MessageReferenceExtractor', () => {
 
       const linkedChannel = createConfiguredChannel({});
       const linkedMessages = [
-        createMockMessage({ content: 'Link 1', author: createMockUser({ username: 'User2' }), channel: linkedChannel }),
-        createMockMessage({ content: 'Link 2', author: createMockUser({ username: 'User3' }), channel: linkedChannel }),
-        createMockMessage({ content: 'Link 3', author: createMockUser({ username: 'User4' }), channel: linkedChannel })
+        createMockMessage({ id: 'link-1', content: 'Link 1', author: createMockUser({ username: 'User2' }), channel: linkedChannel }),
+        createMockMessage({ id: 'link-2', content: 'Link 2', author: createMockUser({ username: 'User3' }), channel: linkedChannel }),
+        createMockMessage({ id: 'link-3', content: 'Link 3', author: createMockUser({ username: 'User4' }), channel: linkedChannel })
       ];
 
       const guild = createMockGuild({ id: '123' });
@@ -441,147 +441,6 @@ describe('MessageReferenceExtractor', () => {
 
       expect(references).toHaveLength(1);
       expect(references[0].guildName).toBe('Direct Messages');
-    });
-  });
-
-  describe('formatReferencesForPrompt', () => {
-    it('should return empty section for no references', () => {
-      const result = MessageReferenceExtractor.formatReferencesForPrompt(
-        [],
-        'Original content'
-      );
-
-      expect(result.updatedContent).toBe('Original content');
-      expect(result.referenceSection).toBe('');
-    });
-
-    it('should format single reference', () => {
-      const references = [
-        {
-          referenceNumber: 1,
-          authorUsername: 'testuser',
-          authorDisplayName: 'Test User',
-          content: 'Referenced content',
-          embeds: '',
-          timestamp: '2025-11-02T12:00:00.000Z',
-          guildName: 'Test Server',
-          channelName: '#general'
-        }
-      ];
-
-      const result = MessageReferenceExtractor.formatReferencesForPrompt(
-        references,
-        'Check out this message'
-      );
-
-      expect(result.referenceSection).toContain('[Reference 1]');
-      expect(result.referenceSection).toContain('From: Test User (@testuser)');
-      expect(result.referenceSection).toContain('Location: Test Server > #general');
-      expect(result.referenceSection).toContain('Referenced content');
-    });
-
-    it('should format multiple references', () => {
-      const references = [
-        {
-          referenceNumber: 1,
-          authorUsername: 'user1',
-          authorDisplayName: 'User One',
-          content: 'First message',
-          embeds: '',
-          timestamp: '2025-11-02T12:00:00.000Z',
-          guildName: 'Server',
-          channelName: '#channel1'
-        },
-        {
-          referenceNumber: 2,
-          authorUsername: 'user2',
-          authorDisplayName: 'User Two',
-          content: 'Second message',
-          embeds: '',
-          timestamp: '2025-11-02T12:01:00.000Z',
-          guildName: 'Server',
-          channelName: '#channel2'
-        }
-      ];
-
-      const result = MessageReferenceExtractor.formatReferencesForPrompt(
-        references,
-        'Multiple refs'
-      );
-
-      expect(result.referenceSection).toContain('[Reference 1]');
-      expect(result.referenceSection).toContain('User One');
-      expect(result.referenceSection).toContain('[Reference 2]');
-      expect(result.referenceSection).toContain('User Two');
-    });
-
-    it('should include embeds in formatted output', () => {
-      const references = [
-        {
-          referenceNumber: 1,
-          authorUsername: 'user',
-          authorDisplayName: 'User',
-          content: 'Message',
-          embeds: '### Embed\n\n## Title\nDescription',
-          timestamp: new Date().toISOString(),
-          guildName: 'Server',
-          channelName: '#channel'
-        }
-      ];
-
-      const result = MessageReferenceExtractor.formatReferencesForPrompt(
-        references,
-        'Content'
-      );
-
-      expect(result.referenceSection).toContain('### Embed');
-      expect(result.referenceSection).toContain('## Title');
-    });
-
-    it('should handle messages with no content but embeds', () => {
-      const references = [
-        {
-          referenceNumber: 1,
-          authorUsername: 'user',
-          authorDisplayName: 'User',
-          content: '',
-          embeds: '### Embed\n\n## Title',
-          timestamp: new Date().toISOString(),
-          guildName: 'Server',
-          channelName: '#channel'
-        }
-      ];
-
-      const result = MessageReferenceExtractor.formatReferencesForPrompt(
-        references,
-        'Content'
-      );
-
-      expect(result.referenceSection).toContain('[Reference 1]');
-      expect(result.referenceSection).toContain('### Embed');
-    });
-
-    it('should format timestamps in ISO format', () => {
-      const timestamp = '2025-11-02T15:30:45.000Z';
-      const references = [
-        {
-          referenceNumber: 1,
-          authorUsername: 'user',
-          authorDisplayName: 'User',
-          content: 'Message',
-          embeds: '',
-          timestamp,
-          guildName: 'Server',
-          channelName: '#channel'
-        }
-      ];
-
-      const result = MessageReferenceExtractor.formatReferencesForPrompt(
-        references,
-        'Content'
-      );
-
-      expect(result.referenceSection).toContain('Time: 2025-11-02T15:30:45.000Z');
     });
   });
 });
