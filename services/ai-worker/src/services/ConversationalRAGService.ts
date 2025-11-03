@@ -706,8 +706,19 @@ export class ConversationalRAGService {
       lines.push(''); // Empty line between references
     }
 
+    const formattedText = lines.join('\n');
+
     logger.info(`[RAG] Formatted ${references.length} referenced message(s) for prompt`);
-    return lines.join('\n');
+
+    // Log first 500 chars of formatted references for debugging
+    if (formattedText.length > 0) {
+      logger.info({
+        preview: formattedText.substring(0, 500) + (formattedText.length > 500 ? '...' : ''),
+        totalLength: formattedText.length
+      }, '[RAG] Reference formatting preview');
+    }
+
+    return formattedText;
   }
 
   /**
