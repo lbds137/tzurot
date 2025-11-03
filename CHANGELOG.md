@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.22] - 2025-11-03
+
+### Fixed
+- **Message Reference System (PR #208)** - Complete fix for reference extraction and AI visibility
+  - **Critical**: GatewayClient was stripping `referencedMessagesDescriptions` from job results
+  - **Critical**: References were in system prompt but separated from user message marker
+  - Fixed: Now append formatted references directly to human message (matches conversation history format)
+  - Fixed: Removed manual object construction in GatewayClient (prevents field omission bugs)
+  - Fixed: Database now stores exact same formatted text the AI sees (with vision/transcription)
+  - Fixed: Added thread message reference support (channel.fetch fallback)
+  - Fixed: Added cross-server reference support (guild.fetch fallback)
+  - Embed images are extracted and processed through vision model
+  - Embed thumbnails are extracted and processed through vision model
+  - Voice messages in references are transcribed
+  - All embed fields are included (title, description, fields, footer, timestamp, color)
+  - 100% consistency between current prompt, database storage, and conversation history
+
+### Added
+- Diagnostic logging for reference formatting preview (first 500 chars)
+- API response fields: `referencedMessagesDescriptions` in GenerateResponse and JobResult
+
 ## [3.0.0-alpha.21] - 2025-11-02
 
 ### Fixed
