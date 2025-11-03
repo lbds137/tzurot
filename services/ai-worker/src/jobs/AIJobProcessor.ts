@@ -207,12 +207,13 @@ export class AIJobProcessor {
     logger.info(`[AIJobProcessor] Processing generate job ${job.id} (${requestId}) for ${personality.name}`);
 
     // Debug: Check if referencedMessages exists in job data
-    logger.info({
-      hasReferencedMessages: !!context.referencedMessages,
-      referencedMessagesCount: context.referencedMessages?.length || 0,
-      referencedMessagesType: typeof context.referencedMessages,
-      contextKeys: Object.keys(context)
-    }, '[AIJobProcessor] Job data context inspection');
+    logger.info(
+      `[AIJobProcessor] Job data context inspection: ` +
+      `hasReferencedMessages=${!!context.referencedMessages}, ` +
+      `count=${context.referencedMessages?.length || 0}, ` +
+      `type=${typeof context.referencedMessages}, ` +
+      `contextKeys=[${Object.keys(context).join(', ')}]`
+    );
 
     try {
       // Calculate oldest timestamp from conversation history (for LTM deduplication)
