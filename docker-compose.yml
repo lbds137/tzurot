@@ -11,12 +11,12 @@ services:
     image: redis:7-alpine
     container_name: tzurot-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -28,7 +28,7 @@ services:
     image: postgres:15-alpine
     container_name: tzurot-postgres
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
       POSTGRES_DB: tzurot
       POSTGRES_USER: tzurot
@@ -36,7 +36,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tzurot"]
+      test: ['CMD-SHELL', 'pg_isready -U tzurot']
       interval: 5s
       timeout: 5s
       retries: 5

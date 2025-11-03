@@ -126,11 +126,7 @@ describe('personalityMentionParser', () => {
     });
 
     it('should handle mention at end of message', async () => {
-      const result = await findPersonalityMention(
-        'hello @Lilith',
-        '@',
-        mockPersonalityService
-      );
+      const result = await findPersonalityMention('hello @Lilith', '@', mockPersonalityService);
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
@@ -177,11 +173,7 @@ describe('personalityMentionParser', () => {
     });
 
     it('should handle mention with exclamation mark (punctuation removed)', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith! hello',
-        '@',
-        mockPersonalityService
-      );
+      const result = await findPersonalityMention('@Lilith! hello', '@', mockPersonalityService);
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
@@ -223,22 +215,14 @@ describe('personalityMentionParser', () => {
     });
 
     it('should handle custom mention character', async () => {
-      const result = await findPersonalityMention(
-        '!Lilith hello',
-        '!',
-        mockPersonalityService
-      );
+      const result = await findPersonalityMention('!Lilith hello', '!', mockPersonalityService);
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
     });
 
     it('should be case-insensitive for personality names (database lookup)', async () => {
-      const result = await findPersonalityMention(
-        '@lilith hello',
-        '@',
-        mockPersonalityService
-      );
+      const result = await findPersonalityMention('@lilith hello', '@', mockPersonalityService);
 
       expect(result).not.toBeNull();
       // Returns the name as typed in the message, not the canonical DB name
@@ -250,15 +234,9 @@ describe('personalityMentionParser', () => {
     it('should handle excessive mentions gracefully', async () => {
       // Create message with 15 mentions (> MAX_POTENTIAL_MENTIONS which is 10)
       // The parser internally limits to 10 mentions for performance
-      const excessiveMentions = Array(15)
-        .fill('@Lilith')
-        .join(' ');
+      const excessiveMentions = Array(15).fill('@Lilith').join(' ');
 
-      const result = await findPersonalityMention(
-        excessiveMentions,
-        '@',
-        mockPersonalityService
-      );
+      const result = await findPersonalityMention(excessiveMentions, '@', mockPersonalityService);
 
       // Should still work (parser truncates to first 10 mentions internally)
       expect(result).not.toBeNull();

@@ -18,12 +18,15 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
   const channel = message.channel;
 
   // Debug logging to diagnose DM vs guild detection
-  logger.debug({
-    channelType: channel.type,
-    hasGuild: !!message.guild,
-    guildName: message.guild?.name,
-    channelId: channel.id
-  }, 'Extracting Discord environment');
+  logger.debug(
+    {
+      channelType: channel.type,
+      hasGuild: !!message.guild,
+      guildName: message.guild?.name,
+      channelId: channel.id,
+    },
+    'Extracting Discord environment'
+  );
 
   // DM Channel
   if (channel.type === ChannelType.DM) {
@@ -33,44 +36,50 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
       channel: {
         id: channel.id,
         name: 'Direct Message',
-        type: 'dm'
-      }
+        type: 'dm',
+      },
     };
   }
 
   // Guild-based channels
   if (!message.guild) {
     // Shouldn't happen, but handle gracefully
-    logger.warn({
-      channelType: channel.type,
-      channelId: channel.id
-    }, 'No guild found for non-DM channel (fallback to DM)');
+    logger.warn(
+      {
+        channelType: channel.type,
+        channelId: channel.id,
+      },
+      'No guild found for non-DM channel (fallback to DM)'
+    );
     return {
       type: 'dm',
       channel: {
         id: channel.id,
         name: 'Unknown',
-        type: 'unknown'
-      }
+        type: 'unknown',
+      },
     };
   }
 
-  logger.info({
-    guildName: message.guild.name,
-    channelName: 'name' in channel && channel.name ? channel.name : 'Unknown'
-  }, 'Detected as guild channel');
+  logger.info(
+    {
+      guildName: message.guild.name,
+      channelName: 'name' in channel && channel.name ? channel.name : 'Unknown',
+    },
+    'Detected as guild channel'
+  );
 
   const context: DiscordEnvironment = {
     type: 'guild',
     guild: {
       id: message.guild.id,
-      name: message.guild.name
+      name: message.guild.name,
     },
     channel: {
       id: channel.id,
       name: 'name' in channel && channel.name ? channel.name : 'Unknown',
-      type: getChannelTypeName(channel.type)
-    }
+      type: getChannelTypeName(channel.type),
+    },
   };
 
   // Thread Channel
@@ -83,22 +92,22 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
         parentChannel: {
           id: parent.id,
           name: parent.name,
-          type: getChannelTypeName(parent.type)
-        }
+          type: getChannelTypeName(parent.type),
+        },
       };
 
       // Update main channel to be the parent
       context.channel = {
         id: parent.id,
         name: parent.name,
-        type: getChannelTypeName(parent.type)
+        type: getChannelTypeName(parent.type),
       };
 
       // Check if parent has a category
       if ('parent' in parent && parent.parent) {
         context.category = {
           id: parent.parent.id,
-          name: parent.parent.name
+          name: parent.parent.name,
         };
       }
     }
@@ -107,7 +116,7 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
   else if ('parent' in channel && channel.parent) {
     context.category = {
       id: channel.parent.id,
-      name: channel.parent.name
+      name: channel.parent.name,
     };
   }
 

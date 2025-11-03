@@ -41,25 +41,31 @@ If this is DDD migration work:
 ## Description
 
 ### What does this PR do?
+
 <!-- Describe changes in 1-2 sentences -->
 
 ### Why is this needed during freeze?
+
 <!-- Justify why this cannot wait -->
 
 ### What is the impact of NOT merging?
+
 <!-- Describe consequences of deferral -->
 
 ## Testing
 
 ### Test coverage
+
 <!-- Paste coverage report for changed files -->
 
 ### Manual testing performed
+
 <!-- List manual verification steps -->
 
 ## Automatic Rejection Criteria
 
 PR will be auto-closed if it:
+
 - Adds files to `/src/utils/`
 - Increases any file size > 500 lines
 - Adds circular dependencies

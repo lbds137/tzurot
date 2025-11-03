@@ -180,7 +180,6 @@ async function migrateOrphanedMemories(dryRun: boolean): Promise<MigrationStats>
         if (!dryRun && stats.migrated % 50 === 0) {
           console.log(`  ✅ Migrated ${stats.migrated}/${stats.total} memories...`);
         }
-
       } catch (error) {
         stats.failed++;
         stats.errors.push({
@@ -274,7 +273,7 @@ async function main() {
   console.log('');
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('❌ Error:', error);
   process.exit(1);
 });

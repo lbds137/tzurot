@@ -7,6 +7,7 @@ When importing personalities from shapes.inc exports, the memory data contains o
 ## Current Status
 
 **Lilith Personality**:
+
 - Total memories: 4463 points
 - Current users (in Postgres): 5
 - Orphaned UUIDs (from shapes.inc): 89
@@ -50,6 +51,7 @@ The migration script (`scripts/migrate-qdrant-to-personas.cjs`) supports UUID ma
 ```
 
 **Results**:
+
 - Fennarin will get 46 + 18 = 64 total memories
 - Lila will get 20 old memories added to current memories
 - Nevae will get 34 + 404 = 438 total memories
@@ -65,6 +67,7 @@ node scripts/find-user-memories.cjs "username"
 This shows which UUID has the most memories mentioning that username.
 
 **Example**:
+
 ```bash
 $ node scripts/find-user-memories.cjs "fennarin"
 User ID: 80bf4fc1-a240-53d3-bae7-43d6ed3e5bae (current)
@@ -94,6 +97,7 @@ User ID: 82ea754e-c3fb-467a-8662-8bc30791b4fe (old shapes.inc)
 ### 3. Run Migration
 
 The script will automatically:
+
 - Load mappings
 - Apply them during point processing
 - Consolidate all memories under current user
@@ -119,16 +123,19 @@ When importing the other 65 personalities from shapes.inc:
 For the 89 currently orphaned UUIDs we don't recognize:
 
 **Option 1 (Recommended)**: Leave in legacy `personality-{id}` collections
+
 - Safe - no data loss
 - When those users create accounts (new Discord interactions), they'll get new deterministic UUIDs
 - We can migrate their historical memories later if we discover the mapping
 
 **Option 2**: Try to correlate with Discord usernames/IDs
+
 - Check if shapes.inc exports include Discord metadata
 - Match usernames to current Discord server members
 - Create mappings for identified users
 
 **Option 3**: Create a `persona-legacy` collection
+
 - Dump all orphaned memories there for manual review
 - Not recommended - loses userId association
 

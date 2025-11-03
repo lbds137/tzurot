@@ -25,23 +25,27 @@ services/api-gateway/src/
 #### Key Patterns from V2
 
 **From v2 bot.js:**
+
 - Discord.js client setup with proper intents ✅
 - Message event handlers ✅
 - Error handling patterns ✅
 
 **From v2 webhookManager.js:**
+
 - Webhook caching (prevent redundant creations) ⚠️ CRITICAL
 - Message deduplication ⚠️ CRITICAL
 - Rate limiting and retry logic ✅
 - Injectable timers for testing ✅
 
 **From v2 aiService.js:**
+
 - Request deduplication with pendingRequests Map ✅
 - Multimodal content handling (text, images, audio) ✅
 - Reference message fetching ✅
 - Exponential backoff retry logic ✅
 
 **From v2 utils/messageDeduplication.js:**
+
 - Content hashing for duplicate detection ✅
 - Time-based cache expiration ✅
 - Cleanup of old entries ✅
@@ -49,6 +53,7 @@ services/api-gateway/src/
 #### Implementation Steps
 
 1. **Create Express server** (2 hours)
+
    ```typescript
    // services/api-gateway/src/index.ts
    import express from 'express';
@@ -56,11 +61,12 @@ services/api-gateway/src/
 
    const app = express();
    const aiQueue = new Queue('ai-requests', {
-     connection: process.env.REDIS_URL
+     connection: process.env.REDIS_URL,
    });
    ```
 
 2. **Add POST /ai/generate endpoint** (2 hours)
+
    ```typescript
    // services/api-gateway/src/routes/ai.ts
    router.post('/ai/generate', async (req, res) => {
@@ -72,7 +78,7 @@ services/api-gateway/src/
        personality,
        message,
        context,
-       userApiKey
+       userApiKey,
      });
 
      res.json({ jobId: job.id, requestId: job.data.requestId });
@@ -85,6 +91,7 @@ services/api-gateway/src/
    - Return cached job ID for duplicate requests
 
 4. **Add health check endpoint** (1 hour)
+
    ```typescript
    app.get('/health', async (req, res) => {
      const redisHealthy = await checkRedis();
@@ -113,6 +120,7 @@ Update bot-client to call API gateway instead of AI provider directly.
 #### Implementation Steps
 
 1. **Update message handler** (2 hours)
+
    ```typescript
    // services/bot-client/src/handlers/messageHandler.ts
    async function handleMessage(message: Message) {
@@ -126,9 +134,9 @@ Update bot-client to call API gateway instead of AI provider directly.
          context: {
            userId: message.author.id,
            channelId: message.channel.id,
-           userName: message.author.username
-         }
-       })
+           userName: message.author.username,
+         },
+       }),
      });
 
      const { jobId } = await response.json();
@@ -157,6 +165,7 @@ Update bot-client to call API gateway instead of AI provider directly.
 ### Phase 3: Testing & Deployment (2-4 hours)
 
 1. **Local testing** (1-2 hours)
+
    ```bash
    docker-compose up -d  # Start Redis, ChromaDB, PostgreSQL
    cd services/api-gateway && npm run dev
@@ -180,19 +189,24 @@ Update bot-client to call API gateway instead of AI provider directly.
 ### ✅ Keep These Patterns
 
 1. **Injectable Timers**
+
    ```typescript
    // From v2 webhookManager.js
    let delayFn = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-   function setDelayFunction(fn: typeof delayFn) { delayFn = fn; }
+   function setDelayFunction(fn: typeof delayFn) {
+     delayFn = fn;
+   }
    ```
 
 2. **Webhook Caching**
+
    ```typescript
    // From v2 webhookCache.js
-   const webhookCache = new Map<string, { webhook: Webhook, lastUsed: number }>();
+   const webhookCache = new Map<string, { webhook: Webhook; lastUsed: number }>();
    ```
 
 3. **Message Deduplication**
+
    ```typescript
    // From v2 messageDeduplication.js
    function hashMessage(content: string, username: string, channelId: string): string {
@@ -202,6 +216,7 @@ Update bot-client to call API gateway instead of AI provider directly.
    ```
 
 4. **Request Deduplication**
+
    ```typescript
    // From v2 aiService.js
    const pendingRequests = new Map<string, Promise<AIResponse>>();
@@ -234,21 +249,25 @@ Update bot-client to call API gateway instead of AI provider directly.
 ## Post-MVP Features (Later)
 
 ### BYOK System (6-8 hours)
+
 - PostgreSQL credentials table
 - Key encryption/decryption
 - User management commands
 
 ### Data Ingestion (8-12 hours)
+
 - Import Shapes.inc backups
 - Import SpicyChat chat history
 - Bootstrap User Relationship Profiles
 
 ### Free Will Agent (16-24 hours)
+
 - LangGraph orchestration
 - Proactive personality engagement
 - Cost-effective triage
 
 ### Relationship Graph (12-16 hours)
+
 - Social connections between personalities
 - Memory propagation rules
 - "Gossip protocol"
@@ -258,6 +277,7 @@ Update bot-client to call API gateway instead of AI provider directly.
 ## Success Criteria
 
 ### MVP (This Weekend)
+
 - [ ] API gateway running with BullMQ
 - [ ] Bot-client sends messages to gateway
 - [ ] AI worker processes jobs
@@ -266,6 +286,7 @@ Update bot-client to call API gateway instead of AI provider directly.
 - [ ] Memory system works
 
 ### V1 (Next Weekend)
+
 - [ ] BYOK system functional
 - [ ] Data migration from Shapes.inc
 - [ ] 5+ personalities configured
@@ -276,6 +297,7 @@ Update bot-client to call API gateway instead of AI provider directly.
 ## Reference Files from V2
 
 ### Critical to Review
+
 - `src/bot.js` - Discord client setup
 - `src/webhookManager.js` - Webhook management (⚠️ 2800 lines, extract patterns)
 - `src/aiService.js` - AI request handling (1700 lines, extract patterns)
@@ -284,12 +306,14 @@ Update bot-client to call API gateway instead of AI provider directly.
 - `src/handlers/messageHandler.js` - Message routing
 
 ### Useful Utilities to Port
+
 - `src/utils/messageFormatter.js` - Discord formatting
 - `src/utils/messageSplitting.js` - 2000 char limit handling
 - `src/utils/avatarManager.js` - Avatar URL validation
 - `src/utils/media/` - Media processing (audio, images)
 
 ### Don't Port
+
 - `src/domain/` - DDD models (V3 uses different architecture)
 - `src/application/` - DDD services (V3 uses microservices)
 - `src/adapters/` - DDD adapters (V3 has simpler HTTP APIs)

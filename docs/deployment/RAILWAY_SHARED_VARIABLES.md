@@ -26,26 +26,28 @@ See **"Setting Up Shared Variables in Dashboard"** section below for detailed st
 
 ## Script Options
 
-| Option | Description |
-|--------|-------------|
-| `--dry-run` | Show what would be set without actually making changes |
-| `--yes`, `-y` | Skip confirmation prompts (for CI/CD) |
-| `--help`, `-h` | Show help message |
+| Option         | Description                                            |
+| -------------- | ------------------------------------------------------ |
+| `--dry-run`    | Show what would be set without actually making changes |
+| `--yes`, `-y`  | Skip confirmation prompts (for CI/CD)                  |
+| `--help`, `-h` | Show help message                                      |
 
 ## How It Works
 
 ### 1. Reads from Your .env File
 
 The script automatically reads your current `.env` file and uses those values. This means:
+
 - ✅ No need to re-enter values you already have
 - ✅ Consistent with your local development setup
-- ✅ Secrets are hidden in output (***set***)
+- ✅ Secrets are hidden in output (**_set_**)
 
 ### 2. Categorizes Variables
 
 The script sets variables in three categories:
 
 **Shared (all services)**:
+
 - `DATABASE_URL` - PostgreSQL connection (see Database URL Strategy below)
 - `REDIS_URL` - Redis connection (Railway addon provides this automatically)
 - `N/A (pgvector in PostgreSQL)` - Vector database
@@ -64,13 +66,16 @@ The script sets variables in three categories:
 **Note on Memory**: RAG memory (pgvector) is always enabled using the PostgreSQL database. No environment variable needed.
 
 **bot-client only**:
+
 - `DISCORD_TOKEN` - Discord bot token
 - `DISCORD_CLIENT_ID` - Discord application ID
 
 **api-gateway only**:
+
 - `API_GATEWAY_PORT` - Port to listen on (default: 3000)
 
 **ai-worker only**:
+
 - `WORKER_CONCURRENCY` - Number of concurrent jobs (default: 5)
 - `PORT` - Worker health check port (default: 3001)
 
@@ -79,6 +84,7 @@ The script sets variables in three categories:
 Railway provides **two types** of PostgreSQL connection URLs:
 
 #### DATABASE_URL (Private Network)
+
 - **Location**: `<service>.railway.internal:5432`
 - **Use for**: Service-to-service communication within Railway
 - **Benefits**:
@@ -88,6 +94,7 @@ Railway provides **two types** of PostgreSQL connection URLs:
 - **Limitations**: Only works within Railway infrastructure
 
 #### DATABASE_PUBLIC_URL (TCP Proxy)
+
 - **Location**: `<region>.proxy.rlwy.net:<port>`
 - **Use for**: External access (local development, database IDEs, debugging)
 - **Benefits**:
@@ -101,12 +108,14 @@ Railway provides **two types** of PostgreSQL connection URLs:
 #### Security Assessment
 
 **TCP Proxy is safe for external access because**:
+
 1. **SSL/TLS Encryption**: All connections encrypted by default
 2. **Authentication Required**: Strong password must be provided
 3. **Railway's Infrastructure**: Managed and monitored by Railway
 4. **No Different Than Cloud DBs**: Same security model as AWS RDS, GCP Cloud SQL
 
 **The main security consideration** is credential management:
+
 - Keep credentials out of version control
 - Use strong, unique passwords
 - Rotate credentials if compromised
@@ -115,18 +124,21 @@ Railway provides **two types** of PostgreSQL connection URLs:
 #### Recommended Setup
 
 **For Production Services (running on Railway)**:
+
 ```bash
 # Use private network URL (Railway provides this automatically)
 DATABASE_URL="${{Postgres.DATABASE_URL}}"
 ```
 
 **For Development/Local Access**:
+
 ```bash
 # In your local .env, use the TCP proxy URL
 DATABASE_URL="postgresql://user:pass@region.proxy.rlwy.net:port/db"
 ```
 
 **For JetBrains IDE / Database Tools**:
+
 - Enable TCP Proxy in Railway dashboard (Settings → Networking)
 - Use `DATABASE_PUBLIC_URL` from Railway variables
 - Configure SSL mode to "require" in your IDE connection settings
@@ -134,6 +146,7 @@ DATABASE_URL="postgresql://user:pass@region.proxy.rlwy.net:port/db"
 ### 4. Validates Required Variables
 
 The script will fail if these critical variables are missing:
+
 - `DATABASE_URL`
 - `N/A (pgvector in PostgreSQL)`
 - `GEMINI_API_KEY`
@@ -163,6 +176,7 @@ Continue? (yes/no):
 ### 3. Secret Hiding
 
 Sensitive values are never shown in full:
+
 - API keys show as `***set***`
 - Tokens show as `***set***`
 - Database URLs show as `***set***`
@@ -170,6 +184,7 @@ Sensitive values are never shown in full:
 ### 4. Validation
 
 The script validates:
+
 - ✅ Railway CLI is installed
 - ✅ Project is linked
 - ✅ All required variables are provided
@@ -274,6 +289,7 @@ The script uses Railway's CLI to set:
 - **Service-specific**: `railway variables --service <name> --set KEY=VALUE`
 
 Railway will automatically:
+
 - ✅ Trigger redeployments for affected services
 - ✅ Apply new values on next deployment
 - ✅ Keep old values until deployment completes
@@ -289,6 +305,7 @@ Railway will automatically:
 5. For each variable below, click **"Add Variable"** and enter:
 
 **Shared Variables to Add**:
+
 ```
 DATABASE_URL=<Railway PostgreSQL URL - includes pgvector>
 # No separate pgvector credentials needed - uses DATABASE_URL
@@ -333,17 +350,20 @@ For **api-gateway** and **ai-worker** (services that need database):
 ### Step 4: Set Service-Specific Variables
 
 **bot-client**:
+
 ```
 DISCORD_TOKEN=<your-discord-token>
 DISCORD_CLIENT_ID=<your-client-id>
 ```
 
 **api-gateway**:
+
 ```
 PORT=3000
 ```
 
 **ai-worker**:
+
 ```
 WORKER_CONCURRENCY=5
 PORT=3001
@@ -352,6 +372,7 @@ PORT=3001
 ### Step 5: Verify Setup
 
 Check each service's Variables tab. You should see:
+
 - 📦 **Shared variables** (marked with a shared icon/badge)
 - 🔗 **Reference variable** (`DATABASE_URL=${{Postgres.DATABASE_URL}}`)
 - 🔧 **Service-specific variables**
@@ -400,6 +421,7 @@ Once you have shared variables set up in development, you can sync them to produ
 ### Alternative: Manual Setup
 
 If you prefer not to use sync, you can manually set up production:
+
 1. Switch to production environment
 2. Go to Project Settings → Shared Variables
 3. Add the same variables as development
@@ -420,6 +442,7 @@ If you prefer not to use sync, you can manually set up production:
    - Railway will generate `DATABASE_PUBLIC_URL`
 
 2. **Use the Public URL**:
+
    ```bash
    # Get the public URL
    railway variables | grep DATABASE_PUBLIC_URL
@@ -452,18 +475,21 @@ If you want to lock down production databases:
 ### Current Recommendation
 
 **Development Environment**:
+
 - ✅ **Keep TCP Proxy enabled** - You need IDE access for debugging, schema inspection, and manual testing
 - ✅ Use strong password (Railway generates good defaults)
 - ✅ SSL/TLS is enabled by default
 - ✅ This is the standard way to access Railway databases externally
 
 **Production Environment**:
+
 - ✅ **Keep TCP Proxy enabled** - You'll want IDE access for production debugging too
 - ✅ **Use different credentials** than development (Railway generates separate DB per environment)
 - ✅ **Limit Railway project access** - Only trusted collaborators should see database credentials
 - ✅ **Monitor access** - Railway tracks who views variables in dashboard
 
 **Security Considerations**:
+
 - **Small hobby project**: TCP proxy with strong passwords + SSL is sufficient
 - **Growing project**: Same approach works, just ensure credentials aren't shared publicly
 - **Large-scale/enterprise**: Consider additional layers:
@@ -473,6 +499,7 @@ If you want to lock down production databases:
   - Database audit logging
 
 **Current Status**:
+
 - Both development and production environments exist and are ready
 - v3 not yet deployed to production (still in development testing)
 - Private testing only (no public users)
@@ -521,6 +548,7 @@ You can use this script in CI/CD:
 **Works for both development and production databases** - just switch Railway environments first.
 
 1. **Get your database public URL**:
+
    ```bash
    # For development
    railway environment development
@@ -559,26 +587,31 @@ You can use this script in CI/CD:
 ### Troubleshooting
 
 **"Could not connect to server"**:
+
 - Verify TCP Proxy is enabled in Railway dashboard
 - Check your internet connection
 - Confirm credentials are correct
 
 **"SSL connection required"**:
+
 - Enable SSL in connection settings (see step 3 above)
 
 **"Too many connections"**:
+
 - Close unused database connections in your IDE
 - Check other services aren't using too many connections
 
 ### Security Reminder
 
 ✅ **Safe for hobby-to-production projects**:
+
 - SSL/TLS encryption is automatic
 - Strong password authentication (Railway generates secure defaults)
 - Standard cloud database security model (same as AWS RDS, GCP Cloud SQL)
 - Railway tracks who accesses credentials in dashboard
 
 ⚠️ **Keep credentials secure**:
+
 - ✅ Don't commit database URLs to git (use .env.example with placeholders)
 - ✅ Don't share credentials in public channels (Discord, Slack, etc.)
 - ✅ Use Railway's team access controls to limit who can view variables
@@ -586,6 +619,7 @@ You can use this script in CI/CD:
 - ✅ In JetBrains IDE, color-code production connection RED to avoid accidents
 
 **Scaling Security**:
+
 - **Current**: TCP proxy + SSL + strong passwords is sufficient
 - **Growing**: Same approach, just limit Railway project access to trusted people
 - **Enterprise**: Add bastion hosts, VPNs, IP whitelisting, read replicas

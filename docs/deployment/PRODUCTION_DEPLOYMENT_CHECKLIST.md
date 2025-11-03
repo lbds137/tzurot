@@ -9,6 +9,7 @@
 ## ⚠️ CRITICAL: Data Migration Required
 
 This deployment involves:
+
 - Migrating from old Postgres to new pgvector database
 - Migrating memories from Qdrant to pgvector
 - Cannot rollback without data loss - must succeed on first try
@@ -20,6 +21,7 @@ This deployment involves:
 ### 1. Backup Everything
 
 - [ ] **Backup production Postgres database**
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway service Postgres
   PROD_DB_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
@@ -31,6 +33,7 @@ This deployment involves:
   - Store in `backups/qdrant-prod-$(date +%Y%m%d-%H%M%S)/`
 
 - [ ] **Verify backups are valid**
+
   ```bash
   # Check backup file size
   ls -lh backups/prod-postgres-*.sql
@@ -42,6 +45,7 @@ This deployment involves:
 ### 2. Create Production pgvector Database
 
 - [ ] **Add pgvector template to production Railway**
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway add
   # Select: Database > PostgreSQL with pgvector
@@ -49,6 +53,7 @@ This deployment involves:
   ```
 
 - [ ] **Install pgvector in template1** (CRITICAL!)
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway service pgvector
   PGVECTOR_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
@@ -66,11 +71,13 @@ This deployment involves:
 ### 3. Verify Dev Deployment is Stable
 
 - [ ] **Check dev Railway deployment status**
+
   ```bash
   RAILWAY_ENVIRONMENT=development railway status
   ```
 
 - [ ] **Verify all dev services are healthy**
+
   ```bash
   curl https://api-gateway-development-83e8.up.railway.app/health
   # Should return 200 OK
@@ -96,6 +103,7 @@ This deployment involves:
 ### Phase 1: Set Up Production Database
 
 - [ ] **Run Prisma migrations on new pgvector database**
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway service pgvector
   DATABASE_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
@@ -116,6 +124,7 @@ This deployment involves:
 ### Phase 2: Migrate Production Data
 
 - [ ] **Copy data from old Postgres to new pgvector**
+
   ```bash
   # Get old database URL
   RAILWAY_ENVIRONMENT=production railway service Postgres
@@ -132,6 +141,7 @@ This deployment involves:
   ```
 
 - [ ] **Verify data copied correctly**
+
   ```bash
   # Check row counts match
   psql "$OLD_DB_URL" -c "SELECT COUNT(*) FROM users;"
@@ -152,11 +162,13 @@ This deployment involves:
 ### Phase 3: Update Production Services
 
 - [ ] **Merge PR to main branch**
+
   ```bash
   gh pr merge 190 --rebase
   ```
 
 - [ ] **Update production service variables**
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway service api-gateway
   railway variables --set "DATABASE_URL=${{pgvector.DATABASE_URL}}"
@@ -169,6 +181,7 @@ This deployment involves:
   ```
 
 - [ ] **Remove Qdrant variables** (since we deleted Qdrant)
+
   ```bash
   # Note: Railway CLI can't delete variables, use web dashboard
   # Remove from all services:
@@ -190,12 +203,14 @@ This deployment involves:
 ### Phase 4: Verification
 
 - [ ] **Wait for all services to deploy**
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway status
   # All services should show "SUCCESS"
   ```
 
 - [ ] **Check health endpoint**
+
   ```bash
   curl https://api-gateway-production.up.railway.app/health
   # Should return 200 OK
@@ -212,6 +227,7 @@ This deployment involves:
   - [ ] Test image processing
 
 - [ ] **Check production logs for errors**
+
   ```bash
   RAILWAY_ENVIRONMENT=production railway logs --service api-gateway | grep ERROR
   RAILWAY_ENVIRONMENT=production railway logs --service ai-worker | grep ERROR
@@ -228,12 +244,14 @@ This deployment involves:
 ⚠️ **WAIT 24-48 HOURS** before cleanup to ensure stability!
 
 - [ ] **Remove old Postgres service**
+
   ```bash
   # Use Railway dashboard to delete "Postgres" service
   # This cannot be undone!
   ```
 
 - [ ] **Remove Qdrant service** (if still exists)
+
   ```bash
   # Use Railway dashboard to delete "Qdrant" service
   ```
@@ -253,6 +271,7 @@ If deployment fails:
 ### Immediate Rollback (If Services Won't Start)
 
 1. **Revert DATABASE_URL to old Postgres**
+
    ```bash
    RAILWAY_ENVIRONMENT=production railway service api-gateway
    railway variables --set "DATABASE_URL=${{Postgres.DATABASE_URL}}"
@@ -270,6 +289,7 @@ If deployment fails:
 ### Data Recovery (If Data Lost)
 
 1. **Restore from backup**
+
    ```bash
    psql "$OLD_DB_URL" < backups/prod-postgres-TIMESTAMP.sql
    ```
@@ -285,6 +305,7 @@ If deployment fails:
 **Cause**: Tables already exist from data copy
 
 **Fix**:
+
 ```bash
 npx prisma migrate resolve --applied 20250131000000_init
 ```
@@ -294,6 +315,7 @@ npx prisma migrate resolve --applied 20250131000000_init
 **Cause**: pgvector not installed in template1
 
 **Fix**:
+
 ```bash
 psql "$PGVECTOR_URL" -d template1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
@@ -330,6 +352,7 @@ psql "$PGVECTOR_URL" -d template1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ## Contact Info
 
 If issues arise:
+
 - Check Railway dashboard: https://railway.app
 - Review logs via CLI: `railway logs --service <name>`
 - Check GitHub Actions: https://github.com/lbds137/tzurot/actions

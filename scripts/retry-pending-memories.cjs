@@ -31,11 +31,11 @@ async function retryPendingMemories(maxAttempts = 5, dryRun = false) {
     const pendingMemories = await prisma.pendingMemory.findMany({
       where: {
         attempts: {
-          lt: maxAttempts
-        }
+          lt: maxAttempts,
+        },
       },
       orderBy: {
-        createdAt: 'asc'
+        createdAt: 'asc',
       },
       include: {
         conversationHistory: {
@@ -43,10 +43,10 @@ async function retryPendingMemories(maxAttempts = 5, dryRun = false) {
             id: true,
             role: true,
             content: true,
-            createdAt: true
-          }
-        }
-      }
+            createdAt: true,
+          },
+        },
+      },
     });
 
     console.log(`📊 Found ${pendingMemories.length} pending memories to retry\n`);
@@ -86,22 +86,21 @@ async function retryPendingMemories(maxAttempts = 5, dryRun = false) {
               vector: embedding,
               payload: {
                 text,
-                ...metadata
-              }
-            }
-          ]
+                ...metadata,
+              },
+            },
+          ],
         });
 
         console.log(`   ✅ Successfully stored to Qdrant collection: ${collectionName}`);
 
         // 4. Delete the pending_memory
         await prisma.pendingMemory.delete({
-          where: { id }
+          where: { id },
         });
 
         console.log(`   🗑️  Deleted pending_memory record`);
         successCount++;
-
       } catch (error) {
         console.error(`   ❌ Failed to store: ${error.message}`);
 
@@ -111,8 +110,8 @@ async function retryPendingMemories(maxAttempts = 5, dryRun = false) {
           data: {
             attempts: { increment: 1 },
             lastAttemptAt: new Date(),
-            error: error.message
-          }
+            error: error.message,
+          },
         });
 
         console.log(`   📝 Updated pending_memory with error (attempt ${attempts + 1})`);
@@ -124,7 +123,6 @@ async function retryPendingMemories(maxAttempts = 5, dryRun = false) {
     console.log(`   ✅ Successful: ${successCount}`);
     console.log(`   ❌ Failed: ${failCount}`);
     console.log(`   📊 Total processed: ${successCount + failCount}`);
-
   } catch (error) {
     console.error('Error:', error.message);
     console.error(error.stack);

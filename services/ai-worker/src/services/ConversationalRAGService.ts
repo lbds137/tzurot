@@ -7,11 +7,7 @@
  * - Builds prompts with system message, memory, and history
  */
 
-import {
-  BaseMessage,
-  HumanMessage,
-  SystemMessage
-} from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { PgvectorMemoryAdapter, MemoryQueryOptions } from '../memory/PgvectorMemoryAdapter.js';
 import {
@@ -31,7 +27,11 @@ import {
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
-import { processAttachments, type ProcessedAttachment, transcribeAudio } from './MultimodalProcessor.js';
+import {
+  processAttachments,
+  type ProcessedAttachment,
+  transcribeAudio,
+} from './MultimodalProcessor.js';
 import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
 import { logAndThrow, logAndReturnFallback } from '../utils/errorHandling.js';
 
@@ -125,19 +125,18 @@ export class ConversationalRAGService {
    * This supports BYOK (Bring Your Own Key) - different users can use different keys
    * Returns both the model and the validated model name
    */
-  private getModel(
-    modelName?: string,
-    apiKey?: string,
-    temperature?: number
-  ): ChatModelResult {
+  private getModel(modelName?: string, apiKey?: string, temperature?: number): ChatModelResult {
     const cacheKey = getModelCacheKey({ modelName, apiKey, temperature });
 
     if (!this.models.has(cacheKey)) {
-      this.models.set(cacheKey, createChatModel({
-        modelName,
-        apiKey,
-        temperature: temperature ?? 0.7,
-      }));
+      this.models.set(
+        cacheKey,
+        createChatModel({
+          modelName,
+          apiKey,
+          temperature: temperature ?? 0.7,
+        })
+      );
     }
 
     return this.models.get(cacheKey)!;
@@ -165,12 +164,15 @@ export class ConversationalRAGService {
       // Check if we've exceeded global timeout before attempting
       const elapsedMs = Date.now() - startTime;
       if (elapsedMs >= globalTimeoutMs) {
-        logger.error({
-          modelName,
-          elapsedMs,
-          globalTimeoutMs,
-          attempt: attempt + 1
-        }, `[RAG] Global timeout exceeded after ${elapsedMs}ms (limit: ${globalTimeoutMs}ms)`);
+        logger.error(
+          {
+            modelName,
+            elapsedMs,
+            globalTimeoutMs,
+            attempt: attempt + 1,
+          },
+          `[RAG] Global timeout exceeded after ${elapsedMs}ms (limit: ${globalTimeoutMs}ms)`
+        );
         throw new Error(`LLM invocation global timeout exceeded after ${elapsedMs}ms`);
       }
 
@@ -179,23 +181,28 @@ export class ConversationalRAGService {
       const attemptTimeoutMs = Math.min(TIMEOUTS.LLM_API, remainingMs);
 
       try {
-        logger.info({
-          modelName,
-          attempt: attempt + 1,
-          maxAttempts: maxRetries + 1,
-          attemptTimeoutMs,
-          remainingMs
-        }, `[RAG] Invoking LLM (attempt ${attempt + 1}/${maxRetries + 1}, timeout: ${attemptTimeoutMs}ms)`);
+        logger.info(
+          {
+            modelName,
+            attempt: attempt + 1,
+            maxAttempts: maxRetries + 1,
+            attemptTimeoutMs,
+            remainingMs,
+          },
+          `[RAG] Invoking LLM (attempt ${attempt + 1}/${maxRetries + 1}, timeout: ${attemptTimeoutMs}ms)`
+        );
 
         // Invoke with calculated timeout (respects global timeout)
         const response = await model.invoke(messages, { timeout: attemptTimeoutMs });
 
         if (attempt > 0) {
-          logger.info({ modelName, attempt: attempt + 1 }, '[RAG] LLM invocation succeeded after retry');
+          logger.info(
+            { modelName, attempt: attempt + 1 },
+            '[RAG] LLM invocation succeeded after retry'
+          );
         }
 
         return response;
-
       } catch (error) {
         // Check if this is a transient network error worth retrying
         // Check both error.code (Node.js native errors) and error.message (wrapped errors)
@@ -212,13 +219,16 @@ export class ConversationalRAGService {
 
         if (isTransientError && attempt < maxRetries) {
           const delayMs = Math.pow(2, attempt) * RETRY_CONFIG.LLM_RETRY_BASE_DELAY;
-          logger.warn({
-            err: error,
-            modelName,
-            attempt: attempt + 1,
-            nextRetryInMs: delayMs,
-            elapsedMs: Date.now() - startTime
-          }, `[RAG] LLM invocation failed with transient error, retrying in ${delayMs}ms`);
+          logger.warn(
+            {
+              err: error,
+              modelName,
+              attempt: attempt + 1,
+              nextRetryInMs: delayMs,
+              elapsedMs: Date.now() - startTime,
+            },
+            `[RAG] LLM invocation failed with transient error, retrying in ${delayMs}ms`
+          );
 
           await new Promise(resolve => setTimeout(resolve, delayMs));
           continue;
@@ -226,12 +236,15 @@ export class ConversationalRAGService {
 
         // Non-retryable error or out of retries
         if (attempt === maxRetries) {
-          logger.error({
-            err: error,
-            modelName,
-            attempts: maxRetries + 1,
-            totalElapsedMs: Date.now() - startTime
-          }, `[RAG] LLM invocation failed after ${maxRetries + 1} attempts`);
+          logger.error(
+            {
+              err: error,
+              modelName,
+              attempts: maxRetries + 1,
+              totalElapsedMs: Date.now() - startTime,
+            },
+            `[RAG] LLM invocation failed after ${maxRetries + 1} attempts`
+          );
         }
 
         throw error;
@@ -272,19 +285,28 @@ export class ConversationalRAGService {
       // 4. Fetch ALL participant personas from conversation history
       const participantPersonas = await this.getAllParticipantPersonas(context);
       if (participantPersonas.size > 0) {
-        logger.info(`[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`);
+        logger.info(
+          `[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`
+        );
       } else {
         logger.debug(`[RAG] No participant personas found in conversation history`);
       }
 
       // 5. Query vector store for relevant memories using actual content
-      logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`);
-      const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
+      logger.info(
+        `[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
+      );
+      const relevantMemories = await this.retrieveRelevantMemories(
+        personality,
+        searchQuery,
+        context
+      );
 
       // 6. Format referenced messages (with vision/transcription) for both prompt AND database
-      const referencedMessagesDescriptions = context.referencedMessages && context.referencedMessages.length > 0
-        ? await this.formatReferencedMessages(context.referencedMessages, personality)
-        : undefined;
+      const referencedMessagesDescriptions =
+        context.referencedMessages && context.referencedMessages.length > 0
+          ? await this.formatReferencedMessages(context.referencedMessages, personality)
+          : undefined;
 
       // 7. Build the prompt with ALL participant personas and memory context
       // Note: We no longer pass references to system prompt - they're appended to the human message instead
@@ -304,7 +326,9 @@ export class ConversationalRAGService {
         const historyLimit = personality.contextWindow || 10;
         const recentHistory = context.conversationHistory.slice(-historyLimit);
         messages.push(...recentHistory);
-        logger.info(`[RAG] Including ${recentHistory.length} conversation history messages (limit: ${historyLimit})`);
+        logger.info(
+          `[RAG] Including ${recentHistory.length} conversation history messages (limit: ${historyLimit})`
+        );
 
         // DEBUG: Log each history message to detect duplication
         if (config.NODE_ENV === 'development') {
@@ -312,7 +336,9 @@ export class ConversationalRAGService {
           recentHistory.forEach((msg, idx) => {
             const role = msg._getType();
             const content = msg.content.toString().substring(0, TEXT_LIMITS.LOG_PREVIEW);
-            logger.debug(`  [${idx}] ${role}: ${content}${msg.content.toString().length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`);
+            logger.debug(
+              `  [${idx}] ${role}: ${content}${msg.content.toString().length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`
+            );
           });
         }
       }
@@ -330,7 +356,9 @@ export class ConversationalRAGService {
       if (config.NODE_ENV === 'development') {
         const currentContent = humanMessage.content.toString();
         const hasSpeakerHeader = !!context.activePersonaName;
-        logger.debug(`[RAG] Current user message (${currentContent.length} chars, speaker header: ${hasSpeakerHeader}): ${currentContent.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${currentContent.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`);
+        logger.debug(
+          `[RAG] Current user message (${currentContent.length} chars, speaker header: ${hasSpeakerHeader}): ${currentContent.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${currentContent.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`
+        );
       }
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
@@ -345,7 +373,9 @@ export class ConversationalRAGService {
 
       const content = response.content as string;
 
-      logger.info(`[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`);
+      logger.info(
+        `[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`
+      );
 
       // 7. Store this interaction in memory (for future retrieval)
       // Use the content WITHOUT the prompt engineering header (contentForStorage)
@@ -353,22 +383,25 @@ export class ConversationalRAGService {
       await this.storeInteraction(personality, contentForStorage, content, context);
 
       // Extract attachment descriptions for history storage with context
-      const attachmentDescriptions = processedAttachments.length > 0
-        ? processedAttachments.map(a => {
-            // Add filename/type context before each description
-            let header = '';
-            if (a.type === 'image') {
-              header = `[Image: ${a.metadata.name || 'attachment'}]`;
-            } else if (a.type === 'audio') {
-              if (a.metadata.isVoiceMessage && a.metadata.duration) {
-                header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
-              } else {
-                header = `[Audio: ${a.metadata.name || 'attachment'}]`;
-              }
-            }
-            return `${header}\n${a.description}`;
-          }).join('\n\n')
-        : undefined;
+      const attachmentDescriptions =
+        processedAttachments.length > 0
+          ? processedAttachments
+              .map(a => {
+                // Add filename/type context before each description
+                let header = '';
+                if (a.type === 'image') {
+                  header = `[Image: ${a.metadata.name || 'attachment'}]`;
+                } else if (a.type === 'audio') {
+                  if (a.metadata.isVoiceMessage && a.metadata.duration) {
+                    header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
+                  } else {
+                    header = `[Audio: ${a.metadata.name || 'attachment'}]`;
+                  }
+                }
+                return `${header}\n${a.description}`;
+              })
+              .join('\n\n')
+          : undefined;
 
       return {
         content,
@@ -376,9 +409,8 @@ export class ConversationalRAGService {
         tokensUsed: (response as any).usage_metadata?.total_tokens,
         attachmentDescriptions,
         referencedMessagesDescriptions,
-        modelUsed: modelName
+        modelUsed: modelName,
       };
-
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
     }
@@ -443,11 +475,12 @@ export class ConversationalRAGService {
 
       // For voice-only messages (no text), use transcription as primary message
       // For images or mixed content, combine with user message
-      messageContent = userMessage.trim() === 'Hello' && descriptions
-        ? descriptions // Voice message with no text content
-        : userMessage.trim()
-        ? `${userMessage}\n\n${descriptions}` // Text + attachments
-        : descriptions; // Attachments only
+      messageContent =
+        userMessage.trim() === 'Hello' && descriptions
+          ? descriptions // Voice message with no text content
+          : userMessage.trim()
+            ? `${userMessage}\n\n${descriptions}` // Text + attachments
+            : descriptions; // Attachments only
 
       logger.info(
         {
@@ -467,7 +500,7 @@ export class ConversationalRAGService {
 
       logger.info(
         {
-          referencesLength: referencedMessagesDescriptions.length
+          referencesLength: referencedMessagesDescriptions.length,
         },
         'Appended referenced messages to current message'
       );
@@ -536,52 +569,61 @@ export class ConversationalRAGService {
         participantsList.push(`### ${personaName}\n${content}`);
       }
 
-      const pluralNote = participantPersonas.size > 1
-        ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${context.activePersonaName || 'Alice'}: message") to show who said what.`
-        : '';
+      const pluralNote =
+        participantPersonas.size > 1
+          ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${context.activePersonaName || 'Alice'}: message") to show who said what.`
+          : '';
 
       participantsContext = `\n\n## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
     }
 
     // Relevant memories from past interactions
-    const memoryContext = relevantMemories.length > 0
-      ? '\n\n## Relevant Memories\n' +
-        relevantMemories.map((doc) => {
-          const timestamp = doc.metadata?.createdAt
-            ? formatMemoryTimestamp(doc.metadata.createdAt)
-            : null;
-          return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
-        }).join('\n')
-      : '';
+    const memoryContext =
+      relevantMemories.length > 0
+        ? '\n\n## Relevant Memories\n' +
+          relevantMemories
+            .map(doc => {
+              const timestamp = doc.metadata?.createdAt
+                ? formatMemoryTimestamp(doc.metadata.createdAt)
+                : null;
+              return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+            })
+            .join('\n')
+        : '';
 
     const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${referencesContext}${participantsContext}${memoryContext}`;
 
     // Basic prompt composition logging (always)
-    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} environment=${environmentContext.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
+    logger.info(
+      `[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} environment=${environmentContext.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`
+    );
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
-      logger.debug({
-        personalityId: personality.id,
-        personalityName: personality.name,
-        systemPromptLength: systemPrompt.length,
-        participantCount: participantPersonas.size,
-        participantsContextLength: participantsContext.length,
-        activePersonaName: context.activePersonaName,
-        memoryCount: relevantMemories.length,
-        memoryIds: relevantMemories.map((m) => m.metadata?.id || 'unknown'),
-        memoryTimestamps: relevantMemories.map((m) =>
-          m.metadata?.createdAt ? formatMemoryTimestamp(m.metadata.createdAt) : 'unknown'
-        ),
-        totalMemoryChars: memoryContext.length,
-        dateContextLength: dateContext.length,
-        totalSystemPromptLength: fullSystemPrompt.length,
-        // Include STM info for duplication detection
-        stmCount: context.conversationHistory?.length || 0,
-        stmOldestTimestamp: context.oldestHistoryTimestamp
-          ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
-          : null,
-      }, '[RAG] Detailed prompt assembly:');
+      logger.debug(
+        {
+          personalityId: personality.id,
+          personalityName: personality.name,
+          systemPromptLength: systemPrompt.length,
+          participantCount: participantPersonas.size,
+          participantsContextLength: participantsContext.length,
+          activePersonaName: context.activePersonaName,
+          memoryCount: relevantMemories.length,
+          memoryIds: relevantMemories.map(m => m.metadata?.id || 'unknown'),
+          memoryTimestamps: relevantMemories.map(m =>
+            m.metadata?.createdAt ? formatMemoryTimestamp(m.metadata.createdAt) : 'unknown'
+          ),
+          totalMemoryChars: memoryContext.length,
+          dateContextLength: dateContext.length,
+          totalSystemPromptLength: fullSystemPrompt.length,
+          // Include STM info for duplication detection
+          stmCount: context.conversationHistory?.length || 0,
+          stmOldestTimestamp: context.oldestHistoryTimestamp
+            ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
+            : null,
+        },
+        '[RAG] Detailed prompt assembly:'
+      );
 
       // Show full prompt in debug mode (truncated to avoid massive logs)
       const maxPreviewLength = TEXT_LIMITS.LOG_FULL_PROMPT;
@@ -590,8 +632,8 @@ export class ConversationalRAGService {
       } else {
         logger.debug(
           `[RAG] Full system prompt (showing first ${maxPreviewLength} chars):\n` +
-          fullSystemPrompt.substring(0, maxPreviewLength) +
-          `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
+            fullSystemPrompt.substring(0, maxPreviewLength) +
+            `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
         );
       }
     }
@@ -610,11 +652,14 @@ export class ConversationalRAGService {
       return '## Conversation Location\nThis conversation is taking place in a **Direct Message** (private one-on-one chat).';
     }
 
-    logger.info({
-      guildName: environment.guild?.name,
-      channelName: environment.channel.name,
-      channelType: environment.channel.type
-    }, '[RAG] Environment type: Guild');
+    logger.info(
+      {
+        guildName: environment.guild?.name,
+        channelName: environment.channel.name,
+        channelType: environment.channel.type,
+      },
+      '[RAG] Environment type: Guild'
+    );
 
     const parts: string[] = [];
     parts.push('## Conversation Location');
@@ -672,43 +717,55 @@ export class ConversationalRAGService {
           // Handle voice messages - transcribe them for AI context
           if (attachment.isVoiceMessage) {
             try {
-              logger.info({
-                referenceNumber: ref.referenceNumber,
-                url: attachment.url,
-                duration: attachment.duration
-              }, 'Transcribing voice message in referenced message');
+              logger.info(
+                {
+                  referenceNumber: ref.referenceNumber,
+                  url: attachment.url,
+                  duration: attachment.duration,
+                },
+                'Transcribing voice message in referenced message'
+              );
 
               const transcription = await transcribeAudio(attachment, personality);
 
               lines.push(`- Voice Message (${attachment.duration}s): "${transcription}"`);
             } catch (error) {
-              logger.error({
-                err: error,
-                referenceNumber: ref.referenceNumber,
-                url: attachment.url
-              }, 'Failed to transcribe voice message in referenced message');
+              logger.error(
+                {
+                  err: error,
+                  referenceNumber: ref.referenceNumber,
+                  url: attachment.url,
+                },
+                'Failed to transcribe voice message in referenced message'
+              );
 
               lines.push(`- Voice Message (${attachment.duration}s) [transcription failed]`);
             }
           } else if (attachment.contentType?.startsWith('image/')) {
             // Process images through vision model
             try {
-              logger.info({
-                referenceNumber: ref.referenceNumber,
-                url: attachment.url,
-                name: attachment.name
-              }, 'Processing image in referenced message through vision model');
+              logger.info(
+                {
+                  referenceNumber: ref.referenceNumber,
+                  url: attachment.url,
+                  name: attachment.name,
+                },
+                'Processing image in referenced message through vision model'
+              );
 
               const { describeImage } = await import('./MultimodalProcessor.js');
               const imageDescription = await describeImage(attachment, personality);
 
               lines.push(`- Image (${attachment.name}): ${imageDescription}`);
             } catch (error) {
-              logger.error({
-                err: error,
-                referenceNumber: ref.referenceNumber,
-                url: attachment.url
-              }, 'Failed to process image in referenced message');
+              logger.error(
+                {
+                  err: error,
+                  referenceNumber: ref.referenceNumber,
+                  url: attachment.url,
+                },
+                'Failed to process image in referenced message'
+              );
 
               lines.push(`- Image (${attachment.name}) [vision processing failed]`);
             }
@@ -728,10 +785,13 @@ export class ConversationalRAGService {
 
     // Log first 500 chars of formatted references for debugging
     if (formattedText.length > 0) {
-      logger.info({
-        preview: formattedText.substring(0, 500) + (formattedText.length > 500 ? '...' : ''),
-        totalLength: formattedText.length
-      }, '[RAG] Reference formatting preview');
+      logger.info(
+        {
+          preview: formattedText.substring(0, 500) + (formattedText.length > 500 ? '...' : ''),
+          totalLength: formattedText.length,
+        },
+        '[RAG] Reference formatting preview'
+      );
     }
 
     return formattedText;
@@ -756,18 +816,17 @@ export class ConversationalRAGService {
 
       logger.debug(
         `[RAG] STM/LTM deduplication: excluding memories newer than ${formatMemoryTimestamp(excludeNewerThan)} ` +
-        `(${AI_DEFAULTS.STM_LTM_BUFFER_MS}ms buffer applied)`
+          `(${AI_DEFAULTS.STM_LTM_BUFFER_MS}ms buffer applied)`
       );
     }
 
     // Resolve user's personaId for this personality
-    const personaId = await this.getUserPersonaForPersonality(
-      context.userId,
-      personality.id
-    );
+    const personaId = await this.getUserPersonaForPersonality(context.userId, personality.id);
 
     if (!personaId) {
-      logger.warn(`[RAG] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`);
+      logger.warn(
+        `[RAG] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
+      );
       return [];
     }
 
@@ -781,12 +840,15 @@ export class ConversationalRAGService {
     };
 
     // Query memories only if memory manager is available
-    const relevantMemories = this.memoryManager !== undefined
-      ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
-      : [];
+    const relevantMemories =
+      this.memoryManager !== undefined
+        ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
+        : [];
 
     if (relevantMemories.length > 0) {
-      logger.info(`[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`);
+      logger.info(
+        `[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`
+      );
 
       // Log each memory with ID, score, timestamp, and truncated content
       relevantMemories.forEach((doc, idx) => {
@@ -797,10 +859,14 @@ export class ConversationalRAGService {
         const content = doc.pageContent.substring(0, 120);
         const truncated = doc.pageContent.length > 120 ? '...' : '';
 
-        logger.info(`[RAG] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp || 'unknown'} content="${content}${truncated}"`);
+        logger.info(
+          `[RAG] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp || 'unknown'} content="${content}${truncated}"`
+        );
       });
     } else {
-      logger.debug(`[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`);
+      logger.debug(
+        `[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`
+      );
     }
 
     return relevantMemories;
@@ -821,13 +887,12 @@ export class ConversationalRAGService {
 
     try {
       // 1. Resolve user's personaId for this personality FIRST
-      const personaId = await this.getUserPersonaForPersonality(
-        context.userId,
-        personality.id
-      );
+      const personaId = await this.getUserPersonaForPersonality(context.userId, personality.id);
 
       if (!personaId) {
-        logger.warn(`[RAG] No persona found for user ${context.userId}, skipping conversation history and memory storage`);
+        logger.warn(
+          `[RAG] No persona found for user ${context.userId}, skipping conversation history and memory storage`
+        );
         return;
       }
 
@@ -847,17 +912,20 @@ export class ConversationalRAGService {
         },
         select: {
           id: true,
-          createdAt: true
-        }
+          createdAt: true,
+        },
       });
       conversationHistoryId = conversationRecord.id;
       // Use the actual timestamp from PostgreSQL for perfect sync
       const conversationTimestamp = conversationRecord.createdAt.getTime();
-      logger.debug(`[RAG] Saved assistant response to conversation_history (${conversationHistoryId}, persona: ${personaId.substring(0, 8)}...)`);
-
+      logger.debug(
+        `[RAG] Saved assistant response to conversation_history (${conversationHistoryId}, persona: ${personaId.substring(0, 8)}...)`
+      );
 
       // 4. Determine canon scope and prepare memory metadata
-      const canonScope: 'global' | 'personal' | 'session' = context.sessionId ? 'session' : 'personal';
+      const canonScope: 'global' | 'personal' | 'session' = context.sessionId
+        ? 'session'
+        : 'personal';
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
       const interactionText = `{user}: ${userMessage}\n{assistant}: ${cleanedResponse}`;
 
@@ -871,7 +939,7 @@ export class ConversationalRAGService {
         contextType: context.channelId ? 'channel' : 'dm',
         channelId: context.channelId,
         guildId: context.serverId,
-        serverId: context.serverId
+        serverId: context.serverId,
       };
 
       if (this.memoryManager === undefined) {
@@ -888,7 +956,7 @@ export class ConversationalRAGService {
           text: interactionText,
           metadata: memoryMetadata as any, // Cast to any for Prisma Json type
           attempts: 0,
-        }
+        },
       });
       pendingMemoryId = pendingMemory.id;
       logger.debug(`[RAG] Created pending_memory (${pendingMemoryId})`);
@@ -896,15 +964,16 @@ export class ConversationalRAGService {
       // 6. Try to store to vector database
       await this.memoryManager.addMemory({
         text: interactionText,
-        metadata: memoryMetadata
+        metadata: memoryMetadata,
       });
 
       // 7. Success! Delete the pending_memory
       await prisma.pendingMemory.delete({
-        where: { id: pendingMemoryId }
+        where: { id: pendingMemoryId },
       });
-      logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name} (persona: ${personaId})`);
-
+      logger.info(
+        `[RAG] Stored interaction in ${canonScope} canon for ${personality.name} (persona: ${personaId})`
+      );
     } catch (error) {
       logger.error({ err: error }, '[RAG] Failed to store interaction to vector database');
 
@@ -916,10 +985,12 @@ export class ConversationalRAGService {
             data: {
               attempts: { increment: 1 },
               lastAttemptAt: new Date(),
-              error: error instanceof Error ? error.message : String(error)
-            }
+              error: error instanceof Error ? error.message : String(error),
+            },
           });
-          logger.info(`[RAG] Updated pending_memory (${pendingMemoryId}) with error - will retry later`);
+          logger.info(
+            `[RAG] Updated pending_memory (${pendingMemoryId}) with error - will retry later`
+          );
         } catch (updateError) {
           logger.error({ err: updateError }, `[RAG] Failed to update pending_memory`);
         }
@@ -1023,12 +1094,16 @@ export class ConversationalRAGService {
       if (content) {
         personaMap.set(participant.personaName, {
           content,
-          isActive: participant.isActive
+          isActive: participant.isActive,
         });
 
-        logger.debug(`[RAG] Loaded persona ${participant.personaName} (${participant.personaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`);
+        logger.debug(
+          `[RAG] Loaded persona ${participant.personaName} (${participant.personaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+        );
       } else {
-        logger.warn(`[RAG] No content found for participant ${participant.personaName} (${participant.personaId})`);
+        logger.warn(
+          `[RAG] No content found for participant ${participant.personaName} (${participant.personaId})`
+        );
       }
     }
 
@@ -1049,8 +1124,8 @@ export class ConversationalRAGService {
         select: {
           preferredName: true,
           pronouns: true,
-          content: true
-        }
+          content: true,
+        },
       });
 
       if (!persona) return null;
@@ -1072,7 +1147,12 @@ export class ConversationalRAGService {
 
       return parts.length > 0 ? parts.join('\n') : null;
     } catch (error) {
-      return logAndReturnFallback(logger, `[RAG] Failed to fetch persona ${personaId}`, error, null);
+      return logAndReturnFallback(
+        logger,
+        `[RAG] Failed to fetch persona ${personaId}`,
+        error,
+        null
+      );
     }
   }
 
@@ -1093,13 +1173,15 @@ export class ConversationalRAGService {
         where: {
           userId,
           personalityId,
-          personaId: { not: null } // Has a persona override
+          personaId: { not: null }, // Has a persona override
         },
-        select: { personaId: true }
+        select: { personaId: true },
       });
 
       if (userPersonalityConfig?.personaId) {
-        logger.debug(`[RAG] Using personality-specific persona override for user ${userId}, personality ${personalityId}`);
+        logger.debug(
+          `[RAG] Using personality-specific persona override for user ${userId}, personality ${personalityId}`
+        );
         return userPersonalityConfig.personaId;
       }
 
@@ -1108,9 +1190,9 @@ export class ConversationalRAGService {
         where: { id: userId },
         include: {
           defaultPersonaLink: {
-            select: { personaId: true }
-          }
-        }
+            select: { personaId: true },
+          },
+        },
       });
 
       const personaId = user?.defaultPersonaLink?.personaId || null;
@@ -1122,17 +1204,19 @@ export class ConversationalRAGService {
 
       return personaId;
     } catch (error) {
-      return logAndReturnFallback(logger, `[RAG] Failed to resolve persona for user ${userId}`, error, null);
+      return logAndReturnFallback(
+        logger,
+        `[RAG] Failed to resolve persona for user ${userId}`,
+        error,
+        null
+      );
     }
   }
 
   /**
    * Format user message with context metadata
    */
-  private formatUserMessage(
-    message: MessageContent,
-    context: ConversationContext
-  ): string {
+  private formatUserMessage(message: MessageContent, context: ConversationContext): string {
     let formatted = '';
 
     // Add context if this is a proxy message
@@ -1166,5 +1250,4 @@ export class ConversationalRAGService {
 
     return formatted || 'Hello';
   }
-
 }

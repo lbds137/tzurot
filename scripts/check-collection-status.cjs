@@ -37,7 +37,7 @@ async function checkCollectionStatus() {
       console.log(`  ${field}:`);
       console.log(`    Type: ${schema.data_type}`);
       console.log(`    Indexed points: ${schema.points || 0}`);
-      const percentage = ((schema.points || 0) / collection.points_count * 100).toFixed(1);
+      const percentage = (((schema.points || 0) / collection.points_count) * 100).toFixed(1);
       console.log(`    Coverage: ${percentage}%`);
     });
   }
@@ -76,7 +76,9 @@ async function checkCollectionStatus() {
   }
 
   if (userIdPoints === collection.points_count) {
-    console.log(`\n✅ userId index is COMPLETE: ${userIdPoints} / ${collection.points_count} points`);
+    console.log(
+      `\n✅ userId index is COMPLETE: ${userIdPoints} / ${collection.points_count} points`
+    );
   }
 
   // Show full collection object for debugging
@@ -88,7 +90,7 @@ async function checkCollectionStatus() {
 
 checkCollectionStatus()
   .then(() => process.exit(0))
-  .catch((error) => {
+  .catch(error => {
     console.error('Failed:', error);
     process.exit(1);
   });

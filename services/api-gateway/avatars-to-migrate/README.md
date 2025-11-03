@@ -11,6 +11,7 @@ Migration completed: October 27, 2025
 ## Current Avatar Storage Approach
 
 **Database is the source of truth:**
+
 - Avatars are stored as base64-encoded PNG in PostgreSQL (`personalities.avatar_data`)
 - Filesystem (`/data/avatars/`) is just a performance cache
 - On startup, `sync-avatars.ts` syncs avatars from DB to filesystem if missing
@@ -28,6 +29,7 @@ These files are kept as backups and reference. They are no longer used by the ap
 ## Adding New Personalities
 
 Use the `/personality create` slash command in Discord to add new personalities with avatars. The command will:
+
 1. Accept an image upload
 2. Automatically resize to 256x256
 3. Optimize to ~200KB or less

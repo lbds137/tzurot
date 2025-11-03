@@ -77,7 +77,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
             baseURL: 'https://openrouter.ai/api/v1',
           },
         }),
-        modelName
+        modelName,
       };
     }
 
@@ -98,7 +98,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           apiKey,
           temperature,
         }),
-        modelName
+        modelName,
       };
     }
 

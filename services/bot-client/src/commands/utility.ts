@@ -3,25 +3,17 @@
  * Groups utility commands under /utility with subcommands
  */
 
-import {
-  SlashCommandBuilder,
-  ChatInputCommandInteraction,
-  EmbedBuilder
-} from 'discord.js';
+import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import type { Command } from '../types.js';
 
 export const data = new SlashCommandBuilder()
   .setName('utility')
   .setDescription('Utility commands')
   .addSubcommand(subcommand =>
-    subcommand
-      .setName('ping')
-      .setDescription('Check if bot is responding')
+    subcommand.setName('ping').setDescription('Check if bot is responding')
   )
   .addSubcommand(subcommand =>
-    subcommand
-      .setName('help')
-      .setDescription('Show all available commands')
+    subcommand.setName('help').setDescription('Show all available commands')
   );
 
 export async function execute(
@@ -40,7 +32,7 @@ export async function execute(
     default:
       await interaction.reply({
         content: '❌ Unknown subcommand',
-        ephemeral: true
+        ephemeral: true,
       });
   }
 }
@@ -67,13 +59,13 @@ async function handleHelp(
   if (!commands) {
     await interaction.reply({
       content: '❌ Commands list not available',
-      ephemeral: true
+      ephemeral: true,
     });
     return;
   }
 
   const embed = new EmbedBuilder()
-    .setColor(0x5865F2)
+    .setColor(0x5865f2)
     .setTitle('Available Commands')
     .setDescription('Here are all the commands you can use:')
     .setTimestamp();
@@ -102,7 +94,10 @@ async function handleHelp(
           const subcommands = cmd.data.options
             .filter(opt => 'type' in opt && opt.type === 1) // Type 1 = Subcommand
             .filter(opt => 'name' in opt && 'description' in opt)
-            .map(sub => `  • \`/${cmdName} ${'name' in sub ? sub.name : ''}\` - ${'description' in sub ? sub.description : ''}`)
+            .map(
+              sub =>
+                `  • \`/${cmdName} ${'name' in sub ? sub.name : ''}\` - ${'description' in sub ? sub.description : ''}`
+            )
             .join('\n');
 
           if (subcommands) {
@@ -120,10 +115,11 @@ async function handleHelp(
   // Add personality mention info
   embed.addFields({
     name: 'Personality Interactions',
-    value: 'You can also interact with AI personalities by mentioning them:\n' +
-           '• `@PersonalityName your message` - Start a conversation\n' +
-           '• Reply to their messages to continue the conversation',
-    inline: false
+    value:
+      'You can also interact with AI personalities by mentioning them:\n' +
+      '• `@PersonalityName your message` - Start a conversation\n' +
+      '• Reply to their messages to continue the conversation',
+    inline: false,
   });
 
   await interaction.reply({ embeds: [embed] });

@@ -30,7 +30,11 @@ function hashContent(content: string): string {
 }
 
 // Helper to generate deterministic memory UUID
-function deterministicMemoryUuid(personaId: string, personalityId: string, content: string): string {
+function deterministicMemoryUuid(
+  personaId: string,
+  personalityId: string,
+  content: string
+): string {
   const key = `${personaId}:${personalityId}:${hashContent(content)}`;
   return uuidv5(key, MEMORY_NAMESPACE);
 }
@@ -85,7 +89,9 @@ async function main() {
   // Step 2: Process each context
   for (const context of contexts) {
     const { channelId, personalityId, personaId, personality } = context;
-    logger.info(`\n🔄 Processing: channel=${channelId.slice(0, 8)}... persona=${personaId.slice(0, 8)}... personality=${personality.name}`);
+    logger.info(
+      `\n🔄 Processing: channel=${channelId.slice(0, 8)}... persona=${personaId.slice(0, 8)}... personality=${personality.name}`
+    );
 
     try {
       // Fetch all messages for this context, sorted by timestamp
@@ -114,8 +120,10 @@ async function main() {
       // Pair messages into exchanges (user -> assistant)
       const exchanges = pairMessages(messages, personaId, personalityId, personality.name);
 
-      logger.info(`  Found ${messages.length} messages → ${exchanges.length} valid exchanges (${messages.length - exchanges.length * 2} skipped)`);
-      totalSkipped += (messages.length - exchanges.length * 2);
+      logger.info(
+        `  Found ${messages.length} messages → ${exchanges.length} valid exchanges (${messages.length - exchanges.length * 2} skipped)`
+      );
+      totalSkipped += messages.length - exchanges.length * 2;
 
       if (exchanges.length === 0) {
         logger.warn(`  ⚠️  No valid exchanges found`);
@@ -125,7 +133,9 @@ async function main() {
       // Generate embeddings and insert memories in batches
       for (let i = 0; i < exchanges.length; i += BATCH_SIZE) {
         const batch = exchanges.slice(i, i + BATCH_SIZE);
-        logger.info(`  Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(exchanges.length / BATCH_SIZE)} (${batch.length} exchanges)...`);
+        logger.info(
+          `  Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(exchanges.length / BATCH_SIZE)} (${batch.length} exchanges)...`
+        );
 
         for (const exchange of batch) {
           try {
@@ -141,7 +151,11 @@ async function main() {
 
             if (!DRY_RUN) {
               // Generate deterministic UUID for this memory
-              const memoryId = deterministicMemoryUuid(exchange.personaId, exchange.personalityId, memoryContent);
+              const memoryId = deterministicMemoryUuid(
+                exchange.personaId,
+                exchange.personalityId,
+                memoryContent
+              );
 
               // Insert into memories table (raw SQL since Prisma doesn't support vector type well)
               await prisma.$executeRaw`
@@ -177,7 +191,6 @@ async function main() {
             }
 
             totalMemories++;
-
           } catch (error) {
             totalErrors++;
             logger.error({ err: error, exchange }, 'Failed to process exchange');
@@ -189,7 +202,6 @@ async function main() {
       }
 
       logger.info(`  ✅ Completed: ${exchanges.length} memories created`);
-
     } catch (error) {
       totalErrors++;
       logger.error({ err: error, context }, 'Failed to process context');
@@ -262,7 +274,7 @@ function pairMessages(
   return exchanges;
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error in memory rebuild');
   process.exit(1);
 });

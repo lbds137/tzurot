@@ -8,7 +8,7 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  MessageFlags
+  MessageFlags,
 } from 'discord.js';
 import { getConfig, createLogger, TEXT_LIMITS } from '@tzurot/common-types';
 
@@ -38,9 +38,7 @@ export const data = new SlashCommandBuilder()
       )
   )
   .addSubcommand(subcommand =>
-    subcommand
-      .setName('servers')
-      .setDescription('List all servers the bot is in')
+    subcommand.setName('servers').setDescription('List all servers the bot is in')
   )
   .addSubcommand(subcommand =>
     subcommand
@@ -79,7 +77,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!ownerId || interaction.user.id !== ownerId) {
     await interaction.reply({
       content: '❌ This command is only available to the bot owner.',
-      flags: MessageFlags.Ephemeral
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -103,7 +101,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     default:
       await interaction.reply({
         content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral
+        flags: MessageFlags.Ephemeral,
       });
   }
 }
@@ -144,11 +142,11 @@ async function handleDbSync(
       return;
     }
 
-    const result = await response.json() as SyncResult;
+    const result = (await response.json()) as SyncResult;
 
     // Build result embed
     const embed = new EmbedBuilder()
-      .setColor(dryRun ? 0xFFA500 : 0x00FF00)
+      .setColor(dryRun ? 0xffa500 : 0x00ff00)
       .setTitle(dryRun ? '🔍 Database Sync Preview (Dry Run)' : '✅ Database Sync Complete')
       .setTimestamp();
 
@@ -165,9 +163,9 @@ async function handleDbSync(
         const tableStats = stats as { devToProd?: number; prodToDev?: number; conflicts?: number };
         summary.push(
           `\`${table}\`: ` +
-          `${tableStats.devToProd || 0} dev→prod, ` +
-          `${tableStats.prodToDev || 0} prod→dev` +
-          (tableStats.conflicts ? `, ${tableStats.conflicts} conflicts` : '')
+            `${tableStats.devToProd || 0} dev→prod, ` +
+            `${tableStats.prodToDev || 0} prod→dev` +
+            (tableStats.conflicts ? `, ${tableStats.conflicts} conflicts` : '')
         );
       }
     }
@@ -175,7 +173,9 @@ async function handleDbSync(
     if (dryRun && result.changes) {
       summary.push('\n**Changes Preview**:');
       summary.push('```');
-      summary.push(JSON.stringify(result.changes, null, 2).slice(0, TEXT_LIMITS.ADMIN_SUMMARY_TRUNCATE));
+      summary.push(
+        JSON.stringify(result.changes, null, 2).slice(0, TEXT_LIMITS.ADMIN_SUMMARY_TRUNCATE)
+      );
       summary.push('```');
       summary.push('\n*Run without `--dry-run` to apply these changes.*');
     }
@@ -190,12 +190,10 @@ async function handleDbSync(
     }
 
     await interaction.editReply({ embeds: [embed] });
-
   } catch (error) {
     logger.error({ err: error }, 'Error during database sync');
     await interaction.editReply(
-      '❌ Error during database sync.\n' +
-      'Check API gateway logs for details.'
+      '❌ Error during database sync.\n' + 'Check API gateway logs for details.'
     );
   }
 }
@@ -215,14 +213,16 @@ async function handleServers(interaction: ChatInputCommandInteraction): Promise<
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
+      .setColor(0x5865f2)
       .setTitle(`📋 Server List (${guilds.size} total)`)
       .setTimestamp();
 
-    const serverList = guilds.map(guild => {
-      const memberCount = guild.memberCount || 'Unknown';
-      return `**${guild.name}**\nID: \`${guild.id}\`\nMembers: ${memberCount}`;
-    }).join('\n\n');
+    const serverList = guilds
+      .map(guild => {
+        const memberCount = guild.memberCount || 'Unknown';
+        return `**${guild.name}**\nID: \`${guild.id}\`\nMembers: ${memberCount}`;
+      })
+      .join('\n\n');
 
     // Discord embed description has a 4096 character limit
     if (serverList.length > 4000) {
@@ -233,7 +233,6 @@ async function handleServers(interaction: ChatInputCommandInteraction): Promise<
     }
 
     await interaction.editReply({ embeds: [embed] });
-
   } catch (error) {
     logger.error({ err: error }, 'Error listing servers');
     await interaction.editReply('❌ Failed to retrieve server list.');
@@ -254,7 +253,7 @@ async function handleKick(interaction: ChatInputCommandInteraction): Promise<voi
     if (!guild) {
       await interaction.editReply(
         `❌ Bot is not in a server with ID \`${serverId}\`.\n\n` +
-        'Use `/admin servers` to see a list of all servers.'
+          'Use `/admin servers` to see a list of all servers.'
       );
       return;
     }
@@ -263,17 +262,16 @@ async function handleKick(interaction: ChatInputCommandInteraction): Promise<voi
 
     await guild.leave();
 
-    await interaction.editReply(
-      `✅ Successfully left server: **${serverName}** (\`${serverId}\`)`
+    await interaction.editReply(`✅ Successfully left server: **${serverName}** (\`${serverId}\`)`);
+
+    logger.info(
+      `[Admin] Left server: ${serverName} (${serverId}) by request of ${interaction.user.tag}`
     );
-
-    logger.info(`[Admin] Left server: ${serverName} (${serverId}) by request of ${interaction.user.tag}`);
-
   } catch (error) {
     logger.error({ err: error }, `Error leaving server ${serverId}`);
     await interaction.editReply(
       `❌ Failed to leave server \`${serverId}\`.\n\n` +
-      'The server may no longer exist or bot may lack permissions.'
+        'The server may no longer exist or bot may lack permissions.'
     );
   }
 }
@@ -310,7 +308,7 @@ async function handleUsage(
     const data = await response.json();
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
+      .setColor(0x5865f2)
       .setTitle('📊 API Usage Statistics')
       .setDescription(`Timeframe: **${timeframe}**`)
       .setTimestamp();
@@ -324,25 +322,35 @@ async function handleUsage(
       };
 
       if (usageData.totalRequests !== undefined) {
-        embed.addFields({ name: 'Total Requests', value: String(usageData.totalRequests), inline: true });
+        embed.addFields({
+          name: 'Total Requests',
+          value: String(usageData.totalRequests),
+          inline: true,
+        });
       }
 
       if (usageData.totalTokens !== undefined) {
-        embed.addFields({ name: 'Total Tokens', value: String(usageData.totalTokens), inline: true });
+        embed.addFields({
+          name: 'Total Tokens',
+          value: String(usageData.totalTokens),
+          inline: true,
+        });
       }
 
       if (usageData.estimatedCost !== undefined) {
-        embed.addFields({ name: 'Estimated Cost', value: `$${usageData.estimatedCost.toFixed(2)}`, inline: true });
+        embed.addFields({
+          name: 'Estimated Cost',
+          value: `$${usageData.estimatedCost.toFixed(2)}`,
+          inline: true,
+        });
       }
     }
 
     await interaction.editReply({ embeds: [embed] });
-
   } catch (error) {
     logger.error({ err: error }, 'Error retrieving usage statistics');
     await interaction.editReply(
-      '❌ Error retrieving usage statistics.\n' +
-      'This feature may not be implemented yet.'
+      '❌ Error retrieving usage statistics.\n' + 'This feature may not be implemented yet.'
     );
   }
 }

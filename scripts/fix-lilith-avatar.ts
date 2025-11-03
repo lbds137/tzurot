@@ -12,9 +12,11 @@ import { join } from 'path';
 
 const prisma = new PrismaClient();
 
-const SHAPES_AVATAR_URL = 'https://files.shapes.inc/api/files/avatar_1fed013b-053a-4bc8-bc09-7da5c44297d6.png';
+const SHAPES_AVATAR_URL =
+  'https://files.shapes.inc/api/files/avatar_1fed013b-053a-4bc8-bc09-7da5c44297d6.png';
 const LOCAL_AVATAR_PATH = '/data/avatars/lilith-tzel-shani.png';
-const PUBLIC_AVATAR_URL = 'https://api-gateway-development-83e8.up.railway.app/avatars/lilith-tzel-shani.png';
+const PUBLIC_AVATAR_URL =
+  'https://api-gateway-development-83e8.up.railway.app/avatars/lilith-tzel-shani.png';
 
 async function downloadAvatar(): Promise<boolean> {
   try {
@@ -42,7 +44,6 @@ async function downloadAvatar(): Promise<boolean> {
 
     console.log(`✓ Downloaded avatar (${buffer.byteLength} bytes)`);
     return true;
-
   } catch (error) {
     console.log(`✗ Download error: ${error instanceof Error ? error.message : String(error)}`);
     return false;
@@ -88,7 +89,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('❌ Error:', error);
   process.exit(1);
 });

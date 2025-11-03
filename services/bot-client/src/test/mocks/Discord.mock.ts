@@ -36,7 +36,20 @@
 
 import { vi } from 'vitest';
 import { ChannelType, Collection } from 'discord.js';
-import type { Message, TextChannel, DMChannel, ThreadChannel, Guild, User, GuildMember, CategoryChannel, Snowflake, Role, MessageMentions, GuildTextBasedChannel } from 'discord.js';
+import type {
+  Message,
+  TextChannel,
+  DMChannel,
+  ThreadChannel,
+  Guild,
+  User,
+  GuildMember,
+  CategoryChannel,
+  Snowflake,
+  Role,
+  MessageMentions,
+  GuildTextBasedChannel,
+} from 'discord.js';
 
 /**
  * Create a mock Discord Collection, optionally pre-filled with items
@@ -50,7 +63,9 @@ export function createMockCollection<K, V>(initialValues: [K, V][] = []): Collec
 /**
  * Create a mock MessageMentions object
  */
-export function createMockMessageMentions(overrides: Partial<MessageMentions> = {}): MessageMentions {
+export function createMockMessageMentions(
+  overrides: Partial<MessageMentions> = {}
+): MessageMentions {
   const defaults: Partial<MessageMentions> = {
     users: createMockCollection<Snowflake, User>(),
     roles: createMockCollection<Snowflake, Role>(),
@@ -107,7 +122,9 @@ export function createMockGuild(overrides: Partial<Guild> = {}): Guild {
 /**
  * Create a mock Discord Category Channel
  */
-export function createMockCategoryChannel(overrides: Partial<CategoryChannel> = {}): CategoryChannel {
+export function createMockCategoryChannel(
+  overrides: Partial<CategoryChannel> = {}
+): CategoryChannel {
   const id = overrides.id ?? '555555555555555555';
 
   const defaults: Partial<CategoryChannel> = {

@@ -3,27 +3,32 @@
 ## ✅ What's Complete
 
 ### Architecture
+
 - ✅ TypeScript monorepo with pnpm workspaces
 - ✅ Three microservices (api-gateway, ai-worker, bot-client)
 - ✅ Clean architecture (no v2 DDD mess)
 - ✅ Service-agnostic AI provider system
 
 ### Services Built
+
 - ✅ **api-gateway**: HTTP API + BullMQ job queue manager
 - ✅ **ai-worker**: AI processing with Gemini support
 - ✅ **bot-client**: Discord.js client with webhook management
 
 ### AI Provider Support
+
 - ✅ Gemini 2.5 Pro (using your existing API key)
 - ✅ Claude 4.5 Sonnet (via OpenRouter when you add key)
 - ✅ Easy to switch providers via env var
 
 ### Configuration
+
 - ✅ `.env` file created with your credentials
 - ✅ Deployment scripts ready
 - ✅ Example personalities (Lilith, Default, Sarcastic)
 
 ### Documentation
+
 - ✅ Architecture decisions documented
 - ✅ v2 feature tracking
 - ✅ Railway deployment guide
@@ -32,6 +37,7 @@
 ## 📦 What You Have
 
 **Local Files (NOT in git):**
+
 ```
 tzurot-v3/.env          # Your actual API keys
   ├── DISCORD_TOKEN     # Dev bot: MTM3NzQ5NDE0...
@@ -40,6 +46,7 @@ tzurot-v3/.env          # Your actual API keys
 ```
 
 **Ready to Deploy:**
+
 ```
 tzurot-v3/
 ├── services/
@@ -120,15 +127,18 @@ railway logs --service bot-client
 ## ⚙️ Current Configuration
 
 **AI Provider:**
+
 - Using: Gemini 2.5 Pro
 - Fallback: Can switch to OpenRouter by setting `AI_PROVIDER=openrouter`
 
 **Personalities:**
+
 - Lilith: Spiritual/psychological, Claude 4.5 Sonnet
 - Default: Helpful assistant, Claude 4.5 Sonnet
 - Sarcastic: Witty bot, Claude 4.5 Sonnet
 
 **Features Enabled:**
+
 - ✅ Basic message routing (@mention support)
 - ✅ Webhook avatars per personality
 - ✅ Message splitting (Discord 2000 char limit)
@@ -164,6 +174,7 @@ After successful deployment:
    - Verify webhook avatars show correctly
 
 2. **Add OpenRouter key (optional):**
+
    ```bash
    railway variables set \
      AI_PROVIDER=openrouter \
@@ -185,6 +196,7 @@ After successful deployment:
 ## 🆘 If Something Goes Wrong
 
 **Bot not responding:**
+
 ```bash
 # Check bot-client logs
 railway logs --service bot-client
@@ -197,6 +209,7 @@ railway variables --service bot-client | grep DISCORD_TOKEN
 ```
 
 **AI responses failing:**
+
 ```bash
 # Check ai-worker logs
 railway logs --service ai-worker
@@ -209,6 +222,7 @@ curl https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:gene
 ```
 
 **Gateway errors:**
+
 ```bash
 # Check api-gateway logs
 railway logs --service api-gateway

@@ -1,5 +1,10 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
-import { createLogger, PersonalityService, disconnectPrisma, getConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  PersonalityService,
+  disconnectPrisma,
+  getConfig,
+} from '@tzurot/common-types';
 import { GatewayClient } from './gateway/GatewayClient.js';
 import { WebhookManager } from './webhooks/WebhookManager.js';
 import { MessageHandler } from './handlers/MessageHandler.js';
@@ -20,7 +25,7 @@ if (!envConfig.DISCORD_TOKEN) {
 // Configuration from environment
 const config = {
   gatewayUrl: envConfig.GATEWAY_URL,
-  discordToken: envConfig.DISCORD_TOKEN
+  discordToken: envConfig.DISCORD_TOKEN,
 };
 
 // Initialize Discord client
@@ -31,7 +36,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildWebhooks,
     GatewayIntentBits.DirectMessages,
-  ]
+  ],
 });
 
 // Initialize services
@@ -43,7 +48,7 @@ let messageHandler: MessageHandler;
 let commandHandler: CommandHandler;
 
 // Message handler - wrapped to handle async properly
-client.on(Events.MessageCreate, (message) => {
+client.on(Events.MessageCreate, message => {
   void (async () => {
     try {
       await messageHandler.handleMessage(message);
@@ -54,7 +59,7 @@ client.on(Events.MessageCreate, (message) => {
 });
 
 // Interaction handler for slash commands and modals
-client.on(Events.InteractionCreate, (interaction) => {
+client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
       if (interaction.isChatInputCommand() || interaction.isModalSubmit()) {
@@ -73,11 +78,11 @@ client.once(Events.ClientReady, () => {
 });
 
 // Error handling
-client.on(Events.Error, (error) => {
+client.on(Events.Error, error => {
   logger.error({ err: error }, 'Discord client error');
 });
 
-process.on('unhandledRejection', (error) => {
+process.on('unhandledRejection', error => {
   logger.error({ err: error }, 'Unhandled rejection');
 });
 
@@ -95,9 +100,12 @@ process.on('SIGINT', () => {
 async function start(): Promise<void> {
   try {
     logger.info('[Bot] Starting Tzurot v3 Bot Client...');
-    logger.info({
-      gatewayUrl: config.gatewayUrl
-    }, '[Bot] Configuration:');
+    logger.info(
+      {
+        gatewayUrl: config.gatewayUrl,
+      },
+      '[Bot] Configuration:'
+    );
 
     // Verify we can connect to database
     logger.info('[Bot] Verifying database connection...');
@@ -143,7 +151,6 @@ async function start(): Promise<void> {
 
     await client.login(config.discordToken);
     logger.info('[Bot] Successfully logged in to Discord');
-
   } catch (error) {
     logger.error({ err: error }, 'Failed to start bot');
     process.exit(1);

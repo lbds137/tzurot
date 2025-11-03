@@ -8,15 +8,9 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { createLogger, TIMEOUTS, generateRequestSchema } from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
-import {
-  checkDuplicate,
-  cacheRequest
-} from '../utils/requestDeduplication.js';
+import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
-import type {
-  GenerateRequest,
-  GenerateResponse
-} from '../types.js';
+import type { GenerateRequest, GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
@@ -52,7 +46,7 @@ aiRouter.post('/generate', async (req, res) => {
         {
           errors: validationResult.error.issues,
           userId: req.body?.context?.userId,
-          personalityName: req.body?.personality?.name
+          personalityName: req.body?.personality?.name,
         },
         '[AI] Validation error'
       );
@@ -72,12 +66,10 @@ aiRouter.post('/generate', async (req, res) => {
       const response: GenerateResponse = {
         jobId: duplicate.jobId,
         requestId: duplicate.requestId,
-        status: 'queued'
+        status: 'queued',
       };
 
-      logger.info(
-        `[AI] Returning cached job ${duplicate.jobId} for duplicate request`
-      );
+      logger.info(`[AI] Returning cached job ${duplicate.jobId} for duplicate request`);
 
       res.json(response);
       return;
@@ -105,34 +97,37 @@ aiRouter.post('/generate', async (req, res) => {
       message: request.message,
       context: {
         ...request.context,
-        attachments: localAttachments // Use local URLs instead of Discord CDN
+        attachments: localAttachments, // Use local URLs instead of Discord CDN
       },
       userApiKey: request.userApiKey,
       responseDestination: {
         type: 'api' as const,
         // TODO: Add callback URL support
-      }
+      },
     };
 
     // Debug: Log referenced messages if present
     if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
-      logger.info({
-        requestId,
-        referencedMessagesCount: request.context.referencedMessages.length
-      }, `[AI] Request includes ${request.context.referencedMessages.length} referenced message(s)`);
+      logger.info(
+        {
+          requestId,
+          referencedMessagesCount: request.context.referencedMessages.length,
+        },
+        `[AI] Request includes ${request.context.referencedMessages.length} referenced message(s)`
+      );
     }
 
     // Debug: Verify referencedMessages is in jobData before queueing
     logger.info(
       `[AI] Job data inspection before queueing: ` +
-      `hasReferencedMessages=${!!jobData.context.referencedMessages}, ` +
-      `count=${jobData.context.referencedMessages?.length || 0}, ` +
-      `contextKeys=[${Object.keys(jobData.context).join(', ')}]`
+        `hasReferencedMessages=${!!jobData.context.referencedMessages}, ` +
+        `count=${jobData.context.referencedMessages?.length || 0}, ` +
+        `contextKeys=[${Object.keys(jobData.context).join(', ')}]`
     );
 
     // Add job to queue
     const job = await aiQueue.add('generate', jobData, {
-      jobId: `req-${requestId}` // Use predictable job ID for tracking
+      jobId: `req-${requestId}`, // Use predictable job ID for tracking
     });
 
     // Cache request to prevent duplicates
@@ -140,17 +135,16 @@ aiRouter.post('/generate', async (req, res) => {
 
     const creationTime = Date.now() - startTime;
 
-    logger.info(
-      `[AI] Created job ${job.id} for ${request.personality.name} (${creationTime}ms)`
-    );
+    logger.info(`[AI] Created job ${job.id} for ${request.personality.name} (${creationTime}ms)`);
 
     // If client wants to wait, use Redis pub/sub to wait for completion
     if (waitForCompletion) {
       try {
         // Calculate timeout based on attachments (images take longer)
-        const imageCount = request.context.attachments?.filter(
-          att => att.contentType.startsWith('image/') && !att.isVoiceMessage
-        ).length ?? 0;
+        const imageCount =
+          request.context.attachments?.filter(
+            att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+          ).length ?? 0;
 
         // Base timeout: 2 minutes, scale by image count
         // Cap at 4.5 minutes - allows 3 retry passes + 30s buffer under Railway's 5-minute limit
@@ -165,17 +159,18 @@ aiRouter.post('/generate', async (req, res) => {
 
         const totalTime = Date.now() - startTime;
 
-        logger.info(
-          `[AI] Job ${job.id} completed after ${totalTime}ms`
-        );
+        logger.info(`[AI] Job ${job.id} completed after ${totalTime}ms`);
 
         // Debug: Check if referencedMessagesDescriptions is in the result
         if (result && typeof result === 'object') {
-          logger.info({
-            hasAttachmentDescriptions: 'attachmentDescriptions' in result,
-            hasReferencedMessagesDescriptions: 'referencedMessagesDescriptions' in result,
-            resultKeys: Object.keys(result)
-          }, '[AI] Job result inspection');
+          logger.info(
+            {
+              hasAttachmentDescriptions: 'attachmentDescriptions' in result,
+              hasReferencedMessagesDescriptions: 'referencedMessagesDescriptions' in result,
+              resultKeys: Object.keys(result),
+            },
+            '[AI] Job result inspection'
+          );
         }
 
         // Note: Cleanup happens via queue event listener, not here
@@ -187,10 +182,9 @@ aiRouter.post('/generate', async (req, res) => {
           requestId,
           status: 'completed',
           result,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         return;
-
       } catch (error) {
         const totalTime = Date.now() - startTime;
 
@@ -200,7 +194,7 @@ aiRouter.post('/generate', async (req, res) => {
             jobId: job.id,
             userId,
             personalityName,
-            totalTimeMs: totalTime
+            totalTimeMs: totalTime,
           },
           `[AI] Job ${job.id} failed or timed out after ${totalTime}ms`
         );
@@ -220,11 +214,10 @@ aiRouter.post('/generate', async (req, res) => {
     const response: GenerateResponse = {
       jobId: job.id ?? requestId,
       requestId,
-      status: 'queued'
+      status: 'queued',
     };
 
     res.json(response);
-
   } catch (error) {
     const processingTime = Date.now() - startTime;
 
@@ -233,7 +226,7 @@ aiRouter.post('/generate', async (req, res) => {
         err: error,
         userId,
         personalityName,
-        processingTimeMs: processingTime
+        processingTimeMs: processingTime,
       },
       `[AI] Error creating job (${processingTime}ms)`
     );
@@ -261,7 +254,11 @@ aiRouter.post('/transcribe', async (req, res) => {
 
   try {
     // Validate request has attachments
-    if (!req.body.attachments || !Array.isArray(req.body.attachments) || req.body.attachments.length === 0) {
+    if (
+      !req.body.attachments ||
+      !Array.isArray(req.body.attachments) ||
+      req.body.attachments.length === 0
+    ) {
       const errorResponse = ErrorResponses.validationError('Missing or invalid attachments array');
       res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
@@ -280,15 +277,15 @@ aiRouter.post('/transcribe', async (req, res) => {
       message: '',
       context: {
         userId: 'system',
-        attachments: localAttachments
+        attachments: localAttachments,
       },
       responseDestination: {
-        type: 'api' as const
-      }
+        type: 'api' as const,
+      },
     };
 
     const job = await aiQueue.add('transcribe', jobData, {
-      jobId: `transcribe-${requestId}`
+      jobId: `transcribe-${requestId}`,
     });
 
     logger.info(`[AI] Created transcribe job ${job.id} (${Date.now() - startTime}ms)`);
@@ -305,10 +302,9 @@ aiRouter.post('/transcribe', async (req, res) => {
           requestId,
           status: 'completed',
           result,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
         return;
-
       } catch (error) {
         logger.error({ err: error, jobId: job.id }, `[AI] Transcribe job ${job.id} failed`);
 
@@ -325,9 +321,8 @@ aiRouter.post('/transcribe', async (req, res) => {
     res.json({
       jobId: job.id ?? requestId,
       requestId,
-      status: 'queued'
+      status: 'queued',
     });
-
   } catch (error) {
     logger.error({ err: error }, '[AI] Error creating transcribe job');
 
@@ -365,14 +360,13 @@ aiRouter.get('/job/:jobId', async (req, res) => {
       status: state,
       progress,
       result: returnvalue,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     logger.error(
       {
         err: error,
-        jobId
+        jobId,
       },
       '[AI] Error fetching job status'
     );

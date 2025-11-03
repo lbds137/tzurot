@@ -5,16 +5,19 @@
 ### Multi-Scoped Memory System
 
 **Global Canon** - Universal truth about personalities
+
 - Foundational traits, backstory, lore
 - Metadata: `{ canonScope: "global", personalityId: "..." }`
 - Read-only baseline
 
 **Personal Canon** - User-specific relationship history
+
 - Individual experiences per user
 - Metadata: `{ canonScope: "personal", personalityId: "...", userId: "..." }`
 - User A's experience ≠ User B's experience
 
 **Session Canon** - Temporary roleplay bubbles
+
 - Shared universe for multi-user roleplay
 - Metadata: `{ canonScope: "session", sessionId: "..." }`
 - Can be reconciled back to personal/global
@@ -22,6 +25,7 @@
 ### Personality Relationship Graphs (Pantheons)
 
 Example from original doc:
+
 ```json
 {
   "hazbin_hotel": {
@@ -47,6 +51,7 @@ Example from original doc:
 ```
 
 **Memory Propagation:**
+
 - Single conversation creates multiple vector entries
 - `interactionType`: `direct`, `shared`, `witnessed`
 - `sharedFrom`: which personality shared it
@@ -78,17 +83,17 @@ interface Memory {
   content: string;
   metadata: {
     // Core identification
-    personaId: string;      // Which persona this memory belongs to
-    personalityId: string;  // Which personality was involved
+    personaId: string; // Which persona this memory belongs to
+    personalityId: string; // Which personality was involved
 
     // Canon scoping
     canonScope: 'global' | 'personal' | 'session';
-    sessionId?: string;     // If session canon
+    sessionId?: string; // If session canon
 
     // Memory propagation (for pantheons)
     interactionType: 'direct' | 'shared' | 'witnessed';
-    sharedFrom?: string;    // If shared/witnessed, who shared it
-    pantheonId?: string;    // Which pantheon this is part of
+    sharedFrom?: string; // If shared/witnessed, who shared it
+    pantheonId?: string; // Which pantheon this is part of
 
     // Privacy & context
     contextType: 'dm' | 'private_channel' | 'public_channel';
@@ -105,6 +110,7 @@ interface Memory {
 #### Memory Retrieval Strategies
 
 **Strategy 1: Personality-specific (default)**
+
 ```typescript
 // Alice talking to Lilith - only Lilith memories
 const memories = await memoryService.searchMemories(
@@ -119,6 +125,7 @@ const memories = await memoryService.searchMemories(
 ```
 
 **Strategy 2: Cross-personality**
+
 ```typescript
 // Alice remembering something discussed with ANY personality
 const memories = await memoryService.searchMemories(
@@ -132,6 +139,7 @@ const memories = await memoryService.searchMemories(
 ```
 
 **Strategy 3: Pantheon-aware**
+
 ```typescript
 // Charlie (Hazbin Hotel) can access shared/witnessed memories
 const memories = await memoryService.searchMemories(
@@ -212,7 +220,7 @@ const hazbinHotel = {
   propagationRules: {
     shareDirectInteractions: true,
     as: 'gossip',
-    excludePrivate: true
+    excludePrivate: true,
   },
   memberships: [
     {
@@ -220,26 +228,27 @@ const hazbinHotel = {
       role: 'leader',
       customRules: {
         shareWith: ['vaggie'],
-        as: 'intimate'
-      }
+        as: 'intimate',
+      },
     },
     {
       personalityId: vaggieId,
       role: 'member',
       customRules: {
         shareWith: ['charlie'],
-        as: 'intimate'
-      }
+        as: 'intimate',
+      },
     },
     {
       personalityId: angelDustId,
-      role: 'member'
-    }
-  ]
+      role: 'member',
+    },
+  ],
 };
 ```
 
 **Result:**
+
 - Alice talks to Charlie about relationship advice
 - Memory is stored in `persona-{aliceId}` with:
   - `personalityId: charlie`
@@ -264,17 +273,18 @@ const abrahamicPantheon = {
   propagationRules: {
     propagateAll: true,
     as: 'witnessed',
-    omniscient: true // All deities witness all interactions
+    omniscient: true, // All deities witness all interactions
   },
   memberships: [
     { personalityId: godId, role: 'leader' },
     { personalityId: jesusId, role: 'member' },
-    { personalityId: holyGhostId, role: 'member' }
-  ]
+    { personalityId: holyGhostId, role: 'member' },
+  ],
 };
 ```
 
 **Result:**
+
 - Alice talks to God about her struggles
 - Memory stored in `persona-{aliceId}` for all three personalities:
   - God: `interactionType: direct`
@@ -310,10 +320,10 @@ class PantheonMemoryPropagationService {
       include: {
         pantheon: {
           include: {
-            memberships: { include: { personality: true } }
-          }
-        }
-      }
+            memberships: { include: { personality: true } },
+          },
+        },
+      },
     });
 
     if (memberships.length === 0) {
@@ -346,20 +356,16 @@ class PantheonMemoryPropagationService {
           membership.customRules
         );
 
-        await memoryService.addMemory(
-          personaId,
-          conversationSummary,
-          {
-            personalityId: recipient.id,
-            interactionType,
-            sharedFrom: personalityId,
-            pantheonId: pantheon.id,
-            contextType: metadata.contextType,
-            channelId: metadata.channelId,
-            messageIds: metadata.messageIds,
-            createdAt: Date.now()
-          }
-        );
+        await memoryService.addMemory(personaId, conversationSummary, {
+          personalityId: recipient.id,
+          interactionType,
+          sharedFrom: personalityId,
+          pantheonId: pantheon.id,
+          contextType: metadata.contextType,
+          channelId: metadata.channelId,
+          messageIds: metadata.messageIds,
+          createdAt: Date.now(),
+        });
       }
     }
   }
@@ -401,9 +407,7 @@ class PantheonMemoryPropagationService {
   ): 'shared' | 'witnessed' {
     // Custom rules override
     if (customRules?.as) {
-      return customRules.as === 'gossip' || customRules.as === 'intimate'
-        ? 'shared'
-        : 'witnessed';
+      return customRules.as === 'gossip' || customRules.as === 'intimate' ? 'shared' : 'witnessed';
     }
 
     // Pantheon default
@@ -424,30 +428,30 @@ class PantheonMemoryPropagationService {
 
 await memoryService.addMemory(
   'global-canon-lilith', // Special global collection
-  "Lilith is a sarcastic AI with deep knowledge of programming...",
+  'Lilith is a sarcastic AI with deep knowledge of programming...',
   {
     personalityId: lilithId,
     canonScope: 'global',
     interactionType: 'direct',
-    createdAt: Date.now()
+    createdAt: Date.now(),
   }
 );
 ```
 
 **Retrieval:**
+
 ```typescript
 // When building context, always include global canon
-const globalMemories = await memoryService.searchMemories(
-  `global-canon-${personalityId}`,
-  query,
-  { canonScope: 'global', limit: 5 }
-);
+const globalMemories = await memoryService.searchMemories(`global-canon-${personalityId}`, query, {
+  canonScope: 'global',
+  limit: 5,
+});
 
-const personalMemories = await memoryService.searchMemories(
-  personaId,
-  query,
-  { personalityId, canonScope: 'personal', limit: 10 }
-);
+const personalMemories = await memoryService.searchMemories(personaId, query, {
+  personalityId,
+  canonScope: 'personal',
+  limit: 10,
+});
 
 const allMemories = [...globalMemories, ...personalMemories];
 ```
@@ -459,22 +463,18 @@ const allMemories = [...globalMemories, ...personalMemories];
 const sessionId = uuidv4();
 
 // Memories during session tagged with sessionId
-await memoryService.addMemory(
-  personaId,
-  "In this alternate universe, vampires rule the world...",
-  {
-    personalityId: lilithId,
-    canonScope: 'session',
-    sessionId,
-    interactionType: 'direct',
-    createdAt: Date.now()
-  }
-);
+await memoryService.addMemory(personaId, 'In this alternate universe, vampires rule the world...', {
+  personalityId: lilithId,
+  canonScope: 'session',
+  sessionId,
+  interactionType: 'direct',
+  createdAt: Date.now(),
+});
 
 // Later: reconcile session back to personal canon
 await canonReconciliationService.reconcileSession(sessionId, {
   keepAs: 'personal', // Or 'discard'
-  mergeStrategy: 'append' // Or 'replace'
+  mergeStrategy: 'append', // Or 'replace'
 });
 ```
 
@@ -491,15 +491,15 @@ await canonReconciliationService.reconcileSession(sessionId, {
 const privacyFilter = {
   must: [
     // Current context
-    { key: 'contextType', match: { value: currentContextType } }
+    { key: 'contextType', match: { value: currentContextType } },
   ],
   must_not: [
     // Never show DM memories in public channels
     currentContextType !== 'dm' && {
       key: 'contextType',
-      match: { value: 'dm' }
-    }
-  ].filter(Boolean)
+      match: { value: 'dm' },
+    },
+  ].filter(Boolean),
 };
 ```
 
@@ -525,23 +525,27 @@ Respond appropriately, using discretion about which memories to reference.
 ## Implementation Roadmap
 
 ### Phase 1: Core Persona Collections (Current Focus)
+
 - ✅ Persona-scoped Qdrant collections
 - ✅ personalityId filtering
 - ✅ Basic memory retrieval
 
 ### Phase 2: Canon Scopes
+
 - [ ] Add `canonScope` to metadata
 - [ ] Global canon collections (`global-canon-{personalityId}`)
 - [ ] Session canon support
 - [ ] Canon reconciliation service
 
 ### Phase 3: Pantheons
+
 - [ ] Add `Pantheon` and `PantheonMembership` models
 - [ ] Memory propagation service
 - [ ] `interactionType` and `sharedFrom` metadata
 - [ ] Background jobs for sharing
 
 ### Phase 4: Advanced Features
+
 - [ ] Privacy discretion agent (LangGraph)
 - [ ] Canon reconciliation agent
 - [ ] URP (User Relationship Profile) system

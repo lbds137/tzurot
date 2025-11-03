@@ -15,7 +15,7 @@ describe('MessageLinkParser', () => {
         guildId: '123456',
         channelId: '789012',
         messageId: '345678',
-        fullUrl: 'https://discord.com/channels/123456/789012/345678'
+        fullUrl: 'https://discord.com/channels/123456/789012/345678',
       });
     });
 
@@ -115,9 +115,7 @@ describe('MessageLinkParser', () => {
   describe('replaceLinksWithReferences', () => {
     it('should replace single link with reference', () => {
       const content = 'Check out https://discord.com/channels/1/2/3';
-      const linkMap = new Map([
-        ['https://discord.com/channels/1/2/3', 1]
-      ]);
+      const linkMap = new Map([['https://discord.com/channels/1/2/3', 1]]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
@@ -131,7 +129,7 @@ describe('MessageLinkParser', () => {
       `;
       const linkMap = new Map([
         ['https://discord.com/channels/1/2/3', 1],
-        ['https://discord.com/channels/4/5/6', 2]
+        ['https://discord.com/channels/4/5/6', 2],
       ]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
@@ -142,9 +140,7 @@ describe('MessageLinkParser', () => {
 
     it('should preserve non-link text', () => {
       const content = 'Before https://discord.com/channels/1/2/3 after';
-      const linkMap = new Map([
-        ['https://discord.com/channels/1/2/3', 1]
-      ]);
+      const linkMap = new Map([['https://discord.com/channels/1/2/3', 1]]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
@@ -162,9 +158,7 @@ describe('MessageLinkParser', () => {
 
     it('should handle content with no links', () => {
       const content = 'Just regular text';
-      const linkMap = new Map([
-        ['https://discord.com/channels/1/2/3', 1]
-      ]);
+      const linkMap = new Map([['https://discord.com/channels/1/2/3', 1]]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
@@ -174,9 +168,7 @@ describe('MessageLinkParser', () => {
     it('should replace longest URLs first to avoid partial matches', () => {
       // This ensures we don't partially replace a longer URL
       const content = 'https://discord.com/channels/123/456/789';
-      const linkMap = new Map([
-        ['https://discord.com/channels/123/456/789', 1]
-      ]);
+      const linkMap = new Map([['https://discord.com/channels/123/456/789', 1]]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
@@ -203,7 +195,7 @@ describe('MessageLinkParser', () => {
       const linkMap = new Map([
         ['https://ptb.discord.com/channels/1/2/3', 1],
         ['https://canary.discord.com/channels/4/5/6', 2],
-        ['https://discordapp.com/channels/7/8/9', 3]
+        ['https://discordapp.com/channels/7/8/9', 3],
       ]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
@@ -219,7 +211,7 @@ describe('MessageLinkParser', () => {
       const content = `${url1} middle text ${url2}`;
       const linkMap = new Map([
         [url1, 1],
-        [url2, 2]
+        [url2, 2],
       ]);
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
@@ -240,9 +232,7 @@ describe('MessageLinkParser', () => {
       const links = MessageLinkParser.parseMessageLinks(originalContent);
 
       // Create link map
-      const linkMap = new Map(
-        links.map((link, index) => [link.fullUrl, index + 1])
-      );
+      const linkMap = new Map(links.map((link, index) => [link.fullUrl, index + 1]));
 
       // Replace
       const result = MessageLinkParser.replaceLinksWithReferences(originalContent, linkMap);

@@ -39,7 +39,7 @@ async function main() {
   logger.info('Connecting to Discord...');
   await client.login(DISCORD_TOKEN);
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>(resolve => {
     client.once('ready', () => {
       logger.info(`Connected as ${client.user?.tag}`);
       resolve();
@@ -55,7 +55,9 @@ async function main() {
     ORDER BY channel_id
   `;
 
-  logger.info(`Found ${conversationChannels.length} unique channels in conversation_history needing guild_id`);
+  logger.info(
+    `Found ${conversationChannels.length} unique channels in conversation_history needing guild_id`
+  );
 
   // Get unique channel_ids with null guild_id from memories
   const memoryChannels = await prisma.$queryRaw<Array<{ channel_id: string }>>`
@@ -141,7 +143,9 @@ async function main() {
     }
   }
 
-  logger.info(`${DRY_RUN ? '[DRY RUN] Would update' : 'Updated'} ${conversationUpdated} conversation_history records`);
+  logger.info(
+    `${DRY_RUN ? '[DRY RUN] Would update' : 'Updated'} ${conversationUpdated} conversation_history records`
+  );
 
   // Update memories
   let memoriesUpdated = 0;
@@ -165,7 +169,9 @@ async function main() {
     }
   }
 
-  logger.info(`${DRY_RUN ? '[DRY RUN] Would update' : 'Updated'} ${memoriesUpdated} memory records`);
+  logger.info(
+    `${DRY_RUN ? '[DRY RUN] Would update' : 'Updated'} ${memoriesUpdated} memory records`
+  );
 
   // Summary
   logger.info('\n=== Summary ===');
@@ -179,7 +185,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error');
   process.exit(1);
 });

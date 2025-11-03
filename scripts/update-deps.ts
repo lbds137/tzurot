@@ -33,7 +33,7 @@ function exec(command: string, options: { stdio?: 'inherit' | 'pipe' } = {}): st
   return execSync(command, {
     cwd: ROOT_DIR,
     encoding: 'utf-8',
-    stdio: options.stdio || 'inherit'
+    stdio: options.stdio || 'inherit',
   });
 }
 
@@ -120,7 +120,10 @@ function parseLockfile(): LockfilePackages {
 }
 
 function getImporterPath(packageJsonPath: string): string {
-  const relativePath = packageJsonPath.replace(ROOT_DIR, '').replace(/^\//, '').replace(/\/package\.json$/, '');
+  const relativePath = packageJsonPath
+    .replace(ROOT_DIR, '')
+    .replace(/^\//, '')
+    .replace(/\/package\.json$/, '');
   return relativePath === '' ? '.' : relativePath;
 }
 
@@ -228,7 +231,7 @@ async function main() {
   console.log('  3. Commit: git add -A && git commit -m "chore: update dependencies"');
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('\n❌ Error:', error);
   process.exit(1);
 });

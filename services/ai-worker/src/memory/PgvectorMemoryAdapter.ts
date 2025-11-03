@@ -68,7 +68,11 @@ function hashContent(content: string): string {
 }
 
 // Helper to generate deterministic memory UUID
-function deterministicMemoryUuid(personaId: string, personalityId: string, content: string): string {
+function deterministicMemoryUuid(
+  personaId: string,
+  personalityId: string,
+  content: string
+): string {
   const key = `${personaId}:${personalityId}:${hashContent(content)}`;
   return uuidv5(key, MEMORY_NAMESPACE);
 }
@@ -101,10 +105,7 @@ export class PgvectorMemoryAdapter {
   /**
    * Query memories using vector similarity search
    */
-  async queryMemories(
-    query: string,
-    options: MemoryQueryOptions
-  ): Promise<MemoryDocument[]> {
+  async queryMemories(query: string, options: MemoryQueryOptions): Promise<MemoryDocument[]> {
     try {
       // Generate embedding for query
       const embeddingResponse = await this.openai.embeddings.create({
@@ -138,9 +139,7 @@ export class PgvectorMemoryAdapter {
       const maxDistance = 1 - minSimilarity;
 
       // Build WHERE conditions using Prisma.sql for safe parameterization
-      const whereConditions: Prisma.Sql[] = [
-        Prisma.sql`m.persona_id = ${options.personaId}::uuid`
-      ];
+      const whereConditions: Prisma.Sql[] = [Prisma.sql`m.persona_id = ${options.personaId}::uuid`];
 
       // Optional personality filter
       if (options.personalityId) {
@@ -199,13 +198,16 @@ export class PgvectorMemoryAdapter {
         ''
       );
 
-      logger.debug({
-        personaId: options.personaId,
-        personalityId: options.personalityId,
-        limit,
-        minSimilarity,
-        maxDistance
-      }, 'Querying memories with pgvector');
+      logger.debug(
+        {
+          personaId: options.personaId,
+          personalityId: options.personalityId,
+          limit,
+          minSimilarity,
+          maxDistance,
+        },
+        'Querying memories with pgvector'
+      );
 
       const memories = await this.prisma.$queryRaw<any[]>(sqlQuery);
 
@@ -239,9 +241,10 @@ export class PgvectorMemoryAdapter {
         };
       });
 
-      logger.debug(`Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId || 'all'})`);
+      logger.debug(
+        `Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId || 'all'})`
+      );
       return documents;
-
     } catch (error) {
       const errorDetails = {
         personaId: options.personaId,
@@ -250,7 +253,10 @@ export class PgvectorMemoryAdapter {
         errorType: error instanceof Error ? error.constructor.name : typeof error,
         errorMessage: error instanceof Error ? error.message : String(error),
       };
-      logger.error({ err: error, ...errorDetails }, `Failed to query memories for persona: ${options.personaId}`);
+      logger.error(
+        { err: error, ...errorDetails },
+        `Failed to query memories for persona: ${options.personaId}`
+      );
       // Return empty array - query failures shouldn't block conversation generation
       return [];
     }
@@ -259,10 +265,7 @@ export class PgvectorMemoryAdapter {
   /**
    * Add a memory - for storing new interactions
    */
-  async addMemory(data: {
-    text: string;
-    metadata: MemoryMetadata;
-  }): Promise<void> {
+  async addMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void> {
     try {
       // Generate embedding
       const embeddingResponse = await this.openai.embeddings.create({
@@ -328,7 +331,6 @@ export class PgvectorMemoryAdapter {
       `;
 
       logger.debug({ memoryId, personaId: data.metadata.personaId }, 'Added memory to pgvector');
-
     } catch (error) {
       logger.error({ err: error }, `Failed to add memory for persona: ${data.metadata.personaId}`);
       // Re-throw so pending_memory can be preserved for retry

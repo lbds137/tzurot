@@ -20,6 +20,7 @@ personality-slug/
 ## Storage Architecture
 
 ### PostgreSQL (Relational Data)
+
 - Core personality configuration
 - UUID-based identity system
 - User ownership (many-to-many via `personality_owners`)
@@ -29,18 +30,21 @@ personality-slug/
 - Voice/image generation settings
 
 ### ChromaDB (Vector/Semantic Data)
+
 - Long-term memories (LTM) with embeddings
 - Knowledge documents
 - Historical chat for RAG retrieval
 - Semantic search capabilities
 
 ### In-Memory (Ephemeral)
+
 - Recent conversation context (last N messages)
 - Active sessions
 
 ## Migration Phases
 
 ### Phase 1: Core Data (Postgres) - Immediate
+
 1. **Personality Core**
    - Import main personality config
    - Generate UUIDs for personalities without them
@@ -61,6 +65,7 @@ personality-slug/
    - Auto-respond configuration
 
 ### Phase 2: Vector Storage (ChromaDB) - Later
+
 1. **Memory Import**
    - Index existing LTM summaries
    - Generate embeddings for RAG
@@ -79,6 +84,7 @@ personality-slug/
 ### The Problem
 
 shapes.inc exports contain:
+
 - **Chat History**: Raw conversation messages (40K lines)
 - **Memories**: AI-generated LTM summaries (231K lines)
 - **Relationship**: Memories have UUIDs linking to chat messages they summarize
@@ -88,17 +94,20 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
 ### Option A: Trust Existing LTM (Fast, Preserves Context)
 
 **Approach:**
+
 - Import memories as-is
 - Ignore chat history entirely
 - Assume shapes.inc LTM generation was sufficient
 
 **Pros:**
+
 - Faster migration
 - Preserves exact historical context
 - No re-processing overhead
 - Maintains continuity with shapes.inc experience
 
 **Cons:**
+
 - shapes.inc LTM quality unknown
 - May use different summarization prompts
 - Can't improve summary quality
@@ -107,18 +116,21 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
 ### Option B: Regenerate LTM (Slow, Higher Quality)
 
 **Approach:**
+
 - Cross-reference memories ↔ chat history
 - Identify which messages already have summaries
 - Regenerate LTM using Tzurot's own prompts/chunking
 - Potentially better quality with modern models
 
 **Pros:**
+
 - Consistent LTM quality across all personalities
 - Use better models (Gemini 2.5 vs whatever shapes.inc used)
 - Control over chunking/summarization strategy
 - Opportunity to improve on original summaries
 
 **Cons:**
+
 - Extremely expensive (40K messages × API cost)
 - Time-consuming processing
 - May lose nuance from original summaries
@@ -127,6 +139,7 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
 ### Option C: Hybrid Approach (Selective Regeneration)
 
 **Approach:**
+
 - Import existing memories for bulk of history
 - Identify gaps where chat exists but no LTM
 - Only regenerate for:
@@ -135,12 +148,14 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
   - Recent conversations (last N months)
 
 **Pros:**
+
 - Balance of speed and quality
 - Fill gaps in historical data
 - Improve recent history with better models
 - Reduce API costs
 
 **Cons:**
+
 - More complex logic
 - Inconsistent LTM quality across timeline
 - Still significant processing for gaps
@@ -148,11 +163,13 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
 ### Recommendation: **Option A (Initially), then Option C**
 
 **Phase 1 Migration:**
+
 - Import existing LTM as-is for immediate functionality
 - Trust shapes.inc summarization quality
 - Get personalities working quickly
 
 **Phase 2 Enhancement:**
+
 - Analyze LTM quality (sample random summaries)
 - Identify patterns in shapes.inc chunking
 - Implement selective regeneration for:
@@ -161,6 +178,7 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
   - Summaries that seem low-quality
 
 **Rationale:**
+
 - Users want their personalities working ASAP
 - Historical context is better than no context
 - Can always improve quality later
@@ -169,30 +187,32 @@ We need to decide: **Trust existing LTM or regenerate from chat history?**
 ## Implementation Notes
 
 ### UUID Mapping
+
 ```typescript
 interface ShapesIncPersonality {
-  id: string;                    // UUID from shapes.inc
-  user_id: string[];             // Array of owner UUIDs
+  id: string; // UUID from shapes.inc
+  user_id: string[]; // Array of owner UUIDs
   duplicate_shape_ids: string[]; // Related personality variants
 }
 
 // Map to Tzurot schema
 interface TzurotPersonality {
-  id: string;                    // Keep shapes.inc UUID
-  ownedBy: string[];             // user_id array
+  id: string; // Keep shapes.inc UUID
+  ownedBy: string[]; // user_id array
   // ... rest of fields
 }
 ```
 
 ### Memory Structure
+
 ```typescript
 interface ShapesIncMemory {
-  id: string;                    // Composite: msgId1/msgId2
-  shape_id: string;              // Personality UUID
-  senders: string[];             // Participant UUIDs
-  result: string;                // LTM summary text
+  id: string; // Composite: msgId1/msgId2
+  shape_id: string; // Personality UUID
+  senders: string[]; // Participant UUIDs
+  result: string; // LTM summary text
   metadata: {
-    msg_ids: string[];           // Source message UUIDs
+    msg_ids: string[]; // Source message UUIDs
     start_ts: number;
     end_ts: number;
     discord_channel_id?: string;
@@ -203,17 +223,20 @@ interface ShapesIncMemory {
 ### Data Mapping Priorities
 
 **High Priority (Phase 1):**
+
 - Core personality config
 - User ownership
 - User personalization
 - Voice settings (for future)
 
 **Medium Priority (Phase 2):**
+
 - LTM memories
 - Knowledge documents
 - Image generation settings
 
 **Low Priority (Later):**
+
 - X/Twitter integration
 - Custom HTML/CSS
 - Discovery/search tags

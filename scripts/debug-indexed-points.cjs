@@ -9,7 +9,8 @@ const fs = require('fs');
 const QDRANT_URL = process.env.QDRANT_URL;
 const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
 const PERSONALITY_ID = 'c296b337-4e67-5337-99a3-4ca105cbbd68';
-const BACKUP_FILE = '/home/deck/WebstormProjects/tzurot/scripts/backup-c296b337-4e67-5337-99a3-4ca105cbbd68-1759639408048.json';
+const BACKUP_FILE =
+  '/home/deck/WebstormProjects/tzurot/scripts/backup-c296b337-4e67-5337-99a3-4ca105cbbd68-1759639408048.json';
 
 async function debugIndexedPoints() {
   const qdrant = new QdrantClient({
@@ -25,10 +26,12 @@ async function debugIndexedPoints() {
   const indexed = await qdrant.scroll(collectionName, {
     limit: 100,
     filter: {
-      must: [{
-        key: 'createdAt',
-        range: { gte: 0 }
-      }]
+      must: [
+        {
+          key: 'createdAt',
+          range: { gte: 0 },
+        },
+      ],
     },
     with_payload: true,
     with_vector: false,
@@ -105,7 +108,7 @@ async function debugIndexedPoints() {
 
 debugIndexedPoints()
   .then(() => process.exit(0))
-  .catch((error) => {
+  .catch(error => {
     console.error('Failed:', error);
     process.exit(1);
   });

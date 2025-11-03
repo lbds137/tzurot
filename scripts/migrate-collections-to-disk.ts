@@ -43,7 +43,7 @@ async function migrateCollectionsToDisk() {
         // Using empty string "" for vector name (collections without named vectors)
         await qdrant.updateCollection(collectionName, {
           vectors: {
-            "": {
+            '': {
               on_disk: true,
             },
           },

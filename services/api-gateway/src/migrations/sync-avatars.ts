@@ -22,12 +22,12 @@ export async function syncAvatars(): Promise<void> {
     // Query all personalities with avatar data
     const personalities = await prisma.personality.findMany({
       where: {
-        avatarData: { not: null }
+        avatarData: { not: null },
       },
       select: {
         slug: true,
-        avatarData: true
-      }
+        avatarData: true,
+      },
     });
 
     if (personalities.length === 0) {
@@ -63,7 +63,6 @@ export async function syncAvatars(): Promise<void> {
     }
 
     logger.info(`[Avatar Sync] Complete. Synced: ${syncedCount}, Skipped: ${skippedCount}`);
-
   } catch (error) {
     logger.error({ err: error }, '[Avatar Sync] Failed to sync avatars');
     throw error;

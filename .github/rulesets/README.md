@@ -5,6 +5,7 @@ This directory contains GitHub ruleset configurations for the repository.
 ## Importing Rulesets
 
 ### Method 1: GitHub CLI (Recommended)
+
 ```bash
 # Install GitHub CLI if not already installed
 # https://cli.github.com/
@@ -22,11 +23,13 @@ gh api \
 ```
 
 ### Method 2: GitHub Web UI
+
 1. Go to Settings → Rules → Rulesets
 2. Click "New ruleset" → "Import"
 3. Upload the `branch-protection.json` file
 
 ### Method 3: Using curl
+
 ```bash
 curl -L \
   -X POST \
@@ -40,6 +43,7 @@ curl -L \
 ## What These Rules Do
 
 ### For `main` and `develop` branches:
+
 1. **Require Pull Requests**
    - At least 1 approving review
    - Dismiss stale reviews when new commits are pushed
@@ -60,6 +64,7 @@ curl -L \
 ## Customization
 
 Edit the JSON file to customize:
+
 - `required_approving_review_count`: Number of required reviews
 - `required_status_checks`: Add/remove CI checks
 - `bypass_actors`: Configure who can bypass rules

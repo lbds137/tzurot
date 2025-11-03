@@ -31,8 +31,9 @@ async function uploadAvatar() {
     await writeFile(filepath, buffer);
     console.log(`✓ Uploaded avatar to ${filepath}`);
     console.log(`  Size: ${buffer.length} bytes`);
-    console.log(`  Public URL: https://api-gateway-development-83e8.up.railway.app/avatars/${filename}`);
-
+    console.log(
+      `  Public URL: https://api-gateway-development-83e8.up.railway.app/avatars/${filename}`
+    );
   } catch (error) {
     console.error('✗ Failed to upload avatar:', error);
     process.exit(1);

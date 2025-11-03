@@ -67,7 +67,6 @@ async function main() {
     }
 
     logger.info('✅ All embeddings updated successfully!');
-
   } catch (error) {
     logger.error({ err: error }, 'Failed to fix embeddings');
     throw error;
@@ -76,7 +75,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error');
   process.exit(1);
 });

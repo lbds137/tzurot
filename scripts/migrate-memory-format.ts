@@ -200,7 +200,6 @@ async function main() {
               logger.info(`  ✓ [DRY RUN] Would update memory ${point.id}`);
             }
             totalUpdated++;
-
           } catch (error) {
             logger.error({ err: error }, `  ✗ Error updating memory ${point.id}`);
             totalErrors++;
@@ -228,7 +227,6 @@ async function main() {
     if (dryRun && totalUpdated > 0) {
       logger.info('\n💡 To apply these changes, run: pnpm migrate-memory-format');
     }
-
   } catch (error) {
     logger.error({ err: error }, 'Migration failed');
     process.exit(1);

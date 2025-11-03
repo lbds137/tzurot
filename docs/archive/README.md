@@ -5,6 +5,7 @@ This directory contains historical documentation that was useful at a specific p
 ## Why Archive Instead of Delete?
 
 These docs provide useful context about:
+
 - Historical decisions and their reasoning
 - Problems we were facing at specific points
 - How the project evolved over time
@@ -18,6 +19,7 @@ These docs provide useful context about:
 **Why archived**: v3 has since been deployed and is running in production with significantly more features than this snapshot suggests
 
 **What this doc was useful for:**
+
 - Understanding the initial v3 architecture plan
 - Seeing which features were ported from v2
 - The rationale for LangChain, Qdrant, and microservices

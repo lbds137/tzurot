@@ -74,7 +74,9 @@ async function exportReimportCollection() {
   console.log(`\n✅ Exported ${allPoints.length} points total`);
 
   if (allPoints.length !== before.points_count) {
-    console.log(`\n⚠️  WARNING: Expected ${before.points_count} points but got ${allPoints.length}`);
+    console.log(
+      `\n⚠️  WARNING: Expected ${before.points_count} points but got ${allPoints.length}`
+    );
     console.log('   Proceeding anyway, but you should investigate this discrepancy.');
   }
 
@@ -204,9 +206,9 @@ async function exportReimportCollection() {
           range: {
             gte: new Date('2025-08-24').getTime(),
             lt: new Date('2025-08-25').getTime(),
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
     with_payload: ['createdAt', 'summaryType', 'content'],
     with_vector: false,
@@ -244,7 +246,9 @@ async function exportReimportCollection() {
       console.log(`   Point count mismatch: ${after.points_count} vs ${allPoints.length}`);
     }
     if (after.payload_schema?.createdAt?.points !== after.points_count) {
-      console.log(`   createdAt index incomplete: ${after.payload_schema?.createdAt?.points} / ${after.points_count}`);
+      console.log(
+        `   createdAt index incomplete: ${after.payload_schema?.createdAt?.points} / ${after.points_count}`
+      );
     }
     if (testResult.points.length === 0) {
       console.log('   Aug 24 memory still not searchable');
@@ -256,7 +260,7 @@ async function exportReimportCollection() {
 
 exportReimportCollection()
   .then(() => process.exit(0))
-  .catch((error) => {
+  .catch(error => {
     console.error('\n❌ FAILED:', error);
     console.error('\n⚠️  The backup file has been preserved:');
     console.error(`   ${BACKUP_FILE}`);

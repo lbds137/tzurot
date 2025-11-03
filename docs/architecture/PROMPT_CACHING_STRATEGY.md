@@ -15,6 +15,7 @@ Prompt caching can significantly reduce API costs by caching static portions of 
 ### Prompt Structure (from `ConversationalRAGService.ts`)
 
 Every API call sends:
+
 ```
 1. Personality system prompt (~500-2000 chars) ← CACHEABLE
 2. Personality character fields (~500-3500 chars) ← CACHEABLE
@@ -31,10 +32,12 @@ Every API call sends:
 ### Cost Impact
 
 Example with Claude Sonnet 4.5 on OpenRouter:
+
 - Input: $3.00 per 1M tokens (~4 chars/token = ~250k chars)
 - Cached input: $0.30 per 1M tokens (90% discount!)
 
 For a typical conversation with 10 turns:
+
 - **Without caching**: 10 turns × 10,000 chars = 100,000 chars = $0.75
 - **With caching**: 1× 5,000 chars (full) + 9× 5,000 chars (cached) = $0.30 + $0.07 = $0.37
 - **Savings**: $0.38 (50% reduction)
@@ -48,11 +51,13 @@ For a typical conversation with 10 turns:
 **Pricing**: 90% discount on cached tokens
 
 **How it works**:
+
 - Specify cache breakpoints with `cache_control: { type: "ephemeral" }`
 - Cache persists for 5 minutes
 - Works with system messages and prefixed conversation history
 
 **Implementation**:
+
 ```typescript
 {
   role: "system",
@@ -62,6 +67,7 @@ For a typical conversation with 10 turns:
 ```
 
 **Limitations**:
+
 - Minimum cacheable size: 1024 tokens (~4096 chars)
 - Cache TTL: 5 minutes
 - Only works with Claude models
@@ -75,27 +81,30 @@ For a typical conversation with 10 turns:
 **Pricing**: 75% discount (1.5M → 2M free tier with caching)
 
 **How it works**:
+
 - Create cached content via API
 - Reference cache token in subsequent requests
 - Cache persists for configurable TTL (default: 1 hour)
 
 **Implementation**:
+
 ```typescript
 // Create cache
 const cache = await genAI.createCachedContent({
-  model: "gemini-2.5-flash",
+  model: 'gemini-2.5-flash',
   systemInstruction: personalityPrompt,
   ttl: 3600, // 1 hour
 });
 
 // Use cache
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
+  model: 'gemini-2.5-flash',
   cachedContent: cache.name,
 });
 ```
 
 **Limitations**:
+
 - Minimum cacheable size: 32,000 tokens (~128,000 chars)
 - Cache TTL: Up to 1 hour
 - Requires separate API calls to manage cache
@@ -112,6 +121,7 @@ const model = genAI.getGenerativeModel({
 ### OpenRouter (General)
 
 **Caching Support**: Depends on underlying model
+
 - Claude models: ✅ Supports prompt caching
 - Gemini models: ❌ No caching (requires direct Gemini API)
 - Other models: ❌ No caching
@@ -127,17 +137,19 @@ const model = genAI.getGenerativeModel({
 **Impact**: High (we use Claude frequently)
 
 **Strategy**:
+
 1. Mark personality system prompt with cache breakpoint
 2. LangChain should handle this automatically if we pass the right metadata
 
 **Code changes**:
+
 ```typescript
 // In ConversationalRAGService.buildFullSystemPrompt()
 const systemMessage = new SystemMessage({
   content: fullSystemPrompt,
   additional_kwargs: {
-    cache_control: { type: "ephemeral" }
-  }
+    cache_control: { type: 'ephemeral' },
+  },
 });
 ```
 
@@ -150,11 +162,13 @@ const systemMessage = new SystemMessage({
 **Impact**: Medium (Gemini is cheaper already)
 
 **Strategy**:
+
 1. Create cached content for personality on first use
 2. Store cache token in memory/Redis (TTL: 1 hour)
 3. Reuse cache for subsequent requests
 
 **Code changes**:
+
 ```typescript
 // New file: services/ai-worker/src/services/GeminiCacheManager.ts
 class GeminiCacheManager {
@@ -173,17 +187,17 @@ class GeminiCacheManager {
 **Problem**: How to invalidate cache when personality changes?
 
 **Solution**: Cache versioning
+
 - Include personality version/hash in cache key
 - When personality updated, version changes → cache miss → new cache created
 - Old cache expires naturally after TTL
 
 **Implementation**:
+
 ```typescript
 function getPersonalityCacheKey(personality: LoadedPersonality): string {
   const hash = hashString(
-    personality.systemPrompt +
-    personality.characterInfo +
-    personality.personalityTraits
+    personality.systemPrompt + personality.characterInfo + personality.personalityTraits
     // ... other cacheable fields
   );
   return `personality:${personality.id}:${hash}`;
@@ -195,6 +209,7 @@ function getPersonalityCacheKey(personality: LoadedPersonality): string {
 ### Static Content (High Cache Hit Rate)
 
 **Content**:
+
 - Personality system prompt
 - Character info, traits, tone, likes/dislikes, goals, examples
 
@@ -205,6 +220,7 @@ function getPersonalityCacheKey(personality: LoadedPersonality): string {
 ### Semi-Static Content (Medium Cache Hit Rate)
 
 **Content**:
+
 - User persona
 
 **Cache Key**: `persona:${userId}:${version}`
@@ -214,6 +230,7 @@ function getPersonalityCacheKey(personality: LoadedPersonality): string {
 ### Dynamic Content (No Caching)
 
 **Content**:
+
 - LTM memories (change based on query relevance)
 - Current date/time
 - STM conversation history
@@ -241,29 +258,31 @@ function getPersonalityCacheKey(personality: LoadedPersonality): string {
 ## Monitoring & Metrics
 
 **Key Metrics**:
+
 - Cache hit rate (% of requests using cache)
 - Cache age (how long cache used before expiring)
 - Cost savings (cached tokens × rate difference)
 - Cache invalidation events
 
 **Logging** (development mode):
+
 ```typescript
 logger.debug('[CACHE] Personality cache hit', {
   personalityId,
   cacheAge: Date.now() - cacheCreatedAt,
   cachedTokens: estimatedTokens,
-  estimatedSavings: cachedTokens * (inputRate - cachedRate)
+  estimatedSavings: cachedTokens * (inputRate - cachedRate),
 });
 ```
 
 ## Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Stale cache after personality update | Medium | Version-based cache keys, short TTL |
-| Cache overhead for single messages | Low | Only cache for conversations (2+ turns) |
-| Complexity in cache management | Medium | Start with simple TTL-based expiration |
-| Provider cache format changes | Low | Abstract behind interface, test regularly |
+| Risk                                 | Impact | Mitigation                                |
+| ------------------------------------ | ------ | ----------------------------------------- |
+| Stale cache after personality update | Medium | Version-based cache keys, short TTL       |
+| Cache overhead for single messages   | Low    | Only cache for conversations (2+ turns)   |
+| Complexity in cache management       | Medium | Start with simple TTL-based expiration    |
+| Provider cache format changes        | Low    | Abstract behind interface, test regularly |
 
 ## Alternative Approaches
 
@@ -290,6 +309,7 @@ Prompt caching is **highly recommended** for Tzurot:
 3. **Scalability**: More critical as user base grows
 
 **Recommended Timeline**:
+
 - **This week**: Implement Claude prompt caching (Phase 1)
 - **Next week**: Test in production, measure savings
 - **Week 3-4**: Add Gemini caching if Gemini usage is significant

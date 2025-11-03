@@ -7,11 +7,13 @@ This guide covers deploying tzurot v3's microservices architecture to Railway.
 ### Architecture Overview
 
 Tzurot v3 consists of three services:
+
 - **bot-client**: Discord.js client (connects to Discord Gateway)
 - **api-gateway**: HTTP API + BullMQ job queue
 - **ai-worker**: AI processing worker (processes queued jobs)
 
 Plus required infrastructure:
+
 - **Redis**: For BullMQ job queue
 - **PostgreSQL**: For persistent data and vector memory (using pgvector extension)
 
@@ -24,11 +26,13 @@ Plus required infrastructure:
 ### Step 2: Add Infrastructure Services
 
 #### Redis (Required)
+
 1. Click "New" → "Database" → "Add Redis"
 2. Railway will automatically set `REDIS_URL` environment variable
 3. All services will use this shared Redis instance
 
 #### PostgreSQL (Future)
+
 1. Click "New" → "Database" → "Add PostgreSQL"
 2. Will be used for user credentials, server config, etc.
 
@@ -46,6 +50,7 @@ Railway will auto-detect the monorepo structure. You need to create 3 separate s
    - **Start Command**: `pnpm start`
 
 **Environment Variables:**
+
 ```bash
 # Required
 DISCORD_TOKEN=your_discord_bot_token
@@ -68,6 +73,7 @@ LOG_LEVEL=info
    - **Port**: 3000 (enable public networking)
 
 **Environment Variables:**
+
 ```bash
 # Required (auto-set by Railway)
 REDIS_URL=${{Redis.REDIS_URL}}
@@ -92,6 +98,7 @@ LOG_LEVEL=info
    - **Start Command**: `pnpm start`
 
 **Environment Variables:**
+
 ```bash
 # Required (auto-set by Railway)
 REDIS_URL=${{Redis.REDIS_URL}}
@@ -114,17 +121,20 @@ LOG_LEVEL=info
 Currently personalities are loaded from JSON files. You have two options:
 
 #### Option A: Use Railway Volumes (Persistent)
+
 1. In `ai-worker` service, add a volume:
    - Mount path: `/app/personalities`
    - Upload your personality JSON files to this volume
 
 #### Option B: Commit to Repo (Simpler for now)
+
 1. Create `personalities/` directory in `tzurot-v3/`
 2. Add personality JSON files
 3. Update `PERSONALITIES_DIR` to point to this location
 4. Commit and push
 
 **Example personality file** (`personalities/lilith.json`):
+
 ```json
 {
   "name": "lilith",
@@ -140,24 +150,27 @@ Currently personalities are loaded from JSON files. You have two options:
 ### Step 5: Environment Variable Reference
 
 #### bot-client
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DISCORD_TOKEN` | Yes | Discord bot token from developer portal |
-| `GATEWAY_URL` | Yes | URL of api-gateway service |
-| `PERSONALITIES_DIR` | No | Path to personalities folder (default: `../../../personalities`) |
+
+| Variable            | Required | Description                                                      |
+| ------------------- | -------- | ---------------------------------------------------------------- |
+| `DISCORD_TOKEN`     | Yes      | Discord bot token from developer portal                          |
+| `GATEWAY_URL`       | Yes      | URL of api-gateway service                                       |
+| `PERSONALITIES_DIR` | No       | Path to personalities folder (default: `../../../personalities`) |
 
 #### api-gateway
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `REDIS_URL` | Yes | Redis connection string (auto-set) |
-| `PORT` | Yes | HTTP port (default: 3000) |
+
+| Variable    | Required | Description                        |
+| ----------- | -------- | ---------------------------------- |
+| `REDIS_URL` | Yes      | Redis connection string (auto-set) |
+| `PORT`      | Yes      | HTTP port (default: 3000)          |
 
 #### ai-worker
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `REDIS_URL` | Yes | Redis connection string (auto-set) |
-| `OPENROUTER_API_KEY` | Yes | OpenRouter API key |
-| `DATABASE_URL` | No | PostgreSQL URL (auto-provided by Railway, includes pgvector) |
+
+| Variable             | Required | Description                                                  |
+| -------------------- | -------- | ------------------------------------------------------------ |
+| `REDIS_URL`          | Yes      | Redis connection string (auto-set)                           |
+| `OPENROUTER_API_KEY` | Yes      | OpenRouter API key                                           |
+| `DATABASE_URL`       | No       | PostgreSQL URL (auto-provided by Railway, includes pgvector) |
 
 ### Step 6: Deploy Order
 
@@ -173,12 +186,14 @@ Deploy in this order to avoid startup failures:
 #### Check Service Health
 
 **bot-client:**
+
 ```bash
 # Should show: "Logged in as YourBot#1234"
 railway logs --service bot-client
 ```
 
 **api-gateway:**
+
 ```bash
 # Should show: "API Gateway listening on port 3000"
 railway logs --service api-gateway
@@ -188,6 +203,7 @@ curl https://your-gateway.railway.app/health
 ```
 
 **ai-worker:**
+
 ```bash
 # Should show: "AI Worker listening for jobs on queue: ai-requests"
 railway logs --service ai-worker
@@ -202,23 +218,27 @@ railway logs --service ai-worker
 ### Troubleshooting
 
 #### Bot not responding
+
 - Check `DISCORD_TOKEN` is set correctly
 - Verify bot has proper Discord permissions (Send Messages, Manage Webhooks)
 - Check `GATEWAY_URL` points to api-gateway's public URL
 - Look at bot-client logs for connection errors
 
 #### "Gateway health check failed"
+
 - Ensure api-gateway is deployed and healthy
 - Check `GATEWAY_URL` environment variable
 - Verify api-gateway's `/health` endpoint is accessible
 
 #### AI responses failing
+
 - Check ai-worker logs for errors
 - Verify `OPENROUTER_API_KEY` is set
 - Ensure Redis connection is working (both api-gateway and ai-worker)
 - Check BullMQ queue status
 
 #### No personalities loaded
+
 - Verify `PERSONALITIES_DIR` points to correct location
 - Check personality JSON files are valid
 - Look for "Loaded N personalities" in ai-worker logs
@@ -226,6 +246,7 @@ railway logs --service ai-worker
 ### Monitoring
 
 Railway provides built-in monitoring:
+
 - **Metrics**: CPU, Memory, Network usage per service
 - **Logs**: Real-time logs with filtering
 - **Deployments**: Deployment history and rollback
@@ -233,11 +254,13 @@ Railway provides built-in monitoring:
 ### Cost Optimization
 
 **Current setup (free tier friendly):**
+
 - Redis: Shared, minimal usage
 - 3 services: Each uses minimal resources during idle
 - Bot scales with usage
 
 **Future optimizations:**
+
 - Use Railway's autoscaling for ai-worker during high load
 - Implement job priority queues (high/low priority)
 - Cache personality configs in Redis to reduce file reads
@@ -245,6 +268,7 @@ Railway provides built-in monitoring:
 ### Next Steps
 
 Once basic deployment works:
+
 1. Add PostgreSQL for user credentials (BYOK) and pgvector extension
 2. Run database migrations to enable vector memory
 3. Implement slash commands
@@ -280,6 +304,7 @@ If deployment fails:
 3. Click "Redeploy"
 
 Or via CLI:
+
 ```bash
 railway rollback --service bot-client
 ```

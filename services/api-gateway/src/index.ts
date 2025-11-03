@@ -35,7 +35,7 @@ const envConfig = getConfig();
 const config = {
   port: envConfig.API_GATEWAY_PORT,
   env: envConfig.NODE_ENV,
-  corsOrigins: envConfig.CORS_ORIGINS
+  corsOrigins: envConfig.CORS_ORIGINS,
 };
 
 // Track startup time for uptime calculation
@@ -86,7 +86,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
     res.sendFile(avatarPath, {
       maxAge: '7d', // Cache for 7 days
       etag: true,
-      lastModified: true
+      lastModified: true,
     });
   } catch {
     // File not found on filesystem, check database
@@ -96,7 +96,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
 
       const personality = await prisma.personality.findUnique({
         where: { slug },
-        select: { avatarData: true }
+        select: { avatarData: true },
       });
 
       await prisma.$disconnect();
@@ -120,7 +120,6 @@ app.get('/avatars/:slug.png', async (req, res) => {
       res.set('Content-Type', 'image/png');
       res.set('Cache-Control', 'max-age=604800'); // 7 days
       res.send(buffer);
-
     } catch (error) {
       logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
       const errorResponse = ErrorResponses.internalError('Failed to retrieve avatar');
@@ -131,12 +130,15 @@ app.get('/avatars/:slug.png', async (req, res) => {
 
 // Serve temporary attachments from Railway volume
 // Attachments are downloaded when requests are received and cleaned up after processing
-app.use('/temp-attachments', express.static('/data/temp-attachments', {
-  maxAge: 0, // Don't cache (temporary files)
-  etag: false,
-  lastModified: false,
-  fallthrough: false, // Return 404 if file not found
-}));
+app.use(
+  '/temp-attachments',
+  express.static('/data/temp-attachments', {
+    maxAge: 0, // Don't cache (temporary files)
+    etag: false,
+    lastModified: false,
+    fallthrough: false, // Return 404 if file not found
+  })
+);
 
 /**
  * Ensure avatar storage directory exists
@@ -187,7 +189,7 @@ async function checkAvatarStorage(): Promise<{ status: string; count?: number; e
   } catch (error) {
     return {
       status: 'error',
-      error: error instanceof Error ? error.message : 'Avatar storage not accessible'
+      error: error instanceof Error ? error.message : 'Avatar storage not accessible',
     };
   }
 }
@@ -205,16 +207,15 @@ app.get('/health', async (_req, res) => {
       services: {
         redis: queueHealthy,
         queue: queueHealthy,
-        avatarStorage: avatarStorage.status === 'ok'
+        avatarStorage: avatarStorage.status === 'ok',
       },
       avatars: avatarStorage,
       timestamp: new Date().toISOString(),
-      uptime: Date.now() - startTime
+      uptime: Date.now() - startTime,
     };
 
     const statusCode = queueHealthy ? 200 : 503;
     res.status(statusCode).json(health);
-
   } catch (error) {
     logger.error({ err: error }, '[Health] Health check failed');
 
@@ -222,10 +223,10 @@ app.get('/health', async (_req, res) => {
       status: 'unhealthy',
       services: {
         redis: false,
-        queue: false
+        queue: false,
       },
       timestamp: new Date().toISOString(),
-      uptime: Date.now() - startTime
+      uptime: Date.now() - startTime,
     };
 
     res.status(503).json(health);
@@ -241,7 +242,7 @@ app.get('/metrics', async (_req, res) => {
       aiQueue.getWaitingCount(),
       aiQueue.getActiveCount(),
       aiQueue.getCompletedCount(),
-      aiQueue.getFailedCount()
+      aiQueue.getFailedCount(),
     ]);
 
     res.json({
@@ -250,15 +251,14 @@ app.get('/metrics', async (_req, res) => {
         active,
         completed,
         failed,
-        total: waiting + active
+        total: waiting + active,
       },
       cache: {
-        size: getCacheSize()
+        size: getCacheSize(),
       },
       uptime: Date.now() - startTime,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     logger.error({ err: error }, '[Metrics] Failed to get metrics');
 
@@ -296,11 +296,14 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
  */
 async function main(): Promise<void> {
   logger.info('[Gateway] Starting API Gateway service...');
-  logger.info({
-    port: config.port,
-    env: config.env,
-    corsOrigins: config.corsOrigins
-  }, '[Gateway] Configuration:');
+  logger.info(
+    {
+      port: config.port,
+      env: config.env,
+      corsOrigins: config.corsOrigins,
+    },
+    '[Gateway] Configuration:'
+  );
 
   // Ensure avatar storage directory exists
   await ensureAvatarDirectory();
@@ -359,12 +362,12 @@ async function main(): Promise<void> {
   });
 
   // Handle uncaught errors
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', error => {
     logger.fatal({ err: error }, '[Gateway] Uncaught exception:');
     void shutdown();
   });
 
-  process.on('unhandledRejection', (reason) => {
+  process.on('unhandledRejection', reason => {
     logger.fatal({ reason }, '[Gateway] Unhandled rejection:');
     void shutdown();
   });

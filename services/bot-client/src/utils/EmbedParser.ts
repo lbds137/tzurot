@@ -33,9 +33,7 @@ export class EmbedParser {
 
     // Add title
     if (embed.title) {
-      const titleText = embed.url
-        ? `[${embed.title}](${embed.url})`
-        : embed.title;
+      const titleText = embed.url ? `[${embed.title}](${embed.url})` : embed.title;
       parts.push(`## ${titleText}`);
     }
 

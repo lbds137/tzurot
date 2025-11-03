@@ -111,7 +111,9 @@ export async function findPersonalityMention(
 
   // Step 3: Filter out invalid personalities and sort by priority
   const validMentions = lookupResults
-    .filter((result): result is { name: string; wordCount: number; isValid: true } => result !== null)
+    .filter(
+      (result): result is { name: string; wordCount: number; isValid: true } => result !== null
+    )
     .sort((a, b) => {
       // Priority 1: Word count (multi-word beats single-word)
       if (a.wordCount !== b.wordCount) {
@@ -207,9 +209,9 @@ function extractPotentialMentions(
         .replace(trailingPunctuationRegex, ''); // Remove trailing punctuation
 
       // Split into words and remove punctuation from each
-      const words = capturedText.split(/\s+/).map(word =>
-        word.replace(trailingPunctuationRegex, '')
-      );
+      const words = capturedText
+        .split(/\s+/)
+        .map(word => word.replace(trailingPunctuationRegex, ''));
 
       // Try combinations from longest to shortest for this match
       for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
@@ -224,10 +226,7 @@ function extractPotentialMentions(
   }
 
   // Extract single-word mentions (e.g., @Lilith, @Ha-Shem)
-  const singleWordRegex = new RegExp(
-    `${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`,
-    'gi'
-  );
+  const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
   const singleWordMatches = content.match(singleWordRegex);
 
   if (singleWordMatches) {

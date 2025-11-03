@@ -7,12 +7,14 @@
 ## Problem Statement
 
 We have 68 personalities backed up from shapes.inc with:
+
 - Personality configurations
 - LTM summaries (vector memories)
 - Chat history
 - User personalization data
 
 **Challenges**:
+
 1. UUID mapping (shapes.inc UUIDs → v3 PostgreSQL UUIDs)
 2. Orphaned user UUIDs (users who don't exist in v3 yet)
 3. Qdrant metadata format differences
@@ -23,6 +25,7 @@ We have 68 personalities backed up from shapes.inc with:
 ### Shapes.inc Export Format
 
 Each personality directory contains:
+
 ```
 {personality-slug}/
 ├── {personality-slug}.json              # Main config (30KB)
@@ -36,35 +39,36 @@ Each personality directory contains:
 
 **Shapes.inc fields** (385 lines of JSON!) → **v3 minimal schema**:
 
-| Shapes.inc Field | V3 Table | V3 Column | Notes |
-|-----------------|----------|-----------|-------|
-| `id` | `personalities` | (new UUID) | Generate new v3 UUID |
-| `name` | `personalities` | `name` | Slug format |
-| `name` (display) | `personalities` | `display_name` | From main name or custom |
-| `username` | `personalities` | `slug` | URL-friendly slug |
-| `jailbreak` | `system_prompts` | `content` | Main system prompt |
-| `user_prompt` | `personalities` | `character_info` | Character background |
-| `personality_traits` | `personalities` | `personality_traits` | Direct map |
-| `personality_tone` | `personalities` | `personality_tone` | Direct map |
-| `personality_likes` | `personalities` | `personality_likes` | Direct map |
-| `personality_dislikes` | `personalities` | `personality_dislikes` | Direct map |
-| `personality_conversational_goals` | `personalities` | `conversational_goals` | Direct map |
-| `personality_conversational_examples` | `personalities` | `conversational_examples` | Direct map |
-| `personality_age` | `personalities` | `personality_age` | Direct map |
-| `avatar` | `personalities` | `avatar_url` | Direct map |
-| `engine_model` | `llm_configs` | `model` | Map to OpenRouter format |
-| `fallback_engine_model` | (ignore) | - | Not used in v3 |
-| `engine_temperature` | `llm_configs` | `temperature` | Direct map |
-| `engine_top_p` | `llm_configs` | `top_p` | Direct map |
-| `engine_top_k` | `llm_configs` | `top_k` | Direct map |
-| `engine_frequency_penalty` | `llm_configs` | `frequency_penalty` | Direct map |
-| `engine_presence_penalty` | `llm_configs` | `presence_penalty` | Direct map |
-| `stm_window` | `llm_configs` | `context_window_size` | Direct map |
-| `ltm_threshold` | `llm_configs` | `memory_score_threshold` | Direct map |
-| `ltm_max_retrieved_summaries` | `llm_configs` | `memory_limit` | Direct map |
-| `ltm_enabled` | `personalities` | `memory_enabled` | Direct map |
+| Shapes.inc Field                      | V3 Table         | V3 Column                 | Notes                    |
+| ------------------------------------- | ---------------- | ------------------------- | ------------------------ |
+| `id`                                  | `personalities`  | (new UUID)                | Generate new v3 UUID     |
+| `name`                                | `personalities`  | `name`                    | Slug format              |
+| `name` (display)                      | `personalities`  | `display_name`            | From main name or custom |
+| `username`                            | `personalities`  | `slug`                    | URL-friendly slug        |
+| `jailbreak`                           | `system_prompts` | `content`                 | Main system prompt       |
+| `user_prompt`                         | `personalities`  | `character_info`          | Character background     |
+| `personality_traits`                  | `personalities`  | `personality_traits`      | Direct map               |
+| `personality_tone`                    | `personalities`  | `personality_tone`        | Direct map               |
+| `personality_likes`                   | `personalities`  | `personality_likes`       | Direct map               |
+| `personality_dislikes`                | `personalities`  | `personality_dislikes`    | Direct map               |
+| `personality_conversational_goals`    | `personalities`  | `conversational_goals`    | Direct map               |
+| `personality_conversational_examples` | `personalities`  | `conversational_examples` | Direct map               |
+| `personality_age`                     | `personalities`  | `personality_age`         | Direct map               |
+| `avatar`                              | `personalities`  | `avatar_url`              | Direct map               |
+| `engine_model`                        | `llm_configs`    | `model`                   | Map to OpenRouter format |
+| `fallback_engine_model`               | (ignore)         | -                         | Not used in v3           |
+| `engine_temperature`                  | `llm_configs`    | `temperature`             | Direct map               |
+| `engine_top_p`                        | `llm_configs`    | `top_p`                   | Direct map               |
+| `engine_top_k`                        | `llm_configs`    | `top_k`                   | Direct map               |
+| `engine_frequency_penalty`            | `llm_configs`    | `frequency_penalty`       | Direct map               |
+| `engine_presence_penalty`             | `llm_configs`    | `presence_penalty`        | Direct map               |
+| `stm_window`                          | `llm_configs`    | `context_window_size`     | Direct map               |
+| `ltm_threshold`                       | `llm_configs`    | `memory_score_threshold`  | Direct map               |
+| `ltm_max_retrieved_summaries`         | `llm_configs`    | `memory_limit`            | Direct map               |
+| `ltm_enabled`                         | `personalities`  | `memory_enabled`          | Direct map               |
 
 **Ignored shapes.inc fields**:
+
 - All X/Twitter integration fields
 - Voice synthesis fields (ElevenLabs)
 - Image generation fields
@@ -77,6 +81,7 @@ Each personality directory contains:
 ### Shapes.inc Memory Format → v3 Qdrant
 
 **Shapes.inc memory**:
+
 ```json
 {
   "id": "{msg_uuid_1}/{msg_uuid_last}",
@@ -95,6 +100,7 @@ Each personality directory contains:
 ```
 
 **v3 Qdrant metadata** (from QdrantMemoryAdapter):
+
 ```json
 {
   "personaId": "v3-persona-uuid",
@@ -122,10 +128,11 @@ Each personality directory contains:
 ### Solution: Discord ID as Bridge
 
 **For Users**:
+
 ```typescript
 // 1. Find v3 user by Discord ID
 const v3User = await prisma.user.findUnique({
-  where: { id: shapesUserDiscordId }
+  where: { id: shapesUserDiscordId },
 });
 
 // 2. If user doesn't exist, create stub user
@@ -138,17 +145,18 @@ if (!v3User) {
           persona: {
             create: {
               preferredName: 'User',
-              content: 'Imported user from shapes.inc backup'
-            }
-          }
-        }
-      }
-    }
+              content: 'Imported user from shapes.inc backup',
+            },
+          },
+        },
+      },
+    },
   });
 }
 ```
 
 **For Personalities**:
+
 ```typescript
 // Generate new UUID for personality in v3
 const v3PersonalityId = uuidv4();
@@ -163,6 +171,7 @@ uuidMap.set(shapesPersonalityId, v3PersonalityId);
 **Scenario**: Memory references user UUID that doesn't map to Discord ID
 
 **Strategy**: Create "orphaned" persona segment
+
 ```typescript
 const ORPHANED_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -187,11 +196,12 @@ interface PersonalityImportResult {
   llmConfigId: string;
   defaultLinkId: string;
   avatarPath: string; // Local file path
-  avatarUrl: string;  // Public URL
+  avatarUrl: string; // Public URL
 }
 ```
 
 **Steps**:
+
 1. Parse shapes.inc config JSON
 2. Map fields to v3 schema
 3. **Download avatar from shapes.inc**
@@ -217,6 +227,7 @@ interface MemoryImportOptions {
 ```
 
 **Steps**:
+
 1. Parse shapes.inc memories JSON
 2. For each memory:
    a. Extract summary text
@@ -232,6 +243,7 @@ interface MemoryImportOptions {
 **Output**: NEW Qdrant vectors (better quality than shapes.inc summaries)
 
 **Why not import to conversation_history?**
+
 - Missing Discord channel IDs (shapes.inc wasn't Discord-specific)
 - Conversation history without channel context is useless
 - Would clutter the database with orphaned messages
@@ -239,6 +251,7 @@ interface MemoryImportOptions {
 **Better use**: Regenerate LTM summaries with our superior prompting
 
 **Approach**:
+
 ```typescript
 interface LTMRegenerationOptions {
   personalityId: string;
@@ -249,6 +262,7 @@ interface LTMRegenerationOptions {
 ```
 
 **Steps**:
+
 1. Load chat history JSON
 2. Group messages into conversation chunks
    - By timestamp gaps (30+ minutes = new conversation)
@@ -261,6 +275,7 @@ interface LTMRegenerationOptions {
 4. Compare quality vs original shapes.inc summaries
 
 **Benefits**:
+
 - Higher quality summaries (shapes.inc's were "meh")
 - Better semantic coherence
 - More detailed context capture
@@ -269,6 +284,7 @@ interface LTMRegenerationOptions {
 ## Import Script Design
 
 ### File Structure
+
 ```
 scripts/
 └── import-personality/
@@ -280,6 +296,7 @@ scripts/
 ```
 
 ### CLI Usage
+
 ```bash
 # Import single personality
 pnpm import-personality cold-kerach-batuach
@@ -297,28 +314,33 @@ pnpm import-personality lilith cold-kerach-batuach
 ### Import Modes
 
 **1. Full Import** (default)
+
 - Creates personality in PostgreSQL
 - Downloads and serves avatar
 - Imports all existing LTM memories to Qdrant
 
 **2. Memories Only**
+
 - Skips personality creation (assumes it exists)
 - Only imports existing LTM memories
 - Useful for re-importing after Qdrant wipe
 
 **3. Regenerate LTMs** (experimental)
+
 - Uses chat history to regenerate LTM summaries
 - Creates NEW summaries with our better prompting
 - Can replace or supplement existing shapes.inc LTMs
 - Useful for improving memory quality
 
 **4. Dry Run**
+
 - Parses all data
 - Validates mappings
 - Reports what would be imported
 - No database writes
 
 **CLI Examples**:
+
 ```bash
 # Full import (personality + existing LTMs)
 pnpm import-personality cold-kerach-batuach
@@ -352,6 +374,7 @@ interface ValidationResult {
 ```
 
 **Validations**:
+
 - [ ] Shapes.inc JSON files exist and are parseable
 - [ ] Required fields present in personality config
 - [ ] Memory format matches expected structure
@@ -376,17 +399,20 @@ curl http://localhost:6333/collections/memories/count
 ## Example: Cold-Kerach-Batuach Import
 
 **Data Summary** (from backup metadata):
+
 - 107 LTM memories
 - 625 chat messages
 - Date range: 2025-05-18 to 2025-07-22
 - 1 unique user (98a94b95-cbd0-430b-8be2-602e1c75d8b0)
 
 **Import Command**:
+
 ```bash
 pnpm import-personality cold-kerach-batuach --dry-run
 ```
 
 **Expected Output**:
+
 ```
 📋 Shapes.inc Personality Import
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -422,6 +448,7 @@ Run without --dry-run to proceed with import.
 **Problem**: Memory references shapes.inc user UUID we can't map
 
 **Solution**: Assign to orphaned persona
+
 ```typescript
 if (!userDiscordId) {
   logger.warn(`Orphaned user UUID: ${shapesUserId}`);
@@ -434,6 +461,7 @@ if (!userDiscordId) {
 **Problem**: Personality with same slug already exists
 
 **Solutions**:
+
 1. Skip import (default)
 2. Update existing personality (--force flag)
 3. Create with modified slug (--rename flag)
@@ -454,10 +482,9 @@ pnpm import-personality cold-kerach-batuach --rename=cold-v2
 **Problem**: Memory timestamp is invalid or missing
 
 **Solution**: Use backup metadata timestamp
+
 ```typescript
-const timestamp = memory.metadata.created_at
-  || memory.metadata.end_ts
-  || Date.now();
+const timestamp = memory.metadata.created_at || memory.metadata.end_ts || Date.now();
 ```
 
 ### Case 4: Embedding Generation Fails
@@ -465,6 +492,7 @@ const timestamp = memory.metadata.created_at
 **Problem**: OpenAI embedding API fails for a memory
 
 **Solutions**:
+
 1. Retry with exponential backoff
 2. Skip memory and log error
 3. Continue with other memories
@@ -548,12 +576,14 @@ curl -X POST http://localhost:6333/collections/memories/snapshots/{snapshot-name
 ## Future Improvements
 
 ### Batch Import
+
 ```bash
 # Import all 68 personalities
 pnpm import-all-personalities --parallel=5
 ```
 
 ### Memory Migration Tool
+
 ```bash
 # Migrate memories from orphaned to real persona
 pnpm migrate-orphaned-memories \
@@ -562,6 +592,7 @@ pnpm migrate-orphaned-memories \
 ```
 
 ### Interactive Import
+
 ```bash
 # Guided import with prompts
 pnpm import-personality-interactive
@@ -572,11 +603,13 @@ pnpm import-personality-interactive
 ### Problem
 
 **Current state**:
+
 - Personality avatar URLs point to shapes.inc: `https://files.shapes.inc/api/files/avatar_{uuid}.png`
 - Discord webhooks hotlink to these URLs
 - When shapes.inc fully shuts down, all avatars break
 
 **v2 solution**:
+
 - Downloaded avatars to local storage
 - Served via Express static file server
 - Worked great but was lost in v3 rewrite
@@ -584,6 +617,7 @@ pnpm import-personality-interactive
 ### Solution: Railway Volume + Static File Serving
 
 **Architecture**:
+
 ```
 Import Tool → Download Avatar → Railway Volume (/data/avatars)
                                        ↓
@@ -606,11 +640,14 @@ import path from 'path';
 const app = express();
 
 // Serve avatars from Railway volume
-app.use('/avatars', express.static('/data/avatars', {
-  maxAge: '7d', // Cache for 7 days
-  etag: true,
-  lastModified: true
-}));
+app.use(
+  '/avatars',
+  express.static('/data/avatars', {
+    maxAge: '7d', // Cache for 7 days
+    etag: true,
+    lastModified: true,
+  })
+);
 ```
 
 #### 2. Add Avatar Downloader to Import Tool
@@ -653,6 +690,7 @@ export class AvatarDownloader {
 #### 3. Railway Volume Configuration
 
 **In Railway dashboard**:
+
 ```
 Service: api-gateway
 Volume: tzurot-avatars
@@ -661,6 +699,7 @@ Size: 1GB (enough for ~1000 avatars at 1MB each)
 ```
 
 **Why not use persistent storage in other services?**
+
 - Only api-gateway needs to serve files
 - Centralized storage simplifies backups
 - Volume is cheap ($0.25/GB/month)
@@ -670,6 +709,7 @@ Size: 1GB (enough for ~1000 avatars at 1MB each)
 **If shapes.inc avatar download fails**:
 
 Option 1: Use default avatar
+
 ```typescript
 const DEFAULT_AVATAR_URL = `${baseUrl}/avatars/default.png`;
 
@@ -682,6 +722,7 @@ try {
 ```
 
 Option 2: Generate identicon/initial avatar
+
 ```typescript
 import { createAvatar } from '@dicebear/core';
 import { initials } from '@dicebear/collection';
@@ -704,7 +745,7 @@ const personality = await prisma.personality.create({
     name: 'COLD',
     avatarUrl: 'https://api-gateway.railway.app/avatars/cold-kerach-batuach.png',
     // ... other fields
-  }
+  },
 });
 ```
 
@@ -726,6 +767,7 @@ graph TD
 ### Verification
 
 **After import**:
+
 ```bash
 # Check avatar file exists
 ls -la /data/avatars/cold-kerach-batuach.png
@@ -740,6 +782,7 @@ curl https://api-gateway.railway.app/avatars/cold-kerach-batuach.png -I
 ### Backup Strategy
 
 **Railway volume backups**:
+
 ```bash
 # Manual backup
 railway volume download tzurot-avatars --output ./avatars-backup
@@ -749,6 +792,7 @@ railway volume upload tzurot-avatars --source ./avatars-backup
 ```
 
 **Git-based backup** (for small avatars):
+
 ```bash
 # Optional: Commit avatars to git (if < 100KB each)
 git add data/avatars/cold-kerach-batuach.png
@@ -758,6 +802,7 @@ git commit -m "feat: add COLD personality avatar"
 ### Migration from Existing Hotlinks
 
 **For personalities already imported**:
+
 ```bash
 # Re-download all avatars
 pnpm fix-avatars --all
@@ -769,6 +814,7 @@ pnpm fix-avatars lilith
 ### Health Check
 
 Add to api-gateway health endpoint:
+
 ```typescript
 app.get('/health', async (req, res) => {
   const checks = {

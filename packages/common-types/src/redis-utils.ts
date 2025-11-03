@@ -64,7 +64,7 @@ export function parseRedisUrl(url: string): RedisConnectionConfig {
       port: parseInt(parsed.port || '6379', 10),
       password: parsed.password || undefined,
       // Railway uses 'default' as placeholder username - filter it out
-      username: parsed.username && parsed.username !== 'default' ? parsed.username : undefined
+      username: parsed.username && parsed.username !== 'default' ? parsed.username : undefined,
     };
   } catch (error) {
     logger.error({ err: error }, '[RedisUtils] Failed to parse REDIS_URL');
@@ -77,7 +77,7 @@ export function parseRedisUrl(url: string): RedisConnectionConfig {
     logger.warn('[RedisUtils] Falling back to localhost (development only)');
     return {
       host: 'localhost',
-      port: 6379
+      port: 6379,
     };
   }
 }
@@ -99,9 +99,9 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
       // IPv4 (family: 4) is NOT supported for Railway private networking
       // See: https://docs.railway.app/reference/private-networking
       family: config.family || 6,
-      connectTimeout: 20000,      // 20s to establish connection (increased for Railway latency)
-      commandTimeout: 15000,      // 15s per command (increased for Railway latency)
-      keepAlive: true,            // Enable TCP keepalive
+      connectTimeout: 20000, // 20s to establish connection (increased for Railway latency)
+      commandTimeout: 15000, // 15s per command (increased for Railway latency)
+      keepAlive: true, // Enable TCP keepalive
       keepAliveInitialDelay: 30000, // 30s before first keepalive probe
       reconnectStrategy: (retries: number) => {
         if (retries > 10) {
@@ -113,13 +113,13 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
         const delay = Math.min(retries * 100, 3000);
         logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
         return delay;
-      }
+      },
     },
     password: config.password,
     username: config.username,
-    maxRetriesPerRequest: 3,     // Retry commands up to 3 times
-    lazyConnect: false,           // Connect immediately to fail fast
-    enableReadyCheck: true,       // Verify Redis is ready
+    maxRetriesPerRequest: 3, // Retry commands up to 3 times
+    lazyConnect: false, // Connect immediately to fail fast
+    enableReadyCheck: true, // Verify Redis is ready
   };
 }
 
@@ -141,9 +141,9 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     // IPv4 (family: 4) is NOT supported for Railway private networking
     // See: https://docs.railway.app/reference/private-networking
     family: config.family || 6,
-    connectTimeout: 20000,       // 20s to establish connection (increased for Railway latency)
-    commandTimeout: 15000,       // 15s per command (increased for Railway latency)
-    keepAlive: 30000,            // 30s TCP keepalive
+    connectTimeout: 20000, // 20s to establish connection (increased for Railway latency)
+    commandTimeout: 15000, // 15s per command (increased for Railway latency)
+    keepAlive: 30000, // 30s TCP keepalive
     reconnectStrategy: (retries: number) => {
       if (retries > 10) {
         // After 10 retries (30+ seconds), give up
@@ -155,8 +155,8 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
       logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
       return delay;
     },
-    maxRetriesPerRequest: 3,     // Retry commands up to 3 times
-    lazyConnect: false,           // Connect immediately to fail fast
-    enableReadyCheck: true,       // Verify Redis is ready
+    maxRetriesPerRequest: 3, // Retry commands up to 3 times
+    lazyConnect: false, // Connect immediately to fail fast
+    enableReadyCheck: true, // Verify Redis is ready
   };
 }

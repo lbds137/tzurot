@@ -16,13 +16,15 @@ async function setDefaultConfig(nameOrId: string) {
 
   // Try to find by name or ID
   let config = await prisma.llmConfig.findFirst({
-    where: isUUID ? {
-      id: nameOrId,
-      isGlobal: true
-    } : {
-      name: { contains: nameOrId, mode: 'insensitive' },
-      isGlobal: true
-    }
+    where: isUUID
+      ? {
+          id: nameOrId,
+          isGlobal: true,
+        }
+      : {
+          name: { contains: nameOrId, mode: 'insensitive' },
+          isGlobal: true,
+        },
   });
 
   if (!config) {
@@ -31,7 +33,7 @@ async function setDefaultConfig(nameOrId: string) {
 
     const allConfigs = await prisma.llmConfig.findMany({
       where: { isGlobal: true },
-      select: { id: true, name: true, isDefault: true }
+      select: { id: true, name: true, isDefault: true },
     });
 
     for (const c of allConfigs) {
@@ -53,13 +55,13 @@ async function setDefaultConfig(nameOrId: string) {
   try {
     // First, unset any existing default
     const currentDefault = await prisma.llmConfig.findFirst({
-      where: { isDefault: true }
+      where: { isDefault: true },
     });
 
     if (currentDefault) {
       await prisma.llmConfig.update({
         where: { id: currentDefault.id },
-        data: { isDefault: false }
+        data: { isDefault: false },
       });
       console.log(`  Unset previous default: ${currentDefault.name}`);
     }
@@ -67,14 +69,13 @@ async function setDefaultConfig(nameOrId: string) {
     // Set new default
     await prisma.llmConfig.update({
       where: { id: config.id },
-      data: { isDefault: true }
+      data: { isDefault: true },
     });
 
     console.log(`  ✅ Set ${config.name} as default\n`);
 
     console.log('🎉 Default LLM config updated successfully!');
     console.log(`\nNew personalities will now use: ${config.name}`);
-
   } catch (error) {
     console.error('❌ Failed to set default config:', error);
     process.exit(1);
@@ -94,7 +95,7 @@ async function main() {
     console.log('Available global configs:');
     const configs = await prisma.llmConfig.findMany({
       where: { isGlobal: true },
-      select: { id: true, name: true, isDefault: true }
+      select: { id: true, name: true, isDefault: true },
     });
 
     for (const c of configs) {

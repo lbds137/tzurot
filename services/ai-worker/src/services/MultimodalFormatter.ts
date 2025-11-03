@@ -95,10 +95,7 @@ export async function formatForGemini(
         'Formatted multimodal attachment'
       );
     } catch (error) {
-      logger.error(
-        { err: error, attachment },
-        'Failed to format attachment, skipping'
-      );
+      logger.error({ err: error, attachment }, 'Failed to format attachment, skipping');
       // Continue with other attachments even if one fails
     }
   }
@@ -140,15 +137,14 @@ export async function formatForOpenRouter(
 export async function formatAttachments(
   attachments: AttachmentMetadata[] | undefined,
   provider: string
-): Promise<LangChainMediaContent[] | Array<{ type: 'image_url'; image_url: { url: string } }> | null> {
+): Promise<
+  LangChainMediaContent[] | Array<{ type: 'image_url'; image_url: { url: string } }> | null
+> {
   if (!attachments || attachments.length === 0) {
     return null;
   }
 
-  logger.info(
-    { provider, count: attachments.length },
-    'Formatting attachments for provider'
-  );
+  logger.info({ provider, count: attachments.length }, 'Formatting attachments for provider');
 
   switch (provider.toLowerCase()) {
     case 'gemini':

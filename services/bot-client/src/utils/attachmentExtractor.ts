@@ -28,6 +28,6 @@ export function extractAttachments(
     // Discord.js v14 voice message metadata
     isVoiceMessage: attachment.duration !== null,
     duration: attachment.duration ?? undefined,
-    waveform: attachment.waveform ?? undefined
+    waveform: attachment.waveform ?? undefined,
   }));
 }

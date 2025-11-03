@@ -5,6 +5,7 @@
 Tzurot v3 is a complete rewrite implementing a modern, scalable Discord bot architecture with:
 
 ### Core Features ✅
+
 - **LangChain-based RAG** for memory-augmented conversations
 - **Multi-layered canon system** (global/personal/session memories)
 - **BYOK support** (users can bring their own API keys)
@@ -79,23 +80,27 @@ tzurot-v3/
 ## Quick Start
 
 ### 1. Prerequisites
+
 - Node.js 20+
 - pnpm 8+
 - Docker & Docker Compose
 
 ### 2. Install Dependencies
+
 ```bash
 cd tzurot-v3
 pnpm install
 ```
 
 ### 3. Set Up Environment
+
 ```bash
 cp .env.example .env
 # Edit .env and add your API keys
 ```
 
 ### 4. Start Local Services
+
 ```bash
 # Start Redis and PostgreSQL (with pgvector)
 docker-compose up -d
@@ -105,6 +110,7 @@ docker-compose ps
 ```
 
 ### 5. Build All Services
+
 ```bash
 pnpm run build
 ```
@@ -112,16 +118,19 @@ pnpm run build
 ### 6. Run Services (in separate terminals)
 
 **Terminal 1 - AI Worker:**
+
 ```bash
 pnpm --filter @tzurot/ai-worker dev
 ```
 
 **Terminal 2 - API Gateway:**
+
 ```bash
 pnpm --filter @tzurot/api-gateway dev
 ```
 
 **Terminal 3 - Bot Client:**
+
 ```bash
 pnpm --filter @tzurot/bot-client dev
 ```
@@ -129,6 +138,7 @@ pnpm --filter @tzurot/bot-client dev
 ## What's Implemented
 
 ### ✅ ai-worker Service (Complete)
+
 - BullMQ worker that processes AI generation jobs
 - VectorMemoryManager with multi-layered canons
 - ConversationalRAGService using LangChain
@@ -138,7 +148,9 @@ pnpm --filter @tzurot/bot-client dev
 - Railway-ready deployment
 
 ### 🚧 api-gateway Service (TODO)
+
 **Needs:**
+
 - Express HTTP server
 - BullMQ Queue initialization
 - POST `/ai/generate` endpoint
@@ -146,7 +158,9 @@ pnpm --filter @tzurot/bot-client dev
 - Authentication middleware (for BYOK)
 
 ### 🚧 bot-client Service (TODO)
+
 **Needs:**
+
 - Discord.js client initialization
 - Message event handler
 - Command registration
@@ -158,6 +172,7 @@ pnpm --filter @tzurot/bot-client dev
 ### Adding a New Personality
 
 1. Create a JSON file in `personalities/`:
+
 ```json
 {
   "name": "YourPersonality",
@@ -178,18 +193,20 @@ Once api-gateway and bot-client are implemented, you can test the full flow. For
 import { Queue } from 'bullmq';
 
 const queue = new Queue('ai-requests', {
-  connection: { host: 'localhost', port: 6379 }
+  connection: { host: 'localhost', port: 6379 },
 });
 
 await queue.add('generate', {
   requestId: 'test-123',
   jobType: 'generate',
-  personality: { /* your personality config */ },
+  personality: {
+    /* your personality config */
+  },
   message: 'Hello!',
   context: {
     userId: 'user-123',
-    userName: 'TestUser'
-  }
+    userName: 'TestUser',
+  },
 });
 ```
 
@@ -204,13 +221,13 @@ const memoryManager = new VectorMemoryManager();
 await memoryManager.initialize();
 
 await memoryManager.addMemory({
-  text: 'User: I love hiking. Lilith: That\'s wonderful! Nature is so healing.',
+  text: "User: I love hiking. Lilith: That's wonderful! Nature is so healing.",
   metadata: {
     personalityId: 'lilith',
     userId: 'user-123',
     canonScope: 'personal',
-    timestamp: Date.now()
-  }
+    timestamp: Date.now(),
+  },
 });
 ```
 
@@ -219,17 +236,22 @@ await memoryManager.addMemory({
 See `.env.example` for all available environment variables.
 
 **Critical variables:**
+
 - `DISCORD_TOKEN` - Your Discord bot token
 - `OPENROUTER_API_KEY` - For LLM completions
 - `OPENAI_API_KEY` - For embeddings
 - `REDIS_URL` / `REDIS_HOST` - Redis connection
+
 # No QDRANT_URL needed - pgvector uses DATABASE_URL
+
 # No QDRANT_API_KEY needed - pgvector uses DATABASE_URL
+
 - `DATABASE_URL` - PostgreSQL for BYOK credentials
 
 ## Next Steps
 
 ### Immediate TODOs
+
 1. **Implement api-gateway** - Create Express server with job queue
 2. **Implement bot-client** - Discord message handling
 3. **Test end-to-end** - Discord → gateway → worker → response
@@ -237,6 +259,7 @@ See `.env.example` for all available environment variables.
 5. **Create data ingestion** - Import Shapes.inc/SpicyChat backups
 
 ### Future Enhancements
+
 6. **LangGraph "Free Will" agent** - Decides when personalities should speak
 7. **Relationship dynamics** - Canon reconciliation for evolving relationships
 8. **Voice synthesis** - ElevenLabs integration
@@ -246,6 +269,7 @@ See `.env.example` for all available environment variables.
 ## Debugging
 
 ### Check Service Health
+
 ```bash
 # ai-worker health
 curl http://localhost:3001/health
@@ -255,6 +279,7 @@ curl http://localhost:3001/health
 ```
 
 ### View Logs
+
 ```bash
 # Docker services
 docker-compose logs -f
@@ -266,15 +291,18 @@ pnpm --filter @tzurot/ai-worker dev  # Logs to stdout
 ### Common Issues
 
 **"pgvector Connection Issues"**
+
 - Ensure Docker Compose is running: `docker-compose ps`
 - Check PostgreSQL logs: `docker-compose logs postgres`
 - Verify DATABASE_URL is set correctly and pgvector extension is enabled
 
 **"No API key available"**
+
 - Set OPENROUTER_API_KEY or OPENAI_API_KEY in .env
 - For BYOK, user must provide their own key
 
 **"Worker not processing jobs"**
+
 - Check Redis connection: `docker-compose logs redis`
 - Verify REDIS_URL or REDIS_HOST/PORT in .env
 - Check worker logs for connection errors
@@ -282,12 +310,14 @@ pnpm --filter @tzurot/ai-worker dev  # Logs to stdout
 ## Contributing
 
 This is a personal project, but the architecture is designed to be:
+
 - **Modular** - Each service can be developed/tested independently
 - **Maintainable** - Clear separation of concerns
 - **Scalable** - Microservices can scale horizontally
 - **Testable** - Mock-friendly dependency injection
 
 When making changes:
+
 1. Follow TypeScript best practices
 2. Add JSDoc comments for public APIs
 3. Keep services loosely coupled
@@ -298,18 +328,21 @@ When making changes:
 ## Architecture Decisions
 
 ### Why Microservices?
+
 - Avoid the monolithic mess of v1/v2
 - Independent scaling (worker can have more replicas)
 - Clear boundaries between concerns
 - Easier to debug and maintain
 
 ### Why LangChain?
+
 - Built-in RAG support
 - Memory management out of the box
 - Tool calling for agentic behavior
 - Active community and updates
 
 ### Why pgvector?
+
 - PostgreSQL extension - no separate vector database needed
 - Production-grade performance and scalability
 - Included in Railway's PostgreSQL addon (no extra cost)
@@ -317,6 +350,7 @@ When making changes:
 - Simplifies deployment (one less service to manage)
 
 ### Why BullMQ?
+
 - Redis-based (Railway has Redis addon)
 - Robust job processing
 - Good observability

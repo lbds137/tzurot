@@ -13,7 +13,7 @@ export type {
   GenerateResponse,
   ApiConversationMessage,
   AttachmentMetadata,
-  JobResult
+  JobResult,
 } from '@tzurot/common-types';
 
 // Re-export ErrorCode for convenience

@@ -25,18 +25,21 @@
 ### Core Principles
 
 **Test Behavior, Not Implementation**
+
 - Focus on WHAT code does, not HOW it does it
 - Test the public API only
 - Don't test private methods or internal state
 - If you need to test implementation details, extract them to a separate tested module
 
 **Keep Tests Simple and Readable**
+
 - Clear, descriptive test names
 - One assertion per concept
 - Arrange-Act-Assert pattern
 - Comment WHY when the behavior is non-obvious
 
 **Mock External Dependencies**
+
 - Database calls → Mock PersonalityService, UserService, etc.
 - API calls → Mock AI providers, Discord API
 - Time-based code → Use fake timers
@@ -44,6 +47,7 @@
 - Never hit real external services in unit tests
 
 **Fast and Isolated**
+
 - Tests should run in milliseconds
 - Each test is independent
 - No shared state between tests
@@ -77,11 +81,13 @@ services/bot-client/
 ### Configuration Files
 
 **Root `/vitest.config.ts`:** Shared configuration for all services
+
 - Fake timers enabled by default
 - Coverage settings
 - Test environment (Node.js)
 
 **Service `/services/*/vitest.config.ts`:** Extends root config
+
 - Service-specific test patterns
 - Setup files
 - Path aliases
@@ -140,11 +146,13 @@ describe('Module Name', () => {
 ### Test Naming Conventions
 
 **Good:**
+
 - ✅ `should find single-word personality mention`
 - ✅ `should return null when no personality is mentioned`
 - ✅ `should prioritize multi-word over single-word personalities`
 
 **Bad:**
+
 - ❌ `test1`
 - ❌ `it works`
 - ❌ `findPersonalityMention returns Lilith`
@@ -154,6 +162,7 @@ describe('Module Name', () => {
 ### What to Test
 
 **✅ DO Test:**
+
 - Public API functions
 - Edge cases (empty strings, null, undefined)
 - Error conditions
@@ -161,6 +170,7 @@ describe('Module Name', () => {
 - Boundary conditions
 
 **❌ DON'T Test:**
+
 - Private methods
 - Implementation details (regex patterns, loops)
 - External library behavior
@@ -179,12 +189,8 @@ describe('Module Name', () => {
 import { vi } from 'vitest';
 import type { PersonalityService } from '@tzurot/common-types';
 
-export function createMockPersonalityService(
-  personalities: MockPersonality[]
-): PersonalityService {
-  const personalityMap = new Map(
-    personalities.map((p) => [p.name.toLowerCase(), p])
-  );
+export function createMockPersonalityService(personalities: MockPersonality[]): PersonalityService {
+  const personalityMap = new Map(personalities.map(p => [p.name.toLowerCase(), p]));
 
   return {
     loadPersonality: vi.fn(async (name: string) => {
@@ -271,6 +277,7 @@ describe('Timer-based code', () => {
 **⚠️ Common Issue:** When testing code that rejects promises after timer delays (e.g., retry logic, timeouts), you may see `PromiseRejectionHandledWarning` even though tests pass.
 
 **The Problem:** A race condition between timer advancement and handler attachment:
+
 1. Create promise (no handler yet)
 2. Advance timers → rejection occurs
 3. Promise rejected with NO handler → warning
@@ -363,6 +370,7 @@ pnpm test --grep "Priority Rules"
 ### CI/CD Integration
 
 Tests run automatically on:
+
 - Pre-commit hooks (future)
 - Pull request CI (future)
 - Before deployments (future)
@@ -372,6 +380,7 @@ Tests run automatically on:
 ## Examples
 
 See [personalityMentionParser.test.ts](../../services/bot-client/src/utils/personalityMentionParser.test.ts) for a complete example demonstrating:
+
 - Mocking dependencies
 - Testing behavior vs implementation
 - Edge case handling
@@ -406,12 +415,14 @@ See [personalityMentionParser.test.ts](../../services/bot-client/src/utils/perso
 ## Coverage Goals
 
 **Current Status:**
+
 - ✅ `personalityMentionParser` - 100% coverage (example)
 - ⏳ Core utilities - Expanding
 - 🚧 Services - Future
 - 🚧 Integration tests - Future
 
 **Priorities:**
+
 1. Critical path code (mention parsing, message handling)
 2. Business logic (personality loading, memory retrieval)
 3. Utilities (formatters, validators)

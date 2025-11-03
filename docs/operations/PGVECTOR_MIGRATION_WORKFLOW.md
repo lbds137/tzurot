@@ -55,6 +55,7 @@ npx prisma migrate dev --name add_pending_memory_attempts_index
 ```
 
 That's it! Prisma will:
+
 - Generate the migration SQL automatically
 - Create the migration file in `prisma/migrations/`
 - Apply it to your development database
@@ -91,6 +92,7 @@ npx prisma migrate status
 ```
 
 Expected output:
+
 ```
 Database schema is up to date!
 ```
@@ -110,6 +112,7 @@ psql $DATABASE_URL -c "SELECT migration_name, finished_at FROM _prisma_migration
 **Cause**: Migration SQL was run directly on database before running `prisma migrate deploy`
 
 **Fix**:
+
 ```bash
 npx prisma migrate resolve --applied <migration_name>
 ```
@@ -119,6 +122,7 @@ npx prisma migrate resolve --applied <migration_name>
 **Cause**: Changed migration file after it was applied to database
 
 **Fix**:
+
 ```bash
 # Remove migration from database
 psql $DATABASE_URL -c "DELETE FROM _prisma_migrations WHERE migration_name = 'MIGRATION_NAME';"
@@ -206,6 +210,7 @@ RUN npx prisma migrate deploy  # ← Runs migrations
 **Q**: Why can't we just use `prisma db push`?
 
 **A**: `prisma db push` skips migration history entirely. This means:
+
 - No rollback capability
 - No audit trail of schema changes
 - Harder to sync dev/production

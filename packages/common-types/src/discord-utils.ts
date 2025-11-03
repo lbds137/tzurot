@@ -14,11 +14,11 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
   }
 
   const chunks: string[] = [];
-  
+
   // First try to split on double newlines (paragraphs)
   const paragraphs = content.split(/\n\n+/);
   let currentChunk = '';
-  
+
   for (const paragraph of paragraphs) {
     // If a single paragraph is too long, we need to split it further
     if (paragraph.length > maxLength) {
@@ -27,10 +27,10 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
         chunks.push(currentChunk.trim());
         currentChunk = '';
       }
-      
+
       // Split long paragraph on sentences (preserving all text including unpunctuated parts)
       const sentences = paragraph.split(/(?<=[.!?])\s+/);
-      
+
       for (const sentence of sentences) {
         // If even a sentence is too long, split on words
         if (sentence.length > maxLength) {
@@ -39,7 +39,7 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
             chunks.push(currentChunk.trim());
             currentChunk = '';
           }
-          
+
           // Split on word boundaries
           const words = sentence.split(/\s+/);
           for (const word of words) {
@@ -49,7 +49,7 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
                 chunks.push(currentChunk.trim());
                 currentChunk = '';
               }
-              
+
               // Force split long word/URL
               for (let i = 0; i < word.length; i += maxLength - 10) {
                 chunks.push(word.slice(i, i + maxLength - 10) + '...');
@@ -77,12 +77,12 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
       currentChunk = currentChunk ? currentChunk + '\n\n' + paragraph : paragraph;
     }
   }
-  
+
   // Don't forget the last chunk
   if (currentChunk) {
     chunks.push(currentChunk.trim());
   }
-  
+
   return chunks.filter(chunk => chunk.length > 0);
 }
 

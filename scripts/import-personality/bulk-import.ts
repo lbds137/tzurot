@@ -123,7 +123,9 @@ class BulkPersonalityImporter {
 
       console.log(`✅ Loaded ${this.uuidMappings.size} UUID mappings\n`);
     } catch (error) {
-      console.warn('⚠️  No UUID mappings file found - all memories will be stored in legacy collections\n');
+      console.warn(
+        '⚠️  No UUID mappings file found - all memories will be stored in legacy collections\n'
+      );
     }
   }
 
@@ -186,7 +188,10 @@ class BulkPersonalityImporter {
   /**
    * Import a single personality
    */
-  private async importOne(slug: string, options: BulkImportOptions): Promise<{ status: 'success' | 'error'; reason?: string; name?: string }> {
+  private async importOne(
+    slug: string,
+    options: BulkImportOptions
+  ): Promise<{ status: 'success' | 'error'; reason?: string; name?: string }> {
     try {
       console.log(`\n${'='.repeat(80)}`);
       console.log(`Importing: ${slug}`);
@@ -212,7 +217,9 @@ class BulkPersonalityImporter {
       // Apply name overrides for duplicates (unique mention name, but same display name)
       if (DUPLICATE_NAME_OVERRIDES[slug]) {
         const override = DUPLICATE_NAME_OVERRIDES[slug];
-        console.log(`  Applying name override: "${v3Data.personality.name}" → "${override.name}" (display: "${override.displayName}")`);
+        console.log(
+          `  Applying name override: "${v3Data.personality.name}" → "${override.name}" (display: "${override.displayName}")`
+        );
         v3Data.personality.name = override.name;
         v3Data.personality.displayName = override.displayName;
       }
@@ -228,7 +235,9 @@ class BulkPersonalityImporter {
       });
 
       if (existing && !options.force) {
-        console.log(`⚠️  Personality ${v3Data.personality.slug} already exists (use --force to overwrite)`);
+        console.log(
+          `⚠️  Personality ${v3Data.personality.slug} already exists (use --force to overwrite)`
+        );
         return { status: 'success', reason: 'already exists', name: shapesConfig.name };
       }
 
@@ -257,7 +266,7 @@ class BulkPersonalityImporter {
       const avatarBytes = await this.loadAvatarBytes(slug);
 
       // Create in database
-      const result = await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async tx => {
         // Create or update personality
         const personality = existing
           ? await tx.personality.update({
@@ -360,7 +369,9 @@ class BulkPersonalityImporter {
     const duplicatesWithOverrides = allSlugs.filter(slug => DUPLICATE_NAME_OVERRIDES[slug]);
 
     if (duplicatesWithOverrides.length > 0) {
-      console.log(`Found ${duplicatesWithOverrides.length} personalities with duplicate display names (will use unique mention names):`);
+      console.log(
+        `Found ${duplicatesWithOverrides.length} personalities with duplicate display names (will use unique mention names):`
+      );
       duplicatesWithOverrides.forEach(slug => {
         const override = DUPLICATE_NAME_OVERRIDES[slug];
         console.log(`  - ${slug} → @${override.name} (shows as "${override.displayName}")`);
@@ -382,7 +393,12 @@ class BulkPersonalityImporter {
     for (let i = 0; i < slugsToImport.length; i++) {
       const slug = slugsToImport[i];
       const result = await this.importOne(slug, options);
-      summary.results.push({ slug, status: result.status, reason: result.reason, name: result.name });
+      summary.results.push({
+        slug,
+        status: result.status,
+        reason: result.reason,
+        name: result.name,
+      });
 
       if (result.status === 'success') {
         summary.successful++;
@@ -451,14 +467,14 @@ Examples:
 
   // Parse delay arguments
   const delayIndex = args.indexOf('--delay');
-  const delayMs = delayIndex !== -1 && args[delayIndex + 1]
-    ? parseInt(args[delayIndex + 1], 10)
-    : 2000; // Default 2 second delay
+  const delayMs =
+    delayIndex !== -1 && args[delayIndex + 1] ? parseInt(args[delayIndex + 1], 10) : 2000; // Default 2 second delay
 
   const memoryDelayIndex = args.indexOf('--memory-delay');
-  const memoryDelayMs = memoryDelayIndex !== -1 && args[memoryDelayIndex + 1]
-    ? parseInt(args[memoryDelayIndex + 1], 10)
-    : 200; // Default 200ms delay between memories
+  const memoryDelayMs =
+    memoryDelayIndex !== -1 && args[memoryDelayIndex + 1]
+      ? parseInt(args[memoryDelayIndex + 1], 10)
+      : 200; // Default 200ms delay between memories
 
   const options: BulkImportOptions = {
     dryRun: args.includes('--dry-run'),
@@ -473,7 +489,7 @@ Examples:
   await importer.bulkImport(options);
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('Fatal error:', error);
   process.exit(1);
 });

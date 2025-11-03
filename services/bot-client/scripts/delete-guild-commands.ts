@@ -33,14 +33,12 @@ async function deleteGuildCommands(): Promise<void> {
 
     const rest = new REST().setToken(token);
 
-    await rest.put(
-      Routes.applicationGuildCommands(clientId, guildId),
-      { body: [] }
-    );
+    await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: [] });
 
     console.log('✅ Successfully deleted all guild-specific commands');
-    console.log('📝 Global commands will still appear in this guild (propagation can take up to 1 hour)');
-
+    console.log(
+      '📝 Global commands will still appear in this guild (propagation can take up to 1 hour)'
+    );
   } catch (error) {
     console.error('❌ Error deleting commands:', error);
     process.exit(1);

@@ -49,16 +49,19 @@ railway run --environment development psql < backups/backup-*.sql
 **What it does**: [Clear explanation]
 
 **SQL/Command**:
+
 ```bash
 # Your command here
 ```
 
 **Expected output**:
+
 ```
 [What you should see]
 ```
 
 **Verification**:
+
 ```bash
 # How to verify this step worked
 ```
@@ -147,11 +150,13 @@ railway run psql -c "SELECT * FROM pg_stat_activity WHERE datname = 'railway';"
 **Symptoms**: [What you'll see]
 
 **Diagnosis**:
+
 ```bash
 # How to check if this is the problem
 ```
 
 **Fix**:
+
 ```bash
 # How to fix it
 ```
@@ -175,6 +180,7 @@ Record what actually happened during the migration:
 **Rollback Required**: [Yes/No]
 
 **Notes**:
+
 - [Any observations]
 - [Unexpected behavior]
 - [Performance impact]

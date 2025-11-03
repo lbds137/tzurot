@@ -30,13 +30,10 @@ export interface ErrorDetails {
  * @param additionalContext - Optional additional context to include
  * @returns Structured error details
  */
-export function createErrorDetails(
-  error: unknown,
-  additionalContext?: ErrorContext
-): ErrorDetails {
+export function createErrorDetails(error: unknown, additionalContext?: ErrorContext): ErrorDetails {
   const details: ErrorDetails = {
     errorType: error instanceof Error ? error.constructor.name : typeof error,
-    errorMessage: error instanceof Error ? error.message : String(error)
+    errorMessage: error instanceof Error ? error.message : String(error),
   };
 
   if (additionalContext) {

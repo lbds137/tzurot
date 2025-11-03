@@ -6,13 +6,20 @@ import { MODEL_DEFAULTS } from './modelDefaults.js';
  * Rejects empty strings, but allows undefined
  */
 const optionalNonEmptyString = () =>
-  z.string().min(1).optional().or(z.literal('').transform(() => undefined));
+  z
+    .string()
+    .min(1)
+    .optional()
+    .or(z.literal('').transform(() => undefined));
 
 /**
  * Helper for optional Discord IDs (must be all digits if provided)
  */
 const optionalDiscordId = () =>
-  z.string().regex(/^\d+$/, 'Must be a valid Discord ID (all digits)').optional()
+  z
+    .string()
+    .regex(/^\d+$/, 'Must be a valid Discord ID (all digits)')
+    .optional()
     .or(z.literal('').transform(() => undefined));
 
 /**
@@ -24,8 +31,14 @@ export const envSchema = z.object({
   DISCORD_TOKEN: optionalNonEmptyString(), // Only required for bot-client
   DISCORD_CLIENT_ID: optionalDiscordId(),
   GUILD_ID: optionalDiscordId(), // Optional - for dev/testing command deployment
-  AUTO_DEPLOY_COMMANDS: z.enum(['true', 'false']).optional().or(z.literal('').transform(() => undefined)), // 'true' to auto-deploy slash commands on bot startup
-  AUTO_TRANSCRIBE_VOICE: z.enum(['true', 'false']).optional().or(z.literal('').transform(() => undefined)), // 'true' to automatically transcribe voice messages as bot
+  AUTO_DEPLOY_COMMANDS: z
+    .enum(['true', 'false'])
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // 'true' to auto-deploy slash commands on bot startup
+  AUTO_TRANSCRIBE_VOICE: z
+    .enum(['true', 'false'])
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // 'true' to automatically transcribe voice messages as bot
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
@@ -34,7 +47,7 @@ export const envSchema = z.object({
   OPENROUTER_API_KEY: optionalNonEmptyString(),
   OPENAI_API_KEY: optionalNonEmptyString(),
   ANTHROPIC_API_KEY: optionalNonEmptyString(),
-  DEFAULT_AI_MODEL: optionalNonEmptyString().transform((val) => val ?? MODEL_DEFAULTS.DEFAULT_MODEL),
+  DEFAULT_AI_MODEL: optionalNonEmptyString().transform(val => val ?? MODEL_DEFAULTS.DEFAULT_MODEL),
 
   // AI Model Defaults
   WHISPER_MODEL: z.string().default(MODEL_DEFAULTS.WHISPER),
@@ -42,21 +55,50 @@ export const envSchema = z.object({
   EMBEDDING_MODEL: z.string().default(MODEL_DEFAULTS.EMBEDDING),
 
   // Redis Configuration
-  REDIS_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // Railway provides this, no default!
+  REDIS_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // Railway provides this, no default!
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(6379),
   REDIS_PASSWORD: optionalNonEmptyString(),
 
   // Database Configuration
-  DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
-  DEV_DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For db-sync: development database URL
-  PROD_DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For db-sync: production database URL
+  DATABASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  DEV_DATABASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // For db-sync: development database URL
+  PROD_DATABASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // For db-sync: production database URL
 
   // API Gateway Configuration
   API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default(3000),
-  GATEWAY_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)).transform((val) => val ?? 'http://localhost:3000'), // Internal URL for API calls (bot-client -> api-gateway)
-  PUBLIC_GATEWAY_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // Public HTTPS URL for external resources (Discord avatar fetching)
-  CORS_ORIGINS: z.string().optional().transform((val) => val?.split(',') ?? ['*']).default(['*']),
+  GATEWAY_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined))
+    .transform(val => val ?? 'http://localhost:3000'), // Internal URL for API calls (bot-client -> api-gateway)
+  PUBLIC_GATEWAY_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal('').transform(() => undefined)), // Public HTTPS URL for external resources (Discord avatar fetching)
+  CORS_ORIGINS: z
+    .string()
+    .optional()
+    .transform(val => val?.split(',') ?? ['*'])
+    .default(['*']),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -71,7 +113,10 @@ export const envSchema = z.object({
   // Worker Configuration
   WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default(5),
   QUEUE_NAME: z.string().default('ai-requests'),
-  ENABLE_HEALTH_SERVER: z.string().transform((val) => val !== 'false').default(true),
+  ENABLE_HEALTH_SERVER: z
+    .string()
+    .transform(val => val !== 'false')
+    .default(true),
   PORT: z.string().regex(/^\d+$/).transform(Number).default(3001),
 });
 
@@ -86,13 +131,13 @@ export function validateEnv(): EnvConfig {
     return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const issues = error.issues.map(issue => 
-        `  - ${issue.path.join('.')}: ${issue.message}`
-      ).join('\n');
-      
+      const issues = error.issues
+        .map(issue => `  - ${issue.path.join('.')}: ${issue.message}`)
+        .join('\n');
+
       throw new Error(
         `Environment validation failed:\n${issues}\n\n` +
-        'Please check your .env file and ensure all required variables are set.'
+          'Please check your .env file and ensure all required variables are set.'
       );
     }
     throw error;

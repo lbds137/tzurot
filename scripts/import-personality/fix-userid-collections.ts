@@ -40,8 +40,8 @@ async function findMisnamedCollections(): Promise<MisnamedCollection[]> {
 
   // Get all persona collections
   const response = await qdrant.getCollections();
-  const personaCollections = response.collections.filter(c =>
-    c.name.startsWith('persona-') && !c.name.startsWith('persona-legacy-')
+  const personaCollections = response.collections.filter(
+    c => c.name.startsWith('persona-') && !c.name.startsWith('persona-legacy-')
   );
 
   console.log(`Found ${personaCollections.length} persona collections\\n`);
@@ -59,8 +59,8 @@ async function findMisnamedCollections(): Promise<MisnamedCollection[]> {
         id: true,
         username: true,
         defaultPersonaLink: {
-          select: { personaId: true }
-        }
+          select: { personaId: true },
+        },
       },
     });
 
@@ -74,7 +74,9 @@ async function findMisnamedCollections(): Promise<MisnamedCollection[]> {
         correctCollection = await qdrant.getCollection(correctCollectionName);
       } catch (error) {
         // Correct collection doesn't exist yet - we'll create it during merge
-        console.log(`⚠️  User ${user.username} has user-ID collection but no persona-ID collection yet`);
+        console.log(
+          `⚠️  User ${user.username} has user-ID collection but no persona-ID collection yet`
+        );
       }
 
       const userIdCollection = await qdrant.getCollection(collection.name);
@@ -227,7 +229,9 @@ async function fixCollection(
     });
 
     moved += batch.length;
-    console.log(`   ✅ Moved batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories (${moved}/${pointsToMove.length})`);
+    console.log(
+      `   ✅ Moved batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories (${moved}/${pointsToMove.length})`
+    );
 
     // Small delay
     await new Promise(resolve => setTimeout(resolve, 100));

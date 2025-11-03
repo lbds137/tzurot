@@ -42,10 +42,7 @@ const loggedPersonalities = new Set<string>();
  * // Returns: 'I am Emily' (unchanged - not at beginning)
  * ```
  */
-export function stripPersonalityPrefix(
-  content: string,
-  personalityName: string
-): string {
+export function stripPersonalityPrefix(content: string, personalityName: string): string {
   // Get cached pattern or create new one
   let prefixPattern = patternCache.get(personalityName);
 
@@ -70,10 +67,10 @@ export function stripPersonalityPrefix(
         {
           personalityName,
           originalPrefix: content.substring(0, Math.min(100, content.indexOf('\n') || 100)),
-          wasStripped: true
+          wasStripped: true,
         },
         '[ResponseCleanup] Stripped personality prefix from response (model ignored prompt instructions). ' +
-        'Further occurrences for this personality will not be logged.'
+          'Further occurrences for this personality will not be logged.'
       );
       loggedPersonalities.add(personalityName);
     }

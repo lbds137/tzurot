@@ -5,15 +5,19 @@
  */
 
 import { createClient, type RedisClientType } from 'redis';
-import { createLogger, getConfig, parseRedisUrl, createRedisSocketConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  parseRedisUrl,
+  createRedisSocketConfig,
+} from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
 const config = getConfig();
 
 // Get Redis connection config from environment
-const parsedUrl = config.REDIS_URL && config.REDIS_URL.length > 0
-  ? parseRedisUrl(config.REDIS_URL)
-  : null;
+const parsedUrl =
+  config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
 
 const redisConfig = createRedisSocketConfig({
   host: parsedUrl?.host || config.REDIS_HOST,
@@ -23,19 +27,22 @@ const redisConfig = createRedisSocketConfig({
   family: 6, // Railway private network uses IPv6
 });
 
-logger.info({
-  host: redisConfig.socket.host,
-  port: redisConfig.socket.port,
-  hasPassword: redisConfig.password !== undefined,
-  connectTimeout: redisConfig.socket.connectTimeout,
-  commandTimeout: redisConfig.socket.commandTimeout
-}, '[Redis] Redis config:');
+logger.info(
+  {
+    host: redisConfig.socket.host,
+    port: redisConfig.socket.port,
+    hasPassword: redisConfig.password !== undefined,
+    connectTimeout: redisConfig.socket.connectTimeout,
+    commandTimeout: redisConfig.socket.commandTimeout,
+  },
+  '[Redis] Redis config:'
+);
 
 // Create Redis client
 export const redis: RedisClientType = createClient(redisConfig) as RedisClientType;
 
 // Error handling
-redis.on('error', (error) => {
+redis.on('error', error => {
   logger.error({ err: error }, '[Redis] Redis client error');
 });
 
@@ -44,7 +51,7 @@ redis.on('connect', () => {
 });
 
 // Connect on startup
-redis.connect().catch((error) => {
+redis.connect().catch(error => {
   logger.error({ err: error }, '[Redis] Failed to connect to Redis');
 });
 

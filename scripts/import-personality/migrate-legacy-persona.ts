@@ -148,7 +148,6 @@ class LegacyPersonaMigration {
         });
         console.log('');
       }
-
     } catch (error) {
       console.error('\n❌ Migration failed:', error);
       throw error;
@@ -162,7 +161,9 @@ class LegacyPersonaMigration {
   /**
    * Resolve v3 user by Discord ID or user ID
    */
-  private async resolveUser(options: MigrationOptions): Promise<{ userId: string; personaId: string }> {
+  private async resolveUser(
+    options: MigrationOptions
+  ): Promise<{ userId: string; personaId: string }> {
     let user;
 
     if (options.discordId) {
@@ -170,9 +171,9 @@ class LegacyPersonaMigration {
         where: { discordId: options.discordId },
         include: {
           defaultPersonaLink: {
-            select: { personaId: true }
-          }
-        }
+            select: { personaId: true },
+          },
+        },
       });
 
       if (!user) {
@@ -183,9 +184,9 @@ class LegacyPersonaMigration {
         where: { id: options.v3UserId },
         include: {
           defaultPersonaLink: {
-            select: { personaId: true }
-          }
-        }
+            select: { personaId: true },
+          },
+        },
       });
 
       if (!user) {
@@ -201,7 +202,7 @@ class LegacyPersonaMigration {
 
     return {
       userId: user.id,
-      personaId: user.defaultPersonaLink.personaId
+      personaId: user.defaultPersonaLink.personaId,
     };
   }
 
@@ -297,11 +298,13 @@ class LegacyPersonaMigration {
             };
 
             await this.qdrant.upsert(targetCollectionName, {
-              points: [{
-                id: point.id,
-                vector: point.vector as number[],
-                payload: updatedPayload
-              }]
+              points: [
+                {
+                  id: point.id,
+                  vector: point.vector as number[],
+                  payload: updatedPayload,
+                },
+              ],
             });
 
             migratedCount++;
@@ -312,7 +315,7 @@ class LegacyPersonaMigration {
           } catch (error) {
             errors.push({
               memoryId: String(point.id),
-              error: error instanceof Error ? error.message : String(error)
+              error: error instanceof Error ? error.message : String(error),
             });
           }
         }
@@ -384,7 +387,7 @@ Examples:
   await migration.migrate(options);
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('Fatal error:', error);
   process.exit(1);
 });

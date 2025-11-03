@@ -16,9 +16,9 @@ async function findRefusalSpam() {
     'I cannot create',
     'I cannot assist',
     'I apologize, but I cannot',
-    'I\'m not able to',
+    "I'm not able to",
     'I cannot help with',
-    'I\'m unable to'
+    "I'm unable to",
   ];
 
   const refusalMemories = [];
@@ -46,7 +46,7 @@ async function findRefusalSpam() {
             userId: point.payload.userId,
             content: content,
             timestamp: point.payload.createdAt || point.payload.timestamp,
-            senders: point.payload.senders || []
+            senders: point.payload.senders || [],
           });
           break; // Only count once per memory
         }
