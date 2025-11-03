@@ -487,15 +487,20 @@ export class ConversationalRAGService {
       : '';
 
     // Referenced messages (from replies and message links)
-    logger.info({
-      hasReferencedMessages: !!context.referencedMessages,
-      referencedMessagesCount: context.referencedMessages?.length || 0,
-      referencedMessagesType: typeof context.referencedMessages
-    }, '[RAG] Checking for referenced messages in context');
+    logger.info(
+      `[RAG] Checking referenced messages: ` +
+      `exists=${!!context.referencedMessages}, ` +
+      `type=${typeof context.referencedMessages}, ` +
+      `isArray=${Array.isArray(context.referencedMessages)}, ` +
+      `length=${context.referencedMessages?.length || 0}, ` +
+      `value=${JSON.stringify(context.referencedMessages).substring(0, 200)}`
+    );
 
     const referencesContext = context.referencedMessages && context.referencedMessages.length > 0
       ? `\n\n${await this.formatReferencedMessages(context.referencedMessages, personality)}`
       : '';
+
+    logger.info(`[RAG] referencesContext length after formatting: ${referencesContext.length}`);
 
     // Conversation participants - ALL people involved
     let participantsContext = '';
