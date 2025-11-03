@@ -637,11 +637,11 @@ export class ConversationalRAGService {
       lines.push(`Time: ${ref.timestamp}`);
 
       if (ref.content) {
-        lines.push(`\nContent:\n${ref.content}`);
+        lines.push(`\nMessage Text:\n${ref.content}`);
       }
 
       if (ref.embeds) {
-        lines.push(`\n${ref.embeds}`);
+        lines.push(`\nMessage Embeds (structured data from Discord):\n${ref.embeds}`);
       }
 
       // Process attachments (images, voice messages, etc.)
