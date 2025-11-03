@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **AI Personality Webhook Persona Creation Bug (PR #212)** - Webhooks from AI personalities no longer create erroneous persona records
+  - Implemented dual webhook detection: Redis cache (7-day TTL) + Discord webhookId property
+  - Prevents creating duplicate persona records for bot's own AI responses
+  - Supports future PluralKit integration (detects all webhooks, not just bot's own)
+  - Added graceful Redis error handling with fallback to webhookId detection
+  - Comprehensive test coverage: 3 new webhook detection tests including Redis error scenario
+
+### Changed
+
+- **BREAKING**: `ReferencedMessage` schema now requires `discordMessageId` field
+  - Required for webhook detection and deduplication
+  - All new messages include this field automatically
+  - Impact: Any stored/serialized `ReferencedMessage` data without this field will fail validation
+  - Mitigation: Field is only used in transient message processing (not stored long-term)
+
 ## [3.0.0-alpha.23] - 2025-11-03
 
 ### Added
