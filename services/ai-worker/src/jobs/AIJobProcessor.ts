@@ -259,7 +259,8 @@ export class AIJobProcessor {
           oldestHistoryTimestamp,
           participants,
           attachments: context.attachments,
-          environment: context.environment
+          environment: context.environment,
+          referencedMessages: context.referencedMessages
         },
         userApiKey
       );
