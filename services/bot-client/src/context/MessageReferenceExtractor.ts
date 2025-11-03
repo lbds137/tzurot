@@ -41,6 +41,13 @@ export interface ReferenceExtractionOptions {
   maxReferences?: number;
   /** Delay in ms before fetching to allow Discord to process embeds (default: 2500ms) */
   embedProcessingDelayMs?: number;
+  /** Discord message IDs from conversation history (for deduplication) */
+  conversationHistoryMessageIds?: string[];
+  /** Timestamp range of conversation history (for fuzzy deduplication of old messages) */
+  conversationHistoryTimeRange?: {
+    oldest: Date;
+    newest: Date;
+  };
 }
 
 /**
@@ -50,10 +57,17 @@ export interface ReferenceExtractionOptions {
 export class MessageReferenceExtractor {
   private readonly maxReferences: number;
   private readonly embedProcessingDelayMs: number;
+  private conversationHistoryMessageIds: Set<string>;
+  private conversationHistoryTimeRange?: {
+    oldest: Date;
+    newest: Date;
+  };
 
   constructor(options: ReferenceExtractionOptions = {}) {
     this.maxReferences = options.maxReferences ?? 10;
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? 2500;
+    this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
+    this.conversationHistoryTimeRange = options.conversationHistoryTimeRange;
   }
 
   /**
@@ -101,6 +115,13 @@ export class MessageReferenceExtractor {
   private async extractReplyReference(message: Message): Promise<ReferencedMessage | null> {
     try {
       const referencedMessage = await message.fetchReference();
+
+      // Skip if message is already in conversation history
+      if (!this.shouldIncludeReference(referencedMessage)) {
+        logger.debug(`[MessageReferenceExtractor] Skipping reply reference ${referencedMessage.id} - already in conversation history`);
+        return null;
+      }
+
       return this.formatReferencedMessage(referencedMessage, 1);
     } catch (error) {
       // Silently skip inaccessible messages
@@ -124,6 +145,12 @@ export class MessageReferenceExtractor {
     for (const link of links) {
       const referencedMessage = await this.fetchMessageFromLink(link, message);
       if (referencedMessage) {
+        // Skip if message is already in conversation history
+        if (!this.shouldIncludeReference(referencedMessage)) {
+          logger.debug(`[MessageReferenceExtractor] Skipping link reference ${referencedMessage.id} - already in conversation history`);
+          continue;
+        }
+
         references.push(this.formatReferencedMessage(referencedMessage, startNumber));
         startNumber++;
       }
@@ -228,6 +255,32 @@ export class MessageReferenceExtractor {
       logger.debug(`[MessageReferenceExtractor] Could not refetch message: ${(error as Error).message}`);
       return message;
     }
+  }
+
+  /**
+   * Check if a referenced message should be included or excluded as duplicate
+   * @param message - Discord message to check
+   * @returns True if message should be included, false if it's a duplicate
+   */
+  private shouldIncludeReference(message: Message): boolean {
+    // Exact match: Check if Discord message ID is in conversation history
+    if (this.conversationHistoryMessageIds.has(message.id)) {
+      return false; // Exclude - already in conversation history
+    }
+
+    // Fuzzy match: Check if message timestamp falls within conversation history range
+    // This handles old messages that don't have Discord IDs stored
+    if (this.conversationHistoryTimeRange) {
+      const messageTimestamp = message.createdAt.getTime();
+      const oldestTimestamp = this.conversationHistoryTimeRange.oldest.getTime();
+      const newestTimestamp = this.conversationHistoryTimeRange.newest.getTime();
+
+      if (messageTimestamp >= oldestTimestamp && messageTimestamp <= newestTimestamp) {
+        return false; // Exclude - likely in conversation history based on timestamp
+      }
+    }
+
+    return true; // Include - not found in conversation history
   }
 
   /**
