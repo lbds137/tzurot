@@ -34,11 +34,6 @@ export interface ReferenceExtractionOptions {
   embedProcessingDelayMs?: number;
   /** Discord message IDs from conversation history (for deduplication) */
   conversationHistoryMessageIds?: string[];
-  /** Timestamp range of conversation history (for fuzzy deduplication of old messages) */
-  conversationHistoryTimeRange?: {
-    oldest: Date;
-    newest: Date;
-  };
 }
 
 /**
@@ -49,10 +44,6 @@ export class MessageReferenceExtractor {
   private readonly maxReferences: number;
   private readonly embedProcessingDelayMs: number;
   private conversationHistoryMessageIds: Set<string>;
-  private conversationHistoryTimeRange?: {
-    oldest: Date;
-    newest: Date;
-  };
 
   constructor(options: ReferenceExtractionOptions = {}) {
     this.maxReferences = options.maxReferences ?? 10;
@@ -61,7 +52,6 @@ export class MessageReferenceExtractor {
     // This also prepares for future PluralKit proxy detection (which takes 1-3s)
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? 2500;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
-    this.conversationHistoryTimeRange = options.conversationHistoryTimeRange;
   }
 
   /**
@@ -372,6 +362,7 @@ export class MessageReferenceExtractor {
     return {
       referenceNumber,
       discordMessageId: message.id,
+      webhookId: message.webhookId ?? undefined,
       discordUserId: message.author.id,
       authorUsername: message.author.username,
       authorDisplayName: message.author.displayName ?? message.author.username,
@@ -424,32 +415,6 @@ export class MessageReferenceExtractor {
         reason: 'exact Discord ID match'
       }, '[MessageReferenceExtractor] Excluding reference - found in conversation history');
       return false; // Exclude - already in conversation history
-    }
-
-    // Fuzzy match: Check if message timestamp falls within conversation history range
-    // This handles old messages that don't have Discord IDs stored
-    if (this.conversationHistoryTimeRange) {
-      const messageTimestamp = message.createdAt.getTime();
-      const oldestTimestamp = this.conversationHistoryTimeRange.oldest.getTime();
-      const newestTimestamp = this.conversationHistoryTimeRange.newest.getTime();
-
-      logger.debug({
-        messageId: message.id,
-        author: message.author.username,
-        messageTime: new Date(messageTimestamp).toISOString(),
-        historyOldest: new Date(oldestTimestamp).toISOString(),
-        historyNewest: new Date(newestTimestamp).toISOString(),
-        inRange: messageTimestamp >= oldestTimestamp && messageTimestamp <= newestTimestamp
-      }, '[MessageReferenceExtractor] Fuzzy timestamp check');
-
-      if (messageTimestamp >= oldestTimestamp && messageTimestamp <= newestTimestamp) {
-        logger.debug({
-          messageId: message.id,
-          author: message.author.username,
-          reason: 'fuzzy timestamp match'
-        }, '[MessageReferenceExtractor] Excluding reference - timestamp within conversation history range');
-        return false; // Exclude - likely in conversation history based on timestamp
-      }
     }
 
     logger.debug({
