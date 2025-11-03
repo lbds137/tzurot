@@ -7,31 +7,9 @@
 import { Message, TextChannel, ThreadChannel, Channel } from 'discord.js';
 import { MessageLinkParser, ParsedMessageLink } from '../utils/MessageLinkParser.js';
 import { EmbedParser } from '../utils/EmbedParser.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, ReferencedMessage } from '@tzurot/common-types';
 
 const logger = createLogger('MessageReferenceExtractor');
-
-/**
- * Referenced message data
- */
-export interface ReferencedMessage {
-  /** Reference number (1, 2, 3, etc.) */
-  referenceNumber: number;
-  /** Author username */
-  authorUsername: string;
-  /** Author display name */
-  authorDisplayName: string;
-  /** Message content */
-  content: string;
-  /** Formatted embeds (if any) */
-  embeds: string;
-  /** Timestamp (ISO 8601 string) */
-  timestamp: string;
-  /** Guild name (or "Direct Messages") */
-  guildName: string;
-  /** Channel name */
-  channelName: string;
-}
 
 /**
  * Result of reference extraction with link replacement

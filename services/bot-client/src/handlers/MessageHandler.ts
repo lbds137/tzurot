@@ -279,7 +279,8 @@ export class MessageHandler {
       }
 
       // Use updatedContent (with Discord links replaced by [Reference N]) for the AI context
-      const messageContentForAI = updatedContent || content || '[no text content]';
+      // Use nullish coalescing to preserve empty strings (e.g., message with only a link)
+      const messageContentForAI = updatedContent ?? content ?? '[no text content]';
 
       // Convert to format expected by AI gateway
       // Include persona info so AI knows which persona is speaking in each message
