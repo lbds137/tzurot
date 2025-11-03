@@ -3,12 +3,14 @@
 ## The Actual Requirement
 
 The AI should:
+
 - ✅ See the full channel conversation (multiple users)
 - ✅ Know which user said each message
 - ✅ Have context about ALL participating users' personas
 - ✅ Respond appropriately to each user based on their persona
 
 **Example:**
+
 ```
 System: You're talking to:
 - Alice (she/her, friendly artist who loves cats)
@@ -25,6 +27,7 @@ Assistant: [continues the group dynamic]
 ## Current Problem
 
 **Conversation history is stored correctly** (has userId), but when we retrieve it:
+
 1. ❌ Messages don't include user information
 2. ❌ No persona context for any of the users
 3. ❌ AI sees just text without knowing who said what
@@ -115,9 +118,9 @@ class ConversationContextBuilder {
     return [
       {
         role: 'system',
-        content: `${systemPrompt}\n\n${participantsContext}`
+        content: `${systemPrompt}\n\n${participantsContext}`,
       },
-      ...formattedMessages
+      ...formattedMessages,
     ];
   }
 
@@ -163,17 +166,17 @@ class ConversationContextBuilder {
 
         return {
           role: 'user',
-          content: `${name}: ${msg.content}`
+          content: `${name}: ${msg.content}`,
         };
       } else if (msg.role === 'assistant') {
         return {
           role: 'assistant',
-          content: msg.content
+          content: msg.content,
         };
       } else {
         return {
           role: msg.role,
-          content: msg.content
+          content: msg.content,
         };
       }
     });
@@ -222,6 +225,7 @@ This design **requires the schema redesign** because:
 ### Phase 1: Schema Redesign (Required Foundation)
 
 Changes from `schema-redesign-proposal.md`:
+
 1. ✅ Create `UserDefaultPersona` table
 2. ✅ Create `PersonalityDefaultConfig` table
 3. ✅ Rename `UserPersonalitySettings` → `UserPersonalityConfig`
@@ -252,6 +256,7 @@ Changes from `schema-redesign-proposal.md`:
 ### Phase 3: AI Worker Integration
 
 Update `ConversationService` in ai-worker:
+
 1. Replace simple history retrieval with context builder
 2. Pass formatted group context to AI model
 3. Test with multiple users
@@ -259,6 +264,7 @@ Update `ConversationService` in ai-worker:
 ### Phase 4: Auto-Create Default Personas
 
 When new user first interacts:
+
 1. Check if user exists in database
 2. If not, create user + default persona
 3. Default persona content: "A Discord user with no additional context provided"

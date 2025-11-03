@@ -72,7 +72,7 @@ export function requireOwnerAuth(customMessage?: string) {
           ownerId: ownerId || 'none',
           path: req.path,
           method: req.method,
-          ip: req.ip
+          ip: req.ip,
         },
         '[Auth] Unauthorized access attempt'
       );

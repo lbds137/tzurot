@@ -83,7 +83,7 @@ export async function withRetry<T>(
     backoffMultiplier = 2,
     globalTimeoutMs,
     logger,
-    operationName = 'operation'
+    operationName = 'operation',
   } = options;
 
   const startTime = Date.now();
@@ -99,7 +99,10 @@ export async function withRetry<T>(
           attempt - 1,
           lastError
         );
-        logger?.error({ err: error, elapsed, attempts: attempt - 1 }, `[Retry] Global timeout exceeded`);
+        logger?.error(
+          { err: error, elapsed, attempts: attempt - 1 },
+          `[Retry] Global timeout exceeded`
+        );
         throw error;
       }
     }
@@ -116,7 +119,6 @@ export async function withRetry<T>(
       }
 
       return { value, attempts: attempt, totalTimeMs };
-
     } catch (error) {
       lastError = error;
 
@@ -239,17 +241,13 @@ export async function withParallelRetry<TItem, TResult>(
   fn: (item: TItem, index: number) => Promise<TResult>,
   options: ParallelRetryOptions = {}
 ): Promise<ParallelItemResult<TResult>[]> {
-  const {
-    maxAttempts = 3,
-    logger,
-    operationName = 'operation'
-  } = options;
+  const { maxAttempts = 3, logger, operationName = 'operation' } = options;
 
   // Track results for each item
   const results: ParallelItemResult<TResult>[] = items.map((_, index) => ({
     index,
     status: 'failed' as const,
-    attempts: 0
+    attempts: 0,
   }));
 
   // Track which items still need processing
@@ -266,7 +264,7 @@ export async function withParallelRetry<TItem, TResult>(
     );
 
     // Process remaining items in parallel
-    const promises = remainingIndices.map(async (index) => {
+    const promises = remainingIndices.map(async index => {
       try {
         const value = await fn(items[index], index);
         return { index, status: 'success' as const, value };

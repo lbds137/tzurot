@@ -31,12 +31,8 @@ interface MockPersonality {
  * // Returns the mock personality object
  * ```
  */
-export function createMockPersonalityService(
-  personalities: MockPersonality[]
-): PersonalityService {
-  const personalityMap = new Map(
-    personalities.map((p) => [p.name.toLowerCase(), p])
-  );
+export function createMockPersonalityService(personalities: MockPersonality[]): PersonalityService {
+  const personalityMap = new Map(personalities.map(p => [p.name.toLowerCase(), p]));
 
   // Create a mock that implements the PersonalityService interface methods we need
   // We use double type assertion (as unknown as PersonalityService) because this is a test mock
@@ -67,7 +63,9 @@ export function createMockPersonalityService(
     }),
 
     // Add other PersonalityService methods as needed for tests
-    loadAllPersonalities: vi.fn().mockResolvedValue(personalities as unknown as LoadedPersonality[]),
+    loadAllPersonalities: vi
+      .fn()
+      .mockResolvedValue(personalities as unknown as LoadedPersonality[]),
   } as unknown as PersonalityService;
 
   return mockService;

@@ -23,10 +23,12 @@ export class AvatarDownloader {
   private storageDir: string;
   private baseUrl: string;
 
-  constructor(options: {
-    storageDir?: string;
-    baseUrl?: string;
-  } = {}) {
+  constructor(
+    options: {
+      storageDir?: string;
+      baseUrl?: string;
+    } = {}
+  ) {
     this.storageDir = options.storageDir || '/data/avatars';
     this.baseUrl = options.baseUrl || process.env.API_GATEWAY_URL || 'http://localhost:3000';
   }
@@ -34,10 +36,7 @@ export class AvatarDownloader {
   /**
    * Download avatar from shapes.inc and store locally
    */
-  async download(
-    shapesAvatarUrl: string,
-    slug: string,
-  ): Promise<AvatarDownloadResult> {
+  async download(shapesAvatarUrl: string, slug: string): Promise<AvatarDownloadResult> {
     try {
       // Ensure storage directory exists
       await fs.mkdir(this.storageDir, { recursive: true });
@@ -67,10 +66,7 @@ export class AvatarDownloader {
         throw new Error('Response body is null');
       }
 
-      await pipeline(
-        response.body as unknown as Readable,
-        createWriteStream(filepath)
-      );
+      await pipeline(response.body as unknown as Readable, createWriteStream(filepath));
 
       // Verify file was written
       const stats = await fs.stat(filepath);
@@ -97,10 +93,7 @@ export class AvatarDownloader {
   /**
    * Use fallback avatar when download fails
    */
-  private async useFallback(
-    slug: string,
-    originalError: Error,
-  ): Promise<AvatarDownloadResult> {
+  private async useFallback(slug: string, originalError: Error): Promise<AvatarDownloadResult> {
     try {
       // Create a simple text-based avatar as fallback
       // In production, you might want to use an identicon library or default image
@@ -157,7 +150,9 @@ export class AvatarDownloader {
   /**
    * Check if avatar already exists locally
    */
-  async exists(slug: string): Promise<{ exists: boolean; path: string | null; url: string | null }> {
+  async exists(
+    slug: string
+  ): Promise<{ exists: boolean; path: string | null; url: string | null }> {
     const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'];
 
     for (const ext of extensions) {

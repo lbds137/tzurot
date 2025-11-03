@@ -125,14 +125,14 @@ export class WebhookManager {
       logger.info(`[WebhookManager] Creating new webhook for channel ${cacheKey}`);
       webhook = await targetChannel.createWebhook({
         name: 'Tzurot Personalities',
-        reason: 'Multi-personality bot system'
+        reason: 'Multi-personality bot system',
       });
     }
 
     // Cache the webhook
     this.webhookCache.set(cacheKey, {
       webhook,
-      lastUsed: Date.now()
+      lastUsed: Date.now(),
     });
 
     // Enforce size limit to prevent unbounded growth
@@ -166,7 +166,7 @@ export class WebhookManager {
     } = {
       content,
       username: standardizedName,
-      avatarURL: personality.avatarUrl
+      avatarURL: personality.avatarUrl,
     };
 
     // For threads, add threadId parameter (Discord.js v14 official API)
@@ -224,8 +224,9 @@ export class WebhookManager {
     }
 
     // Sort entries by lastUsed (oldest first)
-    const sortedEntries = Array.from(this.webhookCache.entries())
-      .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+    const sortedEntries = Array.from(this.webhookCache.entries()).sort(
+      (a, b) => a[1].lastUsed - b[1].lastUsed
+    );
 
     // Remove oldest entries until we're under the limit
     const entriesToRemove = this.webhookCache.size - this.maxCacheSize;
@@ -233,7 +234,9 @@ export class WebhookManager {
       this.webhookCache.delete(sortedEntries[i][0]);
     }
 
-    logger.debug(`[WebhookManager] Evicted ${entriesToRemove} least recently used webhook cache entries (limit: ${this.maxCacheSize})`);
+    logger.debug(
+      `[WebhookManager] Evicted ${entriesToRemove} least recently used webhook cache entries (limit: ${this.maxCacheSize})`
+    );
   }
 
   /**

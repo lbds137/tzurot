@@ -9,7 +9,9 @@
 ## ⚠️ Critical Notes
 
 ### Variable Management Limitations
+
 **Railway CLI CANNOT delete variables!** The `variables` command only supports:
+
 - ✅ Viewing variables
 - ✅ Setting variables
 - ❌ **NO** deleting/unsetting variables
@@ -17,10 +19,13 @@
 **To delete variables**: Use the Railway web dashboard.
 
 ### Rate Limiting
+
 Railway has deployment rate limits. When setting many variables at once, you may see:
+
 ```
 Service deployment rate limit exceeded
 ```
+
 Wait a few minutes between bulk operations.
 
 ---
@@ -28,18 +33,21 @@ Wait a few minutes between bulk operations.
 ## Authentication & Project Setup
 
 ### Login
+
 ```bash
 railway login
 # Opens browser for authentication
 ```
 
 ### Check Current User
+
 ```bash
 railway whoami
 # Shows logged-in user email
 ```
 
 ### Link Project
+
 ```bash
 # Link to existing project (interactive selector)
 railway link
@@ -52,6 +60,7 @@ railway status
 ```
 
 ### Unlink Project
+
 ```bash
 railway unlink
 # Removes link from current directory
@@ -62,6 +71,7 @@ railway unlink
 ## Environment & Service Management
 
 ### Check Status
+
 ```bash
 railway status
 # Shows:
@@ -71,6 +81,7 @@ railway status
 ```
 
 ### Link Service
+
 ```bash
 # Interactive service selector
 railway service
@@ -83,6 +94,7 @@ railway service ai-worker
 ```
 
 ### Switch Environment
+
 ```bash
 railway environment
 # Interactive environment selector
@@ -94,12 +106,14 @@ railway environment production
 ```
 
 ### Create New Environment
+
 ```bash
 railway environment new
 # Interactive prompts for environment name and base environment
 ```
 
 ### Delete Environment
+
 ```bash
 railway environment delete
 # Delete current environment (with confirmation)
@@ -117,6 +131,7 @@ railway environment rm <environment-name>
 **⚠️ Environment sync must be done via Railway dashboard** (no CLI support yet).
 
 **How to Sync**:
+
 1. Go to Railway dashboard
 2. Switch to target environment (e.g., production)
 3. Click **"Sync"** button
@@ -128,6 +143,7 @@ railway environment rm <environment-name>
 6. Click **"Sync"** to apply
 
 **What Gets Synced**:
+
 - ✅ Shared variables
 - ✅ Service-specific variables
 - ✅ Service configurations
@@ -141,6 +157,7 @@ railway environment rm <environment-name>
 ## Variables Management
 
 ### View Variables
+
 ```bash
 # View variables for currently linked service
 railway variables
@@ -163,6 +180,7 @@ railway variables --kv
 ```
 
 ### Set Variables
+
 ```bash
 # Set single variable (for currently linked service)
 railway variables --set "KEY=value"
@@ -181,6 +199,7 @@ railway variables --set "DATABASE_URL=postgresql://user:pass@host:port/db"
 ```
 
 **⚠️ IMPORTANT**: The CLI only sets **service-specific variables**. To create **shared variables** that apply to multiple services, you MUST use the Railway dashboard:
+
 1. Go to Project Settings → Shared Variables
 2. Add variables there
 3. Click "Share" button to make them available to services
@@ -188,7 +207,9 @@ railway variables --set "DATABASE_URL=postgresql://user:pass@host:port/db"
 See "Shared Variables" section below for details.
 
 ### ❌ DELETE Variables
+
 **NOT SUPPORTED** via CLI. Use Railway web dashboard:
+
 1. Go to project dashboard
 2. Navigate to service
 3. Click "Variables" tab
@@ -215,11 +236,13 @@ See "Shared Variables" section below for details.
 After creating shared variables:
 
 **Method 1: From Shared Variables tab**
+
 1. Click the **"Share"** button next to the variable
 2. Select which services should have access
 3. Click **"Share"**
 
 **Method 2: From service Variables tab**
+
 1. Go to the service's Variables tab
 2. Click **"Add Shared Variable"**
 3. Select the shared variable to add
@@ -227,6 +250,7 @@ After creating shared variables:
 ### Variable References
 
 In the dashboard, you can reference other variables:
+
 ```bash
 # Reference Postgres addon (private network)
 DATABASE_URL=${{Postgres.DATABASE_URL}}
@@ -248,6 +272,7 @@ GATEWAY_URL=${{api-gateway.RAILWAY_PUBLIC_DOMAIN}}
 ## Deployment
 
 ### Deploy Current Directory
+
 ```bash
 # Deploy and stream logs (interactive)
 railway up
@@ -270,6 +295,7 @@ railway up -c
 ```
 
 ### Redeploy Latest
+
 ```bash
 # Redeploy currently linked service (with confirmation)
 railway redeploy
@@ -284,6 +310,7 @@ railway redeploy -s ai-worker
 ```
 
 ### Remove Deployment
+
 ```bash
 # Remove most recent deployment
 railway down
@@ -294,6 +321,7 @@ railway down
 ## Logs
 
 ### View Logs
+
 ```bash
 # View logs for linked service (streams live)
 railway logs
@@ -322,6 +350,7 @@ railway logs --json
 ```
 
 **Common Usage**:
+
 ```bash
 # Stream live logs from all services (run in separate terminals)
 railway logs --service api-gateway
@@ -337,6 +366,7 @@ railway logs --deployment
 ## Domains
 
 ### Generate Railway Domain
+
 ```bash
 # Generate Railway-provided domain for linked service
 railway domain
@@ -351,6 +381,7 @@ railway domain -p 8080 --service api-gateway
 ```
 
 ### Add Custom Domain
+
 ```bash
 # Add custom domain and get DNS records
 railway domain yourdomain.com --service api-gateway
@@ -369,6 +400,7 @@ railway domain yourdomain.com --json
 ## Database Operations
 
 ### Connect to Database Shell
+
 ```bash
 # Connect to PostgreSQL (psql)
 railway connect
@@ -382,6 +414,7 @@ railway connect MongoDB  # Opens mongosh
 ```
 
 ### Run Commands with Environment Variables
+
 ```bash
 # Run local command with Railway variables injected
 railway run <command>
@@ -491,17 +524,20 @@ railway run psql -c "SELECT COUNT(*) FROM personalities;"
 ### Important Notes
 
 ⚠️ **Always backup production before restoring**:
+
 ```bash
 railway environment production
 railway run pg_dump > prod-backup-$(date +%Y%m%d-%H%M%S).sql
 ```
 
 ⚠️ **Use --clean --if-exists for clean slate**:
+
 - Drops existing tables before restoring
 - Prevents conflicts with existing data
 - Safest option for full replication
 
 ⚠️ **Database URLs**:
+
 - `railway run` automatically uses `DATABASE_URL` from environment
 - No need to specify connection string manually
 - Works with both private network and public proxy URLs
@@ -678,18 +714,21 @@ On Steam Deck specifically, you may encounter keyring/signature issues. See the 
 ## Project Management
 
 ### List Projects
+
 ```bash
 railway list
 # Shows all projects in your account
 ```
 
 ### Create New Project
+
 ```bash
 railway init
 # Interactive project creation
 ```
 
 ### Open Dashboard
+
 ```bash
 # Open current project in browser
 railway open
@@ -699,6 +738,7 @@ railway open --service api-gateway
 ```
 
 ### View Documentation
+
 ```bash
 railway docs
 # Opens Railway docs in browser
@@ -741,6 +781,7 @@ railway completion fish
 ## Common Workflows
 
 ### Setup New Service
+
 ```bash
 # 1. Link to project
 railway link
@@ -756,6 +797,7 @@ railway up
 ```
 
 ### Check Service Health
+
 ```bash
 # 1. Check status
 railway status
@@ -768,6 +810,7 @@ railway open
 ```
 
 ### Update Environment Variables
+
 ```bash
 # 1. Set new variables
 railway variables --set "NEW_VAR=value"
@@ -779,6 +822,7 @@ railway redeploy --yes
 ```
 
 ### Deploy to Production
+
 ```bash
 # 1. Switch to production environment
 railway environment production
@@ -794,6 +838,7 @@ railway logs
 ```
 
 ### Sync Development Changes to Production
+
 ```bash
 # 1. Test changes in development first
 railway environment development
@@ -818,6 +863,7 @@ railway logs
 ```
 
 ### Debug Deployment Issues
+
 ```bash
 # 1. View build logs
 railway logs --build
@@ -837,18 +883,21 @@ railway ssh
 ## Error Messages & Solutions
 
 ### "Not linked to a Railway project"
+
 ```bash
 # Solution: Link to project
 railway link
 ```
 
 ### "Service deployment rate limit exceeded"
+
 ```bash
 # Solution: Wait 2-5 minutes, then try again
 # Railway limits how often services can redeploy
 ```
 
 ### "Railway CLI is not installed"
+
 ```bash
 # Solution: Install Railway CLI
 npm install -g @railway/cli
@@ -856,6 +905,7 @@ npm install -g @railway/cli
 ```
 
 ### Variables Not Taking Effect
+
 ```bash
 # Solution: Railway auto-redeploys when variables change
 # Check deployment logs:
@@ -870,7 +920,9 @@ railway redeploy --yes
 ## Important Railway Concepts
 
 ### Service References
+
 In Railway dashboard, you can reference other services:
+
 ```bash
 # Reference another service's URL
 GATEWAY_URL=${{api-gateway.RAILWAY_PUBLIC_DOMAIN}}
@@ -884,6 +936,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 ```
 
 **Important**:
+
 - These references work in the dashboard but NOT in local .env files!
 - `DATABASE_URL` from Postgres addon uses the **private network** (`.railway.internal`)
 - `DATABASE_PUBLIC_URL` uses the **TCP proxy** for external access
@@ -891,16 +944,19 @@ REDIS_URL=${{Redis.REDIS_URL}}
 ### Private vs Public Networking
 
 **Private Network** (`.railway.internal`):
+
 - Free, no egress charges
 - Only accessible within Railway project
 - Example: `api-gateway.railway.internal`
 
 **Public Network** (TCP Proxy/Domains):
+
 - Accessible from internet
 - Egress charges apply for databases
 - Example: `nozomi.proxy.rlwy.net:48102`
 
 ### Environment Inheritance
+
 - Variables set in "Shared" apply to all services
 - Service-specific variables override shared ones
 - Environment-specific variables override both
@@ -910,6 +966,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 ## CLI vs Dashboard
 
 ### What CLI Can Do ✅
+
 - View variables
 - Set variables (service-specific only)
 - Deploy services
@@ -920,6 +977,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 - Switch between environments
 
 ### What CLI Cannot Do ❌
+
 - Create/manage shared variables (use dashboard)
 - Delete variables (use dashboard)
 - Sync environments (use dashboard)
@@ -942,15 +1000,16 @@ REDIS_URL=${{Redis.REDIS_URL}}
 
 ## Version History
 
-| Date | CLI Version | Changes |
-|------|-------------|---------|
-| 2025-10-23 | 4.5.3 | Initial comprehensive reference created |
+| Date       | CLI Version | Changes                                 |
+| ---------- | ----------- | --------------------------------------- |
+| 2025-10-23 | 4.5.3       | Initial comprehensive reference created |
 
 ---
 
 ## Notes for AI Assistants
 
 **Before running ANY Railway command**:
+
 1. Consult this reference first
 2. Use exact syntax shown here
 3. If unsure, use `railway <command> --help`
@@ -958,6 +1017,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 5. Check for rate limiting after bulk operations
 
 **Common Mistakes to Avoid**:
+
 - ❌ `railway variables --unset KEY` (doesn't exist!)
 - ❌ `railway service list` (doesn't exist!)
 - ❌ Assuming commands from other CLIs work the same

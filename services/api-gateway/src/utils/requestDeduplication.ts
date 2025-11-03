@@ -9,7 +9,7 @@
 
 import { createHash } from 'node:crypto';
 import { createLogger, INTERVALS } from '@tzurot/common-types';
-import type { GenerateRequest, CachedRequest} from '../types.js';
+import type { GenerateRequest, CachedRequest } from '../types.js';
 
 const logger = createLogger('RequestDeduplication');
 
@@ -56,25 +56,16 @@ export function stopCleanup(): void {
  * Uses SHA-256 for stable, collision-resistant hashing
  */
 function hashRequest(request: GenerateRequest): string {
-  const {
-    personality,
-    message,
-    context
-  } = request;
+  const { personality, message, context } = request;
 
   // Create hash from key components
   const personalityName = personality.name;
-  const messageStr = typeof message === 'string'
-    ? message
-    : JSON.stringify(message);
+  const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
   const contextStr = `${context.userId}-${context.channelId ?? 'dm'}`;
 
   // Create stable hash using SHA-256 for the entire message
   // This prevents false positives from substring sampling
-  const messageHash = createHash('sha256')
-    .update(messageStr)
-    .digest('hex')
-    .substring(0, 16); // Take first 16 chars for brevity
+  const messageHash = createHash('sha256').update(messageStr).digest('hex').substring(0, 16); // Take first 16 chars for brevity
 
   return `${personalityName}:${contextStr}:${messageHash}`;
 }
@@ -109,11 +100,7 @@ export function checkDuplicate(request: GenerateRequest): CachedRequest | null {
 /**
  * Cache a request to prevent duplicates
  */
-export function cacheRequest(
-  request: GenerateRequest,
-  requestId: string,
-  jobId: string
-): void {
+export function cacheRequest(request: GenerateRequest, requestId: string, jobId: string): void {
   const hash = hashRequest(request);
   const now = Date.now();
 
@@ -121,12 +108,10 @@ export function cacheRequest(
     requestId,
     jobId,
     timestamp: now,
-    expiresAt: now + DUPLICATE_DETECTION_WINDOW
+    expiresAt: now + DUPLICATE_DETECTION_WINDOW,
   });
 
-  logger.debug(
-    `[Deduplication] Cached request ${requestId} with job ${jobId}`
-  );
+  logger.debug(`[Deduplication] Cached request ${requestId} with job ${jobId}`);
 }
 
 /**

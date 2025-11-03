@@ -22,30 +22,36 @@ PERSONALITY_JARGON_TERM=shapes
 ### v2 Architecture (Pre-Shutdown)
 
 **SERVICE_API_BASE_URL**: `https://api.shapes.inc`
+
 - Shapes.inc's REST API endpoint
 - Used for all AI generation requests
 - Handled personality-based conversations
 
 **SERVICE_APP_ID**: (removed - API defunct)
+
 - Tzurot's application identifier in shapes.inc
 - Used for billing and API quota tracking
 - Associated with all our personality configurations
 
 **SERVICE_API_KEY**: (removed - API defunct)
+
 - API authentication token
 - Required for all API requests
 - Allowed access to personality data and conversation history
 
 **SERVICE_ID**: `shapesinc`
+
 - Internal identifier for the AI provider
 - Used in v2's provider abstraction layer
 - Allowed switching between different AI services
 
 **SERVICE_WEBSITE**: `https://shapes.inc`
+
 - Marketing/documentation site
 - Referenced in bot help commands and about info
 
 **PERSONALITY_JARGON_TERM**: `shapes`
+
 - User-facing terminology for "personalities"
 - Used in v2 bot commands and help text
 - Example: "List available shapes" instead of "List available personalities"
@@ -54,6 +60,7 @@ PERSONALITY_JARGON_TERM=shapes
 ## v2 Backup System
 
 Tzurot v2 had a backup command (`/backup personality`) that:
+
 1. Retrieved all conversation history from shapes.inc API
 2. Retrieved personality configurations
 3. Exported to JSON format
@@ -74,11 +81,13 @@ tzurot-legacy/
 ### What We Need to Preserve
 
 **Personality Data**:
+
 - Personality configurations (may still be on shapes.inc servers)
 - User preferences for each personality
 - Custom personality modifications
 
 **Conversation History** (if accessible):
+
 - Long-term memory/context from v2
 - User interaction patterns
 - Important conversation threads
@@ -86,18 +95,21 @@ tzurot-legacy/
 ### Potential Reimplementation for v3
 
 **Option 1: One-Time Migration Script**
+
 - Create a Node.js script using these credentials
 - Pull all data from shapes.inc API (if still accessible)
 - Convert to v3 format (Qdrant vectors + PostgreSQL)
 - Run once during migration
 
 **Option 2: v3 Backup Command**
+
 - Reimplement `/backup` command for v3 architecture
 - Back up data from v3's PostgreSQL + Qdrant
 - Export to portable JSON format
 - Store on railway volumes or send via Discord DM
 
 **Option 3: Generic Migration Tool**
+
 - Build generic "import from external AI service" tool
 - Support multiple formats (shapes.inc, OpenAI, etc.)
 - Allow users to migrate their own data
@@ -125,6 +137,7 @@ When ready to implement backup/migration for v3:
    - Export personality configurations (JSON files)
 
 2. **Export Format**:
+
    ```json
    {
      "version": "3.0.0",

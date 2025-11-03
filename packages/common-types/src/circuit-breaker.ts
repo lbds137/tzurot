@@ -112,21 +112,27 @@ export class CircuitBreaker {
     this.failures++;
     this.lastFailureTime = now;
 
-    logger.warn({
-      name: this.name,
-      failures: this.failures,
-      threshold: this.failureThreshold,
-      state: this.state
-    }, '[CircuitBreaker] Failure recorded');
+    logger.warn(
+      {
+        name: this.name,
+        failures: this.failures,
+        threshold: this.failureThreshold,
+        state: this.state,
+      },
+      '[CircuitBreaker] Failure recorded'
+    );
 
     // Open circuit if threshold exceeded
     if (this.failures >= this.failureThreshold) {
       this.state = 'open';
-      logger.error({
-        name: this.name,
-        failures: this.failures,
-        threshold: this.failureThreshold
-      }, '[CircuitBreaker] Circuit opened due to repeated failures');
+      logger.error(
+        {
+          name: this.name,
+          failures: this.failures,
+          threshold: this.failureThreshold,
+        },
+        '[CircuitBreaker] Circuit opened due to repeated failures'
+      );
     }
   }
 
@@ -175,7 +181,7 @@ export class CircuitBreaker {
       state: this.state,
       failures: this.failures,
       failureThreshold: this.failureThreshold,
-      lastFailureTime: this.lastFailureTime
+      lastFailureTime: this.lastFailureTime,
     };
   }
 }

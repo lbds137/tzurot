@@ -13,7 +13,6 @@ A standalone Node.js script to backup your personality data from external person
 1. **Download the script**: Save `backup-personalities-data.js` to your computer
 
 2. **Get your session cookie**:
-
    - Log into the personality service in your browser
    - Open Developer Tools (F12)
    - Go to Application/Storage → Cookies (Chrome/Edge) or Storage → Cookies (Firefox)

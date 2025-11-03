@@ -29,10 +29,7 @@ export class UUIDMapper {
   private discordIdToPersonaCache = new Map<string, string>();
   private shapesUserToDiscordCache = new Map<string, string | null>();
 
-  constructor(options: {
-    prisma: PrismaClient;
-    orphanedPersonaId: string;
-  }) {
+  constructor(options: { prisma: PrismaClient; orphanedPersonaId: string }) {
     this.prisma = options.prisma;
     this.orphanedPersonaId = options.orphanedPersonaId;
   }
@@ -47,9 +44,12 @@ export class UUIDMapper {
    * 4. Get user's default persona
    * 5. If can't resolve, mark as orphaned
    */
-  async resolveUser(shapesUserId: string, shapesUserData?: {
-    discordId?: string;
-  }): Promise<UserResolutionResult> {
+  async resolveUser(
+    shapesUserId: string,
+    shapesUserData?: {
+      discordId?: string;
+    }
+  ): Promise<UserResolutionResult> {
     // Check cache first
     const cachedDiscordId = this.shapesUserToDiscordCache.get(shapesUserId);
     if (cachedDiscordId !== undefined) {
@@ -177,7 +177,8 @@ export class UUIDMapper {
         id: this.orphanedPersonaId,
         name: 'Orphaned Memories',
         description: 'Memories from shapes.inc import that could not be linked to specific users',
-        content: 'This persona contains memories from the shapes.inc import where the original user could not be identified.',
+        content:
+          'This persona contains memories from the shapes.inc import where the original user could not be identified.',
         preferredName: 'Unknown User',
         ownerId: ownerId, // Bot owner or system user
       },
@@ -197,7 +198,7 @@ export class UUIDMapper {
   } {
     const totalAttempts = this.shapesUserToDiscordCache.size;
     const orphaned = Array.from(this.shapesUserToDiscordCache.values()).filter(
-      (v) => v === null
+      v => v === null
     ).length;
     const resolved = totalAttempts - orphaned;
 

@@ -23,9 +23,11 @@ export class ConversationManager {
   private conversations = new Map<string, ConversationThread>();
   private readonly maxMessagesPerThread: number;
 
-  constructor(options: {
-    maxMessagesPerThread?: number;
-  } = {}) {
+  constructor(
+    options: {
+      maxMessagesPerThread?: number;
+    } = {}
+  ) {
     this.maxMessagesPerThread = options.maxMessagesPerThread ?? 20; // Keep last 20 messages
   }
 
@@ -46,7 +48,7 @@ export class ConversationManager {
     thread.messages.push({
       role: 'user',
       content,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Trim to max length (keep most recent)
@@ -54,7 +56,9 @@ export class ConversationManager {
       thread.messages = thread.messages.slice(-this.maxMessagesPerThread);
     }
 
-    logger.debug(`[ConversationManager] Added user message to ${key} (${thread.messages.length} total)`);
+    logger.debug(
+      `[ConversationManager] Added user message to ${key} (${thread.messages.length} total)`
+    );
   }
 
   /**
@@ -67,7 +71,7 @@ export class ConversationManager {
     thread.messages.push({
       role: 'assistant',
       content,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Trim to max length
@@ -75,13 +79,18 @@ export class ConversationManager {
       thread.messages = thread.messages.slice(-this.maxMessagesPerThread);
     }
 
-    logger.debug(`[ConversationManager] Added assistant message to ${key} (${thread.messages.length} total)`);
+    logger.debug(
+      `[ConversationManager] Added assistant message to ${key} (${thread.messages.length} total)`
+    );
   }
 
   /**
    * Get conversation history for a channel + personality
    */
-  getHistory(channelId: string, personalityName: string): Array<{ role: 'user' | 'assistant' | 'system'; content: string }> {
+  getHistory(
+    channelId: string,
+    personalityName: string
+  ): Array<{ role: 'user' | 'assistant' | 'system'; content: string }> {
     const key = this.getKey(channelId, personalityName);
     const thread = this.conversations.get(key);
 
@@ -124,7 +133,7 @@ export class ConversationManager {
 
     if (thread === undefined) {
       thread = {
-        messages: []
+        messages: [],
       };
       this.conversations.set(key, thread);
       logger.debug(`[ConversationManager] Created new thread: ${key}`);
@@ -144,7 +153,7 @@ export class ConversationManager {
 
     return {
       totalThreads: this.conversations.size,
-      totalMessages
+      totalMessages,
     };
   }
 

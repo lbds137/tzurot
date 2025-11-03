@@ -86,7 +86,6 @@ async function getOrCreatePersonaForUser(
 
     console.log(`  ✓ Created new default persona: ${newPersona.id}`);
     return newPersona.id;
-
   } catch (error) {
     console.error(`  ✗ Error resolving persona for user ${userId}:`, error);
     return null;
@@ -145,7 +144,9 @@ async function migrateConversationHistory(): Promise<MigrationStats> {
       userPersonalityGroups.get(key)!.push(conv);
     }
 
-    console.log(`Processing ${userPersonalityGroups.size} unique user-personality combinations...\n`);
+    console.log(
+      `Processing ${userPersonalityGroups.size} unique user-personality combinations...\n`
+    );
 
     let processedCount = 0;
 
@@ -153,7 +154,9 @@ async function migrateConversationHistory(): Promise<MigrationStats> {
       const [userId, personalityId] = key.split(':');
       const username = convs[0].user.username;
 
-      console.log(`[${++processedCount}/${userPersonalityGroups.size}] Processing ${username} (${userId.substring(0, 8)}...) with personality ${personalityId.substring(0, 8)}...`);
+      console.log(
+        `[${++processedCount}/${userPersonalityGroups.size}] Processing ${username} (${userId.substring(0, 8)}...) with personality ${personalityId.substring(0, 8)}...`
+      );
       console.log(`  Found ${convs.length} conversation messages`);
 
       // Get or create persona for this user+personality combo
@@ -180,13 +183,11 @@ async function migrateConversationHistory(): Promise<MigrationStats> {
 
         stats.migrated += result.count;
         console.log(`  ✓ Updated ${result.count} messages\n`);
-
       } catch (error) {
         console.error(`  ✗ Failed to update conversations:`, error);
         stats.errors += convs.length;
       }
     }
-
   } catch (error) {
     console.error('Fatal error during migration:', error);
     throw error;
@@ -236,7 +237,6 @@ async function main() {
     await verifyMigration();
 
     console.log('\n✓ Migration complete!');
-
   } catch (error) {
     console.error('\n✗ Migration failed:', error);
     process.exit(1);

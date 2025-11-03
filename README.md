@@ -55,11 +55,13 @@ Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is bette
 ### Setup
 
 1. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
 2. **Configure environment:**
+
    ```bash
    cp .env.example .env
    # Edit .env with your tokens and keys
@@ -68,10 +70,11 @@ Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is bette
    ```
 
 3. **Start services:**
+
    ```bash
    # Development mode (all services)
    pnpm dev
-   
+
    # Or start individually:
    pnpm --filter @tzurot/bot-client dev
    pnpm --filter @tzurot/api-gateway dev
@@ -84,7 +87,6 @@ Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is bette
   - `bot-client/` - Discord bot interface
   - `api-gateway/` - HTTP API and request routing
   - `ai-worker/` - Background AI processing
-  
 - **`packages/`** - Shared code
   - `common-types/` - TypeScript types and schemas
   - `api-clients/` - External API client libraries
@@ -99,20 +101,22 @@ The system is designed to be vendor-agnostic:
 ```typescript
 // Easy to switch providers
 const provider = AIProviderFactory.create('openrouter', {
-  apiKey: process.env.OPENROUTER_API_KEY
+  apiKey: process.env.OPENROUTER_API_KEY,
 });
 
 // Or use a different provider
 const provider = AIProviderFactory.create('openai', {
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 ```
 
 ### Currently Supported
+
 - ✅ OpenRouter (400+ models via one API)
 - ✅ Gemini (direct API integration)
 
 ### Planned Support
+
 - ⏳ Direct Anthropic Claude
 - ⏳ Direct OpenAI
 - ⏳ Local models (Ollama)
@@ -121,6 +125,7 @@ const provider = AIProviderFactory.create('openai', {
 ## Features
 
 ### ✅ Working in Production
+
 - **Multiple Personalities**: @mention different personalities (@lilith, @default, @sarcastic)
 - **Reply Detection**: Reply to bot messages to continue conversations
 - **Long-term Memory**: pgvector stores personality memories across sessions
@@ -133,12 +138,14 @@ const provider = AIProviderFactory.create('openai', {
 - **Slash Commands**: Basic commands (/ping, /help)
 
 ### 📋 Planned Features
+
 - Auto-response in activated channels
 - Full slash command suite (/personality add/remove/list)
 - Rate limiting per user/channel
 - NSFW verification system
 
 ### 🚧 Required for Public Launch
+
 - **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter/Gemini keys
 - **Admin Commands**: Bot owner slash commands
   - `/admin servers` - List all servers bot is in
@@ -149,21 +156,25 @@ const provider = AIProviderFactory.create('openai', {
 ## Development
 
 ### Build all services:
+
 ```bash
 pnpm build
 ```
 
 ### Run tests:
+
 ```bash
 pnpm test
 ```
 
 ### Type checking:
+
 ```bash
 pnpm typecheck
 ```
 
 ### Formatting:
+
 ```bash
 pnpm format
 ```
@@ -173,6 +184,7 @@ pnpm format
 ### Development Deployment (Railway)
 
 **Current Status**: Running in Railway's "development" environment for private testing
+
 - **API Gateway**: https://api-gateway-development-83e8.up.railway.app
 - **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
 
@@ -214,10 +226,12 @@ pnpm dev
 ## Project History
 
 **v2** (archived in `tzurot-legacy/`): JavaScript, DDD architecture, Shapes.inc AI provider
+
 - Shutdown: Shapes.inc discontinued their service, forcing migration
 - Lessons: Over-engineered architecture, vendor lock-in
 
 **v3** (current): TypeScript, microservices, vendor-agnostic
+
 - Complete rewrite with modern patterns
 - Production deployment: 2025-10
 - Focus: Simple, maintainable, scalable

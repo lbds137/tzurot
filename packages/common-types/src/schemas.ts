@@ -13,28 +13,34 @@ import { z } from 'zod';
  */
 export const discordEnvironmentSchema = z.object({
   type: z.enum(['dm', 'guild']),
-  guild: z.object({
-    id: z.string(),
-    name: z.string()
-  }).optional(),
-  category: z.object({
-    id: z.string(),
-    name: z.string()
-  }).optional(),
+  guild: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .optional(),
+  category: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .optional(),
   channel: z.object({
     id: z.string(),
     name: z.string(),
-    type: z.string()
+    type: z.string(),
   }),
-  thread: z.object({
-    id: z.string(),
-    name: z.string(),
-    parentChannel: z.object({
+  thread: z
+    .object({
       id: z.string(),
       name: z.string(),
-      type: z.string()
+      parentChannel: z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+      }),
     })
-  }).optional()
+    .optional(),
 });
 
 /**
@@ -48,7 +54,7 @@ export const attachmentMetadataSchema = z.object({
   size: z.number().optional(),
   isVoiceMessage: z.boolean().optional(),
   duration: z.number().optional(),
-  waveform: z.string().optional()
+  waveform: z.string().optional(),
 });
 
 /**
@@ -62,7 +68,7 @@ export const apiConversationMessageSchema = z.object({
   createdAt: z.string().optional(),
   // Persona info for multi-participant conversations
   personaId: z.string().optional(),
-  personaName: z.string().optional()
+  personaName: z.string().optional(),
 });
 
 /**
@@ -80,7 +86,7 @@ export const referencedMessageSchema = z.object({
   embeds: z.string(),
   timestamp: z.string(), // ISO 8601 timestamp string (serialized from Date)
   locationContext: z.string(), // Rich formatted location context (Server/Category/Channel/Thread)
-  attachments: z.array(attachmentMetadataSchema).optional() // Attachments from referenced message
+  attachments: z.array(attachmentMetadataSchema).optional(), // Attachments from referenced message
 });
 
 /**
@@ -112,7 +118,7 @@ export const personalityConfigSchema = z.object({
   personalityLikes: z.string().optional(),
   personalityDislikes: z.string().optional(),
   conversationalGoals: z.string().optional(),
-  conversationalExamples: z.string().optional()
+  conversationalExamples: z.string().optional(),
 });
 
 /**
@@ -136,7 +142,7 @@ export const requestContextSchema = z.object({
   // Discord environment
   environment: discordEnvironmentSchema.optional(),
   // Referenced messages (from replies and message links)
-  referencedMessages: z.array(referencedMessageSchema).optional()
+  referencedMessages: z.array(referencedMessageSchema).optional(),
 });
 
 /**
@@ -147,7 +153,7 @@ export const generateRequestSchema = z.object({
   personality: personalityConfigSchema,
   message: z.union([z.string(), z.object({}).passthrough()]),
   context: requestContextSchema,
-  userApiKey: z.string().optional()
+  userApiKey: z.string().optional(),
 });
 
 // Infer TypeScript types from schemas

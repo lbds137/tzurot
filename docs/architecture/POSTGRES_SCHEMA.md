@@ -5,6 +5,7 @@
 **Core Principle**: Maximum reusability, minimal duplication.
 
 Unlike shapes.inc's approach where every setting is duplicated per personality, we use:
+
 - **Global defaults** that apply unless overridden
 - **Reusable templates** (personas, prompts, LLM configs) stored once, referenced many times
 - **Foreign keys** to link related entities
@@ -15,6 +16,7 @@ Unlike shapes.inc's approach where every setting is duplicated per personality, 
 ### Core Tables
 
 #### `users`
+
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -29,10 +31,12 @@ CREATE INDEX idx_users_discord_id ON users(discord_id);
 ```
 
 **Notes:**
+
 - `global_persona_id`: User's default persona applied to all personalities unless overridden
 - UUID-based for compatibility with shapes.inc imports
 
 #### `personas`
+
 ```sql
 CREATE TABLE personas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -50,11 +54,13 @@ CREATE INDEX idx_personas_global ON personas(is_global) WHERE is_global = true;
 ```
 
 **Notes:**
+
 - Personas stored once, referenced by foreign key
 - `is_global`: System-wide personas vs user-specific
 - `owner_id`: NULL for system defaults, user UUID for personal personas
 
 #### `system_prompts`
+
 ```sql
 CREATE TABLE system_prompts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -70,11 +76,13 @@ CREATE UNIQUE INDEX idx_system_prompts_default ON system_prompts(is_default) WHE
 ```
 
 **Notes:**
+
 - Reusable "jailbreak" prompts
 - Only one can be default (enforced by partial unique index)
 - Apply to personalities via foreign key
 
 #### `llm_configs`
+
 ```sql
 CREATE TABLE llm_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,11 +105,13 @@ CREATE UNIQUE INDEX idx_llm_configs_default ON llm_configs(is_default) WHERE is_
 ```
 
 **Notes:**
+
 - Reusable LLM configurations
 - Store common presets: "Creative Writing", "Conversational", "Precise", etc.
 - Users can create personal configs
 
 #### `personalities`
+
 ```sql
 CREATE TABLE personalities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -135,12 +145,14 @@ CREATE INDEX idx_personalities_slug ON personalities(slug);
 ```
 
 **Notes:**
+
 - **Always use references**: Even one-off configs are stored as reusable templates
 - Can be marked as private/user-specific via owner_id
 - No inline duplication ever
 - JSONB for flexible voice/image settings (evolving requirements)
 
 #### `personality_owners`
+
 ```sql
 CREATE TABLE personality_owners (
   personality_id UUID REFERENCES personalities(id) ON DELETE CASCADE,
@@ -155,10 +167,12 @@ CREATE INDEX idx_personality_owners_personality ON personality_owners(personalit
 ```
 
 **Notes:**
+
 - Many-to-many: Personalities can have multiple owners
 - Role-based permissions for future ACL
 
 #### `user_personality_settings`
+
 ```sql
 CREATE TABLE user_personality_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -182,6 +196,7 @@ CREATE INDEX idx_user_personality_settings_personality ON user_personality_setti
 ```
 
 **Notes:**
+
 - Per-user, per-personality overrides
 - Falls back to user's global persona if `persona_id` is NULL
 - Falls back to personality's LLM config if no override
@@ -190,6 +205,7 @@ CREATE INDEX idx_user_personality_settings_personality ON user_personality_setti
 ### Conversation Tables
 
 #### `conversation_history`
+
 ```sql
 CREATE TABLE conversation_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -206,11 +222,13 @@ CREATE INDEX idx_conversation_user ON conversation_history(user_id);
 ```
 
 **Notes:**
+
 - Replaces in-memory ConversationManager
 - TTL cleanup policy (e.g., delete after 7 days)
 - Indexed for fast "last N messages" queries
 
 #### `activated_channels`
+
 ```sql
 CREATE TABLE activated_channels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -228,21 +246,25 @@ CREATE INDEX idx_activated_channels_personality ON activated_channels(personalit
 ```
 
 **Notes:**
+
 - Tracks which personalities auto-respond in which channels
 - Multiple personalities can be active in same channel
 
 ## Configuration Resolution Logic
 
 ### Persona Resolution (Priority Order)
+
 1. `user_personality_settings.persona_id` (user override for this personality)
 2. `users.global_persona_id` (user's global default)
 3. System default persona (fallback)
 
 ### System Prompt Resolution
+
 1. `personalities.system_prompt_id` → `system_prompts.content` (personality's template)
 2. System default prompt (from `system_prompts` WHERE `is_default = true`)
 
 ### LLM Config Resolution
+
 1. `user_personality_settings.llm_config_id` (user override for this personality)
 2. `personalities.llm_config_id` (personality's default config)
 3. System default config (from `llm_configs` WHERE `is_default = true`)
@@ -250,6 +272,7 @@ CREATE INDEX idx_activated_channels_personality ON activated_channels(personalit
 ## Example Queries
 
 ### Get Effective Config for User + Personality
+
 ```sql
 WITH effective_config AS (
   SELECT
@@ -296,6 +319,7 @@ SELECT * FROM effective_config;
 ```
 
 ### Get Last N Messages for Channel + Personality
+
 ```sql
 SELECT role, content, created_at
 FROM conversation_history
@@ -306,6 +330,7 @@ LIMIT $3;
 ```
 
 ### Check if Channel is Activated
+
 ```sql
 SELECT personality_id, auto_respond
 FROM activated_channels
@@ -316,48 +341,54 @@ WHERE channel_id = $1
 ## Migration from shapes.inc
 
 ### Persona Migration
+
 ```typescript
 // shapes.inc has inline personas per personality
 // Extract unique personas, deduplicate, create reusable entries
 
 const shapesPersona = shapesData.user_prompt;
 const existingPersona = await db.personas.findFirst({
-  where: { content: shapesPersona }
+  where: { content: shapesPersona },
 });
 
-const personaId = existingPersona?.id ?? await db.personas.create({
-  data: {
-    name: `${shapesData.name} Persona`,
-    content: shapesPersona,
-    owner_id: userId,
-    is_global: false
-  }
-}).id;
+const personaId =
+  existingPersona?.id ??
+  (await db.personas.create({
+    data: {
+      name: `${shapesData.name} Persona`,
+      content: shapesPersona,
+      owner_id: userId,
+      is_global: false,
+    },
+  }).id);
 
 // Link to user
 await db.users.update({
   where: { id: userId },
-  data: { global_persona_id: personaId }
+  data: { global_persona_id: personaId },
 });
 ```
 
 ### System Prompt Migration
+
 ```typescript
 // shapes.inc "jailbreak" → system_prompts
 const shapesJailbreak = shapesData.jailbreak;
 
 // Check if this exact prompt exists
 const existingPrompt = await db.system_prompts.findFirst({
-  where: { content: shapesJailbreak }
+  where: { content: shapesJailbreak },
 });
 
-const promptId = existingPrompt?.id ?? await db.system_prompts.create({
-  data: {
-    name: `${shapesData.name} System Prompt`,
-    content: shapesJailbreak,
-    is_default: false
-  }
-}).id;
+const promptId =
+  existingPrompt?.id ??
+  (await db.system_prompts.create({
+    data: {
+      name: `${shapesData.name} System Prompt`,
+      content: shapesJailbreak,
+      is_default: false,
+    },
+  }).id);
 
 // Use in personality
 await db.personalities.create({
@@ -365,11 +396,12 @@ await db.personalities.create({
     name: shapesData.name,
     system_prompt_id: promptId,
     // ...
-  }
+  },
 });
 ```
 
 ### LLM Config Migration
+
 ```typescript
 // Extract LLM settings from shapes.inc
 // Check if this exact config exists (deduplicate)
@@ -379,19 +411,21 @@ const existingConfig = await db.llm_configs.findFirst({
     temperature: shapesData.engine_temperature,
     top_p: shapesData.engine_top_p,
     frequency_penalty: shapesData.engine_frequency_penalty,
-  }
+  },
 });
 
-const configId = existingConfig?.id ?? await db.llm_configs.create({
-  data: {
-    name: `${shapesData.name} Config`,
-    model: shapesData.engine_model,
-    temperature: shapesData.engine_temperature,
-    top_p: shapesData.engine_top_p,
-    frequency_penalty: shapesData.engine_frequency_penalty,
-    // ...
-  }
-}).id;
+const configId =
+  existingConfig?.id ??
+  (await db.llm_configs.create({
+    data: {
+      name: `${shapesData.name} Config`,
+      model: shapesData.engine_model,
+      temperature: shapesData.engine_temperature,
+      top_p: shapesData.engine_top_p,
+      frequency_penalty: shapesData.engine_frequency_penalty,
+      // ...
+    },
+  }).id);
 
 // Always use reference
 await db.personalities.create({
@@ -399,7 +433,7 @@ await db.personalities.create({
     name: shapesData.name,
     llm_config_id: configId,
     // ...
-  }
+  },
 });
 ```
 

@@ -19,6 +19,7 @@ Currently, Tzurot v3 supports only **one personality per message**. Users must @
 ### Single Personality Architecture
 
 **Current Flow**:
+
 1. User sends message: `@lilith what do you think?`
 2. Bot detects single `@lilith` mention
 3. Routes to Lilith personality
@@ -26,6 +27,7 @@ Currently, Tzurot v3 supports only **one personality per message**. Users must @
 5. Stores in conversation history for Lilith
 
 **Limitation**: Cannot do:
+
 ```
 @lilith @sarcastic what do you both think about this?
 ```
@@ -33,6 +35,7 @@ Currently, Tzurot v3 supports only **one personality per message**. Users must @
 ### Why This Matters
 
 **User Request Example** (from discussions):
+
 - Multi-perspective responses (e.g., "Ask both the supportive and critical personalities")
 - Group conversations between personalities (e.g., debate format)
 - Cross-personality context sharing
@@ -44,6 +47,7 @@ Currently, Tzurot v3 supports only **one personality per message**. Users must @
 ### Multi-Personality Mentions
 
 **Proposed Flow**:
+
 1. User sends: `@lilith @sarcastic what do you think?`
 2. Bot detects **multiple** personality mentions
 3. Routes to **both** personalities
@@ -52,6 +56,7 @@ Currently, Tzurot v3 supports only **one personality per message**. Users must @
 6. Displays responses clearly attributed to each personality
 
 **Example Response Format**:
+
 ```
 [Lilith]: I think this is a fascinating question...
 
@@ -68,16 +73,18 @@ During PR #210 review, the reviewer suggested a test case:
 
 > **Test**: "should handle same user with different personas in multiple references"
 >
-> * User A appears in references with persona X (from personality 1)
-> * User A appears again with persona Y (from personality 2)
-> * Verify both are enriched correctly with different persona names
+> - User A appears in references with persona X (from personality 1)
+> - User A appears again with persona Y (from personality 2)
+> - Verify both are enriched correctly with different persona names
 
 **Current Status**: This test is **not needed** for current implementation because:
+
 - Each message has exactly one `personalityId` context
 - All references are enriched for that same personality
 - User A can only appear with one persona per message
 
 **Future Status**: This test **will be needed** when multi-personality support is added:
+
 - A single message could have multiple `personalityId` contexts
 - References would need enrichment for **each** personality context
 - User A could appear with different personas in different response threads
@@ -85,6 +92,7 @@ During PR #210 review, the reviewer suggested a test case:
 ### Reference Enrichment Impact
 
 **Current Implementation** (PR #210):
+
 ```typescript
 private async enrichReferencesWithPersonaNames(
   referencedMessages: ReferencedMessage[],
@@ -94,6 +102,7 @@ private async enrichReferencesWithPersonaNames(
 ```
 
 **Future Multi-Personality Implementation**:
+
 ```typescript
 private async enrichReferencesWithPersonaNames(
   referencedMessages: ReferencedMessage[],
@@ -111,12 +120,14 @@ private async enrichReferencesWithPersonaNames(
 ### 1. **Tagging Detection**
 
 **Current**: `findPersonalityMention()` returns first match
+
 ```typescript
 const personality = findPersonalityMention(message.content, personalities);
 // Returns single LoadedPersonality or null
 ```
 
 **Needed**: Parse multiple @mentions
+
 ```typescript
 const personalities = findAllPersonalityMentions(message.content, personalities);
 // Returns LoadedPersonality[]
@@ -129,11 +140,13 @@ const personalities = findAllPersonalityMentions(message.content, personalities)
 ### 2. **Message Routing & Processing**
 
 **Current**: Single message → Single personality → Single response
+
 ```typescript
 await handlePersonalityMessage(message, personality, content);
 ```
 
 **Needed**: Single message → Multiple personalities → Multiple responses
+
 ```typescript
 const responses = await Promise.all(
   personalities.map(p => handlePersonalityMessage(message, p, content))
@@ -143,6 +156,7 @@ const responses = await Promise.all(
 **Complexity**: Medium - need to handle concurrent processing
 
 **Questions**:
+
 - Process personalities sequentially or in parallel?
 - How to handle if one personality fails?
 - How to manage rate limits across multiple AI calls?
@@ -152,6 +166,7 @@ const responses = await Promise.all(
 ### 3. **Conversation History Isolation**
 
 **Current**: Each personality has isolated conversation history per channel
+
 ```typescript
 await conversationHistory.getRecentHistory(
   channelId,
@@ -161,6 +176,7 @@ await conversationHistory.getRecentHistory(
 ```
 
 **Challenge**: With multi-personality, do personalities:
+
 - **Option A**: See each other's responses? (true group conversation)
 - **Option B**: Maintain separate histories? (parallel monologues)
 
@@ -173,6 +189,7 @@ await conversationHistory.getRecentHistory(
 ### 4. **Reference Persona Enrichment**
 
 **Current**: References enriched once for single personality context
+
 ```typescript
 await enrichReferencesWithPersonaNames(references, history, personalityId);
 ```
@@ -180,12 +197,14 @@ await enrichReferencesWithPersonaNames(references, history, personalityId);
 **Challenge**: Each personality may have different persona mappings for same user
 
 **Example**:
+
 - User "Alice" has:
   - Persona "Alice (Casual)" for Lilith personality
   - Persona "Alice (Professional)" for Sarcastic personality
 - A referenced message from Alice should show different names to each personality
 
 **Solution**:
+
 ```typescript
 // Enrich separately for each personality
 const enrichedReferences = new Map<string, ReferencedMessage[]>();
@@ -203,6 +222,7 @@ for (const personalityId of personalityIds) {
 ### 5. **Response Display & Attribution**
 
 **Current**: Single webhook per personality (avatar + name)
+
 ```typescript
 await webhookManager.sendWebhookMessage(channel, personality, response);
 ```
@@ -212,6 +232,7 @@ await webhookManager.sendWebhookMessage(channel, personality, response);
 **Options**:
 
 **A. Sequential Webhooks** (Easiest):
+
 ```
 [Webhook 1 - Lilith avatar]
 I think this is fascinating...
@@ -221,6 +242,7 @@ Oh sure, "fascinating"...
 ```
 
 **B. Combined Message with Sections**:
+
 ```
 [Webhook - Combined]
 ━━━ Lilith ━━━
@@ -231,6 +253,7 @@ Oh sure, "fascinating"...
 ```
 
 **C. Discord Threads** (Most Organized):
+
 - Main message: "Multiple personalities responding..."
 - Thread: Each personality replies in thread
 - Clearest attribution, best for long responses
@@ -244,6 +267,7 @@ Oh sure, "fascinating"...
 ### 6. **Database Schema Changes**
 
 **Current**: `ConversationHistory` table links to single `personalityId`
+
 ```prisma
 model ConversationHistory {
   id            String   @id @default(uuid())
@@ -259,6 +283,7 @@ model ConversationHistory {
 **Challenge**: How to store multi-personality conversations?
 
 **Option A**: Store each personality response separately (current schema works)
+
 ```typescript
 // For message with @lilith @sarcastic
 await conversationHistory.addMessage(channelId, 'lilith-id', ...);   // Lilith's response
@@ -266,6 +291,7 @@ await conversationHistory.addMessage(channelId, 'sarcastic-id', ...); // Sarcast
 ```
 
 **Option B**: Add `parentMessageId` to link responses from same source message
+
 ```prisma
 model ConversationHistory {
   // ... existing fields
@@ -285,11 +311,13 @@ model ConversationHistory {
 **Multi-Personality**: 1 message → N AI API calls (N = number of @mentions)
 
 **Implications**:
+
 - **Cost**: Linear increase (2x personalities = 2x cost)
 - **Latency**: Sequential processing slower than parallel
 - **Rate Limits**: Need to manage concurrent API calls
 
 **Mitigation**:
+
 - Set maximum personalities per message (e.g., 3-4)
 - Use parallel processing with proper error handling
 - Consider queueing for better rate limit management
@@ -301,6 +329,7 @@ model ConversationHistory {
 ## Test Cases Needed
 
 ### Tagging Detection
+
 - ✅ Single @mention (already works)
 - ❌ Multiple @mentions
 - ❌ Duplicate @mentions (e.g., `@lilith @lilith`)
@@ -308,27 +337,32 @@ model ConversationHistory {
 - ❌ Maximum mentions limit
 
 ### Message Processing
+
 - ❌ All personalities respond successfully
 - ❌ One personality fails, others succeed
 - ❌ Concurrent processing doesn't cause race conditions
 - ❌ Rate limiting across multiple personalities
 
 ### Conversation History
+
 - ❌ Each personality sees all responses in channel
 - ❌ History query returns correct multi-personality context
 - ❌ Persona attribution is correct for each personality
 
 ### Reference Enrichment (The PR #210 Test Case)
+
 - ❌ Same user with different personas in multiple personality contexts
 - ❌ References enriched correctly for each personality
 - ❌ Persona names vary appropriately based on personality context
 
 ### Response Display
+
 - ❌ Multiple responses display clearly
 - ❌ Attribution is obvious (which personality said what)
 - ❌ Responses appear in correct order
 
 ### Edge Cases
+
 - ❌ Empty message with just @mentions
 - ❌ Long response from multiple personalities (chunking)
 - ❌ User edits message to add/remove @mentions (how to handle?)
@@ -342,6 +376,7 @@ model ConversationHistory {
 **Scope**: This is not a simple feature addition, it's a **architectural shift**
 
 **Requires**:
+
 1. Tagging detection changes (Low complexity)
 2. Message routing overhaul (Medium complexity)
 3. Conversation history model rethinking (High complexity)
@@ -354,6 +389,7 @@ model ConversationHistory {
 ### Current Focus
 
 **Higher Priority Items**:
+
 1. ✅ Basic reference system (PR #210 - COMPLETED)
 2. Message link following improvements (in progress)
 3. BYOK (Bring Your Own Key) for public launch
@@ -388,28 +424,33 @@ Before implementing multi-personality support:
 ## Future Implementation Plan
 
 ### Phase 1: Detection & Routing (Week 1)
+
 - [ ] Update `findPersonalityMention()` to `findAllPersonalityMentions()`
 - [ ] Add maximum mentions limit (3-4 personalities)
 - [ ] Update message routing to handle multiple personalities
 - [ ] Add basic tests for tagging detection
 
 ### Phase 2: Parallel Processing (Week 2)
+
 - [ ] Implement concurrent personality processing
 - [ ] Add error handling for partial failures
 - [ ] Update conversation history queries for group context
 - [ ] Add rate limiting across multiple AI calls
 
 ### Phase 3: Reference Enrichment (Week 2-3)
+
 - [ ] Parallelize reference enrichment for multiple personalities
 - [ ] Add the "multiple personas per user" test case from PR #210
 - [ ] Verify persona attribution is correct per personality
 
 ### Phase 4: Response Display (Week 3)
+
 - [ ] Implement chosen display strategy (likely sequential webhooks)
 - [ ] Add clear attribution for each personality response
 - [ ] Handle response ordering and timing
 
 ### Phase 5: Testing & Refinement (Week 3)
+
 - [ ] Comprehensive integration testing
 - [ ] Performance monitoring and optimization
 - [ ] Cost analysis and limits
@@ -420,16 +461,19 @@ Before implementing multi-personality support:
 ## Related Work
 
 ### PR #210: Reference Persona Enrichment
+
 - **Status**: ✅ Merged to develop
 - **Relevance**: Provides foundation for per-personality context in references
 - **Future Work**: Will need parallel enrichment when multi-personality is added
 
 ### Message Link Following
+
 - **Status**: In planning
 - **Relevance**: References system must handle multi-personality context
 - **Dependency**: This improvement builds on reference system
 
 ### BYOK (Bring Your Own Key)
+
 - **Status**: Planned
 - **Relevance**: Cost control critical before multiplying API calls
 - **Priority**: Should implement before multi-personality to control costs

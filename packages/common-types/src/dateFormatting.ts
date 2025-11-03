@@ -31,7 +31,7 @@ export function formatFullDateTime(date: Date | string | number): string {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: APP_SETTINGS.TIMEZONE,
-    timeZoneName: 'short'
+    timeZoneName: 'short',
   });
 }
 
@@ -53,12 +53,14 @@ export function formatDateOnly(date: Date | string | number): string {
   }
 
   // Format as YYYY-MM-DD in Eastern timezone
-  const parts = d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: APP_SETTINGS.TIMEZONE
-  }).split('/');
+  const parts = d
+    .toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: APP_SETTINGS.TIMEZONE,
+    })
+    .split('/');
 
   return `${parts[2]}-${parts[0]}-${parts[1]}`; // YYYY-MM-DD
 }
@@ -122,6 +124,6 @@ export function formatMemoryTimestamp(timestamp: Date | string | number): string
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-    timeZone: APP_SETTINGS.TIMEZONE
+    timeZone: APP_SETTINGS.TIMEZONE,
   });
 }

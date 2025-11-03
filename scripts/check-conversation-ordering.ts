@@ -43,7 +43,9 @@ async function main() {
       take: 20, // Just sample the first 20
     });
 
-    console.log(`\nChannel ${channelId.slice(0, 8)}... / Personality ${personalityId.slice(0, 8)}...`);
+    console.log(
+      `\nChannel ${channelId.slice(0, 8)}... / Personality ${personalityId.slice(0, 8)}...`
+    );
     console.log(`Messages: ${messages.length}`);
 
     let inversions = 0;

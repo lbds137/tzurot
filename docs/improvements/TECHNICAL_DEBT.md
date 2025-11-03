@@ -31,16 +31,20 @@ this.prisma = new PrismaClient();
 ```
 
 **Impact**:
+
 - If multiple adapters are instantiated, creates multiple database connection pools
 - Wastes database connections
 - May hit connection pool limits in production
 
 **Current Mitigation**:
+
 - Only one PgvectorMemoryAdapter instance is created per ai-worker process
 - Low immediate risk
 
 **Recommended Fix**:
+
 1. Create shared Prisma singleton utility:
+
    ```typescript
    // shared/prisma.ts
    let prismaClient: PrismaClient | undefined;
@@ -52,10 +56,12 @@ this.prisma = new PrismaClient();
      return prismaClient;
    }
    ```
+
 2. Use shared instance in adapter
 3. Handle graceful shutdown
 
 **Tracking**:
+
 - Created: 2025-10-31
 - Discovered during code review for PR #190
 - Low priority since single instance pattern is enforced by application architecture
@@ -99,6 +105,7 @@ _No low priority items at this time._
 **Issue**: Default minimum similarity was 0.15 (very low threshold) instead of 0.85 (high threshold).
 
 **Resolution**:
+
 - Changed default from 0.15 to 0.85
 - Added comprehensive JSDoc documentation
 - Clarified variable naming (minSimilarity, maxDistance)

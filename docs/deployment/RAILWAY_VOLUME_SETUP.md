@@ -34,6 +34,7 @@ railway run --service api-gateway sh -c "ls -la /data"
 ```
 
 Expected output:
+
 ```
 drwxr-xr-x    2 root     root          4096 Jan 27 00:00 .
 drwxr-xr-x   20 root     root          4096 Jan 27 00:00 ..
@@ -65,16 +66,19 @@ curl https://api-gateway-development-83e8.up.railway.app/health | jq '.avatars'
 ## Import Tool Integration
 
 The personality import tool automatically:
+
 1. Downloads avatars from shapes.inc
 2. Saves to `/data/avatars/{slug}.{ext}`
 3. Updates personality record with Railway URL
 
 Example:
+
 ```bash
 pnpm import-personality cold-kerach-batuach
 ```
 
 Generates:
+
 - Local path: `/data/avatars/cold-kerach-batuach.png`
 - Public URL: `https://api-gateway.railway.app/avatars/cold-kerach-batuach.png`
 
@@ -83,12 +87,15 @@ Generates:
 Avatar serving is configured in `services/api-gateway/src/index.ts`:
 
 ```typescript
-app.use('/avatars', express.static('/data/avatars', {
-  maxAge: '7d', // Cache for 7 days
-  etag: true,
-  lastModified: true,
-  fallthrough: false, // Return 404 if avatar not found
-}));
+app.use(
+  '/avatars',
+  express.static('/data/avatars', {
+    maxAge: '7d', // Cache for 7 days
+    etag: true,
+    lastModified: true,
+    fallthrough: false, // Return 404 if avatar not found
+  })
+);
 ```
 
 ### Caching Strategy
@@ -165,6 +172,7 @@ rm -rf "$BACKUP_DIR"
 **Symptom**: Health check shows `avatarStorage: false`
 
 **Solution**:
+
 ```bash
 # Check volume is mounted
 railway run --service api-gateway sh -c "mount | grep /data"
@@ -181,12 +189,15 @@ railway run --service api-gateway sh -c "mkdir -p /data/avatars"
 **Symptom**: 404 errors on `/avatars/{slug}.png`
 
 **Possible causes**:
+
 1. Avatar file doesn't exist
+
    ```bash
    railway run --service api-gateway sh -c "ls -la /data/avatars"
    ```
 
 2. Wrong file extension
+
    ```bash
    # Check actual extension
    railway run --service api-gateway sh -c "file /data/avatars/cold-kerach-batuach.*"
@@ -203,6 +214,7 @@ railway run --service api-gateway sh -c "mkdir -p /data/avatars"
 **Symptom**: Import succeeds but uses fallback avatar
 
 **Solution**:
+
 - Shapes.inc URL may be down
 - Network issue during import
 - Check import logs for download error
@@ -219,6 +231,7 @@ railway run --service api-gateway sh -c "mkdir -p /data/avatars"
 ### Scaling Strategy
 
 If storage needs exceed 1GB:
+
 1. Increase volume size in Railway dashboard
 2. Or compress avatars during import
 3. Or use WebP format (smaller than PNG)
@@ -248,6 +261,7 @@ pnpm fix-avatars lilith
 ```
 
 This will:
+
 1. Download avatar from shapes.inc
 2. Store in Railway volume
 3. Update personality record with new URL

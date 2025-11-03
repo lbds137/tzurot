@@ -13,7 +13,7 @@ export type {
   DiscordEnvironment,
   PersonalityConfig,
   RequestContext,
-  ReferencedMessage
+  ReferencedMessage,
 } from './schemas.js';
 
 /**

@@ -14,7 +14,7 @@ vi.mock('sharp', () => {
     return {
       resize: vi.fn().mockReturnThis(),
       png: vi.fn().mockReturnThis(),
-      toBuffer: vi.fn().mockResolvedValue(Buffer.alloc(bufferSize))
+      toBuffer: vi.fn().mockResolvedValue(Buffer.alloc(bufferSize)),
     };
   };
 
@@ -28,9 +28,9 @@ vi.mock('sharp', () => {
 
         instance.png = vi.fn().mockReturnThis();
 
-        instance.toBuffer = vi.fn().mockRejectedValue(
-          new Error('Input buffer contains unsupported image format')
-        );
+        instance.toBuffer = vi
+          .fn()
+          .mockRejectedValue(new Error('Input buffer contains unsupported image format'));
 
         return instance;
       }
@@ -59,7 +59,7 @@ vi.mock('sharp', () => {
       });
 
       return instance;
-    })
+    }),
   };
 });
 
@@ -101,7 +101,7 @@ describe('imageProcessor', () => {
 
       await optimizeAvatar(base64Data, {
         targetWidth: 512,
-        targetHeight: 512
+        targetHeight: 512,
       });
 
       // Verify sharp was called (we can't easily verify the exact params with our mock)
@@ -114,7 +114,7 @@ describe('imageProcessor', () => {
       const base64Data = buffer.toString('base64');
 
       const result = await optimizeAvatar(base64Data, {
-        maxSizeBytes: 100 * 1024 // 100KB instead of default 200KB
+        maxSizeBytes: 100 * 1024, // 100KB instead of default 200KB
       });
 
       expect(result).toHaveProperty('exceedsTarget');
@@ -125,7 +125,7 @@ describe('imageProcessor', () => {
       const base64Data = buffer.toString('base64');
 
       const result = await optimizeAvatar(base64Data, {
-        initialQuality: 80
+        initialQuality: 80,
       });
 
       expect(result.quality).toBeLessThanOrEqual(80);
@@ -136,7 +136,7 @@ describe('imageProcessor', () => {
       const base64Data = largeBuffer.toString('base64');
 
       const result = await optimizeAvatar(base64Data, {
-        minQuality: 60
+        minQuality: 60,
       });
 
       expect(result.quality).toBeGreaterThanOrEqual(60);
@@ -147,7 +147,7 @@ describe('imageProcessor', () => {
       const base64Data = buffer.toString('base64');
 
       await optimizeAvatar(base64Data, {
-        qualityStep: 5 // Smaller steps than default 10
+        qualityStep: 5, // Smaller steps than default 10
       });
 
       // Function should complete without error
@@ -222,7 +222,7 @@ describe('imageProcessor', () => {
       const base64Data = smallBuffer.toString('base64');
 
       const result = await optimizeAvatar(base64Data, {
-        initialQuality: 85
+        initialQuality: 85,
       });
 
       // With our mock, small images won't trigger quality reduction
@@ -303,7 +303,7 @@ describe('imageProcessor', () => {
 
       const result = await optimizeAvatar(base64Data, {
         minQuality: 50,
-        initialQuality: 50 // Start at minimum
+        initialQuality: 50, // Start at minimum
       });
 
       expect(result.quality).toBe(50);
@@ -316,7 +316,7 @@ describe('imageProcessor', () => {
       const result = await optimizeAvatar(base64Data, {
         initialQuality: 90,
         minQuality: 50,
-        qualityStep: 100 // Larger than 90-50 range
+        qualityStep: 100, // Larger than 90-50 range
       });
 
       // Should still work, quality should drop to or below minQuality in one step
@@ -329,7 +329,7 @@ describe('imageProcessor', () => {
       const base64Data = buffer.toString('base64');
 
       const result = await optimizeAvatar(base64Data, {
-        maxSizeBytes: 0
+        maxSizeBytes: 0,
       });
 
       expect(result.exceedsTarget).toBe(true);
@@ -340,7 +340,7 @@ describe('imageProcessor', () => {
       const base64Data = buffer.toString('base64');
 
       const result = await optimizeAvatar(base64Data, {
-        maxSizeBytes: 10 * 1024 * 1024 // 10MB
+        maxSizeBytes: 10 * 1024 * 1024, // 10MB
       });
 
       expect(result.exceedsTarget).toBe(false);
@@ -355,9 +355,7 @@ describe('imageProcessor', () => {
     });
 
     it('should throw error for empty string', async () => {
-      await expect(optimizeAvatar('')).rejects.toThrow(
-        'Invalid base64 image data provided'
-      );
+      await expect(optimizeAvatar('')).rejects.toThrow('Invalid base64 image data provided');
     });
 
     it('should wrap Sharp errors with user-friendly message', async () => {
@@ -375,84 +373,86 @@ describe('imageProcessor', () => {
     const validBase64 = Buffer.alloc(100).toString('base64');
 
     it('should throw error when minQuality > initialQuality', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        minQuality: 80,
-        initialQuality: 70
-      })).rejects.toThrow(
+      await expect(
+        optimizeAvatar(validBase64, {
+          minQuality: 80,
+          initialQuality: 70,
+        })
+      ).rejects.toThrow(
         'Invalid configuration: minQuality (80) cannot be greater than initialQuality (70)'
       );
     });
 
     it('should throw error for minQuality < 1', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        minQuality: 0
-      })).rejects.toThrow(
-        'Invalid configuration: minQuality must be between 1 and 100'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          minQuality: 0,
+        })
+      ).rejects.toThrow('Invalid configuration: minQuality must be between 1 and 100');
     });
 
     it('should throw error for minQuality > 100', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        minQuality: 101
-      })).rejects.toThrow(
-        'Invalid configuration: minQuality must be between 1 and 100'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          minQuality: 101,
+        })
+      ).rejects.toThrow('Invalid configuration: minQuality must be between 1 and 100');
     });
 
     it('should throw error for initialQuality < 1', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        initialQuality: 0
-      })).rejects.toThrow(
-        'Invalid configuration: initialQuality must be between 1 and 100'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          initialQuality: 0,
+        })
+      ).rejects.toThrow('Invalid configuration: initialQuality must be between 1 and 100');
     });
 
     it('should throw error for initialQuality > 100', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        initialQuality: 101
-      })).rejects.toThrow(
-        'Invalid configuration: initialQuality must be between 1 and 100'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          initialQuality: 101,
+        })
+      ).rejects.toThrow('Invalid configuration: initialQuality must be between 1 and 100');
     });
 
     it('should throw error for negative dimensions', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        targetWidth: -100
-      })).rejects.toThrow(
-        'Invalid configuration: dimensions must be positive'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          targetWidth: -100,
+        })
+      ).rejects.toThrow('Invalid configuration: dimensions must be positive');
     });
 
     it('should throw error for zero dimensions', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        targetHeight: 0
-      })).rejects.toThrow(
-        'Invalid configuration: dimensions must be positive'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          targetHeight: 0,
+        })
+      ).rejects.toThrow('Invalid configuration: dimensions must be positive');
     });
 
     it('should throw error for negative maxSizeBytes', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        maxSizeBytes: -1000
-      })).rejects.toThrow(
-        'Invalid configuration: maxSizeBytes cannot be negative'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          maxSizeBytes: -1000,
+        })
+      ).rejects.toThrow('Invalid configuration: maxSizeBytes cannot be negative');
     });
 
     it('should throw error for zero qualityStep', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        qualityStep: 0
-      })).rejects.toThrow(
-        'Invalid configuration: qualityStep must be positive'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          qualityStep: 0,
+        })
+      ).rejects.toThrow('Invalid configuration: qualityStep must be positive');
     });
 
     it('should throw error for negative qualityStep', async () => {
-      await expect(optimizeAvatar(validBase64, {
-        qualityStep: -5
-      })).rejects.toThrow(
-        'Invalid configuration: qualityStep must be positive'
-      );
+      await expect(
+        optimizeAvatar(validBase64, {
+          qualityStep: -5,
+        })
+      ).rejects.toThrow('Invalid configuration: qualityStep must be positive');
     });
 
     it('should accept valid configuration at boundary values', async () => {
@@ -462,7 +462,7 @@ describe('imageProcessor', () => {
         targetWidth: 1,
         targetHeight: 1,
         maxSizeBytes: 1,
-        qualityStep: 1
+        qualityStep: 1,
       });
 
       expect(result).toHaveProperty('buffer');

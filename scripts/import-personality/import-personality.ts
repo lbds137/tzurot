@@ -99,7 +99,9 @@ class PersonalityImportCLI {
 
       console.log(`✅ Loaded ${this.uuidMappings.size} UUID mappings`);
     } catch (error) {
-      console.warn('⚠️  No UUID mappings file found - all memories will be stored in legacy collections');
+      console.warn(
+        '⚠️  No UUID mappings file found - all memories will be stored in legacy collections'
+      );
     }
   }
 
@@ -133,10 +135,7 @@ class PersonalityImportCLI {
       let personalityResult: PersonalityImportResult | null = null;
       if (!options.memoriesOnly) {
         console.log('Step 2: Importing personality configuration\n');
-        personalityResult = await this.importPersonality(
-          shapesData.config,
-          options
-        );
+        personalityResult = await this.importPersonality(shapesData.config, options);
         console.log(`✅ Personality imported: ${personalityResult.v3PersonalityId}`);
         console.log(`  Note: Avatar URL preserved in customFields`);
         console.log('');
@@ -200,7 +199,6 @@ class PersonalityImportCLI {
       }
       console.log('═'.repeat(80));
       console.log('');
-
     } catch (error) {
       console.error('\n❌ Import failed:', error);
       throw error;
@@ -339,7 +337,9 @@ class PersonalityImportCLI {
     });
 
     if (!defaultLlmConfig) {
-      throw new Error('No default LLM config found! Please create one with isDefault=true and isGlobal=true');
+      throw new Error(
+        'No default LLM config found! Please create one with isDefault=true and isGlobal=true'
+      );
     }
 
     console.log(`  Using system prompt: ${defaultSystemPrompt.name}`);
@@ -349,7 +349,7 @@ class PersonalityImportCLI {
     const avatarBytes = await this.loadAvatarBytes(v3Data.personality.slug);
 
     // Create in database (wrapped in transaction)
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async tx => {
       // Create or update personality (using global defaults)
       const personality = existing
         ? await tx.personality.update({
@@ -470,7 +470,7 @@ Examples:
   await cli.import(options);
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('Fatal error:', error);
   process.exit(1);
 });

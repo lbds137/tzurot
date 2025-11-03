@@ -5,6 +5,7 @@
 ### ✅ Completed Work
 
 #### 1. **PersonalityMapper** - Core mapping logic
+
 - ✅ Maps shapes.inc 385-line JSON → v3 normalized schema
 - ✅ Handles personality, system_prompts, llm_configs tables
 - ✅ Preserves custom fields (keywords, favorite_reacts, custom messages)
@@ -15,6 +16,7 @@
 **Key insight from testing**: Shapes.inc used OpenRouter format, so model names need no mapping!
 
 #### 2. **AvatarDownloader** - Avatar self-hosting
+
 - ✅ Downloads from shapes.inc URLs
 - ✅ Stores in Railway volume (`/data/avatars`)
 - ✅ Generates public URLs for API gateway
@@ -24,6 +26,7 @@
 **Note**: No avatars in legacy backups - must download fresh during import.
 
 #### 3. **UUIDMapper** - ID resolution
+
 - ✅ Resolves shapes.inc user UUID → Discord ID → v3 persona UUID
 - ✅ Handles orphaned users (can't resolve UUID)
 - ✅ Caching for performance
@@ -33,6 +36,7 @@
 **Strategy**: Use Discord IDs as bridge between systems.
 
 #### 4. **MemoryImporter** - LTM import
+
 - ✅ Maps shapes.inc memory format → v3 Qdrant metadata
 - ✅ Integrates with UUIDMapper for user resolution
 - ✅ Tracks orphaned memories
@@ -43,12 +47,14 @@
 **Note**: Embedding generation and Qdrant write operations deferred to main CLI tool.
 
 #### 5. **Type Definitions** - Complete type system
+
 - ✅ Shapes.inc format types
 - ✅ V3 format types
 - ✅ Import tool types (options, results, validation)
 - ✅ Custom fields captured (favorite_reacts, keywords, etc.)
 
 #### 6. **Documentation**
+
 - ✅ README with component overview
 - ✅ Testing instructions
 - ✅ Usage examples (planned CLI)
@@ -80,6 +86,7 @@
 ### 🚧 Remaining Work
 
 #### High Priority
+
 1. **Main CLI Tool** (`import-personality.ts`)
    - Command-line argument parsing
    - File loading and validation
@@ -94,6 +101,7 @@
    - Backup before migration
 
 #### Integration Work
+
 3. **Database Operations**
    - Personality creation with Prisma
    - System prompt and LLM config creation
@@ -112,6 +120,7 @@
    - Railway volume configuration
 
 #### Testing
+
 6. **Full Integration Test**
    - Import cold-kerach-batuach completely
    - Verify PostgreSQL records
@@ -122,6 +131,7 @@
 ### 📊 Test Data Statistics
 
 **cold-kerach-batuach**:
+
 - Config: 30,914 bytes (385 lines)
 - System prompt: 3,019 characters
 - Character info: 1,469 characters
@@ -171,22 +181,26 @@
 ### 🎮 Future: Slash Commands vs Scripts
 
 **Current approach**: Scripts for testing and development
+
 - Quick iteration
 - Easy debugging
 - No Discord API constraints
 
 **Future approach**: Slash commands for production
+
 - User-facing personality import
 - Integrated with bot workflow
 - Better UX for end users
 
 **Discord limits**: 100 slash commands per bot
+
 - Use command subgroups to organize
 - Example: `/admin import personality cold-kerach-batuach`
 - Example: `/admin cleanup qdrant --dry-run`
 - Groups: `/admin`, `/personality`, `/memory`, `/backup`
 
 **Migration path**:
+
 1. ✅ Build as scripts first (current)
 2. Test and validate functionality
 3. Extract core logic into services
@@ -194,6 +208,7 @@
 5. Deploy as bot commands
 
 **Benefits of scripts-first approach**:
+
 - Faster development cycle
 - No need to redeploy bot for testing
 - Can run locally without Discord connection

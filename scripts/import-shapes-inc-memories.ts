@@ -31,7 +31,11 @@ function hashContent(content: string): string {
 }
 
 // Helper to generate deterministic memory UUID
-function deterministicMemoryUuid(personaId: string, personalityId: string, content: string): string {
+function deterministicMemoryUuid(
+  personaId: string,
+  personalityId: string,
+  content: string
+): string {
   const key = `${personaId}:${personalityId}:${hashContent(content)}`;
   return uuidv5(key, MEMORY_NAMESPACE);
 }
@@ -131,7 +135,9 @@ async function main() {
 
     // Filter out deleted memories
     const activeMemories = memories.filter(m => !m.deleted);
-    logger.info(`  Found ${activeMemories.length} memories (${memories.length - activeMemories.length} deleted)`);
+    logger.info(
+      `  Found ${activeMemories.length} memories (${memories.length - activeMemories.length} deleted)`
+    );
 
     if (activeMemories.length === 0) {
       continue;
@@ -142,12 +148,15 @@ async function main() {
     // Process in batches
     for (let i = 0; i < activeMemories.length; i += BATCH_SIZE) {
       const batch = activeMemories.slice(i, i + BATCH_SIZE);
-      logger.info(`  Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(activeMemories.length / BATCH_SIZE)} (${batch.length} memories)...`);
+      logger.info(
+        `  Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(activeMemories.length / BATCH_SIZE)} (${batch.length} memories)...`
+      );
 
       for (const memory of batch) {
         try {
           // Get shapes.inc user UUID from senders array (this is the legacy persona UUID)
-          const shapesUserId = memory.senders && memory.senders.length > 0 ? memory.senders[0] : null;
+          const shapesUserId =
+            memory.senders && memory.senders.length > 0 ? memory.senders[0] : null;
 
           if (!shapesUserId) {
             logger.debug(`  Memory ${memory.id} has no senders, skipping`);
@@ -215,7 +224,6 @@ async function main() {
           }
 
           totalMemories++;
-
         } catch (error) {
           totalErrors++;
           logger.error({ err: error, memory: memory.id }, 'Failed to process memory');
@@ -240,7 +248,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error in shapes.inc import');
   process.exit(1);
 });

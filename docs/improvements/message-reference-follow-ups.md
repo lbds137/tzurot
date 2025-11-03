@@ -15,10 +15,12 @@ The Message Reference System implementation (PR #208) is complete and production
 **Issue**: Message links are currently fetched sequentially in a for-loop, which can be slow for messages with many links.
 
 **Current Performance**:
+
 - Message with 10 links (sequential): ~2.5s delay + ~10s fetching = **~12.5s total**
 - Each fetch takes ~500ms-1s depending on network latency
 
 **Target Performance**:
+
 - Message with 10 links (parallel): ~2.5s delay + ~1s fetching = **~3.5s total**
 - 3-4x faster for multi-link messages
 
@@ -36,7 +38,7 @@ for (const link of links) {
 }
 
 // Proposed approach (parallel):
-const fetchPromises = links.map(async (link) => {
+const fetchPromises = links.map(async link => {
   try {
     const msg = await this.fetchMessageFromLink(link, message);
     return { success: true, link, message: msg };
@@ -57,11 +59,13 @@ for (const result of results) {
 ```
 
 **Benefits**:
+
 - Significantly faster for multi-link messages
 - Better user experience (less typing indicator time)
 - No change to functionality or error handling
 
 **Considerations**:
+
 - Discord API rate limits (should be fine for typical usage)
 - Memory usage (minimal - just holds promises)
 - Maintains deduplication logic
@@ -75,6 +79,7 @@ for (const result of results) {
 **Issue**: Test coverage is missing for the conversation history deduplication feature.
 
 **Current Test Coverage**:
+
 - ✅ Basic reference extraction
 - ✅ Within-references deduplication (reply + link to same message)
 - ✅ Max references limit
@@ -90,7 +95,7 @@ describe('Conversation History Deduplication', () => {
     // Setup: Create extractor with conversation history message IDs
     const historyMessageIds = ['msg-in-history-123'];
     const extractor = new MessageReferenceExtractor({
-      conversationHistoryMessageIds: historyMessageIds
+      conversationHistoryMessageIds: historyMessageIds,
     });
 
     // Create message that replies to msg-in-history-123
@@ -98,14 +103,16 @@ describe('Conversation History Deduplication', () => {
       reference: {
         messageId: 'msg-in-history-123',
         channelId: 'channel-123',
-        guildId: 'guild-123'
-      }
+        guildId: 'guild-123',
+      },
     });
 
     // Mock fetchReference to return the message
-    message.fetchReference = vi.fn().mockResolvedValue(
-      createMockMessage({ id: 'msg-in-history-123', content: 'Already in history' })
-    );
+    message.fetchReference = vi
+      .fn()
+      .mockResolvedValue(
+        createMockMessage({ id: 'msg-in-history-123', content: 'Already in history' })
+      );
 
     // Extract references
     const result = await extractor.extractReferencesWithReplacement(message);
@@ -118,10 +125,10 @@ describe('Conversation History Deduplication', () => {
     // Setup: Create extractor with conversation history time range
     const timeRange = {
       oldest: new Date('2025-11-02T10:00:00Z'),
-      newest: new Date('2025-11-02T12:00:00Z')
+      newest: new Date('2025-11-02T12:00:00Z'),
     };
     const extractor = new MessageReferenceExtractor({
-      conversationHistoryTimeRange: timeRange
+      conversationHistoryTimeRange: timeRange,
     });
 
     // Create message with reference timestamped at 11:00:00 (within range)
@@ -129,8 +136,8 @@ describe('Conversation History Deduplication', () => {
       reference: {
         messageId: 'msg-within-range-456',
         channelId: 'channel-123',
-        guildId: 'guild-123'
-      }
+        guildId: 'guild-123',
+      },
     });
 
     // Mock fetchReference to return message with timestamp in range
@@ -138,7 +145,7 @@ describe('Conversation History Deduplication', () => {
       createMockMessage({
         id: 'msg-within-range-456',
         content: 'Message within time range',
-        createdAt: new Date('2025-11-02T11:00:00Z')
+        createdAt: new Date('2025-11-02T11:00:00Z'),
       })
     );
 
@@ -153,10 +160,10 @@ describe('Conversation History Deduplication', () => {
     // Setup: Create extractor with conversation history time range
     const timeRange = {
       oldest: new Date('2025-11-02T10:00:00Z'),
-      newest: new Date('2025-11-02T12:00:00Z')
+      newest: new Date('2025-11-02T12:00:00Z'),
     };
     const extractor = new MessageReferenceExtractor({
-      conversationHistoryTimeRange: timeRange
+      conversationHistoryTimeRange: timeRange,
     });
 
     // Create message with reference timestamped BEFORE range
@@ -164,8 +171,8 @@ describe('Conversation History Deduplication', () => {
       reference: {
         messageId: 'msg-before-range-789',
         channelId: 'channel-123',
-        guildId: 'guild-123'
-      }
+        guildId: 'guild-123',
+      },
     });
 
     // Mock fetchReference to return message with timestamp before range
@@ -173,7 +180,7 @@ describe('Conversation History Deduplication', () => {
       createMockMessage({
         id: 'msg-before-range-789',
         content: 'Old message from yesterday',
-        createdAt: new Date('2025-11-01T09:00:00Z') // Before range
+        createdAt: new Date('2025-11-01T09:00:00Z'), // Before range
       })
     );
 
@@ -194,6 +201,7 @@ describe('Conversation History Deduplication', () => {
 ```
 
 **Benefits**:
+
 - Verifies critical deduplication logic
 - Prevents regressions
 - Documents expected behavior
@@ -213,10 +221,12 @@ describe('Conversation History Deduplication', () => {
 **Implementation**: Simple in-memory LRU cache with TTL.
 
 **Benefits**:
+
 - Reduces API calls
 - Faster response for repeated references
 
 **Considerations**:
+
 - Memory usage (minimal for 5-minute TTL)
 - Cache invalidation (TTL is sufficient)
 - Not critical for MVP (references are rarely repeated quickly)
@@ -230,15 +240,18 @@ describe('Conversation History Deduplication', () => {
 **Status**: Infrastructure is ready (2.5s delay, embed processing)
 
 **Implementation**: After 2.5s delay, check for PluralKit proxy detection:
+
 - Look for PluralKit bot replacing the original message
 - Extract PluralKit member info from embed/webhook
 - Use member name in referenced message metadata
 
 **Benefits**:
+
 - Better support for plural systems
 - Accurate attribution in references
 
 **Considerations**:
+
 - Requires PluralKit API integration
 - Need to handle PluralKit timeout (3s max)
 - Should be configurable per-server
@@ -250,10 +263,12 @@ describe('Conversation History Deduplication', () => {
 ## Implementation Priority
 
 **Next Sprint** (if time permits):
+
 1. Parallel message fetching (biggest UX win)
 2. Deduplication tests (quality/safety)
 
 **Future Sprints**:
+
 1. Reference caching (optimization)
 2. PluralKit support (niche but requested feature)
 
@@ -262,12 +277,14 @@ describe('Conversation History Deduplication', () => {
 ## Testing Strategy
 
 ### For Parallel Fetching:
+
 - Unit tests: Mock Discord API with varying latencies
 - Integration test: Create message with 10 real links
 - Performance test: Measure time difference (sequential vs parallel)
 - Verify deduplication still works correctly
 
 ### For Deduplication Tests:
+
 - Unit tests only (no integration needed)
 - Cover all edge cases: exact match, fuzzy match, mixed scenarios
 - Verify logging behavior (debug vs warn)

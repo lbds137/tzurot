@@ -7,7 +7,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"],
-  "references": [
-    { "path": "../../packages/common-types" }
-  ]
+  "references": [{ "path": "../../packages/common-types" }]
 }

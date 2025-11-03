@@ -58,28 +58,31 @@ async function getAllPointIds(collectionName: string): Promise<Set<string>> {
   return ids;
 }
 
-async function deleteMigratedMemories(
-  migratedIds: Set<string>,
-  dryRun: boolean
-): Promise<void> {
+async function deleteMigratedMemories(migratedIds: Set<string>, dryRun: boolean): Promise<void> {
   const idsArray = Array.from(migratedIds);
   const batchSize = 100;
   let deleted = 0;
 
-  console.log(`🗑️  ${dryRun ? '[DRY RUN] Would delete' : 'Deleting'} ${idsArray.length} memories in batches of ${batchSize}...\n`);
+  console.log(
+    `🗑️  ${dryRun ? '[DRY RUN] Would delete' : 'Deleting'} ${idsArray.length} memories in batches of ${batchSize}...\n`
+  );
 
   for (let i = 0; i < idsArray.length; i += batchSize) {
     const batch = idsArray.slice(i, Math.min(i + batchSize, idsArray.length));
 
     if (dryRun) {
-      console.log(`  [DRY RUN] Would delete batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories`);
+      console.log(
+        `  [DRY RUN] Would delete batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories`
+      );
     } else {
       try {
         await qdrant.delete(LILITH_OLD_COLLECTION, {
           points: batch,
         });
         deleted += batch.length;
-        console.log(`  ✅ Deleted batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories (${deleted}/${idsArray.length} total)`);
+        console.log(
+          `  ✅ Deleted batch ${Math.floor(i / batchSize) + 1}: ${batch.length} memories (${deleted}/${idsArray.length} total)`
+        );
       } catch (error) {
         console.error(`  ❌ Failed to delete batch ${Math.floor(i / batchSize) + 1}:`, error);
         throw error;
@@ -162,7 +165,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('❌ Error:', error);
   process.exit(1);
 });

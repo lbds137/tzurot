@@ -29,7 +29,12 @@ export class UserService {
    * @param displayName Discord display name (e.g., "Alt Hime") - falls back to username if not provided
    * @param bio Discord user's profile bio/about me - if provided, used for persona content
    */
-  async getOrCreateUser(discordId: string, username: string, displayName?: string, bio?: string): Promise<string> {
+  async getOrCreateUser(
+    discordId: string,
+    username: string,
+    displayName?: string,
+    bio?: string
+  ): Promise<string> {
     // Check cache first
     const cached = this.userCache.get(discordId);
     if (cached) {
@@ -40,7 +45,7 @@ export class UserService {
       // Try to find existing user
       let user = await this.prisma.user.findUnique({
         where: { discordId },
-        select: { id: true }
+        select: { id: true },
       });
 
       // Create if doesn't exist
@@ -59,12 +64,15 @@ export class UserService {
                 data: {
                   id: userId,
                   discordId,
-                  username
-                }
+                  username,
+                },
               });
               logger.debug({ userId }, '[UserService] User record created successfully');
             } catch (userError) {
-              logger.error({ err: userError, userId, discordId, username }, '[UserService] FAILED to create user record');
+              logger.error(
+                { err: userError, userId, discordId, username },
+                '[UserService] FAILED to create user record'
+              );
               throw userError;
             }
 
@@ -73,7 +81,10 @@ export class UserService {
             const personaDisplayName = displayName || username;
             // Use Discord bio if available, otherwise leave empty
             const personaContent = bio || '';
-            logger.debug({ personaId, username, preferredName: personaDisplayName, ownerId: userId }, '[UserService] Creating persona record');
+            logger.debug(
+              { personaId, username, preferredName: personaDisplayName, ownerId: userId },
+              '[UserService] Creating persona record'
+            );
             try {
               await tx.persona.create({
                 data: {
@@ -82,12 +93,15 @@ export class UserService {
                   preferredName: personaDisplayName, // Use display name for showing to AI
                   description: 'Default persona',
                   content: personaContent,
-                  ownerId: userId
-                }
+                  ownerId: userId,
+                },
               });
               logger.debug({ personaId }, '[UserService] Persona record created successfully');
             } catch (personaError) {
-              logger.error({ err: personaError, personaId, username, ownerId: userId }, '[UserService] FAILED to create persona record');
+              logger.error(
+                { err: personaError, personaId, username, ownerId: userId },
+                '[UserService] FAILED to create persona record'
+              );
               throw personaError;
             }
 
@@ -98,25 +112,36 @@ export class UserService {
                 data: {
                   userId: userId,
                   personaId: personaId,
-                  updatedAt: new Date()
-                }
+                  updatedAt: new Date(),
+                },
               });
-              logger.debug({ userId, personaId }, '[UserService] UserDefaultPersona link created successfully');
+              logger.debug(
+                { userId, personaId },
+                '[UserService] UserDefaultPersona link created successfully'
+              );
             } catch (linkError) {
-              logger.error({ err: linkError, userId, personaId }, '[UserService] FAILED to create userDefaultPersona link');
+              logger.error(
+                { err: linkError, userId, personaId },
+                '[UserService] FAILED to create userDefaultPersona link'
+              );
               throw linkError;
             }
           });
 
-          logger.info(`[UserService] Transaction completed: Created user ${username} (${discordId}) with default persona`);
+          logger.info(
+            `[UserService] Transaction completed: Created user ${username} (${discordId}) with default persona`
+          );
         } catch (transactionError) {
-          logger.error({
-            err: transactionError,
-            userId,
-            personaId,
-            discordId,
-            username
-          }, '[UserService] Transaction FAILED - all changes should be rolled back');
+          logger.error(
+            {
+              err: transactionError,
+              userId,
+              personaId,
+              discordId,
+              username,
+            },
+            '[UserService] Transaction FAILED - all changes should be rolled back'
+          );
           throw transactionError;
         }
 
@@ -126,7 +151,6 @@ export class UserService {
       // Cache the result
       this.userCache.set(discordId, user.id);
       return user.id;
-
     } catch (error) {
       logger.error({ err: error }, `Failed to get/create user: ${discordId}`);
       throw error;
@@ -190,7 +214,9 @@ export class UserService {
       });
 
       if (userConfig?.personaId) {
-        logger.debug(`Using personality-specific persona for user ${userId.substring(0, 8)}... with personality ${personalityId.substring(0, 8)}...`);
+        logger.debug(
+          `Using personality-specific persona for user ${userId.substring(0, 8)}... with personality ${personalityId.substring(0, 8)}...`
+        );
         this.personaCache.set(cacheKey, userConfig.personaId);
         return userConfig.personaId;
       }
@@ -213,11 +239,12 @@ export class UserService {
       logger.debug(`Using default persona for user ${userId.substring(0, 8)}...`);
       this.personaCache.set(cacheKey, defaultPersona.personaId);
       return defaultPersona.personaId;
-
     } catch (error) {
-      logger.error({ err: error }, `Failed to get persona for user ${userId} with personality ${personalityId}`);
+      logger.error(
+        { err: error },
+        `Failed to get persona for user ${userId} with personality ${personalityId}`
+      );
       throw error;
     }
   }
-
 }

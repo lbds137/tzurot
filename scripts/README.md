@@ -7,6 +7,7 @@ Helper scripts for deploying Tzurot v3 to Railway.
 The following scripts were used for the Qdrant → pgvector migration and are now **obsolete** (migration completed):
 
 **Qdrant-related scripts** (19 files):
+
 - `scripts/*-migration.cjs` - One-time Qdrant data migration scripts
 - `scripts/check-memory*.ts` - Qdrant memory inspection tools
 - `scripts/import-personality/*` - Used `@qdrant/js-client-rest` for Shapes.inc imports
@@ -14,17 +15,20 @@ The following scripts were used for the Qdrant → pgvector migration and are no
 These scripts **will not work** as `@qdrant/js-client-rest` has been removed from dependencies. They are kept for historical reference only.
 
 If you need to reference the migration process, see:
+
 - `docs/migration/PGVECTOR_MIGRATION_CHECKLIST.md`
 - `docs/deployment/PRODUCTION_DEPLOYMENT_CHECKLIST.md`
 
 ## Prerequisites
 
 1. **Railway CLI installed:**
+
    ```bash
    npm install -g @railway/cli
    ```
 
 2. **Logged into Railway:**
+
    ```bash
    railway login
    ```
@@ -40,6 +44,7 @@ If you need to reference the migration process, see:
 Main deployment script that sets up all environment variables for the development environment on Railway.
 
 **What it does:**
+
 - Links to your Railway project
 - Sets environment variables for all three services:
   - `api-gateway`: Port, logging
@@ -48,12 +53,14 @@ Main deployment script that sets up all environment variables for the developmen
 - Provides next steps for deployment
 
 **Usage:**
+
 ```bash
 cd /home/deck/WebstormProjects/tzurot/tzurot-v3
 ./scripts/deploy-railway-dev.sh
 ```
 
 **First-time setup:**
+
 1. Create Railway project (if you haven't already)
 2. Add Redis service via Railway dashboard
 3. Create three services: `api-gateway`, `ai-worker`, `bot-client`
@@ -65,6 +72,7 @@ cd /home/deck/WebstormProjects/tzurot/tzurot-v3
 Quick helper to update the bot-client's Gateway URL after API Gateway is deployed.
 
 **Usage:**
+
 ```bash
 ./scripts/update-gateway-url.sh https://your-gateway.railway.app
 ```
@@ -131,14 +139,17 @@ railway open
 ## Environment Variables Reference
 
 ### Shared (All Services)
+
 - `NODE_ENV`: development
 - `LOG_LEVEL`: debug
 - `REDIS_URL`: Auto-set by Railway when Redis service is added
 
 ### api-gateway
+
 - `PORT`: 3000
 
 ### ai-worker
+
 - `AI_PROVIDER`: gemini
 - `GEMINI_API_KEY`: Your Google Gemini API key
 - `DEFAULT_AI_MODEL`: gemini-2.5-pro
@@ -146,6 +157,7 @@ railway open
 - `QDRANT_API_KEY`: Qdrant API key
 
 ### bot-client
+
 - `DISCORD_TOKEN`: Your Discord bot token
 - `GATEWAY_URL`: URL of deployed api-gateway
 - `PERSONALITIES_DIR`: /app/personalities
@@ -153,21 +165,25 @@ railway open
 ## Troubleshooting
 
 **Problem:** Bot not responding to messages
+
 - Check `GATEWAY_URL` is correct: `railway variables --service bot-client`
 - Verify API Gateway is running: `railway logs --service api-gateway`
 - Check Discord token is valid
 
 **Problem:** AI responses failing
+
 - Verify `GEMINI_API_KEY` is set: `railway variables --service ai-worker`
 - Check ai-worker logs: `railway logs --service ai-worker`
 - Test Gemini API key is valid
 
 **Problem:** Services can't connect to Redis
+
 - Ensure Redis service is added in Railway dashboard
 - Verify `REDIS_URL` is set: `railway variables --service api-gateway`
 - Redis URL should be auto-injected: `${{Redis.REDIS_URL}}`
 
 **Problem:** "Service not found"
+
 - Make sure services are named exactly: `api-gateway`, `ai-worker`, `bot-client`
 - Check Railway dashboard to verify service names
 - Link to correct project: `railway link`
@@ -175,16 +191,19 @@ railway open
 ## Updating Variables
 
 To update a single variable:
+
 ```bash
 railway variables set KEY=value --service service-name
 ```
 
 To view all variables for a service:
+
 ```bash
 railway variables --service service-name
 ```
 
 To delete a variable:
+
 ```bash
 railway variables --delete KEY --service service-name
 ```
@@ -192,6 +211,7 @@ railway variables --delete KEY --service service-name
 ## Production Deployment
 
 For production, you'll want to:
+
 1. Create a separate `.env.production` file
 2. Use a different Railway environment
 3. Set `NODE_ENV=production`

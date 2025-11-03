@@ -12,6 +12,7 @@
 The tzurot-v3 project is a comprehensive rewrite implementing a modern microservices architecture with LangChain.js-based RAG (Retrieval-Augmented Generation) for AI personalities with long-term memory. The foundational infrastructure is **complete and functional**, but critical services remain unimplemented.
 
 ### Key Achievements
+
 - ✅ Monorepo structure with pnpm workspaces
 - ✅ AI worker service with LangChain RAG (COMPLETE)
 - ✅ Multi-layered memory system (global/personal/session canons)
@@ -19,6 +20,7 @@ The tzurot-v3 project is a comprehensive rewrite implementing a modern microserv
 - ✅ TypeScript-first architecture
 
 ### Critical Gaps
+
 - ❌ API Gateway service (not implemented)
 - ❌ Bot client basic functionality (stub only)
 - ❌ Data ingestion pipeline
@@ -59,13 +61,13 @@ The tzurot-v3 project is a comprehensive rewrite implementing a modern microserv
 
 ### 1. Infrastructure & Tooling
 
-| Component | Status | Implementation % | Notes |
-|-----------|--------|-----------------|-------|
-| **Monorepo Setup** | ✅ Complete | 100% | pnpm workspaces configured |
-| **TypeScript Config** | ✅ Complete | 100% | Base tsconfig.json with service extensions |
-| **Railway Deployment** | ✅ Ready | 100% | railway.json configured for all services |
-| **Docker Compose** | ✅ Complete | 100% | Local dev: Redis, ChromaDB, PostgreSQL |
-| **Shared Packages** | ✅ Complete | 100% | common-types, api-clients |
+| Component              | Status      | Implementation % | Notes                                      |
+| ---------------------- | ----------- | ---------------- | ------------------------------------------ |
+| **Monorepo Setup**     | ✅ Complete | 100%             | pnpm workspaces configured                 |
+| **TypeScript Config**  | ✅ Complete | 100%             | Base tsconfig.json with service extensions |
+| **Railway Deployment** | ✅ Ready    | 100%             | railway.json configured for all services   |
+| **Docker Compose**     | ✅ Complete | 100%             | Local dev: Redis, ChromaDB, PostgreSQL     |
+| **Shared Packages**    | ✅ Complete | 100%             | common-types, api-clients                  |
 
 **Assessment:** Infrastructure is production-ready.
 
@@ -79,19 +81,20 @@ The crown jewel of the implementation - this service is **fully functional** and
 
 #### What's Built
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| **BullMQ Worker** | ✅ | Processes jobs from queue |
-| **VectorMemoryManager** | ✅ | Multi-layered canon system (global/personal/session) |
-| **ConversationalRAGService** | ✅ | LangChain-based memory-augmented conversations |
-| **PersonalityLoader** | ✅ | JSON-based personality configurations |
-| **Health Check Server** | ✅ | HTTP endpoint for Railway monitoring |
-| **Streaming Support** | ✅ | AsyncGenerator for streaming responses |
-| **BYOK Support** | ✅ | Per-user API key injection |
+| Feature                      | Status | Details                                              |
+| ---------------------------- | ------ | ---------------------------------------------------- |
+| **BullMQ Worker**            | ✅     | Processes jobs from queue                            |
+| **VectorMemoryManager**      | ✅     | Multi-layered canon system (global/personal/session) |
+| **ConversationalRAGService** | ✅     | LangChain-based memory-augmented conversations       |
+| **PersonalityLoader**        | ✅     | JSON-based personality configurations                |
+| **Health Check Server**      | ✅     | HTTP endpoint for Railway monitoring                 |
+| **Streaming Support**        | ✅     | AsyncGenerator for streaming responses               |
+| **BYOK Support**             | ✅     | Per-user API key injection                           |
 
 #### Implementation Highlights
 
 **VectorMemoryManager.ts** (276 lines):
+
 - ChromaDB client with OpenAI embeddings
 - `addMemory()` - Store interactions
 - `queryMemories()` - Retrieve with metadata filtering
@@ -100,6 +103,7 @@ The crown jewel of the implementation - this service is **fully functional** and
 - Supports session-scoped memories for roleplay
 
 **ConversationalRAGService.ts** (324 lines):
+
 - Integrates LangChain ChatOpenAI for completions
 - Retrieves relevant memories before generating responses
 - Stores interactions automatically for future retrieval
@@ -107,15 +111,18 @@ The crown jewel of the implementation - this service is **fully functional** and
 - Streaming response support
 
 **AIJobProcessor.ts** (referenced):
+
 - Processes both standard and streaming jobs
 - Job type: `{ personality, message, context, userApiKey? }`
 
 #### What's Missing (5%)
+
 - ⏳ Canon reconciliation agent (for relationship evolution)
 - ⏳ Relationship graph implementation
 - ⏳ Memory propagation rules ("gossip protocol")
 
 **Code Locations:**
+
 - `/home/deck/WebstormProjects/tzurot/tzurot-v3/services/ai-worker/src/`
   - `index.ts` - BullMQ worker entry point
   - `memory/VectorMemoryManager.ts` - Multi-layered canon system
@@ -133,16 +140,16 @@ This is a **critical blocker**. The gateway service exists as a package but has 
 
 #### What's Needed
 
-| Feature | Status | Priority | Estimated Effort |
-|---------|--------|----------|-----------------|
-| **Express Server** | ❌ | CRITICAL | 2-4 hours |
-| **BullMQ Queue Setup** | ❌ | CRITICAL | 1 hour |
-| **POST /ai/generate** | ❌ | CRITICAL | 2 hours |
-| **Job Creation Logic** | ❌ | CRITICAL | 1 hour |
-| **User Credential Lookup** | ❌ | HIGH | 3-4 hours |
-| **BYOK Credential Storage** | ❌ | HIGH | 4-6 hours |
-| **PostgreSQL Connection** | ❌ | MEDIUM | 1 hour |
-| **Encryption for API Keys** | ❌ | HIGH | 2 hours |
+| Feature                     | Status | Priority | Estimated Effort |
+| --------------------------- | ------ | -------- | ---------------- |
+| **Express Server**          | ❌     | CRITICAL | 2-4 hours        |
+| **BullMQ Queue Setup**      | ❌     | CRITICAL | 1 hour           |
+| **POST /ai/generate**       | ❌     | CRITICAL | 2 hours          |
+| **Job Creation Logic**      | ❌     | CRITICAL | 1 hour           |
+| **User Credential Lookup**  | ❌     | HIGH     | 3-4 hours        |
+| **BYOK Credential Storage** | ❌     | HIGH     | 4-6 hours        |
+| **PostgreSQL Connection**   | ❌     | MEDIUM   | 1 hour           |
+| **Encryption for API Keys** | ❌     | HIGH     | 2 hours          |
 
 #### Recommended Implementation Path
 
@@ -159,8 +166,8 @@ const logger = pino();
 const aiQueue = new Queue('ai-requests', {
   connection: {
     host: process.env.REDIS_HOST,
-    port: parseInt(process.env.REDIS_PORT || '6379')
-  }
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+  },
 });
 
 // POST /ai/generate - Create AI generation job
@@ -172,7 +179,7 @@ app.post('/ai/generate', async (req, res) => {
     personality,
     message,
     context,
-    requestId: generateRequestId()
+    requestId: generateRequestId(),
   });
 
   res.json({ jobId: job.id });
@@ -193,23 +200,23 @@ Basic Discord.js client exists but lacks critical features.
 
 #### What's Built
 
-| Feature | Status | Implementation % |
-|---------|--------|------------------|
-| **Discord.js Client** | ✅ | 100% |
-| **Basic Message Handler** | ✅ | 60% |
-| **AIProviderFactory** | ✅ | 100% |
-| **Example Personality** | ✅ | 100% |
+| Feature                   | Status | Implementation % |
+| ------------------------- | ------ | ---------------- |
+| **Discord.js Client**     | ✅     | 100%             |
+| **Basic Message Handler** | ✅     | 60%              |
+| **AIProviderFactory**     | ✅     | 100%             |
+| **Example Personality**   | ✅     | 100%             |
 
 #### What's Missing (80%)
 
-| Feature | Status | Priority |
-|---------|--------|----------|
-| **Call API Gateway** | ❌ | CRITICAL |
-| **Webhook Management** | ❌ | CRITICAL |
-| **Personality Selection** | ❌ | HIGH |
-| **Command System** | ❌ | HIGH |
-| **Message Deduplication** | ❌ | MEDIUM |
-| **Discord Formatting** | ❌ | MEDIUM |
+| Feature                   | Status | Priority |
+| ------------------------- | ------ | -------- |
+| **Call API Gateway**      | ❌     | CRITICAL |
+| **Webhook Management**    | ❌     | CRITICAL |
+| **Personality Selection** | ❌     | HIGH     |
+| **Command System**        | ❌     | HIGH     |
+| **Message Deduplication** | ❌     | MEDIUM   |
+| **Discord Formatting**    | ❌     | MEDIUM   |
 
 #### Current Implementation
 
@@ -220,6 +227,7 @@ Basic Discord.js client exists but lacks critical features.
 ```
 
 **Code Location:**
+
 - `/home/deck/WebstormProjects/tzurot/tzurot-v3/services/bot-client/src/index.ts`
 
 ---
@@ -231,6 +239,7 @@ Basic Discord.js client exists but lacks critical features.
 #### common-types
 
 All TypeScript interfaces and types defined:
+
 - `Personality` - Full personality configuration
 - `ChatCompletionRequest` - AI API request format
 - `ConversationHistory` - Message history structure
@@ -242,6 +251,7 @@ All TypeScript interfaces and types defined:
 #### api-clients
 
 Vendor-agnostic AI provider abstractions:
+
 - `AIProviderFactory` - Creates providers from environment
 - OpenRouter integration
 - Type-safe request/response handling
@@ -342,30 +352,30 @@ Vendor-agnostic AI provider abstractions:
 
 ### Implemented
 
-| Category | Technology | Version | Notes |
-|----------|-----------|---------|-------|
-| **Runtime** | Node.js | 20+ | Required |
-| **Language** | TypeScript | Latest | All services |
-| **Package Manager** | pnpm | 8+ | Workspace support |
-| **Discord** | Discord.js | 14.x | Bot client |
-| **AI Framework** | LangChain.js | 0.3.x | RAG, chains, agents |
-| **LLM Provider** | OpenRouter | - | Via @langchain/openai |
-| **Embeddings** | OpenAI | text-embedding-3-small | Cost-effective |
-| **Vector DB** | ChromaDB | - | Via @langchain/community |
-| **Job Queue** | BullMQ | Latest | Redis-based |
-| **Database** | PostgreSQL | - | Railway addon |
-| **Cache/Queue** | Redis | - | Railway addon |
-| **Logging** | Pino | Latest | Fast structured logging |
-| **Deployment** | Railway | - | Monorepo support |
+| Category            | Technology   | Version                | Notes                    |
+| ------------------- | ------------ | ---------------------- | ------------------------ |
+| **Runtime**         | Node.js      | 20+                    | Required                 |
+| **Language**        | TypeScript   | Latest                 | All services             |
+| **Package Manager** | pnpm         | 8+                     | Workspace support        |
+| **Discord**         | Discord.js   | 14.x                   | Bot client               |
+| **AI Framework**    | LangChain.js | 0.3.x                  | RAG, chains, agents      |
+| **LLM Provider**    | OpenRouter   | -                      | Via @langchain/openai    |
+| **Embeddings**      | OpenAI       | text-embedding-3-small | Cost-effective           |
+| **Vector DB**       | ChromaDB     | -                      | Via @langchain/community |
+| **Job Queue**       | BullMQ       | Latest                 | Redis-based              |
+| **Database**        | PostgreSQL   | -                      | Railway addon            |
+| **Cache/Queue**     | Redis        | -                      | Railway addon            |
+| **Logging**         | Pino         | Latest                 | Fast structured logging  |
+| **Deployment**      | Railway      | -                      | Monorepo support         |
 
 ### Planned but Not Used
 
-| Category | Technology | Status | Notes |
-|----------|-----------|--------|-------|
-| **Agent Graphs** | LangGraph | ⏳ | For Free Will agent |
-| **Voice Synthesis** | ElevenLabs | ⏳ | Mentioned in chat |
-| **Image Generation** | Flux | ⏳ | Mentioned in chat |
-| **Vector DB Alt** | Pinecone | ⏳ | Chat suggests as alternative |
+| Category             | Technology | Status | Notes                        |
+| -------------------- | ---------- | ------ | ---------------------------- |
+| **Agent Graphs**     | LangGraph  | ⏳     | For Free Will agent          |
+| **Voice Synthesis**  | ElevenLabs | ⏳     | Mentioned in chat            |
+| **Image Generation** | Flux       | ⏳     | Mentioned in chat            |
+| **Vector DB Alt**    | Pinecone   | ⏳     | Chat suggests as alternative |
 
 ---
 
@@ -383,7 +393,7 @@ Vendor-agnostic AI provider abstractions:
 
 3. **LangChain over Custom RAG** ✅
    - Reasoning: Avoid reinventing the wheel, production-ready patterns
-   - Implementation: @langchain/* packages throughout
+   - Implementation: @langchain/\* packages throughout
 
 4. **ChromaDB for Local Dev** ✅
    - Reasoning: Easy Docker setup, good for <1M vectors
@@ -430,13 +440,13 @@ Vendor-agnostic AI provider abstractions:
 
 **Goal:** Basic multi-personality chat bot with memory
 
-| Task | Priority | Effort | Blocks |
-|------|----------|--------|--------|
-| 1. Implement api-gateway | 🔴 CRITICAL | 8-12h | All bot functionality |
-| 2. Bot-client → gateway integration | 🔴 CRITICAL | 4-6h | End-to-end flow |
-| 3. PostgreSQL BYOK credential store | 🟡 HIGH | 6-8h | User API keys |
-| 4. Personality command system | 🟡 HIGH | 8-10h | Multi-personality support |
-| 5. Webhook management | 🟡 HIGH | 6-8h | Discord persona per personality |
+| Task                                | Priority    | Effort | Blocks                          |
+| ----------------------------------- | ----------- | ------ | ------------------------------- |
+| 1. Implement api-gateway            | 🔴 CRITICAL | 8-12h  | All bot functionality           |
+| 2. Bot-client → gateway integration | 🔴 CRITICAL | 4-6h   | End-to-end flow                 |
+| 3. PostgreSQL BYOK credential store | 🟡 HIGH     | 6-8h   | User API keys                   |
+| 4. Personality command system       | 🟡 HIGH     | 8-10h  | Multi-personality support       |
+| 5. Webhook management               | 🟡 HIGH     | 6-8h   | Discord persona per personality |
 
 **Estimated MVP Time:** 32-44 hours of focused development
 
@@ -444,14 +454,14 @@ Vendor-agnostic AI provider abstractions:
 
 **Goal:** Advanced features from Gemini chat
 
-| Feature | Effort | Dependencies |
-|---------|--------|--------------|
-| **Free Will Agent** | 16-24h | Gateway, LangGraph |
-| **Relationship Graph** | 12-16h | Gateway, memory system |
-| **Data Ingestion** | 8-12h | Memory system |
+| Feature                  | Effort | Dependencies                  |
+| ------------------------ | ------ | ----------------------------- |
+| **Free Will Agent**      | 16-24h | Gateway, LangGraph            |
+| **Relationship Graph**   | 12-16h | Gateway, memory system        |
+| **Data Ingestion**       | 8-12h  | Memory system                 |
 | **Canon Reconciliation** | 16-20h | LangGraph, relationship graph |
-| **Voice Synthesis** | 8-12h | ElevenLabs integration |
-| **Image Generation** | 8-12h | Flux integration |
+| **Voice Synthesis**      | 8-12h  | ElevenLabs integration        |
+| **Image Generation**     | 8-12h  | Flux integration              |
 
 **Estimated Advanced Features Time:** 68-96 hours
 
@@ -545,6 +555,7 @@ tzurot-v3/
 ### Immediate Next Steps (This Weekend)
 
 1. **Implement API Gateway (8-12 hours)**
+
    ```bash
    cd services/api-gateway
    mkdir -p src
@@ -552,11 +563,12 @@ tzurot-v3/
    ```
 
 2. **Update Bot Client to Use Gateway (4-6 hours)**
+
    ```typescript
    // Replace direct AI calls with HTTP to gateway
    const response = await fetch('http://localhost:3000/ai/generate', {
      method: 'POST',
-     body: JSON.stringify({ personality, message, context })
+     body: JSON.stringify({ personality, message, context }),
    });
    ```
 
@@ -611,6 +623,7 @@ tzurot-v3/
 ## Success Criteria
 
 ### MVP Success (Week 1)
+
 - [ ] All 3 services running
 - [ ] End-to-end message flow works
 - [ ] Multiple personalities selectable
@@ -618,6 +631,7 @@ tzurot-v3/
 - [ ] Basic Discord commands work
 
 ### V1 Success (Month 1)
+
 - [ ] BYOK system functional
 - [ ] Data migration complete
 - [ ] 5+ personalities configured
@@ -625,6 +639,7 @@ tzurot-v3/
 - [ ] Deployed to Railway
 
 ### V2 Success (Month 3)
+
 - [ ] Free Will agent active
 - [ ] Relationship graph operational
 - [ ] Canon reconciliation working
@@ -685,6 +700,7 @@ tzurot-v3/
 **Recommendation:** Focus on MVP completion first (gateway + bot integration), then layer in advanced features incrementally. The modular architecture makes this approach low-risk.
 
 **Estimated Timeline to Working Bot:**
+
 - Weekend 1: API Gateway + Integration = **MVP**
 - Weekend 2: Data migration = **Personalized**
 - Weekend 3-4: BYOK + Commands = **Scalable**

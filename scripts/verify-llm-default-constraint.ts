@@ -17,8 +17,8 @@ async function verifyConstraint() {
       id: true,
       name: true,
       isGlobal: true,
-      isDefault: true
-    }
+      isDefault: true,
+    },
   });
 
   console.log(`Found ${configs.length} LLM configs:\n`);
@@ -58,18 +58,17 @@ async function verifyConstraint() {
       // Set first as default
       await prisma.llmConfig.update({
         where: { id: configs[0].id },
-        data: { isDefault: true }
+        data: { isDefault: true },
       });
       console.log(`  ✅ Set ${configs[0].name} as default`);
 
       // Try to set second as default (should fail)
       await prisma.llmConfig.update({
         where: { id: configs[1].id },
-        data: { isDefault: true }
+        data: { isDefault: true },
       });
       console.log(`  ❌ ERROR: Was able to set ${configs[1].name} as default too!`);
       console.log(`  The constraint is NOT working!`);
-
     } catch (error) {
       if (error instanceof Error && error.message.includes('unique_default_llm_config')) {
         console.log(`  ✅ Constraint working! Cannot set second default.`);

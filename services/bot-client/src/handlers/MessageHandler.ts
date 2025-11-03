@@ -9,8 +9,20 @@ import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/GatewayClient.js';
 import { WebhookManager } from '../webhooks/WebhookManager.js';
-import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig, INTERVALS } from '@tzurot/common-types';
-import type { LoadedPersonality, ReferencedMessage, ConversationMessage } from '@tzurot/common-types';
+import {
+  ConversationHistoryService,
+  PersonalityService,
+  UserService,
+  preserveCodeBlocks,
+  createLogger,
+  getConfig,
+  INTERVALS,
+} from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  ReferencedMessage,
+  ConversationMessage,
+} from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from '../redis.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
@@ -31,10 +43,7 @@ export class MessageHandler {
   private personalityService: PersonalityService;
   private userService: UserService;
 
-  constructor(
-    gatewayClient: GatewayClient,
-    webhookManager: WebhookManager
-  ) {
+  constructor(gatewayClient: GatewayClient, webhookManager: WebhookManager) {
     this.gatewayClient = gatewayClient;
     this.webhookManager = webhookManager;
     this.conversationHistory = new ConversationHistoryService();
@@ -61,8 +70,8 @@ export class MessageHandler {
 
       // Check for voice message auto-transcription (if enabled)
       const config = getConfig();
-      const hasVoiceAttachment = message.attachments.some(a =>
-        a.contentType?.startsWith('audio/') || a.duration !== null
+      const hasVoiceAttachment = message.attachments.some(
+        a => a.contentType?.startsWith('audio/') || a.duration !== null
       );
 
       if (hasVoiceAttachment && config.AUTO_TRANSCRIBE_VOICE === 'true') {
@@ -72,7 +81,11 @@ export class MessageHandler {
 
         // Check if this message ALSO targets a personality
         const isReply = message.reference !== null;
-        const mentionCheck = await findPersonalityMention(message.content, getConfig().BOT_MENTION_CHAR, this.personalityService);
+        const mentionCheck = await findPersonalityMention(
+          message.content,
+          getConfig().BOT_MENTION_CHAR,
+          this.personalityService
+        );
         const hasMention = mentionCheck !== null || message.mentions.has(message.client.user!);
 
         if (!isReply && !hasMention) {
@@ -82,7 +95,9 @@ export class MessageHandler {
 
         // Voice + personality mention: Continue to personality handler
         // The transcript will be included in the attachment descriptions
-        logger.debug('[MessageHandler] Voice message with personality mention - continuing to personality handler');
+        logger.debug(
+          '[MessageHandler] Voice message with personality mention - continuing to personality handler'
+        );
       }
 
       // Check for replies to personality messages (best UX - no @mention needed)
@@ -94,17 +109,25 @@ export class MessageHandler {
       }
 
       // Check for personality mentions (e.g., "@personality hello")
-      const mentionMatch = await findPersonalityMention(message.content, getConfig().BOT_MENTION_CHAR, this.personalityService);
+      const mentionMatch = await findPersonalityMention(
+        message.content,
+        getConfig().BOT_MENTION_CHAR,
+        this.personalityService
+      );
 
       if (mentionMatch !== null) {
         // Load personality from database (with PersonalityService's cache)
-        const personality = await this.personalityService.loadPersonality(mentionMatch.personalityName);
+        const personality = await this.personalityService.loadPersonality(
+          mentionMatch.personalityName
+        );
 
         if (personality !== null) {
           await this.handlePersonalityMessage(message, personality, mentionMatch.cleanContent);
         } else {
           // Silently ignore unknown personality mentions (likely typos or non-bot mentions)
-          logger.debug(`[MessageHandler] Unknown personality mentioned: ${mentionMatch.personalityName}`);
+          logger.debug(
+            `[MessageHandler] Unknown personality mentioned: ${mentionMatch.personalityName}`
+          );
         }
         return;
       }
@@ -121,7 +144,6 @@ export class MessageHandler {
 
       // Commands handled here in the future
       // For now, only respond to explicit mentions
-
     } catch (error) {
       logger.error({ err: error }, '[MessageHandler] Error processing message');
 
@@ -149,8 +171,13 @@ export class MessageHandler {
 
       // Check if this webhook belongs to the current bot instance
       // This prevents both dev and prod bots from responding to the same personality webhook
-      if (referencedMessage.applicationId && referencedMessage.applicationId !== message.client.user!.id) {
-        logger.debug(`[MessageHandler] Ignoring reply to webhook from different bot instance. Webhook applicationId: ${referencedMessage.applicationId}, Current bot ID: ${message.client.user!.id}`);
+      if (
+        referencedMessage.applicationId &&
+        referencedMessage.applicationId !== message.client.user!.id
+      ) {
+        logger.debug(
+          `[MessageHandler] Ignoring reply to webhook from different bot instance. Webhook applicationId: ${referencedMessage.applicationId}, Current bot ID: ${message.client.user!.id}`
+        );
         return false;
       }
 
@@ -160,13 +187,17 @@ export class MessageHandler {
       // Fallback: Parse webhook username if Redis lookup fails
       if (!personalityName && referencedMessage.author) {
         const webhookUsername = referencedMessage.author.username;
-        logger.debug(`[MessageHandler] Redis lookup failed, parsing webhook username: ${webhookUsername}`);
+        logger.debug(
+          `[MessageHandler] Redis lookup failed, parsing webhook username: ${webhookUsername}`
+        );
 
         // Extract personality name by removing bot suffix
         // Format: "Personality | suffix" -> "Personality"
         if (webhookUsername.includes(' | ')) {
           personalityName = webhookUsername.split(' | ')[0].trim();
-          logger.debug(`[MessageHandler] Extracted personality name from webhook username: ${personalityName}`);
+          logger.debug(
+            `[MessageHandler] Extracted personality name from webhook username: ${personalityName}`
+          );
         }
       }
 
@@ -188,7 +219,6 @@ export class MessageHandler {
       // Handle the message with the personality
       await this.handlePersonalityMessage(message, personality, message.content);
       return true;
-
     } catch (error) {
       // If we can't fetch the referenced message, it might be deleted or inaccessible
       logger.debug({ err: error }, '[MessageHandler] Could not fetch referenced message');
@@ -218,7 +248,10 @@ export class MessageHandler {
             }
           } catch (error) {
             // Channel might be deleted or inaccessible - stop trying
-            logger.debug({ err: error }, '[MessageHandler] Typing indicator error, clearing interval');
+            logger.debug(
+              { err: error },
+              '[MessageHandler] Typing indicator error, clearing interval'
+            );
             if (typingInterval) {
               clearInterval(typingInterval);
               typingInterval = null;
@@ -229,7 +262,8 @@ export class MessageHandler {
 
       // Get or create user record FIRST (needed for conversation history query)
       // Use display name: server nickname > global display name > username
-      const displayName = message.member?.displayName || message.author.globalName || message.author.username;
+      const displayName =
+        message.member?.displayName || message.author.globalName || message.author.username;
 
       // Note: Discord API doesn't expose user bios to bots (privacy restriction)
       // Bio parameter left undefined, so persona content will be empty
@@ -243,7 +277,9 @@ export class MessageHandler {
       const personaId = await this.userService.getPersonaForUser(userId, personality.id);
       const personaName = await this.userService.getPersonaName(personaId);
 
-      logger.debug(`[MessageHandler] User persona lookup: personaId=${personaId}, personaName=${personaName}, userId=${userId}, personalityId=${personality.id}`);
+      logger.debug(
+        `[MessageHandler] User persona lookup: personaId=${personaId}, personaName=${personaName}, userId=${userId}, personalityId=${personality.id}`
+      );
 
       // Get conversation history from PostgreSQL (needed for reference deduplication)
       const historyLimit = personality.contextWindow || 20;
@@ -262,24 +298,30 @@ export class MessageHandler {
       // This waits 2-3 seconds for Discord to process embeds
       // Uses conversation history message IDs for exact deduplication
       // Also replaces Discord message links with [Reference N] placeholders
-      logger.debug('[MessageHandler] Extracting referenced messages with deduplication and link replacement');
+      logger.debug(
+        '[MessageHandler] Extracting referenced messages with deduplication and link replacement'
+      );
       const referenceExtractor = new MessageReferenceExtractor({
         maxReferences: 10,
         embedProcessingDelayMs: 2500, // 2.5 seconds to allow Discord to process embeds
-        conversationHistoryMessageIds
+        conversationHistoryMessageIds,
       });
-      const { references: referencedMessages, updatedContent } = await referenceExtractor.extractReferencesWithReplacement(message);
+      const { references: referencedMessages, updatedContent } =
+        await referenceExtractor.extractReferencesWithReplacement(message);
 
       // Enrich referenced messages with persona names instead of Discord display names
       if (referencedMessages.length > 0) {
         await this.enrichReferencesWithPersonaNames(referencedMessages, history, personality.id);
 
-        logger.info({
-          count: referencedMessages.length,
-          referenceNumbers: referencedMessages.map(r => r.referenceNumber),
-          authors: referencedMessages.map(r => r.authorUsername),
-          personaNames: referencedMessages.map(r => r.authorDisplayName)
-        }, `[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`);
+        logger.info(
+          {
+            count: referencedMessages.length,
+            referenceNumbers: referencedMessages.map(r => r.referenceNumber),
+            authors: referencedMessages.map(r => r.authorUsername),
+            personaNames: referencedMessages.map(r => r.authorDisplayName),
+          },
+          `[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`
+        );
       }
 
       // Use updatedContent (with Discord links replaced by [Reference N]) for the AI context
@@ -294,12 +336,14 @@ export class MessageHandler {
         content: msg.content,
         createdAt: msg.createdAt.toISOString(), // Include timestamp for context
         personaId: msg.personaId,
-        personaName: msg.personaName // Persona's name for context
+        personaName: msg.personaName, // Persona's name for context
       }));
 
       // Debug: check how many messages have personaName
       const messagesWithPersonaName = conversationHistory.filter(m => m.personaName).length;
-      logger.debug(`[MessageHandler] Conversation history: ${conversationHistory.length} messages, ${messagesWithPersonaName} have personaName`);
+      logger.debug(
+        `[MessageHandler] Conversation history: ${conversationHistory.length} messages, ${messagesWithPersonaName} have personaName`
+      );
 
       // Extract attachments if present (images, audio, etc)
       const attachments = extractAttachments(message.attachments);
@@ -319,16 +363,19 @@ export class MessageHandler {
         conversationHistory,
         attachments,
         environment,
-        referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined
+        referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined,
       };
 
-      logger.debug({
-        activePersonaId: context.activePersonaId,
-        activePersonaName: context.activePersonaName,
-        historyLength: conversationHistory.length,
-        hasReferencedMessages: !!context.referencedMessages,
-        referencedMessagesCount: context.referencedMessages?.length || 0
-      }, `[MessageHandler] Built context for AI request`);
+      logger.debug(
+        {
+          activePersonaId: context.activePersonaId,
+          activePersonaName: context.activePersonaName,
+          historyLength: conversationHistory.length,
+          hasReferencedMessages: !!context.referencedMessages,
+          referencedMessagesCount: context.referencedMessages?.length || 0,
+        },
+        `[MessageHandler] Built context for AI request`
+      );
 
       // Save user message to conversation history BEFORE calling AI
       // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
@@ -348,7 +395,12 @@ export class MessageHandler {
 
       // Update user message with rich descriptions if available
       // The AI worker processes both attachments and references, returning descriptions with vision/transcription
-      if (response.attachmentDescriptions || response.referencedMessagesDescriptions || (attachments && attachments.length > 0) || referencedMessages.length > 0) {
+      if (
+        response.attachmentDescriptions ||
+        response.referencedMessagesDescriptions ||
+        (attachments && attachments.length > 0) ||
+        referencedMessages.length > 0
+      ) {
         let enrichedContent = messageContentForAI || content; // Start with content that has [Reference N] markers
 
         // Add attachment descriptions
@@ -359,20 +411,24 @@ export class MessageHandler {
             : response.attachmentDescriptions;
         } else if (attachments && attachments.length > 0) {
           // Fallback to simple placeholders if processing failed
-          const attachmentDesc = attachments.map(a => {
-            if (a.isVoiceMessage) {
-              return `[voice message: ${a.duration}s]`;
-            }
-            if (a.contentType.startsWith('image/')) {
-              return `[image: ${a.name || 'attachment'}]`;
-            }
-            if (a.contentType.startsWith('audio/')) {
-              return `[audio: ${a.name || 'attachment'}]`;
-            }
-            return `[file: ${a.name || 'attachment'}]`;
-          }).join(' ');
+          const attachmentDesc = attachments
+            .map(a => {
+              if (a.isVoiceMessage) {
+                return `[voice message: ${a.duration}s]`;
+              }
+              if (a.contentType.startsWith('image/')) {
+                return `[image: ${a.name || 'attachment'}]`;
+              }
+              if (a.contentType.startsWith('audio/')) {
+                return `[audio: ${a.name || 'attachment'}]`;
+              }
+              return `[file: ${a.name || 'attachment'}]`;
+            })
+            .join(' ');
 
-          enrichedContent = enrichedContent ? `${enrichedContent} ${attachmentDesc}` : attachmentDesc;
+          enrichedContent = enrichedContent
+            ? `${enrichedContent} ${attachmentDesc}`
+            : attachmentDesc;
         }
 
         // Add reference descriptions (with vision/transcription from AI worker)
@@ -404,7 +460,8 @@ export class MessageHandler {
       }
 
       // Send via webhook if in a guild text channel or thread
-      const isWebhookChannel = message.guild !== null &&
+      const isWebhookChannel =
+        message.guild !== null &&
         (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
 
       let firstMessageId: string | null = null;
@@ -461,8 +518,9 @@ export class MessageHandler {
         );
       }
 
-      logger.info(`[MessageHandler] Response sent as ${personality.displayName} (with ${conversationHistory.length} history messages)`);
-
+      logger.info(
+        `[MessageHandler] Response sent as ${personality.displayName} (with ${conversationHistory.length} history messages)`
+      );
     } catch (error) {
       logger.error({ err: error }, '[MessageHandler] Error handling personality message');
 
@@ -476,7 +534,6 @@ export class MessageHandler {
       }
     }
   }
-
 
   /**
    * Handle voice message transcription
@@ -498,7 +555,7 @@ export class MessageHandler {
         size: attachment.size,
         isVoiceMessage: attachment.duration !== null,
         duration: attachment.duration ?? undefined,
-        waveform: attachment.waveform ?? undefined
+        waveform: attachment.waveform ?? undefined,
       }));
 
       // Send transcribe job to api-gateway
@@ -511,7 +568,9 @@ export class MessageHandler {
       // Chunk the transcript (respecting 2000 char Discord limit)
       const chunks = preserveCodeBlocks(response.content);
 
-      logger.info(`[MessageHandler] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`);
+      logger.info(
+        `[MessageHandler] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`
+      );
 
       // Send each chunk as a reply (these will appear BEFORE personality webhook response)
       for (const chunk of chunks) {
@@ -523,14 +582,15 @@ export class MessageHandler {
       const voiceAttachment = attachments[0]; // We know there's at least one
       if (voiceAttachment) {
         await storeVoiceTranscript(voiceAttachment.url, response.content);
-        logger.debug(`[MessageHandler] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`);
+        logger.debug(
+          `[MessageHandler] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
+        );
       }
 
       return response.content;
-
     } catch (error) {
       logger.error({ err: error }, '[MessageHandler] Error transcribing voice message');
-      await message.reply('Sorry, I couldn\'t transcribe that voice message.').catch(() => {});
+      await message.reply("Sorry, I couldn't transcribe that voice message.").catch(() => {});
       return undefined;
     }
   }
@@ -576,19 +636,24 @@ export class MessageHandler {
       let personaId: string | undefined;
 
       try {
-        // Check if this is a webhook message
+        // Check if this is a webhook message using dual detection:
+        // 1. Redis cache: Stores bot's own webhooks with 7-day TTL (fast lookup for recent messages)
+        // 2. Discord webhookId: Catches PluralKit, expired cache, cross-channel refs, or other bot instances
         // Skip persona creation for ALL webhooks (AI personalities, PluralKit, etc.)
         // We'll handle PluralKit personas properly when we implement that feature
         const webhookPersonality = await getWebhookPersonality(reference.discordMessageId);
         const isWebhook = webhookPersonality || reference.webhookId;
 
         if (isWebhook) {
-          logger.debug({
-            referenceNumber: reference.referenceNumber,
-            webhookId: reference.webhookId,
-            cachedPersonality: webhookPersonality,
-            authorDisplayName: reference.authorDisplayName
-          }, '[MessageHandler] Skipping persona enrichment - message is from webhook');
+          logger.debug(
+            {
+              referenceNumber: reference.referenceNumber,
+              webhookId: reference.webhookId,
+              cachedPersonality: webhookPersonality,
+              authorDisplayName: reference.authorDisplayName,
+            },
+            '[MessageHandler] Skipping persona enrichment - message is from webhook'
+          );
           continue; // Skip this reference, keep original display name
         }
 
@@ -616,21 +681,27 @@ export class MessageHandler {
         // Update the authorDisplayName with the persona name
         if (personaName) {
           reference.authorDisplayName = personaName;
-          logger.debug(`[MessageHandler] Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`);
+          logger.debug(
+            `[MessageHandler] Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`
+          );
         } else {
-          logger.warn(`[MessageHandler] Could not find persona name for reference ${reference.referenceNumber} (persona: ${personaId})`);
+          logger.warn(
+            `[MessageHandler] Could not find persona name for reference ${reference.referenceNumber} (persona: ${personaId})`
+          );
         }
-
       } catch (error) {
-        logger.error({
-          err: error,
-          referenceNumber: reference.referenceNumber,
-          discordUserId: reference.discordUserId,
-          authorUsername: reference.authorUsername,
-          personalityId,
-          userId: userId || 'unknown',
-          personaId: personaId || 'unknown'
-        }, '[MessageHandler] Failed to enrich reference with persona name');
+        logger.error(
+          {
+            err: error,
+            referenceNumber: reference.referenceNumber,
+            discordUserId: reference.discordUserId,
+            authorUsername: reference.authorUsername,
+            personalityId,
+            userId: userId || 'unknown',
+            personaId: personaId || 'unknown',
+          },
+          '[MessageHandler] Failed to enrich reference with persona name'
+        );
         // Keep the original Discord display name on error
       }
     }

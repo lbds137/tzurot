@@ -6,7 +6,12 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import { Collection, ChatInputCommandInteraction, ModalSubmitInteraction, MessageFlags } from 'discord.js';
+import {
+  Collection,
+  ChatInputCommandInteraction,
+  ModalSubmitInteraction,
+  MessageFlags,
+} from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
@@ -52,15 +57,16 @@ export class CommandHandler {
         // Determine category based on directory structure
         const relativePath = filePath.replace(commandsPath, '');
         const pathParts = relativePath.split('/').filter(Boolean);
-        const category = pathParts.length > 1
-          ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
-          : undefined;
+        const category =
+          pathParts.length > 1
+            ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
+            : undefined;
 
         // Create command object with category (don't mutate the imported module)
         const commandWithCategory: Command = {
           data: command.data,
           execute: command.execute,
-          category
+          category,
         };
 
         this.commands.set(command.data.name, commandWithCategory);
@@ -101,7 +107,9 @@ export class CommandHandler {
   /**
    * Handle a slash command or modal submit interaction
    */
-  async handleInteraction(interaction: ChatInputCommandInteraction | ModalSubmitInteraction): Promise<void> {
+  async handleInteraction(
+    interaction: ChatInputCommandInteraction | ModalSubmitInteraction
+  ): Promise<void> {
     // For modal submits, extract command name from customId (format: "commandName-modalType")
     const commandName = interaction.isModalSubmit()
       ? interaction.customId.split('-')[0]
@@ -113,13 +121,15 @@ export class CommandHandler {
       logger.warn(`[CommandHandler] Unknown command: ${commandName}`);
       await interaction.reply({
         content: 'Unknown command!',
-        flags: MessageFlags.Ephemeral
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     try {
-      logger.info(`[CommandHandler] Executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`);
+      logger.info(
+        `[CommandHandler] Executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`
+      );
 
       // Pass commands collection to utility command (for help subcommand)
       if (commandName === 'utility' && interaction.isChatInputCommand()) {
@@ -128,7 +138,10 @@ export class CommandHandler {
         await command.execute(interaction);
       }
     } catch (error) {
-      logger.error({ err: error }, `[CommandHandler] Error executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`);
+      logger.error(
+        { err: error },
+        `[CommandHandler] Error executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`
+      );
 
       const errorMessage = 'There was an error executing this command!';
 

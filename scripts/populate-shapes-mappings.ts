@@ -60,14 +60,16 @@ async function main() {
         include: {
           defaultPersonaLink: {
             include: {
-              persona: true
-            }
-          }
-        }
+              persona: true,
+            },
+          },
+        },
       });
 
       if (!userWithPersona) {
-        logger.warn(`  ⚠️  User with Discord ID ${mapping.discordId} not found in database, skipping`);
+        logger.warn(
+          `  ⚠️  User with Discord ID ${mapping.discordId} not found in database, skipping`
+        );
         skipped++;
         continue;
       }
@@ -85,7 +87,7 @@ async function main() {
 
       // Check if mapping already exists
       const existing = await prisma.shapesPersonaMapping.findUnique({
-        where: { shapesUserId: shapesUserId }
+        where: { shapesUserId: shapesUserId },
       });
 
       if (existing) {
@@ -102,7 +104,7 @@ async function main() {
             personaId: personaId,
             verificationStatus: 'admin_verified',
             mappedBy: mapping.newUserId, // Track who this was mapped by
-          }
+          },
         });
 
         logger.info(`  ✅ Created mapping: ${shapesUserId} → ${personaId}`);
@@ -124,7 +126,6 @@ async function main() {
         logger.info(`  [DRY RUN] Would create mapping: ${shapesUserId} → ${personaId}`);
         created++;
       }
-
     } catch (error) {
       logger.error({ err: error, shapesUserId }, 'Failed to process mapping');
       skipped++;
@@ -141,7 +142,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error');
   process.exit(1);
 });

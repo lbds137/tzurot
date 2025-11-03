@@ -79,7 +79,6 @@ async function main() {
         logger.info(`[DRY RUN] Would delete ${futurePending.length} corrupted pending_memories`);
       }
     }
-
   } catch (error) {
     logger.error({ err: error }, 'Failed to cleanup corrupted memories');
     throw error;
@@ -90,7 +89,7 @@ async function main() {
   logger.info('Cleanup complete!');
 }
 
-main().catch((error) => {
+main().catch(error => {
   logger.error({ err: error }, 'Fatal error');
   process.exit(1);
 });

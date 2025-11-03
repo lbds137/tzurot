@@ -82,30 +82,39 @@ export class MessageReferenceExtractor {
 
     // Extract reply-to reference (if present)
     if (updatedMessage.reference?.messageId) {
-      logger.info({
-        hasReference: true,
-        messageId: updatedMessage.reference.messageId
-      }, '[MessageReferenceExtractor] Message has reply reference, attempting to fetch');
+      logger.info(
+        {
+          hasReference: true,
+          messageId: updatedMessage.reference.messageId,
+        },
+        '[MessageReferenceExtractor] Message has reply reference, attempting to fetch'
+      );
 
       try {
         const referencedMessage = await updatedMessage.fetchReference();
 
         // Skip if message is already in conversation history
         if (!this.shouldIncludeReference(referencedMessage)) {
-          logger.info({
-            messageId: referencedMessage.id,
-            reason: 'already in conversation history'
-          }, `[MessageReferenceExtractor] Skipping reply reference - already in conversation history`);
+          logger.info(
+            {
+              messageId: referencedMessage.id,
+              reason: 'already in conversation history',
+            },
+            `[MessageReferenceExtractor] Skipping reply reference - already in conversation history`
+          );
         } else {
           // Format and add the reply reference
           const replyReference = this.formatReferencedMessage(referencedMessage, 1);
           references.push(replyReference);
-          logger.info({
-            messageId: referencedMessage.id,
-            referenceNumber: 1,
-            author: referencedMessage.author.username,
-            contentPreview: referencedMessage.content.substring(0, 50)
-          }, '[MessageReferenceExtractor] Added reply reference');
+          logger.info(
+            {
+              messageId: referencedMessage.id,
+              referenceNumber: 1,
+              author: referencedMessage.author.username,
+              contentPreview: referencedMessage.content.substring(0, 50),
+            },
+            '[MessageReferenceExtractor] Added reply reference'
+          );
         }
 
         // Always track the message ID to prevent duplicates in links
@@ -117,16 +126,21 @@ export class MessageReferenceExtractor {
 
         if (errorCode === 10008) {
           // Unknown Message - deleted or never existed (expected)
-          logger.debug(`[MessageReferenceExtractor] Reply reference not found (deleted or inaccessible)`);
+          logger.debug(
+            `[MessageReferenceExtractor] Reply reference not found (deleted or inaccessible)`
+          );
         } else if (errorCode === 50001 || errorCode === 50013) {
           // Missing Access / Missing Permissions (expected)
           logger.debug(`[MessageReferenceExtractor] No permission to access reply reference`);
         } else {
           // Unexpected error - log at WARN level for investigation
-          logger.warn({
-            err: error,
-            messageId: updatedMessage.reference.messageId
-          }, '[MessageReferenceExtractor] Unexpected error fetching reply reference');
+          logger.warn(
+            {
+              err: error,
+              messageId: updatedMessage.reference.messageId,
+            },
+            '[MessageReferenceExtractor] Unexpected error fetching reply reference'
+          );
         }
       }
     }
@@ -150,7 +164,9 @@ export class MessageReferenceExtractor {
 
     // Limit to max references
     if (references.length > this.maxReferences) {
-      logger.info(`[MessageReferenceExtractor] Limiting ${references.length} references to ${this.maxReferences}`);
+      logger.info(
+        `[MessageReferenceExtractor] Limiting ${references.length} references to ${this.maxReferences}`
+      );
       const limitedReferences = references.slice(0, this.maxReferences);
 
       // Update linkMap to only include references that made the cut
@@ -205,13 +221,17 @@ export class MessageReferenceExtractor {
       if (referencedMessage) {
         // Skip if this exact message was already extracted (e.g., from reply)
         if (extractedMessageIds.has(referencedMessage.id)) {
-          logger.debug(`[MessageReferenceExtractor] Skipping duplicate link reference ${referencedMessage.id} - already extracted from reply`);
+          logger.debug(
+            `[MessageReferenceExtractor] Skipping duplicate link reference ${referencedMessage.id} - already extracted from reply`
+          );
           continue;
         }
 
         // Skip if message is already in conversation history
         if (!this.shouldIncludeReference(referencedMessage)) {
-          logger.debug(`[MessageReferenceExtractor] Skipping link reference ${referencedMessage.id} - already in conversation history`);
+          logger.debug(
+            `[MessageReferenceExtractor] Skipping link reference ${referencedMessage.id} - already in conversation history`
+          );
           continue;
         }
 
@@ -242,23 +262,32 @@ export class MessageReferenceExtractor {
       // If not in cache, try to fetch it (bot might be in the guild but it's not cached)
       if (!guild) {
         try {
-          logger.debug({
-            guildId: link.guildId,
-            messageId: link.messageId
-          }, '[MessageReferenceExtractor] Guild not in cache, attempting fetch...');
+          logger.debug(
+            {
+              guildId: link.guildId,
+              messageId: link.messageId,
+            },
+            '[MessageReferenceExtractor] Guild not in cache, attempting fetch...'
+          );
 
           guild = await sourceMessage.client.guilds.fetch(link.guildId);
 
-          logger.info({
-            guildId: link.guildId,
-            guildName: guild.name
-          }, '[MessageReferenceExtractor] Successfully fetched guild');
+          logger.info(
+            {
+              guildId: link.guildId,
+              guildName: guild.name,
+            },
+            '[MessageReferenceExtractor] Successfully fetched guild'
+          );
         } catch (fetchError) {
-          logger.info({
-            guildId: link.guildId,
-            messageId: link.messageId,
-            err: fetchError
-          }, '[MessageReferenceExtractor] Guild not accessible for message link');
+          logger.info(
+            {
+              guildId: link.guildId,
+              messageId: link.messageId,
+              err: fetchError,
+            },
+            '[MessageReferenceExtractor] Guild not accessible for message link'
+          );
           return null;
         }
       }
@@ -269,45 +298,62 @@ export class MessageReferenceExtractor {
       // If not in channels cache, it might be a thread - fetch it
       if (!channel) {
         try {
-          logger.debug({
-            channelId: link.channelId,
-            messageId: link.messageId
-          }, '[MessageReferenceExtractor] Channel not in cache, fetching...');
+          logger.debug(
+            {
+              channelId: link.channelId,
+              messageId: link.messageId,
+            },
+            '[MessageReferenceExtractor] Channel not in cache, fetching...'
+          );
 
           channel = await sourceMessage.client.channels.fetch(link.channelId);
 
-          logger.debug({
-            channelId: link.channelId,
-            channelType: channel?.type,
-            isThread: channel?.isThread?.() || false
-          }, '[MessageReferenceExtractor] Channel fetched successfully');
+          logger.debug(
+            {
+              channelId: link.channelId,
+              channelType: channel?.type,
+              isThread: channel?.isThread?.() || false,
+            },
+            '[MessageReferenceExtractor] Channel fetched successfully'
+          );
         } catch (fetchError) {
-          logger.warn({
-            err: fetchError,
-            channelId: link.channelId,
-            messageId: link.messageId
-          }, '[MessageReferenceExtractor] Failed to fetch channel');
+          logger.warn(
+            {
+              err: fetchError,
+              channelId: link.channelId,
+              messageId: link.messageId,
+            },
+            '[MessageReferenceExtractor] Failed to fetch channel'
+          );
           return null;
         }
       }
 
       if (!channel || !this.isTextBasedChannel(channel)) {
-        logger.info({
-          channelId: link.channelId,
-          hasChannel: !!channel,
-          isTextBased: channel?.isTextBased?.() || false,
-          hasMessages: channel && 'messages' in channel
-        }, '[MessageReferenceExtractor] Channel not text-based or inaccessible');
+        logger.info(
+          {
+            channelId: link.channelId,
+            hasChannel: !!channel,
+            isTextBased: channel?.isTextBased?.() || false,
+            hasMessages: channel && 'messages' in channel,
+          },
+          '[MessageReferenceExtractor] Channel not text-based or inaccessible'
+        );
         return null;
       }
 
-      const fetchedMessage = await (channel as TextChannel | ThreadChannel).messages.fetch(link.messageId);
+      const fetchedMessage = await (channel as TextChannel | ThreadChannel).messages.fetch(
+        link.messageId
+      );
 
-      logger.info({
-        messageId: link.messageId,
-        channelId: link.channelId,
-        author: fetchedMessage.author.username
-      }, '[MessageReferenceExtractor] Successfully fetched message from link');
+      logger.info(
+        {
+          messageId: link.messageId,
+          channelId: link.channelId,
+          author: fetchedMessage.author.username,
+        },
+        '[MessageReferenceExtractor] Successfully fetched message from link'
+      );
 
       return fetchedMessage;
     } catch (error) {
@@ -317,18 +363,25 @@ export class MessageReferenceExtractor {
 
       if (errorCode === 10008) {
         // Unknown Message - deleted or never existed (expected)
-        logger.debug(`[MessageReferenceExtractor] Message ${link.messageId} not found (deleted or inaccessible)`);
+        logger.debug(
+          `[MessageReferenceExtractor] Message ${link.messageId} not found (deleted or inaccessible)`
+        );
       } else if (errorCode === 50001 || errorCode === 50013) {
         // Missing Access / Missing Permissions (expected)
-        logger.debug(`[MessageReferenceExtractor] No permission to access message ${link.messageId}`);
+        logger.debug(
+          `[MessageReferenceExtractor] No permission to access message ${link.messageId}`
+        );
       } else {
         // Unexpected error - log at WARN level for investigation
-        logger.warn({
-          err: error,
-          messageId: link.messageId,
-          guildId: link.guildId,
-          channelId: link.channelId
-        }, '[MessageReferenceExtractor] Unexpected error fetching message from link');
+        logger.warn(
+          {
+            err: error,
+            messageId: link.messageId,
+            guildId: link.guildId,
+            channelId: link.channelId,
+          },
+          '[MessageReferenceExtractor] Unexpected error fetching message from link'
+        );
       }
       return null;
     }
@@ -354,10 +407,7 @@ export class MessageReferenceExtractor {
     const embedImages = extractEmbedImages(message.embeds);
 
     // Combine both types of attachments
-    const allAttachments = [
-      ...(regularAttachments || []),
-      ...(embedImages || [])
-    ];
+    const allAttachments = [...(regularAttachments || []), ...(embedImages || [])];
 
     return {
       referenceNumber,
@@ -370,7 +420,7 @@ export class MessageReferenceExtractor {
       embeds: EmbedParser.parseMessageEmbeds(message),
       timestamp: message.createdAt.toISOString(),
       locationContext,
-      attachments: allAttachments.length > 0 ? allAttachments : undefined
+      attachments: allAttachments.length > 0 ? allAttachments : undefined,
     };
   }
 
@@ -396,7 +446,9 @@ export class MessageReferenceExtractor {
       }
       return message;
     } catch (error) {
-      logger.debug(`[MessageReferenceExtractor] Could not refetch message: ${(error as Error).message}`);
+      logger.debug(
+        `[MessageReferenceExtractor] Could not refetch message: ${(error as Error).message}`
+      );
       return message;
     }
   }
@@ -409,18 +461,24 @@ export class MessageReferenceExtractor {
   private shouldIncludeReference(message: Message): boolean {
     // Exact match: Check if Discord message ID is in conversation history
     if (this.conversationHistoryMessageIds.has(message.id)) {
-      logger.debug({
-        messageId: message.id,
-        author: message.author.username,
-        reason: 'exact Discord ID match'
-      }, '[MessageReferenceExtractor] Excluding reference - found in conversation history');
+      logger.debug(
+        {
+          messageId: message.id,
+          author: message.author.username,
+          reason: 'exact Discord ID match',
+        },
+        '[MessageReferenceExtractor] Excluding reference - found in conversation history'
+      );
       return false; // Exclude - already in conversation history
     }
 
-    logger.debug({
-      messageId: message.id,
-      author: message.author.username
-    }, '[MessageReferenceExtractor] Including reference - not found in conversation history');
+    logger.debug(
+      {
+        messageId: message.id,
+        author: message.author.username,
+      },
+      '[MessageReferenceExtractor] Including reference - not found in conversation history'
+    );
 
     return true; // Include - not found in conversation history
   }
@@ -430,7 +488,6 @@ export class MessageReferenceExtractor {
    * @param ms - Milliseconds to delay
    */
   private async delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
-
 }

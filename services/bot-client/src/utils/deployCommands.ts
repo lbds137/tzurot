@@ -62,7 +62,7 @@ export async function deployCommands(global = true): Promise<void> {
 
     const commands = [];
     for (const filePath of commandFiles) {
-      const command = await import(filePath) as Command;
+      const command = (await import(filePath)) as Command;
 
       if (!command.data || !command.execute) {
         logger.warn(`Skipping invalid command file: ${filePath}`);
@@ -80,21 +80,14 @@ export async function deployCommands(global = true): Promise<void> {
     if (!global && guildId) {
       // Guild-specific deployment (dev/testing)
       logger.info(`Deploying to guild: ${guildId}`);
-      await rest.put(
-        Routes.applicationGuildCommands(clientId, guildId),
-        { body: commands }
-      );
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
       logger.info(`Successfully deployed ${commands.length} commands to guild ${guildId}`);
     } else {
       // Global deployment (production)
       logger.info('Deploying globally (this may take up to an hour to propagate)');
-      await rest.put(
-        Routes.applicationCommands(clientId),
-        { body: commands }
-      );
+      await rest.put(Routes.applicationCommands(clientId), { body: commands });
       logger.info(`Successfully deployed ${commands.length} commands globally`);
     }
-
   } catch (error) {
     logger.error({ err: error }, 'Error deploying commands');
     throw error;

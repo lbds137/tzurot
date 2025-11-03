@@ -8,8 +8,8 @@ async function main() {
   console.log('\n=== PERSONALITIES ===\n');
   const personalities = await prisma.personality.findMany({
     include: {
-      systemPrompt: true
-    }
+      systemPrompt: true,
+    },
   });
 
   for (const p of personalities) {
@@ -21,8 +21,8 @@ async function main() {
   console.log('\n=== PERSONAS (User Context) ===\n');
   const personas = await prisma.persona.findMany({
     include: {
-      owner: true
-    }
+      owner: true,
+    },
   });
 
   for (const p of personas) {

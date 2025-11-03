@@ -16,7 +16,7 @@ import {
   AI_DEFAULTS,
   TIMEOUTS,
   type AttachmentMetadata,
-  type LoadedPersonality
+  type LoadedPersonality,
 } from '@tzurot/common-types';
 import OpenAI from 'openai';
 import { logErrorWithDetails } from '../utils/errorHandling.js';
@@ -40,11 +40,10 @@ function hasVisionSupport(modelName: string): boolean {
   const normalized = modelName.toLowerCase();
 
   // OpenAI vision models (gpt-4o, gpt-4-turbo, gpt-4-vision, etc.)
-  if (normalized.includes('gpt-4') && (
-    normalized.includes('vision') ||
-    normalized.includes('4o') ||
-    normalized.includes('turbo')
-  )) {
+  if (
+    normalized.includes('gpt-4') &&
+    (normalized.includes('vision') || normalized.includes('4o') || normalized.includes('turbo'))
+  ) {
     return true;
   }
 
@@ -57,9 +56,7 @@ function hasVisionSupport(modelName: string): boolean {
   if (normalized.includes('gemini')) {
     // Match gemini-1.5+, gemini-2.0+, gemini-2.5+, etc.
     // Exclude old gemini-pro without vision
-    if (normalized.includes('1.5') ||
-        normalized.includes('2.') ||
-        normalized.includes('vision')) {
+    if (normalized.includes('1.5') || normalized.includes('2.') || normalized.includes('vision')) {
       return true;
     }
   }
@@ -116,7 +113,6 @@ async function describeWithVisionModel(
   personality: LoadedPersonality,
   modelName: string
 ): Promise<string> {
-
   // Determine API key and base URL based on model
   let apiKey: string | undefined;
   let baseURL: string | undefined;
@@ -232,7 +228,10 @@ async function describeWithFallbackVision(
   );
 
   try {
-    logger.info({ model: config.VISION_FALLBACK_MODEL }, 'Invoking fallback vision model with 30s timeout');
+    logger.info(
+      { model: config.VISION_FALLBACK_MODEL },
+      'Invoking fallback vision model with 30s timeout'
+    );
     // Timeout must be passed to invoke(), not constructor (LangChain requirement)
     const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
     return typeof response.content === 'string'
@@ -241,7 +240,7 @@ async function describeWithFallbackVision(
   } catch (error) {
     const context: Record<string, unknown> = {
       modelName: config.VISION_FALLBACK_MODEL,
-      apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 15) + '...'
+      apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 15) + '...',
     };
 
     // Extract API response details if available
@@ -270,10 +269,13 @@ export async function transcribeAudio(
       const cachedTranscript = await getVoiceTranscript(attachment.originalUrl);
 
       if (cachedTranscript) {
-        logger.info({
-          originalUrl: attachment.originalUrl,
-          transcriptLength: cachedTranscript.length
-        }, 'Using cached voice transcript from Redis');
+        logger.info(
+          {
+            originalUrl: attachment.originalUrl,
+            transcriptLength: cachedTranscript.length,
+          },
+          'Using cached voice transcript from Redis'
+        );
         return cachedTranscript;
       }
     } catch (error) {
@@ -282,12 +284,15 @@ export async function transcribeAudio(
     }
   }
 
-  logger.info({
-    url: attachment.url,
-    originalUrl: attachment.originalUrl,
-    duration: attachment.duration,
-    contentType: attachment.contentType
-  }, 'Transcribing audio with Whisper (no cache)');
+  logger.info(
+    {
+      url: attachment.url,
+      originalUrl: attachment.originalUrl,
+      duration: attachment.duration,
+      contentType: attachment.contentType,
+    },
+    'Transcribing audio with Whisper (no cache)'
+  );
 
   // Initialize OpenAI client for Whisper with extended timeout for long audio files
   const openai = new OpenAI({
@@ -310,17 +315,18 @@ export async function transcribeAudio(
     // Convert to buffer and create File object
     const audioBuffer = await response.arrayBuffer();
     const blob = new Blob([audioBuffer], { type: attachment.contentType });
-    const audioFile = new File(
-      [blob],
-      attachment.name || 'audio.ogg',
-      { type: attachment.contentType }
-    );
+    const audioFile = new File([blob], attachment.name || 'audio.ogg', {
+      type: attachment.contentType,
+    });
 
     // Transcribe using Whisper (with 5-minute timeout from OpenAI client config)
-    logger.info({
-      fileSize: audioFile.size,
-      duration: attachment.duration,
-    }, 'Starting Whisper transcription...');
+    logger.info(
+      {
+        fileSize: audioFile.size,
+        duration: attachment.duration,
+      },
+      'Starting Whisper transcription...'
+    );
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
@@ -329,14 +335,17 @@ export async function transcribeAudio(
       response_format: 'text',
     });
 
-    logger.info({
-      duration: attachment.duration,
-      transcriptionLength: transcription.length,
-      transcriptionPreview: transcription.substring(0, 200) + (transcription.length > 200 ? '...' : '')
-    }, 'Audio transcribed successfully');
+    logger.info(
+      {
+        duration: attachment.duration,
+        transcriptionLength: transcription.length,
+        transcriptionPreview:
+          transcription.substring(0, 200) + (transcription.length > 200 ? '...' : ''),
+      },
+      'Audio transcribed successfully'
+    );
 
     return transcription;
-
   } catch (error) {
     clearTimeout(fetchTimeout);
     if (error instanceof Error && error.name === 'AbortError') {
@@ -362,10 +371,7 @@ async function processSingleAttachment(
       originalUrl: attachment.url,
       metadata: attachment,
     };
-  } else if (
-    attachment.contentType.startsWith('audio/') ||
-    attachment.isVoiceMessage
-  ) {
+  } else if (attachment.contentType.startsWith('audio/') || attachment.isVoiceMessage) {
     const description = await transcribeAudio(attachment, personality);
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
@@ -392,7 +398,7 @@ export async function processAttachments(
     {
       attachmentCount: attachments.length,
       personalityModel: personality.model,
-      maxAttempts: MAX_ATTEMPTS
+      maxAttempts: MAX_ATTEMPTS,
     },
     '[MultimodalProcessor] Processing attachments in parallel'
   );
@@ -409,13 +415,13 @@ export async function processAttachments(
         attempt,
         maxAttempts: MAX_ATTEMPTS,
         failedCount: failedIndices.length,
-        succeededCount: succeeded.length
+        succeededCount: succeeded.length,
       },
       `[MultimodalProcessor] Pass ${attempt}: Processing ${failedIndices.length} attachment(s)`
     );
 
     // Process all failed attachments in parallel
-    const promises = failedIndices.map((index) =>
+    const promises = failedIndices.map(index =>
       processSingleAttachment(attachments[index], personality)
     );
 
@@ -433,7 +439,7 @@ export async function processAttachments(
         logger.info(
           {
             attachment: attachment.name,
-            attempt
+            attempt,
           },
           `[MultimodalProcessor] Pass ${attempt} succeeded`
         );
@@ -447,7 +453,7 @@ export async function processAttachments(
               err: error,
               attachment: attachment.name,
               attempt,
-              willRetry: true
+              willRetry: true,
             },
             `[MultimodalProcessor] Pass ${attempt} failed, will retry`
           );
@@ -456,7 +462,7 @@ export async function processAttachments(
             {
               err: error,
               attachment: attachment.name,
-              attempt
+              attempt,
             },
             `[MultimodalProcessor] Pass ${attempt} failed, giving up after ${MAX_ATTEMPTS} attempts`
           );
@@ -491,7 +497,7 @@ export async function processAttachments(
     {
       total: attachments.length,
       succeeded: succeeded.length,
-      failed: failedIndices.length
+      failed: failedIndices.length,
     },
     '[MultimodalProcessor] Parallel processing complete'
   );

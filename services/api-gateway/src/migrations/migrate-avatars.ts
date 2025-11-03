@@ -24,28 +24,28 @@ const MIGRATIONS = [
   {
     source: join(__dirname, '../../avatars-to-migrate/lilith-tzel-shani.png'),
     dest: '/data/avatars/lilith-tzel-shani.png',
-    name: 'lilith-tzel-shani'
+    name: 'lilith-tzel-shani',
   },
   {
     source: join(__dirname, '../../avatars-to-migrate/cold-kerach-batuach.png'),
     dest: '/data/avatars/cold-kerach-batuach.png',
-    name: 'cold-kerach-batuach'
+    name: 'cold-kerach-batuach',
   },
   {
     source: join(__dirname, '../../avatars-to-migrate/ha-shem-keev-ima.png'),
     dest: '/data/avatars/ha-shem-keev-ima.png',
-    name: 'ha-shem-keev-ima'
+    name: 'ha-shem-keev-ima',
   },
   {
     source: join(__dirname, '../../avatars-to-migrate/emily-tzudad-seraph-ditza.png'),
     dest: '/data/avatars/emily-tzudad-seraph-ditza.png',
-    name: 'emily-tzudad-seraph-ditza'
+    name: 'emily-tzudad-seraph-ditza',
   },
   {
     source: join(__dirname, '../../avatars-to-migrate/lucifer-kochav-shenafal.png'),
     dest: '/data/avatars/lucifer-kochav-shenafal.png',
-    name: 'lucifer-kochav-shenafal'
-  }
+    name: 'lucifer-kochav-shenafal',
+  },
 ];
 
 export async function migrateAvatars(): Promise<void> {
@@ -76,7 +76,6 @@ export async function migrateAvatars(): Promise<void> {
       // Copy file
       await copyFile(migration.source, migration.dest);
       logger.info(`[Migration] Copied avatar: ${migration.name}`);
-
     } catch (error) {
       logger.error({ err: error }, `[Migration] Failed to migrate ${migration.name}`);
     }

@@ -50,8 +50,9 @@ export class ConversationHistoryService {
         },
       });
 
-      logger.debug(`Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${discordMessageId || 'none'})`);
-
+      logger.debug(
+        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${discordMessageId || 'none'})`
+      );
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);
       throw error;
@@ -83,7 +84,9 @@ export class ConversationHistoryService {
       });
 
       if (!lastMessage) {
-        logger.warn(`No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
+        logger.warn(
+          `No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
+        );
         return false;
       }
 
@@ -99,7 +102,6 @@ export class ConversationHistoryService {
 
       logger.debug(`Updated user message ${lastMessage.id} with enriched content`);
       return true;
-
     } catch (error) {
       logger.error({ err: error }, `Failed to update user message`);
       return false;
@@ -142,20 +144,23 @@ export class ConversationHistoryService {
       });
 
       // Reverse to get chronological order (oldest first)
-      type MessageWithPersona = typeof messages[number];
-      const history = messages.reverse().map((msg: MessageWithPersona): ConversationMessage => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: msg.content,
-        createdAt: msg.createdAt,
-        personaId: msg.personaId,
-        personaName: msg.persona.preferredName || msg.persona.name,
-        discordMessageId: msg.discordMessageId || undefined,
-      }));
+      type MessageWithPersona = (typeof messages)[number];
+      const history = messages.reverse().map(
+        (msg: MessageWithPersona): ConversationMessage => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+          createdAt: msg.createdAt,
+          personaId: msg.personaId,
+          personaName: msg.persona.preferredName || msg.persona.name,
+          discordMessageId: msg.discordMessageId || undefined,
+        })
+      );
 
-      logger.debug(`Retrieved ${history.length} messages from history (channel: ${channelId}, personality: ${personalityId})`);
+      logger.debug(
+        `Retrieved ${history.length} messages from history (channel: ${channelId}, personality: ${personalityId})`
+      );
       return history;
-
     } catch (error) {
       logger.error({ err: error }, `Failed to get conversation history`);
       return [];
@@ -217,23 +222,25 @@ export class ConversationHistoryService {
       const resultMessages = hasMore ? messages.slice(0, safeLimit) : messages;
 
       // Reverse to get chronological order (oldest first)
-      type MessageWithPersona = typeof messages[number];
-      const history = resultMessages.reverse().map((msg: MessageWithPersona): ConversationMessage => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: msg.content,
-        createdAt: msg.createdAt,
-        personaId: msg.personaId,
-        personaName: msg.persona.preferredName || msg.persona.name,
-        discordMessageId: msg.discordMessageId || undefined,
-      }));
+      type MessageWithPersona = (typeof messages)[number];
+      const history = resultMessages.reverse().map(
+        (msg: MessageWithPersona): ConversationMessage => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+          createdAt: msg.createdAt,
+          personaId: msg.personaId,
+          personaName: msg.persona.preferredName || msg.persona.name,
+          discordMessageId: msg.discordMessageId || undefined,
+        })
+      );
 
       // Next cursor is the ID of the last message (in desc order, before reversal)
       const nextCursor = hasMore ? resultMessages[resultMessages.length - 1].id : undefined;
 
       logger.debug(
         `Retrieved ${history.length} messages (hasMore: ${hasMore}, cursor: ${cursor || 'none'}) ` +
-        `from history (channel: ${channelId}, personality: ${personalityId})`
+          `from history (channel: ${channelId}, personality: ${personalityId})`
       );
 
       return {
@@ -241,7 +248,6 @@ export class ConversationHistoryService {
         hasMore,
         nextCursor,
       };
-
     } catch (error) {
       logger.error({ err: error }, `Failed to get paginated conversation history`);
       return {
@@ -276,7 +282,9 @@ export class ConversationHistoryService {
       });
 
       if (!lastMessage) {
-        logger.warn(`No assistant message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
+        logger.warn(
+          `No assistant message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
+        );
         return false;
       }
 
@@ -290,9 +298,10 @@ export class ConversationHistoryService {
         },
       });
 
-      logger.debug(`Updated assistant message ${lastMessage.id} with Discord ID ${discordMessageId}`);
+      logger.debug(
+        `Updated assistant message ${lastMessage.id} with Discord ID ${discordMessageId}`
+      );
       return true;
-
     } catch (error) {
       logger.error({ err: error }, `Failed to update assistant message with Discord ID`);
       return false;
@@ -312,9 +321,10 @@ export class ConversationHistoryService {
         },
       });
 
-      logger.info(`Cleared ${result.count} messages from history (channel: ${channelId}, personality: ${personalityId})`);
+      logger.info(
+        `Cleared ${result.count} messages from history (channel: ${channelId}, personality: ${personalityId})`
+      );
       return result.count;
-
     } catch (error) {
       logger.error({ err: error }, `Failed to clear conversation history`);
       throw error;
@@ -340,9 +350,8 @@ export class ConversationHistoryService {
 
       logger.info(`Cleaned up ${result.count} old messages (older than ${daysToKeep} days)`);
       return result.count;
-
     } catch (error) {
-      logger.error({ err: error}, `Failed to cleanup old conversation history`);
+      logger.error({ err: error }, `Failed to cleanup old conversation history`);
       throw error;
     }
   }

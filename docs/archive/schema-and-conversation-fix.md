@@ -3,15 +3,18 @@
 ## Issues to Fix
 
 ### Issue 1: Schema Circular Dependencies
+
 - User.globalPersonaId → Persona.id
 - Persona.ownerId → User.id
 - Makes data import/export difficult
 - Unclear ownership model
 
 ### Issue 2: Conversation History Bug (CRITICAL)
+
 **Symptom**: Multiple users in same channel treated as same person by AI
 
 **Root Cause**: `ConversationHistoryService.getRecentHistory()` doesn't filter by userId:
+
 ```typescript
 // Current (WRONG):
 async getRecentHistory(channelId: string, personalityId: string, limit: number)
@@ -29,17 +32,20 @@ async getRecentHistory(channelId: string, personalityId: string, userId: string,
 **Priority**: HIGH - this is actively causing bugs
 
 **Changes needed**:
+
 1. Add `userId` parameter to `getRecentHistory()`
 2. Filter conversation history by userId
 3. Update all callers to pass userId
 4. Add index on `[channelId, personalityId, userId, createdAt]`
 
 **Files to change**:
+
 - `packages/common-types/src/services/ConversationHistoryService.ts`
 - `services/ai-worker/src/services/ConversationService.ts` (or wherever it's called)
 - Any other callers
 
 **Test**:
+
 - User A and User B both talk to same personality in same channel
 - Each should get responses based only on THEIR conversation
 - No cross-contamination
@@ -49,6 +55,7 @@ async getRecentHistory(channelId: string, personalityId: string, userId: string,
 **Priority**: MEDIUM - design improvement, not causing bugs
 
 **Changes needed** (from schema-redesign-proposal.md):
+
 1. Create `UserDefaultPersona` table
 2. Create `PersonalityDefaultConfig` table
 3. Rename `UserPersonalitySettings` → `UserPersonalityConfig`
@@ -59,6 +66,7 @@ async getRecentHistory(channelId: string, personalityId: string, userId: string,
 8. Remove `Persona.isGlobal`
 
 **Migration steps**:
+
 1. Create new tables
 2. Copy data from old columns to new tables
 3. Drop old columns
@@ -67,12 +75,14 @@ async getRecentHistory(channelId: string, personalityId: string, userId: string,
 ## Recommendation
 
 **Do Phase 1 first** (conversation history fix):
+
 - It's the actual bug users are experiencing
 - Quick fix (< 30 minutes)
 - Can deploy immediately
 - Doesn't require data migration
 
 **Then do Phase 2** (schema redesign):
+
 - Not urgent (no user-facing bugs)
 - Larger change (needs careful migration)
 - Can take our time to get it right

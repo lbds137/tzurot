@@ -32,6 +32,7 @@
 ## V2 Testing Architecture
 
 ### Test Structure
+
 ```
 tzurot-legacy/
 ├── tests/
@@ -49,6 +50,7 @@ tzurot-legacy/
 ### Key Patterns from V2
 
 #### 1. Consolidated Mock System
+
 V2 created a unified mock system to avoid duplication:
 
 ```javascript
@@ -58,12 +60,13 @@ const { presets } = require('../../__mocks__');
 beforeEach(() => {
   mockEnv = presets.commandTest({
     userPermissions: ['ADMINISTRATOR'],
-    discord: { nsfw: false }
+    discord: { nsfw: false },
   });
 });
 ```
 
 #### 2. Global Mock Setup
+
 ```javascript
 // V2: tests/setup.js
 jest.mock('../src/application/bootstrap/ApplicationBootstrap', () => ({
@@ -74,12 +77,15 @@ jest.mock('../src/application/bootstrap/ApplicationBootstrap', () => ({
 ```
 
 #### 3. Strict Timer Enforcement
+
 V2 had strict ESLint rules and scripts to enforce injectable timers:
+
 - `scripts/check-timer-patterns.js`
 - Pre-commit hooks
 - No real timers allowed in tests
 
 #### 4. Performance Requirements
+
 - Test suite must run in < 30 seconds
 - Individual test files < 5 seconds
 - Always use fake timers
@@ -114,6 +120,7 @@ const message = mockEnv.discord.createMessage();
 **Evidence:** Pre-commit hooks + CI/CD checks
 
 Scripts that enforced quality:
+
 - `check-timer-patterns.js` - No real timers
 - `check-test-mock-patterns.js` - Proper mock usage
 - `check-singleton-exports.js` - No singletons
@@ -126,6 +133,7 @@ Scripts that enforced quality:
 **Evidence:** V2 documentation emphasized testing behavior over implementation
 
 From V2's CLAUDE.md:
+
 > "Always test BEHAVIOR, not IMPLEMENTATION. If you're testing private methods, mock internals, or exact call counts, you're doing it wrong."
 
 **Lesson for V3:** Maintain this philosophy, document it clearly.
@@ -145,6 +153,7 @@ const mockEnv = presets.commandTest();
 ```
 
 **Impact:**
+
 - Tests became "black boxes"
 - Hard to debug when mocks didn't behave as expected
 - Tight coupling to preset implementation
@@ -156,19 +165,37 @@ const mockEnv = presets.commandTest();
 **Problem:** Some tests had 80+ lines of mock setup
 
 Example from V2's `validateAvatarUrl.test.js`:
+
 ```javascript
 // 80 lines of jest.mock() calls!
-jest.mock('node-fetch', () => { /* ... */ });
-jest.mock('../../src/logger', () => { /* ... */ });
-jest.mock('../../src/utils/errorTracker', () => { /* ... */ });
-jest.mock('../../src/utils/urlValidator', () => { /* ... */ });
-jest.mock('../../src/utils/avatarManager', () => { /* ... */ });
-jest.mock('../../src/webhook', () => { /* ... */ });
-jest.mock('../../src/utils/webhookCache', () => { /* ... */ });
-jest.mock('../../src/utils/messageDeduplication', () => { /* ... */ });
+jest.mock('node-fetch', () => {
+  /* ... */
+});
+jest.mock('../../src/logger', () => {
+  /* ... */
+});
+jest.mock('../../src/utils/errorTracker', () => {
+  /* ... */
+});
+jest.mock('../../src/utils/urlValidator', () => {
+  /* ... */
+});
+jest.mock('../../src/utils/avatarManager', () => {
+  /* ... */
+});
+jest.mock('../../src/webhook', () => {
+  /* ... */
+});
+jest.mock('../../src/utils/webhookCache', () => {
+  /* ... */
+});
+jest.mock('../../src/utils/messageDeduplication', () => {
+  /* ... */
+});
 ```
 
 **Impact:**
+
 - Test setup dwarfed actual test code
 - Brittle tests (change one import, break many tests)
 - Cognitive overload for developers
@@ -200,6 +227,7 @@ tests/unit/handlers/messageHandler.test.js  # Far from source
 ```
 
 **Impact:**
+
 - Hard to find relevant tests
 - Parallel directory structures became out of sync
 - Developers forgot to create/update tests
@@ -211,9 +239,11 @@ tests/unit/handlers/messageHandler.test.js  # Far from source
 **Problem:** V2's DDD migration created circular dependencies and complex bootstrap mocking
 
 From V2's CLAUDE.md:
+
 > "⚠️ The Service Locator Anti-Pattern: NEVER import ApplicationBootstrap in modules that it might import"
 
 **Impact:**
+
 - Global mocks to break circular dependencies
 - Complex test setup just to avoid import cycles
 - Tests coupled to DDD architecture
@@ -225,6 +255,7 @@ From V2's CLAUDE.md:
 ## V3 Testing Architecture
 
 ### Test Structure
+
 ```
 services/bot-client/
 ├── src/
@@ -247,12 +278,8 @@ services/bot-client/
 
 ```typescript
 // V3: Explicit, type-safe factory
-export function createMockPersonalityService(
-  personalities: MockPersonality[]
-): PersonalityService {
-  const personalityMap = new Map(
-    personalities.map((p) => [p.name.toLowerCase(), p])
-  );
+export function createMockPersonalityService(personalities: MockPersonality[]): PersonalityService {
+  const personalityMap = new Map(personalities.map(p => [p.name.toLowerCase(), p]));
 
   const mockService: PersonalityService = {
     loadPersonality: vi.fn().mockImplementation(async (name: string) => {
@@ -275,8 +302,8 @@ export function createMockPersonalityService(
 export async function findPersonalityMention(
   content: string,
   mentionChar: string,
-  personalityService: PersonalityService  // Injected!
-): Promise<PersonalityMentionResult | null>
+  personalityService: PersonalityService // Injected!
+): Promise<PersonalityMentionResult | null>;
 ```
 
 **Benefit:** No global state, easy to test, explicit dependencies.
@@ -324,6 +351,7 @@ personalityMentionParser.test.ts  # Right there!
 ```
 
 **Impact:**
+
 - Easier to find tests
 - More likely to update tests when code changes
 - Clear which modules have test coverage
@@ -371,6 +399,7 @@ class MessageHandler {
 **V3 Approach:** Factories (`createMockPersonalityService()`)
 
 **Rationale (from Gemini):**
+
 > "Your V3 factory pattern is superior. It is more maintainable and scalable. Presets can become a 'black box' where developers don't understand the underlying setup."
 
 **Implementation:** Create focused factory functions for each service.
@@ -381,6 +410,7 @@ class MessageHandler {
 **V3 Approach:** Constructor for classes, method parameters for functions
 
 **Rationale (from Gemini):**
+
 > "V2's strict enforcement was likely too rigid. Use constructor injection for your long-lived service classes and method injection for utility functions."
 
 **Implementation:** Be pragmatic, not dogmatic.
@@ -391,6 +421,7 @@ class MessageHandler {
 **V3 Approach:** Co-located (`.test.ts` next to source)
 
 **Rationale (from Gemini):**
+
 > "Placing tests next to source files is an excellent, modern practice. High visibility, easy to find and update tests when changing source code."
 
 **Implementation:** `src/**/*.{test,spec}.ts` pattern.
@@ -401,6 +432,7 @@ class MessageHandler {
 **V3 Approach:** Vitest's built-in fake timers
 
 **Rationale (from Gemini):**
+
 > "Absolutely stick with Vitest's built-in fake timers. They are robust, easy to use, and the industry standard. The overhead of an injectable timer service is not worth the benefit."
 
 **Implementation:** Enable in config, use `vi.advanceTimersByTime()`.
@@ -411,9 +443,11 @@ class MessageHandler {
 **V3 Approach:** Integration-focused (testing trophy)
 
 **Rationale (from Gemini):**
+
 > "For microservices, a traditional 'testing pyramid' is often replaced by a 'testing honeycomb' or 'testing trophy' model, which emphasizes integration tests. Your balance should be heavily weighted towards **integration tests**."
 
 **Implementation:**
+
 1. Unit tests for complex business logic (parsers, algorithms)
 2. **Integration tests for service interactions** (most tests here)
 3. Contract tests for inter-service communication (future)
@@ -453,6 +487,7 @@ class MessageHandler {
 **Context:** First major mock infrastructure implementation for V3. Discord.js is notoriously difficult to mock due to extensive readonly properties, type predicates, and complex union types.
 
 **Key Participants:**
+
 - Claude Code (implementation)
 - Gemini (architectural consultation via MCP, 3 consultations)
 - User (pragmatic decision-making)
@@ -483,6 +518,7 @@ mockUser.username = 'TestUser'; // Error: readonly property!
 **Approach:** Create utility type to remove readonly modifiers
 
 **Gemini Recommendation:** Use `Mockable<T>` pattern:
+
 ```typescript
 type Mockable<T> = {
   -readonly [P in keyof T]?: T[P];
@@ -499,6 +535,7 @@ export function createMockUser(overrides: Mockable<User> = {}): User {
 ```
 
 **Benefits:**
+
 - Removes readonly modifiers
 - Makes all properties optional
 - Provides autocomplete during mock construction
@@ -508,7 +545,7 @@ export function createMockUser(overrides: Mockable<User> = {}): User {
 
 ```typescript
 // Test code
-createMockUser({ id: 'foo' })
+createMockUser({ id: 'foo' });
 // Error: { id: string } has toString(): string
 // but User has toString(): `<@${string}>`
 ```
@@ -524,6 +561,7 @@ createMockUser({ id: 'foo' })
 **Approach:** Split properties into data and functions to avoid Object.prototype conflicts
 
 **Gemini Recommendation:** Use sophisticated type splitting:
+
 ```typescript
 type NonFunctionKeys<T> = {
   [K in keyof T]: T[K] extends Function ? never : K;
@@ -533,16 +571,17 @@ type FunctionKeys<T> = {
   [K in keyof T]: T[K] extends Function ? K : never;
 }[keyof T];
 
-type MockData<T> = Partial<Pick<T, NonFunctionKeys<T>>> &
-                   Partial<Pick<T, FunctionKeys<T>>>;
+type MockData<T> = Partial<Pick<T, NonFunctionKeys<T>>> & Partial<Pick<T, FunctionKeys<T>>>;
 ```
 
 **Benefits:**
+
 - Separates data properties from methods
 - Should prevent Object.prototype conflicts
 - Maintains autocomplete
 
 **Problems:**
+
 1. `vi.fn()` returns `Mock<>` which doesn't match type predicate signatures
 2. Template literal return types still conflict
 3. Typed constants required for default values: `const x: MockData<T> = {};`
@@ -561,9 +600,11 @@ type MockData<T> = Partial<Pick<T, NonFunctionKeys<T>>> &
 **Trigger:** User asked for Gemini consultation on best path forward.
 
 **Gemini's Critical Insight:**
+
 > "Your tests are passing. This is your ground truth. The TypeScript errors are about the mock's internal structure, not about whether your production code is using the dependency correctly."
 
 **Recommendation:** Strategic combination of approaches:
+
 1. **Plain arrow functions** for methods you don't spy on
 2. **vi.fn() + @ts-expect-error** for methods you need to spy on
 3. **Partial<T>** for overrides (simple!)
@@ -636,6 +677,7 @@ export function createMockTextChannel(overrides: Partial<TextChannel> = {}): Tex
    - Tests are the safety net
 
 **Results:**
+
 - ✅ **39 tests passing** (22 personalityMentionParser, 17 discordContext)
 - ✅ **TypeScript build passes**
 - ✅ **Pre-commit hooks pass**
@@ -655,6 +697,7 @@ export function createMockTextChannel(overrides: Partial<TextChannel> = {}): Tex
 **1. Perfect Type Safety in Mocks is a Fool's Errand**
 
 Discord.js (and similar complex libraries) have:
+
 - Readonly properties
 - Type predicates (`this is Type`)
 - Template literal return types (`` `<@${string}>` ``)
@@ -662,6 +705,7 @@ Discord.js (and similar complex libraries) have:
 - Object.prototype method specializations
 
 Attempting to satisfy all of these with generic types leads to:
+
 - Diminishing returns
 - Brittle, complex code
 - Hard-to-understand type errors
@@ -670,6 +714,7 @@ Attempting to satisfy all of these with generic types leads to:
 **2. Tests Passing > TypeScript Perfection**
 
 The pragmatic approach acknowledges:
+
 - Mocks only need to be "good enough" for tests
 - Runtime behavior is what matters
 - Type safety is valuable WHERE IT HELPS
@@ -678,6 +723,7 @@ The pragmatic approach acknowledges:
 **3. Gemini's Value: Breaking Analysis Paralysis**
 
 Three consultations provided:
+
 1. **Mockable<T> pattern** - Better than vitest-mock-extended
 2. **MockData<T> pattern** - More sophisticated, but still complex
 3. **Pragmatic pattern** - Simple, maintainable, ships
@@ -689,6 +735,7 @@ Without consultation #3, we might have spent another 2-4 hours chasing perfect t
 V2 taught us that `as any` defeats TypeScript's purpose.
 
 But `@ts-expect-error` with clear comments is DIFFERENT:
+
 - Documents WHY the error is expected
 - Self-healing (fails if error disappears)
 - Explicit, intentional, searchable
@@ -712,6 +759,7 @@ export function createMockUser(overrides: Partial<User> = {}): User {
 ```
 
 The pragmatic version:
+
 - Easier to read
 - Easier to debug
 - Easier to extend
@@ -733,6 +781,7 @@ For mocks, perfection is the enemy of progress. Mocks serve tests. If tests pass
 **3. Consult Early, Consult Often**
 
 Gemini consultation saved ~2-4 hours by:
+
 - Validating approaches before investing heavily
 - Providing alternative patterns
 - Breaking analysis paralysis with pragmatic advice
@@ -772,6 +821,7 @@ If tests pass but TypeScript complains about mock internals, the tests are right
 **Context:** When implementing retry and timeout utilities (PR #206), all tests were passing but Vitest was showing `PromiseRejectionHandledWarning` messages.
 
 **Symptom:** Tests pass, but 4 unhandled promise rejection warnings appear:
+
 ```
 (node:436282) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 6)
 ```
@@ -783,6 +833,7 @@ If tests pass but TypeScript complains about mock internals, the tests are right
 ### Root Cause Analysis
 
 **The Race Condition:**
+
 1. `const promise = withRetry(fn, { maxAttempts: 3 })` - Promise created (no handler yet)
 2. `await vi.runAllTimersAsync()` - Timers advance, causing promise to reject
 3. **Promise is rejected with NO .catch() handler attached** → Node.js issues warning
@@ -796,6 +847,7 @@ When `vi.runAllTimersAsync()` executes, it synchronously processes all scheduled
 ### Failed Attempts
 
 #### Attempt 1: try/catch with expect.assertions ❌
+
 ```typescript
 it('should throw error', async () => {
   expect.assertions(2);
@@ -814,6 +866,7 @@ it('should throw error', async () => {
 **Problem:** The `await promise` in the try block doesn't attach its .catch() handler until AFTER `runAllTimersAsync()` completes.
 
 #### Attempt 2: Wrapper function pattern ❌
+
 ```typescript
 it('should throw error', async () => {
   const action = async () => {
@@ -833,11 +886,13 @@ it('should throw error', async () => {
 ### Solution: Attach Handlers BEFORE Advancing Timers
 
 **Gemini's Insight:**
-> "You need to ensure that the `.catch()` handler is set up to 'catch' the promise *before* the code that causes the rejection completes."
+
+> "You need to ensure that the `.catch()` handler is set up to 'catch' the promise _before_ the code that causes the rejection completes."
 
 **The Golden Rule:** Attach assertion handlers BEFORE advancing timers.
 
 **✅ Correct Pattern:**
+
 ```typescript
 it('should throw RetryError after all attempts fail', async () => {
   const error = new Error('Persistent failure');
@@ -861,6 +916,7 @@ it('should throw RetryError after all attempts fail', async () => {
 ```
 
 **Why This Works:**
+
 - `expect(promise).rejects.toThrow()` attaches a `.catch()` handler to the promise immediately
 - When `vi.runAllTimersAsync()` triggers the rejection, the handler is already attached
 - Node.js sees the handler and doesn't issue a warning
@@ -897,15 +953,18 @@ it('should throw with specific error details', async () => {
 ### Implementation Results
 
 **Before:**
+
 - 21 tests passing ✅
 - 4 unhandled promise rejection warnings ⚠️
 
 **After:**
+
 - 21 tests passing ✅
 - 0 warnings ✅
 - Clean test output
 
 **Time Invested:**
+
 - Initial frustration: ~30 minutes trying to understand warnings
 - Gemini consultation #1: Understood problem, got initial solution
 - Gemini consultation #2: Refined solution after still seeing warnings
@@ -919,6 +978,7 @@ it('should throw with specific error details', async () => {
 **1. Order Matters with Fake Timers**
 
 When testing code that:
+
 - Uses timers to trigger promise rejections
 - Has retry logic with delays
 - Has timeout logic
@@ -957,6 +1017,7 @@ If you see `PromiseRejectionHandledWarning` despite tests passing, don't ignore 
 ### Documentation Updates
 
 Added guidance to:
+
 1. **Global CLAUDE.md** (`~/.claude/CLAUDE.md` → Universal Testing Philosophy)
 2. **Project Testing Guide** (`docs/guides/TESTING.md` → Testing Promise Rejections with Fake Timers)
 3. **This Document** (right here!)
@@ -968,6 +1029,7 @@ Added guidance to:
 ### Red Flags for This Issue
 
 Watch for these symptoms:
+
 - Tests pass but show promise rejection warnings
 - Warnings mention "handled asynchronously"
 - Testing retry logic, timeout logic, or timer-based rejections
@@ -980,6 +1042,7 @@ Watch for these symptoms:
 ## Summary
 
 **V2 taught us:**
+
 - Mocking discipline is critical
 - Timer control prevents flaky tests
 - Testing behavior > implementation
@@ -988,6 +1051,7 @@ Watch for these symptoms:
 - BUT: `as any` defeats TypeScript's benefits
 
 **V3 improves by:**
+
 - Type-safe mocks with compiler enforcement
 - Explicit mock factories (no magic)
 - Co-located tests for visibility

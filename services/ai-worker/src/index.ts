@@ -13,15 +13,19 @@ import { Worker, Job, Queue } from 'bullmq';
 import { PgvectorMemoryAdapter } from './memory/PgvectorMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
-import { createLogger, getConfig, parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  parseRedisUrl,
+  createBullMQRedisConfig,
+} from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
 
 // Get Redis connection config from environment
-const parsedUrl = envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0
-  ? parseRedisUrl(envConfig.REDIS_URL)
-  : null;
+const parsedUrl =
+  envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0 ? parseRedisUrl(envConfig.REDIS_URL) : null;
 
 const redisConfig = createBullMQRedisConfig({
   host: parsedUrl?.host || envConfig.REDIS_HOST,
@@ -35,12 +39,12 @@ const redisConfig = createBullMQRedisConfig({
 const config = {
   redis: redisConfig,
   openai: {
-    apiKey: envConfig.OPENAI_API_KEY // For embeddings
+    apiKey: envConfig.OPENAI_API_KEY, // For embeddings
   },
   worker: {
     concurrency: envConfig.WORKER_CONCURRENCY,
-    queueName: envConfig.QUEUE_NAME
-  }
+    queueName: envConfig.QUEUE_NAME,
+  },
 };
 
 /**
@@ -54,16 +58,19 @@ async function main(): Promise<void> {
     logger.fatal('OPENAI_API_KEY environment variable is required for memory embeddings');
     process.exit(1);
   }
-  logger.info({
-    redis: {
-      host: config.redis.host,
-      port: config.redis.port,
-      hasPassword: config.redis.password !== undefined,
-      connectTimeout: config.redis.connectTimeout,
-      commandTimeout: config.redis.commandTimeout
+  logger.info(
+    {
+      redis: {
+        host: config.redis.host,
+        port: config.redis.port,
+        hasPassword: config.redis.password !== undefined,
+        connectTimeout: config.redis.connectTimeout,
+        commandTimeout: config.redis.commandTimeout,
+      },
+      worker: config.worker,
     },
-    worker: config.worker
-  }, '[AIWorker] Configuration:');
+    '[AIWorker] Configuration:'
+  );
 
   // Initialize vector memory manager (pgvector)
   let memoryManager: PgvectorMemoryAdapter | undefined;
@@ -78,13 +85,17 @@ async function main(): Promise<void> {
       logger.info('[AIWorker] Pgvector memory initialized successfully');
     } else {
       logger.warn('[AIWorker] Pgvector health check failed');
-      logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+      logger.warn(
+        '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
+      );
       await memoryManager.disconnect(); // Clean up Prisma connection
       memoryManager = undefined;
     }
   } catch (error) {
     logger.error({ err: error }, '[AIWorker] Failed to initialize pgvector memory');
-    logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+    logger.warn(
+      '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
+    );
     if (memoryManager) {
       await memoryManager.disconnect(); // Clean up Prisma connection
     }
@@ -105,7 +116,7 @@ async function main(): Promise<void> {
       connection: config.redis,
       concurrency: config.worker.concurrency,
       removeOnComplete: { count: 100 }, // Keep last 100 completed jobs
-      removeOnFail: { count: 500 }      // Keep last 500 failed jobs for debugging
+      removeOnFail: { count: 500 }, // Keep last 500 failed jobs for debugging
     }
   );
 
@@ -117,15 +128,20 @@ async function main(): Promise<void> {
 
   worker.on('active', (job: Job<AIJobData>) => {
     const jobId = job.id ?? 'unknown';
-    logger.debug(`[AIWorker] Processing job ${jobId} for personality: ${job.data.personality.name}`);
+    logger.debug(
+      `[AIWorker] Processing job ${jobId} for personality: ${job.data.personality.name}`
+    );
   });
 
   worker.on('completed', (job: Job<AIJobData>, result: AIJobResult) => {
     const jobId = job.id ?? 'unknown';
-    logger.info({
-      requestId: result.requestId,
-      processingTime: result.metadata?.processingTimeMs
-    }, `[AIWorker] Job ${jobId} completed successfully`);
+    logger.info(
+      {
+        requestId: result.requestId,
+        processingTime: result.metadata?.processingTimeMs,
+      },
+      `[AIWorker] Job ${jobId} completed successfully`
+    );
   });
 
   worker.on('failed', (job: Job<AIJobData> | undefined, error: Error) => {
@@ -152,16 +168,19 @@ async function main(): Promise<void> {
   // Process pending memories on startup (don't wait, run async)
   if (initialStats.total > 0) {
     logger.info(`[AIWorker] Processing ${initialStats.total} pending memories on startup...`);
-    void pendingMemoryProcessor.processPendingMemories().then((stats) => {
-      logger.info({ stats }, '[AIWorker] Startup pending memory processing complete');
-    }).catch((error) => {
-      logger.error({ err: error }, '[AIWorker] Startup pending memory processing failed');
-    });
+    void pendingMemoryProcessor
+      .processPendingMemories()
+      .then(stats => {
+        logger.info({ stats }, '[AIWorker] Startup pending memory processing complete');
+      })
+      .catch(error => {
+        logger.error({ err: error }, '[AIWorker] Startup pending memory processing failed');
+      });
   }
 
   // Create a separate queue for scheduled jobs
   const scheduledQueue = new Queue('scheduled-jobs', {
-    connection: config.redis
+    connection: config.redis,
   });
 
   // Create worker for scheduled jobs
@@ -178,7 +197,7 @@ async function main(): Promise<void> {
     {
       connection: config.redis,
       removeOnComplete: { count: 10 }, // Keep fewer completed scheduled jobs
-      removeOnFail: { count: 50 }
+      removeOnFail: { count: 50 },
     }
   );
 
@@ -196,9 +215,9 @@ async function main(): Promise<void> {
     {},
     {
       repeat: {
-        pattern: '*/10 * * * *' // Every 10 minutes (cron format)
+        pattern: '*/10 * * * *', // Every 10 minutes (cron format)
       },
-      jobId: 'process-pending-memories' // Ensure only one instance
+      jobId: 'process-pending-memories', // Ensure only one instance
     }
   );
 
@@ -241,9 +260,8 @@ async function startHealthServer(
     void (async () => {
       if (req.url === '/health') {
         try {
-          const memoryHealthy = memoryManager !== undefined
-            ? await memoryManager.healthCheck()
-            : true; // If memory is disabled, we're still healthy
+          const memoryHealthy =
+            memoryManager !== undefined ? await memoryManager.healthCheck() : true; // If memory is disabled, we're still healthy
           const workerHealthy = !(await worker.closing);
 
           const status = memoryHealthy && workerHealthy ? 200 : 503;
@@ -251,7 +269,7 @@ async function startHealthServer(
             status: memoryHealthy && workerHealthy ? 'healthy' : 'degraded',
             memory: memoryManager !== undefined ? memoryHealthy : 'disabled',
             worker: workerHealthy,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           };
 
           res.writeHead(status, { 'Content-Type': 'application/json' });

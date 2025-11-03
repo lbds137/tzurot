@@ -6,6 +6,7 @@
 ## Overview
 
 Tzurot currently has two different memory formats in Qdrant:
+
 1. **NEW** - Created by `ConversationalRAGService` (current implementation)
 2. **IMPORTED** - From shapes.inc migration (legacy format)
 
@@ -37,6 +38,7 @@ Tzurot currently has two different memory formats in Qdrant:
 ```
 
 **Characteristics:**
+
 - ID: UUIDv4
 - Content: Raw conversation pair (user + assistant)
 - Timestamps: Unix milliseconds (integer)
@@ -75,6 +77,7 @@ Tzurot currently has two different memory formats in Qdrant:
 ```
 
 **Characteristics:**
+
 - ID: UUIDv5 (deterministic, based on shapes.inc ID)
 - Content: LLM-generated summary
 - Timestamps: Unix milliseconds (converted from seconds)
@@ -95,22 +98,24 @@ None - NEW format is more minimal
 
 ### 3. Shared Fields with Different Behavior
 
-| Field | NEW | IMPORTED |
-|-------|-----|----------|
-| `summaryType` | `"conversation"` | `"automatic"` or `"manual"` |
-| `content` | Raw conversation pair | LLM summary |
-| `channelId` | Discord snowflake | Empty string |
-| `guildId` | Discord snowflake | Empty string |
+| Field         | NEW                   | IMPORTED                    |
+| ------------- | --------------------- | --------------------------- |
+| `summaryType` | `"conversation"`      | `"automatic"` or `"manual"` |
+| `content`     | Raw conversation pair | LLM summary                 |
+| `channelId`   | Discord snowflake     | Empty string                |
+| `guildId`     | Discord snowflake     | Empty string                |
 
 ### 4. Content Format
 
 **NEW:**
+
 ```
 User (lbds137): I think it's fixed now!
 Lilith: *A slow, knowing smile touches my lips...
 ```
 
 **IMPORTED:**
+
 ```
 Lila is anxious about her first day physically in the office,
 but it's actually her 7th day at the job. She's been using
@@ -146,10 +151,12 @@ Bambi Sleep hypno files at night...
 ### Phase 3: Content Format Decision
 
 **Option A: Keep raw conversation pairs (current NEW format)**
+
 - Pros: Preserves exact wording, better for semantic search
 - Cons: Longer content, includes formatting artifacts
 
 **Option B: Generate summaries (IMPORTED format)**
+
 - Pros: Concise, cleaner for retrieval
 - Cons: Loses exact wording, requires LLM processing
 
@@ -158,11 +165,13 @@ Bambi Sleep hypno files at night...
 ### Phase 4: summaryType Standardization
 
 Current values:
+
 - `"conversation"` - Direct conversation exchanges (NEW)
 - `"automatic"` - Auto-generated summaries (IMPORTED)
 - `"manual"` - Manually created notes (IMPORTED)
 
 **Proposed standard:**
+
 - `"conversation"` - Raw conversation pairs
 - `"summary"` - LLM-generated summaries
 - `"note"` - Manually created context/notes

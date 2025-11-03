@@ -267,16 +267,19 @@ model UserPersonalityConfig {
 ## Key Improvements
 
 ### 1. No Circular Dependencies
+
 - User → Persona (one-way via ownerId)
 - User → LlmConfig (one-way via ownerId)
 - Separate tracking tables for defaults/active configs
 
 ### 2. Clear Ownership
+
 - Personas: ALWAYS user-owned (ownerId NOT NULL)
 - LlmConfigs: Can be global (ownerId NULL, isGlobal true) OR user-owned (ownerId set)
 - SystemPrompts: Always global (no ownership)
 
 ### 3. Active/Default Tracking
+
 - `UserDefaultPersona`: One default persona per user
 - `PersonalityDefaultConfig`: One default LLM config per personality (global level)
 - `UserPersonalityConfig`: Per-user overrides for personality configs (persona + LLM config)
@@ -284,11 +287,13 @@ model UserPersonalityConfig {
 ### 4. Clear Resolution Hierarchy
 
 **For LLM Config:**
+
 1. Check `UserPersonalityConfig.llmConfigId` (user override)
 2. Fall back to `PersonalityDefaultConfig.llmConfigId` (personality default)
 3. Fall back to system default (query `LlmConfig` where `isGlobal = true` and `isDefault = true`)
 
 **For Persona:**
+
 1. Check `UserPersonalityConfig.personaId` (per-personality override)
 2. Fall back to `UserDefaultPersona.personaId` (user's default)
 3. Fall back to auto-generated default (create on user registration)

@@ -11,7 +11,7 @@ import {
   logAndThrow,
   logAndReturnFallback,
   logErrorWithDetails,
-  logErrorWithDetailsAndFallback
+  logErrorWithDetailsAndFallback,
 } from './errorHandling.js';
 
 describe('errorHandling', () => {
@@ -19,7 +19,7 @@ describe('errorHandling', () => {
 
   beforeEach(() => {
     mockLogger = {
-      error: vi.fn()
+      error: vi.fn(),
     } as unknown as Logger;
   });
 
@@ -78,7 +78,7 @@ describe('errorHandling', () => {
       const details = createErrorDetails(error, {
         userId: '123',
         modelName: 'gpt-4',
-        attemptCount: 3
+        attemptCount: 3,
       });
 
       expect(details.errorType).toBe('Error');
@@ -106,10 +106,7 @@ describe('errorHandling', () => {
         logAndThrow(mockLogger, '[Test] Operation failed', error);
       }).toThrow(error);
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        { err: error },
-        '[Test] Operation failed'
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith({ err: error }, '[Test] Operation failed');
       expect(mockLogger.error).toHaveBeenCalledTimes(1);
     });
 
@@ -150,10 +147,7 @@ describe('errorHandling', () => {
         expect(caught).toBe(error);
       }
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        { err: error },
-        '[Test] Custom error'
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith({ err: error }, '[Test] Custom error');
     });
   });
 
@@ -162,31 +156,17 @@ describe('errorHandling', () => {
       const error = new Error('Query failed');
       const fallback: string[] = [];
 
-      const result = logAndReturnFallback(
-        mockLogger,
-        '[Test] Using fallback',
-        error,
-        fallback
-      );
+      const result = logAndReturnFallback(mockLogger, '[Test] Using fallback', error, fallback);
 
       expect(result).toBe(fallback);
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        { err: error },
-        '[Test] Using fallback'
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith({ err: error }, '[Test] Using fallback');
     });
 
     it('should include context in log', () => {
       const error = new Error('Fetch failed');
       const context = { endpoint: '/api/data', timeout: 5000 };
 
-      const result = logAndReturnFallback(
-        mockLogger,
-        '[Test] Fallback used',
-        error,
-        null,
-        context
-      );
+      const result = logAndReturnFallback(mockLogger, '[Test] Fallback used', error, null, context);
 
       expect(result).toBeNull();
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -238,7 +218,7 @@ describe('errorHandling', () => {
         {
           err: error,
           errorType: 'Error',
-          errorMessage: 'Detailed error'
+          errorMessage: 'Detailed error',
         },
         '[Test] Operation failed'
       );
@@ -249,12 +229,7 @@ describe('errorHandling', () => {
       const context = { modelName: 'gpt-4-vision', imageCount: 3 };
 
       expect(() => {
-        logErrorWithDetails(
-          mockLogger,
-          'Vision model invocation failed',
-          error,
-          context
-        );
+        logErrorWithDetails(mockLogger, 'Vision model invocation failed', error, context);
       }).toThrow(error);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -263,7 +238,7 @@ describe('errorHandling', () => {
           errorType: 'Error',
           errorMessage: 'Model failed',
           modelName: 'gpt-4-vision',
-          imageCount: 3
+          imageCount: 3,
         },
         'Vision model invocation failed'
       );
@@ -289,7 +264,7 @@ describe('errorHandling', () => {
         expect.objectContaining({
           err: error,
           errorType: 'ValidationError',
-          errorMessage: 'Invalid input'
+          errorMessage: 'Invalid input',
         }),
         '[Test] Validation failed'
       );
@@ -313,7 +288,7 @@ describe('errorHandling', () => {
         {
           err: error,
           errorType: 'Error',
-          errorMessage: 'Memory query failed'
+          errorMessage: 'Memory query failed',
         },
         'Failed to query memories'
       );
@@ -324,7 +299,7 @@ describe('errorHandling', () => {
       const context = {
         personaId: 'persona-123',
         queryLength: 256,
-        attemptNumber: 3
+        attemptNumber: 3,
       };
 
       const result = logErrorWithDetailsAndFallback(
@@ -343,7 +318,7 @@ describe('errorHandling', () => {
           errorMessage: 'DB connection lost',
           personaId: 'persona-123',
           queryLength: 256,
-          attemptNumber: 3
+          attemptNumber: 3,
         },
         '[DB] Query failed'
       );
@@ -353,15 +328,10 @@ describe('errorHandling', () => {
       const error = new Error('Failed');
       const complexFallback = {
         data: [],
-        metadata: { count: 0, hasMore: false }
+        metadata: { count: 0, hasMore: false },
       };
 
-      const result = logErrorWithDetailsAndFallback(
-        mockLogger,
-        'msg',
-        error,
-        complexFallback
-      );
+      const result = logErrorWithDetailsAndFallback(mockLogger, 'msg', error, complexFallback);
 
       expect(result).toBe(complexFallback);
       expect(result.data).toEqual([]);
@@ -388,7 +358,7 @@ describe('errorHandling', () => {
           return doRiskyOperation();
         } catch (error) {
           logAndThrow(mockLogger, '[Service] Risky operation failed', error, {
-            userId: '123'
+            userId: '123',
           });
         }
       };

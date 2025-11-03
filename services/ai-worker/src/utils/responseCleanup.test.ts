@@ -14,7 +14,9 @@ describe('stripPersonalityPrefix', () => {
     it('should strip prefix with timestamp', () => {
       expect(stripPersonalityPrefix('Emily: [now] hello', 'Emily')).toBe('hello');
       expect(stripPersonalityPrefix('Lilith: [2 minutes ago] hey', 'Lilith')).toBe('hey');
-      expect(stripPersonalityPrefix('Bambi Prime: [5 seconds ago] test', 'Bambi Prime')).toBe('test');
+      expect(stripPersonalityPrefix('Bambi Prime: [5 seconds ago] test', 'Bambi Prime')).toBe(
+        'test'
+      );
     });
 
     it('should strip prefix with various timestamp formats', () => {
@@ -154,8 +156,10 @@ describe('stripPersonalityPrefix', () => {
 
   describe('Real-world examples', () => {
     it('should handle the Emily example from the bug report', () => {
-      const content = 'Emily: [now] *my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
-      const expected = '*my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
+      const content =
+        'Emily: [now] *my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
+      const expected =
+        '*my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
       expect(stripPersonalityPrefix(content, 'Emily')).toBe(expected);
     });
 
