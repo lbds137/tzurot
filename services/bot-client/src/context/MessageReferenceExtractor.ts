@@ -4,7 +4,14 @@
  * Extracts and formats referenced messages from replies and message links
  */
 
-import { Message, TextChannel, ThreadChannel, Channel } from 'discord.js';
+import {
+  Message,
+  TextChannel,
+  ThreadChannel,
+  Channel,
+  MessageReferenceType,
+  MessageSnapshot,
+} from 'discord.js';
 import { MessageLinkParser, ParsedMessageLink } from '../utils/MessageLinkParser.js';
 import { EmbedParser } from '../utils/EmbedParser.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
@@ -93,32 +100,71 @@ export class MessageReferenceExtractor {
       try {
         const referencedMessage = await updatedMessage.fetchReference();
 
-        // Skip if message is already in conversation history
-        if (!this.shouldIncludeReference(referencedMessage)) {
+        // Check if this is a reply to a forwarded message
+        if (referencedMessage.reference?.type === MessageReferenceType.Forward) {
           logger.info(
             {
               messageId: referencedMessage.id,
-              reason: 'already in conversation history',
+              snapshotCount: referencedMessage.messageSnapshots?.size || 0,
             },
-            `[MessageReferenceExtractor] Skipping reply reference - already in conversation history`
+            '[MessageReferenceExtractor] Detected forwarded message, extracting snapshots'
           );
-        } else {
-          // Format and add the reply reference
-          const replyReference = this.formatReferencedMessage(referencedMessage, 1);
-          references.push(replyReference);
-          logger.info(
-            {
-              messageId: referencedMessage.id,
-              referenceNumber: 1,
-              author: referencedMessage.author.username,
-              contentPreview: referencedMessage.content.substring(0, 50),
-            },
-            '[MessageReferenceExtractor] Added reply reference'
-          );
-        }
 
-        // Always track the message ID to prevent duplicates in links
-        extractedMessageIds.add(referencedMessage.id);
+          // Extract snapshots from the forwarded message
+          if (referencedMessage.messageSnapshots && referencedMessage.messageSnapshots.size > 0) {
+            let snapshotNumber = 1;
+            for (const [, snapshot] of referencedMessage.messageSnapshots) {
+              const snapshotRef = this.formatSnapshot(snapshot, snapshotNumber, referencedMessage);
+              references.push(snapshotRef);
+              logger.info(
+                {
+                  referenceNumber: snapshotNumber,
+                  contentPreview: snapshot.content?.substring(0, 50) || '(no content)',
+                },
+                '[MessageReferenceExtractor] Added forwarded message snapshot'
+              );
+              snapshotNumber++;
+            }
+          } else {
+            logger.warn(
+              {
+                messageId: referencedMessage.id,
+              },
+              '[MessageReferenceExtractor] Forward detected but no snapshots found'
+            );
+          }
+
+          // Track the forward message ID to prevent duplicates
+          extractedMessageIds.add(referencedMessage.id);
+        } else {
+          // Regular reply (not forwarded)
+          // Skip if message is already in conversation history
+          if (!this.shouldIncludeReference(referencedMessage)) {
+            logger.info(
+              {
+                messageId: referencedMessage.id,
+                reason: 'already in conversation history',
+              },
+              `[MessageReferenceExtractor] Skipping reply reference - already in conversation history`
+            );
+          } else {
+            // Format and add the reply reference
+            const replyReference = this.formatReferencedMessage(referencedMessage, 1);
+            references.push(replyReference);
+            logger.info(
+              {
+                messageId: referencedMessage.id,
+                referenceNumber: 1,
+                author: referencedMessage.author.username,
+                contentPreview: referencedMessage.content.substring(0, 50),
+              },
+              '[MessageReferenceExtractor] Added reply reference'
+            );
+          }
+
+          // Always track the message ID to prevent duplicates in links
+          extractedMessageIds.add(referencedMessage.id);
+        }
       } catch (error) {
         // Differentiate between expected and unexpected errors
         const discordError = error as any;
@@ -391,9 +437,14 @@ export class MessageReferenceExtractor {
    * Format a Discord message as a referenced message
    * @param message - Discord message
    * @param referenceNumber - Reference number
+   * @param isForwarded - Whether this is a forwarded message snapshot
    * @returns Formatted referenced message
    */
-  private formatReferencedMessage(message: Message, referenceNumber: number): ReferencedMessage {
+  private formatReferencedMessage(
+    message: Message,
+    referenceNumber: number,
+    isForwarded?: boolean
+  ): ReferencedMessage {
     // Extract full Discord environment context (server, category, channel, thread)
     const environment = extractDiscordEnvironment(message);
 
@@ -421,6 +472,61 @@ export class MessageReferenceExtractor {
       timestamp: message.createdAt.toISOString(),
       locationContext,
       attachments: allAttachments.length > 0 ? allAttachments : undefined,
+      isForwarded: isForwarded ?? undefined,
+    };
+  }
+
+  /**
+   * Format a MessageSnapshot as a referenced message
+   * Snapshots are created when messages are forwarded - they don't include author info
+   * @param snapshot - Discord message snapshot
+   * @param referenceNumber - Reference number
+   * @param forwardedFrom - Original message that contained this snapshot
+   * @returns Formatted referenced message with isForwarded flag
+   */
+  private formatSnapshot(
+    snapshot: MessageSnapshot,
+    referenceNumber: number,
+    forwardedFrom: Message
+  ): ReferencedMessage {
+    // Extract location context from the forwarding message (since snapshot doesn't have it)
+    const environment = extractDiscordEnvironment(forwardedFrom);
+    const locationContext = formatEnvironmentForPrompt(environment);
+
+    // Process attachments from snapshot
+    const snapshotAttachments = snapshot.attachments
+      ? extractAttachments(snapshot.attachments)
+      : undefined;
+
+    // Process embeds from snapshot
+    const embedString = snapshot.embeds?.length
+      ? snapshot.embeds
+          .map((embed, index) => {
+            const embedNumber = snapshot.embeds!.length > 1 ? ` ${index + 1}` : '';
+            // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
+            const apiEmbed: any = 'toJSON' in embed && typeof embed.toJSON === 'function'
+              ? embed.toJSON()
+              : embed;
+            return `### Embed${embedNumber}\n\n${EmbedParser.parseEmbed(apiEmbed)}`;
+          })
+          .join('\n\n---\n\n')
+      : '';
+
+    return {
+      referenceNumber,
+      discordMessageId: forwardedFrom.id, // Use forward message ID (snapshot doesn't have its own)
+      webhookId: undefined,
+      discordUserId: 'unknown', // Snapshots don't include author info
+      authorUsername: 'Unknown User',
+      authorDisplayName: 'Unknown User',
+      content: snapshot.content || '',
+      embeds: embedString,
+      timestamp: snapshot.createdTimestamp
+        ? new Date(snapshot.createdTimestamp).toISOString()
+        : forwardedFrom.createdAt.toISOString(),
+      locationContext: `${locationContext} (forwarded message)`,
+      attachments: snapshotAttachments,
+      isForwarded: true,
     };
   }
 
