@@ -4,7 +4,7 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, calculateJobTimeout } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, JobResult } from '../types.js';
 
 const logger = createLogger('GatewayClient');
@@ -39,6 +39,15 @@ export class GatewayClient {
       modelUsed?: string;
     };
   }> {
+    // Calculate timeout based on image count (same logic as gateway)
+    // Declare outside try block so it's accessible in catch block
+    const imageCount =
+      context.attachments?.filter(
+        att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+      ).length ?? 0;
+
+    const timeoutMs = calculateJobTimeout(imageCount);
+
     try {
       // Debug: Check what fields are in context before sending
       logger.info(
@@ -46,6 +55,10 @@ export class GatewayClient {
           `hasReferencedMessages=${!!(context as any).referencedMessages}, ` +
           `count=${((context as any).referencedMessages as any)?.length || 0}, ` +
           `contextKeys=[${Object.keys(context).join(', ')}]`
+      );
+
+      logger.debug(
+        `[GatewayClient] Request timeout: ${timeoutMs}ms (images: ${imageCount})`
       );
 
       // Use wait=true to eliminate polling and use Redis pub/sub instead
@@ -65,6 +78,8 @@ export class GatewayClient {
             conversationHistory: context.conversationHistory || [],
           },
         }),
+        // Add timeout matching gateway's calculation
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       if (!response.ok) {
@@ -106,6 +121,18 @@ export class GatewayClient {
       // Return entire result object to avoid manual field omissions causing bugs
       return data.result;
     } catch (error) {
+      // Handle timeout errors with more helpful message
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutSec = Math.round(timeoutMs / 1000);
+        logger.error(
+          { imageCount, timeoutMs },
+          `[GatewayClient] Request timed out after ${timeoutSec}s`
+        );
+        throw new Error(
+          `AI generation timed out after ${timeoutSec}s. This can happen with many images or slow models. The job may still complete in the background.`
+        );
+      }
+
       logger.error({ err: error }, '[GatewayClient] Generation failed');
       throw error;
     }

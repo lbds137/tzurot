@@ -68,6 +68,22 @@ export const TIMEOUTS = {
 } as const;
 
 /**
+ * Calculate job timeout based on number of images
+ *
+ * Images take longer to process (vision model calls), so we scale the timeout
+ * based on image count. However, we cap it at JOB_WAIT to stay under Railway's
+ * 5-minute request timeout.
+ *
+ * @param imageCount - Number of images in the request
+ * @returns Timeout in milliseconds
+ */
+export function calculateJobTimeout(imageCount: number): number {
+  // Base timeout: 2 minutes, scale by image count (minimum 1x)
+  // Cap at 4.5 minutes to stay under Railway's 5-minute limit with buffer
+  return Math.min(TIMEOUTS.JOB_WAIT, TIMEOUTS.JOB_BASE * Math.max(1, imageCount));
+}
+
+/**
  * Cache and cleanup intervals
  */
 export const INTERVALS = {
