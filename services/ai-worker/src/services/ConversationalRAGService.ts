@@ -27,13 +27,10 @@ import {
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
-import {
-  processAttachments,
-  type ProcessedAttachment,
-  transcribeAudio,
-} from './MultimodalProcessor.js';
+import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
 import { logAndThrow, logAndReturnFallback } from '../utils/errorHandling.js';
+import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 
 const logger = createLogger('ConversationalRAGService');
 const config = getConfig();
@@ -115,9 +112,11 @@ export interface RAGResponse {
 export class ConversationalRAGService {
   private memoryManager?: PgvectorMemoryAdapter;
   private models = new Map<string, ChatModelResult>();
+  private referencedMessageFormatter: ReferencedMessageFormatter;
 
   constructor(memoryManager?: PgvectorMemoryAdapter) {
     this.memoryManager = memoryManager;
+    this.referencedMessageFormatter = new ReferencedMessageFormatter();
   }
 
   /**
@@ -303,9 +302,13 @@ export class ConversationalRAGService {
       );
 
       // 6. Format referenced messages (with vision/transcription) for both prompt AND database
+      // Now using extracted ReferencedMessageFormatter for parallel attachment processing
       const referencedMessagesDescriptions =
         context.referencedMessages && context.referencedMessages.length > 0
-          ? await this.formatReferencedMessages(context.referencedMessages, personality)
+          ? await this.referencedMessageFormatter.formatReferencedMessages(
+              context.referencedMessages,
+              personality
+            )
           : undefined;
 
       // 7. Build the prompt with ALL participant personas and memory context
@@ -684,118 +687,6 @@ export class ConversationalRAGService {
     return parts.join('\n');
   }
 
-  /**
-   * Format referenced messages for inclusion in system prompt
-   */
-  private async formatReferencedMessages(
-    references: ReferencedMessage[],
-    personality: LoadedPersonality
-  ): Promise<string> {
-    const lines: string[] = [];
-    lines.push('## Referenced Messages\n');
-    lines.push('The user is referencing the following messages:\n');
-
-    for (const ref of references) {
-      lines.push(`[Reference ${ref.referenceNumber}]`);
-      lines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
-      lines.push(`Location:\n${ref.locationContext}`);
-      lines.push(`Time: ${ref.timestamp}`);
-
-      if (ref.content) {
-        lines.push(`\nMessage Text:\n${ref.content}`);
-      }
-
-      if (ref.embeds) {
-        lines.push(`\nMessage Embeds (structured data from Discord):\n${ref.embeds}`);
-      }
-
-      // Process attachments (images, voice messages, etc.)
-      if (ref.attachments && ref.attachments.length > 0) {
-        lines.push('\nAttachments:');
-
-        for (const attachment of ref.attachments) {
-          // Handle voice messages - transcribe them for AI context
-          if (attachment.isVoiceMessage) {
-            try {
-              logger.info(
-                {
-                  referenceNumber: ref.referenceNumber,
-                  url: attachment.url,
-                  duration: attachment.duration,
-                },
-                'Transcribing voice message in referenced message'
-              );
-
-              const transcription = await transcribeAudio(attachment, personality);
-
-              lines.push(`- Voice Message (${attachment.duration}s): "${transcription}"`);
-            } catch (error) {
-              logger.error(
-                {
-                  err: error,
-                  referenceNumber: ref.referenceNumber,
-                  url: attachment.url,
-                },
-                'Failed to transcribe voice message in referenced message'
-              );
-
-              lines.push(`- Voice Message (${attachment.duration}s) [transcription failed]`);
-            }
-          } else if (attachment.contentType?.startsWith('image/')) {
-            // Process images through vision model
-            try {
-              logger.info(
-                {
-                  referenceNumber: ref.referenceNumber,
-                  url: attachment.url,
-                  name: attachment.name,
-                },
-                'Processing image in referenced message through vision model'
-              );
-
-              const { describeImage } = await import('./MultimodalProcessor.js');
-              const imageDescription = await describeImage(attachment, personality);
-
-              lines.push(`- Image (${attachment.name}): ${imageDescription}`);
-            } catch (error) {
-              logger.error(
-                {
-                  err: error,
-                  referenceNumber: ref.referenceNumber,
-                  url: attachment.url,
-                },
-                'Failed to process image in referenced message'
-              );
-
-              lines.push(`- Image (${attachment.name}) [vision processing failed]`);
-            }
-          } else {
-            // For other attachments, just note them
-            lines.push(`- File: ${attachment.name} (${attachment.contentType})`);
-          }
-        }
-      }
-
-      lines.push(''); // Empty line between references
-    }
-
-    const formattedText = lines.join('\n');
-
-    logger.info(`[RAG] Formatted ${references.length} referenced message(s) for prompt`);
-
-    // Log first 500 chars of formatted references for debugging
-    if (formattedText.length > 0) {
-      logger.info(
-        {
-          preview: formattedText.substring(0, 500) + (formattedText.length > 500 ? '...' : ''),
-          totalLength: formattedText.length,
-        },
-        '[RAG] Reference formatting preview'
-      );
-    }
-
-    return formattedText;
-  }
 
   /**
    * Retrieve and log relevant memories from vector store

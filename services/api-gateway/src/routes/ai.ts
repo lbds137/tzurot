@@ -6,7 +6,12 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { createLogger, TIMEOUTS, generateRequestSchema } from '@tzurot/common-types';
+import {
+  createLogger,
+  TIMEOUTS,
+  generateRequestSchema,
+  calculateJobTimeout,
+} from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
@@ -146,9 +151,7 @@ aiRouter.post('/generate', async (req, res) => {
             att => att.contentType.startsWith('image/') && !att.isVoiceMessage
           ).length ?? 0;
 
-        // Base timeout: 2 minutes, scale by image count
-        // Cap at 4.5 minutes - allows 3 retry passes + 30s buffer under Railway's 5-minute limit
-        const timeoutMs = Math.min(TIMEOUTS.JOB_WAIT, TIMEOUTS.JOB_BASE * Math.max(1, imageCount));
+        const timeoutMs = calculateJobTimeout(imageCount);
 
         logger.debug(
           `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount})`
