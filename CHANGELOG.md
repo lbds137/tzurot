@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.25] - 2025-11-03
+
+### Added
+
+- **Forwarded Message Support (PR #214)** - Bot now extracts and formats forwarded message snapshots with clear indicators
+  - Detects forwarded messages via `MessageReferenceType.Forward` in Discord API
+  - Extracts original message content from `messageSnapshots` collection
+  - Formats with `[FORWARDED MESSAGE]` indicator and "Author unavailable" notice
+  - Discord strips author info from forwards for privacy - clearly communicated to AI
+  - Supports multiple snapshots in a single forward
+  - Handles forwarded messages with attachments, embeds, and rich content
+  - Added `isForwarded` field to `ReferencedMessage` schema
+  - Comprehensive test coverage: 8 new tests for forwarded message handling
+
+### Performance
+
+- **Parallel Attachment Processing (PR #214)** - Dramatically reduced latency for multi-image requests
+  - Replaced sequential image processing with `Promise.allSettled()` parallel processing
+  - 10 images now process in ~30s instead of up to 5 minutes
+  - Each image processes concurrently instead of waiting for previous to complete
+  - Graceful error handling - failed images don't block successful ones
+  - Extracted `ReferencedMessageFormatter` service from bloated `ConversationalRAGService` (removed 114 lines)
+  - Created shared `calculateJobTimeout()` utility in common-types package
+  - Tests verify parallel execution: 3 images @ 100ms each complete in <250ms (not ~300ms)
+
+### Fixed
+
+- **Request Timeout Improvements (PR #214)** - Fixed premature timeout errors for image-heavy requests
+  - Added `AbortSignal.timeout()` to GatewayClient fetch calls (was defaulting to Node.js 2min limit)
+  - Timeout now scales with image count: 2min base, capped at 4.5min (stays under Railway's 5min limit)
+  - Client and gateway now use same timeout calculation
+  - Better error messages: "AI generation timed out after Xs. Job may still complete in background."
+  - Jobs that complete after client timeout are still saved to conversation history and LTM
+
+### Tests
+
+- All 118 tests passing across all services
+- 10 new tests for timeout calculation utility
+- 14 new tests for ReferencedMessageFormatter with parallel processing verification
+- 8 new tests for forwarded message detection and formatting
+
 ## [3.0.0-alpha.24] - 2025-11-03
 
 ### Fixed
