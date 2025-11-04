@@ -670,4 +670,218 @@ describe('MessageReferenceExtractor', () => {
       expect(references[0].referenceNumber).toBe(1);
     });
   });
+
+  describe('Forwarded messages', () => {
+    it('should extract snapshots from forwarded messages', async () => {
+      const { MessageReferenceType } = await import('discord.js');
+
+      // Create a message snapshot (the original forwarded message)
+      const mockSnapshot = {
+        content: 'This is the original forwarded content',
+        embeds: [],
+        attachments: createMockCollection([]),
+        createdTimestamp: new Date('2025-11-01T10:00:00Z').getTime(),
+      };
+
+      // Create the forwarded message (contains the snapshot)
+      const forwardedChannel = createConfiguredChannel({});
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-123',
+        content: '', // Forwarded messages typically have empty content
+        author: createMockUser({ username: 'ForwarderUser' }),
+        channel: forwardedChannel,
+        reference: {
+          type: MessageReferenceType.Forward,
+          messageId: 'original-123',
+        } as any,
+        messageSnapshots: createMockCollection([['snapshot-1', mockSnapshot as any]]),
+      });
+
+      // Create the reply to the forwarded message
+      const message = createMockMessage({
+        id: 'reply-123',
+        content: 'Reply to forward',
+        reference: { messageId: 'forwarded-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(forwardedMessage),
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message),
+        },
+      });
+
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      // Should extract the snapshot, not the forwarded message wrapper
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('This is the original forwarded content');
+      expect(references[0].isForwarded).toBe(true);
+      expect(references[0].authorUsername).toBe('Unknown User');
+      expect(references[0].authorDisplayName).toBe('Unknown User');
+      expect(references[0].locationContext).toContain('(forwarded message)');
+    });
+
+    it('should extract multiple snapshots from a single forward', async () => {
+      const { MessageReferenceType } = await import('discord.js');
+
+      // Multiple snapshots in one forward
+      const snapshot1 = {
+        content: 'First forwarded message',
+        embeds: [],
+        attachments: createMockCollection([]),
+        createdTimestamp: new Date('2025-11-01T10:00:00Z').getTime(),
+      };
+
+      const snapshot2 = {
+        content: 'Second forwarded message',
+        embeds: [],
+        attachments: createMockCollection([]),
+        createdTimestamp: new Date('2025-11-01T10:01:00Z').getTime(),
+      };
+
+      const forwardedChannel = createConfiguredChannel({});
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-multi-123',
+        content: '',
+        author: createMockUser({ username: 'ForwarderUser' }),
+        channel: forwardedChannel,
+        reference: {
+          type: MessageReferenceType.Forward,
+        } as any,
+        messageSnapshots: createMockCollection([
+          ['snapshot-1', snapshot1 as any],
+          ['snapshot-2', snapshot2 as any],
+        ]),
+      });
+
+      const message = createMockMessage({
+        content: 'Reply',
+        reference: { messageId: 'forwarded-multi-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(forwardedMessage),
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message),
+        },
+      });
+
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      // Should extract both snapshots
+      expect(references).toHaveLength(2);
+      expect(references[0].content).toBe('First forwarded message');
+      expect(references[0].isForwarded).toBe(true);
+      expect(references[0].referenceNumber).toBe(1);
+      expect(references[1].content).toBe('Second forwarded message');
+      expect(references[1].isForwarded).toBe(true);
+      expect(references[1].referenceNumber).toBe(2);
+    });
+
+    it('should handle forwarded messages with attachments and embeds', async () => {
+      const { MessageReferenceType } = await import('discord.js');
+
+      const mockEmbed = {
+        title: 'Forwarded Embed',
+        description: 'Embed from original message',
+      };
+
+      const mockAttachment = {
+        id: 'attachment-123',
+        url: 'https://cdn.discord.com/attachments/123/456/image.png',
+        contentType: 'image/png',
+        name: 'image.png',
+        size: 1024,
+      };
+
+      const snapshot = {
+        content: 'Message with attachments',
+        embeds: [mockEmbed],
+        attachments: createMockCollection([['attachment-123', mockAttachment as any]]),
+        createdTimestamp: new Date('2025-11-01T10:00:00Z').getTime(),
+      };
+
+      const forwardedChannel = createConfiguredChannel({});
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-with-media-123',
+        content: '',
+        author: createMockUser({ username: 'ForwarderUser' }),
+        channel: forwardedChannel,
+        reference: {
+          type: MessageReferenceType.Forward,
+        } as any,
+        messageSnapshots: createMockCollection([['snapshot-1', snapshot as any]]),
+      });
+
+      const message = createMockMessage({
+        content: 'Reply',
+        reference: { messageId: 'forwarded-with-media-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(forwardedMessage),
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message),
+        },
+      });
+
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].isForwarded).toBe(true);
+      expect(references[0].content).toBe('Message with attachments');
+      expect(references[0].embeds).toContain('Forwarded Embed');
+      expect(references[0].attachments).toBeDefined();
+      expect(references[0].attachments).toHaveLength(1);
+      expect(references[0].attachments![0].url).toBe(
+        'https://cdn.discord.com/attachments/123/456/image.png'
+      );
+    });
+
+    it('should handle regular reply (not forwarded)', async () => {
+      // Regular reply (no forward, no reference on the referenced message)
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'regular-123',
+        content: 'Regular message',
+        author: createMockUser({
+          id: 'user-123',
+          username: 'RegularUser',
+          displayName: 'Regular User',
+        }),
+        channel: referencedChannel,
+        // Regular messages don't have a reference property
+      });
+
+      const message = createMockMessage({
+        content: 'Reply',
+        reference: { messageId: 'regular-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message),
+        },
+      });
+
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      // Should process as regular reference, not forwarded
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('Regular message');
+      expect(references[0].isForwarded).toBeUndefined();
+      expect(references[0].authorUsername).toBe('RegularUser');
+      expect(references[0].authorDisplayName).toBe('Regular User');
+    });
+  });
 });

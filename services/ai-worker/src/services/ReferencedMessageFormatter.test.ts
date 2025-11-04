@@ -521,5 +521,93 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('Just text');
       expect(result).not.toContain('Attachments:');
     });
+
+    it('should format forwarded messages with [FORWARDED MESSAGE] indicator', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'forwarded-123',
+          discordUserId: 'unknown',
+          authorUsername: 'Unknown User',
+          authorDisplayName: 'Unknown User',
+          content: 'This is a forwarded message',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext: 'Test Guild > #general (forwarded message)',
+          isForwarded: true,
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Should have forwarded indicator
+      expect(result).toContain('[Reference 1] [FORWARDED MESSAGE]');
+      expect(result).toContain('[Author unavailable - this message was forwarded]');
+      expect(result).toContain('This is a forwarded message');
+      expect(result).toContain('(forwarded message)');
+    });
+
+    it('should format regular (non-forwarded) messages without indicator', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'regular-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'This is a regular message',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          isForwarded: false,
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Should NOT have forwarded indicator
+      expect(result).toContain('[Reference 1]');
+      expect(result).not.toContain('[FORWARDED MESSAGE]');
+      expect(result).toContain('From: Test User (@testuser)');
+      expect(result).not.toContain('[Author unavailable');
+    });
+
+    it('should handle mixed forwarded and regular references', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'regular-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Regular message',
+          embeds: '',
+          timestamp: '2025-11-04T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+        },
+        {
+          referenceNumber: 2,
+          discordMessageId: 'forwarded-123',
+          discordUserId: 'unknown',
+          authorUsername: 'Unknown User',
+          authorDisplayName: 'Unknown User',
+          content: 'Forwarded message',
+          embeds: '',
+          timestamp: '2025-11-04T00:01:00Z',
+          locationContext: 'Test Guild > #general (forwarded message)',
+          isForwarded: true,
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // First reference - regular
+      expect(result).toContain('[Reference 1]');
+      expect(result).toContain('From: Test User (@testuser)');
+
+      // Second reference - forwarded
+      expect(result).toContain('[Reference 2] [FORWARDED MESSAGE]');
+      expect(result).toContain('[Author unavailable - this message was forwarded]');
+    });
   });
 });

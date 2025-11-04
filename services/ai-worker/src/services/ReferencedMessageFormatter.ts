@@ -45,8 +45,17 @@ export class ReferencedMessageFormatter {
 
     // Process each reference
     for (const ref of references) {
-      lines.push(`[Reference ${ref.referenceNumber}]`);
-      lines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
+      // Add forwarded indicator if this is a forwarded message
+      const forwardedLabel = ref.isForwarded ? ' [FORWARDED MESSAGE]' : '';
+      lines.push(`[Reference ${ref.referenceNumber}]${forwardedLabel}`);
+
+      if (ref.isForwarded) {
+        // For forwarded messages, author info is unavailable
+        lines.push(`From: [Author unavailable - this message was forwarded]`);
+      } else {
+        lines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
+      }
+
       lines.push(`Location:\n${ref.locationContext}`);
       lines.push(`Time: ${ref.timestamp}`);
 

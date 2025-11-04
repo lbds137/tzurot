@@ -87,6 +87,7 @@ export const referencedMessageSchema = z.object({
   timestamp: z.string(), // ISO 8601 timestamp string (serialized from Date)
   locationContext: z.string(), // Rich formatted location context (Server/Category/Channel/Thread)
   attachments: z.array(attachmentMetadataSchema).optional(), // Attachments from referenced message
+  isForwarded: z.boolean().optional(), // True if this is a forwarded message (author info unavailable)
 });
 
 /**
