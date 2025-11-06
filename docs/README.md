@@ -1,6 +1,6 @@
 # Tzurot v3 Documentation
 
-**Last Updated:** 2025-10-28
+**Last Updated:** 2025-11-05
 
 This directory contains all project documentation, organized by category for easy navigation.
 
@@ -53,7 +53,7 @@ Project planning, roadmaps, and feature tracking.
 **Key docs:**
 
 - `V3_REFINEMENT_ROADMAP.md` - Prioritized improvement roadmap
-- `gemini-code-review.md` - Comprehensive code review from Gemini AI
+- `OPENMEMORY_MIGRATION_PLAN.md` - OpenMemory architecture migration plan
 - `V2_FEATURES_TO_PORT.md` - V2 features awaiting v3 implementation
 - `V2_FEATURE_TRACKING.md` - Status of ported features
 
@@ -128,8 +128,8 @@ Completed plans, one-time audits, and historical documentation.
 **Planning Work:**
 
 1. [Refinement Roadmap](planning/V3_REFINEMENT_ROADMAP.md)
-2. [Feature Tracking](planning/V2_FEATURE_TRACKING.md)
-3. [Code Review](planning/gemini-code-review.md)
+2. [OpenMemory Migration Plan](planning/OPENMEMORY_MIGRATION_PLAN.md)
+3. [Feature Tracking](planning/V2_FEATURE_TRACKING.md)
 
 ---
 
