@@ -123,10 +123,14 @@ export const RETRY_CONFIG = {
   LLM_RETRY_BASE_DELAY: 1000,
   /** Global timeout for all LLM retry attempts combined (2 minutes) */
   LLM_GLOBAL_TIMEOUT: 120000,
+  /** Default maximum retry attempts for generic retry operations */
+  MAX_ATTEMPTS: 3,
   /** Initial delay before first retry (1 second) */
   INITIAL_DELAY_MS: 1000,
   /** Maximum delay between retries (10 seconds) */
   MAX_DELAY_MS: 10000,
+  /** Default backoff multiplier for exponential backoff */
+  BACKOFF_MULTIPLIER: 2,
   /** Maximum Redis retry attempts before giving up */
   REDIS_MAX_RETRIES: 10,
   /** Base delay multiplier for Redis retries (milliseconds) */
