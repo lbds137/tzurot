@@ -10,7 +10,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { getConfig, createLogger, TEXT_LIMITS } from '@tzurot/common-types';
+import { getConfig, createLogger, TEXT_LIMITS, DISCORD_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('admin-command');
 
@@ -224,9 +224,11 @@ async function handleServers(interaction: ChatInputCommandInteraction): Promise<
       })
       .join('\n\n');
 
-    // Discord embed description has a 4096 character limit
-    if (serverList.length > 4000) {
-      const truncated = serverList.substring(0, 3900);
+    // Discord embed description has a character limit
+    // Use safety margin to leave room for truncation message
+    const SAFETY_MARGIN = 96;
+    if (serverList.length > DISCORD_LIMITS.EMBED_DESCRIPTION - SAFETY_MARGIN) {
+      const truncated = serverList.substring(0, DISCORD_LIMITS.EMBED_DESCRIPTION - 196);
       embed.setDescription(truncated + '\n\n*... (list truncated)*');
     } else {
       embed.setDescription(serverList);
