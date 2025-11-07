@@ -15,7 +15,7 @@ export interface ConversationMessage {
   createdAt: Date;
   personaId: string;
   personaName?: string; // The persona's name for display in context
-  discordMessageId?: string; // Discord snowflake ID for deduplication with referenced messages
+  discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
 }
 
 export class ConversationHistoryService {
@@ -46,7 +46,7 @@ export class ConversationHistoryService {
           personaId,
           role,
           content,
-          discordMessageId: discordMessageId || null,
+          discordMessageId: discordMessageId ? [discordMessageId] : [],
         },
       });
 
@@ -258,14 +258,14 @@ export class ConversationHistoryService {
   }
 
   /**
-   * Update the most recent assistant message with Discord message ID
+   * Update the most recent assistant message with Discord message IDs (for chunked messages)
    * Used to enable deduplication of referenced messages
    */
   async updateLastAssistantMessageId(
     channelId: string,
     personalityId: string,
     personaId: string,
-    discordMessageId: string
+    discordMessageIds: string[]
   ): Promise<boolean> {
     try {
       // Find the most recent assistant message for this persona
@@ -288,22 +288,22 @@ export class ConversationHistoryService {
         return false;
       }
 
-      // Update with Discord message ID
+      // Update with Discord message IDs (array for chunked messages)
       await this.prisma.conversationHistory.update({
         where: {
           id: lastMessage.id,
         },
         data: {
-          discordMessageId,
+          discordMessageId: discordMessageIds,
         },
       });
 
       logger.debug(
-        `Updated assistant message ${lastMessage.id} with Discord ID ${discordMessageId}`
+        `Updated assistant message ${lastMessage.id} with ${discordMessageIds.length} Discord chunk ID(s)`
       );
       return true;
     } catch (error) {
-      logger.error({ err: error }, `Failed to update assistant message with Discord ID`);
+      logger.error({ err: error }, `Failed to update assistant message with Discord IDs`);
       return false;
     }
   }
