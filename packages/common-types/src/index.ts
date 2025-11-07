@@ -3,6 +3,7 @@ export * from './ai.js';
 export * from './discord.js';
 export * from './config.js';
 export * from './constants.js';
+export * from './timeout-utils.js';
 export * from './modelDefaults.js';
 export * from './dateFormatting.js';
 export * from './api-types.js';
