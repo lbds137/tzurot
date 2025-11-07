@@ -7,7 +7,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, DEFAULT_MODELS } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
 const logger = createLogger('PgvectorMemoryAdapter');
@@ -98,7 +98,7 @@ export class PgvectorMemoryAdapter {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    this.embeddingModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
+    this.embeddingModel = process.env.EMBEDDING_MODEL || DEFAULT_MODELS.EMBEDDING;
     logger.info({ embeddingModel: this.embeddingModel }, 'Pgvector Memory Adapter initialized');
   }
 
