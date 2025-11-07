@@ -37,14 +37,18 @@ export function replacePromptPlaceholders(
   let result = text;
 
   // Replace all user placeholder variations
-  for (const placeholder of PLACEHOLDERS.USER) {
+  // Process longer placeholders first to avoid partial replacements
+  const userPlaceholders = [...PLACEHOLDERS.USER].sort((a, b) => b.length - a.length);
+  for (const placeholder of userPlaceholders) {
     // Escape special regex characters in placeholder
     const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
     result = result.replace(new RegExp(escapedPlaceholder, 'g'), userName);
   }
 
   // Replace all assistant placeholder variations
-  for (const placeholder of PLACEHOLDERS.ASSISTANT) {
+  // Process longer placeholders first to avoid partial replacements
+  const assistantPlaceholders = [...PLACEHOLDERS.ASSISTANT].sort((a, b) => b.length - a.length);
+  for (const placeholder of assistantPlaceholders) {
     // Escape special regex characters in placeholder
     const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
     result = result.replace(new RegExp(escapedPlaceholder, 'g'), assistantName);
