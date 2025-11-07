@@ -74,10 +74,13 @@ export class MessageHandler {
         a => a.contentType?.startsWith('audio/') || a.duration !== null
       );
 
+      // Store voice transcript for voice+personality messages
+      let voiceTranscript: string | undefined;
+
       if (hasVoiceAttachment && config.AUTO_TRANSCRIBE_VOICE === 'true') {
         // ALWAYS transcribe and send transcript as bot first
         logger.debug('[MessageHandler] Auto-transcribing voice message');
-        await this.handleVoiceTranscription(message);
+        voiceTranscript = await this.handleVoiceTranscription(message);
 
         // Check if this message ALSO targets a personality
         const isReply = message.reference !== null;
@@ -94,15 +97,15 @@ export class MessageHandler {
         }
 
         // Voice + personality mention: Continue to personality handler
-        // The transcript will be included in the attachment descriptions
+        // Pass transcript as message content so it's stored in conversation history
         logger.debug(
-          '[MessageHandler] Voice message with personality mention - continuing to personality handler'
+          '[MessageHandler] Voice message with personality mention - continuing to personality handler with transcript'
         );
       }
 
       // Check for replies to personality messages (best UX - no @mention needed)
       if (message.reference !== null) {
-        const replyResult = await this.handleReply(message);
+        const replyResult = await this.handleReply(message, voiceTranscript);
         if (replyResult) {
           return; // Reply was handled
         }
@@ -122,7 +125,9 @@ export class MessageHandler {
         );
 
         if (personality !== null) {
-          await this.handlePersonalityMessage(message, personality, mentionMatch.cleanContent);
+          // For voice messages, use transcript instead of empty cleanContent
+          const content = voiceTranscript || mentionMatch.cleanContent;
+          await this.handlePersonalityMessage(message, personality, content);
         } else {
           // Silently ignore unknown personality mentions (likely typos or non-bot mentions)
           logger.debug(
@@ -137,7 +142,9 @@ export class MessageHandler {
         const defaultPersonality = await this.personalityService.loadPersonality('default');
         if (defaultPersonality !== null) {
           const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
-          await this.handlePersonalityMessage(message, defaultPersonality, cleanContent);
+          // For voice messages, use transcript instead of empty cleanContent
+          const content = voiceTranscript || cleanContent;
+          await this.handlePersonalityMessage(message, defaultPersonality, content);
         }
         return;
       }
@@ -158,7 +165,10 @@ export class MessageHandler {
    * Handle replies to webhook messages
    * Returns true if reply was handled, false otherwise
    */
-  private async handleReply(message: Message): Promise<boolean> {
+  private async handleReply(
+    message: Message,
+    voiceTranscript?: string
+  ): Promise<boolean> {
     try {
       // Fetch the message being replied to
       const referencedMessage = await message.channel.messages.fetch(message.reference!.messageId!);
@@ -217,7 +227,9 @@ export class MessageHandler {
       logger.info(`[MessageHandler] Routing reply to ${personality.displayName}`);
 
       // Handle the message with the personality
-      await this.handlePersonalityMessage(message, personality, message.content);
+      // For voice messages, use the transcript instead of empty message.content
+      const content = voiceTranscript || message.content;
+      await this.handlePersonalityMessage(message, personality, content);
       return true;
     } catch (error) {
       // If we can't fetch the referenced message, it might be deleted or inaccessible
