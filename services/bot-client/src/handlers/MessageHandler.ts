@@ -18,6 +18,7 @@ import {
   getConfig,
   AI_DEFAULTS,
   INTERVALS,
+  MessageRole,
 } from '@tzurot/common-types';
 import type {
   LoadedPersonality,
@@ -449,7 +450,7 @@ export class MessageHandler {
         message.channel.id,
         personality.id,
         personaId,
-        'user',
+        MessageRole.User,
         userMessageContent,
         message.guild?.id || null,
         message.id // Discord message ID for deduplication
@@ -596,7 +597,7 @@ export class MessageHandler {
           message.channel.id,
           personality.id,
           personaId,
-          'assistant',
+          MessageRole.Assistant,
           response.content, // Clean content without model indicator
           message.guild?.id || null,
           chunkMessageIds, // Array of Discord message IDs

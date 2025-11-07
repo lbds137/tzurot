@@ -5,12 +5,13 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
+import { MessageRole } from '../constants.js';
 
 const logger = createLogger('ConversationHistoryService');
 
 export interface ConversationMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string;
   createdAt: Date;
   personaId: string;
@@ -41,7 +42,7 @@ export class ConversationHistoryService {
     channelId: string,
     personalityId: string,
     personaId: string,
-    role: 'user' | 'assistant' | 'system',
+    role: MessageRole,
     content: string,
     guildId?: string | null,
     discordMessageId?: string | string[],
@@ -95,7 +96,7 @@ export class ConversationHistoryService {
           channelId,
           personalityId,
           personaId,
-          role: 'user',
+          role: MessageRole.User,
         },
         orderBy: {
           createdAt: 'desc',
@@ -167,7 +168,7 @@ export class ConversationHistoryService {
       const history = messages.reverse().map(
         (msg: MessageWithPersona): ConversationMessage => ({
           id: msg.id,
-          role: msg.role as 'user' | 'assistant' | 'system',
+          role: msg.role as MessageRole,
           content: msg.content,
           createdAt: msg.createdAt,
           personaId: msg.personaId,
@@ -245,7 +246,7 @@ export class ConversationHistoryService {
       const history = resultMessages.reverse().map(
         (msg: MessageWithPersona): ConversationMessage => ({
           id: msg.id,
-          role: msg.role as 'user' | 'assistant' | 'system',
+          role: msg.role as MessageRole,
           content: msg.content,
           createdAt: msg.createdAt,
           personaId: msg.personaId,
@@ -293,7 +294,7 @@ export class ConversationHistoryService {
           channelId,
           personalityId,
           personaId,
-          role: 'assistant',
+          role: MessageRole.Assistant,
         },
         orderBy: {
           createdAt: 'desc',
