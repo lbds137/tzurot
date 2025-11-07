@@ -14,7 +14,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { getConfig, createLogger, DISCORD_LIMITS, DISCORD_COLORS, CONTENT_TYPES } from '@tzurot/common-types';
+import { getConfig, createLogger, DISCORD_LIMITS, DISCORD_COLORS, CONTENT_TYPES, TEXT_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('personality-command');
 
@@ -818,10 +818,10 @@ async function handleModalSubmit(
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created personality: **${name}** (\`${slug}\`)`)
       .addFields(
-        { name: 'Character Info', value: `${characterInfo.substring(0, 200)}...`, inline: false },
+        { name: 'Character Info', value: `${characterInfo.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW)}...`, inline: false },
         {
           name: 'Personality Traits',
-          value: `${personalityTraits.substring(0, 200)}...`,
+          value: `${personalityTraits.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW)}...`,
           inline: false,
         }
       )

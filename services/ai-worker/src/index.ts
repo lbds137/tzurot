@@ -20,6 +20,7 @@ import {
   createBullMQRedisConfig,
   CONTENT_TYPES,
   HealthStatus,
+  QUEUE_CONFIG,
 } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
@@ -117,8 +118,8 @@ async function main(): Promise<void> {
     {
       connection: config.redis,
       concurrency: config.worker.concurrency,
-      removeOnComplete: { count: 100 }, // Keep last 100 completed jobs
-      removeOnFail: { count: 500 }, // Keep last 500 failed jobs for debugging
+      removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
+      removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
     }
   );
 
@@ -198,8 +199,8 @@ async function main(): Promise<void> {
     },
     {
       connection: config.redis,
-      removeOnComplete: { count: 10 }, // Keep fewer completed scheduled jobs
-      removeOnFail: { count: 50 },
+      removeOnComplete: { count: QUEUE_CONFIG.SCHEDULED_COMPLETED_LIMIT },
+      removeOnFail: { count: QUEUE_CONFIG.SCHEDULED_FAILED_LIMIT },
     }
   );
 
