@@ -6,6 +6,7 @@
  */
 
 import type { Logger } from 'pino';
+import { RETRY_CONFIG } from '@tzurot/common-types';
 
 /**
  * Configuration options for retry behavior
@@ -13,9 +14,9 @@ import type { Logger } from 'pino';
 export interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
   maxAttempts?: number;
-  /** Initial delay in milliseconds before first retry (default: 1000) */
+  /** Initial delay in milliseconds before first retry */
   initialDelayMs?: number;
-  /** Maximum delay in milliseconds between retries (default: 10000) */
+  /** Maximum delay in milliseconds between retries */
   maxDelayMs?: number;
   /** Backoff multiplier for exponential backoff (default: 2) */
   backoffMultiplier?: number;
@@ -77,10 +78,10 @@ export async function withRetry<T>(
   options: RetryOptions = {}
 ): Promise<RetryResult<T>> {
   const {
-    maxAttempts = 3,
-    initialDelayMs = 1000,
-    maxDelayMs = 10000,
-    backoffMultiplier = 2,
+    maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS,
+    initialDelayMs = RETRY_CONFIG.INITIAL_DELAY_MS,
+    maxDelayMs = RETRY_CONFIG.MAX_DELAY_MS,
+    backoffMultiplier = RETRY_CONFIG.BACKOFF_MULTIPLIER,
     globalTimeoutMs,
     logger,
     operationName = 'operation',

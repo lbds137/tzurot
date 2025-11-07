@@ -17,6 +17,7 @@
  */
 
 import { createLogger } from './logger.js';
+import { CIRCUIT_BREAKER } from './constants.js';
 
 const logger = createLogger('CircuitBreaker');
 
@@ -31,13 +32,11 @@ export interface CircuitBreakerOptions {
 
   /**
    * Time window for counting failures (milliseconds)
-   * @default 30000 (30 seconds)
    */
   failureWindow?: number;
 
   /**
    * How long to wait before attempting recovery (milliseconds)
-   * @default 60000 (60 seconds)
    */
   recoveryTimeout?: number;
 
@@ -59,8 +58,8 @@ export class CircuitBreaker {
 
   constructor(options: CircuitBreakerOptions = {}) {
     this.failureThreshold = options.failureThreshold || 5;
-    this.failureWindow = options.failureWindow || 30000;
-    this.recoveryTimeout = options.recoveryTimeout || 60000;
+    this.failureWindow = options.failureWindow || CIRCUIT_BREAKER.FAILURE_WINDOW;
+    this.recoveryTimeout = options.recoveryTimeout || CIRCUIT_BREAKER.RECOVERY_TIMEOUT;
     this.name = options.name || 'unnamed';
   }
 
