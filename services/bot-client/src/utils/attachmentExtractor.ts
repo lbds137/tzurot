@@ -7,6 +7,7 @@
 
 import { Collection, Snowflake, Attachment } from 'discord.js';
 import type { AttachmentMetadata } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Extract attachment metadata from a Discord message's attachments collection
@@ -22,7 +23,7 @@ export function extractAttachments(
 
   return Array.from(attachments.values()).map(attachment => ({
     url: attachment.url,
-    contentType: attachment.contentType || 'application/octet-stream',
+    contentType: attachment.contentType || CONTENT_TYPES.BINARY,
     name: attachment.name,
     size: attachment.size,
     // Discord.js v14 voice message metadata

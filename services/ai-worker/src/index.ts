@@ -18,6 +18,8 @@ import {
   getConfig,
   parseRedisUrl,
   createBullMQRedisConfig,
+  CONTENT_TYPES,
+  HealthStatus,
 } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
@@ -266,17 +268,17 @@ async function startHealthServer(
 
           const status = memoryHealthy && workerHealthy ? 200 : 503;
           const health = {
-            status: memoryHealthy && workerHealthy ? 'healthy' : 'degraded',
+            status: memoryHealthy && workerHealthy ? HealthStatus.Healthy : HealthStatus.Degraded,
             memory: memoryManager !== undefined ? memoryHealthy : 'disabled',
             worker: workerHealthy,
             timestamp: new Date().toISOString(),
           };
 
-          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.writeHead(status, { 'Content-Type': CONTENT_TYPES.JSON });
           res.end(JSON.stringify(health));
         } catch (error) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'error', error: String(error) }));
+          res.writeHead(500, { 'Content-Type': CONTENT_TYPES.JSON });
+          res.end(JSON.stringify({ status: HealthStatus.Error, error: String(error) }));
         }
       } else {
         res.writeHead(404);

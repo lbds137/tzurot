@@ -13,6 +13,8 @@ import {
   calculateJobTimeout,
   JobStatus,
   JobType,
+  CONTENT_TYPES,
+  JOB_PREFIXES,
 } from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
@@ -134,7 +136,7 @@ aiRouter.post('/generate', async (req, res) => {
 
     // Add job to queue
     const job = await aiQueue.add(JobType.Generate, jobData, {
-      jobId: `req-${requestId}`, // Use predictable job ID for tracking
+      jobId: `${JOB_PREFIXES.GENERATE}${requestId}`, // Use predictable job ID for tracking
     });
 
     // Cache request to prevent duplicates
@@ -150,7 +152,7 @@ aiRouter.post('/generate', async (req, res) => {
         // Calculate timeout based on attachments (images take longer)
         const imageCount =
           request.context.attachments?.filter(
-            att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+            att => att.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX) && !att.isVoiceMessage
           ).length ?? 0;
 
         const timeoutMs = calculateJobTimeout(imageCount);
@@ -290,7 +292,7 @@ aiRouter.post('/transcribe', async (req, res) => {
     };
 
     const job = await aiQueue.add(JobType.Transcribe, jobData, {
-      jobId: `transcribe-${requestId}`,
+      jobId: `${JOB_PREFIXES.TRANSCRIBE}${requestId}`,
     });
 
     logger.info(`[AI] Created transcribe job ${job.id} (${Date.now() - startTime}ms)`);

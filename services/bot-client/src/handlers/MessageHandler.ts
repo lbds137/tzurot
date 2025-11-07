@@ -19,6 +19,7 @@ import {
   AI_DEFAULTS,
   INTERVALS,
   MessageRole,
+  CONTENT_TYPES,
 } from '@tzurot/common-types';
 import type {
   LoadedPersonality,
@@ -74,7 +75,7 @@ export class MessageHandler {
       // Check for voice message auto-transcription (if enabled)
       const config = getConfig();
       const hasVoiceAttachment = message.attachments.some(
-        a => a.contentType?.startsWith('audio/') || a.duration !== null
+        a => a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.duration !== null
       );
 
       // Store voice transcript for voice+personality messages
@@ -313,7 +314,7 @@ export class MessageHandler {
       const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
 
       // Debug logging for voice message replies (helps diagnose reference duplication)
-      if (message.attachments.some(a => a.contentType?.startsWith('audio/') || a.duration !== null)) {
+      if (message.attachments.some(a => a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.duration !== null)) {
         const mostRecentAssistant = history.filter(m => m.role === 'assistant').slice(-1)[0];
         const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId || [];
 
@@ -640,7 +641,7 @@ export class MessageHandler {
       // Extract voice attachment metadata
       const attachments = Array.from(message.attachments.values()).map(attachment => ({
         url: attachment.url,
-        contentType: attachment.contentType || 'application/octet-stream',
+        contentType: attachment.contentType || CONTENT_TYPES.BINARY,
         name: attachment.name,
         size: attachment.size,
         isVoiceMessage: attachment.duration !== null,

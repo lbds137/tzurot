@@ -6,6 +6,7 @@
  */
 
 import type { ErrorCode } from './utils/errorResponses.js';
+import type { HealthStatus } from '@tzurot/common-types';
 
 // Re-export shared API types from common-types
 export type {
@@ -23,14 +24,14 @@ export type { ErrorCode } from './utils/errorResponses.js';
  * Health check response
  */
 export interface HealthResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: HealthStatus.Healthy | HealthStatus.Degraded | HealthStatus.Unhealthy;
   services: {
     redis: boolean;
     queue: boolean;
     avatarStorage?: boolean;
   };
   avatars?: {
-    status: string;
+    status: HealthStatus;
     count?: number;
     error?: string;
   };
