@@ -529,6 +529,17 @@ export class MessageHandler {
       // Update the assistant message in conversation history with Discord message ID
       // This enables deduplication when users reference recent assistant messages
       if (firstMessageId) {
+        logger.debug(
+          {
+            channelId: message.channel.id,
+            isThread: message.channel.isThread(),
+            personalityId: personality.id,
+            personaId: personaId.substring(0, 8),
+            discordMessageId: firstMessageId,
+          },
+          '[MessageHandler] Updating last assistant message with Discord ID'
+        );
+
         await this.conversationHistory.updateLastAssistantMessageId(
           message.channel.id,
           personality.id,
