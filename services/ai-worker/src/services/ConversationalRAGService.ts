@@ -18,6 +18,7 @@ import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
 import {
   MessageContent,
   createLogger,
+  AI_DEFAULTS,
   type LoadedPersonality,
   type AttachmentMetadata,
   type ReferencedMessage,
@@ -213,7 +214,7 @@ export class ConversationalRAGService {
 
       // Add conversation history if available
       if (context.conversationHistory && context.conversationHistory.length > 0) {
-        const historyLimit = personality.contextWindow || 10;
+        const historyLimit = personality.contextWindow || AI_DEFAULTS.HISTORY_LIMIT;
         const recentHistory = context.conversationHistory.slice(-historyLimit);
         messages.push(...recentHistory);
         logger.info(
