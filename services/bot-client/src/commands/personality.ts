@@ -14,7 +14,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { getConfig, createLogger } from '@tzurot/common-types';
+import { getConfig, createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('personality-command');
 
@@ -237,7 +237,7 @@ async function handleCreate(
       }
 
       // Check file size (10MB limit from Discord)
-      if (avatarAttachment.size > 10 * 1024 * 1024) {
+      if (avatarAttachment.size > DISCORD_LIMITS.AVATAR_SIZE) {
         await interaction.editReply('❌ Avatar file is too large (max 10MB)');
         return;
       }
@@ -319,8 +319,8 @@ async function handleCreate(
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created new personality: **${name}** (\`${slug}\`)`)
       .addFields(
-        { name: 'Character Info', value: characterInfo.slice(0, 1024), inline: false },
-        { name: 'Personality Traits', value: personalityTraits.slice(0, 1024), inline: false }
+        { name: 'Character Info', value: characterInfo.slice(0, DISCORD_LIMITS.EMBED_FIELD), inline: false },
+        { name: 'Personality Traits', value: personalityTraits.slice(0, DISCORD_LIMITS.EMBED_FIELD), inline: false }
       )
       .setTimestamp();
 
@@ -402,7 +402,7 @@ async function handleEdit(
       }
 
       // Check file size (10MB limit from Discord)
-      if (avatarAttachment.size > 10 * 1024 * 1024) {
+      if (avatarAttachment.size > DISCORD_LIMITS.AVATAR_SIZE) {
         await interaction.editReply('❌ Avatar file is too large (max 10MB)');
         return;
       }
@@ -526,8 +526,8 @@ async function handleImport(
       return;
     }
 
-    // Validate file size (10MB limit from Discord)
-    if (fileAttachment.size > 10 * 1024 * 1024) {
+    // Validate file size (Discord limit)
+    if (fileAttachment.size > DISCORD_LIMITS.AVATAR_SIZE) {
       await interaction.editReply('❌ File is too large (max 10MB)');
       return;
     }
@@ -699,7 +699,7 @@ async function handleCreateModal(interaction: ChatInputCommandInteraction): Prom
     .setStyle(TextInputStyle.Paragraph)
     .setPlaceholder('Background, description, and context for this personality...')
     .setRequired(true)
-    .setMaxLength(4000);
+    .setMaxLength(DISCORD_LIMITS.EMBED_DESCRIPTION);
 
   // Personality Traits input (required, paragraph style for long text)
   const personalityTraitsInput = new TextInputBuilder()
@@ -708,7 +708,7 @@ async function handleCreateModal(interaction: ChatInputCommandInteraction): Prom
     .setStyle(TextInputStyle.Paragraph)
     .setPlaceholder('Key traits, behaviors, and characteristics...')
     .setRequired(true)
-    .setMaxLength(4000);
+    .setMaxLength(DISCORD_LIMITS.EMBED_DESCRIPTION);
 
   // Display Name input (optional)
   const displayNameInput = new TextInputBuilder()
