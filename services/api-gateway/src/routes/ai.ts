@@ -11,6 +11,7 @@ import {
   TIMEOUTS,
   generateRequestSchema,
   calculateJobTimeout,
+  JobStatus,
 } from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
@@ -71,7 +72,7 @@ aiRouter.post('/generate', async (req, res) => {
       const response: GenerateResponse = {
         jobId: duplicate.jobId,
         requestId: duplicate.requestId,
-        status: 'queued',
+        status: JobStatus.Queued,
       };
 
       logger.info(`[AI] Returning cached job ${duplicate.jobId} for duplicate request`);
@@ -183,7 +184,7 @@ aiRouter.post('/generate', async (req, res) => {
         res.json({
           jobId: job.id ?? requestId,
           requestId,
-          status: 'completed',
+          status: JobStatus.Completed,
           result,
           timestamp: new Date().toISOString(),
         });
@@ -217,7 +218,7 @@ aiRouter.post('/generate', async (req, res) => {
     const response: GenerateResponse = {
       jobId: job.id ?? requestId,
       requestId,
-      status: 'queued',
+      status: JobStatus.Queued,
     };
 
     res.json(response);
@@ -303,7 +304,7 @@ aiRouter.post('/transcribe', async (req, res) => {
         res.json({
           jobId: job.id ?? requestId,
           requestId,
-          status: 'completed',
+          status: JobStatus.Completed,
           result,
           timestamp: new Date().toISOString(),
         });
@@ -324,7 +325,7 @@ aiRouter.post('/transcribe', async (req, res) => {
     res.json({
       jobId: job.id ?? requestId,
       requestId,
-      status: 'queued',
+      status: JobStatus.Queued,
     });
   } catch (error) {
     logger.error({ err: error }, '[AI] Error creating transcribe job');
