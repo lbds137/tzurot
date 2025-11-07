@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { calculateJobTimeout, TIMEOUTS } from './constants.js';
+import { calculateJobTimeout } from './timeout-utils.js';
+import { TIMEOUTS } from './constants.js';
 
 describe('calculateJobTimeout', () => {
   it('should return base timeout for 0 images', () => {
