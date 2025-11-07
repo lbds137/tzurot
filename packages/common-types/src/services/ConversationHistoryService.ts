@@ -27,6 +27,15 @@ export class ConversationHistoryService {
 
   /**
    * Add a message to conversation history
+   *
+   * @param discordMessageId Discord message ID(s). Can be:
+   *                         - string: single message ID (user messages, single-chunk assistant messages)
+   *                         - string[]: multiple message IDs (chunked assistant messages)
+   *                         - undefined: no Discord message ID yet
+   * @param timestamp Optional timestamp for the message. If provided, overrides the default
+   *                  PostgreSQL timestamp. This is used to maintain chronological ordering when
+   *                  creating assistant messages after Discord send completes, ensuring the
+   *                  assistant timestamp is slightly after the user message timestamp.
    */
   async addMessage(
     channelId: string,
@@ -35,9 +44,17 @@ export class ConversationHistoryService {
     role: 'user' | 'assistant' | 'system',
     content: string,
     guildId?: string | null,
-    discordMessageId?: string
+    discordMessageId?: string | string[],
+    timestamp?: Date
   ): Promise<void> {
     try {
+      // Normalize discordMessageId to array format
+      const messageIds = discordMessageId
+        ? Array.isArray(discordMessageId)
+          ? discordMessageId
+          : [discordMessageId]
+        : [];
+
       await this.prisma.conversationHistory.create({
         data: {
           channelId,
@@ -46,12 +63,14 @@ export class ConversationHistoryService {
           personaId,
           role,
           content,
-          discordMessageId: discordMessageId ? [discordMessageId] : [],
+          discordMessageId: messageIds,
+          // Use provided timestamp if given, otherwise let PostgreSQL use default (now())
+          ...(timestamp && { createdAt: timestamp }),
         },
       });
 
       logger.debug(
-        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${discordMessageId || 'none'})`
+        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp ? 'explicit' : 'default'})`
       );
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);

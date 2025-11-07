@@ -57,9 +57,19 @@ export class MessageReferenceExtractor {
 
   constructor(options: ReferenceExtractionOptions = {}) {
     this.maxReferences = options.maxReferences ?? 10;
-    // Discord typically processes embeds within 1-2 seconds of message creation
-    // 2.5s provides a safe margin without excessive delay
-    // This also prepares for future PluralKit proxy detection (which takes 1-3s)
+
+    // ARCHITECTURAL DECISION: 2.5s embed processing delay
+    //
+    // Why this delay exists:
+    // 1. Discord embeds populate asynchronously (1-2s after message send)
+    // 2. Future PluralKit support requires detecting proxy messages via embed metadata
+    //    - PluralKit webhooks include original author info in embeds
+    //    - Embeds take 1-3s to populate after webhook send
+    //    - We need to re-fetch messages after this delay to get embed data
+    // 3. Without this delay, we'd see webhook messages without author info
+    //
+    // Trade-off: Adds 2.5s latency to ALL personality responses
+    // Benefit: Enables proper PluralKit integration (distinguishing proxy vs bot messages)
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? 2500;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
     this.conversationHistoryTimestamps = options.conversationHistoryTimestamps || [];
