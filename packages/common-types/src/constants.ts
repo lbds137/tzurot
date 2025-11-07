@@ -99,6 +99,12 @@ export const INTERVALS = {
   ATTACHMENT_CLEANUP_DELAY: 5000,
   /** Typing indicator refresh interval (8 seconds) */
   TYPING_INDICATOR_REFRESH: 8000,
+  /** Default delay for embed processing in referenced messages (2.5 seconds) */
+  EMBED_PROCESSING_DELAY: 2500,
+  /** Message age window for deduplication checks (60 seconds) */
+  MESSAGE_AGE_DEDUP_WINDOW: 60000,
+  /** Timestamp tolerance for message deduplication (15 seconds) */
+  MESSAGE_TIMESTAMP_TOLERANCE: 15000,
 } as const;
 
 /**

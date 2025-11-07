@@ -16,7 +16,7 @@ import { MessageLinkParser, ParsedMessageLink } from '../utils/MessageLinkParser
 import { EmbedParser } from '../utils/EmbedParser.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../utils/embedImageExtractor.js';
-import { createLogger, ReferencedMessage } from '@tzurot/common-types';
+import { createLogger, INTERVALS, ReferencedMessage } from '@tzurot/common-types';
 import { extractDiscordEnvironment, formatEnvironmentForPrompt } from '../utils/discordContext.js';
 
 const logger = createLogger('MessageReferenceExtractor');
@@ -70,7 +70,7 @@ export class MessageReferenceExtractor {
     //
     // Trade-off: Adds 2.5s latency to ALL personality responses
     // Benefit: Enables proper PluralKit integration (distinguishing proxy vs bot messages)
-    this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? 2500;
+    this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
     this.conversationHistoryTimestamps = options.conversationHistoryTimestamps || [];
   }
@@ -603,7 +603,7 @@ export class MessageReferenceExtractor {
 
       // Only check recent messages (within last 60 seconds)
       // Voice messages with transcription can have longer processing windows
-      if (ageMs < 60000) {
+      if (ageMs < INTERVALS.MESSAGE_AGE_DEDUP_WINDOW) {
         for (const historyTimestamp of this.conversationHistoryTimestamps) {
           const historyTime = historyTimestamp.getTime();
           const timeDiff = Math.abs(messageTime - historyTime);
@@ -613,7 +613,7 @@ export class MessageReferenceExtractor {
           // - Voice transcription delays (several seconds)
           // - DB round-trip and transaction commit times
           // - Job queue processing delays
-          if (timeDiff < 15000) {
+          if (timeDiff < INTERVALS.MESSAGE_TIMESTAMP_TOLERANCE) {
             logger.info(
               {
                 messageId: message.id,
