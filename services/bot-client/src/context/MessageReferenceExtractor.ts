@@ -571,7 +571,7 @@ export class MessageReferenceExtractor {
   private shouldIncludeReference(message: Message): boolean {
     // Exact match: Check if Discord message ID is in conversation history
     if (this.conversationHistoryMessageIds.has(message.id)) {
-      logger.debug(
+      logger.info(
         {
           messageId: message.id,
           author: message.author.username,
@@ -604,7 +604,7 @@ export class MessageReferenceExtractor {
           // - DB round-trip and transaction commit times
           // - Job queue processing delays
           if (timeDiff < 15000) {
-            logger.debug(
+            logger.info(
               {
                 messageId: message.id,
                 author: message.author.username,
@@ -612,7 +612,7 @@ export class MessageReferenceExtractor {
                 messageAge: `${Math.round(ageMs / 1000)}s ago`,
                 timeDiff: `${timeDiff}ms`,
               },
-              '[MessageReferenceExtractor] Excluding reference - timestamp matches conversation history (likely race condition)'
+              '[MessageReferenceExtractor] Excluding reference - timestamp matches conversation history (time-based fallback)'
             );
             return false; // Exclude - timestamp matches recent conversation history
           }
@@ -620,12 +620,17 @@ export class MessageReferenceExtractor {
       }
     }
 
-    logger.debug(
+    logger.info(
       {
         messageId: message.id,
         author: message.author.username,
+        isWebhook: !!message.webhookId,
+        isBot: message.author.bot,
+        messageAge: message.createdAt ? `${Math.round((Date.now() - message.createdAt.getTime()) / 1000)}s` : 'unknown',
+        historyIdsCount: this.conversationHistoryMessageIds.size,
+        historyTimestampsCount: this.conversationHistoryTimestamps.length,
       },
-      '[MessageReferenceExtractor] Including reference - not found in conversation history'
+      '[MessageReferenceExtractor] Including reference - not found in conversation history (deduplication failed)'
     );
 
     return true; // Include - not found in conversation history
