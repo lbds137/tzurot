@@ -41,14 +41,27 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
   let strippedCount = 0;
   const maxIterations = 5; // Prevent infinite loop on malformed content
 
-  // Aggressive pattern that catches any "Name: [timestamp]" at the start
-  // Handles cases where LLM learned pattern and generates multiple prefixes
-  const aggressivePattern = /^[\w\s]+?:\s*(?:\[[^\]]+?\]\s*)?/;
+  // Escape special regex characters in personality name
+  const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // Keep stripping until no more prefixes found (handles "Lila: [3m ago] Lila: [0m ago]" cases)
+  // Pattern 1: Specific personality name with optional timestamp
+  // Example: "Lilith: [2m ago] content" or "Emily: content"
+  const namePattern = new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
+
+  // Pattern 2: Standalone "[timestamp]" at the start (no name prefix)
+  // Example: "[2m ago] content" - happens when AI strips name but leaves timestamp
+  const standaloneTimestampPattern = /^\[[^\]]+?\]\s*/;
+
+  // Keep stripping until no more prefixes found
   while (strippedCount < maxIterations) {
     const beforeStrip = cleaned;
-    cleaned = cleaned.replace(aggressivePattern, '').trim();
+
+    // Try name-specific pattern first
+    cleaned = cleaned.replace(namePattern, '').trim();
+    if (cleaned === beforeStrip) {
+      // Name pattern didn't match, try standalone timestamp
+      cleaned = cleaned.replace(standaloneTimestampPattern, '').trim();
+    }
 
     if (cleaned === beforeStrip) {
       // No more prefixes found
