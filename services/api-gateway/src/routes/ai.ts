@@ -12,6 +12,7 @@ import {
   generateRequestSchema,
   calculateJobTimeout,
   JobStatus,
+  JobType,
 } from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
@@ -98,7 +99,7 @@ aiRouter.post('/generate', async (req, res) => {
     // Create job data with local attachment URLs
     const jobData = {
       requestId,
-      jobType: 'generate' as const,
+      jobType: JobType.Generate,
       personality: request.personality,
       message: request.message,
       context: {
@@ -132,7 +133,7 @@ aiRouter.post('/generate', async (req, res) => {
     );
 
     // Add job to queue
-    const job = await aiQueue.add('generate', jobData, {
+    const job = await aiQueue.add(JobType.Generate, jobData, {
       jobId: `req-${requestId}`, // Use predictable job ID for tracking
     });
 
@@ -276,7 +277,7 @@ aiRouter.post('/transcribe', async (req, res) => {
     // Create transcribe job
     const jobData = {
       requestId,
-      jobType: 'transcribe' as const,
+      jobType: JobType.Transcribe,
       personality: {}, // Not used for transcription
       message: '',
       context: {
@@ -288,7 +289,7 @@ aiRouter.post('/transcribe', async (req, res) => {
       },
     };
 
-    const job = await aiQueue.add('transcribe', jobData, {
+    const job = await aiQueue.add(JobType.Transcribe, jobData, {
       jobId: `transcribe-${requestId}`,
     });
 
