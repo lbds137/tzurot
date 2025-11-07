@@ -20,6 +20,7 @@ import {
   createLogger,
   AI_DEFAULTS,
   TEXT_LIMITS,
+  AttachmentType,
   type LoadedPersonality,
   type AttachmentMetadata,
   type ReferencedMessage,
@@ -290,9 +291,9 @@ export class ConversationalRAGService {
               .map(a => {
                 // Add filename/type context before each description
                 let header = '';
-                if (a.type === 'image') {
+                if (a.type === AttachmentType.Image) {
                   header = `[Image: ${a.metadata.name || 'attachment'}]`;
-                } else if (a.type === 'audio') {
+                } else if (a.type === AttachmentType.Audio) {
                   if (a.metadata.isVoiceMessage && a.metadata.duration) {
                     header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
                   } else {
