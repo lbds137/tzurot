@@ -63,7 +63,7 @@ export class MemoryRetriever {
       personaId, // Required: which persona's memories to search
       personalityId: personality.id, // Optional: filter to this personality's memories
       sessionId: context.sessionId,
-      limit: personality.memoryLimit || 15,
+      limit: personality.memoryLimit || AI_DEFAULTS.MEMORY_LIMIT,
       scoreThreshold: personality.memoryScoreThreshold || AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
       excludeNewerThan,
     };

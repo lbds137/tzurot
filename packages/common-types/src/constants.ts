@@ -42,13 +42,9 @@ export const AI_DEFAULTS = {
 } as const;
 
 /**
- * Timeouts, intervals, and polling configuration
+ * Timeouts, intervals, and retry configuration
  */
 export const TIMEOUTS = {
-  /** Polling interval for gateway job status (1 second) */
-  GATEWAY_POLL_INTERVAL: 1000,
-  /** Maximum polling attempts before timeout (180 = 3 minutes) */
-  GATEWAY_MAX_POLL_ATTEMPTS: 180,
   /** Delay before retrying failed queue jobs (2 seconds) */
   QUEUE_RETRY_DELAY: 2000,
   /** Cache TTL for personality/user data (5 minutes) */
