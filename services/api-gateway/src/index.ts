@@ -13,6 +13,7 @@
  */
 
 import express from 'express';
+import { StatusCodes } from 'http-status-codes';
 import { createLogger, getConfig, CONTENT_TYPES, CACHE_CONTROL, HealthStatus } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
@@ -62,7 +63,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
+    res.sendStatus(StatusCodes.OK);
     return;
   }
 
@@ -104,7 +105,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
       if (!personality || !personality.avatarData) {
         // Not in DB either, return 404
         const errorResponse = ErrorResponses.notFound(`Avatar for personality '${slug}'`);
-        res.status(404).json(errorResponse);
+        res.status(StatusCodes.NOT_FOUND).json(errorResponse);
         return;
       }
 
@@ -123,7 +124,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
     } catch (error) {
       logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
       const errorResponse = ErrorResponses.internalError('Failed to retrieve avatar');
-      res.status(500).json(errorResponse);
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
     }
   }
 });
@@ -214,7 +215,7 @@ app.get('/health', async (_req, res) => {
       uptime: Date.now() - startTime,
     };
 
-    const statusCode = queueHealthy ? 200 : 503;
+    const statusCode = queueHealthy ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE;
     res.status(statusCode).json(health);
   } catch (error) {
     logger.error({ err: error }, '[Health] Health check failed');
@@ -229,7 +230,7 @@ app.get('/health', async (_req, res) => {
       uptime: Date.now() - startTime,
     };
 
-    res.status(503).json(health);
+    res.status(StatusCodes.SERVICE_UNAVAILABLE).json(health);
   }
 });
 
@@ -266,7 +267,7 @@ app.get('/metrics', async (_req, res) => {
       error instanceof Error ? error.message : 'Unknown error'
     );
 
-    res.status(500).json(errorResponse);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
   }
 });
 
@@ -275,7 +276,7 @@ app.get('/metrics', async (_req, res) => {
  */
 app.use((req, res) => {
   const errorResponse = ErrorResponses.notFound(`Route ${req.method} ${req.path}`);
-  res.status(404).json(errorResponse);
+  res.status(StatusCodes.NOT_FOUND).json(errorResponse);
 });
 
 /**
@@ -288,7 +289,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
     config.env === 'production' ? 'Internal server error' : err.message
   );
 
-  res.status(500).json(errorResponse);
+  res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
 });
 
 /**

@@ -252,8 +252,8 @@ export class ConversationalRAGService {
 
       logger.debug(
         {
-          rawContentPreview: rawContent.substring(0, 100),
-          cleanedContentPreview: content.substring(0, 100),
+          rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+          cleanedContentPreview: content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
           wasStripped: rawContent !== content,
         },
         `[RAG] Content stripping check for ${personality.name}`

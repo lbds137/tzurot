@@ -8,7 +8,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { createLogger, getConfig, AIProvider } from '@tzurot/common-types';
+import { createLogger, getConfig, AIProvider, AI_ENDPOINTS } from '@tzurot/common-types';
 
 const logger = createLogger('ModelFactory');
 const config = getConfig();
@@ -74,7 +74,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           apiKey,
           temperature,
           configuration: {
-            baseURL: 'https://openrouter.ai/api/v1',
+            baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
           },
         }),
         modelName,

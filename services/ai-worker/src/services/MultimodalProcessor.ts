@@ -18,6 +18,8 @@ import {
   AttachmentType,
   CONTENT_TYPES,
   RETRY_CONFIG,
+  AI_ENDPOINTS,
+  TEXT_LIMITS,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -127,7 +129,7 @@ async function describeWithVisionModel(
   } else {
     // Use OpenRouter for other models
     apiKey = config.OPENROUTER_API_KEY;
-    baseURL = 'https://openrouter.ai/api/v1';
+    baseURL = AI_ENDPOINTS.OPENROUTER_BASE_URL;
   }
 
   const model = new ChatOpenAI({
@@ -198,7 +200,7 @@ async function describeWithFallbackVision(
     modelName: config.VISION_FALLBACK_MODEL,
     apiKey: config.OPENROUTER_API_KEY,
     configuration: {
-      baseURL: 'https://openrouter.ai/api/v1',
+      baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
     },
     temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });
@@ -343,7 +345,7 @@ export async function transcribeAudio(
         duration: attachment.duration,
         transcriptionLength: transcription.length,
         transcriptionPreview:
-          transcription.substring(0, 200) + (transcription.length > 200 ? '...' : ''),
+          transcription.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW) + (transcription.length > TEXT_LIMITS.PERSONALITY_PREVIEW ? '...' : ''),
       },
       'Audio transcribed successfully'
     );

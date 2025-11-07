@@ -5,7 +5,7 @@
  * Processes attachments (images, voice messages) in parallel for better performance.
  */
 
-import { createLogger, type ReferencedMessage, type LoadedPersonality, CONTENT_TYPES } from '@tzurot/common-types';
+import { createLogger, type ReferencedMessage, type LoadedPersonality, CONTENT_TYPES, TEXT_LIMITS } from '@tzurot/common-types';
 import { describeImage, transcribeAudio } from './MultimodalProcessor.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
@@ -93,7 +93,7 @@ export class ReferencedMessageFormatter {
     if (formattedText.length > 0) {
       logger.info(
         {
-          preview: formattedText.substring(0, 500) + (formattedText.length > 500 ? '...' : ''),
+          preview: formattedText.substring(0, TEXT_LIMITS.REFERENCE_PREVIEW) + (formattedText.length > TEXT_LIMITS.REFERENCE_PREVIEW ? '...' : ''),
           totalLength: formattedText.length,
         },
         '[ReferencedMessageFormatter] Reference formatting preview'

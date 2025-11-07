@@ -5,7 +5,7 @@
  * ignores instructions and adds unwanted prefixes/formatting.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, TEXT_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('ResponseCleanup');
 
@@ -87,7 +87,7 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
       },
       `[ResponseCleanup] Stripped ${strippedCount} prefix(es) from response. ` +
         `LLM learned the prefix pattern from conversation history. ` +
-        `Prefix(es): "${strippedPrefix.substring(0, 100)}${strippedPrefix.length > 100 ? '...' : ''}"`
+        `Prefix(es): "${strippedPrefix.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}${strippedPrefix.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW ? '...' : ''}"`
     );
   }
 
