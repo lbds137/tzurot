@@ -8,7 +8,7 @@
  * - OpenRouter: varies by underlying model
  */
 
-import { createLogger, type AttachmentMetadata } from '@tzurot/common-types';
+import { createLogger, type AttachmentMetadata, CONTENT_TYPES, AIProvider } from '@tzurot/common-types';
 
 const logger = createLogger('MultimodalFormatter');
 
@@ -111,7 +111,7 @@ export function formatForOpenAI(
   attachments: AttachmentMetadata[]
 ): Array<{ type: 'image_url'; image_url: { url: string } }> {
   return attachments
-    .filter(a => a.contentType.startsWith('image/'))
+    .filter(a => a.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX))
     .map(attachment => ({
       type: 'image_url' as const,
       image_url: {
@@ -147,13 +147,13 @@ export async function formatAttachments(
   logger.info({ provider, count: attachments.length }, 'Formatting attachments for provider');
 
   switch (provider.toLowerCase()) {
-    case 'gemini':
+    case AIProvider.Gemini:
       return formatForGemini(attachments);
 
-    case 'openai':
+    case AIProvider.OpenAI:
       return formatForOpenAI(attachments);
 
-    case 'openrouter':
+    case AIProvider.OpenRouter:
       return formatForOpenRouter(attachments);
 
     default:

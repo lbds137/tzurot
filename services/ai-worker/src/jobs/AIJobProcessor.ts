@@ -19,6 +19,7 @@ import {
   type ReferencedMessage,
   formatRelativeTime,
   JobType,
+  CONTENT_TYPES,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
@@ -161,7 +162,7 @@ export class AIJobProcessor {
     try {
       // Find voice attachment
       const voiceAttachment = context.attachments?.find(
-        a => a.contentType.startsWith('audio/') || a.isVoiceMessage
+        a => a.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.isVoiceMessage
       );
 
       if (!voiceAttachment) {

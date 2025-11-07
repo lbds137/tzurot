@@ -10,7 +10,7 @@
  */
 
 import { mkdir, writeFile, rm } from 'fs/promises';
-import { createLogger, getConfig, MEDIA_LIMITS } from '@tzurot/common-types';
+import { createLogger, getConfig, MEDIA_LIMITS, CONTENT_TYPES } from '@tzurot/common-types';
 import type { AttachmentMetadata } from '@tzurot/common-types';
 import { join } from 'path';
 import sharp from 'sharp';
@@ -28,7 +28,7 @@ async function resizeImageIfNeeded(buffer: Buffer, contentType: string): Promise
   const originalSize = buffer.byteLength;
 
   // Only resize images
-  if (!contentType.startsWith('image/')) {
+  if (!contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     return buffer;
   }
 

@@ -7,6 +7,7 @@
  */
 
 import type { AttachmentMetadata } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Generate placeholder description for a single attachment
@@ -19,12 +20,12 @@ export function generateAttachmentPlaceholder(attachment: AttachmentMetadata): s
     return `[Voice message: ${attachment.duration.toFixed(1)}s]`;
   }
 
-  if (attachment.contentType.startsWith('audio/')) {
+  if (attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX)) {
     const name = attachment.name || 'attachment';
     return `[Audio: ${name}]`;
   }
 
-  if (attachment.contentType.startsWith('image/')) {
+  if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     const name = attachment.name || 'attachment';
     return `[Image: ${name}]`;
   }

@@ -7,6 +7,7 @@
  */
 
 import type { ReferencedMessage } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Format referenced messages for database storage
@@ -44,7 +45,7 @@ export function formatReferencesForDatabase(references: ReferencedMessage[]): st
       for (const attachment of ref.attachments) {
         if (attachment.isVoiceMessage) {
           lines.push(`- Voice Message (${attachment.duration}s)`);
-        } else if (attachment.contentType?.startsWith('image/')) {
+        } else if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
           lines.push(`- Image: ${attachment.name}`);
         } else {
           lines.push(`- File: ${attachment.name} (${attachment.contentType})`);

@@ -10,7 +10,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { getConfig, createLogger, TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS } from '@tzurot/common-types';
+import { getConfig, createLogger, TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS, CONTENT_TYPES } from '@tzurot/common-types';
 
 const logger = createLogger('admin-command');
 
@@ -124,7 +124,7 @@ async function handleDbSync(
     const response = await fetch(`${gatewayUrl}/admin/db-sync`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': CONTENT_TYPES.JSON,
       },
       body: JSON.stringify({
         dryRun,

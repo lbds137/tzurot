@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MODEL_DEFAULTS } from './modelDefaults.js';
-import { SERVICE_DEFAULTS } from './constants.js';
+import { SERVICE_DEFAULTS, AIProvider } from './constants.js';
 
 /**
  * Helper for optional string fields that must be non-empty if provided
@@ -44,7 +44,7 @@ export const envSchema = z.object({
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
   // AI Provider Configuration
-  AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'local']).default('openrouter'),
+  AI_PROVIDER: z.nativeEnum(AIProvider).default(AIProvider.OpenRouter),
   OPENROUTER_API_KEY: optionalNonEmptyString(),
   OPENAI_API_KEY: optionalNonEmptyString(),
   ANTHROPIC_API_KEY: optionalNonEmptyString(),
@@ -188,7 +188,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     BOT_MENTION_CHAR: '@',
 
     // AI Provider
-    AI_PROVIDER: 'openrouter',
+    AI_PROVIDER: AIProvider.OpenRouter,
     OPENROUTER_API_KEY: undefined,
     OPENAI_API_KEY: undefined,
     ANTHROPIC_API_KEY: undefined,
