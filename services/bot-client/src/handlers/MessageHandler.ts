@@ -296,6 +296,21 @@ export class MessageHandler {
 
       const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
 
+      // Debug logging for voice message replies (helps diagnose reference duplication)
+      if (message.attachments.some(a => a.contentType?.startsWith('audio/') || a.duration !== null)) {
+        logger.debug(
+          {
+            isReply: message.reference !== null,
+            replyToMessageId: message.reference?.messageId,
+            messageContent: content || '(empty - voice only)',
+            historyCount: history.length,
+            historyWithIds: conversationHistoryMessageIds.length,
+            mostRecentHistoryTimestamp: history[history.length - 1]?.createdAt,
+          },
+          '[MessageHandler] Processing voice message reply - deduplication data'
+        );
+      }
+
       // Extract referenced messages (from replies and message links)
       // This waits 2-3 seconds for Discord to process embeds
       // Uses conversation history message IDs for exact deduplication
