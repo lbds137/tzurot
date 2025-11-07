@@ -123,6 +123,28 @@ export const RETRY_CONFIG = {
   LLM_RETRY_BASE_DELAY: 1000,
   /** Global timeout for all LLM retry attempts combined (2 minutes) */
   LLM_GLOBAL_TIMEOUT: 120000,
+  /** Initial delay before first retry (1 second) */
+  INITIAL_DELAY_MS: 1000,
+  /** Maximum delay between retries (10 seconds) */
+  MAX_DELAY_MS: 10000,
+  /** Maximum Redis retry attempts before giving up */
+  REDIS_MAX_RETRIES: 10,
+  /** Base delay multiplier for Redis retries (milliseconds) */
+  REDIS_RETRY_MULTIPLIER: 100,
+  /** Maximum delay for Redis retries (3 seconds) */
+  REDIS_MAX_DELAY: 3000,
+  /** Max retries per Redis request */
+  REDIS_RETRIES_PER_REQUEST: 3,
+} as const;
+
+/**
+ * Circuit breaker configuration
+ */
+export const CIRCUIT_BREAKER = {
+  /** Time window for counting failures (30 seconds) */
+  FAILURE_WINDOW: 30000,
+  /** Time to wait before attempting recovery (60 seconds) */
+  RECOVERY_TIMEOUT: 60000,
 } as const;
 
 /**
@@ -139,6 +161,46 @@ export const TEXT_LIMITS = {
   ADMIN_SUMMARY_TRUNCATE: 1000,
   /** Discord embed field character limit */
   DISCORD_EMBED_FIELD: 1024,
+} as const;
+
+/**
+ * Discord API limits and constraints
+ */
+export const DISCORD_LIMITS = {
+  /** Discord message content character limit */
+  MESSAGE_LENGTH: 2000,
+  /** Discord embed description character limit */
+  EMBED_DESCRIPTION: 4096,
+  /** Discord embed field value character limit */
+  EMBED_FIELD: 1024,
+  /** Maximum avatar file size (10MB) */
+  AVATAR_SIZE: 10 * 1024 * 1024,
+  /** Maximum webhook cache size */
+  WEBHOOK_CACHE_SIZE: 100,
+} as const;
+
+/**
+ * Discord brand colors (hex values)
+ */
+export const DISCORD_COLORS = {
+  /** Discord Blurple (brand color) */
+  BLURPLE: 0x5865f2,
+  /** Success (green) */
+  SUCCESS: 0x00ff00,
+  /** Warning (orange) */
+  WARNING: 0xffa500,
+  /** Error (red) */
+  ERROR: 0xff0000,
+} as const;
+
+/**
+ * Network and service defaults
+ */
+export const SERVICE_DEFAULTS = {
+  /** Default Redis port */
+  REDIS_PORT: 6379,
+  /** Default API gateway port */
+  API_GATEWAY_PORT: 3000,
 } as const;
 
 /**
@@ -175,3 +237,66 @@ export enum AttachmentType {
   Image = 'image',
   Audio = 'audio',
 }
+
+/**
+ * Job types for queue processing
+ */
+export enum JobType {
+  Generate = 'generate',
+  Transcribe = 'transcribe',
+}
+
+/**
+ * Health check status values
+ */
+export enum HealthStatus {
+  Healthy = 'healthy',
+  Degraded = 'degraded',
+  Unhealthy = 'unhealthy',
+  Ok = 'ok',
+  Error = 'error',
+}
+
+/**
+ * AI provider identifiers
+ */
+export enum AIProvider {
+  OpenAI = 'openai',
+  Gemini = 'gemini',
+  Anthropic = 'anthropic',
+  OpenRouter = 'openrouter',
+}
+
+/**
+ * Job ID prefixes for different job types
+ */
+export const JOB_PREFIXES = {
+  /** Prefix for AI generation jobs */
+  GENERATE: 'req-',
+  /** Prefix for transcription-only jobs */
+  TRANSCRIBE: 'transcribe-',
+} as const;
+
+/**
+ * Common content type strings
+ */
+export const CONTENT_TYPES = {
+  /** Image content type prefix */
+  IMAGE_PREFIX: 'image/',
+  /** Audio content type prefix */
+  AUDIO_PREFIX: 'audio/',
+  /** Default PNG image type */
+  IMAGE_PNG: 'image/png',
+  /** JSON content type */
+  JSON: 'application/json',
+  /** Binary octet stream (generic binary) */
+  BINARY: 'application/octet-stream',
+} as const;
+
+/**
+ * Default AI models
+ */
+export const DEFAULT_MODELS = {
+  /** Default OpenAI embedding model */
+  EMBEDDING: 'text-embedding-3-small',
+} as const;
