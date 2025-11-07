@@ -19,6 +19,7 @@ import {
   MessageContent,
   createLogger,
   AI_DEFAULTS,
+  TEXT_LIMITS,
   type LoadedPersonality,
   type AttachmentMetadata,
   type ReferencedMessage,
@@ -181,7 +182,7 @@ export class ConversationalRAGService {
 
       // Query vector store for relevant memories using actual content
       logger.info(
-        `[RAG] Memory search query: "${searchQuery.substring(0, 150)}${searchQuery.length > 150 ? '...' : ''}"`
+        `[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
       );
       const relevantMemories = await this.memoryRetriever.retrieveRelevantMemories(
         personality,
