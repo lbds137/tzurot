@@ -28,6 +28,7 @@ import {
 import { processAttachments } from './MultimodalProcessor.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
+import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
@@ -248,7 +249,12 @@ export class ConversationalRAGService {
 
       // Strip personality prefix if model ignored prompt instructions
       // This ensures both Discord display AND storage are clean
-      const content = stripPersonalityPrefix(rawContent, personality.name);
+      let content = stripPersonalityPrefix(rawContent, personality.name);
+
+      // Replace placeholders in LLM output before sending to user
+      // This handles cases where the LLM includes placeholders in its response
+      const userName = context.userName || context.activePersonaName || 'User';
+      content = replacePromptPlaceholders(content, userName, personality.name);
 
       logger.debug(
         {
