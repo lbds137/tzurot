@@ -298,14 +298,21 @@ export class MessageHandler {
 
       // Debug logging for voice message replies (helps diagnose reference duplication)
       if (message.attachments.some(a => a.contentType?.startsWith('audio/') || a.duration !== null)) {
+        const mostRecentAssistant = history.filter(m => m.role === 'assistant').slice(-1)[0];
+
         logger.debug(
           {
             isReply: message.reference !== null,
             replyToMessageId: message.reference?.messageId,
             messageContent: content || '(empty - voice only)',
+            channelId: message.channel.id,
+            isThread: message.channel.isThread(),
             historyCount: history.length,
             historyWithIds: conversationHistoryMessageIds.length,
-            mostRecentHistoryTimestamp: history[history.length - 1]?.createdAt,
+            conversationHistoryMessageIds: Array.from(conversationHistoryMessageIds),
+            mostRecentAssistantId: mostRecentAssistant?.discordMessageId || 'none',
+            mostRecentAssistantTimestamp: mostRecentAssistant?.createdAt,
+            replyMatchesRecentAssistant: message.reference?.messageId === mostRecentAssistant?.discordMessageId,
           },
           '[MessageHandler] Processing voice message reply - deduplication data'
         );
