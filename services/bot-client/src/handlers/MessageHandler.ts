@@ -289,14 +289,17 @@ export class MessageHandler {
         historyLimit
       );
 
-      // Extract Discord message IDs for deduplication
+      // Extract Discord message IDs and timestamps for deduplication
       const conversationHistoryMessageIds = history
         .map(msg => msg.discordMessageId)
         .filter((id): id is string => id !== undefined);
 
+      const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
+
       // Extract referenced messages (from replies and message links)
       // This waits 2-3 seconds for Discord to process embeds
       // Uses conversation history message IDs for exact deduplication
+      // Falls back to timestamp matching for very recent bot/webhook messages (race condition handling)
       // Also replaces Discord message links with [Reference N] placeholders
       logger.debug(
         '[MessageHandler] Extracting referenced messages with deduplication and link replacement'
@@ -305,6 +308,7 @@ export class MessageHandler {
         maxReferences: 10,
         embedProcessingDelayMs: 2500, // 2.5 seconds to allow Discord to process embeds
         conversationHistoryMessageIds,
+        conversationHistoryTimestamps,
       });
       const { references: referencedMessages, updatedContent } =
         await referenceExtractor.extractReferencesWithReplacement(message);

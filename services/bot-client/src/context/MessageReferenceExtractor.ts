@@ -41,6 +41,8 @@ export interface ReferenceExtractionOptions {
   embedProcessingDelayMs?: number;
   /** Discord message IDs from conversation history (for deduplication) */
   conversationHistoryMessageIds?: string[];
+  /** Conversation history timestamps (for time-based fallback matching) */
+  conversationHistoryTimestamps?: Date[];
 }
 
 /**
@@ -51,6 +53,7 @@ export class MessageReferenceExtractor {
   private readonly maxReferences: number;
   private readonly embedProcessingDelayMs: number;
   private conversationHistoryMessageIds: Set<string>;
+  private conversationHistoryTimestamps: Date[];
 
   constructor(options: ReferenceExtractionOptions = {}) {
     this.maxReferences = options.maxReferences ?? 10;
@@ -59,6 +62,7 @@ export class MessageReferenceExtractor {
     // This also prepares for future PluralKit proxy detection (which takes 1-3s)
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? 2500;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
+    this.conversationHistoryTimestamps = options.conversationHistoryTimestamps || [];
   }
 
   /**
@@ -576,6 +580,40 @@ export class MessageReferenceExtractor {
         '[MessageReferenceExtractor] Excluding reference - found in conversation history'
       );
       return false; // Exclude - already in conversation history
+    }
+
+    // Time-based fallback: If message is from bot/webhook and very recent,
+    // check if timestamp matches any message in conversation history
+    // This handles race condition where Discord message ID hasn't been stored in DB yet
+    if (message.webhookId || message.author.bot) {
+      const messageTime = message.createdAt.getTime();
+      const now = Date.now();
+      const ageMs = now - messageTime;
+
+      // Only check recent messages (within last 30 seconds)
+      // Older messages should have their IDs in DB by now
+      if (ageMs < 30000) {
+        for (const historyTimestamp of this.conversationHistoryTimestamps) {
+          const historyTime = historyTimestamp.getTime();
+          const timeDiff = Math.abs(messageTime - historyTime);
+
+          // If timestamps match within 5 seconds, likely the same message
+          // Discord timestamps are millisecond-precise, but DB round-trip can cause slight variance
+          if (timeDiff < 5000) {
+            logger.debug(
+              {
+                messageId: message.id,
+                author: message.author.username,
+                reason: 'timestamp match with conversation history',
+                messageAge: `${Math.round(ageMs / 1000)}s ago`,
+                timeDiff: `${timeDiff}ms`,
+              },
+              '[MessageReferenceExtractor] Excluding reference - timestamp matches conversation history (likely race condition)'
+            );
+            return false; // Exclude - timestamp matches recent conversation history
+          }
+        }
+      }
     }
 
     logger.debug(
