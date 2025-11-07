@@ -1,50 +1,92 @@
 # 🎯 Current Work
 
-> Last updated: 2025-11-02
+> Last updated: 2025-11-06
 
-## Status: Code Quality & Refactoring Sprint 🧹
+## Status: Quality of Life Improvements 🎯
 
-**Current Phase**: Systematic refactoring and test coverage improvements
+**Current Phase**: LLM Model & Personality Management
+
+**Priority Shift**: De-emphasized OpenMemory migration temporarily to focus on immediate production pain points (model refusal handling, easy model switching).
 
 **Recent Completion**:
 
-- ✅ PR #203, #204 merged and released as v3.0.0-alpha.21
-- ✅ Emergency fix for Qdrant lockfile issue deployed
-- ✅ Completed first refactoring chunk (api-gateway utilities)
-  - Created 3 new utility modules with 95 comprehensive tests
-  - Reduced admin.ts from 437 → 328 lines (25% reduction)
-  - Eliminated ~109 lines of duplicate code
+- ✅ OpenMemory migration fully planned (6-9 week roadmap, comprehensive architecture review)
+- ✅ DeepAgents design patterns documented for Phase 9 agentic features
+- ✅ Documentation cleanup (archived obsolete Gemini chats)
+- ✅ Created comprehensive QoL improvement plan
 
 ## Active Work
 
-### API Gateway Refactoring & Testing (In Progress)
+**Next Session**: QoL Model Management - Phase 1 (Database setup)
 
-**Branch**: `refactor/api-gateway-utilities`
-**Status**: First chunk complete, ready for PR
-
-**Completed**:
-
-- ✅ `errorResponses.ts` - Centralized error response creation (41 tests)
-- ✅ `authMiddleware.ts` - Owner authentication middleware (24 tests)
-- ✅ `imageProcessor.ts` - Avatar optimization utility (30 tests)
-- ✅ Refactored `admin.ts` to use all new utilities
-
-**Impact**:
-
-- **Code reduction**: 437 → 328 lines in admin.ts (25% reduction)
-- **Test coverage**: Added 95 comprehensive tests
-- **Maintainability**: Eliminated duplicate error handling, auth checks, and image processing logic
-- **Type safety**: Full TypeScript coverage with proper error code enums
-
-**Next Steps** (separate PRs):
-
-- Refactor `ai.ts` routes to use error response utilities
-- Additional test coverage for route handlers
-- More duplicate code elimination
+See section 1 below for full details.
 
 ## Planned Features (Priority Order)
 
-### 1. Unit Testing Infrastructure 🧪✨
+### 1. LLM Model & Personality Management 🎯 **[ACTIVE]**
+
+**Priority**: **CRITICAL** - Blocking production issues
+**Status**: Planning complete, ready to implement
+**Branch**: Will be `feat/qol-model-management` (off `develop`)
+
+**Problem**: Claude Haiku gave refusal message to new user despite jailbreak, requiring manual model switch to Gemini 2.5 Flash. No easy way to manage LLM configs globally or per-user.
+
+**Goal**: Easy model switching for users and bot owner, proper ownership model, visibility control.
+
+**Features**:
+- ✅ Schema already supports this (just needs wiring)
+- Interactive slash commands for LLM config management
+- User overrides for personality models
+- Global vs per-user config hierarchy
+- Personality ownership (bot owner = superuser, not special case)
+- Public/private personality visibility
+
+**Phases** (7-8 sessions total):
+1. Database setup (add `isPublic`, `isSuperuser`, assign ownership)
+2. LLM config slash commands (`/llm-config create`, list, delete)
+3. Model override commands (`/model set`, reset, show)
+4. Config resolution logic in ai-worker
+5. Testing & polish
+
+**Timeline**: 2-4 weeks (depending on session frequency)
+
+**Documentation**: [docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md)
+
+**Will Resume After This**: OpenMemory migration
+
+---
+
+### 2. OpenMemory Migration 🧠 **[PLANNED, DEFERRED]**
+
+**Priority**: High - Major architecture upgrade
+**Status**: Fully planned, paused for QoL improvements
+**Branch**: `feat/openmemory-migration` (docs only currently)
+
+**Goal**: Replace pgvector with sophisticated OpenMemory cognitive architecture.
+
+**Key Features**:
+- Multi-sector memory (episodic, semantic, emotional, procedural, reflective)
+- Waypoint graph system with associative learning
+- Hybrid scoring (60% similarity + 20% overlap + 15% waypoints + 5% recency)
+- Adaptive query expansion
+- Daily decay (mimics REM sleep)
+- **Deterministic reflection** (no LLM censorship concerns!)
+
+**Phases** (15-23 sessions for full vision):
+1-8. Core migration (10-15 sessions)
+9. Agentic features (5-8 sessions) - toolbox, "free will", memory management
+
+**Timeline**: 6-9 weeks once resumed
+
+**Documentation**:
+- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - Complete migration plan
+- DeepAgents design patterns documented for Phase 9
+
+**Why Paused**: Need better tooling to manage production issues first (QoL improvements).
+
+---
+
+### 3. Unit Testing Infrastructure 🧪✨
 
 **Priority**: High - Foundation for quality
 **Status**: **Active Development** (Branch: `feat/unit-test-infrastructure`)
@@ -310,6 +352,8 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 
 ### Planning Docs
 
+- **[docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md)** - **ACTIVE**: LLM config & personality management
+- **[docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)** - OpenMemory migration plan (deferred)
 - [docs/planning/V3_REFINEMENT_ROADMAP.md](docs/planning/V3_REFINEMENT_ROADMAP.md) - Comprehensive improvement roadmap
 - [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - Feature parity tracking
 
