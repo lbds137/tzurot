@@ -5,7 +5,7 @@
  * Processes attachments (images, voice messages) in parallel for better performance.
  */
 
-import { createLogger, type ReferencedMessage, type LoadedPersonality } from '@tzurot/common-types';
+import { createLogger, type ReferencedMessage, type LoadedPersonality, CONTENT_TYPES } from '@tzurot/common-types';
 import { describeImage, transcribeAudio } from './MultimodalProcessor.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
@@ -204,7 +204,7 @@ export class ReferencedMessageFormatter {
     }
 
     // Process images through vision model
-    if (attachment.contentType?.startsWith('image/')) {
+    if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
       try {
         logger.info(
           {

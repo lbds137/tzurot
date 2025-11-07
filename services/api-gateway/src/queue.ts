@@ -13,6 +13,7 @@ import {
   QUEUE_CONFIG,
   parseRedisUrl,
   createBullMQRedisConfig,
+  JOB_PREFIXES,
 } from '@tzurot/common-types';
 import { cleanupAttachments } from './utils/tempAttachmentStorage.js';
 
@@ -72,8 +73,8 @@ queueEvents.on('completed', ({ jobId }) => {
   // Clean up temporary attachments after a short delay
   // This ensures ai-worker has finished all async operations
   // Job ID format is req-{requestId}
-  if (jobId.startsWith('req-')) {
-    const requestId = jobId.substring(4);
+  if (jobId.startsWith(JOB_PREFIXES.GENERATE)) {
+    const requestId = jobId.substring(JOB_PREFIXES.GENERATE.length);
     setTimeout(() => {
       void cleanupAttachments(requestId);
     }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
@@ -84,8 +85,8 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
   logger.error({ failedReason }, `[Queue] Job ${jobId} failed:`);
 
   // Clean up temporary attachments even on failure
-  if (jobId.startsWith('req-')) {
-    const requestId = jobId.substring(4);
+  if (jobId.startsWith(JOB_PREFIXES.GENERATE)) {
+    const requestId = jobId.substring(JOB_PREFIXES.GENERATE.length);
     setTimeout(() => {
       void cleanupAttachments(requestId);
     }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);

@@ -152,6 +152,14 @@ export const CIRCUIT_BREAKER = {
 } as const;
 
 /**
+ * HTTP Cache-Control header values
+ */
+export const CACHE_CONTROL = {
+  /** Cache duration for avatar images (7 days in seconds) */
+  AVATAR_MAX_AGE: 604800,
+} as const;
+
+/**
  * Text truncation and preview limits
  */
 export const TEXT_LIMITS = {
@@ -269,6 +277,7 @@ export enum AIProvider {
   Gemini = 'gemini',
   Anthropic = 'anthropic',
   OpenRouter = 'openrouter',
+  Local = 'local',
 }
 
 /**

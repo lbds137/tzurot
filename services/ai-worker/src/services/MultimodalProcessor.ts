@@ -16,6 +16,8 @@ import {
   AI_DEFAULTS,
   TIMEOUTS,
   AttachmentType,
+  CONTENT_TYPES,
+  RETRY_CONFIG,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -363,7 +365,7 @@ async function processSingleAttachment(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality
 ): Promise<ProcessedAttachment | null> {
-  if (attachment.contentType.startsWith('image/')) {
+  if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     const description = await describeImage(attachment, personality);
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
@@ -372,7 +374,7 @@ async function processSingleAttachment(
       originalUrl: attachment.url,
       metadata: attachment,
     };
-  } else if (attachment.contentType.startsWith('audio/') || attachment.isVoiceMessage) {
+  } else if (attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || attachment.isVoiceMessage) {
     const description = await transcribeAudio(attachment, personality);
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
@@ -394,7 +396,7 @@ export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality
 ): Promise<ProcessedAttachment[]> {
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = RETRY_CONFIG.MAX_ATTEMPTS;
   logger.info(
     {
       attachmentCount: attachments.length,
@@ -477,12 +479,12 @@ export async function processAttachments(
   // Add fallback placeholders for attachments that failed all attempts
   for (const index of failedIndices) {
     const attachment = attachments[index];
-    const fallbackDescription = attachment.contentType.startsWith('image/')
+    const fallbackDescription = attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)
       ? `Image processing failed after ${MAX_ATTEMPTS} attempts`
       : `Audio transcription failed after ${MAX_ATTEMPTS} attempts`;
 
     succeeded.push({
-      type: attachment.contentType.startsWith('image/')
+      type: attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)
         ? AttachmentType.Image
         : AttachmentType.Audio,
       description: fallbackDescription,

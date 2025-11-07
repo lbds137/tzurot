@@ -14,7 +14,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { getConfig, createLogger, DISCORD_LIMITS, DISCORD_COLORS } from '@tzurot/common-types';
+import { getConfig, createLogger, DISCORD_LIMITS, DISCORD_COLORS, CONTENT_TYPES } from '@tzurot/common-types';
 
 const logger = createLogger('personality-command');
 
@@ -231,7 +231,7 @@ async function handleCreate(
     let avatarBase64: string | undefined;
     if (avatarAttachment) {
       // Check file type
-      if (!avatarAttachment.contentType?.startsWith('image/')) {
+      if (!avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
         await interaction.editReply('❌ Avatar must be an image file (PNG, JPEG, etc.)');
         return;
       }
@@ -285,7 +285,7 @@ async function handleCreate(
     const response = await fetch(`${gatewayUrl}/admin/personality`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': CONTENT_TYPES.JSON,
         'X-Owner-Id': interaction.user.id,
       },
       body: JSON.stringify(payload),
@@ -396,7 +396,7 @@ async function handleEdit(
     let avatarBase64: string | undefined;
     if (avatarAttachment) {
       // Check file type
-      if (!avatarAttachment.contentType?.startsWith('image/')) {
+      if (!avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
         await interaction.editReply('❌ Avatar must be an image file (PNG, JPEG, etc.)');
         return;
       }
@@ -449,7 +449,7 @@ async function handleEdit(
     const response = await fetch(`${gatewayUrl}/admin/personality/${slug}`, {
       method: 'PATCH',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': CONTENT_TYPES.JSON,
         'X-Owner-Id': interaction.user.id,
       },
       body: JSON.stringify(payload),
@@ -600,7 +600,7 @@ async function handleImport(
     const response = await fetch(`${gatewayUrl}/admin/personality`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': CONTENT_TYPES.JSON,
         'X-Owner-Id': interaction.user.id,
       },
       body: JSON.stringify(payload),
@@ -785,7 +785,7 @@ async function handleModalSubmit(
     const response = await fetch(`${gatewayUrl}/admin/personality`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': CONTENT_TYPES.JSON,
         'X-Owner-Id': interaction.user.id,
       },
       body: JSON.stringify(payload),

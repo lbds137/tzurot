@@ -8,7 +8,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, AIProvider } from '@tzurot/common-types';
 
 const logger = createLogger('ModelFactory');
 const config = getConfig();
@@ -16,14 +16,14 @@ const config = getConfig();
 /**
  * Validate and normalize model name for the current provider
  */
-function validateModelForProvider(requestedModel: string | undefined, provider: string): string {
+function validateModelForProvider(requestedModel: string | undefined, provider: AIProvider): string {
   switch (provider) {
-    case 'openrouter': {
+    case AIProvider.OpenRouter: {
       // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model
       return requestedModel || config.DEFAULT_AI_MODEL;
     }
 
-    case 'openai': {
+    case AIProvider.OpenAI: {
       // Use requested model or default
       return requestedModel || config.DEFAULT_AI_MODEL;
     }
@@ -57,14 +57,14 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   logger.debug(`[ModelFactory] Creating model for provider: ${provider}`);
 
   switch (provider) {
-    case 'openrouter': {
+    case AIProvider.OpenRouter: {
       const apiKey = modelConfig.apiKey || config.OPENROUTER_API_KEY;
       if (!apiKey) {
         throw new Error('OPENROUTER_API_KEY is required when AI_PROVIDER=openrouter');
       }
 
       const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
-      const modelName = validateModelForProvider(requestedModel, 'openrouter');
+      const modelName = validateModelForProvider(requestedModel, AIProvider.OpenRouter);
 
       logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
 
@@ -81,14 +81,14 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       };
     }
 
-    case 'openai': {
+    case AIProvider.OpenAI: {
       const apiKey = modelConfig.apiKey || config.OPENAI_API_KEY;
       if (!apiKey) {
         throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai');
       }
 
       const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
-      const modelName = validateModelForProvider(requestedModel, 'openai');
+      const modelName = validateModelForProvider(requestedModel, AIProvider.OpenAI);
 
       logger.info(`[ModelFactory] Creating OpenAI model: ${modelName}`);
 

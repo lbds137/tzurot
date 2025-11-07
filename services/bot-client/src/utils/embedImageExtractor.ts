@@ -7,6 +7,7 @@
 
 import { Embed } from 'discord.js';
 import type { AttachmentMetadata } from '@tzurot/common-types';
+import { CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Extract image and thumbnail URLs from Discord embeds as attachment metadata
@@ -25,7 +26,7 @@ export function extractEmbedImages(embeds: Embed[]): AttachmentMetadata[] | unde
     if (embed.image?.url) {
       imageAttachments.push({
         url: embed.image.url,
-        contentType: 'image/png', // Discord embeds are typically PNG
+        contentType: CONTENT_TYPES.IMAGE_PNG, // Discord embeds are typically PNG
         name: `embed-image-${imageAttachments.length + 1}.png`,
         size: undefined, // Size not available for embed images
       });
@@ -35,7 +36,7 @@ export function extractEmbedImages(embeds: Embed[]): AttachmentMetadata[] | unde
     if (embed.thumbnail?.url) {
       imageAttachments.push({
         url: embed.thumbnail.url,
-        contentType: 'image/png',
+        contentType: CONTENT_TYPES.IMAGE_PNG,
         name: `embed-thumbnail-${imageAttachments.length + 1}.png`,
         size: undefined,
       });

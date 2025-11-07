@@ -4,7 +4,7 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { createLogger, getConfig, calculateJobTimeout } from '@tzurot/common-types';
+import { createLogger, getConfig, calculateJobTimeout, CONTENT_TYPES } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, JobResult } from '../types.js';
 
 const logger = createLogger('GatewayClient');
@@ -43,7 +43,7 @@ export class GatewayClient {
     // Declare outside try block so it's accessible in catch block
     const imageCount =
       context.attachments?.filter(
-        att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+        att => att.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX) && !att.isVoiceMessage
       ).length ?? 0;
 
     const timeoutMs = calculateJobTimeout(imageCount);
@@ -66,7 +66,7 @@ export class GatewayClient {
       const response = await fetch(`${this.baseUrl}/ai/generate?wait=true`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': CONTENT_TYPES.JSON,
         },
         body: JSON.stringify({
           personality: personality, // Pass entire LoadedPersonality object
@@ -161,7 +161,7 @@ export class GatewayClient {
       const response = await fetch(`${this.baseUrl}/ai/transcribe?wait=true`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': CONTENT_TYPES.JSON,
         },
         body: JSON.stringify({
           attachments,

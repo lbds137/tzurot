@@ -13,7 +13,7 @@
  */
 
 import express from 'express';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, CONTENT_TYPES, CACHE_CONTROL, HealthStatus } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
 import { adminRouter } from './routes/admin.js';
@@ -117,8 +117,8 @@ app.get('/avatars/:slug.png', async (req, res) => {
       logger.info(`[Gateway] Cached avatar from DB to filesystem: ${slug}`);
 
       // Serve the image
-      res.set('Content-Type', 'image/png');
-      res.set('Cache-Control', 'max-age=604800'); // 7 days
+      res.set('Content-Type', CONTENT_TYPES.IMAGE_PNG);
+      res.set('Cache-Control', `max-age=${CACHE_CONTROL.AVATAR_MAX_AGE}`); // 7 days
       res.send(buffer);
     } catch (error) {
       logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
@@ -181,14 +181,14 @@ async function ensureTempAttachmentDirectory(): Promise<void> {
 /**
  * Check avatar storage health
  */
-async function checkAvatarStorage(): Promise<{ status: string; count?: number; error?: string }> {
+async function checkAvatarStorage(): Promise<{ status: HealthStatus; count?: number; error?: string }> {
   try {
     await access('/data/avatars');
     const files = await readdir('/data/avatars');
-    return { status: 'ok', count: files.length };
+    return { status: HealthStatus.Ok, count: files.length };
   } catch (error) {
     return {
-      status: 'error',
+      status: HealthStatus.Error,
       error: error instanceof Error ? error.message : 'Avatar storage not accessible',
     };
   }
@@ -203,11 +203,11 @@ app.get('/health', async (_req, res) => {
     const avatarStorage = await checkAvatarStorage();
 
     const health: HealthResponse = {
-      status: queueHealthy ? 'healthy' : 'degraded',
+      status: queueHealthy ? HealthStatus.Healthy : HealthStatus.Degraded,
       services: {
         redis: queueHealthy,
         queue: queueHealthy,
-        avatarStorage: avatarStorage.status === 'ok',
+        avatarStorage: avatarStorage.status === HealthStatus.Ok,
       },
       avatars: avatarStorage,
       timestamp: new Date().toISOString(),
@@ -220,7 +220,7 @@ app.get('/health', async (_req, res) => {
     logger.error({ err: error }, '[Health] Health check failed');
 
     const health: HealthResponse = {
-      status: 'unhealthy',
+      status: HealthStatus.Unhealthy,
       services: {
         redis: false,
         queue: false,
