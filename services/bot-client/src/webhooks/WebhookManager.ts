@@ -5,7 +5,7 @@
  * Clean implementation ported from v2 webhookManager.js patterns.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, INTERVALS } from '@tzurot/common-types';
 import { ChannelType, Client } from 'discord.js';
 import type { TextChannel, ThreadChannel, ForumChannel, Webhook } from 'discord.js';
 import type { LoadedPersonality } from '../types.js';
@@ -25,7 +25,7 @@ interface CachedWebhook {
  */
 export class WebhookManager {
   private webhookCache = new Map<string, CachedWebhook>();
-  private readonly cacheTimeout = 10 * 60 * 1000; // 10 minutes
+  private readonly cacheTimeout = INTERVALS.WEBHOOK_CACHE_TTL;
   private readonly maxCacheSize = 100; // Maximum number of cached webhooks
   private cleanupInterval?: NodeJS.Timeout;
   private client: Client;
@@ -190,7 +190,7 @@ export class WebhookManager {
   private startCleanup(): void {
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredCache();
-    }, 60000); // Clean up every minute
+    }, INTERVALS.WEBHOOK_CLEANUP);
 
     // Allow Node.js to exit even with active interval
     this.cleanupInterval.unref();
