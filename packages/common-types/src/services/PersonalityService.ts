@@ -6,7 +6,7 @@
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
 import { MODEL_DEFAULTS } from '../modelDefaults.js';
-import { AI_DEFAULTS, TIMEOUTS } from '../constants.js';
+import { AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../constants.js';
 import type { Decimal } from '@prisma/client/runtime/library';
 
 const logger = createLogger('PersonalityService');
@@ -278,12 +278,43 @@ export class PersonalityService {
   }
 
   /**
+   * Replace placeholders in text fields
+   * Handles {user}, {{user}}, {assistant}, {shape}, {{char}}, {personality}
+   */
+  private replacePlaceholders(text: string | null | undefined, personalityName: string): string | undefined {
+    if (!text) return undefined;
+
+    let result = text;
+
+    // Replace user placeholders with generic "{user}" token
+    // (actual user name will be injected at prompt-building time)
+    for (const placeholder of PLACEHOLDERS.USER) {
+      if (placeholder !== '{user}') {
+        const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+        result = result.replace(new RegExp(escapedPlaceholder, 'g'), '{user}');
+      }
+    }
+
+    // Replace assistant placeholders with personality name
+    for (const placeholder of PLACEHOLDERS.ASSISTANT) {
+      const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+      result = result.replace(new RegExp(escapedPlaceholder, 'g'), personalityName);
+    }
+
+    return result;
+  }
+
+  /**
    * Map database personality to LoadedPersonality type
    *
    * Config cascade priority:
    * 1. Personality-specific default config (db.defaultConfigLink?.llmConfig)
    * 2. Global default config (globalDefaultConfig parameter)
    * 3. Hardcoded env variable fallbacks (MODEL_DEFAULTS.DEFAULT_MODEL, etc.)
+   *
+   * Placeholder handling:
+   * - User placeholders ({user}, {{user}}) are normalized to {user}
+   * - Assistant placeholders ({assistant}, {shape}, {{char}}, {personality}) are replaced with the personality name
    */
   private mapToPersonality(db: DatabasePersonality, globalDefaultConfig: any = null): LoadedPersonality {
     // Extract llmConfig from personality's defaultConfigLink
@@ -315,12 +346,18 @@ export class PersonalityService {
 
     const memoryLimit = fallbackConfig?.memoryLimit ?? undefined;
 
+    // Replace placeholders in text fields
+    // This normalizes legacy imports and ensures consistency
+    const systemPrompt = this.replacePlaceholders(db.systemPrompt?.content, db.name) || '';
+    const characterInfo = this.replacePlaceholders(db.characterInfo, db.name) || db.characterInfo;
+    const personalityTraits = this.replacePlaceholders(db.personalityTraits, db.name) || db.personalityTraits;
+
     return {
       id: db.id,
       name: db.name,
       displayName: db.displayName || db.name,
       slug: db.slug,
-      systemPrompt: db.systemPrompt?.content || '',
+      systemPrompt,
       model: fallbackConfig?.model || MODEL_DEFAULTS.DEFAULT_MODEL, // Cascade: personality -> global -> env
       visionModel: fallbackConfig?.visionModel || undefined,
       temperature,
@@ -333,16 +370,16 @@ export class PersonalityService {
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryScoreThreshold,
       memoryLimit,
-      // Character definition fields
-      characterInfo: db.characterInfo,
-      personalityTraits: db.personalityTraits,
-      personalityTone: db.personalityTone || undefined,
-      personalityAge: db.personalityAge || undefined,
-      personalityAppearance: db.personalityAppearance || undefined,
-      personalityLikes: db.personalityLikes || undefined,
-      personalityDislikes: db.personalityDislikes || undefined,
-      conversationalGoals: db.conversationalGoals || undefined,
-      conversationalExamples: db.conversationalExamples || undefined,
+      // Character definition fields (with placeholders replaced)
+      characterInfo,
+      personalityTraits,
+      personalityTone: this.replacePlaceholders(db.personalityTone, db.name),
+      personalityAge: this.replacePlaceholders(db.personalityAge, db.name),
+      personalityAppearance: this.replacePlaceholders(db.personalityAppearance, db.name),
+      personalityLikes: this.replacePlaceholders(db.personalityLikes, db.name),
+      personalityDislikes: this.replacePlaceholders(db.personalityDislikes, db.name),
+      conversationalGoals: this.replacePlaceholders(db.conversationalGoals, db.name),
+      conversationalExamples: this.replacePlaceholders(db.conversationalExamples, db.name),
     };
   }
 
