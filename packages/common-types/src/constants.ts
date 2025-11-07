@@ -104,14 +104,6 @@ export const INTERVALS = {
 } as const;
 
 /**
- * Buffer times for various operations
- */
-export const BUFFERS = {
-  /** STM/LTM overlap prevention buffer (10 seconds) */
-  STM_LTM: 10000,
-} as const;
-
-/**
  * Queue configuration
  */
 export const QUEUE_CONFIG = {

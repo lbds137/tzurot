@@ -15,6 +15,7 @@ import {
   getConfig,
   AI_DEFAULTS,
   TIMEOUTS,
+  AttachmentType,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -25,7 +26,7 @@ const logger = createLogger('MultimodalProcessor');
 const config = getConfig();
 
 export interface ProcessedAttachment {
-  type: 'image' | 'audio';
+  type: AttachmentType;
   description: string; // Text description/transcription for history
   originalUrl: string; // For current turn (send raw media)
   metadata: AttachmentMetadata;
@@ -366,7 +367,7 @@ async function processSingleAttachment(
     const description = await describeImage(attachment, personality);
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
-      type: 'image' as const,
+      type: AttachmentType.Image,
       description,
       originalUrl: attachment.url,
       metadata: attachment,
@@ -375,7 +376,7 @@ async function processSingleAttachment(
     const description = await transcribeAudio(attachment, personality);
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
-      type: 'audio' as const,
+      type: AttachmentType.Audio,
       description,
       originalUrl: attachment.url,
       metadata: attachment,
@@ -481,7 +482,9 @@ export async function processAttachments(
       : `Audio transcription failed after ${MAX_ATTEMPTS} attempts`;
 
     succeeded.push({
-      type: attachment.contentType.startsWith('image/') ? 'image' : 'audio',
+      type: attachment.contentType.startsWith('image/')
+        ? AttachmentType.Image
+        : AttachmentType.Audio,
       description: fallbackDescription,
       originalUrl: attachment.url,
       metadata: attachment,
