@@ -5,6 +5,7 @@
 
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import type { Command } from '../types.js';
+import { DISCORD_COLORS } from '@tzurot/common-types';
 
 export const data = new SlashCommandBuilder()
   .setName('utility')
@@ -65,7 +66,7 @@ async function handleHelp(
   }
 
   const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(DISCORD_COLORS.BLURPLE)
     .setTitle('Available Commands')
     .setDescription('Here are all the commands you can use:')
     .setTimestamp();
