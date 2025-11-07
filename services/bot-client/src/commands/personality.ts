@@ -14,7 +14,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { getConfig, createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import { getConfig, createLogger, DISCORD_LIMITS, DISCORD_COLORS } from '@tzurot/common-types';
 
 const logger = createLogger('personality-command');
 
@@ -315,7 +315,7 @@ async function handleCreate(
 
     // Build success embed
     const embed = new EmbedBuilder()
-      .setColor(0x00ff00)
+      .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created new personality: **${name}** (\`${slug}\`)`)
       .addFields(
@@ -478,7 +478,7 @@ async function handleEdit(
 
     // Build success embed
     const embed = new EmbedBuilder()
-      .setColor(0x00ff00)
+      .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('✅ Personality Updated Successfully')
       .setDescription(`Updated personality: **${name || slug}** (\`${slug}\`)`)
       .setTimestamp();
@@ -630,7 +630,7 @@ async function handleImport(
 
     // Build success embed
     const embed = new EmbedBuilder()
-      .setColor(0x00ff00)
+      .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('✅ Personality Imported Successfully')
       .setDescription(`Imported personality: **${payload.name}** (\`${slug}\`)`)
       .setTimestamp();
@@ -814,7 +814,7 @@ async function handleModalSubmit(
 
     // Success!
     const embed = new EmbedBuilder()
-      .setColor(0x00ff00)
+      .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created personality: **${name}** (\`${slug}\`)`)
       .addFields(
