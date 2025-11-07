@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.26] - 2025-11-06
+
+### Fixed
+
+- **Personality Prefix Stripping** - Fixed bug where personality name and timestamp prefixes were visible in Discord
+  - AI-generated responses like "Lila: [A moment ago] ..." now properly cleaned before sending to Discord
+  - `stripPersonalityPrefix()` now called once in `generateResponse()` before both Discord display and database storage
+  - Previously only cleaned for database, but returned raw response to users
+  - All 60 responseCleanup tests pass
+
+### Documentation
+
+- **OpenMemory Migration Plan** - Comprehensive 6-9 week roadmap for replacing pgvector with OpenMemory cognitive architecture
+  - Multi-sector memory classification (episodic, semantic, emotional, procedural, reflective)
+  - Waypoint graph system with associative learning
+  - Daily decay mimicking REM sleep
+  - Deterministic reflection (no LLM censorship concerns)
+  - DeepAgents design patterns documented for Phase 9 agentic features
+- **QoL Model & Persona Management Plan** - 9-11 session roadmap for interactive slash commands
+  - LLM config management (`/llm-config create/list/delete`)
+  - Model overrides per personality (`/model set/reset/show`)
+  - Persona management (`/persona create/edit/delete/list`)
+  - Persona overrides per personality
+  - Config hierarchy: user override > personality default > global default
+  - Ready to implement after testing priority shift
+- Updated CURRENT_WORK.md to reflect QoL priority shift (paused OpenMemory temporarily)
+
 ## [3.0.0-alpha.25] - 2025-11-03
 
 ### Added
