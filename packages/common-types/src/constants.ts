@@ -42,6 +42,14 @@ export const AI_DEFAULTS = {
 } as const;
 
 /**
+ * AI Provider API endpoints
+ */
+export const AI_ENDPOINTS = {
+  /** OpenRouter API base URL */
+  OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
+} as const;
+
+/**
  * Timeouts, intervals, and retry configuration
  */
 export const TIMEOUTS = {
@@ -111,6 +119,10 @@ export const QUEUE_CONFIG = {
   COMPLETED_HISTORY_LIMIT: 100,
   /** Maximum number of failed jobs to keep in history */
   FAILED_HISTORY_LIMIT: 500,
+  /** Maximum number of completed scheduled jobs to keep */
+  SCHEDULED_COMPLETED_LIMIT: 10,
+  /** Maximum number of failed scheduled jobs to keep */
+  SCHEDULED_FAILED_LIMIT: 50,
 } as const;
 
 /**
@@ -173,6 +185,10 @@ export const TEXT_LIMITS = {
   ADMIN_SUMMARY_TRUNCATE: 1000,
   /** Discord embed field character limit */
   DISCORD_EMBED_FIELD: 1024,
+  /** Short preview for personality cards (200 chars) */
+  PERSONALITY_PREVIEW: 200,
+  /** Medium preview for referenced messages (500 chars) */
+  REFERENCE_PREVIEW: 500,
 } as const;
 
 /**

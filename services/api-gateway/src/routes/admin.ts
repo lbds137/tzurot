@@ -4,6 +4,7 @@
  */
 
 import express, { Request, Response, Router } from 'express';
+import { StatusCodes } from 'http-status-codes';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
@@ -192,7 +193,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       logger.error({ err: error }, '[Admin] Failed to set default LLM config');
     }
 
-    res.status(201).json({
+    res.status(StatusCodes.CREATED).json({
       success: true,
       personality: {
         id: personality.id,
