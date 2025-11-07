@@ -491,6 +491,51 @@ OM_LOG_AUTH=false  # Enable for debugging
 
 These are post-migration enhancements unlocked by the new architecture:
 
+### 9.0: Design Pattern Reference - LangChain DeepAgents
+
+**Context (2025-11-06):** LangChain released DeepAgents, a Python library for building autonomous, long-running agents inspired by Claude Code, Deep Research, and similar tools.
+
+**Why it's relevant:** While the library itself is Python-only (incompatible with our TypeScript stack), the architectural patterns are exactly what we want for Phase 9.
+
+**Key DeepAgents Concepts to Steal:**
+
+1. **Planning Tool (Todo Lists for Agent Focus):**
+   - DeepAgents uses a `write_todos` tool that helps agents break down complex tasks
+   - Functions as "context engineering" to maintain focus during long operations
+   - **Our implementation:** Personalities can create internal todo lists when tackling multi-step requests
+
+2. **File System for Context Management:**
+   - Agents use a shared workspace to store notes and offload large context
+   - Prevents context window overflow with variable-length tool results
+   - **Our implementation:** Use OpenMemory sectors (episodic, semantic, procedural) as our "file system"
+
+3. **Subagent Spawning:**
+   - Specialized agents handle individual tasks for better context isolation
+   - Enables parallel processing and domain-specific expertise
+   - **Our implementation:** "Free Will" system (9.2) where personalities compete for salience match
+
+4. **Detailed System Prompts with Examples:**
+   - Long, detailed prompts with behavioral examples for various scenarios
+   - **Our implementation:** Already doing this with personality definitions
+
+**What We Already Have:**
+
+OpenMemory includes LangChain/LangGraph integration:
+- MCP (Model Context Protocol) tools in `backend/src/ai/mcp.ts`
+- LangGraph integration in `backend/src/ai/graph.ts`
+- Built-in tool system
+
+**Implementation Strategy:**
+
+- Use DeepAgents' architecture as inspiration for our TypeScript implementation
+- Build our own agent harness integrated with Discord personalities
+- Leverage OpenMemory's existing MCP tools as foundation
+- Keep it personality-aware (tools available per personality config)
+
+**Reference:**
+- GitHub: https://github.com/langchain-ai/deepagents
+- Blog: https://blog.langchain.com/deep-agents/
+
 ### 9.1: Agentic Toolbox (3-5 days)
 
 **Refactor ConversationalRAGService → Agent Executor:**
