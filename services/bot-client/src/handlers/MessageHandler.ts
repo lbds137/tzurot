@@ -302,15 +302,17 @@ export class MessageHandler {
       );
 
       // Extract Discord message IDs and timestamps for deduplication
+      // Note: discordMessageId is now an array (for chunked messages), so we flatten all chunks
       const conversationHistoryMessageIds = history
-        .map(msg => msg.discordMessageId)
-        .filter((id): id is string => id !== undefined);
+        .flatMap(msg => msg.discordMessageId || [])
+        .filter((id): id is string => id !== undefined && id !== null);
 
       const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
 
       // Debug logging for voice message replies (helps diagnose reference duplication)
       if (message.attachments.some(a => a.contentType?.startsWith('audio/') || a.duration !== null)) {
         const mostRecentAssistant = history.filter(m => m.role === 'assistant').slice(-1)[0];
+        const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId || [];
 
         logger.debug(
           {
@@ -321,10 +323,10 @@ export class MessageHandler {
             isThread: message.channel.isThread(),
             historyCount: history.length,
             historyWithIds: conversationHistoryMessageIds.length,
-            conversationHistoryMessageIds: Array.from(conversationHistoryMessageIds),
-            mostRecentAssistantId: mostRecentAssistant?.discordMessageId || 'none',
+            conversationHistoryMessageIds,
+            mostRecentAssistantIds,
             mostRecentAssistantTimestamp: mostRecentAssistant?.createdAt,
-            replyMatchesRecentAssistant: message.reference?.messageId === mostRecentAssistant?.discordMessageId,
+            replyMatchesRecentAssistant: mostRecentAssistantIds.includes(message.reference?.messageId || ''),
           },
           '[MessageHandler] Processing voice message reply - deduplication data'
         );
@@ -502,7 +504,7 @@ export class MessageHandler {
         message.guild !== null &&
         (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
 
-      let firstMessageId: string | null = null;
+      const chunkMessageIds: string[] = [];
 
       if (isWebhookChannel) {
         // For webhooks, split content and send directly (no prefix needed)
@@ -520,10 +522,8 @@ export class MessageHandler {
           if (sentMessage) {
             await storeWebhookMessage(sentMessage.id, personality.name);
 
-            // Track first message ID for conversation history
-            if (i === 0) {
-              firstMessageId = sentMessage.id;
-            }
+            // Track ALL chunk message IDs for conversation history deduplication
+            chunkMessageIds.push(sentMessage.id);
           }
         }
       } else {
@@ -538,32 +538,31 @@ export class MessageHandler {
           // Store DM message in Redis for reply routing (7 day TTL)
           await storeWebhookMessage(sentMessage.id, personality.name);
 
-          // Track first message ID for conversation history
-          if (i === 0) {
-            firstMessageId = sentMessage.id;
-          }
+          // Track ALL chunk message IDs for conversation history deduplication
+          chunkMessageIds.push(sentMessage.id);
         }
       }
 
-      // Update the assistant message in conversation history with Discord message ID
-      // This enables deduplication when users reference recent assistant messages
-      if (firstMessageId) {
+      // Update the assistant message in conversation history with ALL Discord chunk IDs
+      // This enables deduplication when users reference any chunk of recent assistant messages
+      if (chunkMessageIds.length > 0) {
         logger.debug(
           {
             channelId: message.channel.id,
             isThread: message.channel.isThread(),
             personalityId: personality.id,
             personaId: personaId.substring(0, 8),
-            discordMessageId: firstMessageId,
+            chunkCount: chunkMessageIds.length,
+            discordMessageIds: chunkMessageIds,
           },
-          '[MessageHandler] Updating last assistant message with Discord ID'
+          '[MessageHandler] Updating last assistant message with Discord chunk IDs'
         );
 
         await this.conversationHistory.updateLastAssistantMessageId(
           message.channel.id,
           personality.id,
           personaId,
-          firstMessageId
+          chunkMessageIds
         );
       }
 

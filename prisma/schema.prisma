@@ -188,7 +188,7 @@ model ConversationHistory {
   personaId        String         @map("persona_id") @db.Uuid
   role             String         @db.VarChar(20)
   content          String
-  discordMessageId String?        @map("discord_message_id") @db.VarChar(20) // Discord snowflake ID for deduplication
+  discordMessageId String[]       @default([]) @map("discord_message_id") // Discord snowflake IDs for chunked messages (deduplication)
   createdAt        DateTime       @default(now()) @map("created_at")
   persona          Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality      Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)
