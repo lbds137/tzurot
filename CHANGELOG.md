@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.29] - 2025-11-07
+
+### Fixed
+
+- **CRITICAL: Chunked Message Deduplication** - Fixed reference deduplication failing when users reply to chunk 2+ of long assistant messages
+  - Changed `discordMessageId` from single string to array to store ALL chunk Discord IDs
+  - When assistant messages exceed 2000 chars and get chunked, all chunk IDs now stored for proper deduplication
+  - Database migration converts existing data: `NULL` → `[]`, `'id'` → `['id']`
+  - Applied to both development and production databases
+  - **URGENT**: Prod database migrated before code deployment due to time-sensitive fix
+- Voice message transcripts now stored in conversation history immediately (not delayed until assistant response)
+  - Ensures transcripts available for reference extraction and deduplication
+
+### Changed
+
+- Deduplication log messages changed from DEBUG to INFO level for production visibility
+  - Helps diagnose reference inclusion issues in production without enabling debug logs
+
 ## [3.0.0-alpha.26] - 2025-11-06
 
 ### Fixed
