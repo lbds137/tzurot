@@ -380,6 +380,15 @@ export class ConversationalRAGService {
       // This ensures both Discord display AND storage are clean
       const content = stripPersonalityPrefix(rawContent, personality.name);
 
+      logger.debug(
+        {
+          rawContentPreview: rawContent.substring(0, 100),
+          cleanedContentPreview: content.substring(0, 100),
+          wasStripped: rawContent !== content,
+        },
+        `[RAG] Content stripping check for ${personality.name}`
+      );
+
       logger.info(
         `[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`
       );
@@ -795,6 +804,15 @@ export class ConversationalRAGService {
       // Store directly without re-cleaning
 
       // 3. Save assistant response to conversation_history
+      logger.debug(
+        {
+          contentPreview: aiResponse.substring(0, 100),
+          contentLength: aiResponse.length,
+          personalityName: personality.name,
+        },
+        '[RAG] Storing assistant response to conversation_history'
+      );
+
       const conversationRecord = await prisma.conversationHistory.create({
         data: {
           channelId: context.channelId || 'dm',

@@ -20,7 +20,6 @@ import {
   formatRelativeTime,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
 
 const logger = createLogger('AIJobProcessor');
 
@@ -276,13 +275,10 @@ export class AIJobProcessor {
 
       logger.info(`[AIJobProcessor] Job ${job.id} completed in ${processingTimeMs}ms`);
 
-      // Defensively strip personality prefix if model ignored prompt instructions
-      const cleanedContent = stripPersonalityPrefix(response.content, personality.name);
-
       const jobResult = {
         requestId,
         success: true,
-        content: cleanedContent,
+        content: response.content,
         attachmentDescriptions: response.attachmentDescriptions,
         referencedMessagesDescriptions: response.referencedMessagesDescriptions,
         metadata: {
