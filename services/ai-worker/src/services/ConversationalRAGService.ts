@@ -374,7 +374,11 @@ export class ConversationalRAGService {
       // 6. Invoke the model with timeout and retry logic
       const response = await this.invokeModelWithRetry(model, messages, modelName);
 
-      const content = response.content as string;
+      const rawContent = response.content as string;
+
+      // Strip personality prefix if model ignored prompt instructions
+      // This ensures both Discord display AND storage are clean
+      const content = stripPersonalityPrefix(rawContent, personality.name);
 
       logger.info(
         `[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`
@@ -787,9 +791,8 @@ export class ConversationalRAGService {
         return;
       }
 
-      // 2. Strip personality prefix if model ignored prompt instructions
-      // This ensures clean storage in both conversation_history and vector memory
-      const cleanedResponse = stripPersonalityPrefix(aiResponse, personality.name);
+      // 2. aiResponse is already cleaned by generateResponse()
+      // Store directly without re-cleaning
 
       // 3. Save assistant response to conversation_history
       const conversationRecord = await prisma.conversationHistory.create({
@@ -799,7 +802,7 @@ export class ConversationalRAGService {
           personalityId: personality.id,
           personaId: personaId,
           role: 'assistant',
-          content: cleanedResponse,
+          content: aiResponse,
         },
         select: {
           id: true,
@@ -818,7 +821,7 @@ export class ConversationalRAGService {
         ? 'session'
         : 'personal';
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
-      const interactionText = `{user}: ${userMessage}\n{assistant}: ${cleanedResponse}`;
+      const interactionText = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
 
       const memoryMetadata = {
         personaId,
