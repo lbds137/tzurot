@@ -16,6 +16,7 @@ import {
   preserveCodeBlocks,
   createLogger,
   getConfig,
+  AI_DEFAULTS,
   INTERVALS,
 } from '@tzurot/common-types';
 import type {
@@ -295,7 +296,7 @@ export class MessageHandler {
       );
 
       // Get conversation history from PostgreSQL (needed for reference deduplication)
-      const historyLimit = personality.contextWindow || 20;
+      const historyLimit = personality.contextWindow || AI_DEFAULTS.CONTEXT_WINDOW;
       const history = await this.conversationHistory.getRecentHistory(
         message.channel.id,
         personality.id,

@@ -6,6 +6,7 @@
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
 import { MODEL_DEFAULTS } from '../modelDefaults.js';
+import { AI_DEFAULTS, TIMEOUTS } from '../constants.js';
 import type { Decimal } from '@prisma/client/runtime/library';
 
 const logger = createLogger('PersonalityService');
@@ -83,7 +84,7 @@ export class PersonalityService {
   private personalityCache: Map<string, LoadedPersonality>;
   private cacheExpiry: Map<string, number>;
   private cacheLastAccess: Map<string, number>;
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly CACHE_TTL = TIMEOUTS.CACHE_TTL;
   private readonly MAX_CACHE_SIZE = 100; // Maximum personalities to cache
 
   constructor() {
@@ -268,7 +269,7 @@ export class PersonalityService {
       topK: llmConfig?.topK ?? undefined,
       frequencyPenalty,
       presencePenalty,
-      contextWindow: llmConfig?.contextWindowSize ?? 20, // Now from llmConfig, not personality
+      contextWindow: llmConfig?.contextWindowSize ?? AI_DEFAULTS.CONTEXT_WINDOW,
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryScoreThreshold,
       memoryLimit,
