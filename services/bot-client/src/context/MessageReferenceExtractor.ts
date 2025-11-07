@@ -585,21 +585,25 @@ export class MessageReferenceExtractor {
     // Time-based fallback: If message is from bot/webhook and very recent,
     // check if timestamp matches any message in conversation history
     // This handles race condition where Discord message ID hasn't been stored in DB yet
+    // Common with voice messages in threads where transcription adds significant delay
     if (message.webhookId || message.author.bot) {
       const messageTime = message.createdAt.getTime();
       const now = Date.now();
       const ageMs = now - messageTime;
 
-      // Only check recent messages (within last 30 seconds)
-      // Older messages should have their IDs in DB by now
-      if (ageMs < 30000) {
+      // Only check recent messages (within last 60 seconds)
+      // Voice messages with transcription can have longer processing windows
+      if (ageMs < 60000) {
         for (const historyTimestamp of this.conversationHistoryTimestamps) {
           const historyTime = historyTimestamp.getTime();
           const timeDiff = Math.abs(messageTime - historyTime);
 
-          // If timestamps match within 5 seconds, likely the same message
-          // Discord timestamps are millisecond-precise, but DB round-trip can cause slight variance
-          if (timeDiff < 5000) {
+          // If timestamps match within 15 seconds, likely the same message
+          // Generous tolerance accounts for:
+          // - Voice transcription delays (several seconds)
+          // - DB round-trip and transaction commit times
+          // - Job queue processing delays
+          if (timeDiff < 15000) {
             logger.debug(
               {
                 messageId: message.id,
