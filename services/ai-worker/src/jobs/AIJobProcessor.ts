@@ -18,6 +18,7 @@ import {
   type LoadedPersonality,
   type ReferencedMessage,
   formatRelativeTime,
+  JobType,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
@@ -29,7 +30,7 @@ const logger = createLogger('AIJobProcessor');
 export interface AIJobData {
   // Request identification
   requestId: string;
-  jobType: 'generate' | 'transcribe';
+  jobType: JobType;
 
   // Personality
   personality: LoadedPersonality;
@@ -140,7 +141,7 @@ export class AIJobProcessor {
     const { jobType } = job.data;
 
     // Route to appropriate handler based on job type
-    if (jobType === 'transcribe') {
+    if (jobType === JobType.Transcribe) {
       return this.processTranscribeJob(job);
     }
 
