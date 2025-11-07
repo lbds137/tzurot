@@ -10,7 +10,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { getConfig, createLogger, TEXT_LIMITS, DISCORD_LIMITS } from '@tzurot/common-types';
+import { getConfig, createLogger, TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS } from '@tzurot/common-types';
 
 const logger = createLogger('admin-command');
 
@@ -146,7 +146,7 @@ async function handleDbSync(
 
     // Build result embed
     const embed = new EmbedBuilder()
-      .setColor(dryRun ? 0xffa500 : 0x00ff00)
+      .setColor(dryRun ? DISCORD_COLORS.WARNING : DISCORD_COLORS.SUCCESS)
       .setTitle(dryRun ? '🔍 Database Sync Preview (Dry Run)' : '✅ Database Sync Complete')
       .setTimestamp();
 
@@ -213,7 +213,7 @@ async function handleServers(interaction: ChatInputCommandInteraction): Promise<
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(DISCORD_COLORS.BLURPLE)
       .setTitle(`📋 Server List (${guilds.size} total)`)
       .setTimestamp();
 
@@ -310,7 +310,7 @@ async function handleUsage(
     const data = await response.json();
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(DISCORD_COLORS.BLURPLE)
       .setTitle('📊 API Usage Statistics')
       .setDescription(`Timeframe: **${timeframe}**`)
       .setTimestamp();
