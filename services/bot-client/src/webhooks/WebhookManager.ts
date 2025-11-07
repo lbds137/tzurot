@@ -5,7 +5,7 @@
  * Clean implementation ported from v2 webhookManager.js patterns.
  */
 
-import { createLogger, INTERVALS } from '@tzurot/common-types';
+import { createLogger, INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
 import { ChannelType, Client } from 'discord.js';
 import type { TextChannel, ThreadChannel, ForumChannel, Webhook } from 'discord.js';
 import type { LoadedPersonality } from '../types.js';
@@ -26,7 +26,7 @@ interface CachedWebhook {
 export class WebhookManager {
   private webhookCache = new Map<string, CachedWebhook>();
   private readonly cacheTimeout = INTERVALS.WEBHOOK_CACHE_TTL;
-  private readonly maxCacheSize = 100; // Maximum number of cached webhooks
+  private readonly maxCacheSize = DISCORD_LIMITS.WEBHOOK_CACHE_SIZE;
   private cleanupInterval?: NodeJS.Timeout;
   private client: Client;
   private botSuffix: string | null = null;
