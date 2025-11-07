@@ -30,6 +30,7 @@ import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 import { MessageReferenceExtractor } from '../context/MessageReferenceExtractor.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { formatReferencesForDatabase } from '../utils/referenceFormatter.js';
+import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -417,81 +418,106 @@ export class MessageHandler {
         `[MessageHandler] Built context for AI request`
       );
 
-      // Save user message to conversation history BEFORE calling AI
-      // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
-      // Start with just the message content - we'll add rich attachment/reference descriptions after AI processing
+      // ARCHITECTURAL DECISION: Atomic user message storage with placeholders
+      //
+      // Save user message BEFORE AI processing with placeholder descriptions for attachments/references.
+      // This ensures:
+      // 1. Proper chronological ordering (user timestamp < assistant timestamp)
+      // 2. Atomic storage (message exists complete, not missing data for 5-60s)
+      // 3. Database shows placeholder descriptions immediately, not empty data
+      //
+      // After AI processing completes, we'll update with rich descriptions from vision/transcription.
+
+      // Build content with placeholder attachment descriptions
+      let userMessageContent = messageContentForAI || '[no text content]';
+
+      // Add placeholder attachment descriptions (e.g., "[Image: photo.jpg] [Voice message: 5.2s]")
+      if (attachments && attachments.length > 0) {
+        const attachmentPlaceholders = generateAttachmentPlaceholders(attachments);
+        userMessageContent += attachmentPlaceholders;
+      }
+
+      // Add placeholder reference descriptions (basic formatting without vision/transcription)
+      if (referencedMessages.length > 0) {
+        const referencePlaceholders = formatReferencesForDatabase(referencedMessages);
+        userMessageContent += referencePlaceholders;
+      }
+
+      // Save user message atomically with all placeholder descriptions
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
         personaId,
         'user',
-        messageContentForAI || '[no text content]',
+        userMessageContent,
         message.guild?.id || null,
         message.id // Discord message ID for deduplication
       );
 
+      logger.debug(
+        {
+          hasAttachments: attachments && attachments.length > 0,
+          attachmentCount: attachments?.length || 0,
+          hasReferences: referencedMessages.length > 0,
+          referenceCount: referencedMessages.length,
+          contentLength: userMessageContent.length,
+        },
+        '[MessageHandler] Saved user message with placeholder descriptions'
+      );
+
+      // Capture timestamp for chronological ordering
+      // User message was just saved, so its timestamp is ~now
+      // We'll use this + 1ms for assistant message to ensure correct ordering
+      const userMessageTime = new Date();
+
       // Call API Gateway for AI generation (this will process attachments/references and return descriptions)
       const response = await this.gatewayClient.generate(personality, context);
 
-      // Update user message with rich descriptions if available
-      // The AI worker processes both attachments and references, returning descriptions with vision/transcription
-      if (
-        response.attachmentDescriptions ||
-        response.referencedMessagesDescriptions ||
-        (attachments && attachments.length > 0) ||
-        referencedMessages.length > 0
-      ) {
-        let enrichedContent = messageContentForAI || content; // Start with content that has [Reference N] markers
+      // Upgrade user message from placeholders to rich descriptions (if AI processing succeeded)
+      // The AI worker processes attachments/references with vision/transcription APIs
+      // If processing failed, placeholders remain (acceptable degradation)
+      if (response.attachmentDescriptions || response.referencedMessagesDescriptions) {
+        let enrichedContent = messageContentForAI || content; // Start with text content
 
-        // Add attachment descriptions
+        // Upgrade attachment placeholders to rich descriptions
         if (response.attachmentDescriptions) {
-          // Use rich descriptions from vision/transcription models
           enrichedContent = enrichedContent
             ? `${enrichedContent}\n\n${response.attachmentDescriptions}`
             : response.attachmentDescriptions;
-        } else if (attachments && attachments.length > 0) {
-          // Fallback to simple placeholders if processing failed
-          const attachmentDesc = attachments
-            .map(a => {
-              if (a.isVoiceMessage) {
-                return `[voice message: ${a.duration}s]`;
-              }
-              if (a.contentType.startsWith('image/')) {
-                return `[image: ${a.name || 'attachment'}]`;
-              }
-              if (a.contentType.startsWith('audio/')) {
-                return `[audio: ${a.name || 'attachment'}]`;
-              }
-              return `[file: ${a.name || 'attachment'}]`;
-            })
-            .join(' ');
 
-          enrichedContent = enrichedContent
-            ? `${enrichedContent} ${attachmentDesc}`
-            : attachmentDesc;
+          logger.debug(
+            {
+              descriptionLength: response.attachmentDescriptions.length,
+            },
+            '[MessageHandler] Upgrading attachment placeholders to rich descriptions'
+          );
         }
 
-        // Add reference descriptions (with vision/transcription from AI worker)
+        // Upgrade reference placeholders to rich descriptions
         if (response.referencedMessagesDescriptions) {
-          // Use rich descriptions from AI worker (includes vision/transcription)
           enrichedContent += `\n\n${response.referencedMessagesDescriptions}`;
-        } else if (referencedMessages.length > 0) {
-          // Fallback to simple formatting if AI processing failed
-          const formattedReferences = formatReferencesForDatabase(referencedMessages);
-          enrichedContent += formattedReferences;
+
+          logger.debug(
+            {
+              descriptionLength: response.referencedMessagesDescriptions.length,
+            },
+            '[MessageHandler] Upgrading reference placeholders to rich descriptions'
+          );
         }
 
-        // Update the message we saved earlier with enriched content
+        // Update the message we saved earlier with rich descriptions
         await this.conversationHistory.updateLastUserMessage(
           message.channel.id,
           personality.id,
           personaId,
           enrichedContent
         );
+      } else {
+        // AI processing failed or no attachments/references - placeholders remain
+        logger.debug(
+          '[MessageHandler] No rich descriptions available, keeping placeholder descriptions'
+        );
       }
-
-      // Note: Assistant response is saved to conversation_history by ai-worker
-      // during the storeInteraction() call, along with pending_memory tracking
 
       // Add model indicator to the message (for Discord display only, not in history)
       let contentWithIndicator = response.content;
@@ -543,9 +569,14 @@ export class MessageHandler {
         }
       }
 
-      // Update the assistant message in conversation history with ALL Discord chunk IDs
-      // This enables deduplication when users reference any chunk of recent assistant messages
+      // Now that Discord send succeeded, create the assistant message in conversation_history
+      // This ensures:
+      // - No orphaned assistant messages if Discord send fails
+      // - Assistant message has Discord chunk IDs from the start (no backfilling needed)
+      // - Proper chronological ordering (user message timestamp < assistant message timestamp)
       if (chunkMessageIds.length > 0) {
+        const assistantMessageTime = new Date(userMessageTime.getTime() + 1); // 1ms after user message
+
         logger.debug(
           {
             channelId: message.channel.id,
@@ -554,17 +585,26 @@ export class MessageHandler {
             personaId: personaId.substring(0, 8),
             chunkCount: chunkMessageIds.length,
             discordMessageIds: chunkMessageIds,
+            userMessageTime: userMessageTime.toISOString(),
+            assistantMessageTime: assistantMessageTime.toISOString(),
           },
-          '[MessageHandler] Updating last assistant message with Discord chunk IDs'
+          '[MessageHandler] Creating assistant message in conversation_history with Discord chunk IDs'
         );
 
-        await this.conversationHistory.updateLastAssistantMessageId(
+        await this.conversationHistory.addMessage(
           message.channel.id,
           personality.id,
           personaId,
-          chunkMessageIds
+          'assistant',
+          response.content, // Clean content without model indicator
+          message.guild?.id || null,
+          chunkMessageIds, // Array of Discord message IDs
+          assistantMessageTime // Explicit timestamp for chronological ordering
         );
       }
+
+      // Note: LTM storage happens in ai-worker during generation (before Discord send)
+      // When we migrate to OpenMemory, we'll move LTM storage here (after Discord send)
 
       logger.info(
         `[MessageHandler] Response sent as ${personality.displayName} (with ${conversationHistory.length} history messages)`
