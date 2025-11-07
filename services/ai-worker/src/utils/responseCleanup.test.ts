@@ -174,6 +174,40 @@ describe('stripPersonalityPrefix', () => {
     });
   });
 
+  describe('Standalone timestamps (without personality name)', () => {
+    it('should strip standalone timestamp at start', () => {
+      // Bug case: AI generates just "[2m ago]" without personality name
+      expect(stripPersonalityPrefix('[2m ago] content here', 'Lilith')).toBe('content here');
+      expect(stripPersonalityPrefix('[now] hello', 'Emily')).toBe('hello');
+      expect(stripPersonalityPrefix('[5 seconds ago] test', 'Bambi')).toBe('test');
+    });
+
+    it('should strip multiple standalone timestamps', () => {
+      // Edge case: Multiple timestamps stacked
+      expect(stripPersonalityPrefix('[2m ago] [now] content', 'Emily')).toBe('content');
+    });
+
+    it('should strip timestamp followed by action', () => {
+      // Common pattern from production: timestamp before roleplay action
+      const input = '[2m ago]*A deep, resonant hum, a sound that is both a physical vibration...';
+      expect(stripPersonalityPrefix(input, 'Lilith')).toBe(
+        '*A deep, resonant hum, a sound that is both a physical vibration...'
+      );
+    });
+
+    it('should NOT strip timestamps in middle of content', () => {
+      // Timestamps mid-content should be preserved
+      expect(stripPersonalityPrefix('I replied [2m ago] to your message', 'Emily')).toBe(
+        'I replied [2m ago] to your message'
+      );
+    });
+
+    it('should strip both name and standalone timestamps in sequence', () => {
+      // Mixed case: both name prefix and standalone timestamp
+      expect(stripPersonalityPrefix('[2m ago] Lilith: content', 'Lilith')).toBe('content');
+    });
+  });
+
   describe('Integration scenarios', () => {
     it('should ensure clean storage in conversation_history', () => {
       // Simulates what ConversationalRAGService.storeInteraction does

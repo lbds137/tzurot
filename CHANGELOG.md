@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database migration converts existing data: `NULL` → `[]`, `'id'` → `['id']`
   - Applied to both development and production databases
   - **URGENT**: Prod database migrated before code deployment due to time-sensitive fix
+- **Standalone Timestamp Stripping** - Fixed AI responses showing just `[2m ago]` without personality name
+  - Now strips both `Name: [timestamp] content` and standalone `[timestamp] content`
+  - Uses regex-escaped personality names to handle special characters (e.g., `C++Bot`, `Bot(v2)`)
+  - Case-insensitive matching for personality names
+  - All 60 responseCleanup tests pass
 - Voice message transcripts now stored in conversation history immediately (not delayed until assistant response)
   - Ensures transcripts available for reference extraction and deduplication
 
