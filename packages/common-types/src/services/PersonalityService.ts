@@ -167,13 +167,59 @@ export class PersonalityService {
         return null;
       }
 
-      const personality = this.mapToPersonality(dbPersonality as DatabasePersonality);
+      // If personality has no default config, load global default as fallback
+      let globalDefaultConfig = null;
+      if (!dbPersonality.defaultConfigLink) {
+        globalDefaultConfig = await this.loadGlobalDefaultConfig();
+      }
+
+      const personality = this.mapToPersonality(
+        dbPersonality as DatabasePersonality,
+        globalDefaultConfig
+      );
       this.setCache(nameOrId, personality);
 
       logger.info(`Loaded personality: ${personality.name}`);
       return personality;
     } catch (error) {
       logger.error({ err: error }, `Failed to load personality: ${nameOrId}`);
+      return null;
+    }
+  }
+
+  /**
+   * Load global default LLM config
+   * Returns the config marked as isGlobal: true and isDefault: true
+   */
+  private async loadGlobalDefaultConfig() {
+    try {
+      const globalDefault = await this.prisma.llmConfig.findFirst({
+        where: {
+          isGlobal: true,
+          isDefault: true,
+        },
+        select: {
+          model: true,
+          visionModel: true,
+          temperature: true,
+          topP: true,
+          topK: true,
+          frequencyPenalty: true,
+          presencePenalty: true,
+          maxTokens: true,
+          memoryScoreThreshold: true,
+          memoryLimit: true,
+          contextWindowSize: true,
+        },
+      });
+
+      if (globalDefault) {
+        logger.debug('[PersonalityService] Using global default LLM config as fallback');
+      }
+
+      return globalDefault;
+    } catch (error) {
+      logger.warn({ err: error }, '[PersonalityService] Failed to load global default config');
       return null;
     }
   }
@@ -210,8 +256,12 @@ export class PersonalityService {
         },
       });
 
+      // Load global default config once for all personalities that need it
+      const needsGlobalDefault = dbPersonalities.some((db: DatabasePersonality) => !db.defaultConfigLink);
+      const globalDefaultConfig = needsGlobalDefault ? await this.loadGlobalDefaultConfig() : null;
+
       const personalities = dbPersonalities.map((db: DatabasePersonality) =>
-        this.mapToPersonality(db)
+        this.mapToPersonality(db, db.defaultConfigLink ? null : globalDefaultConfig)
       );
 
       // Cache all personalities
@@ -229,31 +279,41 @@ export class PersonalityService {
 
   /**
    * Map database personality to LoadedPersonality type
+   *
+   * Config cascade priority:
+   * 1. Personality-specific default config (db.defaultConfigLink?.llmConfig)
+   * 2. Global default config (globalDefaultConfig parameter)
+   * 3. Hardcoded env variable fallbacks (MODEL_DEFAULTS.DEFAULT_MODEL, etc.)
    */
-  private mapToPersonality(db: DatabasePersonality): LoadedPersonality {
-    // Extract llmConfig from defaultConfigLink
+  private mapToPersonality(db: DatabasePersonality, globalDefaultConfig: any = null): LoadedPersonality {
+    // Extract llmConfig from personality's defaultConfigLink
     const llmConfig = db.defaultConfigLink?.llmConfig;
 
+    // Use global default as fallback if personality has no specific config
+    const fallbackConfig = llmConfig || globalDefaultConfig;
+
     // Convert Decimal types to numbers, providing defaults where needed
-    const temperature = llmConfig?.temperature ? parseFloat(llmConfig.temperature.toString()) : 0.7; // Default temperature
+    const temperature = fallbackConfig?.temperature
+      ? parseFloat(fallbackConfig.temperature.toString())
+      : AI_DEFAULTS.TEMPERATURE;
 
-    const maxTokens = llmConfig?.maxTokens ?? 4096; // Default max tokens
+    const maxTokens = fallbackConfig?.maxTokens ?? AI_DEFAULTS.MAX_TOKENS;
 
-    const topP = llmConfig?.topP ? parseFloat(llmConfig.topP.toString()) : undefined;
+    const topP = fallbackConfig?.topP ? parseFloat(fallbackConfig.topP.toString()) : undefined;
 
-    const frequencyPenalty = llmConfig?.frequencyPenalty
-      ? parseFloat(llmConfig.frequencyPenalty.toString())
+    const frequencyPenalty = fallbackConfig?.frequencyPenalty
+      ? parseFloat(fallbackConfig.frequencyPenalty.toString())
       : undefined;
 
-    const presencePenalty = llmConfig?.presencePenalty
-      ? parseFloat(llmConfig.presencePenalty.toString())
+    const presencePenalty = fallbackConfig?.presencePenalty
+      ? parseFloat(fallbackConfig.presencePenalty.toString())
       : undefined;
 
-    const memoryScoreThreshold = llmConfig?.memoryScoreThreshold
-      ? parseFloat(llmConfig.memoryScoreThreshold.toString())
+    const memoryScoreThreshold = fallbackConfig?.memoryScoreThreshold
+      ? parseFloat(fallbackConfig.memoryScoreThreshold.toString())
       : undefined;
 
-    const memoryLimit = llmConfig?.memoryLimit ?? undefined;
+    const memoryLimit = fallbackConfig?.memoryLimit ?? undefined;
 
     return {
       id: db.id,
@@ -261,15 +321,15 @@ export class PersonalityService {
       displayName: db.displayName || db.name,
       slug: db.slug,
       systemPrompt: db.systemPrompt?.content || '',
-      model: llmConfig?.model || MODEL_DEFAULTS.DEFAULT_MODEL,
-      visionModel: llmConfig?.visionModel || undefined,
+      model: fallbackConfig?.model || MODEL_DEFAULTS.DEFAULT_MODEL, // Cascade: personality -> global -> env
+      visionModel: fallbackConfig?.visionModel || undefined,
       temperature,
       maxTokens,
       topP,
-      topK: llmConfig?.topK ?? undefined,
+      topK: fallbackConfig?.topK ?? undefined,
       frequencyPenalty,
       presencePenalty,
-      contextWindow: llmConfig?.contextWindowSize ?? AI_DEFAULTS.CONTEXT_WINDOW,
+      contextWindow: fallbackConfig?.contextWindowSize ?? AI_DEFAULTS.CONTEXT_WINDOW,
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryScoreThreshold,
       memoryLimit,

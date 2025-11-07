@@ -21,6 +21,10 @@ export const MEDIA_LIMITS = {
  * AI model default configuration
  */
 export const AI_DEFAULTS = {
+  /** Default temperature for LLM generation (0.0-2.0, higher = more creative) */
+  TEMPERATURE: 0.7,
+  /** Default maximum tokens for LLM responses */
+  MAX_TOKENS: 4096,
   /** Temperature for vision models (lower = more deterministic) */
   VISION_TEMPERATURE: 0.3,
   /** Default language for Whisper transcription */
