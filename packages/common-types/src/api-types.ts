@@ -5,6 +5,8 @@
  * Core types are now defined in schemas.ts using Zod and re-exported here.
  */
 
+import { JobStatus } from './constants.js';
+
 // Re-export schema-derived types
 export type {
   AttachmentMetadata,
@@ -22,7 +24,7 @@ export type {
 export interface GenerateResponse {
   jobId: string;
   requestId: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: JobStatus;
   // When wait=true, includes the result directly
   result?: {
     content: string;
