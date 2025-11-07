@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MODEL_DEFAULTS } from './modelDefaults.js';
+import { SERVICE_DEFAULTS } from './constants.js';
 
 /**
  * Helper for optional string fields that must be non-empty if provided
@@ -61,7 +62,7 @@ export const envSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)), // Railway provides this, no default!
   REDIS_HOST: z.string().default('localhost'),
-  REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(6379),
+  REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(SERVICE_DEFAULTS.REDIS_PORT),
   REDIS_PASSWORD: optionalNonEmptyString(),
 
   // Database Configuration
@@ -82,13 +83,13 @@ export const envSchema = z.object({
     .or(z.literal('').transform(() => undefined)), // For db-sync: production database URL
 
   // API Gateway Configuration
-  API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default(3000),
+  API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default(SERVICE_DEFAULTS.API_GATEWAY_PORT),
   GATEWAY_URL: z
     .string()
     .url()
     .optional()
     .or(z.literal('').transform(() => undefined))
-    .transform(val => val ?? 'http://localhost:3000'), // Internal URL for API calls (bot-client -> api-gateway)
+    .transform(val => val ?? `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`), // Internal URL for API calls (bot-client -> api-gateway)
   PUBLIC_GATEWAY_URL: z
     .string()
     .url()
@@ -201,7 +202,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // Redis
     REDIS_URL: undefined,
     REDIS_HOST: 'localhost',
-    REDIS_PORT: 6379,
+    REDIS_PORT: SERVICE_DEFAULTS.REDIS_PORT,
     REDIS_PASSWORD: undefined,
 
     // Database
@@ -210,8 +211,8 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     PROD_DATABASE_URL: undefined,
 
     // API Gateway
-    API_GATEWAY_PORT: 3000,
-    GATEWAY_URL: 'http://localhost:3000',
+    API_GATEWAY_PORT: SERVICE_DEFAULTS.API_GATEWAY_PORT,
+    GATEWAY_URL: `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`,
     PUBLIC_GATEWAY_URL: undefined,
     CORS_ORIGINS: ['*'],
 
