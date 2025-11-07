@@ -14,10 +14,11 @@
 ## Goals
 
 1. **Easy model switching** - Users and bot owner can quickly change models
-2. **Global vs per-user settings** - Clear hierarchy for LLM configs and system prompts
-3. **Personality ownership** - Proper ownership model (bot owner = superuser, not special case)
-4. **Visibility control** - Public/private personalities
-5. **Interactive slash commands** - User-friendly CLI-style interface
+2. **Persona management** - Users can create/edit multiple personas, set defaults, override per-personality
+3. **Global vs per-user settings** - Clear hierarchy for LLM configs and personas
+4. **Personality ownership** - Proper ownership model (bot owner = superuser, not special case)
+5. **Visibility control** - Public/private personalities
+6. **Interactive slash commands** - User-friendly CLI-style interface
 
 ## Database Schema Analysis
 
@@ -76,9 +77,32 @@ model UserPersonalityConfig {
   id            String   @id @default(uuid())
   userId        String
   personalityId String
-  personaId     String?  // Optional persona binding
-  llmConfigId   String?  // ✅ Already exists for overrides!
+  personaId     String?  // ✅ Already exists for persona overrides!
+  llmConfigId   String?  // ✅ Already exists for LLM config overrides!
   @@unique([userId, personalityId])
+}
+```
+
+#### `Persona` (lines 27-46)
+```prisma
+model Persona {
+  name          String
+  description   String?
+  content       String          // Main persona text for LLM
+  preferredName String?         // How LLM should address user
+  pronouns      String?         // User's pronouns
+  ownerId       String          // ✅ Already has ownership!
+  // ... relations
+}
+```
+
+#### `UserDefaultPersona` (lines 48-57)
+```prisma
+model UserDefaultPersona {
+  userId    String  @id @unique
+  personaId String
+  // ... relations
+  // ✅ Already exists for default persona!
 }
 ```
 
@@ -229,14 +253,163 @@ model User {
 - Add permission checks for admin commands
 - Update personality visibility logic in bot-client
 
-### Phase 4: Config Resolution Logic (1 session)
+### Phase 4: Persona Management Commands (2 sessions)
 
-**Update ai-worker to use the hierarchy:**
+**Commands to implement:**
+
+#### User Commands
+```
+/persona list
+  → Shows user's personas with description
+  → Indicates which is default
+  → Format: table with name, description, is_default
+
+/persona show <name>
+  → Shows full persona details
+  → Fields: name, description, content, preferredName, pronouns
+  → Shows which personalities use this persona as override
+
+/persona create
+  → Interactive: bot asks questions step-by-step
+  → Questions:
+    1. "What would you like to name this persona?" (validates unique)
+    2. "Description? (helps you remember what this is for)"
+    3. "Persona content? (the text that describes you for the LLM)"
+    4. "Preferred name? (optional - how the LLM should address you)"
+    5. "Pronouns? (optional - she/her, they/them, etc.)"
+  → Shows summary and asks for confirmation
+  → Saves to database with ownerId = current user
+
+/persona edit <name>
+  → Shows dropdown of user's personas
+  → Interactive editing of selected persona
+  → Can edit any field (name, description, content, preferredName, pronouns)
+  → Shows current value for each field
+  → Press Enter to keep current value, or type new value
+
+/persona delete <name>
+  → Deletes user's persona
+  → Warns if it's set as default (must change default first)
+  → Warns if used as override for any personalities
+  → Confirmation prompt
+
+/persona set-default <name>
+  → Sets persona as user's default
+  → Updates UserDefaultPersona table
+  → Shows: "✅ 'Casual Me' is now your default persona"
+
+/persona set-for-personality <personality> <persona-name?>
+  → Sets persona override for specific personality
+  → If persona-name omitted, removes override (uses default)
+  → Updates UserPersonalityConfig.personaId
+  → Shows: "✅ When talking to @Lilith, you'll use 'Vampire RP' persona"
+  → Or: "✅ When talking to @Lilith, you'll use your default persona"
+
+/persona show-for-personality <personality>
+  → Shows which persona is used for this personality
+  → Shows hierarchy:
+    "Persona for @Lilith:
+     - Your override: Vampire RP
+     - Your default: Casual Me
+     (Currently using: Vampire RP)"
+```
+
+**Schema fields being used:**
+
+```typescript
+// Persona model (already exists)
+{
+  name: string;
+  description: string;
+  content: string;           // Main persona text for LLM
+  preferredName: string;      // How LLM should address user
+  pronouns: string;           // User's pronouns
+  ownerId: string;            // User who owns this persona
+}
+
+// UserDefaultPersona (already exists)
+{
+  userId: string;
+  personaId: string;          // User's default persona
+}
+
+// UserPersonalityConfig.personaId (already exists)
+{
+  userId: string;
+  personalityId: string;
+  personaId: string;          // Persona override for this personality
+  llmConfigId: string;        // LLM config override (from Phase 3)
+}
+```
+
+**Interactive Edit Flow Example:**
+
+```
+User: /persona edit
+
+Bot: Select a persona to edit:
+     [Dropdown menu with user's personas]
+
+User: [Selects "Vampire RP"]
+
+Bot: Editing persona: Vampire RP
+
+     Current name: Vampire RP
+     New name? (press Enter to keep current)
+
+User: [Enter]
+
+Bot: Current description: For NSFW vampire roleplay
+     New description? (press Enter to keep current)
+
+User: For NSFW vampire and demon roleplay
+
+Bot: Current content: I am Lila, a vampire-demon hybrid...
+     New content? (press Enter to keep current, or 'edit' to open full editor)
+
+User: edit
+
+Bot: [Shows text input modal with full content]
+
+User: [Edits content and submits]
+
+Bot: Current preferred name: Lila
+     New preferred name? (press Enter to keep current)
+
+User: [Enter]
+
+Bot: Current pronouns: she/her
+     New pronouns? (press Enter to keep current)
+
+User: [Enter]
+
+Bot: Summary of changes:
+     - Description: "For NSFW vampire roleplay" → "For NSFW vampire and demon roleplay"
+     - Content: [Updated - 247 characters changed]
+
+     Save these changes? (yes/no)
+
+User: yes
+
+Bot: ✅ Persona 'Vampire RP' updated!
+```
+
+**Implementation:**
+- Create `services/bot-client/src/commands/persona.ts`
+- Add interactive prompt helpers (reusable from Phase 2)
+- Add dropdown menus for persona selection
+- Add text modals for editing long content
+- Handle persona validation (e.g., can't delete default persona)
+- Update ai-worker to use persona overrides
+
+### Phase 5: Config & Persona Resolution Logic (1 session)
+
+**Update ai-worker to use both hierarchies:**
 
 ```typescript
 // services/ai-worker/src/utils/resolveConfig.ts
 
-interface ResolvedConfig {
+interface ResolvedLlmConfig {
   llmConfig: LlmConfig;
   source: 'user-override' | 'personality-default' | 'global-default';
 }
@@ -244,7 +417,7 @@ interface ResolvedConfig {
 async function resolveLlmConfig(
   userId: string,
   personalityId: string
-): Promise<ResolvedConfig> {
+): Promise<ResolvedLlmConfig> {
   // 1. Check user's override for this personality
   const userOverride = await prisma.userPersonalityConfig.findUnique({
     where: {
@@ -287,16 +460,58 @@ async function resolveLlmConfig(
     source: 'global-default'
   };
 }
+
+interface ResolvedPersona {
+  persona: Persona;
+  source: 'personality-override' | 'user-default';
+}
+
+async function resolvePersona(
+  userId: string,
+  personalityId: string
+): Promise<ResolvedPersona> {
+  // 1. Check user's override for this personality
+  const userOverride = await prisma.userPersonalityConfig.findUnique({
+    where: {
+      userId_personalityId: { userId, personalityId }
+    },
+    include: { persona: true },
+  });
+
+  if (userOverride?.persona) {
+    return {
+      persona: userOverride.persona,
+      source: 'personality-override'
+    };
+  }
+
+  // 2. Fall back to user's default persona
+  const defaultPersona = await prisma.userDefaultPersona.findUnique({
+    where: { userId },
+    include: { persona: true },
+  });
+
+  if (!defaultPersona?.persona) {
+    throw new Error('User has no default persona');
+  }
+
+  return {
+    persona: defaultPersona.persona,
+    source: 'user-default'
+  };
+}
 ```
 
 **Update ConversationalRAGService:**
 - Replace hardcoded model selection with `resolveLlmConfig()`
-- Log which config source was used (helps debugging)
+- Replace persona lookup with `resolvePersona()`
+- Log which config/persona sources were used (helps debugging)
 - Handle vision models properly (separate field in LlmConfig)
+- Use persona's `preferredName` and `pronouns` in prompt
 
-### Phase 5: Testing & Refinement (1 session)
+### Phase 6: Testing & Refinement (1-2 sessions)
 
-**Test cases:**
+**LLM Config Test Cases:**
 1. User creates LLM config → appears in `/llm-config list`
 2. User sets model override → personality uses it
 3. User resets override → reverts to personality default
@@ -305,11 +520,23 @@ async function resolveLlmConfig(
 6. Config hierarchy works correctly (user > personality > global)
 7. Interactive prompts handle invalid input gracefully
 
-**Edge cases:**
+**Persona Test Cases:**
+1. User creates persona → appears in `/persona list`
+2. User sets default persona → used for all conversations (unless overridden)
+3. User sets persona override for personality → that personality uses it
+4. User edits persona → changes reflected in conversations
+5. User tries to delete default persona → prevented with helpful error
+6. Persona hierarchy works correctly (personality-override > user-default)
+7. Interactive editing flow works smoothly
+
+**Edge Cases:**
 - Deleting a config that's in use (prevent or warn)
 - User tries to delete global config (permission denied)
 - Non-owner tries to use private personality (access denied)
 - Personality has no default config (uses global)
+- User has no default persona (error with helpful message)
+- Deleting persona that's used as override (warn which personalities)
+- User tries to delete last persona (must have at least one)
 
 ## Slash Command UX Design
 
@@ -566,31 +793,46 @@ async function promptForPublicPersonalities(
 
 ## Timeline Estimate
 
-**Total: 7-8 focused work sessions**
+**Total: 9-11 focused work sessions**
 
 | Phase | Sessions | Description |
 |-------|----------|-------------|
 | 1. Database Setup | 1 session | Migrations, data migration script |
 | 2. LLM Config Commands | 2 sessions | User and admin commands |
 | 3. Model Override Commands | 2 sessions | Personality-specific commands |
-| 4. Config Resolution | 1 session | Update ai-worker logic |
-| 5. Testing & Polish | 1-2 sessions | Test all flows, edge cases |
+| 4. Persona Management Commands | 2 sessions | Create, edit, delete, set defaults |
+| 5. Config & Persona Resolution | 1 session | Update ai-worker logic |
+| 6. Testing & Polish | 1-2 sessions | Test all flows, edge cases |
 
 **Calendar time:**
-- 2-3 sessions/week: **3-4 weeks**
-- 3-4 sessions/week: **2-3 weeks**
+- 2-3 sessions/week: **4-5 weeks**
+- 3-4 sessions/week: **3 weeks**
 
 ## Success Criteria
 
 **Phase completion means:**
+
+**LLM Config Management:**
 - ✅ Bot owner can create global LLM configs
 - ✅ Bot owner can set default model per personality
 - ✅ Bot owner can control personality visibility (public/private)
 - ✅ Users can create their own LLM configs
 - ✅ Users can override model for any personality they use
 - ✅ Config hierarchy works correctly (user > personality > global)
-- ✅ Interactive slash commands provide great UX
 - ✅ No more manual model switching in production emergencies!
+
+**Persona Management:**
+- ✅ Users can create multiple personas (different "you" for different contexts)
+- ✅ Users can edit personas with interactive flow
+- ✅ Users can set default persona (used unless overridden)
+- ✅ Users can set persona per-personality (e.g., "Vampire RP" for @Lilith)
+- ✅ Persona hierarchy works correctly (personality-override > user-default)
+- ✅ Persona content properly integrated into prompts (preferredName, pronouns)
+
+**Overall:**
+- ✅ Interactive slash commands provide great UX
+- ✅ All hierarchies clear and well-documented
+- ✅ Edge cases handled gracefully with helpful errors
 
 ## After This Phase
 
