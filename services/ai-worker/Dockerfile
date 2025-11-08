@@ -33,7 +33,8 @@ RUN pnpm --filter ai-worker build
 # Production stage
 FROM node:22-slim
 
-# Install OpenSSL for Prisma
+# Install OpenSSL for Prisma runtime (required in both build and prod stages)
+# Prisma needs OpenSSL to run queries, not just to generate the client
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm
