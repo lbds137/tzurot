@@ -28,7 +28,7 @@ export interface LoadedPersonality {
   topK?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
-  contextWindow: number;
+  contextWindowTokens: number;
   avatarUrl?: string;
   memoryScoreThreshold?: number;
   memoryLimit?: number;
@@ -64,7 +64,7 @@ export interface DatabasePersonality {
       maxTokens: number | null;
       memoryScoreThreshold: Decimal | null;
       memoryLimit: number | null;
-      contextWindowSize: number;
+      contextWindowTokens: number;
     };
   } | null;
   // Character definition fields
@@ -154,7 +154,7 @@ export class PersonalityService {
                   maxTokens: true,
                   memoryScoreThreshold: true,
                   memoryLimit: true,
-                  contextWindowSize: true,
+                  contextWindowTokens: true,
                 },
               },
             },
@@ -209,7 +209,7 @@ export class PersonalityService {
           maxTokens: true,
           memoryScoreThreshold: true,
           memoryLimit: true,
-          contextWindowSize: true,
+          contextWindowTokens: true,
         },
       });
 
@@ -248,7 +248,7 @@ export class PersonalityService {
                   maxTokens: true,
                   memoryScoreThreshold: true,
                   memoryLimit: true,
-                  contextWindowSize: true,
+                  contextWindowTokens: true,
                 },
               },
             },
@@ -366,7 +366,7 @@ export class PersonalityService {
       topK: fallbackConfig?.topK ?? undefined,
       frequencyPenalty,
       presencePenalty,
-      contextWindow: fallbackConfig?.contextWindowSize ?? AI_DEFAULTS.CONTEXT_WINDOW,
+      contextWindowTokens: fallbackConfig?.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryScoreThreshold,
       memoryLimit,

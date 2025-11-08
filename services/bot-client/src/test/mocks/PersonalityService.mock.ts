@@ -56,7 +56,7 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
         model: 'mock-model',
         temperature: 0.8,
         maxTokens: 1000,
-        contextWindow: 4096,
+        contextWindowTokens: 131072,
         characterInfo: '',
         personalityTraits: '',
       } as unknown as LoadedPersonality;
