@@ -179,7 +179,16 @@ export class PersonalityService {
       );
       this.setCache(nameOrId, personality);
 
-      logger.info(`Loaded personality: ${personality.name}`);
+      logger.info(
+        {
+          name: personality.name,
+          model: personality.model,
+          visionModel: personality.visionModel,
+          hasVisionModel: !!personality.visionModel,
+          usedGlobalDefault: !dbPersonality.defaultConfigLink && !!globalDefaultConfig,
+        },
+        'Loaded personality with config'
+      );
       return personality;
     } catch (error) {
       logger.error({ err: error }, `Failed to load personality: ${nameOrId}`);
@@ -214,7 +223,16 @@ export class PersonalityService {
       });
 
       if (globalDefault) {
-        logger.debug('[PersonalityService] Using global default LLM config as fallback');
+        logger.info(
+          {
+            model: globalDefault.model,
+            visionModel: globalDefault.visionModel,
+            hasVisionModel: !!globalDefault.visionModel,
+          },
+          '[PersonalityService] Loaded global default LLM config'
+        );
+      } else {
+        logger.warn('[PersonalityService] No global default LLM config found');
       }
 
       return globalDefault;
