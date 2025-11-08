@@ -51,6 +51,8 @@ export const AI_DEFAULTS = {
 export const AI_ENDPOINTS = {
   /** OpenRouter API base URL */
   OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
+  /** OpenRouter model card base URL (for model info links) */
+  OPENROUTER_MODEL_CARD_URL: 'https://openrouter.ai',
 } as const;
 
 /**
