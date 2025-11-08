@@ -17,7 +17,7 @@
  */
 
 import { createLogger } from './logger.js';
-import { CIRCUIT_BREAKER } from '../config/constants.js';
+import { CIRCUIT_BREAKER } from '../constants/index.js';
 
 const logger = createLogger('CircuitBreaker');
 

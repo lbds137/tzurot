@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateJobTimeout, calculateLLMTimeout } from './timeout.js';
-import { TIMEOUTS } from '../config/constants.js';
+import { TIMEOUTS } from '../constants/index.js';
 
 describe('calculateJobTimeout', () => {
   describe('No attachments', () => {
