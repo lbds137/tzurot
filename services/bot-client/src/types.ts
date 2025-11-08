@@ -19,6 +19,7 @@ import type {
   RequestContext,
   ReferencedMessage,
 } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types';
 
 // Re-export shared API types
 export type {
@@ -40,7 +41,7 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
   messageContent: string;
   conversationHistory?: Array<{
     id?: string; // Internal UUID for deduplication
-    role: 'user' | 'assistant' | 'system';
+    role: MessageRole;
     content: string;
     createdAt?: string;
     personaId?: string; // Which persona said this message

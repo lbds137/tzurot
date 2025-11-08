@@ -558,12 +558,12 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
 });
 
 describe('MessageHandler - model indicator formatting', () => {
-  it('should format model indicator with spoiler tags, backticks, and link', () => {
+  it('should format model indicator with small text, backticks, and link', () => {
     const modelName = 'anthropic/claude-3.5-sonnet';
-    const expectedFormat = `-# ||Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)||`;
+    const expectedFormat = `-# Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)`;
 
     // This tests the exact format we want
-    expect(expectedFormat).toBe('-# ||Model: [`anthropic/claude-3.5-sonnet`](<https://openrouter.ai/anthropic/claude-3.5-sonnet>)||');
+    expect(expectedFormat).toBe('-# Model: [`anthropic/claude-3.5-sonnet`](<https://openrouter.ai/anthropic/claude-3.5-sonnet>)');
   });
 
   it('should construct correct OpenRouter model card URL', () => {
@@ -576,7 +576,7 @@ describe('MessageHandler - model indicator formatting', () => {
 
   it('should handle model names with special characters', () => {
     const modelName = 'google/gemini-2.0-flash-exp:free';
-    const expectedFormat = `-# ||Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)||`;
+    const expectedFormat = `-# Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)`;
 
     expect(expectedFormat).toContain(':free');
     expect(expectedFormat).toContain('google/gemini');
@@ -584,10 +584,10 @@ describe('MessageHandler - model indicator formatting', () => {
 
   it('should include angle brackets to prevent Discord embeds', () => {
     const modelName = 'anthropic/claude-3.5-sonnet';
-    const expectedFormat = `-# ||Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)||`;
+    const expectedFormat = `-# Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)`;
 
     // Verify angle brackets are present
     expect(expectedFormat).toContain('(<https://');
-    expect(expectedFormat).toContain('>)||');
+    expect(expectedFormat).toContain('>)');
   });
 });

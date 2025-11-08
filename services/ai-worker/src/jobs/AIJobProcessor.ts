@@ -20,6 +20,7 @@ import {
   formatRelativeTime,
   JobType,
   CONTENT_TYPES,
+  MessageRole,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
@@ -52,7 +53,7 @@ export interface AIJobData {
     activePersonaName?: string;
     conversationHistory?: {
       id?: string;
-      role: 'user' | 'assistant' | 'system';
+      role: MessageRole;
       content: string;
       createdAt?: string;
       personaId?: string;
@@ -317,7 +318,7 @@ export class AIJobProcessor {
    */
   private extractParticipants(
     history: {
-      role: 'user' | 'assistant' | 'system';
+      role: MessageRole;
       content: string;
       personaId?: string;
       personaName?: string;
@@ -328,7 +329,7 @@ export class AIJobProcessor {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
     const userMessagesWithPersona = history.filter(
-      m => m.role === 'user' && m.personaId && m.personaName
+      m => m.role === MessageRole.User && m.personaId && m.personaName
     ).length;
     logger.debug(
       `[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`
@@ -336,7 +337,7 @@ export class AIJobProcessor {
 
     // Extract from history
     for (const msg of history) {
-      if (msg.role === 'user' && msg.personaId && msg.personaName) {
+      if (msg.role === MessageRole.User && msg.personaId && msg.personaName) {
         logger.debug(
           `[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`
         );
@@ -372,7 +373,7 @@ export class AIJobProcessor {
    */
   private convertConversationHistory(
     history: {
-      role: 'user' | 'assistant' | 'system';
+      role: MessageRole;
       content: string;
       createdAt?: string;
       personaId?: string;
@@ -385,7 +386,7 @@ export class AIJobProcessor {
       let content = msg.content;
 
       // For user messages, include persona name and timestamp
-      if (msg.role === 'user') {
+      if (msg.role === MessageRole.User) {
         const parts: string[] = [];
 
         if (msg.personaName) {
@@ -402,7 +403,7 @@ export class AIJobProcessor {
       }
 
       // For assistant messages, include personality name and timestamp
-      if (msg.role === 'assistant') {
+      if (msg.role === MessageRole.Assistant) {
         const parts: string[] = [];
 
         // Use the personality name (e.g., "Lilith")
@@ -415,9 +416,9 @@ export class AIJobProcessor {
         content = `${parts.join(' ')} ${msg.content}`;
       }
 
-      if (msg.role === 'user') {
+      if (msg.role === MessageRole.User) {
         return new HumanMessage(content);
-      } else if (msg.role === 'assistant') {
+      } else if (msg.role === MessageRole.Assistant) {
         return new AIMessage(content);
       } else {
         // System messages are handled separately in the prompt

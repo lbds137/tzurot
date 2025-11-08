@@ -5,12 +5,12 @@
  * Keeps the last N messages per channel/personality, with no time-based expiration.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, MessageRole } from '@tzurot/common-types';
 
 const logger = createLogger('ConversationManager');
 
 interface ConversationMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string;
   timestamp: number;
 }
@@ -46,7 +46,7 @@ export class ConversationManager {
     const thread = this.getOrCreateThread(key);
 
     thread.messages.push({
-      role: 'user',
+      role: MessageRole.User,
       content,
       timestamp: Date.now(),
     });
@@ -69,7 +69,7 @@ export class ConversationManager {
     const thread = this.getOrCreateThread(key);
 
     thread.messages.push({
-      role: 'assistant',
+      role: MessageRole.Assistant,
       content,
       timestamp: Date.now(),
     });
@@ -90,7 +90,7 @@ export class ConversationManager {
   getHistory(
     channelId: string,
     personalityName: string
-  ): Array<{ role: 'user' | 'assistant' | 'system'; content: string }> {
+  ): Array<{ role: MessageRole; content: string }> {
     const key = this.getKey(channelId, personalityName);
     const thread = this.conversations.get(key);
 

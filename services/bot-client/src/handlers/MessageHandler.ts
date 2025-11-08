@@ -316,7 +316,7 @@ export class MessageHandler {
 
       // Debug logging for voice message replies (helps diagnose reference duplication)
       if (message.attachments.some(a => a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.duration !== null)) {
-        const mostRecentAssistant = history.filter(m => m.role === 'assistant').slice(-1)[0];
+        const mostRecentAssistant = history.filter(m => m.role === MessageRole.Assistant).slice(-1)[0];
         const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId || [];
 
         logger.debug(
@@ -528,7 +528,7 @@ export class MessageHandler {
       if (response.metadata?.modelUsed) {
         const modelName = response.metadata.modelUsed;
         const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelName}`;
-        contentWithIndicator += `\n-# ||Model: [\`${modelName}\`](<${modelUrl}>)||`;
+        contentWithIndicator += `\n-# Model: [\`${modelName}\`](<${modelUrl}>)`;
       }
 
       // Send via webhook if in a guild text channel or thread
