@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.33] - 2025-11-08
+
+### Added
+
+- **Timeout Allocation Documentation** - Comprehensive guide for Railway timeout budget management
+  - Documented Railway 5-minute constraint and safety buffer strategy
+  - Explained parallel vs sequential processing (critical distinction)
+  - Added timeout calculation examples for all attachment scenarios
+  - Included tuning guidelines with production metrics
+  - Troubleshooting guide for common timeout issues
+- **Whisper Transcript Cleanup Proposal** - Future enhancement documentation
+  - LLM-based post-processing design for voice message transcripts
+  - Configuration options (global toggle, personality-level)
+  - Timeout impact analysis (+30s for cleanup pass)
+  - Implementation plan with code structure examples
+
+### Changed
+
+- **Timeout Calculation** - Fixed critical Railway budget allocation bug
+  - **BREAKING**: Fixed parallel processing assumption (was treating attachments as sequential)
+  - Images: 120s + 45s + 45s = 210s (was incorrectly 255s)
+  - Audio: 120s + 150s + 150s = 420s → capped at 270s (now includes AUDIO_FETCH)
+  - Reduced retry buffer from 2× to 1× (most requests succeed first try)
+  - LLM minimum timeout reduced from 120s to 60s for tight budgets
+- **Dynamic LLM Timeout Allocation** - Added `calculateLLMTimeout()` function
+  - Gives LLM remaining time after subtracting attachment overhead
+  - Slow models now get 50-90s more time depending on attachment count
+  - Added warning logging when timeout budget is very tight
+- **Constants Organization** - Refactored into domain-separated files
+  - Split 332-line `config/constants.ts` into 8 focused domain files
+  - Created `constants/ai.ts` - AI models, providers, defaults, endpoints
+  - Created `constants/timing.ts` - Timeouts, intervals, retry config, circuit breaker
+  - Created `constants/queue.ts` - Queue config, job prefixes, status/type enums
+  - Created `constants/discord.ts` - Discord limits, colors, text limits
+  - Created `constants/error.ts` - TransientErrorCode enum, error messages
+  - Created `constants/media.ts` - Media limits, content types, attachment types
+  - Created `constants/message.ts` - MessageRole enum, placeholders
+  - Created `constants/service.ts` - Service defaults, app settings, health status
+  - Clear separation: `constants/` (compile-time) vs `config/` (runtime env vars)
+- **Timeout Constants Updated** - More realistic values for production
+  - VISION_MODEL: 30s → 45s (parallel batch processing needs more buffer)
+  - WHISPER_API: 300s → 90s (was using entire Railway budget!)
+  - AUDIO_FETCH: 120s → 60s (more realistic for voice message downloads)
+  - LLM_API: 60s → 90s per attempt (for slow models with large context)
+  - Added SYSTEM_OVERHEAD: 15s (memory, DB, queue, network operations)
+
+### Fixed
+
+- **Empty LLM Responses** - Now properly detected and retried
+  - Added guard to detect empty response content before processing
+  - Treats empty responses as retryable transient errors
+  - Handles both string content and multimodal array content from LangChain
+  - Improved logging with response type and content length for debugging
+  - Prevents bot from responding with blank messages
+- **Audio Processing Timeout** - Now accounts for download time
+  - Previously only counted WHISPER_API (90s transcription)
+  - Now includes AUDIO_FETCH (60s) + WHISPER_API (90s) = 150s total
+  - Fixes timeout issues with voice messages
+
+### Removed
+
+- **DEFAULT_MODELS constant** - Removed deprecated duplicate
+  - Was redundant with MODEL_DEFAULTS.EMBEDDING
+  - Updated PgvectorMemoryAdapter to use MODEL_DEFAULTS
+  - Cleaned up technical debt from code review feedback
+
+### Performance
+
+- **Better Railway Timeout Budget Usage** - Parallel model frees up 50-90s for LLM
+  - Old: 5 images allocated 225s sequential → only 45s left for LLM
+  - New: 5 images allocated 90s parallel → 120s left for LLM
+  - Critical fix prevents timeout failures with slow models
+- **Reduced Wasted Timeout Budget** - More realistic retry buffer allocation
+  - Old: 2× retry multiplier assumed all requests fail twice
+  - New: 1× retry multiplier for realistic worst case
+  - Saves 45-150s depending on attachment type
+
 ## [3.0.0-alpha.30] - 2025-11-07
 
 ### Added
