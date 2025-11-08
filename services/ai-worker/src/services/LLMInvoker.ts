@@ -121,7 +121,16 @@ export class LLMInvoker {
         const response = await model.invoke(messages, { timeout: attemptTimeoutMs });
 
         // Guard against empty responses (treat as retryable error)
-        const content = typeof response.content === 'string' ? response.content.trim() : '';
+        // Handle both string content and multimodal array content
+        const content = Array.isArray(response.content)
+          ? response.content
+              .map(c => (typeof c === 'object' && 'text' in c ? c.text : ''))
+              .join('')
+              .trim()
+          : typeof response.content === 'string'
+            ? response.content.trim()
+            : '';
+
         if (!content) {
           const emptyResponseError = new Error(ERROR_MESSAGES.EMPTY_RESPONSE);
           logger.warn(
@@ -129,7 +138,10 @@ export class LLMInvoker {
               err: emptyResponseError,
               modelName,
               attempt: attempt + 1,
-              responseType: typeof response.content,
+              responseType: Array.isArray(response.content)
+                ? 'array'
+                : typeof response.content,
+              contentLength: Array.isArray(response.content) ? response.content.length : 0,
             },
             '[LLMInvoker] Empty response detected, treating as retryable error'
           );

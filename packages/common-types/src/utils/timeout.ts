@@ -2,7 +2,10 @@
  * Timeout calculation utilities
  */
 
-import { TIMEOUTS, RETRY_CONFIG } from '../constants/index.js';
+import { TIMEOUTS } from '../constants/index.js';
+import { createLogger } from './logger.js';
+
+const logger = createLogger('TimeoutCalculator');
 
 /**
  * Calculate job timeout based on attachments and retry overhead
@@ -29,11 +32,11 @@ import { TIMEOUTS, RETRY_CONFIG } from '../constants/index.js';
  *
  * @example
  * // 5 images (parallel processing)
- * calculateJobTimeout(5, 0) // 120s + 45s + 90s = 255s (NOT 5 × 45s)
+ * calculateJobTimeout(5, 0) // 120s + 45s + 45s = 210s (NOT 5 × 45s)
  *
  * @example
- * // Mixed attachments
- * calculateJobTimeout(3, 2) // 120s + 90s + 180s = 390s → capped at 270s
+ * // 1 audio (download + transcription)
+ * calculateJobTimeout(0, 1) // 120s + 150s + 150s = 420s → capped at 270s
  */
 export function calculateJobTimeout(imageCount: number, audioCount: number = 0): number {
   // Base timeout for jobs with no attachments
@@ -43,12 +46,13 @@ export function calculateJobTimeout(imageCount: number, audioCount: number = 0):
   if (imageCount > 0 || audioCount > 0) {
     // One parallel batch (slowest wins)
     const imageBatchTime = imageCount > 0 ? TIMEOUTS.VISION_MODEL : 0;
-    const audioBatchTime = audioCount > 0 ? TIMEOUTS.WHISPER_API : 0;
+    // Audio requires download + transcription time
+    const audioBatchTime = audioCount > 0 ? TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API : 0;
     const slowestBatchTime = Math.max(imageBatchTime, audioBatchTime);
 
-    // Account for up to MAX_ATTEMPTS retry attempts (in practice, only failures retry)
-    // Pessimistic: assume all attachments fail first attempts and need retries
-    const retryBuffer = slowestBatchTime * (RETRY_CONFIG.MAX_ATTEMPTS - 1);
+    // Account for ONE retry in worst case (most requests succeed first try)
+    // Reduced from (MAX_ATTEMPTS - 1) to 1 to avoid pessimistic allocation
+    const retryBuffer = slowestBatchTime * 1;
 
     // Add attachment time to base
     timeout = TIMEOUTS.JOB_BASE + slowestBatchTime + retryBuffer;
@@ -72,42 +76,58 @@ export function calculateJobTimeout(imageCount: number, audioCount: number = 0):
  * @param jobTimeout - Total job timeout in milliseconds
  * @param imageCount - Number of images in the request
  * @param audioCount - Number of audio/voice attachments in the request
- * @returns LLM timeout in milliseconds (minimum 120s)
+ * @returns LLM timeout in milliseconds (minimum 60s)
  *
  * @example
  * // No attachments (job=120s)
  * calculateLLMTimeout(120000, 0, 0) // ~105s (120s - 15s overhead)
  *
  * @example
- * // 5 images (job=255s)
- * calculateLLMTimeout(255000, 5, 0) // ~105s (255s - 45s - 90s - 15s)
+ * // 5 images (job=165s)
+ * calculateLLMTimeout(165000, 5, 0) // ~75s (165s - 45s - 45s - 15s)
  *
  * @example
  * // 1 audio (job=270s capped)
- * calculateLLMTimeout(270000, 0, 1) // 120s (minimum, audio consumes most budget)
+ * calculateLLMTimeout(270000, 0, 1) // 60s (minimum, audio consumes most budget)
  */
 export function calculateLLMTimeout(
   jobTimeout: number,
   imageCount: number,
   audioCount: number
 ): number {
-  // Estimate attachment processing time (parallel, pessimistic)
+  // Estimate attachment processing time (parallel)
   const imageBatchTime = imageCount > 0 ? TIMEOUTS.VISION_MODEL : 0;
-  const audioBatchTime = audioCount > 0 ? TIMEOUTS.WHISPER_API : 0;
+  // Audio requires download + transcription time
+  const audioBatchTime = audioCount > 0 ? TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API : 0;
   const slowestBatchTime = Math.max(imageBatchTime, audioBatchTime);
 
-  // Retry buffer (if attachments fail, they'll retry)
-  const retryBuffer =
-    slowestBatchTime > 0 ? slowestBatchTime * (RETRY_CONFIG.MAX_ATTEMPTS - 1) : 0;
+  // Retry buffer for ONE retry in worst case (reduced pessimism)
+  const retryBuffer = slowestBatchTime > 0 ? slowestBatchTime * 1 : 0;
 
   // System overhead (memory retrieval, DB operations, queue, network)
   const systemOverhead = TIMEOUTS.SYSTEM_OVERHEAD;
 
-  // LLM gets the rest of the budget
-  const llmTimeout = Math.max(
-    120000, // minimum 2 minutes (allow time for slow models)
-    jobTimeout - slowestBatchTime - retryBuffer - systemOverhead
-  );
+  // Calculate available time for LLM
+  const calculatedTimeout = jobTimeout - slowestBatchTime - retryBuffer - systemOverhead;
+
+  // Warn if budget is too tight (attachments eating most of the time)
+  if (calculatedTimeout < 60000 && (imageCount > 0 || audioCount > 0)) {
+    logger.warn(
+      {
+        jobTimeout,
+        imageCount,
+        audioCount,
+        slowestBatchTime,
+        retryBuffer,
+        systemOverhead,
+        calculatedTimeout,
+      },
+      '[TimeoutCalculator] Job timeout budget is very tight for attachments + LLM, using minimum'
+    );
+  }
+
+  // LLM gets the rest of the budget (minimum 60s for slow models)
+  const llmTimeout = Math.max(60000, calculatedTimeout);
 
   return llmTimeout;
 }
