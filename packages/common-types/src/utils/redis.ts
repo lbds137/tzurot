@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from './logger.js';
-import { RETRY_CONFIG } from '../config/constants.js';
+import { RETRY_CONFIG } from '../constants/index.js';
 
 const logger = createLogger('RedisUtils');
 

@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { MODEL_DEFAULTS } from './modelDefaults.js';
-import { SERVICE_DEFAULTS, AIProvider } from './constants.js';
+import { MODEL_DEFAULTS, SERVICE_DEFAULTS, AIProvider } from '../constants/index.js';
 
 /**
  * Helper for optional string fields that must be non-empty if provided

@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { MessageRole } from '../config/constants.js';
+import { MessageRole } from '../constants/index.js';
 
 /**
  * Discord environment context schema
