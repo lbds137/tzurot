@@ -27,7 +27,7 @@ describe('ReferencedMessageFormatter', () => {
       model: 'test-model',
       temperature: 0.7,
       maxTokens: 2000,
-      contextWindow: 8000,
+      contextWindowTokens: 131072,
       characterInfo: 'Test character',
       personalityTraits: 'Test traits',
     };
