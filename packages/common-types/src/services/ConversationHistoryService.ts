@@ -6,6 +6,7 @@
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../config/constants.js';
+import { countTextTokens } from '../utils/tokenCounter.js';
 
 const logger = createLogger('ConversationHistoryService');
 
@@ -13,6 +14,7 @@ export interface ConversationMessage {
   id: string;
   role: MessageRole;
   content: string;
+  tokenCount?: number; // Cached token count (computed once, reused on every request)
   createdAt: Date;
   personaId: string;
   personaName?: string; // The persona's name for display in context
@@ -56,6 +58,10 @@ export class ConversationHistoryService {
           : [discordMessageId]
         : [];
 
+      // Compute token count once and cache it
+      // This prevents recomputing on every AI request (web Claude optimization)
+      const tokenCount = countTextTokens(content);
+
       await this.prisma.conversationHistory.create({
         data: {
           channelId,
@@ -64,6 +70,7 @@ export class ConversationHistoryService {
           personaId,
           role,
           content,
+          tokenCount, // Cache token count for performance
           discordMessageId: messageIds,
           // Use provided timestamp if given, otherwise let PostgreSQL use default (now())
           ...(timestamp && { createdAt: timestamp }),
@@ -71,10 +78,10 @@ export class ConversationHistoryService {
       });
 
       logger.debug(
-        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp ? 'explicit' : 'default'})`
+        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp ? 'explicit' : 'default'}, tokens: ${tokenCount})`
       );
     } catch (error) {
-      logger.error({ err: error }, `Failed to add message to conversation history`);
+      logger.error({ err: error}, `Failed to add message to conversation history`);
       throw error;
     }
   }
@@ -151,6 +158,7 @@ export class ConversationHistoryService {
           id: true,
           role: true,
           content: true,
+          tokenCount: true, // Include cached token count
           createdAt: true,
           personaId: true,
           discordMessageId: true,
@@ -170,6 +178,7 @@ export class ConversationHistoryService {
           id: msg.id,
           role: msg.role as MessageRole,
           content: msg.content,
+          tokenCount: msg.tokenCount ?? undefined, // Use cached token count
           createdAt: msg.createdAt,
           personaId: msg.personaId,
           personaName: msg.persona.preferredName || msg.persona.name,
@@ -225,6 +234,7 @@ export class ConversationHistoryService {
           id: true,
           role: true,
           content: true,
+          tokenCount: true, // Include cached token count
           createdAt: true,
           personaId: true,
           discordMessageId: true,
@@ -248,6 +258,7 @@ export class ConversationHistoryService {
           id: msg.id,
           role: msg.role as MessageRole,
           content: msg.content,
+          tokenCount: msg.tokenCount ?? undefined, // Use cached token count
           createdAt: msg.createdAt,
           personaId: msg.personaId,
           personaName: msg.persona.preferredName || msg.persona.name,
