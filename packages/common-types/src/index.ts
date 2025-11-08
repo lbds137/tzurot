@@ -1,15 +1,17 @@
-// Export all common types
-export * from './ai.js';
-export * from './discord.js';
-export * from './config.js';
-export * from './constants.js';
-export * from './timeout-utils.js';
-export * from './modelDefaults.js';
-export * from './dateFormatting.js';
-export * from './api-types.js';
-export * from './schemas.js';
-export { splitMessage, preserveCodeBlocks } from './discord-utils.js';
-export { createLogger } from './logger.js';
+// Export config
+export * from './config/config.js';
+export * from './config/constants.js';
+export * from './config/modelDefaults.js';
+
+// Export types
+export * from './types/ai.js';
+export * from './types/api-types.js';
+export * from './types/discord.js';
+export * from './types/schemas.js';
+
+// Export utilities
+export { splitMessage, preserveCodeBlocks } from './utils/discord.js';
+export { createLogger } from './utils/logger.js';
 export {
   parseRedisUrl,
   createRedisSocketConfig,
@@ -17,12 +19,15 @@ export {
   type RedisConnectionConfig,
   type RedisSocketConfig,
   type BullMQRedisConfig,
-} from './redis-utils.js';
+} from './utils/redis.js';
 export {
   CircuitBreaker,
   type CircuitState,
   type CircuitBreakerOptions,
-} from './circuit-breaker.js';
+} from './utils/CircuitBreaker.js';
+export * from './utils/dateFormatting.js';
+export * from './utils/timeout.js';
+export * from './utils/deterministicUuid.js';
 
 // Export services
 export * from './services/prisma.js';

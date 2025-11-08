@@ -10,7 +10,7 @@
  */
 
 import { Worker, Job, Queue } from 'bullmq';
-import { PgvectorMemoryAdapter } from './memory/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import {

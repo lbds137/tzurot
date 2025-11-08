@@ -237,6 +237,27 @@ OpenRouter/Gemini API
 - Never log secrets/tokens
 - See privacy logging guide for user data
 
+## Folder Structure Standards
+
+> **📁 ALWAYS FOLLOW**: See [docs/standards/FOLDER_STRUCTURE.md](docs/standards/FOLDER_STRUCTURE.md) for comprehensive folder structure and file naming standards.
+
+**Quick Reference**:
+
+- ✅ **Root directory**: ≤5 files (index.ts + config files only)
+- ✅ **Standard folders**: `services/`, `utils/`, `types/`, domain-specific folders
+- ✅ **No single-file folders**: Merge into parent or wait until ≥2 files
+- ✅ **File naming**: PascalCase for classes, camelCase for utilities
+- ✅ **Folder naming**: Always plural (`services/` not `service/`)
+- ❌ **No `-utils.ts` suffix in root**: Use `utils/` folder instead
+
+**Common Anti-Patterns**:
+- Root file bloat (15 files in common-types was too many!)
+- Single-file folders (context/, gateway/, webhooks/ with 1 file each)
+- Inconsistent naming (mix of PascalCase and camelCase)
+- Functions in constants files (use utils/ instead)
+
+See the full documentation for detailed examples and migration guidance.
+
 ## Git Workflow
 
 ### 🚨 CRITICAL: Rebase-Only Workflow

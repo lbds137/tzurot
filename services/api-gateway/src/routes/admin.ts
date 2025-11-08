@@ -9,7 +9,7 @@ import { createLogger, getConfig } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
-import { requireOwnerAuth } from '../middleware/authMiddleware.js';
+import { requireOwnerAuth } from '../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../utils/imageProcessor.js';
 
 const logger = createLogger('admin-routes');
