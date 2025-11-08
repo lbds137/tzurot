@@ -6,12 +6,15 @@
 
 /**
  * Queue configuration
+ *
+ * IMPORTANT: Jobs contain full conversation history (can be 50-100KB each).
+ * Keep limits low to prevent Redis bloat, especially on Railway's shared instances.
  */
 export const QUEUE_CONFIG = {
-  /** Maximum number of completed jobs to keep in history */
-  COMPLETED_HISTORY_LIMIT: 100,
-  /** Maximum number of failed jobs to keep in history */
-  FAILED_HISTORY_LIMIT: 500,
+  /** Maximum number of completed jobs to keep in history (reduced from 100 to prevent Redis bloat) */
+  COMPLETED_HISTORY_LIMIT: 10,
+  /** Maximum number of failed jobs to keep in history (reduced from 500 to prevent Redis bloat) */
+  FAILED_HISTORY_LIMIT: 50,
   /** Maximum number of completed scheduled jobs to keep */
   SCHEDULED_COMPLETED_LIMIT: 10,
   /** Maximum number of failed scheduled jobs to keep */
