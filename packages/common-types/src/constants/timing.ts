@@ -88,7 +88,7 @@ export const RETRY_CONFIG = {
   REDIS_RETRY_MULTIPLIER: 100,
   /** Maximum delay for Redis retries (3 seconds) */
   REDIS_MAX_DELAY: 3000,
-  /** Max retries per Redis request (null for BullMQ - it manages its own retries) */
+  /** Max retries per Redis request for direct Redis clients (BullMQ uses null instead) */
   REDIS_RETRIES_PER_REQUEST: 3,
 } as const;
 
