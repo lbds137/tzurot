@@ -55,6 +55,7 @@ export interface AIJobData {
       id?: string;
       role: MessageRole;
       content: string;
+      tokenCount?: number; // Cached token count from database
       createdAt?: string;
       personaId?: string;
       personaName?: string;
@@ -265,6 +266,7 @@ export class AIJobProcessor {
           activePersonaId: context.activePersonaId,
           activePersonaName: context.activePersonaName,
           conversationHistory,
+          rawConversationHistory: context.conversationHistory, // Preserve tokenCount before BaseMessage conversion
           oldestHistoryTimestamp,
           participants,
           attachments: context.attachments,

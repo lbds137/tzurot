@@ -93,6 +93,12 @@ export interface ConversationContext {
   activePersonaId?: string;
   activePersonaName?: string;
   conversationHistory?: BaseMessage[];
+  // Raw conversation history (for accessing tokenCount before BaseMessage conversion)
+  rawConversationHistory?: {
+    role: string;
+    content: string;
+    tokenCount?: number;
+  }[];
   oldestHistoryTimestamp?: number; // Unix timestamp of oldest message in conversation history (for LTM deduplication)
   // All conversation participants (extracted from history before BaseMessage conversion)
   participants?: ParticipantPersona[];
@@ -246,10 +252,15 @@ export class ConversationalRAGService {
         // Work backwards from newest message, counting tokens until budget exhausted
         let historyTokensUsed = 0;
         const historyToInclude: BaseMessage[] = [];
+        const rawHistory = context.rawConversationHistory ?? [];
 
         for (let i = context.conversationHistory.length - 1; i >= 0; i--) {
           const msg = context.conversationHistory[i];
-          const msgTokens = this.promptBuilder.countTokens(msg.content as string);
+          const rawMsg = rawHistory[i];
+
+          // Use cached token count if available, otherwise compute it
+          // (Web Claude optimization: avoid recomputing tokens on every request)
+          const msgTokens = rawMsg?.tokenCount ?? this.promptBuilder.countTokens(msg.content as string);
 
           // Stop if adding this message would exceed budget
           if (historyTokensUsed + msgTokens > historyBudget) {
