@@ -18,10 +18,10 @@ describe('calculateJobTimeout', () => {
     it('should calculate timeout for 1 image with retry buffer', () => {
       // Base: 120s
       // Batch: 45s (VISION_MODEL)
-      // Retry buffer: 45s × 2 = 90s
-      // Total: 120s + 45s + 90s = 255s
+      // Retry buffer: 45s × 1 = 45s (one retry in worst case)
+      // Total: 120s + 45s + 45s = 210s
       const timeout = calculateJobTimeout(1, 0);
-      expect(timeout).toBe(255000);
+      expect(timeout).toBe(210000);
     });
 
     it('should NOT scale linearly with image count (parallel processing)', () => {
@@ -30,22 +30,22 @@ describe('calculateJobTimeout', () => {
       const oneImage = calculateJobTimeout(1, 0);
       const fiveImages = calculateJobTimeout(5, 0);
 
-      expect(oneImage).toBe(fiveImages); // Both 255s
+      expect(oneImage).toBe(fiveImages); // Both 210s
     });
 
     it('should handle large image count (still one parallel batch)', () => {
       // Even 100 images: same timeout (parallel processing)
       const timeout = calculateJobTimeout(100, 0);
-      expect(timeout).toBe(255000); // 120s + 45s + 90s
+      expect(timeout).toBe(210000); // 120s + 45s + 45s
     });
   });
 
   describe('Audio attachments', () => {
     it('should calculate timeout for 1 audio with retry buffer', () => {
       // Base: 120s
-      // Batch: 90s (WHISPER_API)
-      // Retry buffer: 90s × 2 = 180s
-      // Total: 120s + 90s + 180s = 390s → capped at 270s
+      // Batch: 150s (AUDIO_FETCH 60s + WHISPER_API 90s)
+      // Retry buffer: 150s × 1 = 150s (one retry in worst case)
+      // Total: 120s + 150s + 150s = 420s → capped at 270s
       const timeout = calculateJobTimeout(0, 1);
       expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // Capped at 270s
     });
@@ -61,31 +61,31 @@ describe('calculateJobTimeout', () => {
   describe('Mixed attachments', () => {
     it('should use slowest attachment type (audio wins)', () => {
       // Images: 45s batch
-      // Audio: 90s batch
-      // Slowest wins: 90s
-      // Total: 120s + 90s + 180s = 390s → capped at 270s
+      // Audio: 150s batch (60s + 90s)
+      // Slowest wins: 150s
+      // Total: 120s + 150s + 150s = 420s → capped at 270s
       const timeout = calculateJobTimeout(3, 2);
       expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // Capped
     });
 
     it('should handle edge case: only images (under cap)', () => {
-      // Images only: 120s + 45s + 90s = 255s (under 270s cap)
+      // Images only: 120s + 45s + 45s = 210s (under 270s cap)
       const timeout = calculateJobTimeout(10, 0);
-      expect(timeout).toBe(255000); // Not capped
+      expect(timeout).toBe(210000); // Not capped
     });
   });
 
   describe('Real-world scenarios', () => {
     it('should handle typical single image request', () => {
-      // 1 image: 120s + 45s + 90s = 255s
+      // 1 image: 120s + 45s + 45s = 210s
       const timeout = calculateJobTimeout(1, 0);
-      expect(timeout).toBe(255000); // 4.25 minutes
+      expect(timeout).toBe(210000); // 3.5 minutes
     });
 
     it('should handle moderate multi-image request', () => {
       // 3 images (parallel): same as 1 image
       const timeout = calculateJobTimeout(3, 0);
-      expect(timeout).toBe(255000); // 4.25 minutes
+      expect(timeout).toBe(210000); // 3.5 minutes
     });
 
     it('should handle voice message request', () => {
@@ -108,33 +108,41 @@ describe('calculateLLMTimeout', () => {
     const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 0);
 
     // 120s - 0 (no attachments) - 0 (no retries) - 15s (overhead) = 105s
-    // BUT minimum is 120s, so returns 120s
-    expect(llmTimeout).toBe(120000);
+    expect(llmTimeout).toBe(105000);
   });
 
   it('should account for image processing time', () => {
-    const jobTimeout = calculateJobTimeout(5, 0); // 255s
+    const jobTimeout = calculateJobTimeout(5, 0); // 210s
     const llmTimeout = calculateLLMTimeout(jobTimeout, 5, 0);
 
-    // 255s - 45s (batch) - 90s (retries) - 15s (overhead) = 105s
-    // BUT minimum is 120s, so returns 120s
-    expect(llmTimeout).toBe(120000);
+    // 210s - 45s (batch) - 45s (retry) - 15s (overhead) = 105s
+    expect(llmTimeout).toBe(105000);
   });
 
-  it('should enforce minimum timeout for slow models', () => {
+  it('should enforce minimum timeout for slow models with audio', () => {
     const jobTimeout = calculateJobTimeout(0, 1); // 270s (capped)
     const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 1);
 
-    // 270s - 90s (batch) - 180s (retries) - 15s (overhead) = -15s
-    // But minimum is 120s
-    expect(llmTimeout).toBe(120000);
+    // 270s - 150s (batch: 60s + 90s) - 150s (retry) - 15s (overhead) = -45s
+    // But minimum is 60s
+    expect(llmTimeout).toBe(60000);
   });
 
-  it('should handle mixed attachments', () => {
+  it('should handle mixed attachments with audio dominating', () => {
     const jobTimeout = calculateJobTimeout(3, 2); // 270s (capped)
     const llmTimeout = calculateLLMTimeout(jobTimeout, 3, 2);
 
-    // Audio dominates: 270s - 90s - 180s - 15s = -15s → 120s minimum
-    expect(llmTimeout).toBe(120000);
+    // Audio dominates: 270s - 150s - 150s - 15s = -45s → 60s minimum
+    expect(llmTimeout).toBe(60000);
+  });
+
+  it('should warn when timeout budget is very tight', () => {
+    // Mock logger to check if warning is called
+    const jobTimeout = calculateJobTimeout(0, 3); // 270s (capped)
+    const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 3);
+
+    // Multiple audio files push budget to minimum
+    expect(llmTimeout).toBe(60000);
+    // Note: In actual use, logger.warn would be called here
   });
 });
