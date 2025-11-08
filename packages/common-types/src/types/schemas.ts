@@ -154,6 +154,9 @@ export const requestContextSchema = z.object({
 /**
  * Generate request schema
  * Full validation schema for /ai/generate endpoint
+ *
+ * NOTE: personalityConfigSchema must be kept in sync with LoadedPersonality interface
+ * in PersonalityService.ts to avoid fields being stripped during validation.
  */
 export const generateRequestSchema = z.object({
   personality: personalityConfigSchema,
