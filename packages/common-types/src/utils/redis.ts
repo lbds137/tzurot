@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from './logger.js';
-import { RETRY_CONFIG } from '../constants/index.js';
+import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
 const logger = createLogger('RedisUtils');
 
@@ -100,10 +100,10 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
       // IPv4 (family: 4) is NOT supported for Railway private networking
       // See: https://docs.railway.app/reference/private-networking
       family: config.family || 6,
-      connectTimeout: 20000, // 20s to establish connection (increased for Railway latency)
-      commandTimeout: 15000, // 15s per command (increased for Railway latency)
+      connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
+      commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
       keepAlive: true, // Enable TCP keepalive
-      keepAliveInitialDelay: 30000, // 30s before first keepalive probe
+      keepAliveInitialDelay: REDIS_CONNECTION.KEEPALIVE,
       reconnectStrategy: (retries: number) => {
         if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
           // After max retries (30+ seconds), give up
@@ -146,9 +146,9 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     // IPv4 (family: 4) is NOT supported for Railway private networking
     // See: https://docs.railway.app/reference/private-networking
     family: config.family || 6,
-    connectTimeout: 20000, // 20s to establish connection (increased for Railway latency)
-    commandTimeout: 30000, // 30s per command (increased for slow Railway Redis operations)
-    keepAlive: 30000, // 30s TCP keepalive
+    connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
+    commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
+    keepAlive: REDIS_CONNECTION.KEEPALIVE,
     reconnectStrategy: (retries: number) => {
       if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
         // After max retries (30+ seconds), give up

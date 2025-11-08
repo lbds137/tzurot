@@ -53,6 +53,18 @@ export const INTERVALS = {
 } as const;
 
 /**
+ * Redis connection configuration
+ */
+export const REDIS_CONNECTION = {
+  /** Time to establish Redis connection (20 seconds - increased for Railway latency) */
+  CONNECT_TIMEOUT: 20000,
+  /** Timeout for Redis command execution (30 seconds - for slow Railway Redis) */
+  COMMAND_TIMEOUT: 30000,
+  /** TCP keepalive interval (30 seconds) */
+  KEEPALIVE: 30000,
+} as const;
+
+/**
  * Retry configuration for transient errors
  */
 export const RETRY_CONFIG = {
@@ -76,7 +88,7 @@ export const RETRY_CONFIG = {
   REDIS_RETRY_MULTIPLIER: 100,
   /** Maximum delay for Redis retries (3 seconds) */
   REDIS_MAX_DELAY: 3000,
-  /** Max retries per Redis request */
+  /** Max retries per Redis request (null for BullMQ - it manages its own retries) */
   REDIS_RETRIES_PER_REQUEST: 3,
 } as const;
 
