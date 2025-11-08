@@ -7,7 +7,15 @@
 
 import { BaseMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { createLogger, RETRY_CONFIG, TIMEOUTS } from '@tzurot/common-types';
+import {
+  createLogger,
+  RETRY_CONFIG,
+  TIMEOUTS,
+  calculateJobTimeout,
+  calculateLLMTimeout,
+  TransientErrorCode,
+  ERROR_MESSAGES,
+} from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 
 const logger = createLogger('LLMInvoker');
@@ -41,19 +49,41 @@ export class LLMInvoker {
    * Invoke LLM with timeout and retry logic for transient errors
    *
    * Features:
-   * - Retries on transient network errors (ECONNRESET, ETIMEDOUT, ENOTFOUND)
+   * - Retries on transient network errors and empty responses
    * - Exponential backoff between retries
-   * - Global timeout to prevent exceeding gateway JOB_WAIT limit
+   * - Dynamic global timeout based on attachment count
    * - Per-attempt timeout reduction based on remaining time
+   *
+   * @param model - LangChain chat model to invoke
+   * @param messages - Message array to send to the model
+   * @param modelName - Model name for logging
+   * @param imageCount - Number of images in the request (for timeout calculation)
+   * @param audioCount - Number of audio attachments in the request (for timeout calculation)
    */
   async invokeWithRetry(
     model: BaseChatModel,
     messages: BaseMessage[],
-    modelName: string
+    modelName: string,
+    imageCount: number = 0,
+    audioCount: number = 0
   ): Promise<BaseMessage> {
     const startTime = Date.now();
     const maxRetries = RETRY_CONFIG.LLM_MAX_RETRIES;
-    const globalTimeoutMs = RETRY_CONFIG.LLM_GLOBAL_TIMEOUT;
+
+    // Calculate dynamic LLM timeout based on job timeout and attachments
+    const jobTimeout = calculateJobTimeout(imageCount, audioCount);
+    const globalTimeoutMs = calculateLLMTimeout(jobTimeout, imageCount, audioCount);
+
+    logger.info(
+      {
+        modelName,
+        imageCount,
+        audioCount,
+        jobTimeout,
+        globalTimeoutMs,
+      },
+      `[LLMInvoker] Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
+    );
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Check if we've exceeded global timeout before attempting
@@ -90,6 +120,22 @@ export class LLMInvoker {
         // Invoke with calculated timeout (respects global timeout)
         const response = await model.invoke(messages, { timeout: attemptTimeoutMs });
 
+        // Guard against empty responses (treat as retryable error)
+        const content = typeof response.content === 'string' ? response.content.trim() : '';
+        if (!content) {
+          const emptyResponseError = new Error(ERROR_MESSAGES.EMPTY_RESPONSE);
+          logger.warn(
+            {
+              err: emptyResponseError,
+              modelName,
+              attempt: attempt + 1,
+              responseType: typeof response.content,
+            },
+            '[LLMInvoker] Empty response detected, treating as retryable error'
+          );
+          throw emptyResponseError;
+        }
+
         if (attempt > 0) {
           logger.info(
             { modelName, attempt: attempt + 1 },
@@ -99,22 +145,23 @@ export class LLMInvoker {
 
         return response;
       } catch (error) {
-        // Check if this is a transient network error worth retrying
+        // Check if this is a transient network error or empty response worth retrying
         // Check both error.code (Node.js native errors) and error.message (wrapped errors)
         const errorCode = (error as any).code;
         const errorMessage = error instanceof Error ? error.message : '';
         const errorStatus = (error as any).status; // Some APIs use status field
         const isTransientError =
-          errorCode === 'ECONNRESET' ||
-          errorCode === 'ETIMEDOUT' ||
-          errorCode === 'ENOTFOUND' ||
-          errorCode === 'ECONNREFUSED' ||
-          errorCode === 'ABORTED' ||
-          errorStatus === 'ABORTED' ||
-          errorMessage.includes('ECONNRESET') ||
-          errorMessage.includes('ETIMEDOUT') ||
-          errorMessage.includes('ENOTFOUND') ||
-          errorMessage.includes('ABORTED');
+          errorCode === TransientErrorCode.ECONNRESET ||
+          errorCode === TransientErrorCode.ETIMEDOUT ||
+          errorCode === TransientErrorCode.ENOTFOUND ||
+          errorCode === TransientErrorCode.ECONNREFUSED ||
+          errorCode === TransientErrorCode.ABORTED ||
+          errorStatus === TransientErrorCode.ABORTED ||
+          errorMessage.includes(TransientErrorCode.ECONNRESET) ||
+          errorMessage.includes(TransientErrorCode.ETIMEDOUT) ||
+          errorMessage.includes(TransientErrorCode.ENOTFOUND) ||
+          errorMessage.includes(TransientErrorCode.ABORTED) ||
+          errorMessage.includes(ERROR_MESSAGES.EMPTY_RESPONSE_INDICATOR);
 
         if (isTransientError && attempt < maxRetries) {
           const delayMs = Math.pow(2, attempt) * RETRY_CONFIG.LLM_RETRY_BASE_DELAY;

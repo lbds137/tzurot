@@ -294,8 +294,28 @@ export class ConversationalRAGService {
         personality.temperature
       );
 
+      // Calculate attachment counts for dynamic timeout calculation
+      const imageCount =
+        context.attachments?.filter(
+          att =>
+            att.contentType.startsWith('image/') &&
+            !att.isVoiceMessage
+        ).length ?? 0;
+      const audioCount =
+        context.attachments?.filter(
+          att =>
+            att.contentType.startsWith('audio/') ||
+            att.isVoiceMessage
+        ).length ?? 0;
+
       // Invoke the model with timeout and retry logic
-      const response = await this.llmInvoker.invokeWithRetry(model, messages, modelName);
+      const response = await this.llmInvoker.invokeWithRetry(
+        model,
+        messages,
+        modelName,
+        imageCount,
+        audioCount
+      );
 
       const rawContent = response.content as string;
 

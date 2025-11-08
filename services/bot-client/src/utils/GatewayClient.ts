@@ -39,14 +39,18 @@ export class GatewayClient {
       modelUsed?: string;
     };
   }> {
-    // Calculate timeout based on image count (same logic as gateway)
+    // Calculate timeout based on attachment count (parallel processing, same logic as gateway)
     // Declare outside try block so it's accessible in catch block
     const imageCount =
       context.attachments?.filter(
         att => att.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX) && !att.isVoiceMessage
       ).length ?? 0;
+    const audioCount =
+      context.attachments?.filter(
+        att => att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || att.isVoiceMessage
+      ).length ?? 0;
 
-    const timeoutMs = calculateJobTimeout(imageCount);
+    const timeoutMs = calculateJobTimeout(imageCount, audioCount);
 
     try {
       // Debug: Check what fields are in context before sending
@@ -58,7 +62,7 @@ export class GatewayClient {
       );
 
       logger.debug(
-        `[GatewayClient] Request timeout: ${timeoutMs}ms (images: ${imageCount})`
+        `[GatewayClient] Request timeout: ${timeoutMs}ms (images: ${imageCount}, audio: ${audioCount})`
       );
 
       // Use wait=true to eliminate polling and use Redis pub/sub instead

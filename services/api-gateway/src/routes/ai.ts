@@ -149,16 +149,20 @@ aiRouter.post('/generate', async (req, res) => {
     // If client wants to wait, use Redis pub/sub to wait for completion
     if (waitForCompletion) {
       try {
-        // Calculate timeout based on attachments (images take longer)
+        // Calculate timeout based on attachments (parallel processing)
         const imageCount =
           request.context.attachments?.filter(
             att => att.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX) && !att.isVoiceMessage
           ).length ?? 0;
+        const audioCount =
+          request.context.attachments?.filter(
+            att => att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || att.isVoiceMessage
+          ).length ?? 0;
 
-        const timeoutMs = calculateJobTimeout(imageCount);
+        const timeoutMs = calculateJobTimeout(imageCount, audioCount);
 
         logger.debug(
-          `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount})`
+          `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount}, audio: ${audioCount})`
         );
 
         // Wait for job completion via Redis pub/sub (no HTTP polling!)
