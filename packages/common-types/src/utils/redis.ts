@@ -44,7 +44,7 @@ export interface BullMQRedisConfig {
   commandTimeout: number;
   keepAlive: number;
   reconnectStrategy: (retries: number) => number | Error;
-  maxRetriesPerRequest: number;
+  maxRetriesPerRequest: number | null; // BullMQ requires null
   lazyConnect: boolean;
   enableReadyCheck: boolean;
 }
@@ -129,6 +129,10 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
  *
  * BullMQ uses IORedis format (flattened, not nested socket)
  *
+ * IMPORTANT: BullMQ requires maxRetriesPerRequest to be null so it can manage
+ * its own retry logic. Setting it to a number causes IORedis to give up and log
+ * errors, even though BullMQ continues retrying in the background.
+ *
  * @param config Basic Redis connection config
  * @returns BullMQ-compatible Redis configuration
  */
@@ -143,7 +147,7 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     // See: https://docs.railway.app/reference/private-networking
     family: config.family || 6,
     connectTimeout: 20000, // 20s to establish connection (increased for Railway latency)
-    commandTimeout: 15000, // 15s per command (increased for Railway latency)
+    commandTimeout: 30000, // 30s per command (increased for slow Railway Redis operations)
     keepAlive: 30000, // 30s TCP keepalive
     reconnectStrategy: (retries: number) => {
       if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
@@ -156,7 +160,7 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
       logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
       return delay;
     },
-    maxRetriesPerRequest: RETRY_CONFIG.REDIS_RETRIES_PER_REQUEST,
+    maxRetriesPerRequest: null, // BullMQ requires null - it manages its own retries
     lazyConnect: false, // Connect immediately to fail fast
     enableReadyCheck: true, // Verify Redis is ready
   };
