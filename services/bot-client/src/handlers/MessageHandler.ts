@@ -17,6 +17,7 @@ import {
   createLogger,
   getConfig,
   AI_DEFAULTS,
+  AI_ENDPOINTS,
   INTERVALS,
   MessageRole,
   CONTENT_TYPES,
@@ -525,7 +526,9 @@ export class MessageHandler {
       // Add model indicator to the message (for Discord display only, not in history)
       let contentWithIndicator = response.content;
       if (response.metadata?.modelUsed) {
-        contentWithIndicator += `\n-# Model used: ${response.metadata.modelUsed}`;
+        const modelName = response.metadata.modelUsed;
+        const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelName}`;
+        contentWithIndicator += `\n-# ||Model: [\`${modelName}\`](<${modelUrl}>)||`;
       }
 
       // Send via webhook if in a guild text channel or thread
