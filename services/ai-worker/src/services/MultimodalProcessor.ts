@@ -84,6 +84,16 @@ export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality
 ): Promise<string> {
+  logger.info(
+    {
+      personalityName: personality.name,
+      mainModel: personality.model,
+      visionModel: personality.visionModel,
+      visionModelType: typeof personality.visionModel,
+    },
+    'describeImage called - checking vision model configuration'
+  );
+
   // Priority 1: Use personality's configured vision model if specified
   if (personality.visionModel) {
     logger.info(
