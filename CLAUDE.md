@@ -393,11 +393,34 @@ git push --force-with-lease origin feat/your-feature
 
 **Current Status**:
 
-- ✅ **368 tests passing** (218 api-gateway + 150 ai-worker)
+- ✅ **497 tests passing** across 23 test files
+  - common-types: 91 tests
+  - api-gateway: 109 tests
+  - ai-worker: 162 tests
+  - bot-client: 135 tests
 - ✅ Utility functions fully tested
-- ✅ Error handling and retry utilities with 45 tests
+- ✅ Error handling and retry utilities comprehensive
 - 🚧 Service layer coverage expanding
 - 🚧 Integration tests planned
+
+**Standardized Test Commands** (Project uses `pnpm`, not `npm`):
+
+1. **Run all tests**: `pnpm test`
+2. **Run specific test file**: `pnpm test -- <filename>`
+3. **Check test summary**: `pnpm test 2>&1 | grep -E "(Test Files|Tests)" | tail -10`
+4. **Run tests in specific service**: `pnpm --filter @tzurot/<service> test`
+
+Examples:
+```bash
+# All tests
+pnpm test
+
+# Specific file in ai-worker
+pnpm --filter @tzurot/ai-worker test -- LLMInvoker.test.ts
+
+# Just api-gateway tests
+pnpm --filter @tzurot/api-gateway test
+```
 
 **Key Resources**:
 

@@ -14,10 +14,10 @@ export const TIMEOUTS = {
   CACHE_TTL: 5 * 60 * 1000,
   /** Vision model invocation timeout (45 seconds - increased for parallel batch processing) */
   VISION_MODEL: 45000,
-  /** Whisper transcription timeout (90 seconds - realistic for voice messages) */
-  WHISPER_API: 90000,
-  /** Audio file download timeout (60 seconds) */
-  AUDIO_FETCH: 60000,
+  /** Whisper transcription timeout (60 seconds - realistic based on production data) */
+  WHISPER_API: 60000,
+  /** Audio file download timeout (30 seconds - Discord CDN is typically fast) */
+  AUDIO_FETCH: 30000,
   /** LLM API call timeout per attempt (90 seconds - increased for slow models) */
   LLM_API: 90000,
   /** Job wait timeout in gateway (4.5 minutes - Railway safety buffer) */

@@ -71,24 +71,27 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
     strippedCount++;
   }
 
-  // Log if we stripped anything
+  // Log if we stripped anything (but skip if only whitespace was removed)
   if (cleaned !== originalContent) {
     const strippedPrefix = originalContent.substring(
       0,
       originalContent.length - cleaned.length
     ).trim();
 
-    logger.warn(
-      {
-        personalityName,
-        strippedPrefix,
-        strippedCount,
-        wasStripped: true,
-      },
-      `[ResponseCleanup] Stripped ${strippedCount} prefix(es) from response. ` +
-        `LLM learned the prefix pattern from conversation history. ` +
-        `Prefix(es): "${strippedPrefix.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}${strippedPrefix.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW ? '...' : ''}"`
-    );
+    // Only log if we actually stripped meaningful content (not just whitespace)
+    if (strippedPrefix.length > 0) {
+      logger.warn(
+        {
+          personalityName,
+          strippedPrefix,
+          strippedCount,
+          wasStripped: true,
+        },
+        `[ResponseCleanup] Stripped ${strippedCount} prefix(es) from response. ` +
+          `LLM learned the prefix pattern from conversation history. ` +
+          `Prefix(es): "${strippedPrefix.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}${strippedPrefix.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW ? '...' : ''}"`
+      );
+    }
   }
 
   return cleaned;

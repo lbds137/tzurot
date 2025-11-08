@@ -178,61 +178,17 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
-    it('should retry on ABORTED error code', async () => {
+    it('should retry on AbortError (DOMException from timeout)', async () => {
       vi.useFakeTimers();
+
+      // Create a proper DOMException with name='AbortError'
+      const abortError = new Error('This operation was aborted');
+      abortError.name = 'AbortError';
 
       const mockModel = {
         invoke: vi
           .fn()
-          .mockRejectedValueOnce({ code: 'ABORTED', message: 'Request aborted' })
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
-
-      const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
-
-      await vi.runAllTimersAsync();
-
-      const result = await promise;
-
-      expect(result.content).toBe('Success after retry');
-      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
-
-      vi.useRealTimers();
-    });
-
-    it('should retry on ABORTED status', async () => {
-      vi.useFakeTimers();
-
-      const mockModel = {
-        invoke: vi
-          .fn()
-          .mockRejectedValueOnce({ status: 'ABORTED', message: 'Request aborted' })
-          .mockResolvedValueOnce({ content: 'Success after retry' }),
-      } as any as BaseChatModel;
-
-      const messages: BaseMessage[] = [new HumanMessage('Hello')];
-
-      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
-
-      await vi.runAllTimersAsync();
-
-      const result = await promise;
-
-      expect(result.content).toBe('Success after retry');
-      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
-
-      vi.useRealTimers();
-    });
-
-    it('should retry on ABORTED in error message', async () => {
-      vi.useFakeTimers();
-
-      const mockModel = {
-        invoke: vi
-          .fn()
-          .mockRejectedValueOnce(new Error('Stream ABORTED by server'))
+          .mockRejectedValueOnce(abortError)
           .mockResolvedValueOnce({ content: 'Success after retry' }),
       } as any as BaseChatModel;
 

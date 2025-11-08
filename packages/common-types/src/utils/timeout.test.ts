@@ -43,9 +43,9 @@ describe('calculateJobTimeout', () => {
   describe('Audio attachments', () => {
     it('should calculate timeout for 1 audio with retry buffer', () => {
       // Base: 120s
-      // Batch: 150s (AUDIO_FETCH 60s + WHISPER_API 90s)
-      // Retry buffer: 150s × 1 = 150s (one retry in worst case)
-      // Total: 120s + 150s + 150s = 420s → capped at 270s
+      // Batch: 90s (AUDIO_FETCH 30s + WHISPER_API 60s)
+      // Retry buffer: 90s × 1 = 90s (one retry in worst case)
+      // Total: 120s + 90s + 90s = 300s → capped at 270s
       const timeout = calculateJobTimeout(0, 1);
       expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // Capped at 270s
     });
@@ -61,9 +61,9 @@ describe('calculateJobTimeout', () => {
   describe('Mixed attachments', () => {
     it('should use slowest attachment type (audio wins)', () => {
       // Images: 45s batch
-      // Audio: 150s batch (60s + 90s)
-      // Slowest wins: 150s
-      // Total: 120s + 150s + 150s = 420s → capped at 270s
+      // Audio: 90s batch (30s + 60s)
+      // Slowest wins: 90s
+      // Total: 120s + 90s + 90s = 300s → capped at 270s
       const timeout = calculateJobTimeout(3, 2);
       expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // Capped
     });
@@ -123,17 +123,17 @@ describe('calculateLLMTimeout', () => {
     const jobTimeout = calculateJobTimeout(0, 1); // 270s (capped)
     const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 1);
 
-    // 270s - 150s (batch: 60s + 90s) - 150s (retry) - 15s (overhead) = -45s
-    // But minimum is 60s
-    expect(llmTimeout).toBe(60000);
+    // 270s - 90s (batch: 30s + 60s) - 90s (retry) - 15s (overhead) = 75s
+    // But minimum is 90s
+    expect(llmTimeout).toBe(90000);
   });
 
   it('should handle mixed attachments with audio dominating', () => {
     const jobTimeout = calculateJobTimeout(3, 2); // 270s (capped)
     const llmTimeout = calculateLLMTimeout(jobTimeout, 3, 2);
 
-    // Audio dominates: 270s - 150s - 150s - 15s = -45s → 60s minimum
-    expect(llmTimeout).toBe(60000);
+    // Audio dominates: 270s - 90s - 90s - 15s = 75s → 90s minimum
+    expect(llmTimeout).toBe(90000);
   });
 
   it('should warn when timeout budget is very tight', () => {
@@ -142,7 +142,7 @@ describe('calculateLLMTimeout', () => {
     const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 3);
 
     // Multiple audio files push budget to minimum
-    expect(llmTimeout).toBe(60000);
+    expect(llmTimeout).toBe(90000);
     // Note: In actual use, logger.warn would be called here
   });
 });
