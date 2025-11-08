@@ -63,18 +63,20 @@ export const TIMEOUTS = {
   QUEUE_RETRY_DELAY: 2000,
   /** Cache TTL for personality/user data (5 minutes) */
   CACHE_TTL: 5 * 60 * 1000,
-  /** Vision model invocation timeout (30 seconds) */
-  VISION_MODEL: 30000,
-  /** Whisper transcription timeout (5 minutes for long audio files) */
-  WHISPER_API: 300000,
-  /** Audio file download timeout (2 minutes) */
-  AUDIO_FETCH: 120000,
-  /** LLM API call timeout per attempt (1 minute - allows retries within global timeout) */
-  LLM_API: 60000,
-  /** Job wait timeout in gateway (4.5 minutes) */
+  /** Vision model invocation timeout (45 seconds - increased for parallel batch processing) */
+  VISION_MODEL: 45000,
+  /** Whisper transcription timeout (90 seconds - realistic for voice messages) */
+  WHISPER_API: 90000,
+  /** Audio file download timeout (60 seconds) */
+  AUDIO_FETCH: 60000,
+  /** LLM API call timeout per attempt (90 seconds - increased for slow models) */
+  LLM_API: 90000,
+  /** Job wait timeout in gateway (4.5 minutes - Railway safety buffer) */
   JOB_WAIT: 270000,
-  /** Base timeout for job calculations (2 minutes) */
+  /** Base timeout for job calculations (2 minutes - minimum for any job) */
   JOB_BASE: 120000,
+  /** System overhead for memory, DB, queue, network operations (15 seconds) */
+  SYSTEM_OVERHEAD: 15000,
 } as const;
 
 /**
@@ -285,6 +287,32 @@ export enum AIProvider {
   OpenRouter = 'openrouter',
   Local = 'local',
 }
+
+/**
+ * Transient network error codes that should trigger retries
+ */
+export enum TransientErrorCode {
+  /** Connection reset by peer */
+  ECONNRESET = 'ECONNRESET',
+  /** Connection timed out */
+  ETIMEDOUT = 'ETIMEDOUT',
+  /** DNS lookup failed */
+  ENOTFOUND = 'ENOTFOUND',
+  /** Connection refused */
+  ECONNREFUSED = 'ECONNREFUSED',
+  /** Request aborted */
+  ABORTED = 'ABORTED',
+}
+
+/**
+ * Error messages for LLM invocation failures
+ */
+export const ERROR_MESSAGES = {
+  /** Error message when LLM returns empty response */
+  EMPTY_RESPONSE: 'LLM returned empty response',
+  /** Substring to detect empty response errors */
+  EMPTY_RESPONSE_INDICATOR: 'empty response',
+} as const;
 
 /**
  * Job ID prefixes for different job types
