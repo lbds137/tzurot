@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { MessageRole } from '../config/constants.js';
 
 /**
  * Discord environment context schema
@@ -63,7 +64,7 @@ export const attachmentMetadataSchema = z.object({
  */
 export const apiConversationMessageSchema = z.object({
   id: z.string().optional(),
-  role: z.enum(['user', 'assistant', 'system']),
+  role: z.nativeEnum(MessageRole),
   content: z.string(),
   createdAt: z.string().optional(),
   // Persona info for multi-participant conversations

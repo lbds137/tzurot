@@ -2,6 +2,8 @@
  * AI-related types
  */
 
+import { MessageRole } from '../config/constants.js';
+
 export interface ChatCompletionRequest {
   model: string;
   messages: { role: string; content: string }[];
@@ -13,7 +15,7 @@ export interface ChatCompletionRequest {
 
 export interface ConversationHistory {
   messages: {
-    role: 'user' | 'assistant' | 'system';
+    role: MessageRole;
     content: string;
     timestamp?: Date;
   }[];
