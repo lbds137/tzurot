@@ -359,6 +359,89 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
+  describe('updateLastUserMessage - Token Count Recomputation', () => {
+    it('should recompute token count when updating message content', async () => {
+      const originalContent = 'Hello';
+      const enrichedContent = 'Hello [Image: cat.jpg]\nA cute cat sitting on a mat';
+      const originalTokenCount = 2;
+      const enrichedTokenCount = 15;
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-123',
+        content: originalContent,
+        tokenCount: originalTokenCount,
+        role: MessageRole.User,
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        createdAt: new Date(),
+        discordMessageId: ['discord-123'],
+      });
+
+      (tokenCounter.countTextTokens as any).mockReturnValue(enrichedTokenCount);
+
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({
+        id: 'msg-123',
+        content: enrichedContent,
+        tokenCount: enrichedTokenCount,
+      });
+
+      const result = await service.updateLastUserMessage(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        enrichedContent
+      );
+
+      expect(result).toBe(true);
+      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(enrichedContent);
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
+        where: { id: 'msg-123' },
+        data: {
+          content: enrichedContent,
+          tokenCount: enrichedTokenCount,
+        },
+      });
+    });
+
+    it('should handle token count recomputation for very long enriched content', async () => {
+      const originalContent = 'Check out this image';
+      const longDescription = 'A'.repeat(1000); // Very long attachment description
+      const enrichedContent = `${originalContent} [Image: photo.jpg]\n${longDescription}`;
+      const largeTokenCount = 250;
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-456',
+        content: originalContent,
+        tokenCount: 4,
+      });
+
+      (tokenCounter.countTextTokens as any).mockReturnValue(largeTokenCount);
+
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({
+        id: 'msg-456',
+        content: enrichedContent,
+        tokenCount: largeTokenCount,
+      });
+
+      await service.updateLastUserMessage(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        enrichedContent
+      );
+
+      expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(enrichedContent);
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tokenCount: largeTokenCount,
+          }),
+        })
+      );
+    });
+  });
+
   describe('Performance Optimization Validation', () => {
     it('should only call countTextTokens once per message addition', async () => {
       const content1 = 'First message';
