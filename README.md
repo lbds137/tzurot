@@ -6,7 +6,7 @@ A modern, scalable Discord bot with customizable AI personalities, powered by mi
 
 ## Why v3?
 
-Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is better in every way:
+Shapes.inc (v2's AI provider) killed their API to force users to their website only, forcing a complete rewrite. v3 is better in every way:
 
 - **Vendor Independence**: Clean abstraction for AI providers - never locked in again
 - **TypeScript Throughout**: Full type safety and better IDE support
@@ -65,8 +65,9 @@ Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is bette
    ```bash
    cp .env.example .env
    # Edit .env with your tokens and keys
-   # Required: DISCORD_TOKEN, AI provider keys (OpenRouter or Gemini)
-   # Optional: QDRANT_URL, QDRANT_API_KEY for long-term memory
+   # Required: DISCORD_TOKEN, DATABASE_URL (PostgreSQL with pgvector)
+   # Required: AI provider keys (OpenRouter or Gemini), OPENAI_API_KEY (for embeddings)
+   # Optional: REDIS_URL (Railway provides this automatically)
    ```
 
 3. **Start services:**
@@ -218,16 +219,18 @@ pnpm dev
 
 - **[CURRENT_WORK.md](CURRENT_WORK.md)** - Current project status and what's being worked on
 - **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
-- **[ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
-- **[V2_FEATURE_TRACKING.md](V2_FEATURE_TRACKING.md)** - What's been ported from v2
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Railway deployment guide
-- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Local development setup
+- **[Architecture Decisions](docs/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
+- **[Timeout Allocation Guide](docs/architecture/TIMEOUT_ALLOCATION.md)** - Railway timeout budget management
+- **[V2 Feature Tracking](docs/planning/V2_FEATURE_TRACKING.md)** - What's been ported from v2
+- **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Railway deployment guide
+- **[Development Guide](docs/guides/DEVELOPMENT.md)** - Local development setup
+- **[Testing Guide](docs/guides/TESTING.md)** - Testing philosophy and patterns
 
 ## Project History
 
 **v2** (archived in `tzurot-legacy/`): JavaScript, DDD architecture, Shapes.inc AI provider
 
-- Shutdown: Shapes.inc discontinued their service, forcing migration
+- API Shutdown: Shapes.inc killed their API to force users to their website, forcing migration
 - Lessons: Over-engineered architecture, vendor lock-in
 
 **v3** (current): TypeScript, microservices, vendor-agnostic

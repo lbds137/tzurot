@@ -14,7 +14,7 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 
 **Project Context**: This is a **one-person project** developed and maintained by a single developer with AI assistance. Avoid team-oriented language and assumptions.
 
-**Why v3 Exists**: Shapes.inc (the AI API provider for v2) shut down, forcing a complete rewrite. v3 is vendor-agnostic and uses modern patterns.
+**Why v3 Exists**: Shapes.inc (the AI API provider for v2) killed their API to force users to their website only, forcing a complete rewrite. v3 is vendor-agnostic and uses modern patterns.
 
 ## Tech Stack
 
