@@ -64,15 +64,6 @@ export const MODEL_DEFAULTS = {
 export type DefaultModelName = (typeof MODEL_DEFAULTS)[keyof typeof MODEL_DEFAULTS];
 
 /**
- * Default AI models (legacy - use MODEL_DEFAULTS instead)
- * @deprecated Use MODEL_DEFAULTS.EMBEDDING instead
- */
-export const DEFAULT_MODELS = {
-  /** Default OpenAI embedding model */
-  EMBEDDING: 'text-embedding-3-small',
-} as const;
-
-/**
  * AI provider identifiers
  */
 export enum AIProvider {
