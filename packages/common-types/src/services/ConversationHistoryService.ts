@@ -4,8 +4,8 @@
  */
 
 import { getPrismaClient } from './prisma.js';
-import { createLogger } from '../logger.js';
-import { MessageRole } from '../constants.js';
+import { createLogger } from '../utils/logger.js';
+import { MessageRole } from '../config/constants.js';
 
 const logger = createLogger('ConversationHistoryService');
 

@@ -5,7 +5,7 @@
  * All dates are formatted in Eastern timezone (APP_SETTINGS.TIMEZONE).
  */
 
-import { APP_SETTINGS } from './constants.js';
+import { APP_SETTINGS } from '../config/constants.js';
 
 /**
  * Format a date with full context: day of week, date, time, timezone

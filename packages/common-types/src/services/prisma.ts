@@ -4,8 +4,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../logger.js';
-import { getConfig } from '../config.js';
+import { createLogger } from '../utils/logger.js';
+import { getConfig } from '../config/config.js';
 
 const logger = createLogger('PrismaService');
 const config = getConfig();

@@ -8,7 +8,7 @@
  * This service only handles LTM (pgvector) storage.
  */
 
-import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import { createLogger, getPrismaClient, type LoadedPersonality } from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGService.js';
 

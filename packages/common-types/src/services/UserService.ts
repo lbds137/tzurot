@@ -5,8 +5,8 @@
 
 import { Prisma } from '@prisma/client';
 import { getPrismaClient } from './prisma.js';
-import { createLogger } from '../logger.js';
-import { generateUserUuid, generatePersonaUuid } from '../deterministic-uuid.js';
+import { createLogger } from '../utils/logger.js';
+import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 
 const logger = createLogger('UserService');
 

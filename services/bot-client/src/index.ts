@@ -5,8 +5,8 @@ import {
   disconnectPrisma,
   getConfig,
 } from '@tzurot/common-types';
-import { GatewayClient } from './gateway/GatewayClient.js';
-import { WebhookManager } from './webhooks/WebhookManager.js';
+import { GatewayClient } from './utils/GatewayClient.js';
+import { WebhookManager } from './utils/WebhookManager.js';
 import { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { closeRedis } from './redis.js';
