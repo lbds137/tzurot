@@ -9,7 +9,6 @@ export {
   AI_DEFAULTS,
   AI_ENDPOINTS,
   MODEL_DEFAULTS,
-  DEFAULT_MODELS,
   AIProvider,
   type DefaultModelName,
 } from './ai.js';
