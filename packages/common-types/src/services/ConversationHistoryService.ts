@@ -81,7 +81,7 @@ export class ConversationHistoryService {
         `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp ? 'explicit' : 'default'}, tokens: ${tokenCount})`
       );
     } catch (error) {
-      logger.error({ err: error}, `Failed to add message to conversation history`);
+      logger.error({ err: error }, `Failed to add message to conversation history`);
       throw error;
     }
   }
@@ -117,17 +117,23 @@ export class ConversationHistoryService {
         return false;
       }
 
-      // Update the content
+      // Recompute token count for enriched content
+      const tokenCount = countTextTokens(newContent);
+
+      // Update the content and token count
       await this.prisma.conversationHistory.update({
         where: {
           id: lastMessage.id,
         },
         data: {
           content: newContent,
+          tokenCount, // Update token count to match enriched content
         },
       });
 
-      logger.debug(`Updated user message ${lastMessage.id} with enriched content`);
+      logger.debug(
+        `Updated user message ${lastMessage.id} with enriched content (tokens: ${tokenCount})`
+      );
       return true;
     } catch (error) {
       logger.error({ err: error }, `Failed to update user message`);
