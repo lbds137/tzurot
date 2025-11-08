@@ -8,41 +8,9 @@ import { createLogger } from '../utils/logger.js';
 import { MODEL_DEFAULTS } from '../config/modelDefaults.js';
 import { AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../config/constants.js';
 import type { Decimal } from '@prisma/client/runtime/library';
+import type { LoadedPersonality } from '../types/schemas.js';
 
 const logger = createLogger('PersonalityService');
-
-/**
- * Simplified personality type for runtime use
- */
-export interface LoadedPersonality {
-  id: string;
-  name: string;
-  displayName: string;
-  slug: string;
-  systemPrompt: string;
-  model: string;
-  visionModel?: string; // Optional vision model for image processing
-  temperature: number;
-  maxTokens: number;
-  topP?: number;
-  topK?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-  contextWindowTokens: number;
-  avatarUrl?: string;
-  memoryScoreThreshold?: number;
-  memoryLimit?: number;
-  // Character definition fields
-  characterInfo: string;
-  personalityTraits: string;
-  personalityTone?: string;
-  personalityAge?: string;
-  personalityAppearance?: string;
-  personalityLikes?: string;
-  personalityDislikes?: string;
-  conversationalGoals?: string;
-  conversationalExamples?: string;
-}
 
 export interface DatabasePersonality {
   id: string;

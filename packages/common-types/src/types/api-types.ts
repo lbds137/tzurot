@@ -13,7 +13,7 @@ export type {
   ApiConversationMessage,
   GenerateRequest,
   DiscordEnvironment,
-  PersonalityConfig,
+  LoadedPersonality,
   RequestContext,
   ReferencedMessage,
 } from './schemas.js';
