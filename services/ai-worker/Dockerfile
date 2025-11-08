@@ -1,6 +1,9 @@
 # Build stage
 FROM node:22-slim AS builder
 
+# Install OpenSSL for Prisma
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # Install pnpm
 RUN npm install -g pnpm
 
@@ -29,6 +32,9 @@ RUN pnpm --filter ai-worker build
 
 # Production stage
 FROM node:22-slim
+
+# Install OpenSSL for Prisma
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm
 RUN npm install -g pnpm
