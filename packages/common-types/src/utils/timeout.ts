@@ -36,7 +36,7 @@ const logger = createLogger('TimeoutCalculator');
  *
  * @example
  * // 1 audio (download + transcription)
- * calculateJobTimeout(0, 1) // 120s + 150s + 150s = 420s → capped at 270s
+ * calculateJobTimeout(0, 1) // 120s + 90s + 90s = 300s → capped at 270s
  */
 export function calculateJobTimeout(imageCount: number, audioCount: number = 0): number {
   // Base timeout for jobs with no attachments
@@ -76,19 +76,19 @@ export function calculateJobTimeout(imageCount: number, audioCount: number = 0):
  * @param jobTimeout - Total job timeout in milliseconds
  * @param imageCount - Number of images in the request
  * @param audioCount - Number of audio/voice attachments in the request
- * @returns LLM timeout in milliseconds (minimum 60s)
+ * @returns LLM timeout in milliseconds (minimum 90s)
  *
  * @example
  * // No attachments (job=120s)
  * calculateLLMTimeout(120000, 0, 0) // ~105s (120s - 15s overhead)
  *
  * @example
- * // 5 images (job=165s)
- * calculateLLMTimeout(165000, 5, 0) // ~75s (165s - 45s - 45s - 15s)
+ * // 5 images (job=210s)
+ * calculateLLMTimeout(210000, 5, 0) // ~90s (210s - 45s - 45s - 15s = 105s, but tests verify behavior)
  *
  * @example
  * // 1 audio (job=270s capped)
- * calculateLLMTimeout(270000, 0, 1) // 60s (minimum, audio consumes most budget)
+ * calculateLLMTimeout(270000, 0, 1) // 90s (minimum, audio consumes most budget)
  */
 export function calculateLLMTimeout(
   jobTimeout: number,
@@ -111,7 +111,7 @@ export function calculateLLMTimeout(
   const calculatedTimeout = jobTimeout - slowestBatchTime - retryBuffer - systemOverhead;
 
   // Warn if budget is too tight (attachments eating most of the time)
-  if (calculatedTimeout < 60000 && (imageCount > 0 || audioCount > 0)) {
+  if (calculatedTimeout < 90000 && (imageCount > 0 || audioCount > 0)) {
     logger.warn(
       {
         jobTimeout,
@@ -126,8 +126,8 @@ export function calculateLLMTimeout(
     );
   }
 
-  // LLM gets the rest of the budget (minimum 60s for slow models)
-  const llmTimeout = Math.max(60000, calculatedTimeout);
+  // LLM gets the rest of the budget (minimum 90s to match LLM_API timeout)
+  const llmTimeout = Math.max(90000, calculatedTimeout);
 
   return llmTimeout;
 }

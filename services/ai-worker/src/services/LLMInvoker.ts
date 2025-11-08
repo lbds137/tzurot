@@ -15,6 +15,7 @@ import {
   calculateLLMTimeout,
   TransientErrorCode,
   ERROR_MESSAGES,
+  ERROR_NAMES,
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 
@@ -160,19 +161,17 @@ export class LLMInvoker {
         // Check if this is a transient network error or empty response worth retrying
         // Check both error.code (Node.js native errors) and error.message (wrapped errors)
         const errorCode = (error as any).code;
+        const errorName = error instanceof Error ? error.name : '';
         const errorMessage = error instanceof Error ? error.message : '';
-        const errorStatus = (error as any).status; // Some APIs use status field
         const isTransientError =
           errorCode === TransientErrorCode.ECONNRESET ||
           errorCode === TransientErrorCode.ETIMEDOUT ||
           errorCode === TransientErrorCode.ENOTFOUND ||
           errorCode === TransientErrorCode.ECONNREFUSED ||
-          errorCode === TransientErrorCode.ABORTED ||
-          errorStatus === TransientErrorCode.ABORTED ||
+          errorName === ERROR_NAMES.ABORT_ERROR || // DOMException abort (timeout)
           errorMessage.includes(TransientErrorCode.ECONNRESET) ||
           errorMessage.includes(TransientErrorCode.ETIMEDOUT) ||
           errorMessage.includes(TransientErrorCode.ENOTFOUND) ||
-          errorMessage.includes(TransientErrorCode.ABORTED) ||
           errorMessage.includes(ERROR_MESSAGES.EMPTY_RESPONSE_INDICATOR);
 
         if (isTransientError && attempt < maxRetries) {

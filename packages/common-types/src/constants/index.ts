@@ -41,6 +41,7 @@ export {
 // Error constants
 export {
   TransientErrorCode,
+  ERROR_NAMES,
   ERROR_MESSAGES,
 } from './error.js';
 
