@@ -92,32 +92,44 @@ export const referencedMessageSchema = z.object({
 });
 
 /**
- * Personality configuration schema
- * Used in GenerateRequest
+ * Loaded Personality Schema
+ *
+ * This is the SINGLE SOURCE OF TRUTH for the LoadedPersonality type.
+ * The TypeScript type is inferred from this schema using z.infer.
+ *
+ * Represents a personality loaded from the database with all configuration.
  */
-export const personalityConfigSchema = z.object({
-  id: z.string().optional(),
+export const loadedPersonalitySchema = z.object({
+  // Identity
+  id: z.string(),
   name: z.string(),
-  displayName: z.string().optional(),
-  slug: z.string().optional(),
+  displayName: z.string(),
+  slug: z.string(),
+
+  // Core configuration
   systemPrompt: z.string(),
-  model: z.string().optional(),
+  model: z.string(),
   visionModel: z.string().optional(),
-  temperature: z.number().optional(),
-  maxTokens: z.number().optional(),
+
+  // LLM parameters
+  temperature: z.number(),
+  maxTokens: z.number(),
   topP: z.number().optional(),
   topK: z.number().optional(),
   frequencyPenalty: z.number().optional(),
   presencePenalty: z.number().optional(),
-  contextWindowTokens: z.number().optional(),
-  memoryEnabled: z.boolean().optional(),
+  contextWindowTokens: z.number(),
+
+  // Memory configuration
   memoryScoreThreshold: z.number().optional(),
   memoryLimit: z.number().optional(),
-  contextWindow: z.number().optional(),
+
+  // Avatar
   avatarUrl: z.string().optional(),
-  // Character fields
-  characterInfo: z.string().optional(),
-  personalityTraits: z.string().optional(),
+
+  // Character definition fields
+  characterInfo: z.string(),
+  personalityTraits: z.string(),
   personalityTone: z.string().optional(),
   personalityAge: z.string().optional(),
   personalityAppearance: z.string().optional(),
@@ -126,6 +138,7 @@ export const personalityConfigSchema = z.object({
   conversationalGoals: z.string().optional(),
   conversationalExamples: z.string().optional(),
 });
+
 
 /**
  * Request context schema
@@ -154,12 +167,9 @@ export const requestContextSchema = z.object({
 /**
  * Generate request schema
  * Full validation schema for /ai/generate endpoint
- *
- * NOTE: personalityConfigSchema must be kept in sync with LoadedPersonality interface
- * in PersonalityService.ts to avoid fields being stripped during validation.
  */
 export const generateRequestSchema = z.object({
-  personality: personalityConfigSchema,
+  personality: loadedPersonalitySchema,
   message: z.union([z.string(), z.object({}).passthrough()]),
   context: requestContextSchema,
   userApiKey: z.string().optional(),
@@ -170,6 +180,6 @@ export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
-export type PersonalityConfig = z.infer<typeof personalityConfigSchema>;
+export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
