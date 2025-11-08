@@ -1,87 +1,58 @@
-## 🚨 FEATURE FREEZE IN EFFECT 🚨
-
-**Effective**: June 8, 2025 - August 24, 2025  
-**Reason**: Critical DDD architectural migration
-
-## Pre-Submission Checklist
-
-**ALL boxes must be checked or PR will be closed:**
-
-- [ ] This is NOT a new feature
-- [ ] This is EITHER:
-  - [ ] A critical bug fix (meets ALL criteria below)
-  - [ ] Part of the DDD migration plan
-  - [ ] Technical debt reduction that directly supports DDD
-- [ ] Changes touch < 10 files
-- [ ] NO backwards compatibility layers added
-- [ ] NO new facades or workarounds added
-- [ ] NO new files in `/src/utils/` (already has 28 files!)
-- [ ] Includes tests for all changes
-- [ ] All tests pass locally
-
-## Critical Bug Fix Criteria
-
-If this is a bug fix, it must meet ALL of these:
-
-- [ ] Causes data loss OR security vulnerability
-- [ ] Affects > 10% of users
-- [ ] Has NO workaround available
-- [ ] Fix touches < 10 files
-- [ ] Includes regression tests
-
-## DDD Migration Work
-
-If this is DDD migration work:
-
-- [ ] Listed in Phase 0-4 plan
-- [ ] Follows domain boundaries
-- [ ] No dependencies on legacy code
-- [ ] 100% test coverage for new domain code
-
 ## Description
 
 ### What does this PR do?
 
-<!-- Describe changes in 1-2 sentences -->
+<!-- Describe your changes in 1-3 sentences -->
 
-### Why is this needed during freeze?
+### Why is this change needed?
 
-<!-- Justify why this cannot wait -->
+<!-- Explain the problem this solves or feature this adds -->
 
-### What is the impact of NOT merging?
+## Quality Checklist
 
-<!-- Describe consequences of deferral -->
+Before submitting, please verify:
+
+- [ ] **Tests pass locally** (`pnpm test`)
+- [ ] **Code follows project style** (linting and formatting)
+- [ ] **No console.logs or debugging code left behind**
+- [ ] **Error handling is appropriate** (no silent failures)
+- [ ] **Changes are documented** (if public APIs changed)
 
 ## Testing
 
 ### Test coverage
 
-<!-- Paste coverage report for changed files -->
+<!-- Describe what tests were added or updated -->
+
+- [ ] Unit tests added/updated for new functionality
+- [ ] Existing tests still pass
+- [ ] Edge cases considered
 
 ### Manual testing performed
 
-<!-- List manual verification steps -->
+<!-- List steps you took to verify this works -->
 
-## Automatic Rejection Criteria
+1.
+2.
+3.
 
-PR will be auto-closed if it:
+## Breaking Changes
 
-- Adds files to `/src/utils/`
-- Increases any file size > 500 lines
-- Adds circular dependencies
-- Creates new singletons
-- Adds "TODO: refactor later" comments
-- Is a "quick improvement" or "small feature"
+- [ ] **This PR contains NO breaking changes**
+- [ ] This PR contains breaking changes (explained below)
 
-## Reviewer Checklist
+<!-- If breaking changes, explain what breaks and migration path -->
 
-- [ ] Verified this meets freeze criteria
-- [ ] No scope creep from original intent
-- [ ] Tests cover edge cases
-- [ ] No new technical debt introduced
+## Additional Context
+
+<!-- Any additional information reviewers should know -->
+<!-- Links to related issues, discussions, or documentation -->
 
 ---
 
-**Remember**: Every exception makes the next exception easier. Stay strong! 💪
+**Tips for a smooth review**:
 
-The freeze is not punishment. It's survival.
+- Keep PRs focused on a single concern when possible
+- Break large changes into smaller, reviewable chunks
+- Update tests alongside code changes
+- Ask questions if you're unsure about an approach
