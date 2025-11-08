@@ -33,9 +33,9 @@ export const AI_DEFAULTS = {
   MEMORY_SCORE_THRESHOLD: 0.15,
   /** Default number of memories to retrieve */
   MEMORY_LIMIT: 15,
-  /** Default conversation history window size */
-  CONTEXT_WINDOW: 20,
-  /** Default conversation history limit */
+  /** Default context window token budget (128k tokens) */
+  CONTEXT_WINDOW_TOKENS: 131072,
+  /** @deprecated Use CONTEXT_WINDOW_TOKENS instead. Legacy message-count limit. */
   HISTORY_LIMIT: 10,
   /**
    * Time buffer (in milliseconds) to prevent STM/LTM overlap

@@ -88,7 +88,7 @@ model LlmConfig {
   maxTokens                   Int?                       @map("max_tokens")
   memoryScoreThreshold        Decimal?                   @map("memory_score_threshold") @db.Decimal(3, 2)
   memoryLimit                 Int?                       @map("memory_limit")
-  contextWindowSize           Int                        @default(20) @map("context_window_size")
+  contextWindowTokens         Int                        @default(131072) @map("context_window_tokens")
   createdAt                   DateTime                   @default(now()) @map("created_at")
   updatedAt                   DateTime                   @updatedAt @map("updated_at")
   owner                       User?                      @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)

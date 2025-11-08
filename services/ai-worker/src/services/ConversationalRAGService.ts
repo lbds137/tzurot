@@ -202,7 +202,8 @@ export class ConversationalRAGService {
             )
           : undefined;
 
-      // Build the prompt with ALL participant personas and memory context
+      // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
+      // Build system prompt first (without history) to count tokens
       const fullSystemMessage = await this.promptBuilder.buildFullSystemPrompt(
         personality,
         participantPersonas,
@@ -210,22 +211,9 @@ export class ConversationalRAGService {
         context,
         referencedMessagesDescriptions
       );
+      const systemPromptTokens = this.promptBuilder.countTokens(fullSystemMessage.content as string);
 
-      // Build conversation history
-      const messages: BaseMessage[] = [];
-      messages.push(fullSystemMessage);
-
-      // Add conversation history if available
-      if (context.conversationHistory && context.conversationHistory.length > 0) {
-        const historyLimit = personality.contextWindow || AI_DEFAULTS.HISTORY_LIMIT;
-        const recentHistory = context.conversationHistory.slice(-historyLimit);
-        messages.push(...recentHistory);
-        logger.info(
-          `[RAG] Including ${recentHistory.length} conversation history messages (limit: ${historyLimit})`
-        );
-      }
-
-      // Build human message with attachment AND reference descriptions
+      // Build current user message to count tokens
       const { message: humanMessage, contentForStorage } =
         await this.promptBuilder.buildHumanMessage(
           userMessage,
@@ -233,6 +221,59 @@ export class ConversationalRAGService {
           context.activePersonaName,
           referencedMessagesDescriptions
         );
+      const currentMessageTokens = this.promptBuilder.countTokens(humanMessage.content as string);
+
+      // Count memory tokens
+      const memoryTokens = this.promptBuilder.countMemoryTokens(relevantMemories);
+
+      // Calculate history token budget
+      const contextWindowTokens = personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
+      const historyBudget = Math.max(
+        0,
+        contextWindowTokens - systemPromptTokens - currentMessageTokens - memoryTokens
+      );
+
+      logger.info(
+        `[RAG] Token budget: total=${contextWindowTokens}, system=${systemPromptTokens}, current=${currentMessageTokens}, memories=${memoryTokens}, historyBudget=${historyBudget}`
+      );
+
+      // Build conversation history
+      const messages: BaseMessage[] = [];
+      messages.push(fullSystemMessage);
+
+      // Add conversation history within token budget
+      if (context.conversationHistory && context.conversationHistory.length > 0 && historyBudget > 0) {
+        // Work backwards from newest message, counting tokens until budget exhausted
+        let historyTokensUsed = 0;
+        const historyToInclude: BaseMessage[] = [];
+
+        for (let i = context.conversationHistory.length - 1; i >= 0; i--) {
+          const msg = context.conversationHistory[i];
+          const msgTokens = this.promptBuilder.countTokens(msg.content as string);
+
+          // Stop if adding this message would exceed budget
+          if (historyTokensUsed + msgTokens > historyBudget) {
+            logger.debug(
+              `[RAG] Stopping history inclusion: would exceed budget (${historyTokensUsed + msgTokens} > ${historyBudget})`
+            );
+            break;
+          }
+
+          historyToInclude.unshift(msg); // Add to front to maintain chronological order
+          historyTokensUsed += msgTokens;
+        }
+
+        messages.push(...historyToInclude);
+        logger.info(
+          `[RAG] Including ${historyToInclude.length} history messages (${historyTokensUsed} tokens, budget: ${historyBudget})`
+        );
+      } else if (historyBudget <= 0) {
+        logger.warn(
+          `[RAG] No history budget available! System prompt and current message consumed entire context window.`
+        );
+      }
+
+      // Add current user message last
       messages.push(humanMessage);
 
       // Get the appropriate model (provider determined by AI_PROVIDER env var)

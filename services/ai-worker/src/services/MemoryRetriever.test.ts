@@ -44,7 +44,7 @@ describe('MemoryRetriever', () => {
     maxTokens: 4096,
     memoryLimit: 15,
     memoryScoreThreshold: 0.7,
-    contextWindow: 10,
+    contextWindowTokens: 131072,
     characterInfo: '',
     personalityTraits: '',
     personalityTone: undefined,

@@ -16,7 +16,6 @@ import {
   preserveCodeBlocks,
   createLogger,
   getConfig,
-  AI_DEFAULTS,
   AI_ENDPOINTS,
   INTERVALS,
   MessageRole,
@@ -299,7 +298,9 @@ export class MessageHandler {
       );
 
       // Get conversation history from PostgreSQL (needed for reference deduplication)
-      const historyLimit = personality.contextWindow || AI_DEFAULTS.CONTEXT_WINDOW;
+      // Retrieve more history than we might need - AI worker will trim based on token budget
+      // Default: 100 messages (AI worker will count tokens and decide what fits)
+      const historyLimit = 100;
       const history = await this.conversationHistory.getRecentHistory(
         message.channel.id,
         personality.id,

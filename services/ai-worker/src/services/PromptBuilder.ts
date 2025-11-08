@@ -14,6 +14,7 @@ import {
   getConfig,
   type LoadedPersonality,
   type MessageContent,
+  countTextTokens,
 } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import type {
@@ -400,5 +401,43 @@ export class PromptBuilder {
     }
 
     return formatted || 'Hello';
+  }
+
+  /**
+   * Count tokens for a text string
+   */
+  countTokens(text: string): number {
+    return countTextTokens(text);
+  }
+
+  /**
+   * Count tokens for memories
+   */
+  countMemoryTokens(memories: MemoryDocument[]): number {
+    let totalTokens = 0;
+    for (const doc of memories) {
+      const timestamp = doc.metadata?.createdAt
+        ? formatMemoryTimestamp(doc.metadata.createdAt)
+        : null;
+      const memoryText = `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+      totalTokens += countTextTokens(memoryText);
+    }
+    return totalTokens;
+  }
+
+  /**
+   * Count tokens for processed attachments (from descriptions)
+   */
+  countAttachmentTokens(processedAttachments: ProcessedAttachment[]): number {
+    if (processedAttachments.length === 0) {
+      return 0;
+    }
+
+    const descriptions = processedAttachments
+      .map(a => a.description)
+      .filter(d => d && !d.startsWith('['))
+      .join('\n\n');
+
+    return countTextTokens(descriptions);
   }
 }
