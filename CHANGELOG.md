@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.30] - 2025-11-07
+
+### Added
+
+- **Comprehensive Constants System** - Centralized all magic numbers and hardcoded strings
+  - Added `MessageRole` enum (`User`, `Assistant`, `System`) to replace string literals
+  - Added `AttachmentType` enum (`Image`, `Voice`, `File`) for type safety
+  - Added `JobStatus` enum (`Queued`, `Processing`, `Completed`, `Failed`) for queue processing
+  - Added `JobType` enum for AI job classification
+  - Added `DISCORD_LIMITS` constants (message length, embed limits, file sizes)
+  - Added `DISCORD_COLORS` constants for consistent embed colors
+  - Added `SERVICE_DEFAULTS` for ports and service configuration
+  - Added `RETRY_DEFAULTS` and `CIRCUIT_BREAKER_DEFAULTS` for error handling
+  - Replaced 100+ hardcoded values across codebase with named constants
+- **Legacy AI Provider Placeholder Support** - Full compatibility with Character.AI and other provider imports
+  - Supports multiple user placeholder formats: `{user}`, `{{user}}`
+  - Supports multiple assistant placeholder formats: `{assistant}`, `{shape}`, `{{char}}`, `{personality}`
+  - Automatic normalization during personality import and loading
+  - Runtime replacement in prompts, memories, and personality fields
+  - Comprehensive test coverage (45 tests) for all placeholder combinations
+
+### Changed
+
+- **Model Indicator Formatting** - Enhanced model attribution in responses
+  - Added clickable links to OpenRouter model cards
+  - Changed from spoiler tags to small text formatting (-#) for less visual clutter
+  - Format: `-# Model: [\`model-name\`](<link>)` displays as small gray text with clickable model name
+- **Folder Structure** - Reorganized for consistency across monorepo
+  - Moved `calculateJobTimeout` from `constants.ts` to `timeout-utils.ts`
+  - Created `config/` directory for configuration-related files
+  - Consistent naming: kebab-case for utility files
+- **PR Template** - Modernized for v3 workflow
+  - Removed DDD migration references
+  - Removed feature freeze announcement
+  - Simplified to practical quality checklist (tests, code quality, documentation)
+  - Removed overly restrictive rules from v2 era
+
+### Fixed
+
+- **LLM Config Cascading** - Proper fallback chain for model selection
+  - Fixed personalities without specific config not using global default
+  - Cascade order: personality config → global default config → environment variable
+  - Prevents personalities from being stuck without model configuration
+- **Build Errors** - Removed references to deleted migration artifacts
+  - Removed `avatars-to-migrate` folder references from Dockerfile
+  - Deleted deprecated migration scripts (`migrate-avatars.ts`, `populate-avatar-data.ts`)
+  - All avatars now managed via `sync-avatars.ts` (database → filesystem cache)
+
+### Tests
+
+- All 399 tests passing across all services (20 common-types + 218 api-gateway + 150 ai-worker + 11 bot-client)
+- Added 45 tests for placeholder replacement functionality
+- Updated tests for new model indicator format
+
 ## [3.0.0-alpha.29] - 2025-11-07
 
 ### Fixed
