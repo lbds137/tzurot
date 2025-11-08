@@ -14,7 +14,7 @@
  */
 
 import { BaseMessage } from '@langchain/core/messages';
-import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import {
   MessageContent,
   createLogger,

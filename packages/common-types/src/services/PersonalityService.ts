@@ -4,9 +4,9 @@
  */
 
 import { getPrismaClient } from './prisma.js';
-import { createLogger } from '../logger.js';
-import { MODEL_DEFAULTS } from '../modelDefaults.js';
-import { AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../constants.js';
+import { createLogger } from '../utils/logger.js';
+import { MODEL_DEFAULTS } from '../config/modelDefaults.js';
+import { AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../config/constants.js';
 import type { Decimal } from '@prisma/client/runtime/library';
 
 const logger = createLogger('PersonalityService');

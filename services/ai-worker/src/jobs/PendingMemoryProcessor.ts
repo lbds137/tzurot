@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('PendingMemoryProcessor');

@@ -7,8 +7,8 @@
 
 import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
-import { GatewayClient } from '../gateway/GatewayClient.js';
-import { WebhookManager } from '../webhooks/WebhookManager.js';
+import { GatewayClient } from '../utils/GatewayClient.js';
+import { WebhookManager } from '../utils/WebhookManager.js';
 import {
   ConversationHistoryService,
   PersonalityService,
@@ -30,7 +30,7 @@ import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from '../redis.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
-import { MessageReferenceExtractor } from '../context/MessageReferenceExtractor.js';
+import { MessageReferenceExtractor } from './MessageReferenceExtractor.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { formatReferencesForDatabase } from '../utils/referenceFormatter.js';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';

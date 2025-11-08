@@ -11,7 +11,7 @@ import {
   ConversationalRAGService,
   type RAGResponse,
 } from '../services/ConversationalRAGService.js';
-import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import {
   MessageContent,
   createLogger,

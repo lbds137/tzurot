@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { extractOwnerId, isValidOwner, requireOwnerAuth } from './authMiddleware.js';
+import { extractOwnerId, isValidOwner, requireOwnerAuth } from './AuthMiddleware.js';
 import * as commonTypes from '@tzurot/common-types';
 
 // Mock getConfig

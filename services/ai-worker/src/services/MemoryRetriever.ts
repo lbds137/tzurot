@@ -5,7 +5,7 @@
  * Extracted from ConversationalRAGService for better modularity and testability.
  */
 
-import { PgvectorMemoryAdapter, MemoryQueryOptions } from '../memory/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter, MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
 import {
   createLogger,
   getPrismaClient,

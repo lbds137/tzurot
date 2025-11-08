@@ -2,7 +2,7 @@
  * Timeout calculation utilities
  */
 
-import { TIMEOUTS } from './constants.js';
+import { TIMEOUTS } from '../config/constants.js';
 
 /**
  * Calculate job timeout based on image count
