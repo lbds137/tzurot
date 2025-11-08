@@ -5,7 +5,7 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
-import { MessageRole } from '../config/constants.js';
+import { MessageRole } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
 
 const logger = createLogger('ConversationHistoryService');

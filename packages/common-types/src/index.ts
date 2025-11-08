@@ -1,7 +1,8 @@
-// Export config
-export * from './config/config.js';
-export * from './config/constants.js';
-export * from './config/modelDefaults.js';
+// Export config (runtime environment variables)
+export * from './config/index.js';
+
+// Export constants (compile-time constants)
+export * from './constants/index.js';
 
 // Export types
 export * from './types/ai.js';

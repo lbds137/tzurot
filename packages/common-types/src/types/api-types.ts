@@ -5,7 +5,7 @@
  * Core types are now defined in schemas.ts using Zod and re-exported here.
  */
 
-import { JobStatus } from '../config/constants.js';
+import { JobStatus } from '../constants/index.js';
 
 // Re-export schema-derived types
 export type {

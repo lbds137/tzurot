@@ -2,7 +2,7 @@
  * Timeout calculation utilities
  */
 
-import { TIMEOUTS, RETRY_CONFIG } from '../config/constants.js';
+import { TIMEOUTS, RETRY_CONFIG } from '../constants/index.js';
 
 /**
  * Calculate job timeout based on attachments and retry overhead

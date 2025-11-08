@@ -2,7 +2,7 @@
  * AI-related types
  */
 
-import { MessageRole } from '../config/constants.js';
+import { MessageRole } from '../constants/index.js';
 
 export interface ChatCompletionRequest {
   model: string;

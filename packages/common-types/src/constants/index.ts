@@ -1,0 +1,65 @@
+/**
+ * Constants Barrel Export
+ *
+ * Re-exports all domain-separated constants from a single entry point.
+ */
+
+// AI constants
+export {
+  AI_DEFAULTS,
+  AI_ENDPOINTS,
+  MODEL_DEFAULTS,
+  DEFAULT_MODELS,
+  AIProvider,
+  type DefaultModelName,
+} from './ai.js';
+
+// Timing constants
+export {
+  TIMEOUTS,
+  INTERVALS,
+  RETRY_CONFIG,
+  CIRCUIT_BREAKER,
+  CACHE_CONTROL,
+} from './timing.js';
+
+// Queue constants
+export {
+  QUEUE_CONFIG,
+  JOB_PREFIXES,
+  JobStatus,
+  JobType,
+} from './queue.js';
+
+// Discord constants
+export {
+  TEXT_LIMITS,
+  DISCORD_LIMITS,
+  DISCORD_COLORS,
+} from './discord.js';
+
+// Error constants
+export {
+  TransientErrorCode,
+  ERROR_MESSAGES,
+} from './error.js';
+
+// Media constants
+export {
+  MEDIA_LIMITS,
+  CONTENT_TYPES,
+  AttachmentType,
+} from './media.js';
+
+// Message constants
+export {
+  MessageRole,
+  PLACEHOLDERS,
+} from './message.js';
+
+// Service constants
+export {
+  SERVICE_DEFAULTS,
+  APP_SETTINGS,
+  HealthStatus,
+} from './service.js';

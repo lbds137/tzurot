@@ -5,8 +5,7 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
-import { MODEL_DEFAULTS } from '../config/modelDefaults.js';
-import { AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../config/constants.js';
+import { MODEL_DEFAULTS, AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../constants/index.js';
 import type { Decimal } from '@prisma/client/runtime/library';
 import type { LoadedPersonality } from '../types/schemas.js';
 

@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
-import { MessageRole } from '../config/constants.js';
+import { MessageRole } from '../constants/index.js';
 import * as tokenCounter from '../utils/tokenCounter.js';
 
 // Mock getPrismaClient
