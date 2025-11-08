@@ -2,6 +2,47 @@ import { pino } from 'pino';
 import type { Logger, LoggerOptions } from 'pino';
 
 /**
+ * Custom error serializer that handles DOMException and other special error types.
+ *
+ * Pino's standard error serializer includes all enumerable properties, which causes
+ * DOMException (AbortError, etc.) to log all static constants (ABORT_ERR, etc.).
+ * This custom serializer only picks useful properties.
+ *
+ * @param err - The error to serialize
+ * @returns Serialized error object with only useful properties
+ */
+function customErrorSerializer(err: Error): object {
+  // Start with standard error properties
+  const serialized: Record<string, unknown> = {
+    type: err.constructor.name,
+    message: err.message,
+    stack: err.stack,
+  };
+
+  // For DOMException (AbortError, etc.), only include specific properties
+  if (err.constructor.name === 'DOMException' || err.name === 'AbortError') {
+    const domException = err as DOMException;
+    serialized.name = domException.name;
+    serialized.code = domException.code;
+    // Don't include static constants like ABORT_ERR, DATA_CLONE_ERR, etc.
+    return serialized;
+  }
+
+  // For other errors, include any custom properties but filter out functions
+  for (const key in err) {
+    if (Object.prototype.hasOwnProperty.call(err, key)) {
+      const value = (err as any)[key];
+      // Skip functions and standard properties we already included
+      if (typeof value !== 'function' && !['message', 'stack', 'name'].includes(key)) {
+        serialized[key] = value;
+      }
+    }
+  }
+
+  return serialized;
+}
+
+/**
  * Creates a logger instance with environment-aware configuration.
  * Uses pino-pretty transport ONLY when explicitly enabled via ENABLE_PRETTY_LOGS=true.
  * Defaults to plain JSON logging for production compatibility.
@@ -24,6 +65,10 @@ import type { Logger, LoggerOptions } from 'pino';
  * - error.type
  * - Any custom properties on the error object
  *
+ * Special handling for DOMException (AbortError):
+ * - Only includes useful properties (name, code, message, stack)
+ * - Filters out static constants (ABORT_ERR, DATA_CLONE_ERR, etc.)
+ *
  * ESLint Rule: no-restricted-syntax enforces this pattern in eslint.config.js
  */
 export function createLogger(name?: string): Logger {
@@ -32,11 +77,9 @@ export function createLogger(name?: string): Logger {
   const config: LoggerOptions = {
     level: process.env.LOG_LEVEL || 'info',
     name,
-    // Enable error serialization - pino will automatically serialize Error objects
-    // when passed with the 'err' key: logger.error({ err: error }, 'message')
+    // Custom error serializer that handles DOMException properly
     serializers: {
-      // @ts-expect-error - stdSerializers exists at runtime in Pino 10 but types are incomplete
-      err: pino.stdSerializers.err,
+      err: customErrorSerializer,
     },
   };
 

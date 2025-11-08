@@ -16,9 +16,15 @@ export enum TransientErrorCode {
   ENOTFOUND = 'ENOTFOUND',
   /** Connection refused */
   ECONNREFUSED = 'ECONNREFUSED',
-  /** Request aborted */
-  ABORTED = 'ABORTED',
 }
+
+/**
+ * Error names for transient errors
+ */
+export const ERROR_NAMES = {
+  /** DOMException thrown by AbortController when operation times out */
+  ABORT_ERROR: 'AbortError',
+} as const;
 
 /**
  * Error messages for LLM invocation failures
