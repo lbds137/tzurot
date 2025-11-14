@@ -10,10 +10,8 @@ import {
   createLogger,
   TIMEOUTS,
   generateRequestSchema,
-  calculateJobTimeout,
   JobStatus,
   JobType,
-  CONTENT_TYPES,
   JOB_PREFIXES,
 } from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
@@ -29,11 +27,8 @@ export const aiRouter: Router = Router();
 /**
  * POST /ai/generate
  *
- * Create an AI generation job and optionally wait for completion.
- *
- * Query parameters:
- * - wait=true: Wait for job completion using Redis pub/sub (no polling)
- * - wait=false (default): Return job ID immediately
+ * Create an AI generation job and return 202 Accepted immediately.
+ * Results are delivered asynchronously via Redis Stream to bot-client.
  *
  * Handles request deduplication - identical requests within 5s return the same job.
  */
@@ -41,9 +36,6 @@ aiRouter.post('/generate', async (req, res) => {
   const startTime = Date.now();
   let userId: string | undefined;
   let personalityName: string | undefined;
-
-  // Check if client wants to wait for completion
-  const waitForCompletion = req.query.wait === 'true';
 
   try {
     // Validate request body
@@ -146,89 +138,15 @@ aiRouter.post('/generate', async (req, res) => {
 
     logger.info(`[AI] Created job ${job.id} for ${request.personality.name} (${creationTime}ms)`);
 
-    // If client wants to wait, use Redis pub/sub to wait for completion
-    if (waitForCompletion) {
-      try {
-        // Calculate timeout based on attachments (parallel processing)
-        const imageCount =
-          request.context.attachments?.filter(
-            att => att.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX) && !att.isVoiceMessage
-          ).length ?? 0;
-        const audioCount =
-          request.context.attachments?.filter(
-            att => att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || att.isVoiceMessage
-          ).length ?? 0;
-
-        const timeoutMs = calculateJobTimeout(imageCount, audioCount);
-
-        logger.debug(
-          `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount}, audio: ${audioCount})`
-        );
-
-        // Wait for job completion via Redis pub/sub (no HTTP polling!)
-        const result = await job.waitUntilFinished(queueEvents, timeoutMs);
-
-        const totalTime = Date.now() - startTime;
-
-        logger.info(`[AI] Job ${job.id} completed after ${totalTime}ms`);
-
-        // Debug: Check if referencedMessagesDescriptions is in the result
-        if (result && typeof result === 'object') {
-          logger.info(
-            {
-              hasAttachmentDescriptions: 'attachmentDescriptions' in result,
-              hasReferencedMessagesDescriptions: 'referencedMessagesDescriptions' in result,
-              resultKeys: Object.keys(result),
-            },
-            '[AI] Job result inspection'
-          );
-        }
-
-        // Note: Cleanup happens via queue event listener, not here
-        // This ensures ai-worker has finished fetching all attachments
-
-        // Return result directly
-        res.json({
-          jobId: job.id ?? requestId,
-          requestId,
-          status: JobStatus.Completed,
-          result,
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      } catch (error) {
-        const totalTime = Date.now() - startTime;
-
-        logger.error(
-          {
-            err: error,
-            jobId: job.id,
-            userId,
-            personalityName,
-            totalTimeMs: totalTime,
-          },
-          `[AI] Job ${job.id} failed or timed out after ${totalTime}ms`
-        );
-
-        // Note: Cleanup happens via queue event listener, not here
-
-        const errorResponse = ErrorResponses.jobFailed(
-          error instanceof Error ? error.message : 'Job failed or timed out'
-        );
-
-        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
-        return;
-      }
-    }
-
-    // Default behavior: return job ID immediately (backward compatible)
+    // Return 202 Accepted with job ID (async pattern)
+    // Results will be delivered via Redis Stream to bot-client
     const response: GenerateResponse = {
       jobId: job.id ?? requestId,
       requestId,
       status: JobStatus.Queued,
     };
 
-    res.json(response);
+    res.status(202).json(response);
   } catch (error) {
     const processingTime = Date.now() - startTime;
 

@@ -23,67 +23,40 @@ export class GatewayClient {
   }
 
   /**
-   * Request AI generation from the gateway
+   * Request AI generation from the gateway (ASYNC PATTERN)
+   *
+   * Returns job ID immediately. Result will be delivered via Redis Stream.
+   * Use JobTracker to manage the job and receive results.
    */
   async generate(
     personality: LoadedPersonality,
     context: MessageContext
-  ): Promise<{
-    content: string;
-    attachmentDescriptions?: string;
-    referencedMessagesDescriptions?: string;
-    metadata?: {
-      retrievedMemories?: number;
-      tokensUsed?: number;
-      processingTimeMs?: number;
-      modelUsed?: string;
-    };
-  }> {
-    // Calculate timeout based on attachment count (parallel processing, same logic as gateway)
-    // Declare outside try block so it's accessible in catch block
-    const imageCount =
-      context.attachments?.filter(
-        att => att.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX) && !att.isVoiceMessage
-      ).length ?? 0;
-    const audioCount =
-      context.attachments?.filter(
-        att => att.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || att.isVoiceMessage
-      ).length ?? 0;
-
-    const timeoutMs = calculateJobTimeout(imageCount, audioCount);
-
+  ): Promise<{ jobId: string; requestId: string }> {
     try {
       // Debug: Check what fields are in context before sending
-      logger.info(
+      logger.debug(
         `[GatewayClient] Sending context: ` +
           `hasReferencedMessages=${!!(context as any).referencedMessages}, ` +
           `count=${((context as any).referencedMessages as any)?.length || 0}, ` +
           `contextKeys=[${Object.keys(context).join(', ')}]`
       );
 
-      logger.debug(
-        `[GatewayClient] Request timeout: ${timeoutMs}ms (images: ${imageCount}, audio: ${audioCount})`
-      );
-
-      // Use wait=true to eliminate polling and use Redis pub/sub instead
-      // Gateway will wait for job completion internally using BullMQ's waitUntilFinished
-      const response = await fetch(`${this.baseUrl}/ai/generate?wait=true`, {
+      // ASYNC PATTERN: Don't use wait=true, get job ID immediately
+      const response = await fetch(`${this.baseUrl}/ai/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
         },
         body: JSON.stringify({
-          personality: personality, // Pass entire LoadedPersonality object
+          personality: personality,
           message: context.messageContent,
-          // Pass entire context object - let TypeScript enforce completeness
           context: {
             ...context,
-            // Ensure conversationHistory is always an array
             conversationHistory: context.conversationHistory || [],
           },
         }),
-        // Add timeout matching gateway's calculation
-        signal: AbortSignal.timeout(timeoutMs),
+        // Short timeout - we're just submitting the job
+        signal: AbortSignal.timeout(10000), // 10s
       });
 
       if (!response.ok) {
@@ -91,53 +64,14 @@ export class GatewayClient {
         throw new Error(`Gateway request failed: ${response.status} ${errorText}`);
       }
 
-      // With wait=true, the response contains the result directly (no polling needed!)
-      const data = (await response.json()) as JobResult;
+      // Response contains job ID (202 Accepted)
+      const data = (await response.json()) as { jobId: string; requestId: string; status: string };
 
-      logger.debug({ jobResult: data }, '[GatewayClient] Received job result');
+      logger.info({ jobId: data.jobId }, '[GatewayClient] Job submitted successfully');
 
-      // Validate result
-      if (data.status !== 'completed') {
-        logger.error(
-          {
-            jobId: data.jobId,
-            status: data.status,
-          },
-          '[GatewayClient] Job not completed'
-        );
-        throw new Error(`Job ${data.jobId} status: ${data.status}`);
-      }
-
-      if (data.result?.content === undefined) {
-        logger.error(
-          {
-            jobId: data.jobId,
-            hasResult: !!data.result,
-            resultKeys: data.result ? Object.keys(data.result) : [],
-          },
-          '[GatewayClient] Job result missing content'
-        );
-        throw new Error('No content in job result');
-      }
-
-      logger.info(`[GatewayClient] Job completed: ${data.jobId}`);
-
-      // Return entire result object to avoid manual field omissions causing bugs
-      return data.result;
+      return { jobId: data.jobId, requestId: data.requestId };
     } catch (error) {
-      // Handle timeout errors with more helpful message
-      if (error instanceof Error && error.name === 'AbortError') {
-        const timeoutSec = Math.round(timeoutMs / 1000);
-        logger.error(
-          { imageCount, timeoutMs },
-          `[GatewayClient] Request timed out after ${timeoutSec}s`
-        );
-        throw new Error(
-          `AI generation timed out after ${timeoutSec}s. This can happen with many images or slow models. The job may still complete in the background.`
-        );
-      }
-
-      logger.error({ err: error }, '[GatewayClient] Generation failed');
+      logger.error({ err: error }, '[GatewayClient] Failed to submit job');
       throw error;
     }
   }

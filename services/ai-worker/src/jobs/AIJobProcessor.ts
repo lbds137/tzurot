@@ -23,8 +23,11 @@ import {
   MessageRole,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { publishJobResult } from '../redis.js';
 
 const logger = createLogger('AIJobProcessor');
+const prisma = new PrismaClient();
 
 /**
  * Structure of data passed in the BullMQ job
@@ -180,7 +183,7 @@ export class AIJobProcessor {
       const processingTimeMs = Date.now() - startTime;
       logger.info(`[AIJobProcessor] Transcribe job ${job.id} completed in ${processingTimeMs}ms`);
 
-      return {
+      const result: AIJobResult = {
         requestId,
         success: true,
         content: transcript,
@@ -188,11 +191,16 @@ export class AIJobProcessor {
           processingTimeMs,
         },
       };
+
+      // Persist to DB and publish to Redis Stream
+      await this.persistAndPublishResult(job, result);
+
+      return result;
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
       logger.error({ err: error }, `[AIJobProcessor] Transcribe job ${job.id} failed`);
 
-      return {
+      const result: AIJobResult = {
         requestId,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -200,6 +208,11 @@ export class AIJobProcessor {
           processingTimeMs,
         },
       };
+
+      // Persist to DB and publish to Redis Stream (even for failures)
+      await this.persistAndPublishResult(job, result);
+
+      return result;
     }
   }
 
@@ -280,7 +293,7 @@ export class AIJobProcessor {
 
       logger.info(`[AIJobProcessor] Job ${job.id} completed in ${processingTimeMs}ms`);
 
-      const jobResult = {
+      const jobResult: AIJobResult = {
         requestId,
         success: true,
         content: response.content,
@@ -296,6 +309,9 @@ export class AIJobProcessor {
 
       logger.debug({ jobResult }, '[AIJobProcessor] Returning job result');
 
+      // Persist to DB and publish to Redis Stream
+      await this.persistAndPublishResult(job, jobResult);
+
       return jobResult;
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
@@ -303,7 +319,7 @@ export class AIJobProcessor {
       // Pino requires error objects to be passed with the 'err' key for proper serialization
       logger.error({ err: error }, `[AIJobProcessor] Job ${job.id} failed`);
 
-      return {
+      const jobResult: AIJobResult = {
         requestId,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -311,6 +327,11 @@ export class AIJobProcessor {
           processingTimeMs,
         },
       };
+
+      // Persist to DB and publish to Redis Stream (even for failures)
+      await this.persistAndPublishResult(job, jobResult);
+
+      return jobResult;
     }
   }
 
@@ -435,5 +456,40 @@ export class AIJobProcessor {
   healthCheck(): boolean {
     // TODO: Add actual health check
     return true;
+  }
+
+  /**
+   * Persist job result to database and publish to Redis Stream
+   * This enables async delivery pattern - results are stored until confirmed delivered
+   */
+  private async persistAndPublishResult(job: Job<AIJobData>, result: AIJobResult): Promise<void> {
+    const jobId = job.id ?? job.data.requestId;
+
+    try {
+      // 1. Store result in database with PENDING_DELIVERY status
+      await prisma.jobResult.create({
+        data: {
+          jobId,
+          requestId: result.requestId,
+          result: result as unknown as Prisma.InputJsonValue,
+          status: 'PENDING_DELIVERY',
+          completedAt: new Date(),
+        },
+      });
+
+      logger.debug({ jobId }, '[AIJobProcessor] Stored result in database');
+
+      // 2. Publish to Redis Stream for bot-client to consume
+      await publishJobResult(jobId, result.requestId, result);
+
+      logger.info({ jobId }, '[AIJobProcessor] Result persisted and published to Redis Stream');
+    } catch (error) {
+      logger.error(
+        { err: error, jobId },
+        '[AIJobProcessor] Failed to persist/publish result - bot-client may not receive it!'
+      );
+      // Don't throw - we still want BullMQ to mark the job as complete
+      // The result is in the job's return value as fallback
+    }
   }
 }

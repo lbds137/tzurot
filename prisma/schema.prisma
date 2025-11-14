@@ -284,3 +284,16 @@ model ShapesPersonaMapping {
   @@index([personaId])
   @@map("shapes_persona_mappings")
 }
+
+model JobResult {
+  jobId       String    @id @map("job_id") @db.VarChar(255)
+  requestId   String    @map("request_id") @db.VarChar(255)
+  result      Json
+  status      String    @db.VarChar(50) // PENDING_DELIVERY, DELIVERED
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  deliveredAt DateTime? @map("delivered_at")
+
+  @@index([status, completedAt])
+  @@map("job_results")
+}

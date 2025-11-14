@@ -11,6 +11,8 @@ import { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
 import { closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
+import { ResultsListener } from './services/ResultsListener.js';
+import { JobTracker } from './services/JobTracker.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -42,6 +44,8 @@ const client = new Client({
 // Initialize services
 const gatewayClient = new GatewayClient(config.gatewayUrl);
 const webhookManager = new WebhookManager(client);
+const jobTracker = new JobTracker();
+const resultsListener = new ResultsListener(client);
 
 // These will be initialized in start()
 let messageHandler: MessageHandler;
@@ -89,6 +93,8 @@ process.on('unhandledRejection', error => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Shutting down...');
+  jobTracker.cleanup();
+  void resultsListener.stop();
   webhookManager.destroy();
   void closeRedis();
   void client.destroy();
@@ -132,7 +138,7 @@ async function start(): Promise<void> {
 
     // Initialize message handler (personalities loaded on-demand with caching)
     logger.info('[Bot] Initializing message handler...');
-    messageHandler = new MessageHandler(gatewayClient, webhookManager);
+    messageHandler = new MessageHandler(gatewayClient, webhookManager, jobTracker);
     logger.info('[Bot] Message handler initialized');
 
     // Health check gateway
@@ -151,6 +157,38 @@ async function start(): Promise<void> {
 
     await client.login(config.discordToken);
     logger.info('[Bot] Successfully logged in to Discord');
+
+    // Start listening for job results (async delivery pattern)
+    logger.info('[Bot] Starting results listener...');
+    await resultsListener.start(async (jobId, result) => {
+      try {
+        // Get the channel for this job
+        const channel = jobTracker.completeJob(jobId);
+        if (!channel) {
+          logger.warn({ jobId }, '[Bot] Received result for untracked job - ignoring');
+          return;
+        }
+
+        if (!result.success) {
+          logger.error({ jobId, error: result.error }, '[Bot] Job failed');
+          await channel.send(`❌ Error: ${result.error}`);
+          return;
+        }
+
+        // Send the AI response to Discord
+        if (result.content) {
+          // TODO: Use webhook manager to send as personality
+          // For now, just send directly
+          await channel.send(result.content);
+          logger.info({ jobId, channelId: channel.id }, '[Bot] Delivered job result to Discord');
+
+          // TODO: Confirm delivery to api-gateway
+        }
+      } catch (error) {
+        logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
+      }
+    });
+    logger.info('[Bot] Results listener started');
   } catch (error) {
     logger.error({ err: error }, 'Failed to start bot');
     process.exit(1);
