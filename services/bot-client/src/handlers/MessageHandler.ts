@@ -9,6 +9,7 @@ import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { WebhookManager } from '../utils/WebhookManager.js';
+import { JobTracker } from '../services/JobTracker.js';
 import {
   ConversationHistoryService,
   PersonalityService,
@@ -38,18 +39,32 @@ import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.
 const logger = createLogger('MessageHandler');
 
 /**
+ * Context needed to handle async job results
+ */
+interface PendingJobContext {
+  message: Message;
+  personality: LoadedPersonality;
+  personaId: string;
+  userMessageContent: string;
+  userMessageTime: Date;
+}
+
+/**
  * Message Handler - routes Discord messages to appropriate handlers
  */
 export class MessageHandler {
   private gatewayClient: GatewayClient;
   private webhookManager: WebhookManager;
+  private jobTracker: JobTracker;
   private conversationHistory: ConversationHistoryService;
   private personalityService: PersonalityService;
   private userService: UserService;
+  private pendingJobs = new Map<string, PendingJobContext>();
 
-  constructor(gatewayClient: GatewayClient, webhookManager: WebhookManager) {
+  constructor(gatewayClient: GatewayClient, webhookManager: WebhookManager, jobTracker: JobTracker) {
     this.gatewayClient = gatewayClient;
     this.webhookManager = webhookManager;
+    this.jobTracker = jobTracker;
     this.conversationHistory = new ConversationHistoryService();
     this.personalityService = new PersonalityService();
     this.userService = new UserService();
