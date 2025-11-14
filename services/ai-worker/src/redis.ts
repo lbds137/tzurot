@@ -76,6 +76,35 @@ export async function getVoiceTranscript(attachmentUrl: string): Promise<string 
 }
 
 /**
+ * Publish job result to Redis Stream for async delivery
+ * @param jobId BullMQ job ID
+ * @param requestId Request ID for tracking
+ * @param result Job result payload
+ */
+export async function publishJobResult(
+  jobId: string,
+  requestId: string,
+  result: unknown
+): Promise<void> {
+  try {
+    const messageId = await redis.xAdd('job-results', '*', {
+      jobId,
+      requestId,
+      result: JSON.stringify(result),
+      completedAt: new Date().toISOString(),
+    });
+
+    logger.info(
+      { jobId, requestId, messageId },
+      `[Redis] Published job result to stream (message: ${messageId})`
+    );
+  } catch (error) {
+    logger.error({ err: error, jobId, requestId }, '[Redis] Failed to publish job result to stream');
+    throw error; // Re-throw so caller knows about failure
+  }
+}
+
+/**
  * Graceful shutdown
  */
 export async function closeRedis(): Promise<void> {
