@@ -19,7 +19,6 @@ import {
   type ReferencedMessage,
   formatRelativeTime,
   JobType,
-  CONTENT_TYPES,
   MessageRole,
   type AnyJobData,
   type AnyJobResult,
@@ -159,7 +158,7 @@ export class AIJobProcessor {
 
     logger.info({ jobId: job.id, jobType }, '[AIJobProcessor] Processing job');
 
-    // Route to appropriate handler based on job type (using string comparison for flexibility)
+    // Route to appropriate handler based on job type
     if (jobType === 'audio-transcription') {
       return await this.processAudioTranscriptionJobWrapper(
         job as Job<AudioTranscriptionJobData>
@@ -168,12 +167,6 @@ export class AIJobProcessor {
       return await this.processImageDescriptionJobWrapper(job as Job<ImageDescriptionJobData>);
     } else if (jobType === 'llm-generation') {
       return await this.processLLMGenerationJob(job as Job<LLMGenerationJobData>);
-    }
-    // Backward compatibility with old job types
-    else if (jobType === 'transcribe') {
-      return await this.processTranscribeJob(job as Job<AIJobData>);
-    } else if (jobType === 'generate') {
-      return await this.processGenerateJob(job as Job<AIJobData>);
     } else {
       logger.error({ jobType }, '[AIJobProcessor] Unknown job type');
       throw new Error(`Unknown job type: ${jobType}`);
@@ -304,81 +297,12 @@ export class AIJobProcessor {
       );
     }
 
-    // Now process as a normal generate job
-    // Cast to AIJobData for compatibility with existing processGenerateJob
-    return this.processGenerateJob(job as unknown as Job<AIJobData>);
-  }
-
-  /**
-   * Process a transcribe-only job (no LLM, just Whisper transcription)
-   */
-  private async processTranscribeJob(job: Job<AIJobData>): Promise<AIJobResult> {
-    const startTime = Date.now();
-    const { requestId, context } = job.data;
-
-    logger.info(`[AIJobProcessor] Processing transcribe job ${job.id} (${requestId})`);
-
-    try {
-      // Find voice attachment
-      const voiceAttachment = context.attachments?.find(
-        a => a.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.isVoiceMessage
-      );
-
-      if (!voiceAttachment) {
-        throw new Error('No voice attachment found in transcribe job');
-      }
-
-      // Import transcribeAudio dynamically to avoid circular dependencies
-      const { transcribeAudio } = await import('../services/MultimodalProcessor.js');
-
-      // Transcribe the audio (we don't need a real personality, just pass a minimal one)
-      const transcript = await transcribeAudio(voiceAttachment, {} as LoadedPersonality);
-
-      const processingTimeMs = Date.now() - startTime;
-      logger.info(`[AIJobProcessor] Transcribe job ${job.id} completed in ${processingTimeMs}ms`);
-
-      const result: AIJobResult = {
-        requestId,
-        success: true,
-        content: transcript,
-        metadata: {
-          processingTimeMs,
-        },
-      };
-
-      // Persist to DB and publish to Redis Stream
-      await this.persistAndPublishResult(job as Job<AnyJobData>, result);
-
-      return result;
-    } catch (error) {
-      const processingTimeMs = Date.now() - startTime;
-      logger.error({ err: error }, `[AIJobProcessor] Transcribe job ${job.id} failed`);
-
-      const result: AIJobResult = {
-        requestId,
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        metadata: {
-          processingTimeMs,
-        },
-      };
-
-      // Persist to DB and publish to Redis Stream (even for failures)
-      await this.persistAndPublishResult(job as Job<AnyJobData>, result);
-
-      return result;
-    }
-  }
-
-  /**
-   * Process a standard AI generation job
-   */
-  private async processGenerateJob(job: Job<AIJobData>): Promise<AIJobResult> {
+    // Now perform LLM generation
     const startTime = Date.now();
     const { requestId, personality, message, context, userApiKey } = job.data;
 
     logger.info(
-      `[AIJobProcessor] Processing generate job ${job.id} (${requestId}) for ${personality.name}`
+      `[AIJobProcessor] Processing LLM generation job ${job.id} (${requestId}) for ${personality.name}`
     );
 
     // Debug: Check if referencedMessages exists in job data
@@ -433,7 +357,7 @@ export class AIJobProcessor {
           activePersonaId: context.activePersonaId,
           activePersonaName: context.activePersonaName,
           conversationHistory,
-          rawConversationHistory: context.conversationHistory, // Preserve tokenCount before BaseMessage conversion
+          rawConversationHistory: context.conversationHistory,
           oldestHistoryTimestamp,
           participants,
           attachments: context.attachments,
@@ -447,7 +371,7 @@ export class AIJobProcessor {
 
       logger.info(`[AIJobProcessor] Job ${job.id} completed in ${processingTimeMs}ms`);
 
-      const jobResult: AIJobResult = {
+      const jobResult: LLMGenerationResult = {
         requestId,
         success: true,
         content: response.content,
@@ -464,16 +388,15 @@ export class AIJobProcessor {
       logger.debug({ jobResult }, '[AIJobProcessor] Returning job result');
 
       // Persist to DB and publish to Redis Stream
-      await this.persistAndPublishResult(job as Job<AnyJobData>, jobResult);
+      await this.persistAndPublishResult(job, jobResult);
 
       return jobResult;
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
 
-      // Pino requires error objects to be passed with the 'err' key for proper serialization
       logger.error({ err: error }, `[AIJobProcessor] Job ${job.id} failed`);
 
-      const jobResult: AIJobResult = {
+      const jobResult: LLMGenerationResult = {
         requestId,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -483,7 +406,7 @@ export class AIJobProcessor {
       };
 
       // Persist to DB and publish to Redis Stream (even for failures)
-      await this.persistAndPublishResult(job as Job<AnyJobData>, jobResult);
+      await this.persistAndPublishResult(job, jobResult);
 
       return jobResult;
     }

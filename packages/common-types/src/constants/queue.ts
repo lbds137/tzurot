@@ -31,10 +31,6 @@ export const JOB_PREFIXES = {
   AUDIO_TRANSCRIPTION: 'audio-',
   /** Prefix for image description jobs */
   IMAGE_DESCRIPTION: 'image-',
-  /** @deprecated Legacy prefix for AI generation jobs (use LLM_GENERATION) */
-  GENERATE: 'req-',
-  /** @deprecated Legacy prefix for transcription jobs (use AUDIO_TRANSCRIPTION) */
-  TRANSCRIBE: 'transcribe-',
 } as const;
 
 /**
@@ -62,8 +58,4 @@ export enum JobType {
   ImageDescription = 'image-description',
   /** LLM generation job (may depend on preprocessing jobs) */
   LLMGeneration = 'llm-generation',
-  /** @deprecated Use LLMGeneration instead */
-  Generate = 'generate',
-  /** @deprecated Use AudioTranscription instead */
-  Transcribe = 'transcribe',
 }

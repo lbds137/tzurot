@@ -72,9 +72,9 @@ queueEvents.on('completed', ({ jobId }) => {
 
   // Clean up temporary attachments after a short delay
   // This ensures ai-worker has finished all async operations
-  // Job ID format is req-{requestId}
-  if (jobId.startsWith(JOB_PREFIXES.GENERATE)) {
-    const requestId = jobId.substring(JOB_PREFIXES.GENERATE.length);
+  // Job ID format is llm-{requestId} for main generation jobs
+  if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
+    const requestId = jobId.substring(JOB_PREFIXES.LLM_GENERATION.length);
     setTimeout(() => {
       void cleanupAttachments(requestId);
     }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
@@ -85,8 +85,8 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
   logger.error({ failedReason }, `[Queue] Job ${jobId} failed:`);
 
   // Clean up temporary attachments even on failure
-  if (jobId.startsWith(JOB_PREFIXES.GENERATE)) {
-    const requestId = jobId.substring(JOB_PREFIXES.GENERATE.length);
+  if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
+    const requestId = jobId.substring(JOB_PREFIXES.LLM_GENERATION.length);
     setTimeout(() => {
       void cleanupAttachments(requestId);
     }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);

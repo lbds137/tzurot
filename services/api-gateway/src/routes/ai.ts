@@ -161,6 +161,7 @@ aiRouter.post('/generate', async (req, res) => {
  * POST /ai/transcribe
  *
  * Transcribe audio attachments using Whisper.
+ * Creates an AudioTranscriptionJob for each audio attachment.
  *
  * Query parameters:
  * - wait=true: Wait for job completion using Redis pub/sub (no polling)
@@ -187,23 +188,25 @@ aiRouter.post('/transcribe', async (req, res) => {
     // Download attachments to local storage
     const localAttachments = await downloadAndStoreAttachments(requestId, req.body.attachments);
 
-    // Create transcribe job
+    // Use first audio attachment (transcribe endpoint expects single audio file)
+    const audioAttachment = localAttachments[0];
+
+    // Create audio transcription job using new job type
     const jobData = {
       requestId,
-      jobType: JobType.Transcribe,
-      personality: {}, // Not used for transcription
-      message: '',
+      jobType: JobType.AudioTranscription,
+      attachment: audioAttachment,
       context: {
         userId: 'system',
-        attachments: localAttachments,
+        channelId: 'api',
       },
       responseDestination: {
         type: 'api' as const,
       },
     };
 
-    const job = await aiQueue.add(JobType.Transcribe, jobData, {
-      jobId: `${JOB_PREFIXES.TRANSCRIBE}${requestId}`,
+    const job = await aiQueue.add(JobType.AudioTranscription, jobData, {
+      jobId: `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${requestId}`,
     });
 
     logger.info(`[AI] Created transcribe job ${job.id} (${Date.now() - startTime}ms)`);
