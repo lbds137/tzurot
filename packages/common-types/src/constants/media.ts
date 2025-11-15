@@ -24,8 +24,16 @@ export const CONTENT_TYPES = {
   IMAGE_PREFIX: 'image/',
   /** Audio content type prefix */
   AUDIO_PREFIX: 'audio/',
-  /** Default PNG image type */
+  /** PNG image type */
   IMAGE_PNG: 'image/png',
+  /** JPEG image type */
+  IMAGE_JPG: 'image/jpeg',
+  /** WebP image type */
+  IMAGE_WEBP: 'image/webp',
+  /** OGG audio type (voice messages) */
+  AUDIO_OGG: 'audio/ogg',
+  /** MP3 audio type */
+  AUDIO_MP3: 'audio/mpeg',
   /** JSON content type */
   JSON: 'application/json',
   /** Binary octet stream (generic binary) */
