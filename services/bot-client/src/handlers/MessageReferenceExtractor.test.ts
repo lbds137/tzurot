@@ -13,21 +13,41 @@ import {
 } from '../test/mocks/Discord.mock.js';
 import type { Client, Message, TextChannel } from 'discord.js';
 
-// Mock the logger
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: vi.fn(() => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  })),
+// Create shared mock for ConversationHistoryService methods
+const mockGetMessageByDiscordId = vi.fn();
+
+// Mock Redis
+vi.mock('../redis.js', () => ({
+  getVoiceTranscript: vi.fn(),
 }));
+
+// Mock the logger and ConversationHistoryService
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: vi.fn(() => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    })),
+    ConversationHistoryService: class {
+      getMessageByDiscordId = mockGetMessageByDiscordId;
+    },
+  };
+});
+
+import { getVoiceTranscript } from '../redis.js';
+import { ConversationHistoryService } from '@tzurot/common-types';
 
 describe('MessageReferenceExtractor', () => {
   let extractor: MessageReferenceExtractor;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the shared mock
+    mockGetMessageByDiscordId.mockReset();
     // Use 0ms delay for faster tests
     extractor = new MessageReferenceExtractor({
       maxReferences: 10,
@@ -882,6 +902,326 @@ describe('MessageReferenceExtractor', () => {
       expect(references[0].isForwarded).toBeUndefined();
       expect(references[0].authorUsername).toBe('RegularUser');
       expect(references[0].authorDisplayName).toBe('Regular User');
+    });
+  });
+
+  describe('Voice Message Transcript Retrieval', () => {
+    it('should include voice transcript from Redis cache when available', async () => {
+      const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
+      const transcript = 'This is the transcribed voice message';
+
+      // Mock Redis cache hit
+      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(transcript);
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'voice-msg-123',
+        content: '', // Voice messages typically have no text content
+        author: createMockUser({ username: 'VoiceUser' }),
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        channel: referencedChannel,
+        attachments: createMockCollection([
+          [
+            'attachment-1',
+            {
+              id: 'attachment-1',
+              url: voiceAttachmentUrl,
+              contentType: 'audio/ogg',
+              name: 'voice-message.ogg',
+              size: 50000,
+              duration: 5.2, // Voice message indicator
+              waveform: 'base64data',
+            },
+          ],
+        ]),
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-123',
+        content: 'Reply to voice',
+        channel: mockChannel,
+        reference: { messageId: 'voice-msg-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      mockChannel.messages = {
+        fetch: vi.fn().mockResolvedValue(message),
+      };
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe(`[Voice transcript]: ${transcript}`);
+      expect(getVoiceTranscript).toHaveBeenCalledWith(voiceAttachmentUrl);
+    });
+
+    it('should include voice transcript from database when Redis cache expired', async () => {
+      const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
+      const dbTranscript = 'This is the database-stored transcript';
+
+      // Mock Redis cache miss
+      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      // Mock database hit using shared mock
+      mockGetMessageByDiscordId.mockResolvedValue({
+        id: 'db-id-123',
+        content: dbTranscript,
+        role: 'user',
+      });
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'voice-msg-456',
+        content: '',
+        author: createMockUser({ username: 'VoiceUser' }),
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        channel: referencedChannel,
+        attachments: createMockCollection([
+          [
+            'attachment-1',
+            {
+              id: 'attachment-1',
+              url: voiceAttachmentUrl,
+              contentType: 'audio/ogg',
+              name: 'voice-message.ogg',
+              size: 50000,
+              duration: 10.5,
+              waveform: 'base64data',
+            },
+          ],
+        ]),
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-456',
+        content: 'Reply to old voice',
+        channel: mockChannel,
+        reference: { messageId: 'voice-msg-456' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      mockChannel.messages = {
+        fetch: vi.fn().mockResolvedValue(message),
+      };
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe(`[Voice transcript]: ${dbTranscript}`);
+      expect(getVoiceTranscript).toHaveBeenCalledWith(voiceAttachmentUrl);
+      expect(mockGetMessageByDiscordId).toHaveBeenCalledWith('voice-msg-456');
+    });
+
+    it('should handle voice message with no available transcript', async () => {
+      const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
+
+      // Mock both Redis and database miss
+      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      mockGetMessageByDiscordId.mockResolvedValue(null);
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'voice-msg-789',
+        content: '',
+        author: createMockUser({ username: 'VoiceUser' }),
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        channel: referencedChannel,
+        attachments: createMockCollection([
+          [
+            'attachment-1',
+            {
+              id: 'attachment-1',
+              url: voiceAttachmentUrl,
+              contentType: 'audio/ogg',
+              name: 'voice-message.ogg',
+              size: 50000,
+              duration: 3.0,
+              waveform: 'base64data',
+            },
+          ],
+        ]),
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-789',
+        content: 'Reply to untranscribed voice',
+        channel: mockChannel,
+        reference: { messageId: 'voice-msg-789' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      mockChannel.messages = {
+        fetch: vi.fn().mockResolvedValue(message),
+      };
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      // Should only have the placeholder, no transcript
+      expect(references[0].content).toBe('');
+      expect(references[0].attachments).toBeDefined();
+      expect(references[0].attachments?.[0].isVoiceMessage).toBe(true);
+    });
+
+    it('should combine text content with voice transcript', async () => {
+      const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
+      const transcript = 'Voice message transcript';
+
+      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(transcript);
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'voice-msg-combo',
+        content: 'Check this out', // Has text AND voice
+        author: createMockUser({ username: 'VoiceUser' }),
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        channel: referencedChannel,
+        attachments: createMockCollection([
+          [
+            'attachment-1',
+            {
+              id: 'attachment-1',
+              url: voiceAttachmentUrl,
+              contentType: 'audio/ogg',
+              name: 'voice-message.ogg',
+              size: 50000,
+              duration: 2.0,
+              waveform: 'base64data',
+            },
+          ],
+        ]),
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-combo',
+        content: 'Reply',
+        channel: mockChannel,
+        reference: { messageId: 'voice-msg-combo' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      mockChannel.messages = {
+        fetch: vi.fn().mockResolvedValue(message),
+      };
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe(`Check this out\n\n[Voice transcript]: ${transcript}`);
+    });
+
+    it('should handle multiple voice attachments', async () => {
+      const voiceUrl1 = 'https://cdn.discord.com/attachments/123/456/voice1.ogg';
+      const voiceUrl2 = 'https://cdn.discord.com/attachments/123/456/voice2.ogg';
+      const transcript1 = 'First voice message';
+      const transcript2 = 'Second voice message';
+
+      (getVoiceTranscript as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(transcript1)
+        .mockResolvedValueOnce(transcript2);
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'voice-msg-multi',
+        content: '',
+        author: createMockUser({ username: 'VoiceUser' }),
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        channel: referencedChannel,
+        attachments: createMockCollection([
+          [
+            'attachment-1',
+            {
+              id: 'attachment-1',
+              url: voiceUrl1,
+              contentType: 'audio/ogg',
+              name: 'voice1.ogg',
+              size: 50000,
+              duration: 2.0,
+            },
+          ],
+          [
+            'attachment-2',
+            {
+              id: 'attachment-2',
+              url: voiceUrl2,
+              contentType: 'audio/ogg',
+              name: 'voice2.ogg',
+              size: 60000,
+              duration: 3.0,
+            },
+          ],
+        ]),
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-multi',
+        content: 'Reply to multiple',
+        channel: mockChannel,
+        reference: { messageId: 'voice-msg-multi' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      mockChannel.messages = {
+        fetch: vi.fn().mockResolvedValue(message),
+      };
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe(
+        `[Voice transcript]: ${transcript1}\n\n${transcript2}`
+      );
+    });
+
+    it('should not retrieve transcripts for non-voice audio attachments', async () => {
+      const audioUrl = 'https://cdn.discord.com/attachments/123/456/music.mp3';
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'audio-msg',
+        content: 'Music file',
+        author: createMockUser({ username: 'MusicUser' }),
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        channel: referencedChannel,
+        attachments: createMockCollection([
+          [
+            'attachment-1',
+            {
+              id: 'attachment-1',
+              url: audioUrl,
+              contentType: 'audio/mpeg',
+              name: 'music.mp3',
+              size: 5000000,
+              duration: null, // Not a voice message
+            },
+          ],
+        ]),
+      });
+
+      const mockChannel = createConfiguredChannel({}) as any;
+      const message = createMockMessage({
+        id: 'msg-music',
+        content: 'Reply to music',
+        channel: mockChannel,
+        reference: { messageId: 'audio-msg' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+      });
+
+      mockChannel.messages = {
+        fetch: vi.fn().mockResolvedValue(message),
+      };
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('Music file');
+      // Should not have called getVoiceTranscript for non-voice audio
+      expect(getVoiceTranscript).not.toHaveBeenCalled();
     });
   });
 });

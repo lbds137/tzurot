@@ -346,6 +346,58 @@ export class ConversationHistoryService {
   }
 
   /**
+   * Get a message by Discord message ID
+   * Used for retrieving voice transcripts from referenced messages
+   */
+  async getMessageByDiscordId(discordMessageId: string): Promise<ConversationMessage | null> {
+    try {
+      const message = await this.prisma.conversationHistory.findFirst({
+        where: {
+          discordMessageId: {
+            has: discordMessageId,
+          },
+        },
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          tokenCount: true,
+          createdAt: true,
+          personaId: true,
+          discordMessageId: true,
+          persona: {
+            select: {
+              name: true,
+              preferredName: true,
+            },
+          },
+        },
+      });
+
+      if (!message) {
+        return null;
+      }
+
+      return {
+        id: message.id,
+        role: message.role as MessageRole,
+        content: message.content,
+        tokenCount: message.tokenCount ?? undefined,
+        createdAt: message.createdAt,
+        personaId: message.personaId,
+        personaName: message.persona.preferredName || message.persona.name,
+        discordMessageId: message.discordMessageId || undefined,
+      };
+    } catch (error) {
+      logger.error(
+        { err: error, discordMessageId },
+        `Failed to get message by Discord message ID`
+      );
+      return null;
+    }
+  }
+
+  /**
    * Clear conversation history for a channel + personality
    * (useful for /reset command)
    */

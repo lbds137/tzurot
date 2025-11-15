@@ -18,6 +18,8 @@ import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../utils/embedImageExtractor.js';
 import { createLogger, INTERVALS, ReferencedMessage } from '@tzurot/common-types';
 import { extractDiscordEnvironment, formatEnvironmentForPrompt } from '../utils/discordContext.js';
+import { getVoiceTranscript } from '../redis.js';
+import { ConversationHistoryService } from '@tzurot/common-types';
 
 const logger = createLogger('MessageReferenceExtractor');
 
@@ -54,6 +56,7 @@ export class MessageReferenceExtractor {
   private readonly embedProcessingDelayMs: number;
   private conversationHistoryMessageIds: Set<string>;
   private conversationHistoryTimestamps: Date[];
+  private readonly conversationHistoryService: ConversationHistoryService;
 
   constructor(options: ReferenceExtractionOptions = {}) {
     this.maxReferences = options.maxReferences ?? 10;
@@ -73,6 +76,7 @@ export class MessageReferenceExtractor {
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
     this.conversationHistoryTimestamps = options.conversationHistoryTimestamps || [];
+    this.conversationHistoryService = new ConversationHistoryService();
   }
 
   /**
@@ -163,7 +167,7 @@ export class MessageReferenceExtractor {
             );
           } else {
             // Format and add the reply reference
-            const replyReference = this.formatReferencedMessage(referencedMessage, 1);
+            const replyReference = await this.formatReferencedMessage(referencedMessage, 1);
             references.push(replyReference);
             logger.info(
               {
@@ -295,7 +299,7 @@ export class MessageReferenceExtractor {
           continue;
         }
 
-        references.push(this.formatReferencedMessage(referencedMessage, currentNumber));
+        references.push(await this.formatReferencedMessage(referencedMessage, currentNumber));
         linkMap.set(link.fullUrl, currentNumber); // Map the Discord URL to this reference number
         extractedMessageIds.add(referencedMessage.id); // Track this ID to prevent duplicates within links
         currentNumber++;
@@ -454,11 +458,11 @@ export class MessageReferenceExtractor {
    * @param isForwarded - Whether this is a forwarded message snapshot
    * @returns Formatted referenced message
    */
-  private formatReferencedMessage(
+  private async formatReferencedMessage(
     message: Message,
     referenceNumber: number,
     isForwarded?: boolean
-  ): ReferencedMessage {
+  ): Promise<ReferencedMessage> {
     // Extract full Discord environment context (server, category, channel, thread)
     const environment = extractDiscordEnvironment(message);
 
@@ -474,6 +478,29 @@ export class MessageReferenceExtractor {
     // Combine both types of attachments
     const allAttachments = [...(regularAttachments || []), ...(embedImages || [])];
 
+    // Check if any attachments are voice messages with transcripts (Redis cache or database)
+    let contentWithTranscript = message.content;
+    if (regularAttachments && regularAttachments.length > 0) {
+      const transcripts: string[] = [];
+
+      for (const attachment of regularAttachments) {
+        if (attachment.isVoiceMessage) {
+          const transcript = await this.retrieveVoiceTranscript(message.id, attachment.url);
+          if (transcript) {
+            transcripts.push(transcript);
+          }
+        }
+      }
+
+      // Append transcripts to content if found
+      if (transcripts.length > 0) {
+        const transcriptText = transcripts.join('\n\n');
+        contentWithTranscript = message.content
+          ? `${message.content}\n\n[Voice transcript]: ${transcriptText}`
+          : `[Voice transcript]: ${transcriptText}`;
+      }
+    }
+
     return {
       referenceNumber,
       discordMessageId: message.id,
@@ -481,7 +508,7 @@ export class MessageReferenceExtractor {
       discordUserId: message.author.id,
       authorUsername: message.author.username,
       authorDisplayName: message.author.displayName ?? message.author.username,
-      content: message.content,
+      content: contentWithTranscript,
       embeds: EmbedParser.parseMessageEmbeds(message),
       timestamp: message.createdAt.toISOString(),
       locationContext,
@@ -644,6 +671,79 @@ export class MessageReferenceExtractor {
     );
 
     return true; // Include - not found in conversation history
+  }
+
+  /**
+   * Retrieve voice transcript with two-tier lookup
+   *
+   * Tier 1 (Fast): Redis cache (5-minute TTL for recent messages)
+   * Tier 2 (Permanent): Database lookup by Discord message ID
+   *
+   * This ensures transcripts are available forever, not just for 5 minutes.
+   *
+   * @param discordMessageId - Discord message ID
+   * @param attachmentUrl - Voice attachment CDN URL
+   * @returns Transcript text or null if not found
+   */
+  private async retrieveVoiceTranscript(
+    discordMessageId: string,
+    attachmentUrl: string
+  ): Promise<string | null> {
+    try {
+      // Tier 1: Check Redis cache (fast path for recent messages)
+      const cachedTranscript = await getVoiceTranscript(attachmentUrl);
+      if (cachedTranscript) {
+        logger.info(
+          {
+            messageId: discordMessageId,
+            attachmentUrl: attachmentUrl.substring(0, 50),
+            transcriptLength: cachedTranscript.length,
+            source: 'redis-cache',
+          },
+          '[MessageReferenceExtractor] Retrieved voice transcript from Redis cache'
+        );
+        return cachedTranscript;
+      }
+
+      // Tier 2: Check database (permanent storage)
+      // Voice transcripts are stored as the message content in conversation history
+      const dbMessage = await this.conversationHistoryService.getMessageByDiscordId(
+        discordMessageId
+      );
+
+      if (dbMessage && dbMessage.content) {
+        // The content field contains the transcript (voice messages use transcript as content)
+        logger.info(
+          {
+            messageId: discordMessageId,
+            attachmentUrl: attachmentUrl.substring(0, 50),
+            transcriptLength: dbMessage.content.length,
+            source: 'database',
+          },
+          '[MessageReferenceExtractor] Retrieved voice transcript from database'
+        );
+        return dbMessage.content;
+      }
+
+      logger.debug(
+        {
+          messageId: discordMessageId,
+          attachmentUrl: attachmentUrl.substring(0, 50),
+        },
+        '[MessageReferenceExtractor] No transcript found in cache or database'
+      );
+      return null;
+    } catch (error) {
+      logger.warn(
+        {
+          err: error,
+          messageId: discordMessageId,
+          attachmentUrl: attachmentUrl.substring(0, 50),
+        },
+        '[MessageReferenceExtractor] Error retrieving voice transcript'
+      );
+      return null;
+    }
   }
 
   /**

@@ -1,0 +1,88 @@
+/**
+ * Voice Message Processor
+ *
+ * Handles voice message auto-transcription when enabled.
+ * Transcribes voice, sends to Discord, and determines if personality handling should continue.
+ */
+
+import type { Message } from 'discord.js';
+import { createLogger, getConfig } from '@tzurot/common-types';
+import type { IMessageProcessor } from './IMessageProcessor.js';
+import { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
+import { PersonalityService } from '@tzurot/common-types';
+import { findPersonalityMention } from '../utils/personalityMentionParser.js';
+
+const logger = createLogger('VoiceMessageProcessor');
+
+/**
+ * Shared context for passing voice transcript to other processors
+ * Stored on the message object as a non-enumerable property
+ */
+const VOICE_TRANSCRIPT_KEY = Symbol('voiceTranscript');
+
+export class VoiceMessageProcessor implements IMessageProcessor {
+  constructor(
+    private readonly voiceService: VoiceTranscriptionService,
+    private readonly personalityService: PersonalityService
+  ) {}
+
+  async process(message: Message): Promise<boolean> {
+    const config = getConfig();
+
+    // Check if auto-transcription is enabled
+    if (config.AUTO_TRANSCRIBE_VOICE !== 'true') {
+      return false; // Continue to next processor
+    }
+
+    // Check if message has voice attachment
+    if (!this.voiceService.hasVoiceAttachment(message)) {
+      return false; // Continue to next processor
+    }
+
+    logger.debug('[VoiceMessageProcessor] Processing voice message');
+
+    // Check if message also targets a personality
+    const isReply = message.reference !== null;
+    const mentionCheck = await findPersonalityMention(
+      message.content,
+      config.BOT_MENTION_CHAR,
+      this.personalityService
+    );
+    const hasMention = mentionCheck !== null || message.mentions.has(message.client.user!);
+
+    // Transcribe the voice message
+    const result = await this.voiceService.transcribe(message, hasMention, isReply);
+
+    if (!result) {
+      // Transcription failed, error already sent to user
+      return true; // Stop processing
+    }
+
+    // Store transcript for other processors to use
+    Object.defineProperty(message, VOICE_TRANSCRIPT_KEY, {
+      value: result.transcript,
+      writable: false,
+      enumerable: false,
+    });
+
+    if (result.continueToPersonalityHandler) {
+      // Voice message also targets a personality - continue processing
+      logger.debug(
+        '[VoiceMessageProcessor] Voice message with personality target - continuing chain'
+      );
+      return false; // Continue to next processor
+    }
+
+    // Voice-only message: transcription sent, we're done
+    logger.debug('[VoiceMessageProcessor] Voice-only message processed');
+    return true; // Stop processing
+  }
+
+  /**
+   * Helper to get voice transcript stored by this processor
+   * Other processors can use this to get the transcript for personality handling
+   */
+  static getVoiceTranscript(message: Message): string | undefined {
+    return (message as unknown as Record<symbol, string>)[VOICE_TRANSCRIPT_KEY];
+  }
+}
