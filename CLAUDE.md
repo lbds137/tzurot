@@ -237,6 +237,14 @@ OpenRouter/Gemini API
 - Never log secrets/tokens
 - See privacy logging guide for user data
 
+**Type Centralization**:
+
+- **ALWAYS define reusable types in `common-types` package IMMEDIATELY** - Don't let duplication happen
+- Common pattern: If a type/type guard might be used in >1 service, put it in common-types right away
+- Example: `TypingChannel` type and `isTypingChannel()` type guard in `packages/common-types/src/types/discord-types.ts`
+- Prevents duplication, ensures consistency, reduces refactoring later
+- Add package dependencies if needed (e.g., discord.js to common-types for Discord type imports)
+
 ## Folder Structure Standards
 
 > **📁 ALWAYS FOLLOW**: See [docs/standards/FOLDER_STRUCTURE.md](docs/standards/FOLDER_STRUCTURE.md) for comprehensive folder structure and file naming standards.

@@ -81,6 +81,9 @@ importers:
       '@prisma/client':
         specifier: ^6.18.0
         version: 6.18.0(prisma@6.18.0)(typescript@5.9.3)
+      discord.js:
+        specifier: ^14.17.3
+        version: 14.22.1
       openai:
         specifier: ^6.7.0
         version: 6.7.0(zod@4.1.12)
