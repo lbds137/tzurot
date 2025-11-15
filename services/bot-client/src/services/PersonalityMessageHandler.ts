@@ -6,7 +6,8 @@
  * Used by multiple processors (Reply, Mention, etc.)
  */
 
-import type { Message } from 'discord.js';
+import type { Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import { ChannelType } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -16,6 +17,20 @@ import { ConversationPersistence } from './ConversationPersistence.js';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 
 const logger = createLogger('PersonalityMessageHandler');
+
+/**
+ * Type guard to check if a channel supports typing indicators
+ * (TextChannel, DMChannel, or NewsChannel)
+ */
+function isTypingChannel(
+  channel: Message['channel']
+): channel is TextChannel | DMChannel | NewsChannel {
+  return (
+    channel.type === ChannelType.GuildText ||
+    channel.type === ChannelType.DM ||
+    channel.type === ChannelType.GuildNews
+  );
+}
 
 /**
  * Handles personality message processing
@@ -72,8 +87,19 @@ export class PersonalityMessageHandler {
       // Submit job to api-gateway (ASYNC PATTERN - returns immediately with jobId)
       const { jobId } = await this.gatewayClient.generate(personality, context);
 
+      // Verify channel type is compatible with JobTracker (TextChannel, DMChannel, or NewsChannel)
+      const { channel } = message;
+      if (!isTypingChannel(channel)) {
+        logger.warn(
+          { channelType: channel.type },
+          '[PersonalityMessageHandler] Unsupported channel type for AI interactions'
+        );
+        throw new Error('This channel type is not supported for AI interactions');
+      }
+
       // Start typing indicator and store job context (managed by JobTracker)
-      this.jobTracker.trackJob(jobId, message.channel as any, {
+      // TypeScript knows channel is TextChannel | DMChannel | NewsChannel after type guard
+      this.jobTracker.trackJob(jobId, channel, {
         message,
         personality,
         personaId,
