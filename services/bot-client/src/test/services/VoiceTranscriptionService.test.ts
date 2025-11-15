@@ -389,6 +389,16 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     });
   });
 
+  // Add Collection-like methods to Map (Discord.js Collection extends Map)
+  (attachments as any).some = function (predicate: any) {
+    for (const value of this.values()) {
+      if (predicate(value)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const channel: any = options.noTypingSupport
     ? {}
     : {

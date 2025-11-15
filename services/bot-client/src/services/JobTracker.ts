@@ -3,12 +3,26 @@
  *
  * Tracks active AI jobs and manages Discord typing indicators while waiting.
  * Coordinates between job submission and async result delivery.
+ * Stores all context needed to handle async results (moved from MessageHandler).
  */
 
 import { createLogger } from '@tzurot/common-types';
-import type { TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import type { LoadedPersonality } from '@tzurot/common-types';
+import type { Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
 
 const logger = createLogger('JobTracker');
+
+/**
+ * Context needed to handle async job results
+ * Stored here instead of in MessageHandler for statelessness
+ */
+export interface PendingJobContext {
+  message: Message;
+  personality: LoadedPersonality;
+  personaId: string;
+  userMessageContent: string;
+  userMessageTime: Date;
+}
 
 interface TrackedJob {
   jobId: string;
@@ -16,6 +30,7 @@ interface TrackedJob {
   channel: TextChannel | DMChannel | NewsChannel;
   typingInterval: NodeJS.Timeout;
   startTime: number;
+  context: PendingJobContext;
 }
 
 export class JobTracker {
@@ -26,7 +41,8 @@ export class JobTracker {
    */
   trackJob(
     jobId: string,
-    channel: TextChannel | DMChannel | NewsChannel
+    channel: TextChannel | DMChannel | NewsChannel,
+    context: PendingJobContext
   ): void {
     // Clear any existing tracking for this jobId (shouldn't happen, but be safe)
     if (this.activeJobs.has(jobId)) {
@@ -56,11 +72,12 @@ export class JobTracker {
       channel,
       typingInterval,
       startTime: Date.now(),
+      context,
     });
 
     logger.info(
       { jobId, channelId: channel.id },
-      '[JobTracker] Started tracking job'
+      '[JobTracker] Started tracking job with context'
     );
   }
 
@@ -94,6 +111,15 @@ export class JobTracker {
    */
   isTracking(jobId: string): boolean {
     return this.activeJobs.has(jobId);
+  }
+
+  /**
+   * Get pending job context
+   * Returns the context if job is tracked, null otherwise
+   */
+  getContext(jobId: string): PendingJobContext | null {
+    const tracked = this.activeJobs.get(jobId);
+    return tracked ? tracked.context : null;
   }
 
   /**
