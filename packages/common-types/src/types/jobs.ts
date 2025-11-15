@@ -9,6 +9,7 @@ import type {
   ReferencedMessage,
   AttachmentMetadata,
   DiscordEnvironment,
+  LLMGenerationResult,
 } from './schemas.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import type { MessageRole } from '../constants/message.js';
@@ -160,26 +161,10 @@ export interface ImageDescriptionResult {
 }
 
 /**
- * LLM generation result
+ * LLM generation result - imported from schemas.ts as schema-derived type
+ * @see generationPayloadSchema, llmGenerationResultSchema in schemas.ts
  */
-export interface LLMGenerationResult {
-  requestId: string;
-  success: boolean;
-  /** Generated response text */
-  content?: string;
-  /** Attachment descriptions (if attachments were processed inline) */
-  attachmentDescriptions?: string;
-  /** Referenced messages descriptions */
-  referencedMessagesDescriptions?: string;
-  /** Error message if failed */
-  error?: string;
-  metadata?: {
-    retrievedMemories?: number;
-    tokensUsed?: number;
-    processingTimeMs?: number;
-    modelUsed?: string;
-  };
-}
+// Type re-exported from schemas.ts to prevent drift
 
 /**
  * Union type for all job results

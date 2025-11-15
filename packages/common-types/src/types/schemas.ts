@@ -175,6 +175,43 @@ export const generateRequestSchema = z.object({
   userApiKey: z.string().optional(),
 });
 
+/**
+ * Generation Payload Schema
+ *
+ * SINGLE SOURCE OF TRUTH for the core AI generation result payload.
+ * This is the shared contract between:
+ * - HTTP API responses (GenerateResponse.result)
+ * - Internal job results (LLMGenerationResult)
+ *
+ * Following DRY principle while maintaining proper decoupling between
+ * API contracts and internal formats.
+ */
+export const generationPayloadSchema = z.object({
+  content: z.string(),
+  attachmentDescriptions: z.string().optional(),
+  referencedMessagesDescriptions: z.string().optional(),
+  metadata: z.object({
+    retrievedMemories: z.number().optional(),
+    tokensUsed: z.number().optional(),
+    processingTimeMs: z.number().optional(),
+    modelUsed: z.string().optional(),
+  }).optional(),
+});
+
+/**
+ * LLM Generation Result Schema
+ *
+ * SINGLE SOURCE OF TRUTH for internal job results passed through Redis streams.
+ * Extends GenerationPayload with success/error fields for internal processing.
+ */
+export const llmGenerationResultSchema = generationPayloadSchema.extend({
+  requestId: z.string(),
+  success: z.boolean(),
+  error: z.string().optional(),
+  // Override content to be optional when success=false
+  content: z.string().optional(),
+});
+
 // Infer TypeScript types from schemas
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
@@ -183,3 +220,5 @@ export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
+export type GenerationPayload = z.infer<typeof generationPayloadSchema>;
+export type LLMGenerationResult = z.infer<typeof llmGenerationResultSchema>;
