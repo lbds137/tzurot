@@ -172,7 +172,8 @@ async function start(): Promise<void> {
         // Handle result - delegate to MessageHandler which knows how to send via webhook/DM
         await messageHandler.handleJobResult(jobId, result);
 
-        // TODO: Confirm delivery to api-gateway
+        // Confirm delivery to api-gateway (best-effort, non-blocking)
+        await gatewayClient.confirmDelivery(jobId);
       } catch (error) {
         logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
       }

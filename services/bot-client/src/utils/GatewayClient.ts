@@ -134,6 +134,33 @@ export class GatewayClient {
   }
 
   /**
+   * Confirm job delivery to Discord
+   * Updates job_results status to DELIVERED
+   */
+  async confirmDelivery(jobId: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/ai/job/${jobId}/confirm-delivery`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': CONTENT_TYPES.JSON,
+        },
+        signal: AbortSignal.timeout(5000), // 5s timeout
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Delivery confirmation failed: ${response.status} ${errorText}`);
+      }
+
+      logger.debug({ jobId }, '[GatewayClient] Delivery confirmed');
+    } catch (error) {
+      logger.error({ err: error, jobId }, '[GatewayClient] Failed to confirm delivery');
+      // Don't throw - delivery confirmation is best-effort
+      // The cleanup job will eventually remove unconfirmed results
+    }
+  }
+
+  /**
    * Health check
    */
   async healthCheck(): Promise<boolean> {
