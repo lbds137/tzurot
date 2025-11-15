@@ -3,7 +3,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { JobTracker } from '../../../src/services/JobTracker.js';
+import { JobTracker, type PendingJobContext } from '../../../src/services/JobTracker.js';
+
+// Helper to create mock context
+function createMockContext(): PendingJobContext {
+  return {
+    message: { id: 'msg-123' } as any,
+    personality: { id: 'pers-123', displayName: 'Test' } as any,
+    personaId: 'persona-123',
+    userMessageContent: 'test message',
+    userMessageTime: new Date(),
+  };
+}
 
 describe('JobTracker', () => {
   let jobTracker: JobTracker;
@@ -25,7 +36,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel);
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
 
       // Initial typing should be sent immediately
       await vi.advanceTimersByTimeAsync(0);
@@ -46,7 +57,7 @@ describe('JobTracker', () => {
       } as any;
 
       // Should not throw
-      jobTracker.trackJob('job-123', mockChannel);
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
 
       // Wait for initial typing
       await vi.advanceTimersByTimeAsync(0);
@@ -64,7 +75,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel);
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
 
       // Initial typing sent
       await vi.advanceTimersByTimeAsync(0);
@@ -90,7 +101,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel);
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
 
       const channel1 = jobTracker.completeJob('job-123');
       expect(channel1).toBe(mockChannel);
@@ -112,8 +123,8 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-1', mockChannel1);
-      jobTracker.trackJob('job-2', mockChannel2);
+      jobTracker.trackJob('job-1', mockChannel1, createMockContext());
+      jobTracker.trackJob('job-2', mockChannel2, createMockContext());
 
       // Initial typing for both
       await vi.advanceTimersByTimeAsync(0);

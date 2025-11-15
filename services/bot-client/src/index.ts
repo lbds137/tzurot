@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, Events } from 'discord.js';
 import {
   createLogger,
   PersonalityService,
+  UserService,
   disconnectPrisma,
   getConfig,
 } from '@tzurot/common-types';
@@ -13,6 +14,21 @@ import { closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
+import { DiscordResponseSender } from './services/DiscordResponseSender.js';
+import { MessageContextBuilder } from './services/MessageContextBuilder.js';
+import { ConversationPersistence } from './services/ConversationPersistence.js';
+import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
+import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
+import { ReplyResolutionService } from './services/ReplyResolutionService.js';
+import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
+
+// Processors
+import { BotMessageFilter } from './processors/BotMessageFilter.js';
+import { EmptyMessageFilter } from './processors/EmptyMessageFilter.js';
+import { VoiceMessageProcessor } from './processors/VoiceMessageProcessor.js';
+import { ReplyMessageProcessor } from './processors/ReplyMessageProcessor.js';
+import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
+import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -41,21 +57,77 @@ const client = new Client({
   ],
 });
 
-// Initialize services
-const gatewayClient = new GatewayClient(config.gatewayUrl);
-const webhookManager = new WebhookManager(client);
-const jobTracker = new JobTracker();
-const resultsListener = new ResultsListener();
+/**
+ * Composition Root
+ *
+ * This is where all dependencies are instantiated and wired together.
+ * Full dependency injection - no service creates its own dependencies.
+ */
+function createServices() {
+  // Core infrastructure
+  const gatewayClient = new GatewayClient(config.gatewayUrl);
+  const webhookManager = new WebhookManager(client);
+  const jobTracker = new JobTracker();
+  const resultsListener = new ResultsListener();
+
+  // Shared services (used by multiple processors)
+  const personalityService = new PersonalityService();
+  const userService = new UserService();
+
+  // Message handling services
+  const responseSender = new DiscordResponseSender(webhookManager);
+  const contextBuilder = new MessageContextBuilder();
+  const persistence = new ConversationPersistence();
+  const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
+  const referenceEnricher = new ReferenceEnrichmentService(userService);
+  const replyResolver = new ReplyResolutionService(personalityService);
+
+  // Personality message handler (used by multiple processors)
+  const personalityHandler = new PersonalityMessageHandler(
+    gatewayClient,
+    jobTracker,
+    contextBuilder,
+    persistence,
+    referenceEnricher
+  );
+
+  // Create processor chain (order matters!)
+  const processors = [
+    new BotMessageFilter(),
+    new EmptyMessageFilter(),
+    new VoiceMessageProcessor(voiceTranscription, personalityService),
+    new ReplyMessageProcessor(replyResolver, personalityHandler),
+    new PersonalityMentionProcessor(personalityService, personalityHandler),
+    new BotMentionProcessor(personalityService, personalityHandler),
+  ];
+
+  // Create MessageHandler with full dependency injection
+  const messageHandler = new MessageHandler(
+    processors,
+    responseSender,
+    persistence,
+    jobTracker
+  );
+
+  return {
+    messageHandler,
+    gatewayClient,
+    jobTracker,
+    resultsListener,
+    webhookManager,
+    personalityService,
+  };
+}
 
 // These will be initialized in start()
-let messageHandler: MessageHandler;
+let services: ReturnType<typeof createServices>;
 let commandHandler: CommandHandler;
 
 // Message handler - wrapped to handle async properly
 client.on(Events.MessageCreate, message => {
   void (async () => {
     try {
-      await messageHandler.handleMessage(message);
+      await services.messageHandler.handleMessage(message);
     } catch (error) {
       logger.error({ err: error }, 'Error in message handler');
     }
@@ -93,9 +165,9 @@ process.on('unhandledRejection', error => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Shutting down...');
-  jobTracker.cleanup();
-  void resultsListener.stop();
-  webhookManager.destroy();
+  services.jobTracker.cleanup();
+  void services.resultsListener.stop();
+  services.webhookManager.destroy();
   void closeRedis();
   void client.destroy();
   void disconnectPrisma();
@@ -115,8 +187,8 @@ async function start(): Promise<void> {
 
     // Verify we can connect to database
     logger.info('[Bot] Verifying database connection...');
-    const personalityService = new PersonalityService();
-    const personalityList = await personalityService.loadAllPersonalities();
+    const tempPersonalityService = new PersonalityService();
+    const personalityList = await tempPersonalityService.loadAllPersonalities();
     logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
 
     // Auto-deploy commands if enabled
@@ -136,14 +208,14 @@ async function start(): Promise<void> {
     await commandHandler.loadCommands();
     logger.info('[Bot] Command handler initialized');
 
-    // Initialize message handler (personalities loaded on-demand with caching)
-    logger.info('[Bot] Initializing message handler...');
-    messageHandler = new MessageHandler(gatewayClient, webhookManager, jobTracker);
-    logger.info('[Bot] Message handler initialized');
+    // Create all services with full dependency injection
+    logger.info('[Bot] Initializing services with dependency injection...');
+    services = createServices();
+    logger.info('[Bot] All services initialized');
 
     // Health check gateway
     logger.info('[Bot] Checking gateway health...');
-    const isHealthy = await gatewayClient.healthCheck();
+    const isHealthy = await services.gatewayClient.healthCheck();
     if (!isHealthy) {
       logger.warn('[Bot] Gateway health check failed, but continuing...');
     } else {
@@ -160,20 +232,13 @@ async function start(): Promise<void> {
 
     // Start listening for job results (async delivery pattern)
     logger.info('[Bot] Starting results listener...');
-    await resultsListener.start(async (jobId, result) => {
+    await services.resultsListener.start(async (jobId, result) => {
       try {
-        // Stop typing indicator and get channel
-        const channel = jobTracker.completeJob(jobId);
-        if (!channel) {
-          logger.warn({ jobId }, '[Bot] Received result for untracked job - ignoring');
-          return;
-        }
-
-        // Handle result - delegate to MessageHandler which knows how to send via webhook/DM
-        await messageHandler.handleJobResult(jobId, result);
+        // Handle result - MessageHandler gets context from JobTracker
+        await services.messageHandler.handleJobResult(jobId, result);
 
         // Confirm delivery to api-gateway (best-effort, non-blocking)
-        await gatewayClient.confirmDelivery(jobId);
+        await services.gatewayClient.confirmDelivery(jobId);
       } catch (error) {
         logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
       }

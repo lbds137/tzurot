@@ -1,593 +1,330 @@
 /**
  * Tests for MessageHandler
  *
- * Tests the persona name enrichment for referenced messages
+ * Tests the Chain of Responsibility pattern for message processing
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageHandler } from './MessageHandler.js';
-import type { ReferencedMessage, ConversationMessage } from '@tzurot/common-types';
+import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
+import type { Message } from 'discord.js';
 
 // Mock dependencies
-vi.mock('../gateway/GatewayClient.js');
-vi.mock('../webhooks/WebhookManager.js');
-vi.mock('../redis.js', () => ({
-  getWebhookPersonality: vi.fn().mockResolvedValue(null), // Default: not a webhook message
-}));
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  return {
-    ...actual,
-    ConversationHistoryService: vi.fn(),
-    PersonalityService: vi.fn(),
-    UserService: vi.fn(),
-  };
-});
+const mockResponseSender = {
+  sendResponse: vi.fn(),
+};
 
-describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
+const mockPersistence = {
+  updateUserMessage: vi.fn(),
+  saveAssistantMessage: vi.fn(),
+};
+
+const mockJobTracker = {
+  getContext: vi.fn(),
+  completeJob: vi.fn(),
+};
+
+describe('MessageHandler', () => {
   let messageHandler: MessageHandler;
-  let mockUserService: any;
-  let mockGatewayClient: any;
-  let mockWebhookManager: any;
+  let mockProcessor1: IMessageProcessor;
+  let mockProcessor2: IMessageProcessor;
+  let mockProcessor3: IMessageProcessor;
 
   beforeEach(() => {
-    // Reset mocks
     vi.clearAllMocks();
 
-    // Create mock services
-    mockUserService = {
-      getOrCreateUser: vi.fn(),
-      getPersonaForUser: vi.fn(),
-      getPersonaName: vi.fn(),
+    // Create mock processors
+    mockProcessor1 = {
+      process: vi.fn().mockResolvedValue(false),
     };
 
-    mockGatewayClient = {};
-    mockWebhookManager = {};
+    mockProcessor2 = {
+      process: vi.fn().mockResolvedValue(false),
+    };
 
-    // Create MessageHandler instance
-    messageHandler = new MessageHandler(mockGatewayClient, mockWebhookManager);
+    mockProcessor3 = {
+      process: vi.fn().mockResolvedValue(false),
+    };
 
-    // Override the userService with our mock
-    (messageHandler as any).userService = mockUserService;
+    messageHandler = new MessageHandler(
+      [mockProcessor1, mockProcessor2, mockProcessor3],
+      mockResponseSender as any,
+      mockPersistence as any,
+      mockJobTracker as any
+    );
   });
 
-  describe('persona name lookup from conversation history', () => {
-    it('should use persona names from conversation history when available', async () => {
-      // Setup: Create referenced messages
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-123',
-          webhookId: undefined,
-          discordUserId: 'user-123',
-          authorUsername: 'testuser',
-          authorDisplayName: 'Test User Discord Name',
-          content: 'Hello world',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #general',
+  describe('handleMessage - Chain of Responsibility', () => {
+    function createMockMessage(overrides = {}): Message {
+      return {
+        id: 'msg-123',
+        author: {
+          tag: 'TestUser#1234',
+          bot: false,
         },
+        reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
+        ...overrides,
+      } as unknown as Message;
+    }
+
+    it('should pass message through processor chain in order', async () => {
+      const message = createMockMessage();
+
+      await messageHandler.handleMessage(message);
+
+      // All processors should be called in order
+      expect(mockProcessor1.process).toHaveBeenCalledWith(message);
+      expect(mockProcessor2.process).toHaveBeenCalledWith(message);
+      expect(mockProcessor3.process).toHaveBeenCalledWith(message);
+
+      // Verify order
+      const calls = [
+        mockProcessor1.process.mock.invocationCallOrder[0],
+        mockProcessor2.process.mock.invocationCallOrder[0],
+        mockProcessor3.process.mock.invocationCallOrder[0],
       ];
-
-      // Setup: Create conversation history with persona info
-      const history: ConversationMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'Previous message',
-          createdAt: new Date(),
-          personaId: 'persona-123',
-          personaName: 'Test Persona Name',
-        },
-      ];
-
-      // Mock: UserService returns the persona ID that matches history
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
-
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
-
-      // Verify: Should use persona name from history (no DB fetch needed)
-      expect(references[0].authorDisplayName).toBe('Test Persona Name');
-      expect(mockUserService.getPersonaName).not.toHaveBeenCalled();
+      expect(calls[0]).toBeLessThan(calls[1]);
+      expect(calls[1]).toBeLessThan(calls[2]);
     });
 
-    it('should fetch from database when persona not in history', async () => {
-      // Setup: Create referenced messages
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-456',
-          webhookId: undefined,
-          discordUserId: 'user-456',
-          authorUsername: 'otheruser',
-          authorDisplayName: 'Other User Discord Name',
-          content: 'Test message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #random',
-        },
-      ];
+    it('should stop chain when a processor handles the message', async () => {
+      const message = createMockMessage();
 
-      // Setup: Conversation history with different persona
-      const history: ConversationMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'Previous message',
-          createdAt: new Date(),
-          personaId: 'persona-999',
-          personaName: 'Different Persona',
-        },
-      ];
+      // Second processor handles the message
+      mockProcessor2.process.mockResolvedValue(true);
 
-      // Mock: UserService returns persona not in history
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid-456');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-456');
-      mockUserService.getPersonaName.mockResolvedValue('Fetched Persona Name');
+      await messageHandler.handleMessage(message);
 
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
+      // First and second processors called
+      expect(mockProcessor1.process).toHaveBeenCalledWith(message);
+      expect(mockProcessor2.process).toHaveBeenCalledWith(message);
 
-      // Verify: Should fetch from database
-      expect(references[0].authorDisplayName).toBe('Fetched Persona Name');
-      expect(mockUserService.getPersonaName).toHaveBeenCalledWith('persona-456');
-    });
-  });
-
-  describe('webhook detection', () => {
-    it('should skip persona creation for webhook messages (cached in Redis)', async () => {
-      // Setup: Mock Redis to return a personality for this message
-      const { getWebhookPersonality } = await import('../redis.js');
-      vi.mocked(getWebhookPersonality).mockResolvedValueOnce('COLD | תשב');
-
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'webhook-msg-123',
-          webhookId: 'webhook-123',
-          discordUserId: 'bot-user-id',
-          authorUsername: 'Tzurot',
-          authorDisplayName: 'COLD | תשב',
-          content: 'AI response here',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #general',
-        },
-      ];
-
-      const history: ConversationMessage[] = [];
-
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
-
-      // Verify: getOrCreateUser was NOT called (persona creation skipped)
-      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
-      // Verify: Display name unchanged (preserved AI personality name)
-      expect(references[0].authorDisplayName).toBe('COLD | תשב');
+      // Third processor should NOT be called
+      expect(mockProcessor3.process).not.toHaveBeenCalled();
     });
 
-    it('should skip persona creation for webhook messages (via webhookId property)', async () => {
-      // Setup: Redis returns null (not cached), but message has webhookId
-      const { getWebhookPersonality } = await import('../redis.js');
-      vi.mocked(getWebhookPersonality).mockResolvedValueOnce(null);
+    it('should handle all processors when none handle the message', async () => {
+      const message = createMockMessage();
 
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'old-webhook-msg',
-          webhookId: 'webhook-456', // Discord.js provides this
-          discordUserId: 'bot-user-id',
-          authorUsername: 'PluralKit',
-          authorDisplayName: 'System Member',
-          content: 'Proxied message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #chat',
-        },
-      ];
+      // All processors return false
+      mockProcessor1.process.mockResolvedValue(false);
+      mockProcessor2.process.mockResolvedValue(false);
+      mockProcessor3.process.mockResolvedValue(false);
 
-      const history: ConversationMessage[] = [];
+      await messageHandler.handleMessage(message);
 
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
-
-      // Verify: getOrCreateUser was NOT called (detected via webhookId)
-      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
-      // Verify: Display name unchanged
-      expect(references[0].authorDisplayName).toBe('System Member');
+      // All processors should be called
+      expect(mockProcessor1.process).toHaveBeenCalledWith(message);
+      expect(mockProcessor2.process).toHaveBeenCalledWith(message);
+      expect(mockProcessor3.process).toHaveBeenCalledWith(message);
     });
 
-    it('should fall back to webhookId when Redis lookup fails', async () => {
-      // Setup: Mock Redis to throw an error
-      const { getWebhookPersonality } = await import('../redis.js');
-      vi.mocked(getWebhookPersonality).mockRejectedValueOnce(new Error('Redis connection failed'));
+    it('should handle errors gracefully and reply to user', async () => {
+      const message = createMockMessage();
 
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'webhook-msg-redis-error',
-          webhookId: 'webhook-789', // Fallback detection via webhookId
-          discordUserId: 'bot-user-id',
-          authorUsername: 'Tzurot',
-          authorDisplayName: 'HOT | תשב',
-          content: 'AI message when Redis is down',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #errors',
-        },
-      ];
+      // First processor throws an error
+      mockProcessor1.process.mockRejectedValue(new Error('Processor error'));
 
-      const history: ConversationMessage[] = [];
+      await messageHandler.handleMessage(message);
 
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
+      // Should send error reply to user
+      expect(message.reply).toHaveBeenCalledWith(
+        'Sorry, I encountered an error processing your message.'
+      );
+    });
+
+    it('should not throw if error reply fails', async () => {
+      const message = createMockMessage();
+
+      mockProcessor1.process.mockRejectedValue(new Error('Processor error'));
+      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Channel deleted')
       );
 
-      // Verify: getOrCreateUser was NOT called (fell back to webhookId detection)
-      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
-      // Verify: Display name unchanged (webhook detected despite Redis error)
-      expect(references[0].authorDisplayName).toBe('HOT | תשב');
+      // Should not throw
+      await expect(messageHandler.handleMessage(message)).resolves.toBeUndefined();
+    });
+
+    it('should stop at first processor that handles the message', async () => {
+      const message = createMockMessage();
+
+      // First processor handles it
+      mockProcessor1.process.mockResolvedValue(true);
+
+      await messageHandler.handleMessage(message);
+
+      expect(mockProcessor1.process).toHaveBeenCalledWith(message);
+      expect(mockProcessor2.process).not.toHaveBeenCalled();
+      expect(mockProcessor3.process).not.toHaveBeenCalled();
     });
   });
 
-  describe('error handling', () => {
-    it('should handle missing persona gracefully', async () => {
-      // Setup: Create referenced messages
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-789',
-          webhookId: undefined,
-          discordUserId: 'user-789',
-          authorUsername: 'missinguser',
-          authorDisplayName: 'Original Discord Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #test',
+  describe('handleJobResult - Async Job Completion', () => {
+    it('should handle successful job result and update/save messages', async () => {
+      const jobId = 'job-123';
+      const result = {
+        content: 'AI response text',
+        attachmentDescriptions: ['[Image: cat.jpg]\nA cute cat'],
+        referencedMessagesDescriptions: ['[Previous message context]'],
+        metadata: {
+          modelUsed: 'anthropic/claude-sonnet-4.5',
         },
-      ];
+      };
 
-      const history: ConversationMessage[] = [];
+      const mockMessage = {
+        id: 'msg-123',
+      } as Message;
 
-      // Mock: UserService returns null (persona doesn't exist)
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid-789');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-789');
-      mockUserService.getPersonaName.mockResolvedValue(null);
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'personality-123', name: 'TestBot' },
+        personaId: 'persona-456',
+        userMessageContent: 'User message',
+        userMessageTime: new Date('2025-11-14T12:00:00Z'),
+      };
 
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['discord-1', 'discord-2'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should get job context
+      expect(mockJobTracker.getContext).toHaveBeenCalledWith(jobId);
+
+      // Should complete the job (clear typing, remove from tracker)
+      expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
+
+      // Should update user message with enriched content
+      expect(mockPersistence.updateUserMessage).toHaveBeenCalledWith(
+        mockMessage,
+        mockContext.personality,
+        'persona-456',
+        'User message',
+        ['[Image: cat.jpg]\nA cute cat'],
+        ['[Previous message context]']
       );
 
-      // Verify: Should keep original Discord display name
-      expect(references[0].authorDisplayName).toBe('Original Discord Name');
+      // Should send response to Discord
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith({
+        content: 'AI response text',
+        personality: mockContext.personality,
+        message: mockMessage,
+        modelUsed: 'anthropic/claude-sonnet-4.5',
+      });
+
+      // Should save assistant message to conversation history
+      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith({
+        message: mockMessage,
+        personality: mockContext.personality,
+        personaId: 'persona-456',
+        content: 'AI response text',
+        chunkMessageIds: ['discord-1', 'discord-2'],
+        userMessageTime: mockContext.userMessageTime,
+      });
     });
 
-    it('should handle userService errors without throwing', async () => {
-      // Setup: Create referenced messages
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-error',
-          webhookId: undefined,
-          discordUserId: 'user-error',
-          authorUsername: 'erroruser',
-          authorDisplayName: 'Fallback Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #test',
-        },
-      ];
+    it('should ignore results for unknown jobs', async () => {
+      const jobId = 'unknown-job';
+      const result = { content: 'Some content' };
 
-      const history: ConversationMessage[] = [];
+      mockJobTracker.getContext.mockReturnValue(null);
 
-      // Mock: UserService throws error
-      mockUserService.getOrCreateUser.mockRejectedValue(new Error('Database error'));
+      await messageHandler.handleJobResult(jobId, result);
 
-      // Execute - should not throw
-      await expect(
-        (messageHandler as any).enrichReferencesWithPersonaNames(
-          references,
-          history,
-          'personality-id'
-        )
-      ).resolves.not.toThrow();
-
-      // Verify: Should preserve original display name on error
-      expect(references[0].authorDisplayName).toBe('Fallback Name');
+      // Should not call any other methods
+      expect(mockJobTracker.completeJob).not.toHaveBeenCalled();
+      expect(mockPersistence.updateUserMessage).not.toHaveBeenCalled();
+      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
+      expect(mockPersistence.saveAssistantMessage).not.toHaveBeenCalled();
     });
 
-    it('should preserve original display name on error', async () => {
-      // Setup: Create referenced messages with specific display name
-      const originalDisplayName = 'Important Display Name';
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-123',
-          webhookId: undefined,
-          discordUserId: 'user-123',
-          authorUsername: 'testuser',
-          authorDisplayName: originalDisplayName,
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #test',
-        },
-      ];
+    it('should handle job result without metadata', async () => {
+      const jobId = 'job-456';
+      const result = {
+        content: 'Response without metadata',
+        attachmentDescriptions: [],
+        referencedMessagesDescriptions: [],
+      };
 
-      const history: ConversationMessage[] = [];
+      const mockContext = {
+        message: {} as Message,
+        personality: { id: 'p-1', name: 'Bot' },
+        personaId: 'persona-1',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      };
 
-      // Mock: Simulate error during persona lookup
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid-123');
-      mockUserService.getPersonaForUser.mockRejectedValue(new Error('Lookup failed'));
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['msg-1'] });
 
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
+      await messageHandler.handleJobResult(jobId, result);
 
-      // Verify: Original display name is preserved
-      expect(references[0].authorDisplayName).toBe(originalDisplayName);
-    });
-  });
-
-  describe('edge cases', () => {
-    it('should handle empty referenced messages array', async () => {
-      const references: ReferencedMessage[] = [];
-      const history: ConversationMessage[] = [];
-
-      // Execute - should not throw or make any service calls
-      await expect(
-        (messageHandler as any).enrichReferencesWithPersonaNames(
-          references,
-          history,
-          'personality-id'
-        )
-      ).resolves.not.toThrow();
-
-      expect(mockUserService.getOrCreateUser).not.toHaveBeenCalled();
-    });
-
-    it('should handle multiple references with different personas', async () => {
-      // Setup: Create multiple referenced messages
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-1',
-          webhookId: undefined,
-          discordUserId: 'user-1',
-          authorUsername: 'user1',
-          authorDisplayName: 'User 1 Discord',
-          content: 'First message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #general',
-        },
-        {
-          referenceNumber: 2,
-          discordMessageId: 'msg-2',
-          webhookId: undefined,
-          discordUserId: 'user-2',
-          authorUsername: 'user2',
-          authorDisplayName: 'User 2 Discord',
-          content: 'Second message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #general',
-        },
-      ];
-
-      // Setup: History with one persona
-      const history: ConversationMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'Previous',
-          createdAt: new Date(),
-          personaId: 'persona-1',
-          personaName: 'Persona One',
-        },
-      ];
-
-      // Mock: Different personas for each user
-      mockUserService.getOrCreateUser
-        .mockResolvedValueOnce('user-uuid-1')
-        .mockResolvedValueOnce('user-uuid-2');
-
-      mockUserService.getPersonaForUser
-        .mockResolvedValueOnce('persona-1') // First user - in history
-        .mockResolvedValueOnce('persona-2'); // Second user - not in history
-
-      mockUserService.getPersonaName.mockResolvedValueOnce('Persona Two');
-
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
-
-      // Verify: First uses history, second fetches from DB
-      expect(references[0].authorDisplayName).toBe('Persona One');
-      expect(references[1].authorDisplayName).toBe('Persona Two');
-      expect(mockUserService.getPersonaName).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle conversation history without persona names', async () => {
-      // Setup: Referenced message
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-123',
-          webhookId: undefined,
-          discordUserId: 'user-123',
-          authorUsername: 'testuser',
-          authorDisplayName: 'Discord Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Guild > #test',
-        },
-      ];
-
-      // Setup: History entry without personaName
-      const history: ConversationMessage[] = [
-        {
-          id: 'msg-1',
-          role: 'user',
-          content: 'Previous',
-          createdAt: new Date(),
-          personaId: 'persona-123',
-          // personaName is undefined
-        },
-      ];
-
-      // Mock
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
-      mockUserService.getPersonaName.mockResolvedValue('DB Persona Name');
-
-      // Execute
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        history,
-        'personality-id'
-      );
-
-      // Verify: Should fetch from DB since history entry has no name
-      expect(references[0].authorDisplayName).toBe('DB Persona Name');
-      expect(mockUserService.getPersonaName).toHaveBeenCalledWith('persona-123');
-    });
-  });
-
-  describe('UserService integration', () => {
-    it('should call getOrCreateUser with correct parameters', async () => {
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'discord-123',
-          webhookId: undefined,
-          discordUserId: 'discord-123',
-          authorUsername: 'testuser',
-          authorDisplayName: 'Test Display Name',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Guild > #channel',
-        },
-      ];
-
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-id');
-      mockUserService.getPersonaName.mockResolvedValue('Persona Name');
-
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        [],
-        'personality-123'
-      );
-
-      // Verify: getOrCreateUser called with discordUserId, username, and actual display name
-      expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
-        'discord-123',
-        'testuser',
-        'Test Display Name' // Uses actual Discord display name
+      // Should send response with undefined modelUsed
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelUsed: undefined,
+        })
       );
     });
 
-    it('should call getPersonaForUser with userId and personalityId', async () => {
-      const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'discord-456',
-          webhookId: undefined,
-          discordUserId: 'discord-456',
-          authorUsername: 'user',
-          authorDisplayName: 'Display',
-          content: 'Test',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Guild > #channel',
-        },
-      ];
+    it('should throw error if persistence fails', async () => {
+      const jobId = 'job-789';
+      const result = { content: 'Content', attachmentDescriptions: [], referencedMessagesDescriptions: [] };
 
-      mockUserService.getOrCreateUser.mockResolvedValue('user-uuid-456');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-456');
-      mockUserService.getPersonaName.mockResolvedValue('Persona');
+      const mockContext = {
+        message: {} as Message,
+        personality: { id: 'p-1', name: 'Bot' },
+        personaId: 'persona-1',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      };
 
-      await (messageHandler as any).enrichReferencesWithPersonaNames(
-        references,
-        [],
-        'personality-xyz'
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.updateUserMessage.mockRejectedValue(new Error('Database error'));
+
+      await expect(messageHandler.handleJobResult(jobId, result)).rejects.toThrow(
+        'Database error'
       );
 
-      // Verify: getPersonaForUser called with correct IDs
-      expect(mockUserService.getPersonaForUser).toHaveBeenCalledWith(
-        'user-uuid-456',
-        'personality-xyz'
+      // Should still complete the job
+      expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
+    });
+
+    it('should handle chunked messages correctly', async () => {
+      const jobId = 'job-chunked';
+      const result = {
+        content: 'Very long response that will be chunked across multiple Discord messages',
+        attachmentDescriptions: [],
+        referencedMessagesDescriptions: [],
+      };
+
+      const mockContext = {
+        message: {} as Message,
+        personality: { id: 'p-1', name: 'Bot' },
+        personaId: 'persona-1',
+        userMessageContent: 'Message',
+        userMessageTime: new Date(),
+      };
+
+      // Reset mocks from previous test
+      mockPersistence.updateUserMessage.mockResolvedValue(undefined);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should save all chunk IDs
+      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chunkMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
+        })
       );
     });
-  });
-});
-
-describe('MessageHandler - model indicator formatting', () => {
-  it('should format model indicator with small text, backticks, and link', () => {
-    const modelName = 'anthropic/claude-3.5-sonnet';
-    const expectedFormat = `-# Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)`;
-
-    // This tests the exact format we want
-    expect(expectedFormat).toBe('-# Model: [`anthropic/claude-3.5-sonnet`](<https://openrouter.ai/anthropic/claude-3.5-sonnet>)');
-  });
-
-  it('should construct correct OpenRouter model card URL', () => {
-    const modelName = 'meta-llama/llama-3.1-8b-instruct';
-    const baseUrl = 'https://openrouter.ai';
-    const modelUrl = `${baseUrl}/${modelName}`;
-
-    expect(modelUrl).toBe('https://openrouter.ai/meta-llama/llama-3.1-8b-instruct');
-  });
-
-  it('should handle model names with special characters', () => {
-    const modelName = 'google/gemini-2.0-flash-exp:free';
-    const expectedFormat = `-# Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)`;
-
-    expect(expectedFormat).toContain(':free');
-    expect(expectedFormat).toContain('google/gemini');
-  });
-
-  it('should include angle brackets to prevent Discord embeds', () => {
-    const modelName = 'anthropic/claude-3.5-sonnet';
-    const expectedFormat = `-# Model: [\`${modelName}\`](<https://openrouter.ai/${modelName}>)`;
-
-    // Verify angle brackets are present
-    expect(expectedFormat).toContain('(<https://');
-    expect(expectedFormat).toContain('>)');
   });
 });
