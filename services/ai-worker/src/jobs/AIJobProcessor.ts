@@ -184,7 +184,7 @@ export class AIJobProcessor {
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
-    const userId = job.data.context.userId;
+    const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
     await storeJobResult(`${userId}:${jobId}`, result);
 
     // Publish to stream for async delivery
@@ -203,7 +203,7 @@ export class AIJobProcessor {
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
-    const userId = job.data.context.userId;
+    const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
     await storeJobResult(`${userId}:${jobId}`, result);
 
     // Publish to stream for async delivery
