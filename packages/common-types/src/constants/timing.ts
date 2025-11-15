@@ -19,19 +19,21 @@ export const TIMEOUTS = {
   /** Base job timeout for requests with no attachments (2 minutes) */
   JOB_BASE: 120000,
 
-  // Individual component timeouts (for per-operation limits)
-  /** Vision model invocation timeout (45 seconds - per image batch) */
-  VISION_MODEL: 45000,
-  /** Whisper transcription timeout (60 seconds - per audio file) */
-  WHISPER_API: 60000,
-  /** Audio file download timeout (30 seconds - Discord CDN is typically fast) */
+  // Individual component timeouts (PER ATTEMPT - with 3 retries via job chain)
+  /** Vision model invocation timeout per attempt (90 seconds - handles slow models and high-res images) */
+  VISION_MODEL: 90000,
+  /** Whisper transcription timeout per attempt (180 seconds - handles long voice messages up to ~15 min) */
+  WHISPER_API: 180000,
+  /** Audio file download timeout (30 seconds - Discord CDN is fast) */
   AUDIO_FETCH: 30000,
 
-  // Component pipeline timeouts (independent, not competing for shared budget)
-  /** Image processing total timeout (vision model + retries) */
+  // DEPRECATED: Component pipeline timeouts (replaced by job chain architecture)
+  // These are only used by backward-compatible Generate/Transcribe job types
+  // Will be removed when backward compatibility is removed
+  /** @deprecated Use job chain with independent timeouts instead */
   IMAGE_PROCESSING: 45000,
-  /** Audio processing total timeout (download + transcription) */
-  AUDIO_PROCESSING: 90000, // AUDIO_FETCH (30s) + WHISPER_API (60s)
+  /** @deprecated Use job chain with independent timeouts instead */
+  AUDIO_PROCESSING: 90000, // AUDIO_FETCH (30s) + WHISPER_API (60s) - outdated values
   /** LLM invocation timeout for all retry attempts combined (8 minutes) */
   LLM_INVOCATION: 480000,
   /** LLM API call timeout per single attempt (3 minutes) */

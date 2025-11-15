@@ -179,7 +179,7 @@ async function describeWithVisionModel(
   );
 
   try {
-    logger.info({ modelName }, 'Invoking vision model with 30s timeout');
+    logger.info({ modelName }, 'Invoking vision model with 90s timeout');
     // Timeout must be passed to invoke(), not constructor (LangChain requirement)
     const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
     return typeof response.content === 'string'
@@ -246,7 +246,7 @@ async function describeWithFallbackVision(
   try {
     logger.info(
       { model: config.VISION_FALLBACK_MODEL },
-      'Invoking fallback vision model with 30s timeout'
+      'Invoking fallback vision model with 90s timeout'
     );
     // Timeout must be passed to invoke(), not constructor (LangChain requirement)
     const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
@@ -313,7 +313,7 @@ export async function transcribeAudio(
   // Initialize OpenAI client for Whisper with extended timeout for long audio files
   const openai = new OpenAI({
     apiKey: config.OPENAI_API_KEY,
-    timeout: TIMEOUTS.WHISPER_API, // 5 minutes for long voice messages
+    timeout: TIMEOUTS.WHISPER_API, // 3 minutes per attempt (handles ~15 min voice messages)
   });
 
   // Fetch the audio file with timeout
