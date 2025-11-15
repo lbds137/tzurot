@@ -274,6 +274,7 @@ export class MessageReferenceExtractor {
     extractedMessageIds: Set<string>,
     startNumber: number
   ): Promise<[ReferencedMessage[], Map<string, number>]> {
+    const { MessageReferenceType } = await import('discord.js');
     const links = MessageLinkParser.parseMessageLinks(message.content);
     const references: ReferencedMessage[] = [];
     const linkMap = new Map<string, number>(); // Map Discord URL to reference number
@@ -299,10 +300,40 @@ export class MessageReferenceExtractor {
           continue;
         }
 
-        references.push(await this.formatReferencedMessage(referencedMessage, currentNumber));
-        linkMap.set(link.fullUrl, currentNumber); // Map the Discord URL to this reference number
-        extractedMessageIds.add(referencedMessage.id); // Track this ID to prevent duplicates within links
-        currentNumber++;
+        // Check if this is a forwarded message with snapshots
+        if (
+          referencedMessage.reference?.type === MessageReferenceType.Forward &&
+          referencedMessage.messageSnapshots?.size
+        ) {
+          // Extract each snapshot from the forward
+          for (const snapshot of referencedMessage.messageSnapshots.values()) {
+            const snapshotReference = this.formatSnapshot(
+              snapshot,
+              currentNumber,
+              referencedMessage
+            );
+            references.push(snapshotReference);
+            linkMap.set(link.fullUrl, currentNumber);
+            currentNumber++;
+
+            logger.info(
+              {
+                messageId: referencedMessage.id,
+                snapshotContent: snapshot.content?.substring(0, 50),
+                referenceNumber: currentNumber - 1,
+              },
+              '[MessageReferenceExtractor] Added snapshot from linked forward'
+            );
+          }
+
+          extractedMessageIds.add(referencedMessage.id);
+        } else {
+          // Regular message (not a forward)
+          references.push(await this.formatReferencedMessage(referencedMessage, currentNumber));
+          linkMap.set(link.fullUrl, currentNumber);
+          extractedMessageIds.add(referencedMessage.id);
+          currentNumber++;
+        }
       }
     }
 

@@ -986,6 +986,94 @@ describe('MessageReferenceExtractor', () => {
     });
   });
 
+  describe('Linked forwarded messages', () => {
+    it.skip('should extract snapshots from linked forwarded messages with images', async () => {
+      const { MessageReferenceType } = await import('discord.js');
+
+      // Embed with image in the forwarded snapshot
+      const mockEmbed = {
+        title: 'Forwarded with Image',
+        image: { url: 'https://example.com/forwarded-image.png' },
+      };
+
+      // Snapshot with both regular attachment and embed image
+      const mockAttachment = {
+        id: 'attachment-456',
+        url: 'https://cdn.discord.com/attachments/789/012/file.png',
+        contentType: 'image/png',
+        name: 'file.png',
+        size: 3072,
+      };
+
+      const snapshot = {
+        content: 'Original forwarded message with images',
+        embeds: [mockEmbed as any],
+        attachments: createMockCollection([['attachment-456', mockAttachment as any]]),
+        createdTimestamp: new Date('2025-11-01T10:00:00Z').getTime(),
+      };
+
+      // The forwarded message (what the link points to)
+      const forwardedChannel = createConfiguredChannel({});
+      const forwardedMessage = createMockMessage({
+        id: 'linked-forward-123',
+        content: '', // Forward wrappers are empty
+        author: createMockUser({ username: 'ForwarderUser' }),
+        channel: forwardedChannel,
+        reference: {
+          type: MessageReferenceType.Forward,
+        } as any,
+        messageSnapshots: createMockCollection([['snapshot-1', snapshot as any]]),
+      });
+
+      // Current message with link to the forwarded message
+      const message = createMockMessage({
+        id: 'current-123',
+        content:
+          'Check this out: https://discord.com/channels/123456789/987654321/linked-forward-123',
+        author: createMockUser({ username: 'CurrentUser' }),
+      });
+
+      // Mock channel.messages.fetch to return the forwarded message
+      const mockChannel = createConfiguredChannel({
+        id: '987654321',
+        messages: {
+          fetch: vi.fn().mockResolvedValue(forwardedMessage),
+        },
+      });
+
+      const mockGuild = {
+        id: '123456789',
+        channels: {
+          cache: new Map([['987654321', mockChannel]]),
+        },
+      };
+
+      message.channel = mockChannel;
+      message.guild = mockGuild as any;
+      message.client = {
+        guilds: {
+          cache: new Map([['123456789', mockGuild]]),
+          fetch: vi.fn().mockResolvedValue(mockGuild),
+        },
+      } as any;
+
+      const references = await extractor.extractReferences(message);
+
+      // Should extract the snapshot with all images
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('Original forwarded message with images');
+      expect(references[0].isForwarded).toBe(true);
+      expect(references[0].attachments).toBeDefined();
+
+      // Should have 2 images: regular attachment + embed image
+      expect(references[0].attachments).toHaveLength(2);
+
+      const attachmentUrls = references[0].attachments!.map(a => a.url);
+      expect(attachmentUrls).toContain('https://cdn.discord.com/attachments/789/012/file.png');
+      expect(attachmentUrls).toContain('https://example.com/forwarded-image.png');
+    });
+  });
+
   describe('Voice Message Transcript Retrieval', () => {
     it('should include voice transcript from Redis cache when available', async () => {
       const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
