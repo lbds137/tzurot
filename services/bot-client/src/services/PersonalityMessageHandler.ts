@@ -119,7 +119,12 @@ export class PersonalityMessageHandler {
       logger.error({ err: error }, '[PersonalityMessageHandler] Error handling personality message');
 
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await message.reply(`Error: ${errorMessage}`).catch(() => {});
+      await message.reply(`Error: ${errorMessage}`).catch(replyError => {
+        logger.warn(
+          { err: replyError, messageId: message.id },
+          '[PersonalityMessageHandler] Failed to send error message to user'
+        );
+      });
     }
   }
 }

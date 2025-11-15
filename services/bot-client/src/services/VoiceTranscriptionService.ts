@@ -111,7 +111,12 @@ export class VoiceTranscriptionService {
       };
     } catch (error) {
       logger.error({ err: error }, '[VoiceTranscriptionService] Error transcribing voice message');
-      await message.reply("Sorry, I couldn't transcribe that voice message.").catch(() => {});
+      await message.reply("Sorry, I couldn't transcribe that voice message.").catch(replyError => {
+        logger.warn(
+          { err: replyError, messageId: message.id },
+          '[VoiceTranscriptionService] Failed to send error message to user'
+        );
+      });
       return null;
     }
   }

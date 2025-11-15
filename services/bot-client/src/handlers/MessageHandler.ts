@@ -61,8 +61,11 @@ export class MessageHandler {
       logger.error({ err: error }, '[MessageHandler] Error processing message');
 
       // Try to send error message to user
-      await message.reply('Sorry, I encountered an error processing your message.').catch(() => {
-        // Ignore errors when sending error message
+      await message.reply('Sorry, I encountered an error processing your message.').catch(replyError => {
+        logger.warn(
+          { err: replyError, messageId: message.id },
+          '[MessageHandler] Failed to send error message to user'
+        );
       });
     }
   }
