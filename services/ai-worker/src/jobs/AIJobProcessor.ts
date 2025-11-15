@@ -25,6 +25,7 @@ import {
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { publishJobResult } from '../redis.js';
+import { cleanupOldJobResults } from './CleanupJobResults.js';
 
 const logger = createLogger('AIJobProcessor');
 const prisma = new PrismaClient();
@@ -483,6 +484,12 @@ export class AIJobProcessor {
       await publishJobResult(jobId, result.requestId, result);
 
       logger.info({ jobId }, '[AIJobProcessor] Result persisted and published to Redis Stream');
+
+      // 3. Opportunistically clean up old delivered results (runs ~5% of the time)
+      // Non-blocking - don't await, let it run in background
+      void cleanupOldJobResults(prisma).catch(err => {
+        logger.error({ err }, '[AIJobProcessor] Background cleanup failed (non-critical)');
+      });
     } catch (error) {
       logger.error(
         { err: error, jobId },
