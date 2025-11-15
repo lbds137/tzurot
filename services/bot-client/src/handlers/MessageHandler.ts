@@ -119,7 +119,16 @@ export class MessageHandler {
       );
     } catch (error) {
       logger.error({ err: error, jobId }, '[MessageHandler] Error handling job result');
-      throw error;
+
+      // Try to notify user of the error (don't throw - we don't want to crash the listener)
+      try {
+        await message.reply('Sorry, I encountered an error while processing your request.');
+      } catch (replyError) {
+        logger.error(
+          { err: replyError, jobId },
+          '[MessageHandler] Failed to send error message to user'
+        );
+      }
     }
   }
 }
