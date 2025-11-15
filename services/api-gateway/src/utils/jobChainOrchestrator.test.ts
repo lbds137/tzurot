@@ -22,18 +22,17 @@ vi.mock('../queue.js', () => ({
 
 describe('jobChainOrchestrator', () => {
   const mockPersonality: LoadedPersonality = {
+    id: 'test-id',
     name: 'TestBot',
+    displayName: 'Test Bot',
     slug: 'testbot',
     systemPrompt: 'Test prompt',
-    config: {
-      model: 'test-model',
-      temperature: 0.7,
-      maxTokens: 1000,
-      topP: 1,
-      frequencyPenalty: 0,
-      presencePenalty: 0,
-    },
-    llmProvider: 'openrouter',
+    model: 'test-model',
+    temperature: 0.7,
+    maxTokens: 1000,
+    contextWindowTokens: 4096,
+    characterInfo: 'Test character',
+    personalityTraits: 'Test traits',
   };
 
   const mockResponseDestination: ResponseDestination = {
