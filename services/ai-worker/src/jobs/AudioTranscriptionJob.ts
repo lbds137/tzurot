@@ -13,7 +13,6 @@ import {
   RETRY_CONFIG,
   type AudioTranscriptionJobData,
   type AudioTranscriptionResult,
-  type LoadedPersonality,
 } from '@tzurot/common-types';
 import { transcribeAudio } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';

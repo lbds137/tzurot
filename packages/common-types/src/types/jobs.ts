@@ -163,6 +163,8 @@ export interface ImageDescriptionResult {
   metadata?: {
     processingTimeMs?: number;
     imageCount?: number;
+    /** Number of images that failed processing (graceful degradation) */
+    failedCount?: number;
   };
 }
 
