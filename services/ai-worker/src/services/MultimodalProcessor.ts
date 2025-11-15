@@ -25,6 +25,7 @@ import {
 } from '@tzurot/common-types';
 import OpenAI from 'openai';
 import { logErrorWithDetails } from '../utils/errorHandling.js';
+import { withParallelRetry } from '../utils/retryService.js';
 
 const logger = createLogger('MultimodalProcessor');
 const config = getConfig();
@@ -402,122 +403,73 @@ async function processSingleAttachment(
 
 /**
  * Process all attachments to extract text descriptions
- * Processes attachments in parallel with up to 2 retries (3 total attempts)
+ * Uses retryService for consistent parallel retry behavior (RETRY_CONFIG.MAX_ATTEMPTS = 3)
  */
 export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality
 ): Promise<ProcessedAttachment[]> {
-  const MAX_ATTEMPTS = RETRY_CONFIG.MAX_ATTEMPTS;
   logger.info(
     {
       attachmentCount: attachments.length,
       personalityModel: personality.model,
-      maxAttempts: MAX_ATTEMPTS,
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
     },
     '[MultimodalProcessor] Processing attachments in parallel'
   );
 
-  const succeeded: ProcessedAttachment[] = [];
-  let failedIndices = Array.from({ length: attachments.length }, (_, i) => i);
+  // Use retryService for consistent retry behavior
+  const results = await withParallelRetry(
+    attachments,
+    (attachment) => processSingleAttachment(attachment, personality),
+    {
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      logger,
+      operationName: 'Attachment processing',
+    }
+  );
 
-  // Retry loop: up to MAX_ATTEMPTS passes
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (failedIndices.length === 0) break;
-
-    logger.info(
-      {
-        attempt,
-        maxAttempts: MAX_ATTEMPTS,
-        failedCount: failedIndices.length,
-        succeededCount: succeeded.length,
-      },
-      `[MultimodalProcessor] Pass ${attempt}: Processing ${failedIndices.length} attachment(s)`
-    );
-
-    // Process all failed attachments in parallel
-    const promises = failedIndices.map(index =>
-      processSingleAttachment(attachments[index], personality)
-    );
-
-    const results = await Promise.allSettled(promises);
-
-    // Separate successes from failures for next iteration
-    const stillFailing: number[] = [];
-
-    results.forEach((result, i) => {
-      const originalIndex = failedIndices[i];
-      const attachment = attachments[originalIndex];
-
-      if (result.status === 'fulfilled' && result.value !== null) {
-        succeeded.push(result.value);
-        logger.info(
-          {
-            attachment: attachment.name,
-            attempt,
-          },
-          `[MultimodalProcessor] Pass ${attempt} succeeded`
-        );
-      } else {
-        stillFailing.push(originalIndex);
-        const error = result.status === 'rejected' ? result.reason : 'Unknown error';
-
-        if (attempt < MAX_ATTEMPTS) {
-          logger.warn(
-            {
-              err: error,
-              attachment: attachment.name,
-              attempt,
-              willRetry: true,
-            },
-            `[MultimodalProcessor] Pass ${attempt} failed, will retry`
-          );
-        } else {
-          logger.error(
-            {
-              err: error,
-              attachment: attachment.name,
-              attempt,
-            },
-            `[MultimodalProcessor] Pass ${attempt} failed, giving up after ${MAX_ATTEMPTS} attempts`
-          );
-        }
-      }
-    });
-
-    failedIndices = stillFailing;
-  }
-
-  // Add fallback placeholders for attachments that failed all attempts
-  for (const index of failedIndices) {
+  // Separate successes from failures and add fallback descriptions for failures
+  const processed: ProcessedAttachment[] = results.map((result, index) => {
     const attachment = attachments[index];
-    const fallbackDescription = attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)
-      ? `Image processing failed after ${MAX_ATTEMPTS} attempts`
-      : `Audio transcription failed after ${MAX_ATTEMPTS} attempts`;
 
-    succeeded.push({
-      type: attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)
-        ? AttachmentType.Image
-        : AttachmentType.Audio,
-      description: fallbackDescription,
-      originalUrl: attachment.url,
-      metadata: attachment,
-    });
+    if (result.status === 'success' && result.value) {
+      return result.value;
+    }
 
-    logger.info(
-      { attachment: attachment.name },
+    // Failed after all retries - provide fallback description
+    const isImage =
+      attachment?.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false;
+    const fallbackDescription = isImage
+      ? `Image processing failed after ${RETRY_CONFIG.MAX_ATTEMPTS} attempts`
+      : `Audio transcription failed after ${RETRY_CONFIG.MAX_ATTEMPTS} attempts`;
+
+    logger.warn(
+      {
+        attachment: attachment?.name ?? 'unknown',
+        attempts: result.attempts,
+        error: result.error,
+      },
       '[MultimodalProcessor] Using fallback description after all retries failed'
     );
-  }
 
+    return {
+      type: isImage ? AttachmentType.Image : AttachmentType.Audio,
+      description: fallbackDescription,
+      originalUrl: attachment?.url ?? '',
+      metadata: attachment,
+    };
+  });
+
+  const successCount = results.filter(r => r.status === 'success').length;
   logger.info(
     {
       total: attachments.length,
-      succeeded: succeeded.length,
-      failed: failedIndices.length,
+      succeeded: successCount,
+      failed: attachments.length - successCount,
     },
     '[MultimodalProcessor] Parallel processing complete'
   );
 
-  return succeeded;
+  return processed;
 }

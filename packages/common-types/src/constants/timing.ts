@@ -6,26 +6,41 @@
 
 /**
  * Timeouts for various operations
+ *
+ * IMPORTANT: Component timeouts are INDEPENDENT. Each component gets its full
+ * timeout budget regardless of other components. Job timeout is the SUM of
+ * component timeouts, not a zero-sum allocation.
  */
 export const TIMEOUTS = {
   /** Delay before retrying failed queue jobs (2 seconds) */
   QUEUE_RETRY_DELAY: 2000,
   /** Cache TTL for personality/user data (5 minutes) */
   CACHE_TTL: 5 * 60 * 1000,
-  /** Vision model invocation timeout (45 seconds - increased for parallel batch processing) */
+  /** Base job timeout for requests with no attachments (2 minutes) */
+  JOB_BASE: 120000,
+
+  // Individual component timeouts (for per-operation limits)
+  /** Vision model invocation timeout (45 seconds - per image batch) */
   VISION_MODEL: 45000,
-  /** Whisper transcription timeout (60 seconds - realistic based on production data) */
+  /** Whisper transcription timeout (60 seconds - per audio file) */
   WHISPER_API: 60000,
   /** Audio file download timeout (30 seconds - Discord CDN is typically fast) */
   AUDIO_FETCH: 30000,
-  /** LLM API call timeout per attempt (3 minutes - allows for slow models and complex requests) */
-  LLM_API: 180000,
-  /** Job wait timeout in gateway (10 minutes - Railway safety buffer, must exceed LLM_GLOBAL_TIMEOUT) */
-  JOB_WAIT: 600000,
-  /** Base timeout for job calculations (2 minutes - minimum for any job) */
-  JOB_BASE: 120000,
+
+  // Component pipeline timeouts (independent, not competing for shared budget)
+  /** Image processing total timeout (vision model + retries) */
+  IMAGE_PROCESSING: 45000,
+  /** Audio processing total timeout (download + transcription) */
+  AUDIO_PROCESSING: 90000, // AUDIO_FETCH (30s) + WHISPER_API (60s)
+  /** LLM invocation timeout for all retry attempts combined (8 minutes) */
+  LLM_INVOCATION: 480000,
+  /** LLM API call timeout per single attempt (3 minutes) */
+  LLM_PER_ATTEMPT: 180000,
+
   /** System overhead for memory, DB, queue, network operations (15 seconds) */
   SYSTEM_OVERHEAD: 15000,
+  /** Job wait timeout in gateway (10 minutes - Railway safety buffer) */
+  JOB_WAIT: 600000,
 } as const;
 
 /**
@@ -66,22 +81,21 @@ export const REDIS_CONNECTION = {
 
 /**
  * Retry configuration for transient errors
+ *
+ * IMPORTANT: All components use MAX_ATTEMPTS: 3 (1 initial + 2 retries) for consistency.
+ * Component-specific timeouts are in TIMEOUTS section.
  */
 export const RETRY_CONFIG = {
-  /** Maximum retry attempts for transient LLM errors */
-  LLM_MAX_RETRIES: 2,
-  /** Base delay for exponential backoff (milliseconds) */
-  LLM_RETRY_BASE_DELAY: 1000,
-  /** Global timeout for all LLM retry attempts combined (8 minutes - allows for retries with slow models) */
-  LLM_GLOBAL_TIMEOUT: 480000,
-  /** Default maximum retry attempts for generic retry operations */
+  /** Standard retry attempts for ALL components (1 initial + 2 retries = 3 total attempts) */
   MAX_ATTEMPTS: 3,
   /** Initial delay before first retry (1 second) */
   INITIAL_DELAY_MS: 1000,
   /** Maximum delay between retries (10 seconds) */
   MAX_DELAY_MS: 10000,
-  /** Default backoff multiplier for exponential backoff */
+  /** Backoff multiplier for exponential backoff (2^attempt) */
   BACKOFF_MULTIPLIER: 2,
+
+  // Redis-specific retry configuration
   /** Maximum Redis retry attempts before giving up */
   REDIS_MAX_RETRIES: 10,
   /** Base delay multiplier for Redis retries (milliseconds) */
