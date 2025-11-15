@@ -987,8 +987,13 @@ describe('MessageReferenceExtractor', () => {
   });
 
   describe('Linked forwarded messages', () => {
-    it.skip('should extract snapshots from linked forwarded messages with images', async () => {
+    it('should extract snapshots from linked forwarded messages with images', async () => {
       const { MessageReferenceType } = await import('discord.js');
+
+      // Use consistent IDs (all must be numeric Snowflakes)
+      const GUILD_ID = '123456789012345678';
+      const CHANNEL_ID = '987654321098765432';
+      const FORWARDED_MESSAGE_ID = '112233445566778899';
 
       // Embed with image in the forwarded snapshot
       const mockEmbed = {
@@ -1013,12 +1018,10 @@ describe('MessageReferenceExtractor', () => {
       };
 
       // The forwarded message (what the link points to)
-      const forwardedChannel = createConfiguredChannel({});
       const forwardedMessage = createMockMessage({
-        id: 'linked-forward-123',
+        id: FORWARDED_MESSAGE_ID,
         content: '', // Forward wrappers are empty
         author: createMockUser({ username: 'ForwarderUser' }),
-        channel: forwardedChannel,
         reference: {
           type: MessageReferenceType.Forward,
         } as any,
@@ -1026,33 +1029,47 @@ describe('MessageReferenceExtractor', () => {
       });
 
       // Current message with link to the forwarded message
+      const CURRENT_MESSAGE_ID = 'current-123';
       const message = createMockMessage({
-        id: 'current-123',
-        content:
-          'Check this out: https://discord.com/channels/123456789/987654321/linked-forward-123',
+        id: CURRENT_MESSAGE_ID,
+        content: `Check this out: https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${FORWARDED_MESSAGE_ID}`,
         author: createMockUser({ username: 'CurrentUser' }),
       });
 
-      // Mock channel.messages.fetch to return the forwarded message
+      // Mock channel that can fetch both the current message and the forwarded message
       const mockChannel = createConfiguredChannel({
-        id: '987654321',
+        id: CHANNEL_ID,
         messages: {
-          fetch: vi.fn().mockResolvedValue(forwardedMessage),
+          fetch: vi.fn().mockImplementation(async (id: string) => {
+            if (id === FORWARDED_MESSAGE_ID) {
+              return forwardedMessage;
+            }
+            if (id === CURRENT_MESSAGE_ID) {
+              return message;
+            }
+            return null;
+          }),
         },
       });
 
+      // Ensure the forwarded message knows its channel
+      forwardedMessage.channel = mockChannel;
+
+      // Mock guild structure
       const mockGuild = {
-        id: '123456789',
+        id: GUILD_ID,
         channels: {
-          cache: new Map([['987654321', mockChannel]]),
+          cache: new Map([[CHANNEL_ID, mockChannel]]),
+          fetch: vi.fn().mockResolvedValue(mockChannel),
         },
       };
 
+      // Set up the client structure on the current message
       message.channel = mockChannel;
       message.guild = mockGuild as any;
       message.client = {
         guilds: {
-          cache: new Map([['123456789', mockGuild]]),
+          cache: new Map([[GUILD_ID, mockGuild]]),
           fetch: vi.fn().mockResolvedValue(mockGuild),
         },
       } as any;
@@ -1071,6 +1088,9 @@ describe('MessageReferenceExtractor', () => {
       const attachmentUrls = references[0].attachments!.map(a => a.url);
       expect(attachmentUrls).toContain('https://cdn.discord.com/attachments/789/012/file.png');
       expect(attachmentUrls).toContain('https://example.com/forwarded-image.png');
+
+      // Verify the mock was called with the correct ID
+      expect(mockChannel.messages.fetch).toHaveBeenCalledWith(FORWARDED_MESSAGE_ID);
     });
   });
 
