@@ -27,6 +27,8 @@ export {
 export {
   QUEUE_CONFIG,
   JOB_PREFIXES,
+  JOB_REQUEST_SUFFIXES,
+  REDIS_KEY_PREFIXES,
   JobStatus,
   JobType,
 } from './queue.js';

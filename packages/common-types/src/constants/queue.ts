@@ -34,6 +34,24 @@ export const JOB_PREFIXES = {
 } as const;
 
 /**
+ * Request ID suffixes for preprocessing jobs
+ */
+export const JOB_REQUEST_SUFFIXES = {
+  /** Suffix for audio transcription request IDs */
+  AUDIO: '-audio',
+  /** Suffix for image description request IDs */
+  IMAGE: '-image',
+} as const;
+
+/**
+ * Redis key prefixes for job data
+ */
+export const REDIS_KEY_PREFIXES = {
+  /** Prefix for job result storage in Redis */
+  JOB_RESULT: 'job-result:',
+} as const;
+
+/**
  * Job status types for queue processing
  */
 export enum JobStatus {

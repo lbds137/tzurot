@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker } from './LLMInvoker.js';
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { TIMEOUTS } from '@tzurot/common-types';
 
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({
@@ -288,36 +289,45 @@ describe('LLMInvoker', () => {
     });
 
     it('should respect global timeout', async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
 
-      // Mock a model that takes 70s per call and always fails with transient error
-      // Timeline: globalTimeoutMs = 105000ms
-      // - Attempt 1 at 0ms: invoke (70s), fails, retry delay 1s -> elapsed 71s
-      // - Attempt 2 at 71s: invoke (70s), fails, retry delay 2s -> elapsed 143s
-      // - Attempt 3 at 143s: timeout check (143s >= 105s) -> THROWS global timeout
-      const mockModel = {
-        invoke: vi.fn().mockImplementation(
-          () =>
-            new Promise((_, reject) => {
-              setTimeout(() => reject({ code: 'ETIMEDOUT', message: 'Timeout' }), 70000);
-            })
-        ),
-      } as any as BaseChatModel;
+      // Mock TIMEOUTS.LLM_INVOCATION to a lower value to make the test faster
+      // and allow the global timeout to trigger before all retry attempts complete
+      const originalLLMTimeout = TIMEOUTS.LLM_INVOCATION;
+      (TIMEOUTS as any).LLM_INVOCATION = 105000; // 105s
 
-      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+      try {
+        // Mock a model that takes 70s per call and always fails with transient error
+        // Timeline: globalTimeoutMs = 105000ms (mocked)
+        // - Attempt 1 at 0ms: invoke (70s), fails, retry delay 1s -> elapsed 71s
+        // - Attempt 2 at 71s: invoke (70s), fails, retry delay 2s -> elapsed 143s
+        // - Attempt 3 at 143s: timeout check (143s >= 105s) -> THROWS global timeout
+        const mockModel = {
+          invoke: vi.fn().mockImplementation(
+            () =>
+              new Promise((_, reject) => {
+                setTimeout(() => reject({ code: 'ETIMEDOUT', message: 'Timeout' }), 70000);
+              })
+          ),
+        } as any as BaseChatModel;
 
-      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      // Attach rejection handler BEFORE advancing timers to avoid unhandled rejection warning
-      const rejectionPromise = expect(promise).rejects.toThrow(/exceeded global timeout/i);
+        const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
 
-      // Fast-forward through all timers - should trigger global timeout before max retries
-      await vi.runAllTimersAsync();
+        // Attach rejection handler BEFORE advancing timers to avoid unhandled rejection warning
+        const rejectionPromise = expect(promise).rejects.toThrow(/exceeded global timeout/i);
 
-      // Await the rejection
-      await rejectionPromise;
+        // Fast-forward through all timers - should trigger global timeout before max retries
+        await vi.runAllTimersAsync();
 
-      vi.useRealTimers();
+        // Await the rejection
+        await rejectionPromise;
+      } finally {
+        // Restore the original timeout value
+        (TIMEOUTS as any).LLM_INVOCATION = originalLLMTimeout;
+        vi.useRealTimers();
+      }
     });
 
     it('should pass timeout parameter to model invoke', async () => {
