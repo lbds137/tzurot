@@ -273,10 +273,13 @@ async function describeWithFallbackVision(
 /**
  * Transcribe audio (voice message or audio file) using Whisper
  * Throws errors to allow retry logic to handle them
+ *
+ * @param attachment - Audio attachment to transcribe
+ * @param _personality - (Optional) Personality context (not currently used for transcription)
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
-  _personality: LoadedPersonality
+  _personality?: LoadedPersonality
 ): Promise<string> {
   // Check Redis cache first (if originalUrl is available)
   if (attachment.originalUrl) {
