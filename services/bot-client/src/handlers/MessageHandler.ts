@@ -95,6 +95,31 @@ export class MessageHandler {
       return;
     }
 
+    // BOUNDARY VALIDATION: Validate result has valid content before using it
+    if (!result.content || typeof result.content !== 'string') {
+      logger.error(
+        {
+          jobId,
+          hasContent: !!result.content,
+          contentType: typeof result.content,
+        },
+        '[MessageHandler] Job result missing or invalid content field'
+      );
+
+      // Notify user of the error
+      try {
+        await message.reply(
+          'Sorry, I encountered an error generating a response. Please try again later.'
+        );
+      } catch (replyError) {
+        logger.error(
+          { err: replyError, jobId },
+          '[MessageHandler] Failed to send error notification to user'
+        );
+      }
+      return;
+    }
+
     try {
       // Upgrade user message from placeholders to rich descriptions
       await this.persistence.updateUserMessage(
