@@ -5,8 +5,20 @@
  * Focus: Ensuring the bug where `result` field was missing is prevented.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { JobResult } from '@tzurot/common-types';
+
+// Mock the Redis client to prevent actual connections during tests
+vi.mock('redis', () => ({
+  createClient: vi.fn(() => ({
+    on: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
+    quit: vi.fn().mockResolvedValue(undefined),
+    xGroupCreate: vi.fn().mockResolvedValue(undefined),
+    xReadGroup: vi.fn().mockResolvedValue(null),
+    xAck: vi.fn().mockResolvedValue(1),
+  })),
+}));
 
 describe('ResultsListener - JobResult Construction', () => {
   /**
