@@ -512,4 +512,178 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       expect(tokenCounter.countTextTokens).not.toHaveBeenCalled();
     });
   });
+
+  describe('getMessageByDiscordId - Voice Transcript Retrieval', () => {
+    it('should retrieve message by Discord message ID', async () => {
+      const discordMessageId = 'discord-voice-123';
+      const mockMessage = {
+        id: 'msg-voice-123',
+        role: MessageRole.User,
+        content: 'This is the transcribed voice message',
+        tokenCount: 6,
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        personaId: 'persona-123',
+        discordMessageId: [discordMessageId],
+        persona: {
+          name: 'Alice',
+          preferredName: 'Alice Smith',
+        },
+      };
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
+
+      const result = await service.getMessageByDiscordId(discordMessageId);
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe('msg-voice-123');
+      expect(result?.content).toBe('This is the transcribed voice message');
+      expect(result?.role).toBe(MessageRole.User);
+      expect(result?.tokenCount).toBe(6);
+      expect(result?.personaId).toBe('persona-123');
+      expect(result?.personaName).toBe('Alice Smith'); // Uses preferredName
+      expect(result?.discordMessageId).toEqual([discordMessageId]);
+
+      // Verify correct query was made
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith({
+        where: {
+          discordMessageId: {
+            has: discordMessageId,
+          },
+        },
+        select: expect.objectContaining({
+          id: true,
+          role: true,
+          content: true,
+          tokenCount: true,
+          createdAt: true,
+          personaId: true,
+          discordMessageId: true,
+          persona: {
+            select: {
+              name: true,
+              preferredName: true,
+            },
+          },
+        }),
+      });
+    });
+
+    it('should return null when message not found', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
+
+      const result = await service.getMessageByDiscordId('nonexistent-msg-id');
+
+      expect(result).toBeNull();
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            discordMessageId: {
+              has: 'nonexistent-msg-id',
+            },
+          },
+        })
+      );
+    });
+
+    it('should handle null tokenCount for old messages', async () => {
+      const mockMessage = {
+        id: 'msg-old',
+        role: MessageRole.User,
+        content: 'Old voice message without cached tokens',
+        tokenCount: null, // Old message from before token caching
+        createdAt: new Date('2025-01-01T00:00:00Z'),
+        personaId: 'persona-456',
+        discordMessageId: ['discord-old-123'],
+        persona: {
+          name: 'Bob',
+          preferredName: null,
+        },
+      };
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
+
+      const result = await service.getMessageByDiscordId('discord-old-123');
+
+      expect(result).not.toBeNull();
+      expect(result?.tokenCount).toBeUndefined(); // null becomes undefined
+      expect(result?.personaName).toBe('Bob'); // Falls back to name when preferredName is null
+    });
+
+    it('should use persona name when preferredName is null', async () => {
+      const mockMessage = {
+        id: 'msg-123',
+        role: MessageRole.User,
+        content: 'Voice message',
+        tokenCount: 4,
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        personaId: 'persona-456',
+        discordMessageId: ['discord-msg-456'],
+        persona: {
+          name: 'Bob',
+          preferredName: null, // No preferred name set
+        },
+      };
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
+
+      const result = await service.getMessageByDiscordId('discord-msg-456');
+
+      expect(result?.personaName).toBe('Bob'); // Uses name as fallback
+    });
+
+    it('should handle errors gracefully and return null', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(error);
+
+      const result = await service.getMessageByDiscordId('discord-error-msg');
+
+      expect(result).toBeNull();
+    });
+
+    it('should query with "has" filter for Discord message ID array', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
+
+      await service.getMessageByDiscordId('test-id-123');
+
+      // Verify the query uses the "has" filter (for array fields)
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            discordMessageId: {
+              has: 'test-id-123',
+            },
+          },
+        })
+      );
+    });
+
+    it('should handle chunked assistant messages (multiple Discord IDs)', async () => {
+      const discordId = 'discord-chunk-2';
+      const mockMessage = {
+        id: 'msg-chunked',
+        role: MessageRole.Assistant,
+        content: 'This is a long assistant response that was chunked',
+        tokenCount: 12,
+        createdAt: new Date('2025-11-14T12:00:00Z'),
+        personaId: 'persona-bot',
+        discordMessageId: ['discord-chunk-1', 'discord-chunk-2', 'discord-chunk-3'], // Chunked message
+        persona: {
+          name: 'Lilith',
+          preferredName: null,
+        },
+      };
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(mockMessage);
+
+      const result = await service.getMessageByDiscordId(discordId);
+
+      expect(result).not.toBeNull();
+      expect(result?.content).toBe('This is a long assistant response that was chunked');
+      expect(result?.discordMessageId).toEqual([
+        'discord-chunk-1',
+        'discord-chunk-2',
+        'discord-chunk-3',
+      ]);
+    });
+  });
 });
