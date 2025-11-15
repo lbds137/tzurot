@@ -21,6 +21,7 @@ import {
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
+  TIMEOUTS,
   type AnyJobData,
   type AnyJobResult,
 } from '@tzurot/common-types';
@@ -122,6 +123,10 @@ async function main(): Promise<void> {
       concurrency: config.worker.concurrency,
       removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
       removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
+      // lockDuration: Maximum time a job can run before being considered stalled
+      // Safety net for hung jobs - even with component-level timeouts, this prevents
+      // jobs from blocking workers indefinitely
+      lockDuration: TIMEOUTS.WORKER_LOCK_DURATION,
     }
   );
 
