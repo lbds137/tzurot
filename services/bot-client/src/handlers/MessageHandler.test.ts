@@ -163,11 +163,15 @@ describe('MessageHandler', () => {
     it('should handle successful job result and update/save messages', async () => {
       const jobId = 'job-123';
       const result = {
-        content: 'AI response text',
-        attachmentDescriptions: ['[Image: cat.jpg]\nA cute cat'],
-        referencedMessagesDescriptions: ['[Previous message context]'],
-        metadata: {
-          modelUsed: 'anthropic/claude-sonnet-4.5',
+        jobId,
+        status: 'completed',
+        result: {
+          content: 'AI response text',
+          attachmentDescriptions: ['[Image: cat.jpg]\nA cute cat'],
+          referencedMessagesDescriptions: ['[Previous message context]'],
+          metadata: {
+            modelUsed: 'anthropic/claude-sonnet-4.5',
+          },
         },
       };
 
@@ -243,9 +247,13 @@ describe('MessageHandler', () => {
     it('should handle job result without metadata', async () => {
       const jobId = 'job-456';
       const result = {
-        content: 'Response without metadata',
-        attachmentDescriptions: [],
-        referencedMessagesDescriptions: [],
+        jobId,
+        status: 'completed',
+        result: {
+          content: 'Response without metadata',
+          attachmentDescriptions: [],
+          referencedMessagesDescriptions: [],
+        },
       };
 
       const mockContext = {
@@ -272,9 +280,13 @@ describe('MessageHandler', () => {
     it('should handle errors gracefully without throwing', async () => {
       const jobId = 'job-789';
       const result = {
-        content: 'Content',
-        attachmentDescriptions: [],
-        referencedMessagesDescriptions: [],
+        jobId,
+        status: 'completed',
+        result: {
+          content: 'Content',
+          attachmentDescriptions: [],
+          referencedMessagesDescriptions: [],
+        },
       };
 
       const mockMessage = {
@@ -308,9 +320,13 @@ describe('MessageHandler', () => {
     it('should handle chunked messages correctly', async () => {
       const jobId = 'job-chunked';
       const result = {
-        content: 'Very long response that will be chunked across multiple Discord messages',
-        attachmentDescriptions: [],
-        referencedMessagesDescriptions: [],
+        jobId,
+        status: 'completed',
+        result: {
+          content: 'Very long response that will be chunked across multiple Discord messages',
+          attachmentDescriptions: [],
+          referencedMessagesDescriptions: [],
+        },
       };
 
       const mockContext = {
