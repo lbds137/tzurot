@@ -20,6 +20,7 @@ import {
   formatRelativeTime,
   JobType,
   MessageRole,
+  REDIS_KEY_PREFIXES,
   type AnyJobData,
   type AnyJobResult,
   type AudioTranscriptionJobData,
@@ -181,9 +182,10 @@ export class AIJobProcessor {
   ): Promise<AudioTranscriptionResult> {
     const result = await processAudioTranscriptionJob(job);
 
-    // Store result in Redis for dependent jobs
+    // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
-    await storeJobResult(jobId, result);
+    const userId = job.data.context.userId;
+    await storeJobResult(`${userId}:${jobId}`, result);
 
     // Publish to stream for async delivery
     await this.persistAndPublishResult(job, result);
@@ -199,9 +201,10 @@ export class AIJobProcessor {
   ): Promise<ImageDescriptionResult> {
     const result = await processImageDescriptionJob(job);
 
-    // Store result in Redis for dependent jobs
+    // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
-    await storeJobResult(jobId, result);
+    const userId = job.data.context.userId;
+    await storeJobResult(`${userId}:${jobId}`, result);
 
     // Publish to stream for async delivery
     await this.persistAndPublishResult(job, result);
@@ -237,21 +240,24 @@ export class AIJobProcessor {
 
       for (const dep of dependencies) {
         try {
+          // Extract key from resultKey (strip REDIS_KEY_PREFIXES.JOB_RESULT prefix)
+          const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
+
           if (dep.type === 'audio-transcription') {
-            const result = await getJobResult<AudioTranscriptionResult>(dep.jobId);
+            const result = await getJobResult<AudioTranscriptionResult>(key);
             if (result?.success && result.transcript) {
               transcriptions.push(result.transcript);
-              logger.debug({ jobId: dep.jobId }, '[AIJobProcessor] Retrieved audio transcription');
+              logger.debug({ jobId: dep.jobId, key }, '[AIJobProcessor] Retrieved audio transcription');
             } else {
-              logger.warn({ jobId: dep.jobId }, '[AIJobProcessor] Audio transcription job failed or has no result');
+              logger.warn({ jobId: dep.jobId, key }, '[AIJobProcessor] Audio transcription job failed or has no result');
             }
           } else if (dep.type === 'image-description') {
-            const result = await getJobResult<ImageDescriptionResult>(dep.jobId);
+            const result = await getJobResult<ImageDescriptionResult>(key);
             if (result?.success && result.descriptions) {
               imageDescriptions.push(...result.descriptions);
-              logger.debug({ jobId: dep.jobId, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
+              logger.debug({ jobId: dep.jobId, key, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
             } else {
-              logger.warn({ jobId: dep.jobId }, '[AIJobProcessor] Image description job failed or has no result');
+              logger.warn({ jobId: dep.jobId, key }, '[AIJobProcessor] Image description job failed or has no result');
             }
           }
         } catch (error) {

@@ -125,7 +125,8 @@ export async function createJobChain(params: {
         type: JobType.AudioTranscription,
         status: JobStatus.Queued,
         // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
-        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`,
+        // Include userId for namespacing to prevent key collisions between users
+        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId}:${jobId}`,
       });
 
       logger.info(
@@ -169,7 +170,8 @@ export async function createJobChain(params: {
         type: JobType.ImageDescription,
         status: JobStatus.Queued,
         // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
-        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`,
+        // Include userId for namespacing to prevent key collisions between users
+        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId}:${jobId}`,
       });
 
       logger.info(
