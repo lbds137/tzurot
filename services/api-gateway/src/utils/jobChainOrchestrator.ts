@@ -126,7 +126,8 @@ export async function createJobChain(params: {
         status: JobStatus.Queued,
         // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
         // Include userId for namespacing to prevent key collisions between users
-        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId}:${jobId}`,
+        // Fallback to 'unknown' if userId is missing (defensive coding)
+        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
       });
 
       logger.info(
@@ -171,7 +172,8 @@ export async function createJobChain(params: {
         status: JobStatus.Queued,
         // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
         // Include userId for namespacing to prevent key collisions between users
-        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId}:${jobId}`,
+        // Fallback to 'unknown' if userId is missing (defensive coding)
+        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
       });
 
       logger.info(
@@ -211,6 +213,8 @@ export async function createJobChain(params: {
   // Create flow with LLM as parent, preprocessing as children
   // FlowProducer automatically:
   // 1. Runs all children in parallel (audio + image jobs execute concurrently)
+  //    - Children are added to queue immediately and processed by available workers
+  //    - Parallel execution confirmed by BullMQ architecture (see: bullmq.io/guide/flows)
   // 2. Waits for ALL children to complete successfully
   // 3. Only then queues the parent (LLM) job for execution
   const flow = await flowProducer.add({

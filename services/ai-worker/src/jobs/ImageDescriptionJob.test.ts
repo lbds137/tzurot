@@ -269,12 +269,11 @@ describe('ImageDescriptionJob', () => {
 
       const result = await processImageDescriptionJob(job);
 
-      // With graceful degradation, when ALL images fail, we return a simple error
-      expect(result).toMatchObject({
-        requestId: 'test-req-image-fail',
-        success: false,
-        error: 'All images failed processing',
-      });
+      // With graceful degradation, when ALL images fail, we return error with details
+      expect(result.requestId).toBe('test-req-image-fail');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('All images failed processing');
+      expect(result.error).toContain('Details:'); // Enhanced error includes failure details
     });
 
     it('should reject invalid attachment type (audio instead of image)', async () => {

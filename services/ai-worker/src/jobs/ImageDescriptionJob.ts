@@ -86,16 +86,23 @@ export async function processImageDescriptionJob(
 
     const failedCount = results.length - descriptions.length;
 
-    // If ALL images failed, return error
+    // If ALL images failed, return error with details
     if (descriptions.length === 0) {
+      // Collect error details for debugging
+      const failureDetails = results
+        .filter((r): r is Extract<typeof r, { success: false }> => !r.success)
+        .map(r => `${r.url}: ${r.error}`)
+        .join('; ');
+
       logger.error(
-        { requestId, totalImages: attachments.length },
+        { requestId, totalImages: attachments.length, failureDetails },
         'All image descriptions failed'
       );
+
       return {
         requestId,
         success: false,
-        error: 'All images failed processing',
+        error: `All images failed processing. Details: ${failureDetails}`,
       };
     }
 
