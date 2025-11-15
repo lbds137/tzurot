@@ -236,11 +236,29 @@ Job 2 (LLM): ❌ Fails after 3 attempts (model timeout)
 - **Clear logging**: Each component logs its own failures
 - **User experience**: User gets response (possibly degraded) rather than total failure
 
-**Dependency Resolution**:
-- LLM job checks Redis for each dependency's result
-- If result missing → logs warning and continues without it
-- No indefinite waiting → LLM proceeds immediately if results not found
-- Timeout handled at BullMQ level (Railway worker timeout: none configured)
+**Dependency Resolution & Timing (BullMQ FlowProducer)**:
+- **Flow Architecture**: Uses BullMQ FlowProducer for parent-child job relationships
+  - **Parent Job**: LLM Generation (waits for all children to complete)
+  - **Child Jobs**: Audio transcriptions + Image descriptions (run first, in parallel)
+- **Guaranteed Order**: BullMQ FlowProducer ensures children ALWAYS complete before parent starts
+  - Children run in parallel (audio + image processing happen simultaneously)
+  - Parent (LLM) automatically queued AFTER all children complete
+  - **No race conditions** - LLM never starts without preprocessing results
+- **LLM Job Behavior**: When LLM job starts processing:
+  - All child jobs have completed (guaranteed by FlowProducer)
+  - Retrieves results from Redis for all dependencies
+  - If child failed → result missing in Redis → logs warning, continues with graceful degradation
+- **Graceful Degradation**: Individual child failures don't block LLM response
+  - Audio transcription fails → LLM proceeds with images only
+  - Image description fails → LLM proceeds with audio only
+  - All preprocessing fails → LLM proceeds with text message only
+- **Timeout**: Railway worker timeout = none (jobs can run indefinitely)
+  - Component-level timeouts enforced (audio: 180s, image: 90s, LLM: 480s)
+- **Benefits**:
+  - ✅ No polling/waiting logic needed - BullMQ handles dependencies
+  - ✅ Parallel preprocessing for better performance
+  - ✅ Guaranteed execution order
+  - ✅ Built-in retry support for each job
 
 #### Implementation Steps
 

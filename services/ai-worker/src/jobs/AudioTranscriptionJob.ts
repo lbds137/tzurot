@@ -51,9 +51,9 @@ export async function processAudioTranscriptionJob(
     }
 
     // Transcribe the audio with retry logic (3 attempts)
-    // Note: We don't need a real personality for transcription, just pass a minimal one
+    // Note: Personality is optional for transcription (not currently used by Whisper API)
     const result = await withRetry(
-      () => transcribeAudio(attachment, {} as LoadedPersonality),
+      () => transcribeAudio(attachment),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger,

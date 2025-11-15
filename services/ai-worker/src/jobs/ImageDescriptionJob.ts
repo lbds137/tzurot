@@ -48,23 +48,64 @@ export async function processImageDescriptionJob(
       }
     }
 
-    // Process all images in parallel with retry logic (3 attempts each)
+    // Process all images in parallel with graceful degradation (partial failures allowed)
     const descriptionPromises = attachments.map(async attachment => {
-      const result = await withRetry(
-        () => describeImage(attachment, personality),
-        {
-          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-          logger,
-          operationName: `Image description (${attachment.name})`,
-        }
-      );
-      return {
-        url: attachment.url,
-        description: result.value,
-      };
+      try {
+        const result = await withRetry(
+          () => describeImage(attachment, personality),
+          {
+            maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+            logger,
+            operationName: `Image description (${attachment.name})`,
+          }
+        );
+        return {
+          url: attachment.url,
+          description: result.value,
+          success: true as const,
+        };
+      } catch (error) {
+        logger.warn(
+          { url: attachment.url, err: error },
+          'Image description failed after retries - continuing with other images'
+        );
+        return {
+          url: attachment.url,
+          error: error instanceof Error ? error.message : String(error),
+          success: false as const,
+        };
+      }
     });
 
-    const descriptions = await Promise.all(descriptionPromises);
+    const results = await Promise.all(descriptionPromises);
+
+    // Filter for successful descriptions only
+    const descriptions = results
+      .filter((r): r is Extract<typeof r, { success: true }> => r.success)
+      .map(r => ({ url: r.url, description: r.description }));
+
+    const failedCount = results.length - descriptions.length;
+
+    // If ALL images failed, return error
+    if (descriptions.length === 0) {
+      logger.error(
+        { requestId, totalImages: attachments.length },
+        'All image descriptions failed'
+      );
+      return {
+        requestId,
+        success: false,
+        error: 'All images failed processing',
+      };
+    }
+
+    // Log partial failure warning if some failed
+    if (failedCount > 0) {
+      logger.warn(
+        { requestId, successCount: descriptions.length, failedCount },
+        'Some images failed processing - proceeding with partial results'
+      );
+    }
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -85,6 +126,7 @@ export async function processImageDescriptionJob(
       metadata: {
         processingTimeMs,
         imageCount: descriptions.length,
+        failedCount,
       },
     };
   } catch (error) {

@@ -4,7 +4,7 @@
  * Configures the Redis-based job queue for AI generation requests.
  */
 
-import { Queue, QueueEvents } from 'bullmq';
+import { Queue, QueueEvents, FlowProducer } from 'bullmq';
 import {
   createLogger,
   getConfig,
@@ -61,6 +61,12 @@ export const aiQueue = new Queue(QUEUE_NAME, {
   },
 });
 
+// Create flow producer for job dependencies
+// FlowProducer allows creating parent-child job relationships where parent waits for children
+export const flowProducer = new FlowProducer({
+  connection: redisConfig,
+});
+
 // Create queue events listener
 export const queueEvents = new QueueEvents(QUEUE_NAME, {
   connection: redisConfig,
@@ -101,6 +107,7 @@ queueEvents.on('error', error => {
 export async function closeQueue(): Promise<void> {
   logger.info('[Queue] Closing queue connections...');
   await queueEvents.close();
+  await flowProducer.close();
   await aiQueue.close();
   logger.info('[Queue] Queue connections closed');
 }
