@@ -10,10 +10,12 @@ import { Job } from 'bullmq';
 import {
   createLogger,
   CONTENT_TYPES,
+  RETRY_CONFIG,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
+import { withRetry } from '../utils/retryService.js';
 
 const logger = createLogger('ImageDescriptionJob');
 
@@ -46,12 +48,19 @@ export async function processImageDescriptionJob(
       }
     }
 
-    // Process all images in parallel
+    // Process all images in parallel with retry logic (3 attempts each)
     const descriptionPromises = attachments.map(async attachment => {
-      const description = await describeImage(attachment, personality);
+      const result = await withRetry(
+        () => describeImage(attachment, personality),
+        {
+          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          logger,
+          operationName: `Image description (${attachment.name})`,
+        }
+      );
       return {
         url: attachment.url,
-        description,
+        description: result.value,
       };
     });
 

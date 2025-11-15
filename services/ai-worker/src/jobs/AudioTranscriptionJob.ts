@@ -10,11 +10,13 @@ import { Job } from 'bullmq';
 import {
   createLogger,
   CONTENT_TYPES,
+  RETRY_CONFIG,
   type AudioTranscriptionJobData,
   type AudioTranscriptionResult,
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { transcribeAudio } from '../services/MultimodalProcessor.js';
+import { withRetry } from '../utils/retryService.js';
 
 const logger = createLogger('AudioTranscriptionJob');
 
@@ -48,18 +50,24 @@ export async function processAudioTranscriptionJob(
       );
     }
 
-    // Transcribe the audio
+    // Transcribe the audio with retry logic (3 attempts)
     // Note: We don't need a real personality for transcription, just pass a minimal one
-    const transcript = await transcribeAudio(attachment, {} as LoadedPersonality);
-
-    const processingTimeMs = Date.now() - startTime;
+    const result = await withRetry(
+      () => transcribeAudio(attachment, {} as LoadedPersonality),
+      {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        logger,
+        operationName: `Audio transcription (${attachment.name})`,
+      }
+    );
 
     logger.info(
       {
         jobId: job.id,
         requestId,
-        processingTimeMs,
-        transcriptLength: transcript.length,
+        processingTimeMs: result.totalTimeMs,
+        attempts: result.attempts,
+        transcriptLength: result.value.length,
       },
       '[AudioTranscriptionJob] Audio transcription completed'
     );
@@ -67,9 +75,9 @@ export async function processAudioTranscriptionJob(
     return {
       requestId,
       success: true,
-      transcript,
+      transcript: result.value,
       metadata: {
-        processingTimeMs,
+        processingTimeMs: result.totalTimeMs,
         duration: attachment.duration,
       },
     };
