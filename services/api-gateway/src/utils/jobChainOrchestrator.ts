@@ -22,7 +22,8 @@ import {
   type ResponseDestination,
   JobStatus,
 } from '@tzurot/common-types';
-import { aiQueue } from '../queue.js';
+import { flowProducer } from '../queue.js';
+import type { FlowJob } from 'bullmq';
 
 const logger = createLogger('JobChainOrchestrator');
 
@@ -51,155 +52,14 @@ function categorizeAttachments(attachments: AttachmentMetadata[]): {
 }
 
 /**
- * Create audio transcription jobs for all audio attachments
- */
-async function createAudioTranscriptionJobs(
-  audioAttachments: AttachmentMetadata[],
-  requestId: string,
-  context: Pick<JobContext, 'userId' | 'channelId'>,
-  responseDestination: ResponseDestination
-): Promise<JobDependency[]> {
-  const dependencies: JobDependency[] = [];
-
-  for (let i = 0; i < audioAttachments.length; i++) {
-    const attachment = audioAttachments[i];
-    const audioRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
-
-    const jobData: AudioTranscriptionJobData = {
-      requestId: audioRequestId,
-      jobType: JobType.AudioTranscription,
-      attachment,
-      context: {
-        userId: context.userId,
-        channelId: context.channelId,
-      },
-      responseDestination,
-    };
-
-    const job = await aiQueue.add(JobType.AudioTranscription, jobData, {
-      jobId: `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${audioRequestId}`,
-    });
-
-    logger.info(
-      {
-        jobId: job.id,
-        requestId: audioRequestId,
-        attachmentName: attachment.name,
-      },
-      '[JobChain] Created audio transcription job'
-    );
-
-    dependencies.push({
-      jobId: job.id ?? audioRequestId,
-      type: JobType.AudioTranscription,
-      status: JobStatus.Queued,
-      // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
-      resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${job.id ?? audioRequestId}`,
-    });
-  }
-
-  return dependencies;
-}
-
-/**
- * Create image description job for all image attachments
- * (processes all images in a single job for efficiency)
- */
-async function createImageDescriptionJob(
-  imageAttachments: AttachmentMetadata[],
-  requestId: string,
-  personality: LoadedPersonality,
-  context: Pick<JobContext, 'userId' | 'channelId'>,
-  responseDestination: ResponseDestination
-): Promise<JobDependency | null> {
-  if (imageAttachments.length === 0) {
-    return null;
-  }
-
-  const imageRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.IMAGE}`;
-
-  const jobData: ImageDescriptionJobData = {
-    requestId: imageRequestId,
-    jobType: JobType.ImageDescription,
-    attachments: imageAttachments,
-    personality,
-    context: {
-      userId: context.userId,
-      channelId: context.channelId,
-    },
-    responseDestination,
-  };
-
-  const job = await aiQueue.add(JobType.ImageDescription, jobData, {
-    jobId: `${JOB_PREFIXES.IMAGE_DESCRIPTION}${imageRequestId}`,
-  });
-
-  logger.info(
-    {
-      jobId: job.id,
-      requestId: imageRequestId,
-      imageCount: imageAttachments.length,
-    },
-    '[JobChain] Created image description job'
-  );
-
-  return {
-    jobId: job.id ?? imageRequestId,
-    type: JobType.ImageDescription,
-    status: JobStatus.Queued,
-    // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
-    resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${job.id ?? imageRequestId}`,
-  };
-}
-
-/**
- * Create LLM generation job with optional dependencies
- */
-async function createLLMGenerationJob(
-  requestId: string,
-  personality: LoadedPersonality,
-  message: string | object,
-  context: JobContext,
-  responseDestination: ResponseDestination,
-  userApiKey?: string,
-  dependencies?: JobDependency[]
-): Promise<string> {
-  const jobData: LLMGenerationJobData = {
-    requestId,
-    jobType: JobType.LLMGeneration,
-    personality,
-    message,
-    context,
-    responseDestination,
-    userApiKey,
-    dependencies,
-  };
-
-  const job = await aiQueue.add(JobType.LLMGeneration, jobData, {
-    jobId: `${JOB_PREFIXES.LLM_GENERATION}${requestId}`,
-  });
-
-  logger.info(
-    {
-      jobId: job.id,
-      requestId,
-      personalityName: personality.name,
-      dependencyCount: dependencies?.length || 0,
-    },
-    '[JobChain] Created LLM generation job'
-  );
-
-  return job.id ?? requestId;
-}
-
-/**
- * Orchestrate job chain creation based on request content
+ * Orchestrate job chain creation using BullMQ FlowProducer
  *
  * Flow:
  * 1. If attachments exist, categorize them (audio vs images)
- * 2. Create preprocessing jobs for attachments
- * 3. Create LLM generation job with dependencies
- * 4. Return the main job ID
+ * 2. Build child jobs array (preprocessing jobs)
+ * 3. Create flow with LLM as parent, preprocessing as children
+ * 4. BullMQ runs children FIRST, then parent when all complete
+ * 5. Return the parent (LLM) job ID
  */
 export async function createJobChain(params: {
   requestId: string;
@@ -211,6 +71,11 @@ export async function createJobChain(params: {
 }): Promise<string> {
   const { requestId, personality, message, context, responseDestination, userApiKey } = params;
 
+  const config = await import('@tzurot/common-types').then(m => m.getConfig());
+  const QUEUE_NAME = config.QUEUE_NAME;
+
+  // Build child jobs array (preprocessing jobs that must complete first)
+  const children: FlowJob[] = [];
   const dependencies: JobDependency[] = [];
 
   // Check if we have attachments that need preprocessing
@@ -220,34 +85,97 @@ export async function createJobChain(params: {
         requestId,
         attachmentCount: context.attachments.length,
       },
-      '[JobChain] Attachments detected - creating preprocessing jobs'
+      '[JobChain] Attachments detected - creating preprocessing jobs as flow children'
     );
 
     const { audio, images } = categorizeAttachments(context.attachments);
 
-    // Create audio transcription jobs
-    if (audio.length > 0) {
-      const audioDeps = await createAudioTranscriptionJobs(
-        audio,
-        requestId,
-        context,
-        responseDestination
+    // Create audio transcription child jobs
+    for (let i = 0; i < audio.length; i++) {
+      const attachment = audio[i];
+      const audioRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
+      const jobId = `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${audioRequestId}`;
+
+      const jobData: AudioTranscriptionJobData = {
+        requestId: audioRequestId,
+        jobType: JobType.AudioTranscription,
+        attachment,
+        context: {
+          userId: context.userId,
+          channelId: context.channelId,
+        },
+        responseDestination,
+      };
+
+      children.push({
+        name: JobType.AudioTranscription,
+        data: jobData,
+        queueName: QUEUE_NAME,
+        opts: {
+          jobId,
+        },
+      });
+
+      dependencies.push({
+        jobId,
+        type: JobType.AudioTranscription,
+        status: JobStatus.Queued,
+        // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
+        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`,
+      });
+
+      logger.info(
+        {
+          jobId,
+          requestId: audioRequestId,
+          attachmentName: attachment.name,
+        },
+        '[JobChain] Added audio transcription child job'
       );
-      dependencies.push(...audioDeps);
     }
 
-    // Create image description job
+    // Create image description child job
     if (images.length > 0) {
-      const imageDep = await createImageDescriptionJob(
-        images,
-        requestId,
+      const imageRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.IMAGE}`;
+      const jobId = `${JOB_PREFIXES.IMAGE_DESCRIPTION}${imageRequestId}`;
+
+      const jobData: ImageDescriptionJobData = {
+        requestId: imageRequestId,
+        jobType: JobType.ImageDescription,
+        attachments: images,
         personality,
-        context,
-        responseDestination
+        context: {
+          userId: context.userId,
+          channelId: context.channelId,
+        },
+        responseDestination,
+      };
+
+      children.push({
+        name: JobType.ImageDescription,
+        data: jobData,
+        queueName: QUEUE_NAME,
+        opts: {
+          jobId,
+        },
+      });
+
+      dependencies.push({
+        jobId,
+        type: JobType.ImageDescription,
+        status: JobStatus.Queued,
+        // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
+        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`,
+      });
+
+      logger.info(
+        {
+          jobId,
+          requestId: imageRequestId,
+          imageCount: images.length,
+        },
+        '[JobChain] Added image description child job'
       );
-      if (imageDep) {
-        dependencies.push(imageDep);
-      }
     }
 
     logger.info(
@@ -255,22 +183,47 @@ export async function createJobChain(params: {
         requestId,
         audioJobs: audio.length,
         imageJobs: images.length > 0 ? 1 : 0,
-        totalDependencies: dependencies.length,
+        totalChildren: children.length,
       },
-      '[JobChain] Created preprocessing jobs'
+      '[JobChain] Built preprocessing child jobs'
     );
   }
 
-  // Create LLM generation job (with or without dependencies)
-  const jobId = await createLLMGenerationJob(
+  // Create LLM generation job as parent (runs after all children complete)
+  const llmJobId = `${JOB_PREFIXES.LLM_GENERATION}${requestId}`;
+  const llmJobData: LLMGenerationJobData = {
     requestId,
+    jobType: JobType.LLMGeneration,
     personality,
     message,
     context,
     responseDestination,
     userApiKey,
-    dependencies.length > 0 ? dependencies : undefined
+    dependencies: dependencies.length > 0 ? dependencies : undefined,
+  };
+
+  // Create flow with LLM as parent, preprocessing as children
+  // FlowProducer automatically runs children first, then parent
+  const flow = await flowProducer.add({
+    name: JobType.LLMGeneration,
+    data: llmJobData,
+    queueName: QUEUE_NAME,
+    opts: {
+      jobId: llmJobId,
+    },
+    children: children.length > 0 ? children : undefined,
+  });
+
+  logger.info(
+    {
+      jobId: llmJobId,
+      requestId,
+      personalityName: personality.name,
+      childCount: children.length,
+    },
+    '[JobChain] Created flow - LLM will wait for all children to complete'
   );
 
-  return jobId;
+  // Return parent job ID (the LLM job)
+  return flow.job.id ?? llmJobId;
 }

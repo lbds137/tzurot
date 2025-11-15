@@ -101,6 +101,7 @@ describe('ImageDescriptionJob', () => {
         metadata: {
           processingTimeMs: expect.any(Number),
           imageCount: 1,
+          failedCount: 0,
         },
       });
 
@@ -268,14 +269,11 @@ describe('ImageDescriptionJob', () => {
 
       const result = await processImageDescriptionJob(job);
 
+      // With graceful degradation, when ALL images fail, we return a simple error
       expect(result).toMatchObject({
         requestId: 'test-req-image-fail',
         success: false,
-        error: 'Vision model timeout after 3 attempts',
-        metadata: {
-          processingTimeMs: expect.any(Number),
-          imageCount: 1,
-        },
+        error: 'All images failed processing',
       });
     });
 
@@ -415,9 +413,12 @@ describe('ImageDescriptionJob', () => {
 
       const result = await processImageDescriptionJob(job);
 
-      // Job should fail if ANY image fails (Promise.all behavior)
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Vision model error');
+      // With graceful degradation, job succeeds with partial results
+      expect(result.success).toBe(true);
+      expect(result.descriptions).toHaveLength(1); // Only successful image
+      expect(result.descriptions[0].url).toBe('https://example.com/image1.png');
+      expect(result.metadata.imageCount).toBe(1);
+      expect(result.metadata.failedCount).toBe(1); // Track failures
     });
   });
 });

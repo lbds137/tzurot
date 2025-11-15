@@ -1,10 +1,10 @@
 /**
- * Tests for Job Chain Orchestrator
+ * Tests for Job Chain Orchestrator (BullMQ FlowProducer)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createJobChain } from './jobChainOrchestrator.js';
-import { aiQueue } from '../queue.js';
+import { flowProducer } from '../queue.js';
 import {
   JobType,
   type LoadedPersonality,
@@ -13,14 +13,23 @@ import {
   CONTENT_TYPES,
 } from '@tzurot/common-types';
 
-// Mock the queue
+// Mock the queue (flowProducer for job dependencies)
 vi.mock('../queue.js', () => ({
-  aiQueue: {
+  flowProducer: {
     add: vi.fn(),
   },
 }));
 
-describe('jobChainOrchestrator', () => {
+// Mock getConfig
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    getConfig: () => ({ QUEUE_NAME: 'test-queue' }),
+  };
+});
+
+describe('jobChainOrchestrator (FlowProducer)', () => {
   const mockPersonality: LoadedPersonality = {
     id: 'test-id',
     name: 'TestBot',
@@ -43,8 +52,11 @@ describe('jobChainOrchestrator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default mock: return job with ID
-    (aiQueue.add as any).mockResolvedValue({ id: 'job-123' });
+    // Default mock: flowProducer.add returns parent job + children
+    (flowProducer.add as any).mockResolvedValue({
+      job: { id: 'llm-job-123' },
+      children: [],
+    });
   });
 
   afterEach(() => {
@@ -52,7 +64,7 @@ describe('jobChainOrchestrator', () => {
   });
 
   describe('empty attachments edge case', () => {
-    it('should create only LLM job when attachments array is empty', async () => {
+    it('should create flow with LLM job only (no children) when attachments array is empty', async () => {
       const context: JobContext = {
         userId: 'user-123',
         channelId: 'channel-123',
@@ -67,26 +79,27 @@ describe('jobChainOrchestrator', () => {
         responseDestination: mockResponseDestination,
       });
 
-      // Should create exactly 1 job (LLM only, no preprocessing)
-      expect(aiQueue.add).toHaveBeenCalledTimes(1);
-
-      // Verify it's the LLM generation job
-      expect(aiQueue.add).toHaveBeenCalledWith(
-        JobType.LLMGeneration,
+      // Should create flow with NO children (LLM only)
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      expect(flowProducer.add).toHaveBeenCalledWith(
         expect.objectContaining({
-          requestId: 'req-123',
-          jobType: JobType.LLMGeneration,
-          personality: mockPersonality,
-          message: 'Hello',
-          dependencies: undefined, // No dependencies
-        }),
-        expect.any(Object)
+          name: JobType.LLMGeneration,
+          data: expect.objectContaining({
+            requestId: 'req-123',
+            jobType: JobType.LLMGeneration,
+            personality: mockPersonality,
+            message: 'Hello',
+            dependencies: undefined, // No dependencies
+          }),
+          queueName: 'test-queue',
+          children: undefined, // No child jobs
+        })
       );
 
-      expect(jobId).toBe('job-123');
+      expect(jobId).toBe('llm-job-123');
     });
 
-    it('should create only LLM job when attachments is undefined', async () => {
+    it('should create flow with LLM job only when attachments is undefined', async () => {
       const context: JobContext = {
         userId: 'user-123',
         channelId: 'channel-123',
@@ -101,27 +114,17 @@ describe('jobChainOrchestrator', () => {
         responseDestination: mockResponseDestination,
       });
 
-      // Should create exactly 1 job
-      expect(aiQueue.add).toHaveBeenCalledTimes(1);
-      expect(aiQueue.add).toHaveBeenCalledWith(
-        JobType.LLMGeneration,
-        expect.objectContaining({
-          dependencies: undefined,
-        }),
-        expect.any(Object)
-      );
+      // Should create flow with NO children
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const call = (flowProducer.add as any).mock.calls[0][0];
+      expect(call.children).toBeUndefined();
 
-      expect(jobId).toBe('job-123');
+      expect(jobId).toBe('llm-job-123');
     });
   });
 
   describe('with attachments', () => {
-    it('should create preprocessing jobs and LLM job with dependencies', async () => {
-      let jobIdCounter = 1;
-      (aiQueue.add as any).mockImplementation(() => {
-        return Promise.resolve({ id: `job-${jobIdCounter++}` });
-      });
-
+    it('should create flow with preprocessing children and LLM parent', async () => {
       const context: JobContext = {
         userId: 'user-123',
         channelId: 'channel-123',
@@ -149,51 +152,25 @@ describe('jobChainOrchestrator', () => {
         responseDestination: mockResponseDestination,
       });
 
-      // Should create 3 jobs: audio + image + LLM
-      expect(aiQueue.add).toHaveBeenCalledTimes(3);
+      // Should create ONE flow with 2 children (audio + image)
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
 
-      // Check audio job
-      expect(aiQueue.add).toHaveBeenCalledWith(
-        JobType.AudioTranscription,
-        expect.objectContaining({
-          jobType: JobType.AudioTranscription,
-          attachment: context.attachments![0],
-        }),
-        expect.any(Object)
-      );
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
 
-      // Check image job
-      expect(aiQueue.add).toHaveBeenCalledWith(
-        JobType.ImageDescription,
-        expect.objectContaining({
-          jobType: JobType.ImageDescription,
-          attachments: [context.attachments![1]],
-        }),
-        expect.any(Object)
-      );
+      // Check parent job (LLM)
+      expect(flowCall.name).toBe(JobType.LLMGeneration);
+      expect(flowCall.data.jobType).toBe(JobType.LLMGeneration);
+      expect(flowCall.data.dependencies).toHaveLength(2);
 
-      // Check LLM job has dependencies
-      expect(aiQueue.add).toHaveBeenCalledWith(
-        JobType.LLMGeneration,
-        expect.objectContaining({
-          jobType: JobType.LLMGeneration,
-          dependencies: expect.arrayContaining([
-            expect.objectContaining({ type: JobType.AudioTranscription }),
-            expect.objectContaining({ type: JobType.ImageDescription }),
-          ]),
-        }),
-        expect.any(Object)
-      );
+      // Check children (preprocessing jobs)
+      expect(flowCall.children).toHaveLength(2);
+      expect(flowCall.children[0].name).toBe(JobType.AudioTranscription);
+      expect(flowCall.children[1].name).toBe(JobType.ImageDescription);
 
-      expect(jobId).toBe('job-3'); // Third job created
+      expect(jobId).toBe('llm-job-123');
     });
 
     it('should handle multiple audio attachments', async () => {
-      let jobIdCounter = 1;
-      (aiQueue.add as any).mockImplementation(() => {
-        return Promise.resolve({ id: `job-${jobIdCounter++}` });
-      });
-
       const context: JobContext = {
         userId: 'user-123',
         channelId: 'channel-123',
@@ -221,23 +198,15 @@ describe('jobChainOrchestrator', () => {
         responseDestination: mockResponseDestination,
       });
 
-      // Should create 3 jobs: audio1 + audio2 + LLM
-      expect(aiQueue.add).toHaveBeenCalledTimes(3);
+      // Should create flow with 2 audio children
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
 
-      // Verify both audio jobs were created
-      const calls = (aiQueue.add as any).mock.calls;
-      const audioJobs = calls.filter(
-        (call: any) => call[0] === JobType.AudioTranscription
-      );
-      expect(audioJobs).toHaveLength(2);
+      expect(flowCall.children).toHaveLength(2);
+      expect(flowCall.children.every((c: any) => c.name === JobType.AudioTranscription)).toBe(true);
     });
 
     it('should handle only image attachments (no audio)', async () => {
-      let jobIdCounter = 1;
-      (aiQueue.add as any).mockImplementation(() => {
-        return Promise.resolve({ id: `job-${jobIdCounter++}` });
-      });
-
       const context: JobContext = {
         userId: 'user-123',
         channelId: 'channel-123',
@@ -259,12 +228,49 @@ describe('jobChainOrchestrator', () => {
         responseDestination: mockResponseDestination,
       });
 
-      // Should create 2 jobs: image + LLM
-      expect(aiQueue.add).toHaveBeenCalledTimes(2);
+      // Should create flow with 1 image child
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
 
-      const calls = (aiQueue.add as any).mock.calls;
-      expect(calls[0][0]).toBe(JobType.ImageDescription);
-      expect(calls[1][0]).toBe(JobType.LLMGeneration);
+      expect(flowCall.children).toHaveLength(1);
+      expect(flowCall.children[0].name).toBe(JobType.ImageDescription);
+    });
+  });
+
+  describe('FlowProducer guarantees', () => {
+    it('should create flow that ensures children complete before parent', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        attachments: [
+          {
+            url: 'https://example.com/image.png',
+            name: 'image.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 2048,
+          },
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-flow',
+        personality: mockPersonality,
+        message: "What's this?",
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // FlowProducer structure guarantees children run first
+      expect(flowCall).toHaveProperty('children');
+      expect(flowCall).toHaveProperty('data');
+      expect(flowCall).toHaveProperty('name', JobType.LLMGeneration);
+
+      // Parent has dependency metadata for accessing child results
+      expect(flowCall.data.dependencies).toBeDefined();
+      expect(flowCall.data.dependencies[0]).toHaveProperty('jobId');
+      expect(flowCall.data.dependencies[0]).toHaveProperty('resultKey');
     });
   });
 });
