@@ -35,10 +35,12 @@ export class GatewayClient {
     try {
       // Debug: Check what fields are in context before sending
       logger.debug(
-        `[GatewayClient] Sending context: ` +
-          `hasReferencedMessages=${!!(context as any).referencedMessages}, ` +
-          `count=${((context as any).referencedMessages as any)?.length || 0}, ` +
-          `contextKeys=[${Object.keys(context).join(', ')}]`
+        {
+          hasReferencedMessages: !!context.referencedMessages,
+          count: context.referencedMessages?.length || 0,
+          contextKeys: Object.keys(context),
+        },
+        '[GatewayClient] Sending context'
       );
 
       // ASYNC PATTERN: Don't use wait=true, get job ID immediately

@@ -269,12 +269,21 @@ describe('MessageHandler', () => {
       );
     });
 
-    it('should throw error if persistence fails', async () => {
+    it('should handle errors gracefully without throwing', async () => {
       const jobId = 'job-789';
-      const result = { content: 'Content', attachmentDescriptions: [], referencedMessagesDescriptions: [] };
+      const result = {
+        content: 'Content',
+        attachmentDescriptions: [],
+        referencedMessagesDescriptions: [],
+      };
+
+      const mockMessage = {
+        id: 'msg-error',
+        reply: vi.fn().mockResolvedValue({ id: 'error-reply-123' }),
+      } as unknown as Message;
 
       const mockContext = {
-        message: {} as Message,
+        message: mockMessage,
         personality: { id: 'p-1', name: 'Bot' },
         personaId: 'persona-1',
         userMessageContent: 'Message',
@@ -284,12 +293,16 @@ describe('MessageHandler', () => {
       mockJobTracker.getContext.mockReturnValue(mockContext);
       mockPersistence.updateUserMessage.mockRejectedValue(new Error('Database error'));
 
-      await expect(messageHandler.handleJobResult(jobId, result)).rejects.toThrow(
-        'Database error'
-      );
+      // Should NOT throw - handle error gracefully
+      await expect(messageHandler.handleJobResult(jobId, result)).resolves.toBeUndefined();
 
       // Should still complete the job
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
+
+      // Should notify user of error
+      expect(mockMessage.reply).toHaveBeenCalledWith(
+        'Sorry, I encountered an error while processing your request.'
+      );
     });
 
     it('should handle chunked messages correctly', async () => {

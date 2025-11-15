@@ -12,6 +12,12 @@ import type { Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
 
 const logger = createLogger('JobTracker');
 
+// Maximum age for a job before auto-completing (prevents memory leaks)
+const MAX_JOB_AGE_MS = 10 * 60 * 1000; // 10 minutes
+
+// Discord typing lasts ~10s, refresh every 8s
+const TYPING_INDICATOR_INTERVAL_MS = 8000;
+
 /**
  * Context needed to handle async job results
  * Stored here instead of in MessageHandler for statelessness
@@ -50,8 +56,22 @@ export class JobTracker {
       this.completeJob(jobId);
     }
 
-    // Start typing indicator loop (Discord typing lasts ~10s, refresh every 8s)
+    const startTime = Date.now();
+
+    // Start typing indicator loop
     const typingInterval = setInterval(async () => {
+      const age = Date.now() - startTime;
+
+      // Auto-complete job if it exceeds maximum age (prevents memory leaks)
+      if (age > MAX_JOB_AGE_MS) {
+        logger.error(
+          { jobId, ageMs: age },
+          '[JobTracker] Job exceeded max age - auto-completing to prevent memory leak'
+        );
+        this.completeJob(jobId);
+        return;
+      }
+
       try {
         await channel.sendTyping();
         logger.debug({ jobId }, '[JobTracker] Sent typing indicator');
@@ -59,7 +79,7 @@ export class JobTracker {
         logger.error({ err: error, jobId }, '[JobTracker] Failed to send typing indicator');
         // Don't clear interval - channel might be temporarily unavailable
       }
-    }, 8000);
+    }, TYPING_INDICATOR_INTERVAL_MS);
 
     // Send initial typing indicator immediately
     channel.sendTyping().catch(error => {
