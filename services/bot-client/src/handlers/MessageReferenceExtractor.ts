@@ -540,7 +540,7 @@ export class MessageReferenceExtractor {
       : undefined;
 
     // Extract images from snapshot embeds (for vision model processing)
-    const embedImages = snapshot.embeds ? extractEmbedImages(snapshot.embeds) : undefined;
+    const embedImages = extractEmbedImages(snapshot.embeds);
 
     // Combine both types of attachments
     const allAttachments = [
