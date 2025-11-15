@@ -93,6 +93,7 @@ async function createAudioTranscriptionJobs(
       jobId: job.id ?? audioRequestId,
       type: JobType.AudioTranscription,
       status: JobStatus.Queued,
+      // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
       resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${job.id ?? audioRequestId}`,
     });
   }
@@ -146,6 +147,7 @@ async function createImageDescriptionJob(
     jobId: job.id ?? imageRequestId,
     type: JobType.ImageDescription,
     status: JobStatus.Queued,
+    // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
     resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${job.id ?? imageRequestId}`,
   };
 }

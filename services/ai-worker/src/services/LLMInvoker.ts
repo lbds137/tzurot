@@ -12,7 +12,6 @@ import {
   RETRY_CONFIG,
   TIMEOUTS,
   calculateJobTimeout,
-  calculateLLMTimeout,
   ERROR_MESSAGES,
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
@@ -67,9 +66,10 @@ export class LLMInvoker {
     imageCount: number = 0,
     audioCount: number = 0
   ): Promise<BaseMessage> {
-    // Calculate dynamic LLM timeout based on job timeout and attachments
+    // Calculate job timeout for logging (attachments processed in separate jobs)
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);
-    const globalTimeoutMs = calculateLLMTimeout(jobTimeout, imageCount, audioCount);
+    // LLM always gets full independent timeout budget (480s = 8 minutes)
+    const globalTimeoutMs = TIMEOUTS.LLM_INVOCATION;
 
     logger.info(
       {
