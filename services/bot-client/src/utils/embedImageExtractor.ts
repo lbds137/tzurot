@@ -11,10 +11,10 @@ import { CONTENT_TYPES } from '@tzurot/common-types';
 
 /**
  * Extract image and thumbnail URLs from Discord embeds as attachment metadata
- * @param embeds - Array of Discord embeds
+ * @param embeds - Array of Discord embeds (can be undefined)
  * @returns Array of attachment metadata for embed images, or undefined if no images
  */
-export function extractEmbedImages(embeds: Embed[]): AttachmentMetadata[] | undefined {
+export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetadata[] | undefined {
   if (!embeds || embeds.length === 0) {
     return undefined;
   }

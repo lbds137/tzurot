@@ -149,10 +149,17 @@ export class LLMInvoker {
           throw emptyResponseError;
         }
 
+        // Log telemetry for timeout tuning
+        const durationMs = Date.now() - startTime;
         if (attempt > 0) {
           logger.info(
-            { modelName, attempt: attempt + 1 },
+            { modelName, attempt: attempt + 1, durationMs },
             '[LLMInvoker] LLM invocation succeeded after retry'
+          );
+        } else {
+          logger.info(
+            { modelName, durationMs },
+            '[LLMInvoker] LLM invocation completed'
           );
         }
 
