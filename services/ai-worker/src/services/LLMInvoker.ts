@@ -13,11 +13,10 @@ import {
   TIMEOUTS,
   calculateJobTimeout,
   calculateLLMTimeout,
-  TransientErrorCode,
   ERROR_MESSAGES,
-  ERROR_NAMES,
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
+import { withRetry } from '../utils/retryService.js';
 
 const logger = createLogger('LLMInvoker');
 
@@ -50,10 +49,10 @@ export class LLMInvoker {
    * Invoke LLM with timeout and retry logic for transient errors
    *
    * Features:
-   * - Retries on transient network errors and empty responses
-   * - Exponential backoff between retries
+   * - Retries on all errors (network errors, timeouts, empty responses)
+   * - Exponential backoff between retries (1s, 2s, 4s, ...)
    * - Dynamic global timeout based on attachment count
-   * - Per-attempt timeout reduction based on remaining time
+   * - Per-attempt timeout using LLM_PER_ATTEMPT constant
    *
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
@@ -68,9 +67,6 @@ export class LLMInvoker {
     imageCount: number = 0,
     audioCount: number = 0
   ): Promise<BaseMessage> {
-    const startTime = Date.now();
-    const maxRetries = RETRY_CONFIG.LLM_MAX_RETRIES;
-
     // Calculate dynamic LLM timeout based on job timeout and attachments
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);
     const globalTimeoutMs = calculateLLMTimeout(jobTimeout, imageCount, audioCount);
@@ -86,136 +82,67 @@ export class LLMInvoker {
       `[LLMInvoker] Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      // Check if we've exceeded global timeout before attempting
-      const elapsedMs = Date.now() - startTime;
-      if (elapsedMs >= globalTimeoutMs) {
-        logger.error(
-          {
-            modelName,
-            elapsedMs,
-            globalTimeoutMs,
-            attempt: attempt + 1,
-          },
-          `[LLMInvoker] Global timeout exceeded after ${elapsedMs}ms (limit: ${globalTimeoutMs}ms)`
-        );
-        throw new Error(`LLM invocation global timeout exceeded after ${elapsedMs}ms`);
+    // Use retryService for consistent retry behavior
+    const result = await withRetry(
+      () => this.invokeSingleAttempt(model, messages, modelName),
+      {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        globalTimeoutMs,
+        logger,
+        operationName: `LLM invocation (${modelName})`,
       }
+    );
 
-      // Calculate remaining time for this attempt
-      const remainingMs = globalTimeoutMs - elapsedMs;
-      const attemptTimeoutMs = Math.min(TIMEOUTS.LLM_API, remainingMs);
+    logger.info(
+      { modelName, attempts: result.attempts, totalTimeMs: result.totalTimeMs },
+      '[LLMInvoker] LLM invocation completed'
+    );
 
-      try {
-        logger.info(
-          {
-            modelName,
-            attempt: attempt + 1,
-            maxAttempts: maxRetries + 1,
-            attemptTimeoutMs,
-            remainingMs,
-          },
-          `[LLMInvoker] Invoking LLM (attempt ${attempt + 1}/${maxRetries + 1}, timeout: ${attemptTimeoutMs}ms)`
-        );
+    return result.value;
+  }
 
-        // Invoke with calculated timeout (respects global timeout)
-        const response = await model.invoke(messages, { timeout: attemptTimeoutMs });
+  /**
+   * Execute a single LLM invocation attempt with timeout and validation
+   *
+   * @param model - LangChain chat model to invoke
+   * @param messages - Message array to send to the model
+   * @param modelName - Model name for logging
+   * @throws Error on timeout, network errors, or empty responses
+   * @private
+   */
+  private async invokeSingleAttempt(
+    model: BaseChatModel,
+    messages: BaseMessage[],
+    modelName: string
+  ): Promise<BaseMessage> {
+    // Invoke with per-attempt timeout (3 minutes per attempt)
+    const response = await model.invoke(messages, { timeout: TIMEOUTS.LLM_PER_ATTEMPT });
 
-        // Guard against empty responses (treat as retryable error)
-        // Handle both string content and multimodal array content
-        const content = Array.isArray(response.content)
-          ? response.content
-              .map(c => (typeof c === 'object' && 'text' in c ? c.text : ''))
-              .join('')
-              .trim()
-          : typeof response.content === 'string'
-            ? response.content.trim()
-            : '';
+    // Guard against empty responses (treat as retryable error)
+    // Handle both string content and multimodal array content
+    const content = Array.isArray(response.content)
+      ? response.content
+          .map(c => (typeof c === 'object' && 'text' in c ? c.text : ''))
+          .join('')
+          .trim()
+      : typeof response.content === 'string'
+        ? response.content.trim()
+        : '';
 
-        if (!content) {
-          const emptyResponseError = new Error(ERROR_MESSAGES.EMPTY_RESPONSE);
-          logger.warn(
-            {
-              err: emptyResponseError,
-              modelName,
-              attempt: attempt + 1,
-              responseType: Array.isArray(response.content)
-                ? 'array'
-                : typeof response.content,
-              contentLength: Array.isArray(response.content) ? response.content.length : 0,
-            },
-            '[LLMInvoker] Empty response detected, treating as retryable error'
-          );
-          throw emptyResponseError;
-        }
-
-        // Log telemetry for timeout tuning
-        const durationMs = Date.now() - startTime;
-        if (attempt > 0) {
-          logger.info(
-            { modelName, attempt: attempt + 1, durationMs },
-            '[LLMInvoker] LLM invocation succeeded after retry'
-          );
-        } else {
-          logger.info(
-            { modelName, durationMs },
-            '[LLMInvoker] LLM invocation completed'
-          );
-        }
-
-        return response;
-      } catch (error) {
-        // Check if this is a transient network error or empty response worth retrying
-        // Check both error.code (Node.js native errors) and error.message (wrapped errors)
-        const errorCode = (error as any).code;
-        const errorName = error instanceof Error ? error.name : '';
-        const errorMessage = error instanceof Error ? error.message : '';
-        const isTransientError =
-          errorCode === TransientErrorCode.ECONNRESET ||
-          errorCode === TransientErrorCode.ETIMEDOUT ||
-          errorCode === TransientErrorCode.ENOTFOUND ||
-          errorCode === TransientErrorCode.ECONNREFUSED ||
-          errorName === ERROR_NAMES.ABORT_ERROR || // DOMException abort (timeout)
-          errorMessage.includes(TransientErrorCode.ECONNRESET) ||
-          errorMessage.includes(TransientErrorCode.ETIMEDOUT) ||
-          errorMessage.includes(TransientErrorCode.ENOTFOUND) ||
-          errorMessage.includes(ERROR_MESSAGES.EMPTY_RESPONSE_INDICATOR);
-
-        if (isTransientError && attempt < maxRetries) {
-          const delayMs = Math.pow(2, attempt) * RETRY_CONFIG.LLM_RETRY_BASE_DELAY;
-          logger.warn(
-            {
-              err: error,
-              modelName,
-              attempt: attempt + 1,
-              nextRetryInMs: delayMs,
-              elapsedMs: Date.now() - startTime,
-            },
-            `[LLMInvoker] LLM invocation failed with transient error, retrying in ${delayMs}ms`
-          );
-
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-          continue;
-        }
-
-        // Non-retryable error or out of retries
-        if (attempt === maxRetries) {
-          logger.error(
-            {
-              err: error,
-              modelName,
-              attempts: maxRetries + 1,
-              totalElapsedMs: Date.now() - startTime,
-            },
-            `[LLMInvoker] LLM invocation failed after ${maxRetries + 1} attempts`
-          );
-        }
-
-        throw error;
-      }
+    if (!content) {
+      const emptyResponseError = new Error(ERROR_MESSAGES.EMPTY_RESPONSE);
+      logger.warn(
+        {
+          err: emptyResponseError,
+          modelName,
+          responseType: Array.isArray(response.content) ? 'array' : typeof response.content,
+          contentLength: Array.isArray(response.content) ? response.content.length : 0,
+        },
+        '[LLMInvoker] Empty response detected, treating as retryable error'
+      );
+      throw emptyResponseError;
     }
 
-    // This line is unreachable (loop always returns or throws), but TypeScript doesn't know that
-    throw new Error('LLM invocation failed - all retries exhausted');
+    return response;
   }
 }

@@ -1,0 +1,331 @@
+# Retry Logic Consolidation & Job Chain Architecture
+
+**Status**: In Progress
+**Branch**: `feat/timeout-and-refactoring`
+**Created**: 2025-11-15
+
+## Problem Statement
+
+### DRY Violations in Retry Logic
+
+**Current State**: Three different retry implementations:
+1. `retryService.ts` - Comprehensive, reusable utilities ✅
+2. `LLMInvoker.invokeWithRetry()` - Custom retry loop (115 lines) ❌
+3. `MultimodalProcessor.processAttachments()` - Custom parallel retry (70 lines) ❌
+
+**Issues**:
+- Code duplication makes maintenance harder
+- Inconsistent retry counting (0-based vs 1-based)
+- Each implementation has custom logging, timeout logic
+- Hard to ensure consistent behavior across components
+
+### Tight Timeout Budgets
+
+**Current**: Components compete for shared timeout budget
+- Audio processing: 90s
+- LLM invocation: 105s (after subtracting audio time)
+- **Result**: Intermittent timeout errors in production
+
+**Desired**: Independent timeouts with generous limits
+- Audio job: 120s (30s fetch + 60s Whisper + buffer)
+- Image job: 60s (45s vision + buffer)
+- LLM job: 600s (10 minutes for slow models + retries)
+
+## Solution: Consolidate Retries + Job Chains
+
+### Part 1: Standardize Retry Configuration
+
+**Update `RETRY_CONFIG`**:
+```typescript
+export const RETRY_CONFIG = {
+  /** Standard retry attempts for ALL components (1 initial + 2 retries = 3 total) */
+  MAX_ATTEMPTS: 3,
+  /** Initial delay before first retry (1 second) */
+  INITIAL_DELAY_MS: 1000,
+  /** Maximum delay between retries (10 seconds) */
+  MAX_DELAY_MS: 10000,
+  /** Backoff multiplier for exponential backoff */
+  BACKOFF_MULTIPLIER: 2,
+
+  // Component-specific timeouts (but same retry count!)
+  /** Audio processing timeout (download + transcribe + buffer) */
+  AUDIO_TIMEOUT: 120000,
+  /** Image processing timeout (vision model + buffer) */
+  IMAGE_TIMEOUT: 60000,
+  /** LLM invocation global timeout (all attempts) */
+  LLM_TIMEOUT: 600000,
+} as const;
+```
+
+**Remove inconsistent configs**:
+- ❌ `LLM_MAX_RETRIES: 2` (confusing - means 3 total attempts)
+- ❌ `LLM_GLOBAL_TIMEOUT` in RETRY_CONFIG (move to TIMEOUTS)
+- ✅ Use `MAX_ATTEMPTS: 3` everywhere
+
+### Part 2: Refactor to Use `retryService`
+
+#### LLMInvoker Refactoring
+
+**Before** (115 lines of custom retry logic):
+```typescript
+async invokeWithRetry(...) {
+  const maxRetries = RETRY_CONFIG.LLM_MAX_RETRIES;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Custom timeout tracking
+    // Custom retry logic
+    // Custom error handling
+  }
+}
+```
+
+**After** (using retryService):
+```typescript
+async invokeWithRetry(...) {
+  return await withRetry(
+    () => this.invokeSingleAttempt(model, messages, modelName),
+    {
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      globalTimeoutMs: RETRY_CONFIG.LLM_TIMEOUT,
+      logger,
+      operationName: `LLM invocation (${modelName})`,
+    }
+  );
+}
+
+private async invokeSingleAttempt(...) {
+  // Single attempt logic (timeout, validation, etc.)
+}
+```
+
+**Benefits**:
+- 115 lines → ~30 lines
+- Consistent retry behavior
+- Automatic exponential backoff
+- Standardized logging
+
+#### MultimodalProcessor Refactoring
+
+**Before** (70 lines of custom parallel retry):
+```typescript
+async processAttachments(...) {
+  const succeeded = [];
+  let failedIndices = [...];
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Custom parallel processing
+    // Custom failure tracking
+    // Custom retry logic
+  }
+}
+```
+
+**After** (using withParallelRetry):
+```typescript
+async processAttachments(...) {
+  const results = await withParallelRetry(
+    attachments,
+    (attachment) => this.processSingleAttachment(attachment, personality),
+    {
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      logger,
+      operationName: 'Attachment processing',
+    }
+  );
+
+  return results.filter(r => r.status === 'success').map(r => r.value!);
+}
+```
+
+**Benefits**:
+- 70 lines → ~20 lines
+- Reuses battle-tested logic
+- Consistent with other components
+
+### Part 3: Job Chain Architecture
+
+#### Job Types
+
+```typescript
+enum JobType {
+  // Preprocessing jobs (run first)
+  AUDIO_TRANSCRIPTION = 'audio-transcription',
+  IMAGE_DESCRIPTION = 'image-description',
+
+  // Main job (depends on preprocessing)
+  LLM_GENERATION = 'llm-generation',
+}
+```
+
+#### Job Dependencies
+
+```typescript
+interface JobDependency {
+  jobId: string;
+  type: JobType;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: any;
+}
+
+interface LLMJobData {
+  // ... existing fields
+  dependencies?: JobDependency[];
+}
+```
+
+#### Flow Example
+
+```
+User sends: "What's in this image?" + audio.ogg + image.png
+    ↓
+api-gateway creates 3 jobs:
+    ↓
+    ├─→ [Job 1: AUDIO_TRANSCRIPTION] (120s timeout, 3 attempts)
+    │   └─→ Result: { transcript: "..." } → Redis
+    │
+    ├─→ [Job 2: IMAGE_DESCRIPTION] (60s timeout, 3 attempts)
+    │   └─→ Result: { description: "..." } → Redis
+    │
+    └─→ [Job 3: LLM_GENERATION] (600s timeout, 3 attempts)
+        └─→ dependencies: [Job 1, Job 2]
+        └─→ Waits for results from Redis
+        └─→ Combines: message + transcript + description
+        └─→ Generates response
+```
+
+#### Implementation Steps
+
+1. **Create preprocessor jobs** (`AudioTranscriptionJob`, `ImageDescriptionJob`)
+   - Extract logic from MultimodalProcessor
+   - Use retryService for consistency
+   - Publish results to Redis with predictable keys
+
+2. **Update LLM job** to check for dependencies
+   - Check Redis for preprocessing results before starting
+   - Combine results into context
+   - Continue with LLM invocation
+
+3. **api-gateway orchestration**
+   - Detect attachments in request
+   - Create preprocessing jobs first
+   - Create LLM job with dependencies
+   - Return requestId to bot-client
+
+4. **bot-client job tracking**
+   - Already handles async results via JobTracker ✅
+   - No changes needed!
+
+### Part 4: Generous Timeout Allocation
+
+With independent jobs, each component gets full timeout:
+
+```typescript
+// OLD (shared budget):
+Total: 300s
+  - Audio: 90s
+  - LLM: 105s (300 - 90 - 90 - 15)
+  → LLM can't complete 3 attempts!
+
+// NEW (independent budgets):
+Audio Job: 120s × 3 attempts = up to 360s
+Image Job: 60s × 3 attempts = up to 180s
+LLM Job: 600s × 3 attempts = up to 1800s (30 min max!)
+
+Each job has its own Railway worker timeout (no limit!)
+```
+
+**Benefits**:
+- **Much more forgiving** for slow models/APIs
+- **Proper retry support** - each component can retry fully
+- **Better user experience** - fewer timeout errors
+- **Clearer failures** - know exactly which component failed
+
+## Testing Strategy
+
+### Unit Tests
+
+1. **Retry standardization**:
+   - Verify all components use MAX_ATTEMPTS: 3
+   - Test retry count consistency
+   - Verify exponential backoff
+
+2. **retryService integration**:
+   - Mock LLM/vision/Whisper APIs
+   - Test transient failures retry properly
+   - Test permanent failures fail after 3 attempts
+   - Test timeout behavior
+
+3. **Job chain**:
+   - Test dependency resolution
+   - Test parallel preprocessing
+   - Test LLM waits for results
+   - Test failure handling
+
+### Integration Tests
+
+1. Create test jobs with actual attachments
+2. Verify preprocessing completes before LLM
+3. Test retry scenarios
+4. Measure actual timing vs timeouts
+
+### Production Monitoring
+
+1. Log component-level timing
+2. Track retry rates per component
+3. Alert on timeout trends
+4. Adjust timeouts based on P95/P99 data
+
+## Migration Plan
+
+### Phase 1: Consolidate Retry Logic (This PR)
+- [x] Create refactoring plan (this document)
+- [ ] Standardize RETRY_CONFIG (MAX_ATTEMPTS: 3 everywhere)
+- [ ] Refactor LLMInvoker to use withRetry
+- [ ] Refactor MultimodalProcessor to use withParallelRetry
+- [ ] Update all tests
+- [ ] Deploy to dev, monitor
+
+### Phase 2: Job Chain Architecture (Next PR)
+- [ ] Design job dependency system
+- [ ] Create AudioTranscriptionJob
+- [ ] Create ImageDescriptionJob
+- [ ] Update LLMGenerationJob to check dependencies
+- [ ] Update api-gateway job creation
+- [ ] Update tests
+- [ ] Deploy to dev, test thoroughly
+
+### Phase 3: Optimize Timeouts (Future PR)
+- [ ] Collect production timing data
+- [ ] Adjust timeouts based on P95/P99
+- [ ] Test with slow models
+- [ ] Fine-tune retry delays
+
+## Success Criteria
+
+- [ ] All retry logic uses retryService utilities (DRY)
+- [ ] All components use MAX_ATTEMPTS: 3 (consistent)
+- [ ] Audio/image processing in separate jobs
+- [ ] Each job has independent, generous timeouts
+- [ ] All tests passing
+- [ ] No timeout errors in dev for 48 hours
+- [ ] User-facing latency unchanged or improved
+
+## Files to Modify
+
+### Phase 1 (Retry Consolidation)
+- `packages/common-types/src/constants/timing.ts` - Standardize RETRY_CONFIG
+- `services/ai-worker/src/services/LLMInvoker.ts` - Use withRetry
+- `services/ai-worker/src/services/MultimodalProcessor.ts` - Use withParallelRetry
+- All related test files
+
+### Phase 2 (Job Chains)
+- `packages/common-types/src/types/jobs.ts` - Add new job types
+- `services/ai-worker/src/jobs/AudioTranscriptionJob.ts` - New
+- `services/ai-worker/src/jobs/ImageDescriptionJob.ts` - New
+- `services/ai-worker/src/jobs/AIJobProcessor.ts` - Handle dependencies
+- `services/api-gateway/src/routes/ai.ts` - Create multiple jobs
+- Related test files
+
+## References
+
+- **Issue**: Intermittent timeout errors in production
+- **Root Cause**: DRY violations + tight shared timeout budget
+- **Related Docs**: `timeout-architecture-refactor.md`

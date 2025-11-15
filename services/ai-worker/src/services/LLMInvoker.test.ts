@@ -206,18 +206,30 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
-    it('should not retry on non-transient errors', async () => {
+    it('should retry all errors (including non-transient)', async () => {
+      vi.useFakeTimers();
+
       const mockModel = {
         invoke: vi.fn().mockRejectedValue(new Error('API key invalid')),
       } as any as BaseChatModel;
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      await expect(invoker.invokeWithRetry(mockModel, messages, 'test-model')).rejects.toThrow(
-        'API key invalid'
-      );
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
 
-      expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+      // Attach rejection handler BEFORE advancing timers
+      const rejectionPromise = expect(promise).rejects.toThrow();
+
+      // Fast-forward through all retry attempts
+      await vi.runAllTimersAsync();
+
+      // Await the rejection
+      await rejectionPromise;
+
+      // Should retry all errors, not just transient ones (RETRY_CONFIG.MAX_ATTEMPTS = 3)
+      expect(mockModel.invoke).toHaveBeenCalledTimes(3);
+
+      vi.useRealTimers();
     });
 
     it('should throw after max retries exhausted', async () => {
@@ -240,7 +252,7 @@ describe('LLMInvoker', () => {
       // Await the rejection
       await rejectionPromise;
 
-      // Should be called: initial + 2 retries = 3 times (based on RETRY_CONFIG.LLM_MAX_RETRIES = 2)
+      // Should be called: RETRY_CONFIG.MAX_ATTEMPTS = 3 (1 initial + 2 retries)
       expect(mockModel.invoke).toHaveBeenCalledTimes(3);
 
       vi.useRealTimers();
@@ -279,10 +291,10 @@ describe('LLMInvoker', () => {
       vi.useFakeTimers();
 
       // Mock a model that takes 70s per call and always fails with transient error
-      // Timeline with RETRY_CONFIG.LLM_GLOBAL_TIMEOUT = 120000ms:
-      // - Attempt 0 at 0ms: invoke (70s), fails, retry delay 1s -> elapsed 71s
-      // - Attempt 1 at 71s: invoke (70s), fails, retry delay 2s -> elapsed 143s
-      // - Attempt 2 at 143s: timeout check (143s >= 120s) -> THROWS global timeout
+      // Timeline: globalTimeoutMs = 105000ms
+      // - Attempt 1 at 0ms: invoke (70s), fails, retry delay 1s -> elapsed 71s
+      // - Attempt 2 at 71s: invoke (70s), fails, retry delay 2s -> elapsed 143s
+      // - Attempt 3 at 143s: timeout check (143s >= 105s) -> THROWS global timeout
       const mockModel = {
         invoke: vi.fn().mockImplementation(
           () =>
@@ -297,7 +309,7 @@ describe('LLMInvoker', () => {
       const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
 
       // Attach rejection handler BEFORE advancing timers to avoid unhandled rejection warning
-      const rejectionPromise = expect(promise).rejects.toThrow(/global timeout exceeded/i);
+      const rejectionPromise = expect(promise).rejects.toThrow(/exceeded global timeout/i);
 
       // Fast-forward through all timers - should trigger global timeout before max retries
       await vi.runAllTimersAsync();

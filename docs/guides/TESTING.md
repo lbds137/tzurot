@@ -340,6 +340,112 @@ it('should throw with specific error details', async () => {
 
 **Reference:** Gemini AI collaboration, PR #206 (2025-11-02)
 
+### Fake Timers and Async Code Interaction
+
+**⚠️ Critical Issue:** When using `vi.useFakeTimers()` with async/await, the `await` keyword yields control to the test runner's event loop, which can cause pending timers to fire unexpectedly.
+
+**The Problem:** Code with `setTimeout` for AbortController timeouts can fail even when mocks resolve immediately:
+
+```typescript
+// Code being tested
+async function fetchWithTimeout(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    throw error;
+  }
+}
+
+// ❌ Test fails even though fetch mock resolves immediately
+describe('with fake timers', () => {
+  beforeEach(() => vi.useFakeTimers());
+
+  it('should fetch successfully', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+    // The await gives fake timers a chance to run
+    // The 30s timeout fires immediately, aborting the fetch!
+    const result = await fetchWithTimeout('https://example.com');
+
+    expect(result.ok).toBe(true); // ❌ Fails with AbortError
+  });
+});
+```
+
+**What Happens:**
+1. `setTimeout` schedules the abort for 30,000ms (fake time)
+2. `fetch` returns a resolved promise (mocked)
+3. `await` yields control to the event loop
+4. Vitest sees pending timer and runs it to prevent deadlock
+5. `controller.abort()` fires before fetch promise completes
+6. Test fails with `AbortError`
+
+**✅ Solution 1:** Advance timers by 0ms to flush promise microtasks without triggering macrotasks
+
+```typescript
+it('should fetch successfully', async () => {
+  global.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+  // Call but don't await yet
+  const promise = fetchWithTimeout('https://example.com');
+
+  // Advance by 0ms to let promises resolve without firing timers
+  await vi.advanceTimersByTimeAsync(0);
+
+  // Now await the result
+  const result = await promise;
+
+  expect(result.ok).toBe(true); // ✓ Passes
+});
+```
+
+**✅ Solution 2:** Use real timers for tests not focused on timeout logic
+
+```typescript
+it('should fetch successfully', async () => {
+  // Temporarily disable fake timers for this test
+  vi.useRealTimers();
+
+  global.fetch = vi.fn().mockResolvedValue({ ok: true });
+  const result = await fetchWithTimeout('https://example.com');
+
+  expect(result.ok).toBe(true); // ✓ Passes
+
+  // Restore fake timers for other tests if needed
+  vi.useFakeTimers();
+});
+```
+
+**When to Use Each Solution:**
+- **Solution 1:** When testing timeout logic is important
+- **Solution 2:** When you only care about the happy path (recommended for simplicity)
+
+**Testing the Timeout Path:** To verify timeout logic works, make the promise never resolve:
+
+```typescript
+it('should timeout and abort', async () => {
+  // Mock that never resolves (simulates hang)
+  global.fetch = vi.fn(() => new Promise(() => {}));
+
+  const promise = fetchWithTimeout('https://example.com');
+
+  // Advance past the timeout
+  await vi.advanceTimersByTimeAsync(30000);
+
+  await expect(promise).rejects.toThrow('AbortError');
+});
+```
+
+**Key Insight:** `await` in tests with fake timers creates a checkpoint where Vitest can advance pending timers. Design tests accordingly.
+
+**Reference:** Gemini AI collaboration during MultimodalProcessor test development (2025-11-15)
+
 ---
 
 ## Running Tests
