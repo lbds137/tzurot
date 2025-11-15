@@ -49,6 +49,7 @@ export {
 export {
   MEDIA_LIMITS,
   CONTENT_TYPES,
+  EMBED_NAMING,
   AttachmentType,
 } from './media.js';
 
