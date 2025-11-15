@@ -45,7 +45,7 @@ const client = new Client({
 const gatewayClient = new GatewayClient(config.gatewayUrl);
 const webhookManager = new WebhookManager(client);
 const jobTracker = new JobTracker();
-const resultsListener = new ResultsListener(client);
+const resultsListener = new ResultsListener();
 
 // These will be initialized in start()
 let messageHandler: MessageHandler;
@@ -162,28 +162,17 @@ async function start(): Promise<void> {
     logger.info('[Bot] Starting results listener...');
     await resultsListener.start(async (jobId, result) => {
       try {
-        // Get the channel for this job
+        // Stop typing indicator and get channel
         const channel = jobTracker.completeJob(jobId);
         if (!channel) {
           logger.warn({ jobId }, '[Bot] Received result for untracked job - ignoring');
           return;
         }
 
-        if (!result.success) {
-          logger.error({ jobId, error: result.error }, '[Bot] Job failed');
-          await channel.send(`❌ Error: ${result.error}`);
-          return;
-        }
+        // Handle result - delegate to MessageHandler which knows how to send via webhook/DM
+        await messageHandler.handleJobResult(jobId, result);
 
-        // Send the AI response to Discord
-        if (result.content) {
-          // TODO: Use webhook manager to send as personality
-          // For now, just send directly
-          await channel.send(result.content);
-          logger.info({ jobId, channelId: channel.id }, '[Bot] Delivered job result to Discord');
-
-          // TODO: Confirm delivery to api-gateway
-        }
+        // TODO: Confirm delivery to api-gateway
       } catch (error) {
         logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
       }
