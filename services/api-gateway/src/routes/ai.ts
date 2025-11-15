@@ -18,6 +18,7 @@ import { PrismaClient } from '@prisma/client';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
+import { createJobChain } from '../utils/jobChainOrchestrator.js';
 import type { GenerateRequest, GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
@@ -92,23 +93,6 @@ aiRouter.post('/generate', async (req, res) => {
       localAttachments = await downloadAndStoreAttachments(requestId, localAttachments);
     }
 
-    // Create job data with local attachment URLs
-    const jobData = {
-      requestId,
-      jobType: JobType.Generate,
-      personality: request.personality,
-      message: request.message,
-      context: {
-        ...request.context,
-        attachments: localAttachments, // Use local URLs instead of Discord CDN
-      },
-      userApiKey: request.userApiKey,
-      responseDestination: {
-        type: 'api' as const,
-        // TODO: Add callback URL support
-      },
-    };
-
     // Debug: Log referenced messages if present
     if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
       logger.info(
@@ -120,30 +104,33 @@ aiRouter.post('/generate', async (req, res) => {
       );
     }
 
-    // Debug: Verify referencedMessages is in jobData before queueing
-    logger.info(
-      `[AI] Job data inspection before queueing: ` +
-        `hasReferencedMessages=${!!jobData.context.referencedMessages}, ` +
-        `count=${jobData.context.referencedMessages?.length || 0}, ` +
-        `contextKeys=[${Object.keys(jobData.context).join(', ')}]`
-    );
-
-    // Add job to queue
-    const job = await aiQueue.add(JobType.Generate, jobData, {
-      jobId: `${JOB_PREFIXES.GENERATE}${requestId}`, // Use predictable job ID for tracking
+    // Create job chain (preprocessing jobs + LLM generation job)
+    const jobId = await createJobChain({
+      requestId,
+      personality: request.personality,
+      message: request.message,
+      context: {
+        ...request.context,
+        attachments: localAttachments, // Use local URLs instead of Discord CDN
+      },
+      responseDestination: {
+        type: 'api' as const,
+        // TODO: Add callback URL support
+      },
+      userApiKey: request.userApiKey,
     });
 
     // Cache request to prevent duplicates
-    cacheRequest(request, requestId, job.id ?? requestId);
+    cacheRequest(request, requestId, jobId);
 
     const creationTime = Date.now() - startTime;
 
-    logger.info(`[AI] Created job ${job.id} for ${request.personality.name} (${creationTime}ms)`);
+    logger.info(`[AI] Created job chain with main job ${jobId} for ${request.personality.name} (${creationTime}ms)`);
 
     // Return 202 Accepted with job ID (async pattern)
     // Results will be delivered via Redis Stream to bot-client
     const response: GenerateResponse = {
-      jobId: job.id ?? requestId,
+      jobId,
       requestId,
       status: JobStatus.Queued,
     };
