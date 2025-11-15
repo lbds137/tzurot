@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityMessageHandler } from '../../services/PersonalityMessageHandler.js';
 import type { Message } from 'discord.js';
+import { ChannelType } from 'discord.js';
 import type { LoadedPersonality, ConversationMessage, ReferencedMessage } from '@tzurot/common-types';
 
 describe('PersonalityMessageHandler', () => {
@@ -389,6 +390,7 @@ function createMockMessage(): Message {
   return {
     channel: {
       id: 'channel-123',
+      type: ChannelType.GuildText,
     },
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;
