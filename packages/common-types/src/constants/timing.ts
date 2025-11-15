@@ -26,14 +26,6 @@ export const TIMEOUTS = {
   WHISPER_API: 180000,
   /** Audio file download timeout (30 seconds - Discord CDN is fast) */
   AUDIO_FETCH: 30000,
-
-  // DEPRECATED: Component pipeline timeouts (replaced by job chain architecture)
-  // These are only used by backward-compatible Generate/Transcribe job types
-  // Will be removed when backward compatibility is removed
-  /** @deprecated Use job chain with independent timeouts instead */
-  IMAGE_PROCESSING: 45000,
-  /** @deprecated Use job chain with independent timeouts instead */
-  AUDIO_PROCESSING: 90000, // AUDIO_FETCH (30s) + WHISPER_API (60s) - outdated values
   /** LLM invocation timeout for all retry attempts combined (8 minutes) */
   LLM_INVOCATION: 480000,
   /** LLM API call timeout per single attempt (3 minutes) */
