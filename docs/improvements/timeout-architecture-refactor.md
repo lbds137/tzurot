@@ -110,16 +110,13 @@ export function calculateJobTimeout(imageCount: number, audioCount: number): num
 }
 
 /**
- * LLM gets its full budget regardless of attachments
+ * REMOVED: calculateLLMTimeout() function
+ *
+ * Previously planned to simplify this function to just return TIMEOUTS.LLM_INVOCATION,
+ * but ultimately removed it entirely for better simplicity.
+ *
+ * Code now uses TIMEOUTS.LLM_INVOCATION constant directly where needed.
  */
-export function calculateLLMTimeout(
-  _jobTimeout: number,  // No longer needed!
-  _imageCount: number,
-  _audioCount: number
-): number {
-  // LLM always gets its full timeout budget
-  return TIMEOUTS.LLM_INVOCATION;
-}
 ```
 
 ## Benefits
