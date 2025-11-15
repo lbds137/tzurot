@@ -25,9 +25,15 @@ export const QUEUE_CONFIG = {
  * Job ID prefixes for different job types
  */
 export const JOB_PREFIXES = {
-  /** Prefix for AI generation jobs */
+  /** Prefix for LLM generation jobs */
+  LLM_GENERATION: 'llm-',
+  /** Prefix for audio transcription jobs */
+  AUDIO_TRANSCRIPTION: 'audio-',
+  /** Prefix for image description jobs */
+  IMAGE_DESCRIPTION: 'image-',
+  /** @deprecated Legacy prefix for AI generation jobs (use LLM_GENERATION) */
   GENERATE: 'req-',
-  /** Prefix for transcription-only jobs */
+  /** @deprecated Legacy prefix for transcription jobs (use AUDIO_TRANSCRIPTION) */
   TRANSCRIBE: 'transcribe-',
 } as const;
 
@@ -43,8 +49,21 @@ export enum JobStatus {
 
 /**
  * Job types for queue processing
+ *
+ * Job chain architecture:
+ * - Preprocessing jobs (AudioTranscription, ImageDescription) run first
+ * - LLMGeneration job depends on preprocessing results
+ * - Each job has independent timeout and retry budget
  */
 export enum JobType {
+  /** Audio transcription preprocessing job */
+  AudioTranscription = 'audio-transcription',
+  /** Image description preprocessing job */
+  ImageDescription = 'image-description',
+  /** LLM generation job (may depend on preprocessing jobs) */
+  LLMGeneration = 'llm-generation',
+  /** @deprecated Use LLMGeneration instead */
   Generate = 'generate',
+  /** @deprecated Use AudioTranscription instead */
   Transcribe = 'transcribe',
 }

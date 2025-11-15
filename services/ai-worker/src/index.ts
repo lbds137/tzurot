@@ -11,7 +11,7 @@
 
 import { Worker, Job, Queue } from 'bullmq';
 import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
-import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
+import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import {
   createLogger,
@@ -21,6 +21,8 @@ import {
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
+  type AnyJobData,
+  type AnyJobResult,
 } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
@@ -110,9 +112,9 @@ async function main(): Promise<void> {
 
   // Create BullMQ worker
   logger.info('[AIWorker] Creating BullMQ worker...');
-  const worker = new Worker<AIJobData, AIJobResult>(
+  const worker = new Worker<AnyJobData, AnyJobResult>(
     config.worker.queueName,
-    async (job: Job<AIJobData>) => {
+    async (job: Job<AnyJobData>) => {
       return await jobProcessor.processJob(job);
     },
     {
@@ -129,14 +131,13 @@ async function main(): Promise<void> {
     logger.info(`[AIWorker] Concurrency: ${config.worker.concurrency}`);
   });
 
-  worker.on('active', (job: Job<AIJobData>) => {
+  worker.on('active', (job: Job<AnyJobData>) => {
     const jobId = job.id ?? 'unknown';
-    logger.debug(
-      `[AIWorker] Processing job ${jobId} for personality: ${job.data.personality.name}`
-    );
+    const jobType = job.data.jobType;
+    logger.debug({ jobId, jobType }, `[AIWorker] Processing job ${jobId}`);
   });
 
-  worker.on('completed', (job: Job<AIJobData>, result: AIJobResult) => {
+  worker.on('completed', (job: Job<AnyJobData>, result: AnyJobResult) => {
     const jobId = job.id ?? 'unknown';
     logger.info(
       {
@@ -147,7 +148,7 @@ async function main(): Promise<void> {
     );
   });
 
-  worker.on('failed', (job: Job<AIJobData> | undefined, error: Error) => {
+  worker.on('failed', (job: Job<AnyJobData> | undefined, error: Error) => {
     if (job !== undefined) {
       const jobId = job.id ?? 'unknown';
       logger.error({ err: error }, `[AIWorker] Job ${jobId} failed`);
