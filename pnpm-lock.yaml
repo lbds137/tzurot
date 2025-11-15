@@ -42,6 +42,9 @@ importers:
       debug:
         specifier: ^4.4.3
         version: 4.4.3
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
       eslint:
         specifier: ^9.38.0
         version: 9.38.0
