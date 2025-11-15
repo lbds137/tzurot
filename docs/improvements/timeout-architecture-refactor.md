@@ -1,8 +1,12 @@
 # Timeout Architecture Refactoring
 
-**Status**: In Progress
+**Status**: Phase 1 PENDING (Retry/Job Chain Complete)
 **Branch**: `feat/timeout-and-refactoring`
 **Created**: 2025-11-15
+**Last Updated**: 2025-11-15
+
+**NOTE**: The retry consolidation and job chain architecture are complete (see retry-and-job-chain-refactor.md).
+This document tracks the REMAINING work: refactoring timeout calculations to use independent component budgets.
 
 ## Problem Statement
 
@@ -143,12 +147,17 @@ If we later make audio processing fully async (separate job):
 
 ## Implementation Plan
 
-### Phase 1: Refactor Timeout Calculation (This PR)
-- [ ] Move `LLM_GLOBAL_TIMEOUT` from `RETRY_CONFIG` to `TIMEOUTS.LLM_INVOCATION`
-- [ ] Add `TIMEOUTS.AUDIO_PROCESSING` and `TIMEOUTS.IMAGE_PROCESSING` constants
+**Current State**:
+- ✅ Constants partially updated (TIMEOUTS.LLM_INVOCATION exists)
+- ❌ Timeout calculation functions still use OLD sequential model
+- ❌ Need to refactor calculateJobTimeout() and calculateLLMTimeout()
+
+### Phase 1: Refactor Timeout Calculation (REMAINING WORK)
+- [x] Move `LLM_GLOBAL_TIMEOUT` to `TIMEOUTS.LLM_INVOCATION` (already done)
+- [x] Individual component timeouts defined (VISION_MODEL, WHISPER_API, AUDIO_FETCH)
 - [ ] Rewrite `calculateJobTimeout()` to sum independent timeouts
-- [ ] Simplify `calculateLLMTimeout()` to return constant
-- [ ] Update all timeout tests
+- [ ] Simplify `calculateLLMTimeout()` to return constant TIMEOUTS.LLM_INVOCATION
+- [ ] Update all timeout tests in packages/common-types/src/utils/timeout.test.ts
 - [ ] Verify in development
 
 ### Phase 2: Extract Component Timeouts (Future)
