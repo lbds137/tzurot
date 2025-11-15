@@ -8,6 +8,7 @@ export * from './constants/index.js';
 export * from './types/ai.js';
 export * from './types/api-types.js';
 export * from './types/discord.js';
+export * from './types/discord-types.js';
 export * from './types/schemas.js';
 
 // Export utilities

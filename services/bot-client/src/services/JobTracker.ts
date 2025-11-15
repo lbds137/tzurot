@@ -6,26 +6,11 @@
  * Stores all context needed to handle async results (moved from MessageHandler).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type TypingChannel } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type {
-  Message,
-  TextChannel,
-  DMChannel,
-  NewsChannel,
-  PublicThreadChannel,
-  PrivateThreadChannel,
-} from 'discord.js';
+import type { Message } from 'discord.js';
 
 const logger = createLogger('JobTracker');
-
-// Channels that support typing indicators
-type TypingChannel =
-  | TextChannel
-  | DMChannel
-  | NewsChannel
-  | PublicThreadChannel
-  | PrivateThreadChannel;
 
 // Maximum age for a job before auto-completing (prevents memory leaks)
 const MAX_JOB_AGE_MS = 10 * 60 * 1000; // 10 minutes
