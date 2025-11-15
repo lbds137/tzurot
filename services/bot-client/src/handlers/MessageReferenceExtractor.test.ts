@@ -865,6 +865,87 @@ describe('MessageReferenceExtractor', () => {
       );
     });
 
+    it('should extract images from embeds in forwarded message snapshots', async () => {
+      const { MessageReferenceType } = await import('discord.js');
+
+      // Embed with both image and thumbnail
+      const mockEmbed = {
+        title: 'Embed with Images',
+        description: 'This embed has images',
+        image: { url: 'https://example.com/embed-image.png' },
+        thumbnail: { url: 'https://example.com/embed-thumbnail.png' },
+      };
+
+      // Regular uploaded attachment
+      const mockAttachment = {
+        id: 'attachment-123',
+        url: 'https://cdn.discord.com/attachments/123/456/uploaded.png',
+        contentType: 'image/png',
+        name: 'uploaded.png',
+        size: 2048,
+      };
+
+      const snapshot = {
+        content: 'Check out these images!',
+        embeds: [mockEmbed as any],
+        attachments: createMockCollection([['attachment-123', mockAttachment as any]]),
+        createdTimestamp: new Date('2025-11-01T10:00:00Z').getTime(),
+      };
+
+      const forwardedChannel = createConfiguredChannel({});
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-with-embed-images-123',
+        content: '',
+        author: createMockUser({ username: 'ForwarderUser' }),
+        channel: forwardedChannel,
+        reference: {
+          type: MessageReferenceType.Forward,
+        } as any,
+        messageSnapshots: createMockCollection([['snapshot-1', snapshot as any]]),
+      });
+
+      const message = createMockMessage({
+        content: 'Reply',
+        reference: { messageId: 'forwarded-with-embed-images-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(forwardedMessage),
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message),
+        },
+      });
+
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      expect(references).toHaveLength(1);
+      expect(references[0].isForwarded).toBe(true);
+      expect(references[0].content).toBe('Check out these images!');
+      expect(references[0].attachments).toBeDefined();
+
+      // Should have 3 attachments: 1 uploaded + 2 from embed (image + thumbnail)
+      expect(references[0].attachments).toHaveLength(3);
+
+      // Verify all three images are present
+      const attachmentUrls = references[0].attachments!.map(a => a.url);
+      expect(attachmentUrls).toContain('https://cdn.discord.com/attachments/123/456/uploaded.png');
+      expect(attachmentUrls).toContain('https://example.com/embed-image.png');
+      expect(attachmentUrls).toContain('https://example.com/embed-thumbnail.png');
+
+      // Verify embed images have correct naming
+      const embedImage = references[0].attachments!.find(
+        a => a.url === 'https://example.com/embed-image.png'
+      );
+      expect(embedImage?.name).toBe('embed-image-1.png');
+
+      const embedThumbnail = references[0].attachments!.find(
+        a => a.url === 'https://example.com/embed-thumbnail.png'
+      );
+      expect(embedThumbnail?.name).toBe('embed-thumbnail-2.png');
+    });
+
     it('should handle regular reply (not forwarded)', async () => {
       // Regular reply (no forward, no reference on the referenced message)
       const referencedChannel = createConfiguredChannel({});
