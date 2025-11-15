@@ -1,27 +1,30 @@
 /**
  * Tests for timeout calculation utilities
+ *
+ * NEW ARCHITECTURE: Independent component budgets (not sequential subtraction)
  */
 
 import { describe, it, expect } from 'vitest';
 import { calculateJobTimeout, calculateLLMTimeout } from './timeout.js';
 import { TIMEOUTS } from '../constants/index.js';
 
-describe('calculateJobTimeout', () => {
+describe('calculateJobTimeout - Independent Component Budgets', () => {
   describe('No attachments', () => {
-    it('should return base timeout for 0 images and 0 audio', () => {
+    it('should return overhead + LLM budget for 0 images and 0 audio', () => {
+      // SYSTEM_OVERHEAD (15s) + LLM_INVOCATION (480s) = 495s
       const timeout = calculateJobTimeout(0, 0);
-      expect(timeout).toBe(TIMEOUTS.JOB_BASE); // 120s
+      expect(timeout).toBe(TIMEOUTS.SYSTEM_OVERHEAD + TIMEOUTS.LLM_INVOCATION); // 495s
     });
   });
 
   describe('Image attachments (parallel processing)', () => {
-    it('should calculate timeout for 1 image with retry buffer', () => {
-      // Base: 120s
-      // Batch: 90s (VISION_MODEL - increased for quality)
-      // Retry buffer: 90s × 1 = 90s (one retry in worst case)
-      // Total: 120s + 90s + 90s = 300s
+    it('should calculate timeout for 1 image with independent LLM budget', () => {
+      // SYSTEM_OVERHEAD: 15s
+      // VISION_MODEL: 90s
+      // LLM_INVOCATION: 480s
+      // Total: 15s + 90s + 480s = 585s
       const timeout = calculateJobTimeout(1, 0);
-      expect(timeout).toBe(300000);
+      expect(timeout).toBe(585000);
     });
 
     it('should NOT scale linearly with image count (parallel processing)', () => {
@@ -30,118 +33,164 @@ describe('calculateJobTimeout', () => {
       const oneImage = calculateJobTimeout(1, 0);
       const fiveImages = calculateJobTimeout(5, 0);
 
-      expect(oneImage).toBe(fiveImages); // Both 300s
+      expect(oneImage).toBe(fiveImages); // Both 585s
     });
 
     it('should handle large image count (still one parallel batch)', () => {
       // Even 100 images: same timeout (parallel processing)
       const timeout = calculateJobTimeout(100, 0);
-      expect(timeout).toBe(300000); // 120s + 90s + 90s
+      expect(timeout).toBe(585000); // 15s + 90s + 480s
     });
   });
 
   describe('Audio attachments', () => {
-    it('should calculate timeout for 1 audio with retry buffer', () => {
-      // Base: 120s
-      // Batch: 210s (AUDIO_FETCH 30s + WHISPER_API 180s - increased for longer audio)
-      // Retry buffer: 210s × 1 = 210s (one retry in worst case)
-      // Total: 120s + 210s + 210s = 540s
+    it('should calculate timeout for 1 audio with independent LLM budget', () => {
+      // SYSTEM_OVERHEAD: 15s
+      // AUDIO_FETCH + WHISPER_API: 30s + 180s = 210s
+      // LLM_INVOCATION: 480s
+      // Total: 15s + 210s + 480s = 705s (capped at JOB_WAIT 600s)
       const timeout = calculateJobTimeout(0, 1);
-      expect(timeout).toBe(540000);
+      expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // 600s (capped)
     });
 
     it('should NOT scale with audio count (parallel processing)', () => {
       const oneAudio = calculateJobTimeout(0, 1);
       const threeAudio = calculateJobTimeout(0, 3);
 
-      expect(oneAudio).toBe(threeAudio); // Both 540s
+      expect(oneAudio).toBe(threeAudio); // Both 600s (capped)
     });
   });
 
   describe('Mixed attachments', () => {
     it('should use slowest attachment type (audio wins)', () => {
-      // Images: 90s batch
-      // Audio: 210s batch (30s + 180s)
+      // SYSTEM_OVERHEAD: 15s
+      // Images: 90s
+      // Audio: 210s (30s + 180s)
       // Slowest wins: 210s
-      // Total: 120s + 210s + 210s = 540s
+      // LLM_INVOCATION: 480s
+      // Total: 15s + 210s + 480s = 705s (capped at 600s)
       const timeout = calculateJobTimeout(3, 2);
-      expect(timeout).toBe(540000);
+      expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // 600s (capped)
     });
 
-    it('should handle edge case: only images (under cap)', () => {
-      // Images only: 120s + 90s + 90s = 300s
+    it('should handle images only (under cap)', () => {
+      // Images only: 15s + 90s + 480s = 585s
       const timeout = calculateJobTimeout(10, 0);
-      expect(timeout).toBe(300000);
+      expect(timeout).toBe(585000);
     });
   });
 
   describe('Real-world scenarios', () => {
     it('should handle typical single image request', () => {
-      // 1 image: 120s + 90s + 90s = 300s
+      // 1 image: 15s + 90s + 480s = 585s
       const timeout = calculateJobTimeout(1, 0);
-      expect(timeout).toBe(300000); // 5 minutes
+      expect(timeout).toBe(585000); // 9.75 minutes
     });
 
     it('should handle moderate multi-image request', () => {
       // 3 images (parallel): same as 1 image
       const timeout = calculateJobTimeout(3, 0);
-      expect(timeout).toBe(300000); // 5 minutes
+      expect(timeout).toBe(585000); // 9.75 minutes
     });
 
     it('should handle voice message request', () => {
-      // 1 audio: 120s + 210s + 210s = 540s
+      // 1 audio: 15s + 210s + 480s = 705s (capped at 600s)
       const timeout = calculateJobTimeout(0, 1);
-      expect(timeout).toBe(540000); // 9 minutes
+      expect(timeout).toBe(600000); // 10 minutes (capped)
     });
 
     it('should handle mixed media request', () => {
       // Images + audio: audio dominates
+      // 15s + 210s + 480s = 705s (capped at 600s)
       const timeout = calculateJobTimeout(2, 1);
-      expect(timeout).toBe(540000); // 9 minutes
+      expect(timeout).toBe(600000); // 10 minutes (capped)
+    });
+  });
+
+  describe('Railway limit enforcement', () => {
+    it('should cap at JOB_WAIT (Railway 10 min limit)', () => {
+      // Any combination exceeding 600s should be capped
+      const timeout = calculateJobTimeout(10, 10);
+      expect(timeout).toBe(TIMEOUTS.JOB_WAIT); // 600s
     });
   });
 });
 
-describe('calculateLLMTimeout', () => {
-  it('should give LLM most of budget when no attachments', () => {
-    const jobTimeout = calculateJobTimeout(0, 0); // 120s
-    const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 0);
-
-    // 120s - 0 (no attachments) - 0 (no retries) - 15s (overhead) = 105s
-    expect(llmTimeout).toBe(105000);
+describe('calculateLLMTimeout - Always Returns Constant', () => {
+  it('should return constant LLM_INVOCATION regardless of attachments', () => {
+    // NEW: LLM always gets full 480s budget
+    const timeout = calculateLLMTimeout(0, 0, 0);
+    expect(timeout).toBe(TIMEOUTS.LLM_INVOCATION); // 480s
   });
 
-  it('should account for image processing time', () => {
-    const jobTimeout = calculateJobTimeout(5, 0); // 300s
+  it('should return same timeout with images', () => {
+    const jobTimeout = calculateJobTimeout(5, 0);
     const llmTimeout = calculateLLMTimeout(jobTimeout, 5, 0);
 
-    // 300s - 90s (batch) - 90s (retry) - 15s (overhead) = 105s
-    expect(llmTimeout).toBe(105000);
+    // LLM gets full budget regardless of images
+    expect(llmTimeout).toBe(TIMEOUTS.LLM_INVOCATION); // 480s
   });
 
-  it('should enforce minimum timeout for slow models with audio', () => {
-    const jobTimeout = calculateJobTimeout(0, 1); // 540s
+  it('should return same timeout with audio', () => {
+    const jobTimeout = calculateJobTimeout(0, 1);
     const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 1);
 
-    // 540s - 210s (batch: 30s + 180s) - 210s (retry) - 15s (overhead) = 105s
-    expect(llmTimeout).toBe(105000);
+    // LLM gets full budget regardless of audio
+    expect(llmTimeout).toBe(TIMEOUTS.LLM_INVOCATION); // 480s
   });
 
-  it('should handle mixed attachments with audio dominating', () => {
-    const jobTimeout = calculateJobTimeout(3, 2); // 540s
+  it('should return same timeout with mixed attachments', () => {
+    const jobTimeout = calculateJobTimeout(3, 2);
     const llmTimeout = calculateLLMTimeout(jobTimeout, 3, 2);
 
-    // Audio dominates: 540s - 210s - 210s - 15s = 105s
-    expect(llmTimeout).toBe(105000);
+    // LLM gets full budget regardless of mixed media
+    expect(llmTimeout).toBe(TIMEOUTS.LLM_INVOCATION); // 480s
   });
 
-  it('should warn when timeout budget is very tight', () => {
-    // Mock logger to check if warning is called
-    const jobTimeout = calculateJobTimeout(0, 3); // 540s
-    const llmTimeout = calculateLLMTimeout(jobTimeout, 0, 3);
+  it('should ignore job timeout parameter (backward compatibility)', () => {
+    // Parameters are ignored - LLM always gets constant budget
+    const timeout1 = calculateLLMTimeout(100000, 0, 0);
+    const timeout2 = calculateLLMTimeout(600000, 10, 10);
 
-    // Multiple audio files: 540s - 210s - 210s - 15s = 105s
-    expect(llmTimeout).toBe(105000);
-    // Note: In actual use, logger.warn would be called here
+    expect(timeout1).toBe(TIMEOUTS.LLM_INVOCATION); // 480s
+    expect(timeout2).toBe(TIMEOUTS.LLM_INVOCATION); // 480s
+    expect(timeout1).toBe(timeout2); // Both the same
+  });
+
+  it('should support proper retry budgets (3 attempts at 180s each)', () => {
+    const llmTimeout = calculateLLMTimeout(0, 0, 0);
+
+    // 480s supports 3 attempts × 180s per attempt = 540s max (capped at 480s)
+    // Or 2 full attempts (360s) + 1 partial attempt (120s)
+    expect(llmTimeout).toBe(480000);
+    expect(llmTimeout).toBeGreaterThanOrEqual(TIMEOUTS.LLM_PER_ATTEMPT * 2); // At least 2 full attempts
+  });
+});
+
+describe('Timeout Architecture Benefits', () => {
+  it('should demonstrate LLM gets full budget regardless of attachments', () => {
+    // OLD architecture: LLM would get less time with more attachments
+    // NEW architecture: LLM always gets 480s
+
+    const noAttachments = calculateLLMTimeout(calculateJobTimeout(0, 0), 0, 0);
+    const withImages = calculateLLMTimeout(calculateJobTimeout(5, 0), 5, 0);
+    const withAudio = calculateLLMTimeout(calculateJobTimeout(0, 1), 0, 1);
+    const withBoth = calculateLLMTimeout(calculateJobTimeout(5, 1), 5, 1);
+
+    // All should be equal - LLM doesn't compete with attachments
+    expect(noAttachments).toBe(TIMEOUTS.LLM_INVOCATION);
+    expect(withImages).toBe(TIMEOUTS.LLM_INVOCATION);
+    expect(withAudio).toBe(TIMEOUTS.LLM_INVOCATION);
+    expect(withBoth).toBe(TIMEOUTS.LLM_INVOCATION);
+  });
+
+  it('should demonstrate job timeout increases with attachments', () => {
+    // Job timeout should increase with attachments (additive model)
+    const noAttachments = calculateJobTimeout(0, 0); // 495s
+    const withImages = calculateJobTimeout(5, 0); // 585s
+    const withAudio = calculateJobTimeout(0, 1); // 600s (capped)
+
+    expect(withImages).toBeGreaterThan(noAttachments); // Images add time
+    expect(withAudio).toBeGreaterThan(withImages); // Audio adds more time
   });
 });
