@@ -12,7 +12,6 @@ import type {
 import type {
   AttachmentMetadata,
   ApiConversationMessage,
-  JobResult,
   GenerateResponse,
   LoadedPersonality,
   DiscordEnvironment,
@@ -25,7 +24,6 @@ import { MessageRole } from '@tzurot/common-types';
 export type {
   AttachmentMetadata,
   ApiConversationMessage,
-  JobResult,
   GenerateResponse,
   LoadedPersonality,
   DiscordEnvironment,
