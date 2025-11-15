@@ -192,6 +192,56 @@ api-gateway creates 3 jobs:
         └─→ Generates response
 ```
 
+#### Failure Scenarios & Graceful Degradation
+
+The job chain architecture is designed for **graceful degradation** - preprocessing failures don't block the LLM response:
+
+**Scenario 1: Individual Audio Job Fails**
+```
+User sends: "Transcribe these" + audio1.ogg + audio2.ogg
+    ↓
+Job 1 (audio1): ❌ Fails after 3 attempts (Whisper API timeout)
+Job 2 (audio2): ✅ Succeeds → Redis: { transcript: "..." }
+Job 3 (LLM): ⚠️ Proceeds with partial results
+    └─→ Logs warning about missing audio1 result
+    └─→ Uses transcript from audio2
+    └─→ Generates response with available context
+```
+
+**Scenario 2: All Preprocessing Fails**
+```
+User sends: "What's this?" + corrupted.png
+    ↓
+Job 1 (image): ❌ Fails after 3 attempts (vision model error)
+Job 2 (LLM): ⚠️ Proceeds without image description
+    └─→ Logs warning about missing image result
+    └─→ Responds based only on text message
+    └─→ May inform user that image couldn't be processed
+```
+
+**Scenario 3: LLM Job Fails**
+```
+User sends: "Hello" + image.png
+    ↓
+Job 1 (image): ✅ Succeeds → Redis
+Job 2 (LLM): ❌ Fails after 3 attempts (model timeout)
+    └─→ bot-client receives failure via Redis pub/sub
+    └─→ Sends error message to user
+```
+
+**Key Behaviors**:
+- **No cascading failures**: Preprocessing failure doesn't block LLM
+- **Individual retry budgets**: Each job retries independently (3 attempts)
+- **Redis cleanup**: Job results expire after 1 hour (prevents memory leaks)
+- **Clear logging**: Each component logs its own failures
+- **User experience**: User gets response (possibly degraded) rather than total failure
+
+**Dependency Resolution**:
+- LLM job checks Redis for each dependency's result
+- If result missing → logs warning and continues without it
+- No indefinite waiting → LLM proceeds immediately if results not found
+- Timeout handled at BullMQ level (Railway worker timeout: none configured)
+
 #### Implementation Steps
 
 1. **Create preprocessor jobs** (`AudioTranscriptionJob`, `ImageDescriptionJob`)
