@@ -115,6 +115,12 @@ export interface LLMGenerationJobData extends BaseJobData {
   context: JobContext;
   /** Optional dependencies (preprocessing jobs) */
   dependencies?: JobDependency[];
+  /**
+   * Preprocessed attachments from dependency jobs
+   * Populated by AIJobProcessor after fetching audio transcriptions and image descriptions
+   * @internal
+   */
+  __preprocessedAttachments?: string;
 }
 
 /**

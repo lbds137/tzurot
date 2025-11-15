@@ -9,6 +9,8 @@ import {
   createLogger,
   JobType,
   JOB_PREFIXES,
+  JOB_REQUEST_SUFFIXES,
+  REDIS_KEY_PREFIXES,
   CONTENT_TYPES,
   type AttachmentMetadata,
   type LoadedPersonality,
@@ -61,7 +63,7 @@ async function createAudioTranscriptionJobs(
 
   for (let i = 0; i < audioAttachments.length; i++) {
     const attachment = audioAttachments[i];
-    const audioRequestId = `${requestId}-audio-${i}`;
+    const audioRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
 
     const jobData: AudioTranscriptionJobData = {
       requestId: audioRequestId,
@@ -91,7 +93,7 @@ async function createAudioTranscriptionJobs(
       jobId: job.id ?? audioRequestId,
       type: JobType.AudioTranscription,
       status: JobStatus.Queued,
-      resultKey: `job-result:${job.id ?? audioRequestId}`,
+      resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${job.id ?? audioRequestId}`,
     });
   }
 
@@ -113,7 +115,7 @@ async function createImageDescriptionJob(
     return null;
   }
 
-  const imageRequestId = `${requestId}-image`;
+  const imageRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.IMAGE}`;
 
   const jobData: ImageDescriptionJobData = {
     requestId: imageRequestId,
@@ -144,7 +146,7 @@ async function createImageDescriptionJob(
     jobId: job.id ?? imageRequestId,
     type: JobType.ImageDescription,
     status: JobStatus.Queued,
-    resultKey: `job-result:${job.id ?? imageRequestId}`,
+    resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${job.id ?? imageRequestId}`,
   };
 }
 
