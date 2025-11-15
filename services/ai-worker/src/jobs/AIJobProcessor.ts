@@ -222,8 +222,90 @@ export class AIJobProcessor {
   private async processLLMGenerationJob(
     job: Job<LLMGenerationJobData>
   ): Promise<LLMGenerationResult> {
-    // For now, just delegate to processGenerateJob
-    // TODO: Implement dependency fetching and result merging
+    const { dependencies } = job.data;
+
+    // If there are dependencies, fetch their results and merge into context
+    if (dependencies && dependencies.length > 0) {
+      logger.info(
+        {
+          jobId: job.id,
+          dependencyCount: dependencies.length,
+        },
+        '[AIJobProcessor] LLM job has dependencies - fetching preprocessing results'
+      );
+
+      // Fetch dependency results from Redis
+      const { getJobResult } = await import('../redis.js');
+
+      // Collect all audio transcriptions
+      const transcriptions: string[] = [];
+      // Collect all image descriptions
+      const imageDescriptions: Array<{ url: string; description: string }> = [];
+
+      for (const dep of dependencies) {
+        try {
+          if (dep.type === 'audio-transcription') {
+            const result = await getJobResult<AudioTranscriptionResult>(dep.jobId);
+            if (result?.success && result.transcript) {
+              transcriptions.push(result.transcript);
+              logger.info({ jobId: dep.jobId }, '[AIJobProcessor] Retrieved audio transcription');
+            } else {
+              logger.warn({ jobId: dep.jobId }, '[AIJobProcessor] Audio transcription job failed or has no result');
+            }
+          } else if (dep.type === 'image-description') {
+            const result = await getJobResult<ImageDescriptionResult>(dep.jobId);
+            if (result?.success && result.descriptions) {
+              imageDescriptions.push(...result.descriptions);
+              logger.info({ jobId: dep.jobId, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
+            } else {
+              logger.warn({ jobId: dep.jobId }, '[AIJobProcessor] Image description job failed or has no result');
+            }
+          }
+        } catch (error) {
+          logger.error(
+            { err: error, jobId: dep.jobId, type: dep.type },
+            '[AIJobProcessor] Failed to fetch dependency result - continuing without it'
+          );
+        }
+      }
+
+      // Merge preprocessing results into message context
+      // Build attachment descriptions string
+      let attachmentDescriptions = '';
+
+      if (imageDescriptions.length > 0) {
+        attachmentDescriptions += '## Image Descriptions\n\n';
+        imageDescriptions.forEach((img, i) => {
+          attachmentDescriptions += `**Image ${i + 1}**: ${img.description}\n\n`;
+        });
+      }
+
+      if (transcriptions.length > 0) {
+        attachmentDescriptions += '## Audio Transcriptions\n\n';
+        transcriptions.forEach((transcript, i) => {
+          attachmentDescriptions += `**Audio ${i + 1}**: ${transcript}\n\n`;
+        });
+      }
+
+      // Store the processed attachment descriptions for the LLM
+      // Note: The actual integration into the message will be handled by RAG service
+      if (attachmentDescriptions) {
+        // Store in a temporary property that RAG service can access
+        (job.data as any).__preprocessedAttachments = attachmentDescriptions;
+      }
+
+      logger.info(
+        {
+          jobId: job.id,
+          transcriptionCount: transcriptions.length,
+          imageCount: imageDescriptions.length,
+        },
+        '[AIJobProcessor] Merged preprocessing results into job context'
+      );
+    }
+
+    // Now process as a normal generate job
+    // Cast to AIJobData for compatibility with existing processGenerateJob
     return this.processGenerateJob(job as unknown as Job<AIJobData>);
   }
 
