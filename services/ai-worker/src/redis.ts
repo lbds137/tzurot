@@ -100,8 +100,11 @@ export async function publishJobResult(
     );
 
     // Trim stream to prevent unbounded growth (~10k messages, approximately 1 week of results)
-    // Using approximate trimming for better performance
-    await redis.xTrim('job-results', 'MAXLEN', 10000, { LIMIT: 100 });
+    // Using approximate trimming (~) for better performance
+    await redis.xTrim('job-results', 'MAXLEN', 10000, {
+      strategyModifier: '~', // Approximate trimming
+      LIMIT: 100, // Max entries to trim per call
+    });
   } catch (error) {
     logger.error({ err: error, jobId, requestId }, '[Redis] Failed to publish job result to stream');
     throw error; // Re-throw so caller knows about failure
