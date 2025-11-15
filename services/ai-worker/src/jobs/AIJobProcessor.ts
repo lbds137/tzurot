@@ -241,7 +241,7 @@ export class AIJobProcessor {
             const result = await getJobResult<AudioTranscriptionResult>(dep.jobId);
             if (result?.success && result.transcript) {
               transcriptions.push(result.transcript);
-              logger.info({ jobId: dep.jobId }, '[AIJobProcessor] Retrieved audio transcription');
+              logger.debug({ jobId: dep.jobId }, '[AIJobProcessor] Retrieved audio transcription');
             } else {
               logger.warn({ jobId: dep.jobId }, '[AIJobProcessor] Audio transcription job failed or has no result');
             }
@@ -249,7 +249,7 @@ export class AIJobProcessor {
             const result = await getJobResult<ImageDescriptionResult>(dep.jobId);
             if (result?.success && result.descriptions) {
               imageDescriptions.push(...result.descriptions);
-              logger.info({ jobId: dep.jobId, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
+              logger.debug({ jobId: dep.jobId, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
             } else {
               logger.warn({ jobId: dep.jobId }, '[AIJobProcessor] Image description job failed or has no result');
             }
@@ -284,7 +284,7 @@ export class AIJobProcessor {
       // Note: The actual integration into the message will be handled by RAG service
       if (attachmentDescriptions) {
         // Store in a temporary property that RAG service can access
-        (job.data as any).__preprocessedAttachments = attachmentDescriptions;
+        job.data.__preprocessedAttachments = attachmentDescriptions;
       }
 
       logger.info(

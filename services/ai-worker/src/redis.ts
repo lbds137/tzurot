@@ -10,6 +10,7 @@ import {
   getConfig,
   parseRedisUrl,
   createRedisSocketConfig,
+  REDIS_KEY_PREFIXES,
 } from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
@@ -64,7 +65,7 @@ export async function getVoiceTranscript(attachmentUrl: string): Promise<string 
   try {
     const transcript = await redis.get(`transcript:${attachmentUrl}`);
     if (transcript) {
-      logger.info(`[Redis] Cache HIT for voice transcript: ${attachmentUrl.substring(0, 50)}...`);
+      logger.debug(`[Redis] Cache HIT for voice transcript: ${attachmentUrl.substring(0, 50)}...`);
     } else {
       logger.debug(`[Redis] Cache MISS for voice transcript: ${attachmentUrl.substring(0, 50)}...`);
     }
@@ -119,13 +120,13 @@ export async function publishJobResult(
  */
 export async function storeJobResult(jobId: string, result: unknown): Promise<void> {
   try {
-    const key = `job-result:${jobId}`;
+    const key = `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`;
     const value = JSON.stringify(result);
     const ttlSeconds = 3600; // 1 hour
 
     await redis.setEx(key, ttlSeconds, value);
 
-    logger.info({ jobId, key }, '[Redis] Stored job result (TTL: 1 hour)');
+    logger.debug({ jobId, key }, '[Redis] Stored job result (TTL: 1 hour)');
   } catch (error) {
     logger.error({ err: error, jobId }, '[Redis] Failed to store job result');
     throw error;
@@ -139,7 +140,7 @@ export async function storeJobResult(jobId: string, result: unknown): Promise<vo
  */
 export async function getJobResult<T = unknown>(jobId: string): Promise<T | null> {
   try {
-    const key = `job-result:${jobId}`;
+    const key = `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`;
     const value = await redis.get(key);
 
     if (!value) {
@@ -148,7 +149,7 @@ export async function getJobResult<T = unknown>(jobId: string): Promise<T | null
     }
 
     const result = JSON.parse(value) as T;
-    logger.info({ jobId, key }, '[Redis] Retrieved job result');
+    logger.debug({ jobId, key }, '[Redis] Retrieved job result');
     return result;
   } catch (error) {
     logger.error({ err: error, jobId }, '[Redis] Failed to get job result');
