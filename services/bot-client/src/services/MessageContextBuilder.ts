@@ -12,6 +12,7 @@ import {
   createLogger,
   MessageRole,
   CONTENT_TYPES,
+  INTERVALS,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
@@ -136,7 +137,7 @@ export class MessageContextBuilder {
     logger.debug('[MessageContextBuilder] Extracting referenced messages with deduplication');
     const referenceExtractor = new MessageReferenceExtractor({
       maxReferences: 10,
-      embedProcessingDelayMs: 2500,
+      embedProcessingDelayMs: INTERVALS.EMBED_PROCESSING_DELAY,
       conversationHistoryMessageIds,
       conversationHistoryTimestamps,
     });
