@@ -21,11 +21,21 @@ import {
   JobType,
   CONTENT_TYPES,
   MessageRole,
+  type AnyJobData,
+  type AnyJobResult,
+  type AudioTranscriptionJobData,
+  type ImageDescriptionJobData,
+  type LLMGenerationJobData,
+  type AudioTranscriptionResult,
+  type ImageDescriptionResult,
+  type LLMGenerationResult,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { PrismaClient, Prisma } from '@prisma/client';
-import { publishJobResult } from '../redis.js';
+import { publishJobResult, storeJobResult } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
+import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
+import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 
 const logger = createLogger('AIJobProcessor');
 const prisma = new PrismaClient();
@@ -142,18 +152,79 @@ export class AIJobProcessor {
   }
 
   /**
-   * Process a single AI generation job
+   * Process a single AI job - routes to appropriate handler based on job type
    */
-  async processJob(job: Job<AIJobData>): Promise<AIJobResult> {
-    const { jobType } = job.data;
+  async processJob(job: Job<AnyJobData>): Promise<AnyJobResult> {
+    const jobType = job.data.jobType;
 
-    // Route to appropriate handler based on job type
-    if (jobType === JobType.Transcribe) {
-      return this.processTranscribeJob(job);
+    logger.info({ jobId: job.id, jobType }, '[AIJobProcessor] Processing job');
+
+    // Route to appropriate handler based on job type (using string comparison for flexibility)
+    if (jobType === 'audio-transcription') {
+      return await this.processAudioTranscriptionJobWrapper(
+        job as Job<AudioTranscriptionJobData>
+      );
+    } else if (jobType === 'image-description') {
+      return await this.processImageDescriptionJobWrapper(job as Job<ImageDescriptionJobData>);
+    } else if (jobType === 'llm-generation') {
+      return await this.processLLMGenerationJob(job as Job<LLMGenerationJobData>);
     }
+    // Backward compatibility with old job types
+    else if (jobType === 'transcribe') {
+      return await this.processTranscribeJob(job as Job<AIJobData>);
+    } else if (jobType === 'generate') {
+      return await this.processGenerateJob(job as Job<AIJobData>);
+    } else {
+      logger.error({ jobType }, '[AIJobProcessor] Unknown job type');
+      throw new Error(`Unknown job type: ${jobType}`);
+    }
+  }
 
-    // Default: generate job
-    return this.processGenerateJob(job);
+  /**
+   * Wrapper for audio transcription job - handles result storage
+   */
+  private async processAudioTranscriptionJobWrapper(
+    job: Job<AudioTranscriptionJobData>
+  ): Promise<AudioTranscriptionResult> {
+    const result = await processAudioTranscriptionJob(job);
+
+    // Store result in Redis for dependent jobs
+    const jobId = job.id ?? job.data.requestId;
+    await storeJobResult(jobId, result);
+
+    // Publish to stream for async delivery
+    await this.persistAndPublishResult(job, result);
+
+    return result;
+  }
+
+  /**
+   * Wrapper for image description job - handles result storage
+   */
+  private async processImageDescriptionJobWrapper(
+    job: Job<ImageDescriptionJobData>
+  ): Promise<ImageDescriptionResult> {
+    const result = await processImageDescriptionJob(job);
+
+    // Store result in Redis for dependent jobs
+    const jobId = job.id ?? job.data.requestId;
+    await storeJobResult(jobId, result);
+
+    // Publish to stream for async delivery
+    await this.persistAndPublishResult(job, result);
+
+    return result;
+  }
+
+  /**
+   * Process LLM generation job (may depend on preprocessing jobs)
+   */
+  private async processLLMGenerationJob(
+    job: Job<LLMGenerationJobData>
+  ): Promise<LLMGenerationResult> {
+    // For now, just delegate to processGenerateJob
+    // TODO: Implement dependency fetching and result merging
+    return this.processGenerateJob(job as unknown as Job<AIJobData>);
   }
 
   /**
@@ -194,7 +265,7 @@ export class AIJobProcessor {
       };
 
       // Persist to DB and publish to Redis Stream
-      await this.persistAndPublishResult(job, result);
+      await this.persistAndPublishResult(job as Job<AnyJobData>, result);
 
       return result;
     } catch (error) {
@@ -211,7 +282,7 @@ export class AIJobProcessor {
       };
 
       // Persist to DB and publish to Redis Stream (even for failures)
-      await this.persistAndPublishResult(job, result);
+      await this.persistAndPublishResult(job as Job<AnyJobData>, result);
 
       return result;
     }
@@ -311,7 +382,7 @@ export class AIJobProcessor {
       logger.debug({ jobResult }, '[AIJobProcessor] Returning job result');
 
       // Persist to DB and publish to Redis Stream
-      await this.persistAndPublishResult(job, jobResult);
+      await this.persistAndPublishResult(job as Job<AnyJobData>, jobResult);
 
       return jobResult;
     } catch (error) {
@@ -330,7 +401,7 @@ export class AIJobProcessor {
       };
 
       // Persist to DB and publish to Redis Stream (even for failures)
-      await this.persistAndPublishResult(job, jobResult);
+      await this.persistAndPublishResult(job as Job<AnyJobData>, jobResult);
 
       return jobResult;
     }
@@ -463,7 +534,10 @@ export class AIJobProcessor {
    * Persist job result to database and publish to Redis Stream
    * This enables async delivery pattern - results are stored until confirmed delivered
    */
-  private async persistAndPublishResult(job: Job<AIJobData>, result: AIJobResult): Promise<void> {
+  private async persistAndPublishResult(
+    job: Job<AnyJobData>,
+    result: AnyJobResult
+  ): Promise<void> {
     const jobId = job.id ?? job.data.requestId;
 
     try {

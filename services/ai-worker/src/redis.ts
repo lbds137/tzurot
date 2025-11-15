@@ -112,6 +112,51 @@ export async function publishJobResult(
 }
 
 /**
+ * Store job result in Redis for dependent jobs to fetch
+ * Results are stored with a TTL of 1 hour
+ * @param jobId Job ID to store result for
+ * @param result Job result payload
+ */
+export async function storeJobResult(jobId: string, result: unknown): Promise<void> {
+  try {
+    const key = `job-result:${jobId}`;
+    const value = JSON.stringify(result);
+    const ttlSeconds = 3600; // 1 hour
+
+    await redis.setEx(key, ttlSeconds, value);
+
+    logger.info({ jobId, key }, '[Redis] Stored job result (TTL: 1 hour)');
+  } catch (error) {
+    logger.error({ err: error, jobId }, '[Redis] Failed to store job result');
+    throw error;
+  }
+}
+
+/**
+ * Fetch job result from Redis (for dependent jobs)
+ * @param jobId Job ID to fetch result for
+ * @returns Parsed job result or null if not found
+ */
+export async function getJobResult<T = unknown>(jobId: string): Promise<T | null> {
+  try {
+    const key = `job-result:${jobId}`;
+    const value = await redis.get(key);
+
+    if (!value) {
+      logger.debug({ jobId, key }, '[Redis] Job result not found');
+      return null;
+    }
+
+    const result = JSON.parse(value) as T;
+    logger.info({ jobId, key }, '[Redis] Retrieved job result');
+    return result;
+  } catch (error) {
+    logger.error({ err: error, jobId }, '[Redis] Failed to get job result');
+    return null;
+  }
+}
+
+/**
  * Graceful shutdown
  */
 export async function closeRedis(): Promise<void> {
