@@ -6,8 +6,23 @@
  * Used by multiple processors (Reply, Mention, etc.)
  */
 
-import type { Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import type {
+  Message,
+  TextChannel,
+  DMChannel,
+  NewsChannel,
+  PublicThreadChannel,
+  PrivateThreadChannel,
+} from 'discord.js';
 import { ChannelType } from 'discord.js';
+
+// Channels that support typing indicators
+type TypingChannel =
+  | TextChannel
+  | DMChannel
+  | NewsChannel
+  | PublicThreadChannel
+  | PrivateThreadChannel;
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -20,15 +35,15 @@ const logger = createLogger('PersonalityMessageHandler');
 
 /**
  * Type guard to check if a channel supports typing indicators
- * (TextChannel, DMChannel, or NewsChannel)
+ * Supports: TextChannel, DMChannel, NewsChannel, and Thread channels (including forum threads)
  */
-function isTypingChannel(
-  channel: Message['channel']
-): channel is TextChannel | DMChannel | NewsChannel {
+function isTypingChannel(channel: Message['channel']): channel is TypingChannel {
   return (
     channel.type === ChannelType.GuildText ||
     channel.type === ChannelType.DM ||
-    channel.type === ChannelType.GuildNews
+    channel.type === ChannelType.GuildNews ||
+    channel.type === ChannelType.PublicThread ||
+    channel.type === ChannelType.PrivateThread
   );
 }
 

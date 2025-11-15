@@ -8,9 +8,24 @@
 
 import { createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type { Message, TextChannel, DMChannel, NewsChannel } from 'discord.js';
+import type {
+  Message,
+  TextChannel,
+  DMChannel,
+  NewsChannel,
+  PublicThreadChannel,
+  PrivateThreadChannel,
+} from 'discord.js';
 
 const logger = createLogger('JobTracker');
+
+// Channels that support typing indicators
+type TypingChannel =
+  | TextChannel
+  | DMChannel
+  | NewsChannel
+  | PublicThreadChannel
+  | PrivateThreadChannel;
 
 // Maximum age for a job before auto-completing (prevents memory leaks)
 const MAX_JOB_AGE_MS = 10 * 60 * 1000; // 10 minutes
@@ -33,7 +48,7 @@ export interface PendingJobContext {
 interface TrackedJob {
   jobId: string;
   channelId: string;
-  channel: TextChannel | DMChannel | NewsChannel;
+  channel: TypingChannel;
   typingInterval: NodeJS.Timeout;
   startTime: number;
   context: PendingJobContext;
@@ -45,11 +60,7 @@ export class JobTracker {
   /**
    * Start tracking a job and maintain typing indicator
    */
-  trackJob(
-    jobId: string,
-    channel: TextChannel | DMChannel | NewsChannel,
-    context: PendingJobContext
-  ): void {
+  trackJob(jobId: string, channel: TypingChannel, context: PendingJobContext): void {
     // Clear any existing tracking for this jobId (shouldn't happen, but be safe)
     if (this.activeJobs.has(jobId)) {
       logger.warn({ jobId }, '[JobTracker] Job already tracked - clearing old tracker');
@@ -122,7 +133,7 @@ export class JobTracker {
    * Stop tracking a job and clear typing indicator
    * Returns the channel if job was tracked, null otherwise
    */
-  completeJob(jobId: string): (TextChannel | DMChannel | NewsChannel) | null {
+  completeJob(jobId: string): TypingChannel | null {
     const tracked = this.activeJobs.get(jobId);
 
     if (!tracked) {
