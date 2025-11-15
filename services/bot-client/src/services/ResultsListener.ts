@@ -178,12 +178,19 @@ export class ResultsListener {
             '[ResultsListener] Received job result'
           );
 
-          // Parse result
-          const result = JSON.parse(data.result) as JobResult;
+          // Parse inner result object from JSON string
+          const parsedResult = JSON.parse(data.result);
+
+          // Construct proper JobResult with all required fields
+          const jobResult: JobResult = {
+            jobId: data.jobId,
+            status: 'completed',
+            result: parsedResult,
+          };
 
           // Deliver to handler
           if (this.onResult) {
-            await this.onResult(data.jobId, result);
+            await this.onResult(data.jobId, jobResult);
           }
 
           // Acknowledge message (removes from pending)
