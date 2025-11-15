@@ -18,10 +18,10 @@ export const TIMEOUTS = {
   WHISPER_API: 60000,
   /** Audio file download timeout (30 seconds - Discord CDN is typically fast) */
   AUDIO_FETCH: 30000,
-  /** LLM API call timeout per attempt (90 seconds - increased for slow models) */
-  LLM_API: 90000,
-  /** Job wait timeout in gateway (4.5 minutes - Railway safety buffer) */
-  JOB_WAIT: 270000,
+  /** LLM API call timeout per attempt (3 minutes - allows for slow models and complex requests) */
+  LLM_API: 180000,
+  /** Job wait timeout in gateway (10 minutes - Railway safety buffer, must exceed LLM_GLOBAL_TIMEOUT) */
+  JOB_WAIT: 600000,
   /** Base timeout for job calculations (2 minutes - minimum for any job) */
   JOB_BASE: 120000,
   /** System overhead for memory, DB, queue, network operations (15 seconds) */
@@ -72,8 +72,8 @@ export const RETRY_CONFIG = {
   LLM_MAX_RETRIES: 2,
   /** Base delay for exponential backoff (milliseconds) */
   LLM_RETRY_BASE_DELAY: 1000,
-  /** Global timeout for all LLM retry attempts combined (2 minutes) */
-  LLM_GLOBAL_TIMEOUT: 120000,
+  /** Global timeout for all LLM retry attempts combined (8 minutes - allows for retries with slow models) */
+  LLM_GLOBAL_TIMEOUT: 480000,
   /** Default maximum retry attempts for generic retry operations */
   MAX_ATTEMPTS: 3,
   /** Initial delay before first retry (1 second) */
