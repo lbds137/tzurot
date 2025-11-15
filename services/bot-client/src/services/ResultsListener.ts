@@ -15,7 +15,6 @@ import {
   createRedisSocketConfig,
   type JobResult,
 } from '@tzurot/common-types';
-import type { Client } from 'discord.js';
 
 const logger = createLogger('ResultsListener');
 const config = getConfig();
@@ -36,11 +35,9 @@ interface JobResultMessage {
 export class ResultsListener {
   private redis: RedisClientType;
   private isListening = false;
-  private discordClient: Client;
   private onResult?: (jobId: string, result: JobResult) => Promise<void>;
 
-  constructor(discordClient: Client) {
-    this.discordClient = discordClient;
+  constructor() {
 
     // Create dedicated Redis connection for consuming stream
     // (best practice: separate connection for blocking reads)
@@ -169,7 +166,12 @@ export class ResultsListener {
     for (const stream of streamMessages) {
       for (const msg of stream.messages) {
         try {
-          const data = msg.message as JobResultMessage;
+          const data: JobResultMessage = {
+            jobId: msg.message.jobId,
+            requestId: msg.message.requestId,
+            result: msg.message.result,
+            completedAt: msg.message.completedAt,
+          };
 
           logger.info(
             { jobId: data.jobId, messageId: msg.id },
