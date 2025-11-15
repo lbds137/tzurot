@@ -91,6 +91,12 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
  * Ensures code blocks don't get split awkwardly
  */
 export function preserveCodeBlocks(content: string): string[] {
+  // Defensive check: handle undefined/null/non-string input
+  // Utility functions should be robust to bad input
+  if (!content || typeof content !== 'string') {
+    return [];
+  }
+
   const codeBlockRegex = /```[\s\S]*?```/g;
   const codeBlocks = content.match(codeBlockRegex) ?? [];
 
