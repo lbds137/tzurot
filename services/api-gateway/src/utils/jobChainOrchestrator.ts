@@ -58,8 +58,12 @@ function categorizeAttachments(attachments: AttachmentMetadata[]): {
  * 1. If attachments exist, categorize them (audio vs images)
  * 2. Build child jobs array (preprocessing jobs)
  * 3. Create flow with LLM as parent, preprocessing as children
- * 4. BullMQ runs children FIRST, then parent when all complete
+ * 4. BullMQ runs children FIRST (in parallel), then parent when all complete
  * 5. Return the parent (LLM) job ID
+ *
+ * **Parallel Preprocessing**: BullMQ FlowProducer automatically executes all child jobs
+ * concurrently (audio transcription + image description run simultaneously). The parent
+ * (LLM) job is only queued after ALL children successfully complete.
  */
 export async function createJobChain(params: {
   requestId: string;
@@ -203,7 +207,10 @@ export async function createJobChain(params: {
   };
 
   // Create flow with LLM as parent, preprocessing as children
-  // FlowProducer automatically runs children first, then parent
+  // FlowProducer automatically:
+  // 1. Runs all children in parallel (audio + image jobs execute concurrently)
+  // 2. Waits for ALL children to complete successfully
+  // 3. Only then queues the parent (LLM) job for execution
   const flow = await flowProducer.add({
     name: JobType.LLMGeneration,
     data: llmJobData,

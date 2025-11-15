@@ -35,6 +35,8 @@ export const TIMEOUTS = {
   SYSTEM_OVERHEAD: 15000,
   /** Job wait timeout in gateway (10 minutes - Railway safety buffer) */
   JOB_WAIT: 600000,
+  /** BullMQ worker lock duration - maximum time a job can run before being considered stalled (20 minutes - safety net for hung jobs) */
+  WORKER_LOCK_DURATION: 20 * 60 * 1000,
 } as const;
 
 /**
