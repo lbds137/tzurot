@@ -14,6 +14,7 @@ import {
   JobType,
   JOB_PREFIXES,
 } from '@tzurot/common-types';
+import { PrismaClient } from '@prisma/client';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
@@ -21,6 +22,7 @@ import type { GenerateRequest, GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
+const prisma = new PrismaClient();
 
 export const aiRouter: Router = Router();
 
@@ -298,6 +300,75 @@ aiRouter.get('/job/:jobId', async (req, res) => {
         jobId,
       },
       '[AI] Error fetching job status'
+    );
+
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+  }
+});
+
+/**
+ * POST /ai/job/:jobId/confirm-delivery
+ *
+ * Confirm that a job result has been successfully delivered to Discord.
+ * Updates the job_results table status from PENDING_DELIVERY to DELIVERED.
+ */
+aiRouter.post('/job/:jobId/confirm-delivery', async (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    // Update job result status to DELIVERED
+    const updated = await prisma.jobResult.updateMany({
+      where: {
+        jobId,
+        status: 'PENDING_DELIVERY', // Only update if still pending
+      },
+      data: {
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+      },
+    });
+
+    if (updated.count === 0) {
+      // Either job doesn't exist or already delivered
+      const existing = await prisma.jobResult.findUnique({
+        where: { jobId },
+        select: { status: true },
+      });
+
+      if (!existing) {
+        const errorResponse = ErrorResponses.jobNotFound(jobId);
+        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+        return;
+      }
+
+      // Already delivered - this is fine (idempotent)
+      logger.debug({ jobId, status: existing.status }, '[AI] Job already delivered');
+      res.json({
+        jobId,
+        status: existing.status,
+        message: 'Already confirmed',
+      });
+      return;
+    }
+
+    logger.info({ jobId }, '[AI] Job delivery confirmed');
+
+    res.json({
+      jobId,
+      status: 'DELIVERED',
+      message: 'Delivery confirmed',
+    });
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        jobId,
+      },
+      '[AI] Error confirming job delivery'
     );
 
     const errorResponse = ErrorResponses.internalError(
