@@ -534,10 +534,19 @@ export class MessageReferenceExtractor {
     const environment = extractDiscordEnvironment(forwardedFrom);
     const locationContext = formatEnvironmentForPrompt(environment);
 
-    // Process attachments from snapshot
-    const snapshotAttachments = snapshot.attachments
+    // Process regular attachments from snapshot
+    const regularAttachments = snapshot.attachments
       ? extractAttachments(snapshot.attachments)
       : undefined;
+
+    // Extract images from snapshot embeds (for vision model processing)
+    const embedImages = snapshot.embeds ? extractEmbedImages(snapshot.embeds) : undefined;
+
+    // Combine both types of attachments
+    const allAttachments = [
+      ...(regularAttachments || []),
+      ...(embedImages || []),
+    ];
 
     // Process embeds from snapshot
     const embedString = snapshot.embeds?.length
@@ -566,7 +575,7 @@ export class MessageReferenceExtractor {
         ? new Date(snapshot.createdTimestamp).toISOString()
         : forwardedFrom.createdAt.toISOString(),
       locationContext: `${locationContext} (forwarded message)`,
-      attachments: snapshotAttachments,
+      attachments: allAttachments.length > 0 ? allAttachments : undefined,
       isForwarded: true,
     };
   }
