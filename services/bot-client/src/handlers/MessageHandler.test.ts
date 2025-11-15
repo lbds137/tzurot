@@ -163,15 +163,13 @@ describe('MessageHandler', () => {
     it('should handle successful job result and update/save messages', async () => {
       const jobId = 'job-123';
       const result = {
-        jobId,
-        status: 'completed',
-        result: {
-          content: 'AI response text',
-          attachmentDescriptions: ['[Image: cat.jpg]\nA cute cat'],
-          referencedMessagesDescriptions: ['[Previous message context]'],
-          metadata: {
-            modelUsed: 'anthropic/claude-sonnet-4.5',
-          },
+        requestId: 'req-123',
+        success: true,
+        content: 'AI response text',
+        attachmentDescriptions: '[Image: cat.jpg]\nA cute cat',
+        referencedMessagesDescriptions: '[Previous message context]',
+        metadata: {
+          modelUsed: 'anthropic/claude-sonnet-4.5',
         },
       };
 
@@ -206,8 +204,8 @@ describe('MessageHandler', () => {
         mockContext.personality,
         'persona-456',
         'User message',
-        ['[Image: cat.jpg]\nA cute cat'],
-        ['[Previous message context]']
+        '[Image: cat.jpg]\nA cute cat',
+        '[Previous message context]'
       );
 
       // Should send response to Discord
@@ -247,13 +245,9 @@ describe('MessageHandler', () => {
     it('should handle job result without metadata', async () => {
       const jobId = 'job-456';
       const result = {
-        jobId,
-        status: 'completed',
-        result: {
-          content: 'Response without metadata',
-          attachmentDescriptions: [],
-          referencedMessagesDescriptions: [],
-        },
+        requestId: 'req-456',
+        success: true,
+        content: 'Response without metadata',
       };
 
       const mockContext = {
@@ -280,13 +274,9 @@ describe('MessageHandler', () => {
     it('should handle errors gracefully without throwing', async () => {
       const jobId = 'job-789';
       const result = {
-        jobId,
-        status: 'completed',
-        result: {
-          content: 'Content',
-          attachmentDescriptions: [],
-          referencedMessagesDescriptions: [],
-        },
+        requestId: 'req-789',
+        success: true,
+        content: 'Content',
       };
 
       const mockMessage = {
@@ -320,13 +310,9 @@ describe('MessageHandler', () => {
     it('should handle chunked messages correctly', async () => {
       const jobId = 'job-chunked';
       const result = {
-        jobId,
-        status: 'completed',
-        result: {
-          content: 'Very long response that will be chunked across multiple Discord messages',
-          attachmentDescriptions: [],
-          referencedMessagesDescriptions: [],
-        },
+        requestId: 'req-chunked',
+        success: true,
+        content: 'Very long response that will be chunked across multiple Discord messages',
       };
 
       const mockContext = {

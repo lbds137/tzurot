@@ -7,8 +7,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
-import type { JobResult } from '@tzurot/common-types';
+import { createLogger, type LLMGenerationResult } from '@tzurot/common-types';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
@@ -75,7 +74,7 @@ export class MessageHandler {
    * Handle async job result when it arrives from ResultsListener
    * This is called from index.ts result handler
    */
-  async handleJobResult(jobId: string, jobResult: JobResult): Promise<void> {
+  async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<void> {
     // Get pending job context from JobTracker
     const jobContext = this.jobTracker.getContext(jobId);
     if (!jobContext) {
@@ -87,13 +86,6 @@ export class MessageHandler {
     this.jobTracker.completeJob(jobId);
 
     const { message, personality, personaId, userMessageContent, userMessageTime } = jobContext;
-
-    // Extract result data from JobResult
-    const result = jobResult.result;
-    if (!result) {
-      logger.error({ jobId }, '[MessageHandler] Job result missing result data');
-      return;
-    }
 
     // BOUNDARY VALIDATION: Validate result has valid content before using it
     if (!result.content || typeof result.content !== 'string') {

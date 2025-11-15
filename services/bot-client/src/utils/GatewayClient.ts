@@ -5,7 +5,7 @@
  */
 
 import { createLogger, getConfig, CONTENT_TYPES } from '@tzurot/common-types';
-import type { LoadedPersonality, MessageContext, JobResult } from '../types.js';
+import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
 const logger = createLogger('GatewayClient');
 const config = getConfig();
@@ -113,7 +113,7 @@ export class GatewayClient {
         throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
       }
 
-      const data = (await response.json()) as JobResult;
+      const data = (await response.json()) as GenerateResponse;
 
       if (data.status !== 'completed') {
         throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);

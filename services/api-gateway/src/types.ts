@@ -14,7 +14,6 @@ export type {
   GenerateResponse,
   ApiConversationMessage,
   AttachmentMetadata,
-  JobResult,
 } from '@tzurot/common-types';
 
 // Re-export ErrorCode for convenience

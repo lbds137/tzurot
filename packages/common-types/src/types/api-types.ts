@@ -39,23 +39,3 @@ export interface GenerateResponse {
   };
   timestamp?: string;
 }
-
-/**
- * Job result from queue/gateway
- * Used by bot-client when polling or receiving results
- */
-export interface JobResult {
-  jobId: string;
-  status: string;
-  result?: {
-    content: string;
-    attachmentDescriptions?: string; // Rich text descriptions from vision/transcription
-    referencedMessagesDescriptions?: string; // Formatted reference text with vision/transcription
-    metadata?: {
-      retrievedMemories?: number;
-      tokensUsed?: number;
-      processingTimeMs?: number;
-      modelUsed?: string;
-    };
-  };
-}

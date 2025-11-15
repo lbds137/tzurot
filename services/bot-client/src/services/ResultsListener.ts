@@ -13,7 +13,7 @@ import {
   getConfig,
   parseRedisUrl,
   createRedisSocketConfig,
-  type JobResult,
+  type LLMGenerationResult,
 } from '@tzurot/common-types';
 
 const logger = createLogger('ResultsListener');
@@ -35,7 +35,7 @@ interface JobResultMessage {
 export class ResultsListener {
   private redis: RedisClientType;
   private isListening = false;
-  private onResult?: (jobId: string, result: JobResult) => Promise<void>;
+  private onResult?: (jobId: string, result: LLMGenerationResult) => Promise<void>;
 
   constructor() {
 
@@ -63,7 +63,7 @@ export class ResultsListener {
    * Start listening for job results
    * @param onResult Callback to handle completed results
    */
-  async start(onResult: (jobId: string, result: JobResult) => Promise<void>): Promise<void> {
+  async start(onResult: (jobId: string, result: LLMGenerationResult) => Promise<void>): Promise<void> {
     this.onResult = onResult;
 
     try {
@@ -178,19 +178,12 @@ export class ResultsListener {
             '[ResultsListener] Received job result'
           );
 
-          // Parse inner result object from JSON string
-          const parsedResult = JSON.parse(data.result);
-
-          // Construct proper JobResult with all required fields
-          const jobResult: JobResult = {
-            jobId: data.jobId,
-            status: 'completed',
-            result: parsedResult,
-          };
+          // Parse LLMGenerationResult from JSON string
+          const result: LLMGenerationResult = JSON.parse(data.result);
 
           // Deliver to handler
           if (this.onResult) {
-            await this.onResult(data.jobId, jobResult);
+            await this.onResult(data.jobId, result);
           }
 
           // Acknowledge message (removes from pending)
