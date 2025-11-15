@@ -6,6 +6,7 @@
  */
 
 import { JobStatus } from '../constants/index.js';
+import type { GenerationPayload } from './schemas.js';
 
 // Re-export schema-derived types
 export type {
@@ -16,26 +17,34 @@ export type {
   LoadedPersonality,
   RequestContext,
   ReferencedMessage,
+  GenerationPayload,
+  LLMGenerationResult,
+} from './schemas.js';
+
+// Re-export schemas for runtime validation
+export {
+  attachmentMetadataSchema,
+  apiConversationMessageSchema,
+  generateRequestSchema,
+  discordEnvironmentSchema,
+  loadedPersonalitySchema,
+  requestContextSchema,
+  referencedMessageSchema,
+  generationPayloadSchema,
+  llmGenerationResultSchema,
 } from './schemas.js';
 
 /**
  * Response from /ai/generate endpoint
+ *
+ * Uses GenerationPayload (schema-derived) for the result field to ensure
+ * consistency with internal job results while maintaining API contract independence.
  */
 export interface GenerateResponse {
   jobId: string;
   requestId: string;
   status: JobStatus;
-  // When wait=true, includes the result directly
-  result?: {
-    content: string;
-    attachmentDescriptions?: string;
-    referencedMessagesDescriptions?: string; // Formatted reference text with vision/transcription
-    metadata?: {
-      retrievedMemories?: number;
-      tokensUsed?: number;
-      processingTimeMs?: number;
-      modelUsed?: string;
-    };
-  };
+  // When wait=true, includes the result directly (uses shared GenerationPayload)
+  result?: GenerationPayload;
   timestamp?: string;
 }
