@@ -62,13 +62,30 @@ export class JobTracker {
     const typingInterval = setInterval(async () => {
       const age = Date.now() - startTime;
 
-      // Auto-complete job if it exceeds maximum age (prevents memory leaks)
+      // Stop typing indicator after max age, but KEEP tracking the job
+      // (result will still be delivered when it arrives)
       if (age > MAX_JOB_AGE_MS) {
-        logger.error(
+        logger.warn(
           { jobId, ageMs: age },
-          '[JobTracker] Job exceeded max age - auto-completing to prevent memory leak'
+          '[JobTracker] Job exceeded typing timeout - stopping indicator but keeping job tracked'
         );
-        this.completeJob(jobId);
+
+        // Notify user that it's taking longer than expected
+        try {
+          await channel.send(
+            "⏱️ This is taking longer than expected. I'm still working on it - " +
+              "you'll get a response when it's ready!"
+          );
+        } catch (err) {
+          logger.error(
+            { err, jobId },
+            '[JobTracker] Failed to send timeout notification to user'
+          );
+        }
+
+        // Clear the typing interval to avoid rate limits, but DON'T remove the job
+        // The job context must remain so we can deliver the result when it arrives
+        clearInterval(typingInterval);
         return;
       }
 
