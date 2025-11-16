@@ -18,7 +18,7 @@ import { CONTENT_TYPES } from '@tzurot/common-types';
  * minus the vision/transcription analyses (those are on-demand only).
  */
 export function formatReferencesForDatabase(references: ReferencedMessage[]): string {
-  if (!references || references.length === 0) {
+  if (references.length === 0) {
     return '';
   }
 
@@ -43,7 +43,7 @@ export function formatReferencesForDatabase(references: ReferencedMessage[]): st
     if (ref.attachments && ref.attachments.length > 0) {
       lines.push('\nAttachments:');
       for (const attachment of ref.attachments) {
-        if (attachment.isVoiceMessage) {
+        if (attachment.isVoiceMessage === true) {
           lines.push(`- Voice Message (${attachment.duration}s)`);
         } else if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
           lines.push(`- Image: ${attachment.name}`);
