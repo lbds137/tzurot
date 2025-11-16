@@ -7,7 +7,7 @@
 
 import { createLogger, INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
 import { ChannelType, Client } from 'discord.js';
-import type { TextChannel, ThreadChannel, ForumChannel, Webhook } from 'discord.js';
+import type { TextChannel, ThreadChannel, ForumChannel, Webhook, Message } from 'discord.js';
 import type { LoadedPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');
@@ -153,7 +153,7 @@ export class WebhookManager {
     channel: TextChannel | ThreadChannel,
     personality: LoadedPersonality,
     content: string
-  ): Promise<any> {
+  ): Promise<Message> {
     const webhook = await this.getWebhook(channel);
     const standardizedName = this.getStandardizedUsername(personality);
 
@@ -176,7 +176,7 @@ export class WebhookManager {
     }
 
     // Debug logging for avatar URL
-    logger.debug(`[WebhookManager] Sending with avatar: ${personality.avatarUrl || 'UNDEFINED'}`);
+    logger.debug(`[WebhookManager] Sending with avatar: ${personality.avatarUrl ?? 'UNDEFINED'}`);
 
     // Send via webhook and return message
     const sentMessage = await webhook.send(webhookOptions);
