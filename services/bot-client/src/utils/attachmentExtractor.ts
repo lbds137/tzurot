@@ -23,7 +23,7 @@ export function extractAttachments(
 
   return Array.from(attachments.values()).map(attachment => ({
     url: attachment.url,
-    contentType: attachment.contentType || CONTENT_TYPES.BINARY,
+    contentType: attachment.contentType ?? CONTENT_TYPES.BINARY,
     name: attachment.name,
     size: attachment.size,
     // Discord.js v14 voice message metadata

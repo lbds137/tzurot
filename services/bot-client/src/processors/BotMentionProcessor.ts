@@ -41,7 +41,7 @@ export class BotMentionProcessor implements IMessageProcessor {
 
     // Get voice transcript if available (set by VoiceMessageProcessor)
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript || cleanContent;
+    const content = voiceTranscript ?? cleanContent;
 
     // Handle the personality message
     await this.personalityHandler.handleMessage(message, defaultPersonality, content);

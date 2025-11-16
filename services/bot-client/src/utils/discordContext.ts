@@ -64,7 +64,7 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
   logger.info(
     {
       guildName: message.guild.name,
-      channelName: 'name' in channel && channel.name ? channel.name : 'Unknown',
+      channelName: 'name' in channel ? (channel.name ?? 'Unknown') : 'Unknown',
     },
     'Detected as guild channel'
   );
@@ -77,7 +77,7 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
     },
     channel: {
       id: channel.id,
-      name: 'name' in channel && channel.name ? channel.name : 'Unknown',
+      name: 'name' in channel ? (channel.name ?? 'Unknown') : 'Unknown',
       type: getChannelTypeName(channel.type),
     },
   };

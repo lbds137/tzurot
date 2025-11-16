@@ -38,7 +38,7 @@ export class ReplyMessageProcessor implements IMessageProcessor {
 
     // Get voice transcript if available (set by VoiceMessageProcessor)
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript || message.content;
+    const content = voiceTranscript ?? message.content;
 
     // Handle the personality message
     await this.personalityHandler.handleMessage(message, personality, content);
