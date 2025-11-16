@@ -4,7 +4,9 @@ import { MODEL_DEFAULTS, SERVICE_DEFAULTS, AIProvider } from '../constants/index
 /**
  * Helper for optional string fields that must be non-empty if provided
  * Rejects empty strings, but allows undefined
+ * @returns Zod schema for optional non-empty string
  */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 const optionalNonEmptyString = () =>
   z
     .string()
@@ -14,7 +16,9 @@ const optionalNonEmptyString = () =>
 
 /**
  * Helper for optional Discord IDs (must be all digits if provided)
+ * @returns Zod schema for optional Discord ID
  */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 const optionalDiscordId = () =>
   z
     .string()

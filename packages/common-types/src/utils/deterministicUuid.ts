@@ -32,7 +32,7 @@ export function generatePersonalityUuid(slug: string): string {
  * Seed: persona:{ownerId || 'global'}:{name}
  */
 export function generatePersonaUuid(name: string, ownerId?: string): string {
-  const owner = ownerId || 'global';
+  const owner = ownerId !== undefined && ownerId.length > 0 ? ownerId : 'global';
   return uuidv5(`persona:${owner}:${name}`, TZUROT_NAMESPACE);
 }
 

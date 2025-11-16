@@ -99,7 +99,7 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
       // REQUIRED: Railway private network requires IPv6 (family: 6) for internal service communication
       // IPv4 (family: 4) is NOT supported for Railway private networking
       // See: https://docs.railway.app/reference/private-networking
-      family: config.family || 6,
+      family: config.family ?? 6,
       connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
       commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
       keepAlive: true, // Enable TCP keepalive
@@ -145,7 +145,7 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     // REQUIRED: Railway private network requires IPv6 (family: 6) for internal service communication
     // IPv4 (family: 4) is NOT supported for Railway private networking
     // See: https://docs.railway.app/reference/private-networking
-    family: config.family || 6,
+    family: config.family ?? 6,
     connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
     commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
     keepAlive: REDIS_CONNECTION.KEEPALIVE,
