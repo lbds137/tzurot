@@ -82,7 +82,7 @@ export class MemoryRetriever {
 
       // Log each memory with ID, score, timestamp, and truncated content
       relevantMemories.forEach((doc, idx) => {
-        const id = doc.metadata?.id || 'unknown';
+        const id = typeof doc.metadata?.id === 'string' ? doc.metadata.id : 'unknown';
         const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
         const createdAt = doc.metadata?.createdAt as string | number | undefined;
         const timestamp = createdAt ? formatMemoryTimestamp(createdAt) : null;

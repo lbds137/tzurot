@@ -148,8 +148,8 @@ async function ensureAvatarDirectory(): Promise<void> {
   try {
     await access('/data/avatars');
     logger.info('[Gateway] Avatar storage directory exists');
-  } catch (error) {
-    // Directory doesn't exist, create it
+  } catch {
+    // Directory doesn't exist, create it (expected on first run)
     try {
       await mkdir('/data/avatars', { recursive: true });
       logger.info('[Gateway] Created avatar storage directory at /data/avatars');
@@ -167,8 +167,8 @@ async function ensureTempAttachmentDirectory(): Promise<void> {
   try {
     await access('/data/temp-attachments');
     logger.info('[Gateway] Temp attachment storage directory exists');
-  } catch (error) {
-    // Directory doesn't exist, create it
+  } catch {
+    // Directory doesn't exist, create it (expected on first run)
     try {
       await mkdir('/data/temp-attachments', { recursive: true });
       logger.info('[Gateway] Created temp attachment storage directory');

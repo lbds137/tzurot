@@ -42,8 +42,9 @@ export function countTextTokens(text: string, model: TiktokenModel = DEFAULT_TOK
     const tokens = encoding.encode(text);
     encoding.free(); // Important: free the encoding to prevent memory leaks
     return tokens.length;
-  } catch (error) {
+  } catch {
     // Fallback to character-based estimation if encoding fails
+    // Error expected for unsupported models
     return Math.ceil(text.length / TOKEN_ESTIMATES.CHARS_PER_TOKEN);
   }
 }
