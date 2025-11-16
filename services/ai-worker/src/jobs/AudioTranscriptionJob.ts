@@ -74,7 +74,7 @@ export async function processAudioTranscriptionJob(
     return {
       requestId,
       success: true,
-      transcript: result.value,
+      content: result.value,
       metadata: {
         processingTimeMs: result.totalTimeMs,
         duration: attachment.duration,
