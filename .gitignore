@@ -43,6 +43,11 @@ data/
 backups/
 scripts/uuid-mappings.json
 
+# v2 Legacy Codebase
+# Note: tzurot-legacy/ is kept for reference only (not actively maintained)
+# Excluded from: ESLint, tests, CI/CD
+# Can be git-tracked for historical reference
+
 # Allow example personalities at root for deployment
 # (private personalities are in tzurot-legacy/data/)
 !personalities/
