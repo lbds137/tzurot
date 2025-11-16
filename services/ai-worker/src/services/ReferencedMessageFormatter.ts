@@ -47,10 +47,10 @@ export class ReferencedMessageFormatter {
     // Process each reference
     for (const ref of references) {
       // Add forwarded indicator if this is a forwarded message
-      const forwardedLabel = ref.isForwarded ? ' [FORWARDED MESSAGE]' : '';
+      const forwardedLabel = ref.isForwarded === true ? ' [FORWARDED MESSAGE]' : '';
       lines.push(`[Reference ${ref.referenceNumber}]${forwardedLabel}`);
 
-      if (ref.isForwarded) {
+      if (ref.isForwarded === true) {
         // For forwarded messages, author info is unavailable
         lines.push(`From: [Author unavailable - this message was forwarded]`);
       } else {
@@ -170,7 +170,7 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality
   ): Promise<ProcessedAttachmentResult> {
     // Handle voice messages - transcribe them for AI context
-    if (attachment.isVoiceMessage) {
+    if (attachment.isVoiceMessage === true) {
       try {
         logger.info(
           {
