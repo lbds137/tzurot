@@ -92,7 +92,7 @@ export class ResultsListener {
 
       // Start consuming loop
       this.isListening = true;
-      this.consumeLoop();
+      void this.consumeLoop();
 
       logger.info(
         { consumer: CONSUMER_NAME, group: CONSUMER_GROUP },

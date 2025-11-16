@@ -751,7 +751,7 @@ export class MessageReferenceExtractor {
         discordMessageId
       );
 
-      if (dbMessage && dbMessage.content) {
+      if (dbMessage?.content) {
         // The content field contains the transcript (voice messages use transcript as content)
         logger.info(
           {
