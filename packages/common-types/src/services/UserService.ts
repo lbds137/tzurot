@@ -37,7 +37,7 @@ export class UserService {
   ): Promise<string> {
     // Check cache first
     const cached = this.userCache.get(discordId);
-    if (cached) {
+    if (cached !== undefined && cached.length > 0) {
       return cached;
     }
 
@@ -78,9 +78,9 @@ export class UserService {
 
             // Create default persona for user
             // Use display name (e.g., "Alt Hime") as preferredName, fallback to username
-            const personaDisplayName = displayName || username;
+            const personaDisplayName = displayName ?? username;
             // Use Discord bio if available, otherwise leave empty
-            const personaContent = bio || '';
+            const personaContent = bio ?? '';
             logger.debug(
               { personaId, username, preferredName: personaDisplayName, ownerId: userId },
               '[UserService] Creating persona record'
@@ -176,7 +176,7 @@ export class UserService {
         return null;
       }
 
-      return persona.preferredName || persona.name;
+      return persona.preferredName ?? persona.name;
     } catch (error) {
       logger.error({ err: error }, `Failed to get persona name for ${personaId}`);
       return null;
@@ -195,7 +195,7 @@ export class UserService {
     // Check cache first
     const cacheKey = `${userId}:${personalityId}`;
     const cached = this.personaCache.get(cacheKey);
-    if (cached) {
+    if (cached !== undefined && cached.length > 0) {
       return cached;
     }
 
@@ -213,7 +213,7 @@ export class UserService {
         },
       });
 
-      if (userConfig?.personaId) {
+      if (userConfig !== null && userConfig.personaId !== null && userConfig.personaId !== undefined && userConfig.personaId.length > 0) {
         logger.debug(
           `Using personality-specific persona for user ${userId.substring(0, 8)}... with personality ${personalityId.substring(0, 8)}...`
         );
@@ -231,7 +231,7 @@ export class UserService {
         },
       });
 
-      if (!defaultPersona?.personaId) {
+      if (defaultPersona === null || defaultPersona.personaId === null || defaultPersona.personaId === undefined || defaultPersona.personaId.length === 0) {
         // This should never happen since we create default personas in getOrCreateUser
         throw new Error(`No default persona found for user ${userId}`);
       }
