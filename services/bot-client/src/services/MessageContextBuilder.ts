@@ -14,7 +14,7 @@ import {
   CONTENT_TYPES,
   INTERVALS,
 } from '@tzurot/common-types';
-import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
+import type { LoadedPersonality, ReferencedMessage, ConversationMessage } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
@@ -39,7 +39,7 @@ export interface ContextBuildResult {
   /** Referenced messages (from replies and message links) */
   referencedMessages: ReferencedMessage[];
   /** Conversation history (for reference enrichment) */
-  conversationHistory: any[];
+  conversationHistory: ConversationMessage[];
 }
 
 /**

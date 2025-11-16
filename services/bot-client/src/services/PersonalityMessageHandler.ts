@@ -96,7 +96,7 @@ export class PersonalityMessageHandler {
         {
           jobId,
           personalityName: personality.displayName,
-          historyLength: context.conversationHistory?.length || 0,
+          historyLength: context.conversationHistory?.length ?? 0,
         },
         '[PersonalityMessageHandler] Job submitted successfully, awaiting async result'
       );
