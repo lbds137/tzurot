@@ -322,7 +322,7 @@ export class DatabaseSyncService {
       const devRow = devMap.get(key);
       const prodRow = prodMap.get(key);
 
-      if (!devRow && prodRow) {
+      if (devRow === undefined && prodRow !== undefined) {
         // Row only in prod - copy to dev
         if (!dryRun) {
           await this.upsertRow(
@@ -331,11 +331,11 @@ export class DatabaseSyncService {
             prodRow,
             config.pk,
             config.uuidColumns,
-            config.timestampColumns || []
+            config.timestampColumns ?? []
           );
         }
         prodToDev++;
-      } else if (devRow && !prodRow) {
+      } else if (devRow !== undefined && prodRow === undefined) {
         // Row only in dev - copy to prod
         if (!dryRun) {
           await this.upsertRow(
@@ -344,11 +344,11 @@ export class DatabaseSyncService {
             devRow,
             config.pk,
             config.uuidColumns,
-            config.timestampColumns || []
+            config.timestampColumns ?? []
           );
         }
         devToProd++;
-      } else if (devRow && prodRow) {
+      } else if (devRow !== undefined && prodRow !== undefined) {
         // Row in both - check timestamps
         const comparison = this.compareTimestamps(devRow, prodRow, config);
 
@@ -360,7 +360,7 @@ export class DatabaseSyncService {
               devRow,
               config.pk,
               config.uuidColumns,
-              config.timestampColumns || []
+              config.timestampColumns ?? []
             );
           }
           devToProd++;
@@ -373,7 +373,7 @@ export class DatabaseSyncService {
               prodRow,
               config.pk,
               config.uuidColumns,
-              config.timestampColumns || []
+              config.timestampColumns ?? []
             );
           }
           prodToDev++;
@@ -400,19 +400,19 @@ export class DatabaseSyncService {
           message_ids, senders, created_at, legacy_shapes_user_id
         FROM "memories"
       `);
-      return Array.isArray(rows) ? rows : [];
+      return Array.isArray(rows) ? (rows as unknown[]) : [];
     }
 
     // Default: fetch all columns
     const rows = await client.$queryRawUnsafe(`SELECT * FROM "${tableName}"`);
-    return Array.isArray(rows) ? rows : [];
+    return Array.isArray(rows) ? (rows as unknown[]) : [];
   }
 
   /**
    * Build a map of rows keyed by primary key(s)
    */
   private buildRowMap(rows: unknown[], pkField: string | readonly string[]): Map<string, unknown> {
-    const map = new Map();
+    const map = new Map<string, unknown>();
 
     for (const row of rows) {
       const key = this.getPrimaryKey(row, pkField);
