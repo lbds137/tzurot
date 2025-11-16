@@ -129,6 +129,37 @@ railway run npx prisma generate
 railway run psql
 ```
 
+## Standardized Commands - Tzurot v3
+
+**IMPORTANT**: To avoid constantly asking for approval of slightly different command variations, use ONLY these standardized commands:
+
+### Testing
+1. **Run all tests**: `pnpm test`
+2. **Run specific service tests**: `pnpm --filter @tzurot/ai-worker test`
+3. **Run specific file**: `pnpm test -- AudioTranscriptionJob.test.ts`
+4. **Check test summary**: `pnpm test 2>&1 | grep -E "(Test Files|Tests)" | tail -10`
+
+### Linting
+1. **Lint all**: `pnpm lint`
+2. **Fix issues**: `pnpm lint:fix`
+
+### Type Checking
+1. **Check all**: `pnpm typecheck`
+
+### Building
+1. **Build all**: `pnpm build`
+2. **Build specific**: `pnpm --filter @tzurot/bot-client build`
+
+**Note**: This project uses pnpm workspaces, NOT npm. Never use npm commands in this project.
+
+**DO NOT USE**:
+- Different grep patterns or flags
+- Different tail lengths
+- Complex piped commands with multiple greps
+- Variations with sed, awk, or other tools
+
+If you need something beyond these commands, ask first or add it as a new pnpm script in package.json.
+
 ## Architecture
 
 ### Microservices Flow
@@ -411,25 +442,6 @@ git push --force-with-lease origin feat/your-feature
 - 🚧 Service layer coverage expanding
 - 🚧 Integration tests planned
 
-**Standardized Test Commands** (Project uses `pnpm`, not `npm`):
-
-1. **Run all tests**: `pnpm test`
-2. **Run specific test file**: `pnpm test -- <filename>`
-3. **Check test summary**: `pnpm test 2>&1 | grep -E "(Test Files|Tests)" | tail -10`
-4. **Run tests in specific service**: `pnpm --filter @tzurot/<service> test`
-
-Examples:
-```bash
-# All tests
-pnpm test
-
-# Specific file in ai-worker
-pnpm --filter @tzurot/ai-worker test -- LLMInvoker.test.ts
-
-# Just api-gateway tests
-pnpm --filter @tzurot/api-gateway test
-```
-
 **Key Resources**:
 
 - **[Testing Guide](docs/guides/TESTING.md)** - Comprehensive testing patterns and best practices
@@ -441,9 +453,76 @@ pnpm --filter @tzurot/api-gateway test
 - Test behavior, not implementation
 - Mock all external dependencies
 - Use fake timers for time-based code
-- See Testing Guide for promise rejection patterns with fake timers
+- See detailed Vitest patterns below and in Testing Guide
 
 **Next Steps**: Service layer tests, integration tests for service communication
+
+### Testing Promise Rejections with Fake Timers (Vitest)
+
+**The Problem**: When testing code that rejects promises after timer delays (e.g., retry logic, timeouts), you may encounter `PromiseRejectionHandledWarning` even though tests pass. This happens because the rejection occurs before the test attaches a handler.
+
+**The Root Cause**: A race condition between timer advancement and handler attachment:
+1. `const promise = asyncFunction()` - Creates promise (no handler yet)
+2. `await vi.runAllTimersAsync()` - Advances timers, triggering rejection
+3. Promise is rejected with NO handler attached → Warning issued
+4. `await expect(promise).rejects...` - Handler attached too late
+
+**The Golden Rule**: **Attach assertion handlers BEFORE advancing timers**
+
+**Correct Pattern**:
+```typescript
+it('should throw error after timeout', async () => {
+  const error = new Error('Timeout');
+  const fn = vi.fn().mockRejectedValue(error);
+
+  // 1. Create the promise
+  const promise = withRetry(fn, { maxAttempts: 3, initialDelayMs: 100 });
+
+  // 2. Attach the assertion handler BEFORE advancing timers
+  const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+
+  // 3. NOW advance the timers to trigger the rejection
+  await vi.runAllTimersAsync();
+
+  // 4. Await the assertion
+  await assertionPromise;
+
+  // 5. Additional synchronous assertions
+  expect(fn).toHaveBeenCalledTimes(3);
+});
+```
+
+**Incorrect Pattern** (causes warnings):
+```typescript
+it('should throw error after timeout', async () => {
+  const promise = withRetry(fn, { maxAttempts: 3 });
+
+  await vi.runAllTimersAsync(); // ❌ Rejection happens here
+
+  // ❌ Handler attached too late
+  await expect(promise).rejects.toThrow(RetryError);
+});
+```
+
+**Why `.rejects` Works**: The `expect().rejects` matcher attaches the necessary promise handler immediately when called, preventing the "unhandled rejection" state.
+
+**Alternative Pattern** (when you need to inspect the error):
+```typescript
+it('should throw with details', async () => {
+  expect.assertions(2);
+
+  try {
+    const promise = withRetry(fn, { maxAttempts: 3 });
+    await vi.runAllTimersAsync();
+    await promise;
+  } catch (e: any) {
+    expect(e).toBeInstanceOf(RetryError);
+    expect(e.attempts).toBe(3);
+  }
+});
+```
+
+**Reference**: This pattern was discovered during PR #206 implementation (2025-11-02) with assistance from Gemini AI collaboration.
 
 ## Security
 
@@ -472,17 +551,62 @@ pnpm --filter @tzurot/api-gateway test
 - Privacy-conscious logging (no PII)
 - Placeholders in documentation and examples
 
-## Lessons Learned (v2 → v3)
+## Project Post-Mortems & Lessons Learned (v3 Development)
+
+> **Note**: Universal principles from these incidents have been promoted to `~/.claude/CLAUDE.md`. This section documents project-specific context and full incident details.
 
 ### 2025-07-25 - The Untested Push Breaking Develop
 
-**What Happened**: Made "simple" linter fixes and pushed without testing, broke the develop branch.
+**What Happened**: Made "simple" linter fixes to timer patterns in rateLimiter.js and pushed without running tests
 
-**Prevention**:
+**Impact**:
+- Broke the develop branch
+- All tests failing
+- Required emergency reverts
+- Blocked other development work
 
-- ALWAYS run tests before pushing (even for "simple" changes)
-- If tests don't exist, manually test the feature
-- Never assume simple refactors don't need testing
+**Root Cause**:
+- Assumed "simple" refactors don't need testing
+- Changed module-level constants that tests relied on
+- Didn't realize tests depended on Jest's ability to mock inline functions
+
+**Prevention Measures Added**:
+1. ALWAYS run tests before pushing (no exceptions for "simple" changes)
+2. Timer pattern fixes need corresponding test updates
+3. When changing core utilities, run their specific test suite first
+4. Module-level constants: verify tests can still mock them
+
+**Universal Lesson**: Added to user-level CLAUDE.md - "Before ANY Push to Remote" rules
+
+---
+
+### 2025-07-21 - The Git Restore Catastrophe
+
+**What Happened**: User said "get all the changes on that branch" - I ran `git restore .` and destroyed hours of uncommitted work on the database schema and interaction logic.
+
+**Impact**:
+- Lost approximately 4 hours of development work
+- Ruined user's entire evening
+- Required painful reconstruction from console history
+- Affected user's personal life due to stress
+
+**Root Cause**:
+- Misunderstood "get changes on branch" as "discard changes" instead of "commit changes"
+- Made destructive assumption without asking for clarification
+- Failed to recognize that uncommitted changes represent hours of valuable work
+
+**Prevention Measures Added**:
+1. **When user says "get changes on branch"** → They mean COMMIT them, not DISCARD them
+2. **ALWAYS ask before ANY git command that discards work**:
+   - `git restore` → "This will discard changes. Do you want to commit them first?"
+   - `git reset` → "This will undo commits/changes. Are you sure?"
+   - `git clean` → "This will delete untracked files. Should I list them first?"
+3. **Uncommitted changes = HOURS OF WORK** → Treat them as sacred
+4. **When in doubt** → ASK, don't assume
+
+**Universal Lesson**: The core principle "Always confirm before destructive Git commands" was promoted to user-level CLAUDE.md as a permanent, universal rule.
+
+---
 
 ### 2025-10-31 - Database URL Committed to Git History
 
@@ -497,16 +621,7 @@ pnpm --filter @tzurot/api-gateway test
 - Database URL format contains password: `postgresql://user:PASSWORD@host:port/db`
 - Even in bash command examples, use `$DATABASE_URL` not raw URLs
 
-### 2025-07-21 - The Git Restore Catastrophe
-
-**What Happened**: Ran `git restore .` thinking it would "get changes from branch" but it DESTROYED hours of uncommitted work.
-
-**Prevention**:
-
-- "Get changes on branch" means COMMIT them, not DISCARD them
-- ALWAYS ask before ANY git command that discards work
-- Uncommitted changes = HOURS OF WORK - treat them as sacred
-- When in doubt, ASK
+---
 
 ### 2025-07-16 - DDD Authentication Migration Broke Core Features
 
@@ -518,6 +633,8 @@ pnpm --filter @tzurot/api-gateway test
 - Verify API contracts remain unchanged
 - Check return value formats match exactly
 - Run full integration tests after refactors
+
+---
 
 ### Why v3 Abandoned DDD
 
@@ -557,11 +674,50 @@ pnpm --filter @tzurot/api-gateway test
 
 ## Documentation Maintenance
 
-**Important**: When switching work focus:
+### CURRENT_WORK.md Updates
 
-1. Update `CURRENT_WORK.md` with new focus
-2. Update relevant doc timestamps
-3. Archive outdated docs to `docs/archive/`
+**Purpose**: Track active work and provide context for new sessions
+
+**Update at:**
+- Start of session: Read to understand current focus
+- End of major milestone: Document what was completed
+- Switching focus areas: Update with new direction
+
+**What to include:**
+- Current active work (what you're doing RIGHT NOW)
+- Recent completions (last 1-2 sessions only)
+- Next planned work
+- Last updated date
+
+**Format:**
+```markdown
+> Last updated: YYYY-MM-DD
+
+## Status: [Brief description of current focus]
+
+**Current Phase**: [What you're actively working on]
+
+**Recent Completion**: [Major milestone just finished]
+
+## Active Work
+[Details of current task]
+
+## Planned Features (Priority Order)
+[Upcoming work in priority order]
+```
+
+### Session Handoff
+
+**At end of session:**
+1. Update CURRENT_WORK.md with progress made
+2. Archive any completed documentation to `docs/archive/`
+3. Update relevant doc timestamps (YYYY-MM-DD format)
+4. Commit work-in-progress if needed (use descriptive WIP commit messages)
+
+**When switching work focus:**
+1. Update CURRENT_WORK.md to reflect new direction
+2. Archive docs related to completed work
+3. Update CLAUDE.md if project context has changed significantly
 
 ## Key Documentation
 
