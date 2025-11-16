@@ -31,7 +31,7 @@ function customErrorSerializer(err: Error): object {
   // For other errors, include any custom properties but filter out functions
   for (const key in err) {
     if (Object.prototype.hasOwnProperty.call(err, key)) {
-      const value = (err as any)[key];
+      const value = (err as unknown as Record<string, unknown>)[key];
       // Skip functions and standard properties we already included
       if (typeof value !== 'function' && !['message', 'stack', 'name'].includes(key)) {
         serialized[key] = value;
@@ -75,7 +75,7 @@ export function createLogger(name?: string): Logger {
   const usePrettyLogs = process.env.ENABLE_PRETTY_LOGS === 'true';
 
   const config: LoggerOptions = {
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.LOG_LEVEL ?? 'info',
     name,
     // Custom error serializer that handles DOMException properly
     serializers: {
