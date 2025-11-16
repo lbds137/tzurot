@@ -42,7 +42,7 @@ export async function processAudioTranscriptionJob(
     // Validate attachment
     if (
       !attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) &&
-      !attachment.isVoiceMessage
+      attachment.isVoiceMessage !== true
     ) {
       throw new Error(
         `Invalid attachment type: ${attachment.contentType}. Expected audio.`

@@ -57,7 +57,7 @@ export function createErrorResponse(
   return {
     error: errorCode,
     message,
-    ...(requestId && { requestId }),
+    ...(requestId !== undefined && requestId.length > 0 && { requestId }),
     timestamp: new Date().toISOString(),
   };
 }

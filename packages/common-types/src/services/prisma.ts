@@ -20,7 +20,7 @@ export function getPrismaClient(): PrismaClient {
     // Debug: Check DATABASE_URL at runtime
     const dbUrl = process.env.DATABASE_URL;
     logger.info(
-      `DATABASE_URL check: ${dbUrl ? `set (starts with: ${dbUrl.substring(0, 15)}...)` : 'NOT SET'}`
+      `DATABASE_URL check: ${dbUrl !== null && dbUrl !== undefined && dbUrl.length > 0 ? `set (starts with: ${dbUrl.substring(0, 15)}...)` : 'NOT SET'}`
     );
 
     prismaClient = new PrismaClient({

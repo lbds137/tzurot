@@ -40,7 +40,7 @@ function categorizeAttachments(attachments: AttachmentMetadata[]): {
   for (const attachment of attachments) {
     if (
       attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
-      attachment.isVoiceMessage
+      attachment.isVoiceMessage === true
     ) {
       audio.push(attachment);
     } else if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
