@@ -29,6 +29,8 @@ export default tseslint.config(
       '.pnpm-store/**',
       '**/vitest.config.ts',
       'tzurot-legacy/**',
+      'scripts/**',
+      '**/scripts/**',
     ],
   },
 
