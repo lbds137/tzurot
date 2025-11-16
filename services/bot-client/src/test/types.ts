@@ -46,6 +46,7 @@ export type Mockable<T> = {
  * Utility to get all keys of T whose values are NOT functions
  */
 type NonFunctionKeys<T> = {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   [K in keyof T]: T[K] extends Function ? never : K;
 }[keyof T];
 
@@ -53,6 +54,7 @@ type NonFunctionKeys<T> = {
  * Utility to get all keys of T whose values ARE functions
  */
 type FunctionKeys<T> = {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   [K in keyof T]: T[K] extends Function ? K : never;
 }[keyof T];
 

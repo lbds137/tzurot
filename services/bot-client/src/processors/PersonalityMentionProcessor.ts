@@ -54,7 +54,7 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
 
     // Get voice transcript if available (set by VoiceMessageProcessor)
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript || mentionMatch.cleanContent;
+    const content = voiceTranscript ?? mentionMatch.cleanContent;
 
     // Handle the personality message
     await this.personalityHandler.handleMessage(message, personality, content);

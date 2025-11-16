@@ -23,7 +23,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
 
   for (const embed of embeds) {
     // Extract main image
-    if (embed.image?.url) {
+    if (embed.image?.url !== undefined && embed.image.url.length > 0) {
       imageAttachments.push({
         url: embed.image.url,
         contentType: CONTENT_TYPES.IMAGE_PNG, // Discord embeds are typically PNG
@@ -33,7 +33,7 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
     }
 
     // Extract thumbnail
-    if (embed.thumbnail?.url) {
+    if (embed.thumbnail?.url !== undefined && embed.thumbnail.url.length > 0) {
       imageAttachments.push({
         url: embed.thumbnail.url,
         contentType: CONTENT_TYPES.IMAGE_PNG,
