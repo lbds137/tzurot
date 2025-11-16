@@ -7,6 +7,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { createLogger, MODEL_DEFAULTS } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
@@ -57,6 +58,26 @@ export interface MemoryMetadata {
   messageIds?: string[];
   senders?: string[];
 }
+
+/**
+ * Zod schema for MemoryMetadata validation
+ * Used to safely parse Prisma Json fields at runtime
+ */
+export const MemoryMetadataSchema = z.object({
+  personaId: z.string(),
+  personalityId: z.string(),
+  personalityName: z.string().optional(),
+  sessionId: z.string().optional(),
+  canonScope: z.enum(['global', 'personal', 'session']),
+  timestamp: z.number(),
+  summaryType: z.string().optional(),
+  contextType: z.string().optional(),
+  channelId: z.string().optional(),
+  guildId: z.string().optional(),
+  serverId: z.string().optional(),
+  messageIds: z.array(z.string()).optional(),
+  senders: z.array(z.string()).optional(),
+});
 
 // Namespace UUID for memories
 const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
