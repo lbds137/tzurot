@@ -75,7 +75,7 @@ export interface AIJobData {
       personaName?: string;
     }[];
     // Multimodal support
-    attachments?: Array<{
+    attachments?: {
       url: string;
       contentType: string;
       name?: string;
@@ -83,7 +83,7 @@ export interface AIJobData {
       isVoiceMessage?: boolean;
       duration?: number;
       waveform?: string;
-    }>;
+    }[];
     // Discord environment context
     environment?: {
       type: 'dm' | 'guild';
@@ -236,7 +236,7 @@ export class AIJobProcessor {
       // Collect all audio transcriptions
       const transcriptions: string[] = [];
       // Collect all image descriptions
-      const imageDescriptions: Array<{ url: string; description: string }> = [];
+      const imageDescriptions: { url: string; description: string }[] = [];
 
       for (const dep of dependencies) {
         try {
@@ -431,7 +431,7 @@ export class AIJobProcessor {
     }[],
     activePersonaId?: string,
     activePersonaName?: string
-  ): Array<{ personaId: string; personaName: string; isActive: boolean }> {
+  ): { personaId: string; personaName: string; isActive: boolean }[] {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
     const userMessagesWithPersona = history.filter(

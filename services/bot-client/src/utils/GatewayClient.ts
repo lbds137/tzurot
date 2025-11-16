@@ -82,7 +82,7 @@ export class GatewayClient {
    * Request voice transcription from the gateway
    */
   async transcribe(
-    attachments: Array<{
+    attachments: {
       url: string;
       contentType: string;
       name?: string;
@@ -90,7 +90,7 @@ export class GatewayClient {
       isVoiceMessage?: boolean;
       duration?: number;
       waveform?: string;
-    }>
+    }[]
   ): Promise<{
     content: string;
     metadata?: {

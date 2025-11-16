@@ -10,9 +10,7 @@ import type { Logger } from 'pino';
 /**
  * Additional context to include in error logs
  */
-export interface ErrorContext {
-  [key: string]: unknown;
-}
+export type ErrorContext = Record<string, unknown>;
 
 /**
  * Structured error details extracted from an error object

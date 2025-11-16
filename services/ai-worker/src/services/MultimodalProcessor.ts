@@ -190,9 +190,9 @@ async function describeWithVisionModel(
 
     // Extract API response details if available
     if (error && typeof error === 'object') {
-      if ('response' in error) context.apiResponse = (error as any).response;
-      if ('status' in error) context.statusCode = (error as any).status;
-      if ('statusText' in error) context.statusText = (error as any).statusText;
+      if ('response' in error) {context.apiResponse = (error as any).response;}
+      if ('status' in error) {context.statusCode = (error as any).status;}
+      if ('statusText' in error) {context.statusText = (error as any).statusText;}
     }
 
     logErrorWithDetails(logger, 'Vision model invocation failed', error, context);
@@ -262,9 +262,9 @@ async function describeWithFallbackVision(
 
     // Extract API response details if available
     if (error && typeof error === 'object') {
-      if ('response' in error) context.apiResponse = (error as any).response;
-      if ('status' in error) context.statusCode = (error as any).status;
-      if ('statusText' in error) context.statusText = (error as any).statusText;
+      if ('response' in error) {context.apiResponse = (error as any).response;}
+      if ('status' in error) {context.statusCode = (error as any).status;}
+      if ('statusText' in error) {context.statusText = (error as any).statusText;}
     }
 
     logErrorWithDetails(logger, 'Fallback vision model invocation failed', error, context);

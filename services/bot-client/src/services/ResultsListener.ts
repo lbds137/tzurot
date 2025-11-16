@@ -155,13 +155,13 @@ export class ResultsListener {
    */
   private async processMessages(messages: unknown): Promise<void> {
     // Type assertion - xReadGroup returns a specific structure
-    const streamMessages = messages as Array<{
+    const streamMessages = messages as {
       name: string;
-      messages: Array<{
+      messages: {
         id: string;
         message: Record<string, string>;
-      }>;
-    }>;
+      }[];
+    }[];
 
     for (const stream of streamMessages) {
       for (const msg of stream.messages) {

@@ -19,7 +19,7 @@ import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
 import { createJobChain } from '../utils/jobChainOrchestrator.js';
-import type { GenerateRequest, GenerateResponse } from '../types.js';
+import type { GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
@@ -58,7 +58,7 @@ aiRouter.post('/generate', async (req, res) => {
       return;
     }
 
-    const request = validationResult.data as GenerateRequest;
+    const request = validationResult.data;
 
     // Capture context for error logging
     userId = request.context.userId;

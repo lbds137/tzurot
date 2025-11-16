@@ -70,7 +70,7 @@ export class VoiceTranscriptionService {
       // Send transcribe job to api-gateway
       const response = await this.gatewayClient.transcribe(attachments);
 
-      if (!response || !response.content) {
+      if (!response?.content) {
         throw new Error('No transcript returned from transcription service');
       }
 

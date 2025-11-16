@@ -40,7 +40,7 @@ export interface JobContext {
   isProxyMessage?: boolean;
   activePersonaId?: string;
   activePersonaName?: string;
-  conversationHistory?: Array<{
+  conversationHistory?: {
     id?: string;
     role: MessageRole;
     content: string;
@@ -48,7 +48,7 @@ export interface JobContext {
     createdAt?: string;
     personaId?: string;
     personaName?: string;
-  }>;
+  }[];
   attachments?: AttachmentMetadata[];
   environment?: DiscordEnvironment;
   referencedMessages?: ReferencedMessage[];
@@ -154,10 +154,10 @@ export interface ImageDescriptionResult {
   requestId: string;
   success: boolean;
   /** Descriptions for each image */
-  descriptions?: Array<{
+  descriptions?: {
     url: string;
     description: string;
-  }>;
+  }[];
   /** Error message if failed */
   error?: string;
   metadata?: {

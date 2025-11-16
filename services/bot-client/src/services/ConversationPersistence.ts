@@ -26,7 +26,7 @@ export interface SaveUserMessageOptions {
   /** Message content (with links replaced) */
   messageContent: string;
   /** Attachments metadata */
-  attachments?: Array<{
+  attachments?: {
     url: string;
     contentType: string;
     name?: string;
@@ -34,7 +34,7 @@ export interface SaveUserMessageOptions {
     isVoiceMessage?: boolean;
     duration?: number;
     waveform?: string;
-  }>;
+  }[];
   /** Referenced messages */
   referencedMessages?: ReferencedMessage[];
 }

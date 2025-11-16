@@ -74,12 +74,12 @@ interface ImportSummary {
   skipped: number;
   successful: number;
   failed: number;
-  results: Array<{
+  results: {
     slug: string;
     status: 'skipped' | 'success' | 'error';
     reason?: string;
     name?: string;
-  }>;
+  }[];
 }
 
 class BulkPersonalityImporter {

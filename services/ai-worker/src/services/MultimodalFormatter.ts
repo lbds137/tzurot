@@ -109,7 +109,7 @@ export async function formatForGemini(
  */
 export function formatForOpenAI(
   attachments: AttachmentMetadata[]
-): Array<{ type: 'image_url'; image_url: { url: string } }> {
+): { type: 'image_url'; image_url: { url: string } }[] {
   return attachments
     .filter(a => a.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX))
     .map(attachment => ({
@@ -138,7 +138,7 @@ export async function formatAttachments(
   attachments: AttachmentMetadata[] | undefined,
   provider: string
 ): Promise<
-  LangChainMediaContent[] | Array<{ type: 'image_url'; image_url: { url: string } }> | null
+  LangChainMediaContent[] | { type: 'image_url'; image_url: { url: string } }[] | null
 > {
   if (!attachments || attachments.length === 0) {
     return null;

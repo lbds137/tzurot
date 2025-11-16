@@ -173,7 +173,7 @@ export async function withRetry<T>(
 export async function withTimeout<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
-  operationName: string = 'operation'
+  operationName = 'operation'
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);

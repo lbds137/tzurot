@@ -37,14 +37,14 @@ export type {
  */
 export interface MessageContext extends Omit<RequestContext, 'conversationHistory'> {
   messageContent: string;
-  conversationHistory?: Array<{
+  conversationHistory?: {
     id?: string; // Internal UUID for deduplication
     role: MessageRole;
     content: string;
     createdAt?: string;
     personaId?: string; // Which persona said this message
     personaName?: string; // Persona's name for context
-  }>;
+  }[];
 }
 
 /**

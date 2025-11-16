@@ -101,7 +101,7 @@ export class WebhookManager {
         throw new Error(`Thread ${channel.id} has unsupported parent channel type: ${parent.type}`);
       }
 
-      targetChannel = parent as TextChannel | ForumChannel;
+      targetChannel = parent;
     } else {
       // channel is TextChannel since it's not a thread
       targetChannel = channel as TextChannel;

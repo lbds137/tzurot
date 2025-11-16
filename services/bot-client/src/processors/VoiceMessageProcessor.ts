@@ -48,7 +48,7 @@ export class VoiceMessageProcessor implements IMessageProcessor {
       config.BOT_MENTION_CHAR,
       this.personalityService
     );
-    const hasMention = mentionCheck !== null || message.mentions.has(message.client.user!);
+    const hasMention = mentionCheck !== null || message.mentions.has(message.client.user);
 
     // Transcribe the voice message
     const result = await this.voiceService.transcribe(message, hasMention, isReply);

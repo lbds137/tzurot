@@ -80,7 +80,7 @@ function calculateTimeoutWithRetries(
  * // 1 audio: audio with retries + LLM + overhead
  * calculateJobTimeout(0, 1) // 633s + 480s + 15s = 1128s (capped at 1200s)
  */
-export function calculateJobTimeout(imageCount: number, audioCount: number = 0): number {
+export function calculateJobTimeout(imageCount: number, audioCount = 0): number {
   let timeout = TIMEOUTS.SYSTEM_OVERHEAD; // 15s
 
   // Attachment processing time WITH RETRIES (components run in parallel, use slowest)

@@ -44,12 +44,12 @@ export class ReplyResolutionService {
       // This prevents both dev and prod bots from responding to the same personality webhook
       if (
         referencedMessage.applicationId &&
-        referencedMessage.applicationId !== message.client.user!.id
+        referencedMessage.applicationId !== message.client.user.id
       ) {
         logger.debug(
           {
             webhookApplicationId: referencedMessage.applicationId,
-            currentBotId: message.client.user!.id,
+            currentBotId: message.client.user.id,
           },
           '[ReplyResolutionService] Ignoring reply to webhook from different bot instance'
         );

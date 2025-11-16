@@ -156,7 +156,7 @@ export class MemoryRetriever {
         },
       });
 
-      if (!persona) return null;
+      if (!persona) {return null;}
 
       // Build persona context with structured fields
       const parts: string[] = [];

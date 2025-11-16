@@ -280,22 +280,22 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
 
     // Build update data object with only provided fields
     const updateData: Record<string, unknown> = {};
-    if (name !== undefined) updateData.name = name;
-    if (characterInfo !== undefined) updateData.characterInfo = characterInfo;
-    if (personalityTraits !== undefined) updateData.personalityTraits = personalityTraits;
-    if (displayName !== undefined) updateData.displayName = displayName;
-    if (personalityTone !== undefined) updateData.personalityTone = personalityTone;
-    if (personalityAge !== undefined) updateData.personalityAge = personalityAge;
+    if (name !== undefined) {updateData.name = name;}
+    if (characterInfo !== undefined) {updateData.characterInfo = characterInfo;}
+    if (personalityTraits !== undefined) {updateData.personalityTraits = personalityTraits;}
+    if (displayName !== undefined) {updateData.displayName = displayName;}
+    if (personalityTone !== undefined) {updateData.personalityTone = personalityTone;}
+    if (personalityAge !== undefined) {updateData.personalityAge = personalityAge;}
     if (personalityAppearance !== undefined)
-      updateData.personalityAppearance = personalityAppearance;
-    if (personalityLikes !== undefined) updateData.personalityLikes = personalityLikes;
-    if (personalityDislikes !== undefined) updateData.personalityDislikes = personalityDislikes;
-    if (conversationalGoals !== undefined) updateData.conversationalGoals = conversationalGoals;
+      {updateData.personalityAppearance = personalityAppearance;}
+    if (personalityLikes !== undefined) {updateData.personalityLikes = personalityLikes;}
+    if (personalityDislikes !== undefined) {updateData.personalityDislikes = personalityDislikes;}
+    if (conversationalGoals !== undefined) {updateData.conversationalGoals = conversationalGoals;}
     if (conversationalExamples !== undefined)
-      updateData.conversationalExamples = conversationalExamples;
-    if (customFields !== undefined) updateData.customFields = customFields;
+      {updateData.conversationalExamples = conversationalExamples;}
+    if (customFields !== undefined) {updateData.customFields = customFields;}
     if (processedAvatarData !== undefined)
-      updateData.avatarData = new Uint8Array(processedAvatarData);
+      {updateData.avatarData = new Uint8Array(processedAvatarData);}
 
     // Update personality in database
     const personality = await prisma.personality.update({
