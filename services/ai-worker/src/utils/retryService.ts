@@ -92,7 +92,7 @@ export async function withRetry<T>(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     // Check global timeout
-    if (globalTimeoutMs) {
+    if (globalTimeoutMs !== undefined && globalTimeoutMs > 0) {
       const elapsed = Date.now() - startTime;
       if (elapsed >= globalTimeoutMs) {
         const error = new RetryError(
