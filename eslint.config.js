@@ -22,6 +22,7 @@ export default tseslint.config(
       '**/*.cjs',
       '**/*.mjs',
       '**/*.d.ts',
+      '**/*.tsbuildinfo',
       '**/*.test.ts',
       '**/*.spec.ts',
       'coverage/**',
