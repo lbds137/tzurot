@@ -12,12 +12,12 @@ import type { IMessageProcessor } from './IMessageProcessor.js';
 const logger = createLogger('BotMessageFilter');
 
 export class BotMessageFilter implements IMessageProcessor {
-  async process(message: Message): Promise<boolean> {
+  process(message: Message): Promise<boolean> {
     if (message.author.bot) {
       logger.debug({ authorId: message.author.id }, '[BotMessageFilter] Ignoring bot message');
-      return true; // Stop processing
+      return Promise.resolve(true); // Stop processing
     }
 
-    return false; // Continue to next processor
+    return Promise.resolve(false); // Continue to next processor
   }
 }

@@ -38,15 +38,15 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
   // We use double type assertion (as unknown as PersonalityService) because this is a test mock
   // that only implements the methods we need, not the full class with all properties
   const mockService = {
-    loadPersonality: vi.fn().mockImplementation(async (name: string) => {
+    loadPersonality: vi.fn().mockImplementation((name: string) => {
       const personality = personalityMap.get(name.toLowerCase());
       if (!personality) {
-        return null;
+        return Promise.resolve(null);
       }
 
       // Return a minimal mock personality object
       // In real code this would be a full LoadedPersonality from the database
-      return {
+      return Promise.resolve({
         id: 'mock-id',
         name: personality.name,
         displayName: personality.displayName,
@@ -59,7 +59,7 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
         contextWindowTokens: 131072,
         characterInfo: '',
         personalityTraits: '',
-      } as unknown as LoadedPersonality;
+      } as unknown as LoadedPersonality);
     }),
 
     // Add other PersonalityService methods as needed for tests

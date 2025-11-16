@@ -12,12 +12,12 @@ import type { IMessageProcessor } from './IMessageProcessor.js';
 const logger = createLogger('EmptyMessageFilter');
 
 export class EmptyMessageFilter implements IMessageProcessor {
-  async process(message: Message): Promise<boolean> {
+  process(message: Message): Promise<boolean> {
     if (message.content.length === 0 && message.attachments.size === 0) {
       logger.debug({ messageId: message.id }, '[EmptyMessageFilter] Ignoring empty message');
-      return true; // Stop processing
+      return Promise.resolve(true); // Stop processing
     }
 
-    return false; // Continue to next processor
+    return Promise.resolve(false); // Continue to next processor
   }
 }
