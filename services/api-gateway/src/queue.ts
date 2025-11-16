@@ -23,12 +23,12 @@ const config = getConfig();
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
 const parsedUrl =
-  config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
+  config.REDIS_URL !== undefined && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
 
 const redisConfig = createBullMQRedisConfig({
-  host: parsedUrl?.host || config.REDIS_HOST,
-  port: parsedUrl?.port || config.REDIS_PORT,
-  password: parsedUrl?.password || config.REDIS_PASSWORD,
+  host: parsedUrl?.host ?? config.REDIS_HOST,
+  port: parsedUrl?.port ?? config.REDIS_PORT,
+  password: parsedUrl?.password ?? config.REDIS_PASSWORD,
   username: parsedUrl?.username,
   family: 6, // Railway private network uses IPv6
 });

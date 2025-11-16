@@ -22,6 +22,7 @@ import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
 const require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
 const pinoHttp = require('pino-http');
 import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
@@ -77,7 +78,8 @@ app.use('/admin', adminRouter);
 // Serve personality avatars with DB fallback
 // Avatars are primarily served from filesystem (/data/avatars)
 // If not found on filesystem, fall back to database and cache to filesystem
-app.get('/avatars/:slug.png', async (req, res) => {
+app.get('/avatars/:slug.png', (req, res) => {
+  void (async () => {
   const slug = req.params.slug;
   const avatarPath = `/data/avatars/${slug}.png`;
 
@@ -127,6 +129,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
     }
   }
+  })();
 });
 
 // Serve temporary attachments from Railway volume
@@ -198,7 +201,8 @@ async function checkAvatarStorage(): Promise<{ status: HealthStatus; count?: num
 /**
  * GET /health - Health check endpoint
  */
-app.get('/health', async (_req, res) => {
+app.get('/health', (_req, res) => {
+  void (async () => {
   try {
     const queueHealthy = await checkQueueHealth();
     const avatarStorage = await checkAvatarStorage();
@@ -232,12 +236,14 @@ app.get('/health', async (_req, res) => {
 
     res.status(StatusCodes.SERVICE_UNAVAILABLE).json(health);
   }
+  })();
 });
 
 /**
  * GET /metrics - Simple metrics endpoint
  */
-app.get('/metrics', async (_req, res) => {
+app.get('/metrics', (_req, res) => {
+  void (async () => {
   try {
     const [waiting, active, completed, failed] = await Promise.all([
       aiQueue.getWaitingCount(),
@@ -269,6 +275,7 @@ app.get('/metrics', async (_req, res) => {
 
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
   }
+  })();
 });
 
 /**
@@ -336,7 +343,7 @@ async function main(): Promise<void> {
   });
 
   // Graceful shutdown
-  const shutdown = async () => {
+  const shutdown = async (): Promise<void> => {
     logger.info('[Gateway] Shutting down gracefully...');
 
     // Stop accepting new connections
