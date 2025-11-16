@@ -196,6 +196,7 @@ async function describeWithVisionModel(
     }
 
     logErrorWithDetails(logger, 'Vision model invocation failed', error, context);
+    throw error; // Re-throw to allow retry logic to handle
   }
 }
 
@@ -267,6 +268,7 @@ async function describeWithFallbackVision(
     }
 
     logErrorWithDetails(logger, 'Fallback vision model invocation failed', error, context);
+    throw error; // Re-throw to allow retry logic to handle
   }
 }
 
