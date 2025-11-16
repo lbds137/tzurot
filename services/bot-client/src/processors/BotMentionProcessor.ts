@@ -32,7 +32,7 @@ export class BotMentionProcessor implements IMessageProcessor {
     const defaultPersonality = await this.personalityService.loadPersonality('default');
 
     if (!defaultPersonality) {
-      logger.warn('[BotMentionProcessor] Default personality not configured');
+      logger.warn({}, '[BotMentionProcessor] Default personality not configured');
       return false; // No default personality, message is unhandled
     }
 

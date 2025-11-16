@@ -127,6 +127,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
 
         if (result.exceedsTarget) {
           logger.warn(
+            {},
             `[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`
           );
         }
@@ -185,6 +186,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         logger.info(`[Admin] Set default LLM config for ${slug}: ${defaultLlmConfig.name}`);
       } else {
         logger.warn(
+          {},
           '[Admin] No default global LLM config found, skipping default config assignment'
         );
       }
@@ -263,6 +265,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
 
         if (result.exceedsTarget) {
           logger.warn(
+            {},
             `[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`
           );
         }

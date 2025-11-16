@@ -54,6 +54,7 @@ export class MemoryRetriever {
 
     if (!personaId) {
       logger.warn(
+        {},
         `[MemoryRetriever] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
       );
       return [];
@@ -131,6 +132,7 @@ export class MemoryRetriever {
         );
       } else {
         logger.warn(
+          {},
           `[MemoryRetriever] No content found for participant ${participant.personaName} (${participant.personaId})`
         );
       }
@@ -226,7 +228,7 @@ export class MemoryRetriever {
       if (personaId) {
         logger.debug(`[MemoryRetriever] Using default persona for user ${userId}`);
       } else {
-        logger.warn(`[MemoryRetriever] No persona found for user ${userId}`);
+        logger.warn({}, `[MemoryRetriever] No persona found for user ${userId}`);
       }
 
       return personaId;

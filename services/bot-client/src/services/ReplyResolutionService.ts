@@ -27,7 +27,7 @@ export class ReplyResolutionService {
   async resolvePersonality(message: Message): Promise<LoadedPersonality | null> {
     try {
       if (!message.reference?.messageId) {
-        logger.warn('[ReplyResolutionService] Called with message that has no reference');
+        logger.warn({}, '[ReplyResolutionService] Called with message that has no reference');
         return null;
       }
 

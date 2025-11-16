@@ -1,0 +1,1121 @@
+2025-11-16T19:00:16.6290712Z Current runner version: '2.329.0'
+2025-11-16T19:00:16.6316683Z ##[group]Runner Image Provisioner
+2025-11-16T19:00:16.6317500Z Hosted Compute Agent
+2025-11-16T19:00:16.6318032Z Version: 20251016.436
+2025-11-16T19:00:16.6318698Z Commit: 8ab8ac8bfd662a3739dab9fe09456aba92132568
+2025-11-16T19:00:16.6319389Z Build Date: 2025-10-15T20:44:12Z
+2025-11-16T19:00:16.6319933Z ##[endgroup]
+2025-11-16T19:00:16.6320545Z ##[group]Operating System
+2025-11-16T19:00:16.6321065Z Ubuntu
+2025-11-16T19:00:16.6321541Z 24.04.3
+2025-11-16T19:00:16.6322045Z LTS
+2025-11-16T19:00:16.6322463Z ##[endgroup]
+2025-11-16T19:00:16.6322942Z ##[group]Runner Image
+2025-11-16T19:00:16.6323717Z Image: ubuntu-24.04
+2025-11-16T19:00:16.6324266Z Version: 20251112.124.1
+2025-11-16T19:00:16.6325248Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251112.124/images/ubuntu/Ubuntu2404-Readme.md
+2025-11-16T19:00:16.6326866Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251112.124
+2025-11-16T19:00:16.6327871Z ##[endgroup]
+2025-11-16T19:00:16.6328992Z ##[group]GITHUB_TOKEN Permissions
+2025-11-16T19:00:16.6330944Z Contents: read
+2025-11-16T19:00:16.6331454Z Metadata: read
+2025-11-16T19:00:16.6332055Z Packages: read
+2025-11-16T19:00:16.6332506Z ##[endgroup]
+2025-11-16T19:00:16.6334915Z Secret source: Actions
+2025-11-16T19:00:16.6335757Z Prepare workflow directory
+2025-11-16T19:00:16.6680935Z Prepare all required actions
+2025-11-16T19:00:16.6719567Z Getting action download info
+2025-11-16T19:00:17.0587622Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-11-16T19:00:17.1858726Z Download action repository 'pnpm/action-setup@v2' (SHA:eae0cfeb286e66ffb5155f1a79b90583a127a68b)
+2025-11-16T19:00:18.1394130Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2025-11-16T19:00:18.3340600Z Complete job name: lint
+2025-11-16T19:00:18.4199719Z ##[group]Run actions/checkout@v4
+2025-11-16T19:00:18.4201062Z with:
+2025-11-16T19:00:18.4201877Z   repository: lbds137/tzurot
+2025-11-16T19:00:18.4203143Z   token: ***
+2025-11-16T19:00:18.4204060Z   ssh-strict: true
+2025-11-16T19:00:18.4204887Z   ssh-user: git
+2025-11-16T19:00:18.4205671Z   persist-credentials: true
+2025-11-16T19:00:18.4206565Z   clean: true
+2025-11-16T19:00:18.4207377Z   sparse-checkout-cone-mode: true
+2025-11-16T19:00:18.4208347Z   fetch-depth: 1
+2025-11-16T19:00:18.4209107Z   fetch-tags: false
+2025-11-16T19:00:18.4209943Z   show-progress: true
+2025-11-16T19:00:18.4210756Z   lfs: false
+2025-11-16T19:00:18.4211491Z   submodules: false
+2025-11-16T19:00:18.4212462Z   set-safe-directory: true
+2025-11-16T19:00:18.4214293Z ##[endgroup]
+2025-11-16T19:00:18.5316908Z Syncing repository: lbds137/tzurot
+2025-11-16T19:00:18.5319606Z ##[group]Getting Git version info
+2025-11-16T19:00:18.5320887Z Working directory is '/home/runner/work/tzurot/tzurot'
+2025-11-16T19:00:18.5322817Z [command]/usr/bin/git version
+2025-11-16T19:00:18.5417957Z git version 2.51.2
+2025-11-16T19:00:18.5447375Z ##[endgroup]
+2025-11-16T19:00:18.5472858Z Temporarily overriding HOME='/home/runner/work/_temp/ebb0ca52-2f8e-4656-bb8a-fc7ba7071799' before making global git config changes
+2025-11-16T19:00:18.5478182Z Adding repository directory to the temporary git global config as a safe directory
+2025-11-16T19:00:18.5481855Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tzurot/tzurot
+2025-11-16T19:00:18.5524651Z Deleting the contents of '/home/runner/work/tzurot/tzurot'
+2025-11-16T19:00:18.5529290Z ##[group]Initializing the repository
+2025-11-16T19:00:18.5534588Z [command]/usr/bin/git init /home/runner/work/tzurot/tzurot
+2025-11-16T19:00:18.5670791Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-11-16T19:00:18.5673721Z hint: is subject to change. To configure the initial branch name to use in all
+2025-11-16T19:00:18.5676582Z hint: of your new repositories, which will suppress this warning, call:
+2025-11-16T19:00:18.5678943Z hint:
+2025-11-16T19:00:18.5681030Z hint: 	git config --global init.defaultBranch <name>
+2025-11-16T19:00:18.5682981Z hint:
+2025-11-16T19:00:18.5685041Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-11-16T19:00:18.5688172Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-11-16T19:00:18.5690654Z hint:
+2025-11-16T19:00:18.5691936Z hint: 	git branch -m <name>
+2025-11-16T19:00:18.5693304Z hint:
+2025-11-16T19:00:18.5695406Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-11-16T19:00:18.5698179Z Initialized empty Git repository in /home/runner/work/tzurot/tzurot/.git/
+2025-11-16T19:00:18.5701306Z [command]/usr/bin/git remote add origin https://github.com/lbds137/tzurot
+2025-11-16T19:00:18.5732471Z ##[endgroup]
+2025-11-16T19:00:18.5735191Z ##[group]Disabling automatic garbage collection
+2025-11-16T19:00:18.5737543Z [command]/usr/bin/git config --local gc.auto 0
+2025-11-16T19:00:18.5769782Z ##[endgroup]
+2025-11-16T19:00:18.5771069Z ##[group]Setting up auth
+2025-11-16T19:00:18.5776650Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-11-16T19:00:18.5809369Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-11-16T19:00:18.6197525Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-11-16T19:00:18.6230924Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-11-16T19:00:18.6466358Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-11-16T19:00:18.6506064Z ##[endgroup]
+2025-11-16T19:00:18.6507918Z ##[group]Fetching the repository
+2025-11-16T19:00:18.6515596Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +82e9cd0ad49224f35c0d62bd71505c88b1967cbb:refs/remotes/origin/develop
+2025-11-16T19:00:19.7431723Z From https://github.com/lbds137/tzurot
+2025-11-16T19:00:19.7433240Z  * [new ref]         82e9cd0ad49224f35c0d62bd71505c88b1967cbb -> origin/develop
+2025-11-16T19:00:19.7464944Z ##[endgroup]
+2025-11-16T19:00:19.7465757Z ##[group]Determining the checkout info
+2025-11-16T19:00:19.7467801Z ##[endgroup]
+2025-11-16T19:00:19.7473697Z [command]/usr/bin/git sparse-checkout disable
+2025-11-16T19:00:19.7515013Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-11-16T19:00:19.7542868Z ##[group]Checking out the ref
+2025-11-16T19:00:19.7547837Z [command]/usr/bin/git checkout --progress --force -B develop refs/remotes/origin/develop
+2025-11-16T19:00:19.8346345Z Switched to a new branch 'develop'
+2025-11-16T19:00:19.8347311Z branch 'develop' set up to track 'origin/develop'.
+2025-11-16T19:00:19.8356012Z ##[endgroup]
+2025-11-16T19:00:19.8394092Z [command]/usr/bin/git log -1 --format=%H
+2025-11-16T19:00:19.8416754Z 82e9cd0ad49224f35c0d62bd71505c88b1967cbb
+2025-11-16T19:00:19.8619616Z ##[group]Run pnpm/action-setup@v2
+2025-11-16T19:00:19.8619986Z with:
+2025-11-16T19:00:19.8620224Z   version: 8
+2025-11-16T19:00:19.8620462Z   dest: ~/setup-pnpm
+2025-11-16T19:00:19.8620740Z   run_install: null
+2025-11-16T19:00:19.8621024Z   package_json_file: package.json
+2025-11-16T19:00:19.8621330Z   standalone: false
+2025-11-16T19:00:19.8621574Z ##[endgroup]
+2025-11-16T19:00:19.9527767Z ##[group]Running self-installer...
+2025-11-16T19:00:20.5890755Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2025-11-16T19:00:20.5986557Z Packages: +1
+2025-11-16T19:00:20.5987851Z +
+2025-11-16T19:00:21.1880671Z Packages are hard linked from the content-addressable store to the virtual store.
+2025-11-16T19:00:21.1881733Z   Content-addressable store is at: /home/runner/.local/share/pnpm/store/v3
+2025-11-16T19:00:21.1882450Z   Virtual store is at:             node_modules/.pnpm
+2025-11-16T19:00:21.2100287Z
+2025-11-16T19:00:21.2100743Z dependencies:
+2025-11-16T19:00:21.2101200Z + pnpm 8.15.9 (10.22.0 is available)
+2025-11-16T19:00:21.2101415Z
+2025-11-16T19:00:21.2128454Z Done in 1s
+2025-11-16T19:00:21.5900726Z Progress: resolved 1, reused 0, downloaded 1, added 1, done
+2025-11-16T19:00:21.6066914Z ##[endgroup]
+2025-11-16T19:00:21.6073031Z Installation Completed!
+2025-11-16T19:00:21.6225628Z ##[group]Run actions/setup-node@v4
+2025-11-16T19:00:21.6225996Z with:
+2025-11-16T19:00:21.6226271Z   node-version: 20
+2025-11-16T19:00:21.6226561Z   cache: pnpm
+2025-11-16T19:00:21.6226892Z   always-auth: false
+2025-11-16T19:00:21.6227184Z   check-latest: false
+2025-11-16T19:00:21.6227632Z   token: ***
+2025-11-16T19:00:21.6227916Z env:
+2025-11-16T19:00:21.6228206Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2025-11-16T19:00:21.6228634Z ##[endgroup]
+2025-11-16T19:00:21.8187202Z Found in cache @ /opt/hostedtoolcache/node/20.19.5/x64
+2025-11-16T19:00:21.8190271Z ##[group]Environment details
+2025-11-16T19:00:22.2330895Z node: v20.19.5
+2025-11-16T19:00:22.2335934Z npm: 10.8.2
+2025-11-16T19:00:22.2336633Z yarn: 1.22.22
+2025-11-16T19:00:22.2338287Z ##[endgroup]
+2025-11-16T19:00:22.2363054Z [command]/home/runner/setup-pnpm/node_modules/.bin/pnpm store path --silent
+2025-11-16T19:00:22.7635341Z /home/runner/setup-pnpm/node_modules/.bin/store/v3
+2025-11-16T19:00:23.0116278Z Cache hit for: node-cache-Linux-x64-pnpm-cadb5bb10b48212aa3513edeadf24884a86c9941f44c4582dd84b09fcad324ed
+2025-11-16T19:00:24.2775613Z Received 29360128 of 148210243 (19.8%), 28.0 MBs/sec
+2025-11-16T19:00:25.2274371Z Received 148210243 of 148210243 (100.0%), 72.4 MBs/sec
+2025-11-16T19:00:25.2276152Z Cache Size: ~141 MB (148210243 B)
+2025-11-16T19:00:25.2364815Z [command]/usr/bin/tar -xf /home/runner/work/_temp/3ef23bab-6837-4324-8eb5-465a0ae58539/cache.tzst -P -C /home/runner/work/tzurot/tzurot --use-compress-program unzstd
+2025-11-16T19:00:26.7922110Z Cache restored successfully
+2025-11-16T19:00:26.8212449Z Cache restored from key: node-cache-Linux-x64-pnpm-cadb5bb10b48212aa3513edeadf24884a86c9941f44c4582dd84b09fcad324ed
+2025-11-16T19:00:26.8420062Z ##[group]Run pnpm install --frozen-lockfile
+2025-11-16T19:00:26.8420453Z [36;1mpnpm install --frozen-lockfile[0m
+2025-11-16T19:00:26.8466027Z shell: /usr/bin/bash -e {0}
+2025-11-16T19:00:26.8466259Z env:
+2025-11-16T19:00:26.8466485Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2025-11-16T19:00:26.8466773Z ##[endgroup]
+2025-11-16T19:00:27.2734588Z Scope: all 6 workspace projects
+2025-11-16T19:00:27.3408116Z Lockfile is up to date, resolution step is skipped
+2025-11-16T19:00:27.3957519Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2025-11-16T19:00:27.5066988Z Packages: +479
+2025-11-16T19:00:27.5069174Z ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2025-11-16T19:00:28.3985575Z Progress: resolved 479, reused 479, downloaded 0, added 253
+2025-11-16T19:00:28.5055139Z Progress: resolved 479, reused 479, downloaded 0, added 479, done
+2025-11-16T19:00:29.0640960Z
+2025-11-16T19:00:29.0641586Z dependencies:
+2025-11-16T19:00:29.0642116Z + http-status-codes 2.3.0
+2025-11-16T19:00:29.0642517Z + openai 6.7.0
+2025-11-16T19:00:29.0642835Z + uuid 13.0.0
+2025-11-16T19:00:29.0643036Z
+2025-11-16T19:00:29.0643173Z devDependencies:
+2025-11-16T19:00:29.0643815Z + @eslint/js 9.38.0
+2025-11-16T19:00:29.0644179Z + @langchain/core 1.0.1
+2025-11-16T19:00:29.0644603Z + @langchain/openai 1.0.0
+2025-11-16T19:00:29.0645021Z + @prisma/client 6.18.0
+2025-11-16T19:00:29.0645404Z + @types/node 24.9.1
+2025-11-16T19:00:29.0645847Z + @typescript-eslint/eslint-plugin 8.46.2
+2025-11-16T19:00:29.0646397Z + @typescript-eslint/parser 8.46.2
+2025-11-16T19:00:29.0646820Z + debug 4.4.3
+2025-11-16T19:00:29.0647105Z + dotenv 17.2.3
+2025-11-16T19:00:29.0647419Z + eslint 9.38.0
+2025-11-16T19:00:29.0647716Z + globals 16.4.0
+2025-11-16T19:00:29.0648021Z + pino 10.1.0
+2025-11-16T19:00:29.0648354Z + pino-pretty 13.1.1
+2025-11-16T19:00:29.0648682Z + prettier 3.6.2
+2025-11-16T19:00:29.0649423Z + prisma 6.18.0
+2025-11-16T19:00:29.0649717Z + tsx 4.20.6
+2025-11-16T19:00:29.0650052Z + typescript 5.9.3
+2025-11-16T19:00:29.0650403Z + typescript-eslint 8.46.2
+2025-11-16T19:00:29.0650759Z + vitest 4.0.3
+2025-11-16T19:00:29.0650964Z
+2025-11-16T19:00:29.1083978Z Done in 2.2s
+2025-11-16T19:00:29.1468347Z ##[group]Run npx prisma generate
+2025-11-16T19:00:29.1468656Z [36;1mnpx prisma generate[0m
+2025-11-16T19:00:29.1501522Z shell: /usr/bin/bash -e {0}
+2025-11-16T19:00:29.1501744Z env:
+2025-11-16T19:00:29.1501974Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2025-11-16T19:00:29.1502270Z ##[endgroup]
+2025-11-16T19:00:31.6885314Z Prisma schema loaded from prisma/schema.prisma
+2025-11-16T19:00:32.4609168Z
+2025-11-16T19:00:32.4610605Z ✔ Generated Prisma Client (v6.18.0) to ./node_modules/.pnpm/@prisma+client@6.18.0_prisma@6.18.0_typescript@5.9.3/node_modules/@prisma/client in 203ms
+2025-11-16T19:00:32.4611227Z
+2025-11-16T19:00:32.4611701Z Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+2025-11-16T19:00:32.4612163Z
+2025-11-16T19:00:32.4613192Z Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+2025-11-16T19:00:32.4614314Z
+2025-11-16T19:00:32.4925364Z ##[group]Run pnpm --filter './packages/*' build
+2025-11-16T19:00:32.4925749Z [36;1mpnpm --filter './packages/*' build[0m
+2025-11-16T19:00:32.4958076Z shell: /usr/bin/bash -e {0}
+2025-11-16T19:00:32.4958303Z env:
+2025-11-16T19:00:32.4958540Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2025-11-16T19:00:32.4958828Z ##[endgroup]
+2025-11-16T19:00:32.9338669Z
+2025-11-16T19:00:32.9340038Z > @tzurot/common-types@3.0.0-alpha.39 build /home/runner/work/tzurot/tzurot/packages/common-types
+2025-11-16T19:00:32.9340930Z > tsc
+2025-11-16T19:00:32.9341117Z
+2025-11-16T19:00:36.5151453Z ##[group]Run pnpm run lint
+2025-11-16T19:00:36.5151734Z [36;1mpnpm run lint[0m
+2025-11-16T19:00:36.5185362Z shell: /usr/bin/bash -e {0}
+2025-11-16T19:00:36.5185623Z env:
+2025-11-16T19:00:36.5185849Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2025-11-16T19:00:36.5186263Z ##[endgroup]
+2025-11-16T19:00:36.9322244Z
+2025-11-16T19:00:36.9324146Z > tzurot@3.0.0-alpha.39 lint /home/runner/work/tzurot/tzurot
+2025-11-16T19:00:36.9324746Z > eslint .
+2025-11-16T19:00:36.9324920Z
+2025-11-16T19:00:53.0420335Z
+2025-11-16T19:00:53.0421355Z /home/runner/work/tzurot/tzurot/packages/common-types/src/config/config.ts
+2025-11-16T19:00:53.0451161Z ##[error]   8:35  error  Missing return type on function  @typescript-eslint/explicit-function-return-type
+2025-11-16T19:00:53.0478532Z ##[error]  18:30  error  Missing return type on function  @typescript-eslint/explicit-function-return-type
+2025-11-16T19:00:53.0479463Z
+2025-11-16T19:00:53.0479985Z /home/runner/work/tzurot/tzurot/packages/common-types/src/services/ConversationHistoryService.ts
+2025-11-16T19:00:53.0481582Z ##[error]   55:26  error  Unexpected value in conditional. A boolean expression is required                                                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0483989Z ##[error]   68:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0487329Z ##[error]   68:28  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0490712Z ##[error]   81:76  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0494677Z ##[error]   81:84  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0498623Z ##[error]  115:11  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0502278Z ##[error]  190:24  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0506000Z ##[error]  190:50  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0509355Z ##[error]  191:29  error  Unexpected object value in conditional. The condition is always true                                                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0512970Z ##[error]  238:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0516920Z ##[error]  270:24  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0520474Z ##[error]  270:50  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0524375Z ##[error]  271:29  error  Unexpected object value in conditional. The condition is always true                                                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0528025Z ##[error]  279:79  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0531588Z ##[error]  279:86  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0535245Z ##[error]  323:11  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0538987Z ##[error]  388:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0542487Z ##[error]  388:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0546003Z ##[error]  389:27  error  Unexpected object value in conditional. The condition is always true                                                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0547595Z
+2025-11-16T19:00:53.0548281Z /home/runner/work/tzurot/tzurot/packages/common-types/src/services/PersonalityService.ts
+2025-11-16T19:00:53.0550915Z ##[error]   71:23  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0554556Z ##[error]   71:54  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0558163Z ##[error]   72:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0561988Z ##[error]   74:9   error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0565839Z ##[error]  154:29  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0568993Z ##[error]  170:3   error  Missing return type on function                                                                                                              @typescript-eslint/explicit-function-return-type
+2025-11-16T19:00:53.0572392Z ##[error]  197:31  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0576278Z ##[error]  202:21  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0579984Z ##[error]  270:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0583048Z ##[error]  304:74  error  Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.0586127Z ##[error]  309:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0589271Z ##[error]  309:38  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0592771Z ##[error]  312:25  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0596034Z ##[error]  312:41  error  Unsafe member access .temperature on an `any` value                                                                                          @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0598970Z ##[error]  313:20  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.0601578Z ##[error]  313:20  error  Unsafe call of a(n) `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+2025-11-16T19:00:53.0604443Z ##[error]  313:35  error  Unsafe member access .temperature on an `any` value                                                                                          @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0607082Z ##[error]  316:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0609822Z ##[error]  316:39  error  Unsafe member access .maxTokens on an `any` value                                                                                            @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0613072Z ##[error]  318:18  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0615624Z ##[error]  318:34  error  Unsafe member access .topP on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0617275Z ##[error]  318:52  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.0618767Z ##[error]  318:52  error  Unsafe call of a(n) `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+2025-11-16T19:00:53.0620233Z ##[error]  318:67  error  Unsafe member access .topP on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0622093Z ##[error]  320:30  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0624180Z ##[error]  320:46  error  Unsafe member access .frequencyPenalty on an `any` value                                                                                     @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0626014Z ##[error]  321:20  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.0627696Z ##[error]  321:20  error  Unsafe call of a(n) `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+2025-11-16T19:00:53.0629318Z ##[error]  321:35  error  Unsafe member access .frequencyPenalty on an `any` value                                                                                     @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0631193Z ##[error]  324:29  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0632952Z ##[error]  324:45  error  Unsafe member access .presencePenalty on an `any` value                                                                                      @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0635082Z ##[error]  325:20  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.0636593Z ##[error]  325:20  error  Unsafe call of a(n) `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+2025-11-16T19:00:53.0638161Z ##[error]  325:35  error  Unsafe member access .presencePenalty on an `any` value                                                                                      @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0640042Z ##[error]  328:34  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0641860Z ##[error]  328:50  error  Unsafe member access .memoryScoreThreshold on an `any` value                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0643778Z ##[error]  329:20  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.0645526Z ##[error]  329:20  error  Unsafe call of a(n) `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+2025-11-16T19:00:53.0647132Z ##[error]  329:35  error  Unsafe member access .memoryScoreThreshold on an `any` value                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0648663Z ##[error]  332:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0650213Z ##[error]  332:41  error  Unsafe member access .memoryLimit on an `any` value                                                                                          @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0652257Z ##[error]  336:26  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0654525Z ##[error]  336:86  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0656619Z ##[error]  337:27  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0658743Z ##[error]  337:79  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0660800Z ##[error]  338:31  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0662746Z ##[error]  338:87  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0665100Z ##[error]  343:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0667075Z ##[error]  343:35  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0668697Z ##[error]  346:7   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0670505Z ##[error]  346:14  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0672234Z ##[error]  346:30  error  Unsafe member access .model on an `any` value                                                                                                @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0674572Z ##[error]  346:36  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0677274Z ##[error]  347:7   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0680485Z ##[error]  347:20  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0682667Z ##[error]  347:36  error  Unsafe member access .visionModel on an `any` value                                                                                          @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0684668Z ##[error]  347:48  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0686285Z ##[error]  349:7   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0687742Z ##[error]  351:7   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0689247Z ##[error]  351:29  error  Unsafe member access .topK on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0690688Z ##[error]  354:7   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0692435Z ##[error]  354:44  error  Unsafe member access .contextWindowTokens on an `any` value                                                                                  @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0694124Z ##[error]  357:7   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0696046Z ##[error]  376:10  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0698024Z ##[error]  385:43  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0700038Z ##[error]  422:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0701027Z
+2025-11-16T19:00:53.0701392Z /home/runner/work/tzurot/tzurot/packages/common-types/src/services/UserService.ts
+2025-11-16T19:00:53.0702706Z ##[error]   40:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0704770Z ##[error]   81:40  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0706618Z ##[error]   81:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0708461Z ##[error]   83:36  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0710286Z ##[error]   83:40  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0712134Z ##[error]  179:14  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0714468Z ##[error]  179:36  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0716405Z ##[error]  198:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0718322Z ##[error]  216:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0720236Z ##[error]  234:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0721227Z
+2025-11-16T19:00:53.0721553Z /home/runner/work/tzurot/tzurot/packages/common-types/src/services/prisma.ts
+2025-11-16T19:00:53.0722789Z ##[error]  23:30  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0723902Z
+2025-11-16T19:00:53.0724239Z /home/runner/work/tzurot/tzurot/packages/common-types/src/utils/CircuitBreaker.ts
+2025-11-16T19:00:53.0725768Z ##[error]  60:29  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0727832Z ##[error]  60:54  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0729748Z ##[error]  61:26  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0731610Z ##[error]  61:48  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0733596Z ##[error]  62:28  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0735512Z ##[error]  62:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0737397Z ##[error]  63:17  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0739231Z ##[error]  63:30  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0740148Z
+2025-11-16T19:00:53.0740505Z /home/runner/work/tzurot/tzurot/packages/common-types/src/utils/deterministicUuid.ts
+2025-11-16T19:00:53.0741811Z ##[error]  35:17  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0743813Z ##[error]  35:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0744751Z
+2025-11-16T19:00:53.0745058Z /home/runner/work/tzurot/tzurot/packages/common-types/src/utils/logger.ts
+2025-11-16T19:00:53.0746042Z ##[error]  34:13  error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0747484Z ##[error]  34:29  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.0749111Z ##[error]  34:34  error  Unsafe member access [key] on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0750839Z ##[error]  78:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0752670Z ##[error]  78:34  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0753712Z
+2025-11-16T19:00:53.0754030Z /home/runner/work/tzurot/tzurot/packages/common-types/src/utils/redis.ts
+2025-11-16T19:00:53.0755375Z ##[error]   78:17  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0757347Z ##[error]  102:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0759311Z ##[error]  110:24  error  logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details            no-restricted-syntax
+2025-11-16T19:00:53.0761255Z ##[error]  148:27  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0763475Z ##[error]  155:22  error  logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details            no-restricted-syntax
+2025-11-16T19:00:53.0764708Z
+2025-11-16T19:00:53.0765050Z /home/runner/work/tzurot/tzurot/packages/common-types/src/utils/tokenCounter.ts
+2025-11-16T19:00:53.0765898Z ##[error]  45:12  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+2025-11-16T19:00:53.0766619Z
+2025-11-16T19:00:53.0766907Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/index.ts
+2025-11-16T19:00:53.0768542Z ##[error]   34:3   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0770677Z ##[error]   37:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0772694Z ##[error]   37:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0774888Z ##[error]   38:9   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0776921Z ##[error]   38:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0778939Z ##[error]   39:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0780917Z ##[error]   39:33  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0782964Z ##[error]   63:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0785462Z ##[error]   93:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0787429Z ##[error]   95:9   error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0789393Z ##[error]  103:7   error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0791009Z ##[error]  119:14  error  Redundant use of `await` on a return value                                                                                                   no-return-await
+2025-11-16T19:00:53.0792481Z ##[error]  213:54  error  Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.0794112Z ##[error]  242:29  error  Missing return type on function                                                                                                              @typescript-eslint/explicit-function-return-type
+2025-11-16T19:00:53.0795824Z ##[error]  252:25  error  Promise returned in function argument where a void return was expected                                                                       @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.0797785Z ##[error]  253:24  error  Promise returned in function argument where a void return was expected                                                                       @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.0799644Z ##[error]  274:35  error  Unexpected nullish value in conditional. The condition is always false                                                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0800552Z
+2025-11-16T19:00:53.0800879Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/jobs/AIJobProcessor.ts
+2025-11-16T19:00:53.0802080Z ##[error]  163:9    error  The two values in this comparison do not have a shared enum type                                           @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.0803678Z ##[error]  164:14   error  Redundant use of `await` on a return value                                                                 no-return-await
+2025-11-16T19:00:53.0805230Z ##[error]  167:16   error  The two values in this comparison do not have a shared enum type                                           @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.0806752Z ##[error]  168:14   error  Redundant use of `await` on a return value                                                                 no-return-await
+2025-11-16T19:00:53.0808280Z ##[error]  169:16   error  The two values in this comparison do not have a shared enum type                                           @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.0809717Z ##[error]  170:14   error  Redundant use of `await` on a return value                                                                 no-return-await
+2025-11-16T19:00:53.0811239Z ##[error]  173:44   error  Invalid type "never" of template literal expression                                                        @typescript-eslint/restrict-template-expressions
+2025-11-16T19:00:53.0812852Z ##[error]  246:15   error  The two values in this comparison do not have a shared enum type                                           @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.0814992Z ##[error]  248:17   error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0817116Z ##[error]  248:36   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0818868Z ##[error]  254:22   error  The two values in this comparison do not have a shared enum type                                           @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.0820647Z ##[error]  256:17   error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0822562Z ##[error]  318:18   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0824574Z ##[error]  318:53   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0826480Z ##[error]  328:24   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0864395Z ##[error]  438:7    error  Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0866624Z ##[error]  438:43   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0868844Z ##[error]  446:44   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0870880Z ##[error]  446:61   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0872875Z ##[error]  455:9    error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0874972Z ##[error]  455:28   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0876907Z ##[error]  462:81   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0879244Z ##[error]  462:125  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0881270Z ##[error]  498:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0883195Z ##[error]  502:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0885264Z ##[error]  518:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0886235Z
+2025-11-16T19:00:53.0886610Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/jobs/AudioTranscriptionJob.ts
+2025-11-16T19:00:53.0887860Z ##[error]  45:8  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0888808Z
+2025-11-16T19:00:53.0889163Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/jobs/PendingMemoryProcessor.ts
+2025-11-16T19:00:53.0890743Z ##[error]  34:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0892390Z ##[error]  67:13  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0894047Z ##[error]  67:43  error  Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.0894870Z
+2025-11-16T19:00:53.0895125Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/redis.ts
+2025-11-16T19:00:53.0896376Z ##[error]   21:3   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0898283Z ##[error]   24:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0900108Z ##[error]   24:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0901949Z ##[error]   25:9   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0904014Z ##[error]   25:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0906086Z ##[error]   26:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0907953Z ##[error]   26:33  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0909777Z ##[error]   67:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0911659Z ##[error]  146:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0912627Z
+2025-11-16T19:00:53.0913015Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/ConversationalRAGService.ts
+2025-11-16T19:00:53.0914708Z ##[error]  283:11  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0916769Z ##[error]  302:14  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                                                  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0918895Z ##[error]  306:11  error  Unexpected nullable boolean value in array predicate return type. Please handle the nullish case explicitly                                  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0920961Z ##[error]  328:24  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0922912Z ##[error]  328:41  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0925112Z ##[error]  328:44  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0927272Z ##[error]  328:70  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0929286Z ##[error]  351:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0931285Z ##[error]  361:11  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0933331Z ##[error]  373:39  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0935488Z ##[error]  373:55  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0937457Z ##[error]  375:23  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                                                  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0939505Z ##[error]  375:52  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0941734Z ##[error]  378:41  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0944123Z ##[error]  378:57  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0945830Z ##[error]  389:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0947316Z ##[error]  389:34  error  Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.0948910Z ##[error]  389:39  error  Unsafe member access .usage_metadata on an `any` value                                                                                       @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.0949758Z
+2025-11-16T19:00:53.0950086Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/LLMInvoker.ts
+2025-11-16T19:00:53.0952411Z ##[warning]  44:12  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+2025-11-16T19:00:53.0953576Z
+2025-11-16T19:00:53.0953994Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/LongTermMemoryService.ts
+2025-11-16T19:00:53.0955362Z ##[error]   50:61  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0957310Z ##[error]   63:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0958927Z ##[error]   76:11  error  Unsafe assignment of an `any` value                                                                @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.0960376Z ##[error]   76:39  error  Unexpected any. Specify a different type                                                           @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.0962297Z ##[error]  100:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0963277Z
+2025-11-16T19:00:53.0963746Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/MemoryRetriever.ts
+2025-11-16T19:00:53.0965199Z ##[error]   55:10   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0967214Z ##[error]   57:9    error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0969279Z ##[error]   66:14   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0971227Z ##[error]   66:38   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0973261Z ##[error]   67:23   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0975560Z ##[error]   67:56   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0977528Z ##[error]   84:20   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0979439Z ##[error]   84:37   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0981259Z ##[error]   87:27   error  Unexpected value in conditional. A boolean expression is required                                                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0983082Z ##[error]   92:54   error  'id' will use Object's default stringification format ('[object Object]') when stringified                                                   @typescript-eslint/no-base-to-string
+2025-11-16T19:00:53.0985172Z ##[error]   92:54   error  Invalid type "{}" of template literal expression                                                                                             @typescript-eslint/restrict-template-expressions
+2025-11-16T19:00:53.0987100Z ##[error]   92:91   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0989062Z ##[error]   92:101  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.0991110Z ##[error]  123:11   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0993114Z ##[error]  134:11   error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.0995353Z ##[error]  164:11   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0997656Z ##[error]  168:11   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.0999734Z ##[error]  208:11   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1001813Z ##[error]  225:25   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1003897Z ##[error]  225:61   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1005955Z ##[error]  226:11   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1007956Z ##[error]  229:21   error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1008939Z
+2025-11-16T19:00:53.1009267Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/ModelFactory.ts
+2025-11-16T19:00:53.1010706Z ##[error]   23:14  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1012592Z ##[error]   23:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1014612Z ##[error]   28:14  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1016449Z ##[error]   28:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1018359Z ##[error]   32:14  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1020193Z ##[error]   32:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1022046Z ##[error]   61:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1024133Z ##[error]   61:41  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1026048Z ##[error]   62:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1027962Z ##[error]   66:30  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1029805Z ##[error]   66:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1031647Z ##[error]   85:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1033807Z ##[error]   85:41  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1035798Z ##[error]   86:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1037717Z ##[error]   90:30  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1039544Z ##[error]   90:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1041483Z ##[error]  115:21  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1043311Z ##[error]  115:43  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1045387Z ##[error]  116:24  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1047224Z ##[error]  116:61  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1048147Z
+2025-11-16T19:00:53.1048676Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/MultimodalFormatter.ts
+2025-11-16T19:00:53.1049805Z ##[error]  150:5  error  The case statement does not have a shared enum type with the switch predicate  @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.1051427Z ##[error]  153:5  error  The case statement does not have a shared enum type with the switch predicate  @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.1053000Z ##[error]  156:5  error  The case statement does not have a shared enum type with the switch predicate  @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.1054014Z
+2025-11-16T19:00:53.1054367Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/MultimodalProcessor.ts
+2025-11-16T19:00:53.1055680Z ##[error]   99:7   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1057271Z ##[error]  104:12  error  Redundant use of `await` on a return value                                                                 no-return-await
+2025-11-16T19:00:53.1058622Z ##[error]  113:12  error  Redundant use of `await` on a return value                                                                 no-return-await
+2025-11-16T19:00:53.1059973Z ##[error]  121:10  error  Redundant use of `await` on a return value                                                                 no-return-await
+2025-11-16T19:00:53.1061670Z ##[error]  149:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1063770Z ##[error]  192:9   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1065538Z ##[error]  193:65  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1067045Z ##[error]  193:70  error  Unsafe member access .response on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1068763Z ##[error]  194:62  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1070256Z ##[error]  194:67  error  Unsafe member access .status on an `any` value                                                             @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1071773Z ##[error]  195:66  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1073315Z ##[error]  195:71  error  Unsafe member access .statusText on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1075213Z ##[error]  264:9   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1076841Z ##[error]  265:65  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1078319Z ##[error]  265:70  error  Unsafe member access .response on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1079794Z ##[error]  266:62  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1081393Z ##[error]  266:67  error  Unsafe member access .status on an `any` value                                                             @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1082878Z ##[error]  267:66  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1084533Z ##[error]  267:71  error  Unsafe member access .statusText on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1086296Z ##[error]  287:7   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1088214Z ##[error]  292:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1090131Z ##[error]  339:40  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1091967Z ##[error]  339:56  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1093915Z ##[error]  395:79  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1094893Z
+2025-11-16T19:00:53.1095309Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/PgvectorMemoryAdapter.ts
+2025-11-16T19:00:53.1096642Z ##[error]  101:27   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1098497Z ##[error]  101:55   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1100391Z ##[error]  131:21   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1102508Z ##[error]  131:35   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1104740Z ##[error]  134:29   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1106627Z ##[error]  134:52   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1108499Z ##[error]  145:11   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1110438Z ##[error]  150:11   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1112098Z ##[error]  212:52   error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1113800Z ##[error]  218:11   error  Unsafe argument of type `any` assigned to a parameter of type `string`                                     @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1115423Z ##[error]  218:18   error  Unsafe member access .content on an `any` value                                                            @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1117166Z ##[error]  219:11   error  Unsafe argument of type `any` assigned to a parameter of type `string`                                     @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1118782Z ##[error]  219:18   error  Unsafe member access .persona_name on an `any` value                                                       @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1120384Z ##[error]  220:11   error  Unsafe argument of type `any` assigned to a parameter of type `string`                                     @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1121996Z ##[error]  220:18   error  Unsafe member access .personality_name on an `any` value                                                   @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1123582Z ##[error]  226:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1125063Z ##[error]  226:24   error  Unsafe member access .id on an `any` value                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1126468Z ##[error]  227:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1127947Z ##[error]  227:31   error  Unsafe member access .persona_id on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1129383Z ##[error]  228:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1130885Z ##[error]  228:35   error  Unsafe member access .personality_id on an `any` value                                                     @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1132331Z ##[error]  229:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1133990Z ##[error]  229:37   error  Unsafe member access .personality_name on an `any` value                                                   @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1135681Z ##[error]  230:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1137154Z ##[error]  230:31   error  Unsafe member access .session_id on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1138596Z ##[error]  231:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1140089Z ##[error]  231:32   error  Unsafe member access .canon_scope on an `any` value                                                        @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1141542Z ##[error]  232:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1143035Z ##[error]  232:33   error  Unsafe member access .summary_type on an `any` value                                                       @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1144677Z ##[error]  233:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1146164Z ##[error]  233:31   error  Unsafe member access .channel_id on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1147731Z ##[error]  234:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1149237Z ##[error]  234:29   error  Unsafe member access .guild_id on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1150676Z ##[error]  235:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1152151Z ##[error]  235:32   error  Unsafe member access .message_ids on an `any` value                                                        @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1153854Z ##[error]  236:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1155410Z ##[error]  236:29   error  Unsafe member access .senders on an `any` value                                                            @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1157052Z ##[error]  237:44   error  Unsafe argument of type `any` assigned to a parameter of type `string | number | Date`                     @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1158643Z ##[error]  237:51   error  Unsafe member access .created_at on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1160092Z ##[error]  238:13   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1161558Z ##[error]  238:30   error  Unsafe member access .distance on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1163061Z ##[error]  239:31   error  Unsafe member access .distance on an `any` value                                                           @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1165002Z ##[error]  245:106  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1167091Z ##[error]  245:128  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1168977Z ##[error]  320:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1170827Z ##[error]  320:37   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1172739Z ##[error]  322:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1174728Z ##[error]  322:39   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1176606Z ##[error]  323:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1178455Z ##[error]  323:37   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1180311Z ##[error]  324:13   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1182283Z ##[error]  324:35   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1184301Z ##[error]  325:38   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1186128Z ##[error]  326:35   error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1187067Z
+2025-11-16T19:00:53.1187406Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/PromptBuilder.ts
+2025-11-16T19:00:53.1188591Z ##[error]   45:15   error    Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1190264Z ##[error]   69:3    error    Async method 'buildHumanMessage' has no 'await' expression                                                 @typescript-eslint/require-await
+2025-11-16T19:00:53.1191948Z ##[error]   82:17   error    Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1194085Z ##[error]  105:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1196108Z ##[error]  125:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1197889Z ##[error]  139:3    error    Async method 'buildFullSystemPrompt' has no 'await' expression                                             @typescript-eslint/require-await
+2025-11-16T19:00:53.1199697Z ##[error]  148:7    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1201535Z ##[error]  148:33   error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1203752Z ##[error]  163:31   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1205729Z ##[error]  183:105  error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1207593Z ##[error]  183:131  error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1209378Z ##[error]  195:33   error    Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1211215Z ##[error]  198:27   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1213145Z ##[error]  221:48   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1215124Z ##[error]  221:63   error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1216865Z ##[error]  223:13   error    Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1218859Z ##[error]  229:21   error    Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1220755Z ##[error]  229:57   error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1222646Z ##[error]  230:31   error    Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1224441Z ##[warning]  278:31   warning  Forbidden non-null assertion                                                                               @typescript-eslint/no-non-null-assertion
+2025-11-16T19:00:53.1226204Z ##[error]  331:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1228155Z ##[error]  336:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1230089Z ##[error]  341:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1232026Z ##[error]  346:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1234071Z ##[error]  351:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1236021Z ##[error]  356:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1237952Z ##[error]  361:9    error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1239866Z ##[error]  375:9    error    Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1241986Z ##[error]  375:35   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1244220Z ##[error]  391:24   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1246268Z ##[error]  391:35   error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1248168Z ##[error]  398:42   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1250026Z ##[error]  398:58   error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1251791Z ##[error]  419:25   error    Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1254916Z ##[error]  422:31   error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1258334Z ##[error]  438:15   error    Unexpected value in conditional. A boolean expression is required                                          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1260249Z
+2025-11-16T19:00:53.1260829Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/services/ReferencedMessageFormatter.ts
+2025-11-16T19:00:53.1262290Z ##[error]   50:30  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1264481Z ##[error]   53:11  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1266348Z ##[error]  173:9   error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1267316Z
+2025-11-16T19:00:53.1267636Z /home/runner/work/tzurot/tzurot/services/ai-worker/src/utils/retryService.ts
+2025-11-16T19:00:53.1269062Z ##[error]  95:9  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1270066Z
+2025-11-16T19:00:53.1270330Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/index.ts
+2025-11-16T19:00:53.1271413Z ##[error]   25:7   error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1272793Z ##[error]   52:9   error  Unsafe call of a(n) `any` typed value                                   @typescript-eslint/no-unsafe-call
+2025-11-16T19:00:53.1274514Z ##[error]   80:31  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1275914Z ##[error]  151:12  error  'error' is defined but never used                                       @typescript-eslint/no-unused-vars
+2025-11-16T19:00:53.1277197Z ##[error]  170:12  error  'error' is defined but never used                                       @typescript-eslint/no-unused-vars
+2025-11-16T19:00:53.1278624Z ##[error]  201:20  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1280134Z ##[error]  240:21  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1281826Z ##[error]  339:29  error  Missing return type on function                                         @typescript-eslint/explicit-function-return-type
+2025-11-16T19:00:53.1282633Z
+2025-11-16T19:00:53.1282998Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/migrations/sync-avatars.ts
+2025-11-16T19:00:53.1284311Z ##[warning]  57:34  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+2025-11-16T19:00:53.1285140Z
+2025-11-16T19:00:53.1285409Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/queue.ts
+2025-11-16T19:00:53.1286677Z ##[error]  26:3   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1288629Z ##[error]  29:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1290506Z ##[error]  29:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1292385Z ##[error]  30:9   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1294393Z ##[error]  30:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1296423Z ##[error]  31:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1298322Z ##[error]  31:33  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1299262Z
+2025-11-16T19:00:53.1299570Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/routes/admin.ts
+2025-11-16T19:00:53.1300845Z ##[error]   23:45  error  Promise returned in function argument where a void return was expected                                                                       @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1302432Z ##[error]   25:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1304459Z ##[error]   29:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1306558Z ##[error]   29:38  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1308229Z ##[error]   42:45  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1309886Z ##[error]   66:49  error  Promise returned in function argument where a void return was expected                                                                       @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1311429Z ##[error]   68:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1313221Z ##[error]   86:10  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1315823Z ##[error]   86:19  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1317824Z ##[error]   86:28  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1319793Z ##[error]   86:46  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1321597Z ##[error]   95:30  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1323139Z ##[error]  105:16  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1325314Z ##[error]  118:9   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1327121Z ##[error]  122:45  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1329151Z ##[error]  130:13  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1330831Z ##[error]  148:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1332285Z ##[error]  149:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1334016Z ##[error]  150:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1335910Z ##[error]  150:22  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1337868Z ##[error]  150:34  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1339498Z ##[error]  151:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1340930Z ##[error]  152:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1342357Z ##[error]  153:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1344296Z ##[error]  153:26  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1346474Z ##[error]  153:42  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1348078Z ##[error]  154:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1349870Z ##[error]  154:25  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1351803Z ##[error]  154:40  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1353609Z ##[error]  155:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1355527Z ##[error]  155:32  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1357455Z ##[error]  155:54  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1359239Z ##[error]  156:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1361071Z ##[error]  156:27  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1363014Z ##[error]  156:44  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1364803Z ##[error]  157:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1366635Z ##[error]  157:30  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1368590Z ##[error]  157:50  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1370208Z ##[error]  158:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1372030Z ##[error]  158:30  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1374269Z ##[error]  158:50  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1376072Z ##[error]  159:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1378084Z ##[error]  159:33  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1380026Z ##[error]  159:56  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1381640Z ##[error]  160:9   error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1383591Z ##[error]  160:23  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1385559Z ##[error]  160:36  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1387530Z ##[error]  188:11  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1389416Z ##[error]  222:56  error  Promise returned in function argument where a void return was expected                                                                       @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1390984Z ##[error]  225:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1392918Z ##[error]  254:9   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1395097Z ##[error]  258:45  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1396994Z ##[error]  266:13  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1397989Z
+2025-11-16T19:00:53.1398278Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/routes/ai.ts
+2025-11-16T19:00:53.1399621Z ##[error]   38:28  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                               @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1401460Z ##[error]   52:29  error  Unsafe member access .context on an `any` value                                                                                                                                                                                                                                                      @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1403218Z ##[error]   53:38  error  Unsafe member access .personality on an `any` value                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1405311Z ##[error]  170:30  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                               @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1407653Z ##[error]  177:8   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                                                                                                                                                                           @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1409578Z ##[error]  177:17  error  Unsafe member access .attachments on an `any` value                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1411366Z ##[error]  178:31  error  Unsafe member access .attachments on an `any` value                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1413141Z ##[error]  179:16  error  Unsafe member access .attachments on an `any` value                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1416583Z ##[error]  189:75  error  Unsafe argument of type `any` assigned to a parameter of type `{ url: string; contentType: string; originalUrl?: string | undefined; name?: string | undefined; size?: number | undefined; isVoiceMessage?: boolean | undefined; duration?: number | undefined; waveform?: string | undefined; }[]`  @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1419052Z ##[error]  189:84  error  Unsafe member access .attachments on an `any` value                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1420748Z ##[error]  217:15  error  Unsafe assignment of an `any` value                                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1457543Z ##[error]  225:11  error  Unsafe assignment of an `any` value                                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1459571Z ##[error]  263:29  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                               @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1461372Z ##[error]  277:11  error  Unsafe assignment of an `any` value                                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1463043Z ##[error]  283:7   error  Unsafe assignment of an `any` value                                                                                                                                                                                                                                                                  @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1465377Z ##[error]  309:47  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                               @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1466343Z
+2025-11-16T19:00:53.1466720Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/services/AuthMiddleware.ts
+2025-11-16T19:00:53.1468130Z ##[error]  28:7   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1469815Z ##[error]  28:35  error  Unsafe member access .ownerId on an `any` value                                                            @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1471236Z ##[error]  29:5   error  Unsafe return of a value of type `any`                                                                     @typescript-eslint/no-unsafe-return
+2025-11-16T19:00:53.1472728Z ##[error]  29:21  error  Unsafe member access .ownerId on an `any` value                                                            @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1474771Z ##[error]  44:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1476734Z ##[error]  44:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1478641Z ##[error]  72:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1480471Z ##[error]  72:28  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1481406Z
+2025-11-16T19:00:53.1481781Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/services/DatabaseSyncService.ts
+2025-11-16T19:00:53.1482811Z ##[warning]  242:7   warning  Forbidden non-null assertion                                                                 @typescript-eslint/no-non-null-assertion
+2025-11-16T19:00:53.1484660Z ##[error]  325:12  error    Unexpected any value in conditional. An explicit comparison or type conversion is required   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1486473Z ##[error]  325:22  error    Unexpected any value in conditional. An explicit comparison or type conversion is required   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1488215Z ##[error]  334:13  error    Unexpected object value in conditional. The condition is always true                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1489945Z ##[error]  338:18  error    Unexpected any value in conditional. An explicit comparison or type conversion is required   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1491715Z ##[error]  338:29  error    Unexpected any value in conditional. An explicit comparison or type conversion is required   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1493600Z ##[error]  347:13  error    Unexpected object value in conditional. The condition is always true                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1495361Z ##[error]  351:18  error    Unexpected any value in conditional. An explicit comparison or type conversion is required   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1497319Z ##[error]  351:28  error    Unexpected any value in conditional. An explicit comparison or type conversion is required   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1499043Z ##[error]  363:15  error    Unexpected object value in conditional. The condition is always true                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1500714Z ##[error]  376:15  error    Unexpected object value in conditional. The condition is always true                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1502213Z ##[error]  403:7   error    Unsafe return of a value of type `any[]`                                                     @typescript-eslint/no-unsafe-return
+2025-11-16T19:00:53.1503878Z ##[error]  408:5   error    Unsafe return of a value of type `any[]`                                                     @typescript-eslint/no-unsafe-return
+2025-11-16T19:00:53.1505583Z ##[error]  422:5   error    Unsafe return of type `Map<any, any>` from function with return type `Map<string, unknown>`  @typescript-eslint/no-unsafe-return
+2025-11-16T19:00:53.1506499Z
+2025-11-16T19:00:53.1506835Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/utils/errorResponses.ts
+2025-11-16T19:00:53.1508266Z ##[error]  60:9  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1509293Z
+2025-11-16T19:00:53.1509621Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/utils/imageProcessor.ts
+2025-11-16T19:00:53.1511147Z ##[error]  158:9  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1512197Z
+2025-11-16T19:00:53.1512561Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/utils/jobChainOrchestrator.ts
+2025-11-16T19:00:53.1514005Z ##[error]  43:7  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1515017Z
+2025-11-16T19:00:53.1515381Z /home/runner/work/tzurot/tzurot/services/api-gateway/src/utils/tempAttachmentStorage.ts
+2025-11-16T19:00:53.1516744Z ##[error]  109:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1518665Z ##[error]  109:38  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1520605Z ##[error]  122:24  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1522495Z ##[error]  122:50  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1523588Z
+2025-11-16T19:00:53.1523904Z /home/runner/work/tzurot/tzurot/services/bot-client/src/commands/admin.ts
+2025-11-16T19:00:53.1525406Z ##[error]   77:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1527430Z ##[error]  156:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1529436Z ##[error]  166:16  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1531344Z ##[error]  166:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1533566Z ##[error]  167:16  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1535554Z ##[error]  167:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1537487Z ##[error]  168:14  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1539453Z ##[error]  173:19  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1541383Z ##[error]  288:21  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1543263Z ##[error]  288:64  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1544366Z
+2025-11-16T19:00:53.1544701Z /home/runner/work/tzurot/tzurot/services/bot-client/src/commands/personality.ts
+2025-11-16T19:00:53.1546003Z ##[error]  160:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1548104Z ##[error]  234:12  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1550099Z ##[error]  274:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1552010Z ##[error]  274:32  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1554186Z ##[error]  275:24  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1556120Z ##[error]  275:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1558011Z ##[error]  276:23  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1559863Z ##[error]  276:27  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1561756Z ##[error]  277:25  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1563742Z ##[error]  277:31  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1565652Z ##[error]  278:28  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1567519Z ##[error]  278:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1569408Z ##[error]  327:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1571536Z ##[error]  330:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1573638Z ##[error]  333:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1575616Z ##[error]  378:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1577574Z ##[error]  379:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1579505Z ##[error]  380:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1581447Z ##[error]  381:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1583477Z ##[error]  382:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1585431Z ##[error]  383:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1587493Z ##[error]  384:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1589472Z ##[error]  385:8   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1591436Z ##[error]  399:12  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1593484Z ##[error]  445:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1595463Z ##[error]  483:49  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1597349Z ##[error]  483:54  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1599242Z ##[error]  487:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1601177Z ##[error]  488:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1603097Z ##[error]  489:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1605462Z ##[error]  490:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1607411Z ##[error]  491:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1609532Z ##[error]  492:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1611470Z ##[error]  493:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1613555Z ##[error]  494:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1615531Z ##[error]  524:10  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1617147Z ##[error]  544:7   error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1618841Z ##[error]  559:59  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1620692Z ##[error]  585:20  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1622514Z ##[error]  585:48  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1624497Z ##[error]  586:24  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1626465Z ##[error]  586:56  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1628339Z ##[error]  587:23  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1630163Z ##[error]  587:54  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1631981Z ##[error]  588:30  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1633924Z ##[error]  588:68  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1635797Z ##[error]  589:25  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1637630Z ##[error]  589:58  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1639457Z ##[error]  590:28  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1641272Z ##[error]  590:64  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1643093Z ##[error]  591:28  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1645068Z ##[error]  591:64  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1647098Z ##[error]  592:31  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1648931Z ##[error]  592:70  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1650766Z ##[error]  593:21  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1652585Z ##[error]  593:50  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1654750Z ##[error]  594:19  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1656632Z ##[error]  594:46  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1658364Z ##[error]  635:50  error  Invalid type "unknown" of template literal expression                                                      @typescript-eslint/restrict-template-expressions
+2025-11-16T19:00:53.1660149Z ##[error]  640:9   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1662158Z ##[error]  641:9   error  Unexpected any value in conditional. An explicit comparison or type conversion is required                 @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1663172Z
+2025-11-16T19:00:53.1663635Z /home/runner/work/tzurot/tzurot/services/bot-client/src/commands/utility.ts
+2025-11-16T19:00:53.1664963Z ##[error]   78:22  error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1666864Z ##[error]   78:39  error    Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1668442Z ##[warning]   82:5   warning  Forbidden non-null assertion                                                                               @typescript-eslint/no-non-null-assertion
+2025-11-16T19:00:53.1670036Z ##[error]  100:38  error    Invalid type "unknown" of template literal expression                                                      @typescript-eslint/restrict-template-expressions
+2025-11-16T19:00:53.1671713Z ##[error]  100:75  error    Invalid type "unknown" of template literal expression                                                      @typescript-eslint/restrict-template-expressions
+2025-11-16T19:00:53.1672648Z
+2025-11-16T19:00:53.1672988Z /home/runner/work/tzurot/tzurot/services/bot-client/src/handlers/CommandHandler.ts
+2025-11-16T19:00:53.1674350Z ##[error]   49:15  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1676232Z ##[error]   52:14  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1677944Z ##[error]   52:22  error  Unsafe member access .data on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1679780Z ##[error]   52:31  error  Unexpected any value in conditional. An explicit comparison or type conversion is required                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1681680Z ##[error]   52:39  error  Unsafe member access .execute on an `any` value                                                                                              @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1683656Z ##[error]   53:23  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1685339Z ##[error]   67:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1686831Z ##[error]   67:25  error  Unsafe member access .data on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1688295Z ##[error]   68:11  error  Unsafe assignment of an `any` value                                                                                                          @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1689810Z ##[error]   68:28  error  Unsafe member access .execute on an `any` value                                                                                              @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1691493Z ##[error]   72:27  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                       @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1693244Z ##[error]   72:35  error  Unsafe member access .data on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1694991Z ##[error]   73:65  error  Unsafe member access .data on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1696895Z ##[error]  121:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1698001Z
+2025-11-16T19:00:53.1698338Z /home/runner/work/tzurot/tzurot/services/bot-client/src/handlers/MessageHandler.ts
+2025-11-16T19:00:53.1699621Z ##[error]  91:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1701562Z ##[error]  95:25  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1702565Z
+2025-11-16T19:00:53.1702967Z /home/runner/work/tzurot/tzurot/services/bot-client/src/handlers/MessageReferenceExtractor.ts
+2025-11-16T19:00:53.1704561Z ##[error]   77:88  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1706426Z ##[error]   78:80  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1708337Z ##[error]  109:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1710204Z ##[error]  132:15  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1711753Z ##[error]  188:15  error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1713650Z ##[error]  188:39  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1715144Z ##[error]  189:15  error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1716613Z ##[error]  189:41  error  Unsafe member access .code on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1718308Z ##[error]  391:78  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1720191Z ##[error]  410:25  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1722047Z ##[error]  410:47  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1724040Z ##[error]  432:26  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1725916Z ##[error]  432:51  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1727617Z ##[error]  456:13  error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1729162Z ##[error]  456:37  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1730635Z ##[error]  457:13  error  Unsafe assignment of an `any` value                                                                        @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1732099Z ##[error]  457:39  error  Unsafe member access .code on an `any` value                                                               @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1733930Z ##[error]  510:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1735784Z ##[error]  510:76  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1737661Z ##[error]  518:13  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1739621Z ##[error]  520:15  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1741457Z ##[error]  569:32  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1743223Z ##[error]  578:30  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1745206Z ##[error]  579:23  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1746834Z ##[error]  588:29  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1748607Z ##[error]  591:73  error  Unsafe argument of type `any` assigned to a parameter of type `APIEmbed`                                   @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1750342Z ##[error]  631:44  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1752206Z ##[error]  666:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1754485Z ##[error]  704:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1756429Z ##[error]  706:21  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1758307Z ##[error]  735:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1760181Z ##[error]  754:11  error  Prefer using an optional chain expression instead, as it's more concise and easier to read                 @typescript-eslint/prefer-optional-chain
+2025-11-16T19:00:53.1761146Z
+2025-11-16T19:00:53.1761405Z /home/runner/work/tzurot/tzurot/services/bot-client/src/index.ts
+2025-11-16T19:00:53.1762905Z ##[error]   38:6   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1765194Z ##[error]   39:16  error  logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details            no-restricted-syntax
+2025-11-16T19:00:53.1766913Z ##[error]   66:1   error  Missing return type on function                                                                                                              @typescript-eslint/explicit-function-return-type
+2025-11-16T19:00:53.1768768Z ##[error]  220:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1769791Z
+2025-11-16T19:00:53.1770167Z /home/runner/work/tzurot/tzurot/services/bot-client/src/processors/BotMentionProcessor.ts
+2025-11-16T19:00:53.1771671Z ##[error]  35:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1773961Z ##[error]  44:21  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1776005Z ##[error]  44:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1776981Z
+2025-11-16T19:00:53.1777338Z /home/runner/work/tzurot/tzurot/services/bot-client/src/processors/BotMessageFilter.ts
+2025-11-16T19:00:53.1778193Z ##[error]  15:3  error  Async method 'process' has no 'await' expression  @typescript-eslint/require-await
+2025-11-16T19:00:53.1778962Z
+2025-11-16T19:00:53.1779322Z /home/runner/work/tzurot/tzurot/services/bot-client/src/processors/EmptyMessageFilter.ts
+2025-11-16T19:00:53.1780167Z ##[error]  15:3  error  Async method 'process' has no 'await' expression  @typescript-eslint/require-await
+2025-11-16T19:00:53.1780947Z
+2025-11-16T19:00:53.1781371Z /home/runner/work/tzurot/tzurot/services/bot-client/src/processors/PersonalityMentionProcessor.ts
+2025-11-16T19:00:53.1782916Z ##[error]  57:21  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1784964Z ##[error]  57:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1785911Z
+2025-11-16T19:00:53.1786302Z /home/runner/work/tzurot/tzurot/services/bot-client/src/processors/ReplyMessageProcessor.ts
+2025-11-16T19:00:53.1787624Z ##[error]  41:21  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1789486Z ##[error]  41:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1790432Z
+2025-11-16T19:00:53.1790690Z /home/runner/work/tzurot/tzurot/services/bot-client/src/redis.ts
+2025-11-16T19:00:53.1791902Z ##[error]   22:3   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1794113Z ##[error]   25:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1796057Z ##[error]   25:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1798096Z ##[error]   26:9   error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1800000Z ##[error]   26:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1801884Z ##[error]   27:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1803883Z ##[error]   27:33  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1805800Z ##[error]   95:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1807753Z ##[error]  132:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1808754Z
+2025-11-16T19:00:53.1809133Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/ConversationPersistence.ts
+2025-11-16T19:00:53.1810709Z ##[error]  105:7   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1812723Z ##[error]  105:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1814944Z ##[error]  112:26  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1816950Z ##[error]  112:46  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1819177Z ##[error]  114:25  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1821173Z ##[error]  114:52  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1823215Z ##[error]  135:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1825478Z ##[error]  135:37  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1827584Z ##[error]  145:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1829693Z ##[error]  157:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1831731Z ##[error]  187:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1834221Z ##[error]  214:7   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1836349Z ##[error]  214:25  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1837339Z
+2025-11-16T19:00:53.1837712Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/DiscordResponseSender.ts
+2025-11-16T19:00:53.1839013Z ##[error]   66:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1840646Z ##[error]  118:13  error  Unsafe assignment of an `any` value                                                                @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1842330Z ##[error]  120:11  error  Unexpected any value in conditional. An explicit comparison or type conversion is required         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1844202Z ##[error]  122:35  error  Unsafe argument of type `any` assigned to a parameter of type `string`                             @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1845750Z ##[error]  122:47  error  Unsafe member access .id on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1847301Z ##[error]  123:30  error  Unsafe argument of type `any` assigned to a parameter of type `string`                             @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1848806Z ##[error]  123:42  error  Unsafe member access .id on an `any` value                                                         @typescript-eslint/no-unsafe-member-access
+2025-11-16T19:00:53.1849611Z
+2025-11-16T19:00:53.1849928Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/JobTracker.ts
+2025-11-16T19:00:53.1850963Z ##[error]  58:40  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+2025-11-16T19:00:53.1851840Z
+2025-11-16T19:00:53.1852209Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/MessageContextBuilder.ts
+2025-11-16T19:00:53.1853540Z ##[error]   42:24  error  Unexpected any. Specify a different type                                                                   @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.1855360Z ##[error]   74:7   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1857235Z ##[error]   74:35  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1859119Z ##[error]   74:38  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1860972Z ##[error]   74:64  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1862751Z ##[error]  107:23  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1864719Z ##[error]  115:14  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1866590Z ##[error]  115:68  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1868501Z ##[error]  119:38  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1870400Z ##[error]  128:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1872319Z ##[error]  128:42  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1874501Z ##[error]  186:26  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1876464Z ##[error]  186:38  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1877423Z
+2025-11-16T19:00:53.1877825Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/PersonalityMessageHandler.ts
+2025-11-16T19:00:53.1879061Z ##[error]  54:11  error  Unsafe argument of type `any[]` assigned to a parameter of type `ConversationMessage[]`                    @typescript-eslint/no-unsafe-argument
+2025-11-16T19:00:53.1880953Z ##[error]  99:26  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1882814Z ##[error]  99:62  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1883920Z
+2025-11-16T19:00:53.1884324Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/ReferenceEnrichmentService.ts
+2025-11-16T19:00:53.1885827Z ##[error]   51:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1887952Z ##[error]  106:25  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1890147Z ##[error]  106:44  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1892211Z ##[error]  108:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1894472Z ##[error]  135:7   error  Prefer using nullish coalescing operator (`??=`) instead of an assignment expression, as it is simpler to read                               @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1896599Z ##[error]  135:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1898734Z ##[error]  142:11  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1900775Z ##[error]  149:11  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1902864Z ##[error]  160:19  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1905130Z ##[error]  160:26  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1907227Z ##[error]  161:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1909234Z ##[error]  161:32  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1910201Z
+2025-11-16T19:00:53.1910579Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/ReplyResolutionService.ts
+2025-11-16T19:00:53.1912026Z ##[error]  29:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1914178Z ##[error]  30:21  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.1916276Z ##[error]  38:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1918377Z ##[error]  46:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1920464Z ##[error]  63:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1922377Z ##[error]  63:31  error  Unexpected object value in conditional. The condition is always true                                                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1924653Z ##[error]  81:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1925897Z
+2025-11-16T19:00:53.1926256Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/ResultsListener.ts
+2025-11-16T19:00:53.1927756Z ##[error]   45:7   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1929939Z ##[error]   48:13  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1931991Z ##[error]   48:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                                           @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1934249Z ##[error]   49:13  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly                                                                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1936336Z ##[error]   49:29  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                                           @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1938647Z ##[error]   50:17  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                                                   @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1940767Z ##[error]   50:37  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                                           @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1943011Z ##[error]   95:7   error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+2025-11-16T19:00:53.1944984Z ##[error]  182:17  error  Unsafe assignment of an `any` value                                                                                                                                 @typescript-eslint/no-unsafe-assignment
+2025-11-16T19:00:53.1945814Z
+2025-11-16T19:00:53.1946227Z /home/runner/work/tzurot/tzurot/services/bot-client/src/services/VoiceTranscriptionService.ts
+2025-11-16T19:00:53.1947573Z ##[error]  36:12  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1949445Z ##[error]  36:66  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1951361Z ##[error]  62:22  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1953230Z ##[error]  62:45  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1955163Z ##[error]  92:11  error  Unexpected object value in conditional. The condition is always true                                       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1956089Z
+2025-11-16T19:00:53.1956494Z /home/runner/work/tzurot/tzurot/services/bot-client/src/test/mocks/PersonalityService.mock.ts
+2025-11-16T19:00:53.1957605Z ##[error]  41:70  error  Async arrow function has no 'await' expression  @typescript-eslint/require-await
+2025-11-16T19:00:53.1958566Z
+2025-11-16T19:00:53.1958852Z /home/runner/work/tzurot/tzurot/services/bot-client/src/test/types.ts
+2025-11-16T19:00:53.1959405Z   49:32  error  The `Function` type accepts any function-like value.
+2025-11-16T19:00:53.1960100Z Prefer explicitly defining any function parameters and return type  @typescript-eslint/no-unsafe-function-type
+2025-11-16T19:00:53.1960782Z   56:32  error  The `Function` type accepts any function-like value.
+2025-11-16T19:00:53.1961450Z Prefer explicitly defining any function parameters and return type  @typescript-eslint/no-unsafe-function-type
+2025-11-16T19:00:53.1961861Z
+2025-11-16T19:00:53.1962166Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/EmbedParser.ts
+2025-11-16T19:00:53.1963629Z ##[error]   35:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1965590Z ##[error]   36:25  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1967503Z ##[error]   42:26  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1969392Z ##[error]   49:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1971273Z ##[error]   62:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1973539Z ##[error]   67:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1975765Z ##[error]   72:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1977703Z ##[error]   77:9   error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1980541Z ##[error]   96:10  error  Unexpected object value in conditional. The condition is always true                               @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1983659Z ##[error]  114:20  error  Unexpected object value in conditional. The condition is always true                               @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1985234Z
+2025-11-16T19:00:53.1985809Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/GatewayClient.ts
+2025-11-16T19:00:53.1987643Z ##[error]   40:18  error  Unexpected nullable number value in conditional. Please handle the nullish/zero/NaN cases explicitly       @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1989690Z ##[error]   40:53  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1991540Z ##[error]   57:62  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.1993275Z ##[error]  118:11  error  The two values in this comparison do not have a shared enum type                                           @typescript-eslint/no-unsafe-enum-comparison
+2025-11-16T19:00:53.1995472Z ##[error]  122:12  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.1996502Z
+2025-11-16T19:00:53.1996847Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/WebhookManager.ts
+2025-11-16T19:00:53.1998691Z ##[error]   51:19  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.2000518Z ##[error]  156:14  error  Unexpected any. Specify a different type                                                                                                     @typescript-eslint/no-explicit-any
+2025-11-16T19:00:53.2002448Z ##[error]  179:59  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2004865Z ##[error]  179:81  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator                                    @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.2005901Z
+2025-11-16T19:00:53.2006261Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/attachmentExtractor.ts
+2025-11-16T19:00:53.2007602Z ##[error]  26:18  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2009488Z ##[error]  26:41  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.2010442Z
+2025-11-16T19:00:53.2010801Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/attachmentPlaceholders.ts
+2025-11-16T19:00:53.2012093Z ##[error]  19:7   error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly                @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2100518Z ##[error]  24:18  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2103939Z ##[error]  24:34  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.2105990Z ##[error]  29:18  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2107905Z ##[error]  29:34  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.2109820Z ##[error]  34:16  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly          @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2111711Z ##[error]  34:32  error  Prefer using nullish coalescing operator (`??`) instead of a logical or (`||`), as it is a safer operator  @typescript-eslint/prefer-nullish-coalescing
+2025-11-16T19:00:53.2112688Z
+2025-11-16T19:00:53.2113041Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/deployCommands.ts
+2025-11-16T19:00:53.2114658Z ##[error]  51:10  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2116821Z ##[error]  51:23  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2118752Z ##[error]  67:12  error  Unexpected object value in conditional. The condition is always true                                                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2120560Z ##[error]  67:29  error  Unexpected object value in conditional. The condition is always true                                                                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2122737Z ##[error]  68:21  error  logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details  no-restricted-syntax
+2025-11-16T19:00:53.2125195Z ##[error]  80:20  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly                                            @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2126274Z
+2025-11-16T19:00:53.2126611Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/discordContext.ts
+2025-11-16T19:00:53.2127881Z ##[error]   67:41  error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2129812Z ##[error]   80:34  error    Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2131480Z ##[warning]  173:29  warning  Forbidden non-null assertion                                                                       @typescript-eslint/no-non-null-assertion
+2025-11-16T19:00:53.2132323Z
+2025-11-16T19:00:53.2132673Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/embedImageExtractor.ts
+2025-11-16T19:00:53.2134178Z ##[error]  26:9  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2136151Z ##[error]  36:9  error  Unexpected nullable string value in conditional. Please handle the nullish/empty cases explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2137158Z
+2025-11-16T19:00:53.2137655Z /home/runner/work/tzurot/tzurot/services/bot-client/src/utils/referenceFormatter.ts
+2025-11-16T19:00:53.2138820Z ##[error]  21:8   error  Unexpected object value in conditional. The condition is always true                         @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2140658Z ##[error]  46:13  error  Unexpected nullable boolean value in conditional. Please handle the nullish case explicitly  @typescript-eslint/strict-boolean-expressions
+2025-11-16T19:00:53.2141653Z
+2025-11-16T19:00:53.2142038Z ✖ 736 problems (730 errors, 6 warnings)
+2025-11-16T19:00:53.2142227Z
+2025-11-16T19:00:53.2142695Z  ELIFECYCLE  Command failed with exit code 1.
+2025-11-16T19:00:53.2263931Z ##[error]Process completed with exit code 1.
+2025-11-16T19:00:53.2317766Z Post job cleanup.
+2025-11-16T19:00:53.3248029Z Pruning is unnecessary.
+2025-11-16T19:00:53.3344409Z Post job cleanup.
+2025-11-16T19:00:53.4313269Z [command]/usr/bin/git version
+2025-11-16T19:00:53.4351338Z git version 2.51.2
+2025-11-16T19:00:53.4399430Z Temporarily overriding HOME='/home/runner/work/_temp/454cc8b8-ae00-42a5-ae69-cbad57a4e707' before making global git config changes
+2025-11-16T19:00:53.4400952Z Adding repository directory to the temporary git global config as a safe directory
+2025-11-16T19:00:53.4412594Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tzurot/tzurot
+2025-11-16T19:00:53.4454547Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-11-16T19:00:53.4496882Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-11-16T19:00:53.4761632Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-11-16T19:00:53.4788492Z http.https://github.com/.extraheader
+2025-11-16T19:00:53.4802054Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-11-16T19:00:53.4837427Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-11-16T19:00:53.5187391Z Cleaning up orphan processes

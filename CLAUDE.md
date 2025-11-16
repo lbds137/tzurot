@@ -137,7 +137,9 @@ railway run psql
 1. **Run all tests**: `pnpm test`
 2. **Run specific service tests**: `pnpm --filter @tzurot/ai-worker test`
 3. **Run specific file**: `pnpm test -- AudioTranscriptionJob.test.ts`
-4. **Check test summary**: `pnpm test 2>&1 | grep -E "(Test Files|Tests)" | tail -10`
+4. **Check test summary** (shows BOTH passes AND failures): `pnpm test 2>&1 | grep -E "(Test Files|Tests)" | sed 's/\x1b\[[0-9;]*m//g'`
+   - This strips ANSI color codes for readability and shows all results (passed, failed, skipped)
+   - ALWAYS use this after running tests to verify nothing broke
 
 ### Linting
 1. **Lint all**: `pnpm lint`

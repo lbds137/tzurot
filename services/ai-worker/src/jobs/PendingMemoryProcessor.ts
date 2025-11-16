@@ -31,7 +31,7 @@ export class PendingMemoryProcessor {
   }> {
     // If memory adapter is unavailable, skip processing
     if (!this.memoryAdapter) {
-      logger.warn('[PendingMemory] Memory adapter unavailable, skipping pending memory processing');
+      logger.warn({}, '[PendingMemory] Memory adapter unavailable, skipping pending memory processing');
       return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
     }
 

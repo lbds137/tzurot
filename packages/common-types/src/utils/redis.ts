@@ -107,7 +107,7 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
       reconnectStrategy: (retries: number) => {
         if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
           // After max retries (30+ seconds), give up
-          logger.error('[RedisUtils] Max reconnection attempts reached');
+          logger.error({}, '[RedisUtils] Max reconnection attempts reached');
           return new Error('Max reconnection attempts reached');
         }
         // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
@@ -152,7 +152,7 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     reconnectStrategy: (retries: number) => {
       if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
         // After max retries (30+ seconds), give up
-        logger.error('[RedisUtils] Max reconnection attempts reached');
+        logger.error({}, '[RedisUtils] Max reconnection attempts reached');
         return new Error('Max reconnection attempts reached');
       }
       // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s

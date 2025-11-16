@@ -146,6 +146,7 @@ export class ReferenceEnrichmentService {
         );
       } else {
         logger.warn(
+          {},
           `[ReferenceEnrichmentService] Could not find persona name for reference ${reference.referenceNumber} (persona: ${personaId})`
         );
       }

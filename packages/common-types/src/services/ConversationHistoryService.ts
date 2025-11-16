@@ -112,6 +112,7 @@ export class ConversationHistoryService {
 
       if (!lastMessage) {
         logger.warn(
+          {},
           `No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
         );
         return false;
@@ -320,6 +321,7 @@ export class ConversationHistoryService {
 
       if (!lastMessage) {
         logger.warn(
+          {},
           `No assistant message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`
         );
         return false;
