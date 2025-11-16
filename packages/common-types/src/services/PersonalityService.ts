@@ -8,8 +8,64 @@ import { createLogger } from '../utils/logger.js';
 import { MODEL_DEFAULTS, AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../constants/index.js';
 import type { Decimal } from '@prisma/client/runtime/library';
 import type { LoadedPersonality } from '../types/schemas.js';
+import { z } from 'zod';
 
 const logger = createLogger('PersonalityService');
+
+/**
+ * Helper to safely convert Prisma.Decimal or number to a number for Zod's validation
+ */
+function coerceToNumber(val: unknown): number | undefined {
+  // Handle Prisma Decimal type
+  if (val !== null && typeof val === 'object' && 'toNumber' in val && typeof val.toNumber === 'function') {
+    return (val as Decimal).toNumber();
+  }
+  if (typeof val === 'number') {
+    return val;
+  }
+  // Return undefined for null/undefined to let .optional() work correctly
+  if (val === null || val === undefined) {
+    return undefined;
+  }
+  return val as number; // Let Zod's number validation catch if it's not a number
+}
+
+/**
+ * Zod schema for LLM configuration with automatic Prisma Decimal conversion
+ */
+export const LlmConfigSchema = z.object({
+  model: z.string().optional(),
+  visionModel: z.string().nullable().optional(),
+  temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
+  maxTokens: z.number().int().positive().optional(),
+  topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
+  topK: z.number().int().optional(),
+  frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
+  presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
+  memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
+  memoryLimit: z.number().int().positive().optional(),
+  contextWindowTokens: z.number().int().positive().optional(),
+}).nullable();
+
+/**
+ * Inferred TypeScript type from the Zod schema
+ */
+export type LlmConfig = z.infer<typeof LlmConfigSchema>;
+
+/**
+ * Safely parses an unknown database object into a clean LlmConfig object
+ * @param dbConfig - Unknown config object from database
+ * @returns Validated and transformed LlmConfig or null
+ */
+function parseLlmConfig(dbConfig: unknown): LlmConfig {
+  const result = LlmConfigSchema.safeParse(dbConfig);
+  if (result.success) {
+    return result.data;
+  }
+  // Log validation errors for debugging
+  logger.warn({ error: result.error.format() }, 'Failed to parse LLM config, using defaults');
+  return null;
+}
 
 export interface DatabasePersonality {
   id: string;
@@ -68,8 +124,8 @@ export class PersonalityService {
    * falls back to GATEWAY_URL for local development
    */
   static deriveAvatarUrl(slug: string): string | undefined {
-    const publicUrl = process.env.PUBLIC_GATEWAY_URL || process.env.GATEWAY_URL;
-    if (!publicUrl) {
+    const publicUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
+    if (publicUrl === undefined || publicUrl.length === 0) {
       logger.warn(
         {},
         '[PersonalityService] No PUBLIC_GATEWAY_URL or GATEWAY_URL configured, cannot derive avatar URL'
@@ -152,8 +208,8 @@ export class PersonalityService {
           name: personality.name,
           model: personality.model,
           visionModel: personality.visionModel,
-          hasVisionModel: !!personality.visionModel,
-          usedGlobalDefault: !dbPersonality.defaultConfigLink && !!globalDefaultConfig,
+          hasVisionModel: personality.visionModel !== undefined && personality.visionModel !== null && personality.visionModel.length > 0,
+          usedGlobalDefault: dbPersonality.defaultConfigLink === undefined && globalDefaultConfig !== null,
         },
         'Loaded personality with config'
       );
@@ -168,7 +224,7 @@ export class PersonalityService {
    * Load global default LLM config
    * Returns the config marked as isGlobal: true and isDefault: true
    */
-  private async loadGlobalDefaultConfig() {
+  private async loadGlobalDefaultConfig(): Promise<LlmConfig> {
     try {
       const globalDefault = await this.prisma.llmConfig.findFirst({
         where: {
@@ -190,12 +246,15 @@ export class PersonalityService {
         },
       });
 
-      if (globalDefault) {
+      // Parse and validate the global default config
+      const parsedConfig = parseLlmConfig(globalDefault);
+
+      if (parsedConfig) {
         logger.info(
           {
-            model: globalDefault.model,
-            visionModel: globalDefault.visionModel,
-            hasVisionModel: !!globalDefault.visionModel,
+            model: parsedConfig.model,
+            visionModel: parsedConfig.visionModel,
+            hasVisionModel: parsedConfig.visionModel !== undefined && parsedConfig.visionModel !== null && parsedConfig.visionModel.length > 0,
           },
           '[PersonalityService] Loaded global default LLM config'
         );
@@ -203,7 +262,7 @@ export class PersonalityService {
         logger.warn({}, '[PersonalityService] No global default LLM config found');
       }
 
-      return globalDefault;
+      return parsedConfig;
     } catch (error) {
       logger.warn({ err: error }, '[PersonalityService] Failed to load global default config');
       return null;
@@ -268,7 +327,7 @@ export class PersonalityService {
    * Handles {user}, {{user}}, {assistant}, {shape}, {{char}}, {personality}
    */
   private replacePlaceholders(text: string | null | undefined, personalityName: string): string | undefined {
-    if (!text) {return undefined;}
+    if (text === null || text === undefined || text.length === 0) {return undefined;}
 
     let result = text;
 
@@ -302,57 +361,40 @@ export class PersonalityService {
    * - User placeholders ({user}, {{user}}) are normalized to {user}
    * - Assistant placeholders ({assistant}, {shape}, {{char}}, {personality}) are replaced with the personality name
    */
-  private mapToPersonality(db: DatabasePersonality, globalDefaultConfig: any = null): LoadedPersonality {
-    // Extract llmConfig from personality's defaultConfigLink
-    const llmConfig = db.defaultConfigLink?.llmConfig;
+  private mapToPersonality(db: DatabasePersonality, globalDefaultConfig: LlmConfig = null): LoadedPersonality {
+    // Parse personality-specific config from database (handles Decimal conversion)
+    const personalityConfig = parseLlmConfig(db.defaultConfigLink?.llmConfig);
 
-    // Use global default as fallback if personality has no specific config
-    const fallbackConfig = llmConfig || globalDefaultConfig;
-
-    // Convert Decimal types to numbers, providing defaults where needed
-    const temperature = fallbackConfig?.temperature
-      ? parseFloat(fallbackConfig.temperature.toString())
-      : AI_DEFAULTS.TEMPERATURE;
-
-    const maxTokens = fallbackConfig?.maxTokens ?? AI_DEFAULTS.MAX_TOKENS;
-
-    const topP = fallbackConfig?.topP ? parseFloat(fallbackConfig.topP.toString()) : undefined;
-
-    const frequencyPenalty = fallbackConfig?.frequencyPenalty
-      ? parseFloat(fallbackConfig.frequencyPenalty.toString())
-      : undefined;
-
-    const presencePenalty = fallbackConfig?.presencePenalty
-      ? parseFloat(fallbackConfig.presencePenalty.toString())
-      : undefined;
-
-    const memoryScoreThreshold = fallbackConfig?.memoryScoreThreshold
-      ? parseFloat(fallbackConfig.memoryScoreThreshold.toString())
-      : undefined;
-
-    const memoryLimit = fallbackConfig?.memoryLimit ?? undefined;
+    // Merge configs with proper precedence: Personality > Global > Hardcoded Defaults
+    const temperature = personalityConfig?.temperature ?? globalDefaultConfig?.temperature ?? AI_DEFAULTS.TEMPERATURE;
+    const maxTokens = personalityConfig?.maxTokens ?? globalDefaultConfig?.maxTokens ?? AI_DEFAULTS.MAX_TOKENS;
+    const topP = personalityConfig?.topP ?? globalDefaultConfig?.topP;
+    const frequencyPenalty = personalityConfig?.frequencyPenalty ?? globalDefaultConfig?.frequencyPenalty;
+    const presencePenalty = personalityConfig?.presencePenalty ?? globalDefaultConfig?.presencePenalty;
+    const memoryScoreThreshold = personalityConfig?.memoryScoreThreshold ?? globalDefaultConfig?.memoryScoreThreshold;
+    const memoryLimit = personalityConfig?.memoryLimit ?? globalDefaultConfig?.memoryLimit;
 
     // Replace placeholders in text fields
     // This normalizes legacy imports and ensures consistency
-    const systemPrompt = this.replacePlaceholders(db.systemPrompt?.content, db.name) || '';
-    const characterInfo = this.replacePlaceholders(db.characterInfo, db.name) || db.characterInfo;
-    const personalityTraits = this.replacePlaceholders(db.personalityTraits, db.name) || db.personalityTraits;
+    const systemPrompt = this.replacePlaceholders(db.systemPrompt?.content, db.name) ?? '';
+    const characterInfo = this.replacePlaceholders(db.characterInfo, db.name) ?? db.characterInfo;
+    const personalityTraits = this.replacePlaceholders(db.personalityTraits, db.name) ?? db.personalityTraits;
 
     return {
       id: db.id,
       name: db.name,
-      displayName: db.displayName || db.name,
+      displayName: db.displayName ?? db.name,
       slug: db.slug,
       systemPrompt,
-      model: fallbackConfig?.model || MODEL_DEFAULTS.DEFAULT_MODEL, // Cascade: personality -> global -> env
-      visionModel: fallbackConfig?.visionModel || undefined,
+      model: personalityConfig?.model ?? globalDefaultConfig?.model ?? MODEL_DEFAULTS.DEFAULT_MODEL,
+      visionModel: personalityConfig?.visionModel ?? globalDefaultConfig?.visionModel ?? undefined,
       temperature,
       maxTokens,
       topP,
-      topK: fallbackConfig?.topK ?? undefined,
+      topK: personalityConfig?.topK ?? globalDefaultConfig?.topK ?? undefined,
       frequencyPenalty,
       presencePenalty,
-      contextWindowTokens: fallbackConfig?.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
+      contextWindowTokens: personalityConfig?.contextWindowTokens ?? globalDefaultConfig?.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryScoreThreshold,
       memoryLimit,
@@ -374,7 +416,7 @@ export class PersonalityService {
    */
   private getFromCache(key: string): LoadedPersonality | null {
     const expiry = this.cacheExpiry.get(key);
-    if (!expiry || Date.now() > expiry) {
+    if (expiry === undefined || Date.now() > expiry) {
       this.personalityCache.delete(key);
       this.cacheExpiry.delete(key);
       this.cacheLastAccess.delete(key);
@@ -383,7 +425,7 @@ export class PersonalityService {
 
     // Update last access time for LRU tracking
     this.cacheLastAccess.set(key, Date.now());
-    return this.personalityCache.get(key) || null;
+    return this.personalityCache.get(key) ?? null;
   }
 
   /**
@@ -420,7 +462,7 @@ export class PersonalityService {
     }
 
     // Remove the LRU entry
-    if (lruKey) {
+    if (lruKey !== null && lruKey.length > 0) {
       this.personalityCache.delete(lruKey);
       this.cacheExpiry.delete(lruKey);
       this.cacheLastAccess.delete(lruKey);
