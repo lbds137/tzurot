@@ -37,6 +37,7 @@ coverage/
 # Temporary files
 tmp/
 temp/
+ci-log.txt
 
 # Private data (user data, private personalities)
 data/
