@@ -50,7 +50,7 @@ export class CommandHandler {
 
         // Validate command structure
         if (!command.data || !command.execute) {
-          logger.warn(`[CommandHandler] Invalid command file: ${filePath}`);
+          logger.warn({}, `[CommandHandler] Invalid command file: ${filePath}`);
           continue;
         }
 
@@ -118,7 +118,7 @@ export class CommandHandler {
     const command = this.commands.get(commandName);
 
     if (!command) {
-      logger.warn(`[CommandHandler] Unknown command: ${commandName}`);
+      logger.warn({}, `[CommandHandler] Unknown command: ${commandName}`);
       await interaction.reply({
         content: 'Unknown command!',
         flags: MessageFlags.Ephemeral,

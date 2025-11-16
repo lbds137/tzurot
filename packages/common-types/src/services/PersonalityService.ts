@@ -71,6 +71,7 @@ export class PersonalityService {
     const publicUrl = process.env.PUBLIC_GATEWAY_URL || process.env.GATEWAY_URL;
     if (!publicUrl) {
       logger.warn(
+        {},
         '[PersonalityService] No PUBLIC_GATEWAY_URL or GATEWAY_URL configured, cannot derive avatar URL'
       );
       return undefined;
@@ -199,7 +200,7 @@ export class PersonalityService {
           '[PersonalityService] Loaded global default LLM config'
         );
       } else {
-        logger.warn('[PersonalityService] No global default LLM config found');
+        logger.warn({}, '[PersonalityService] No global default LLM config found');
       }
 
       return globalDefault;

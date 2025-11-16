@@ -36,7 +36,7 @@ const envConfig = getConfig();
 
 // Validate bot-client specific required env vars
 if (!envConfig.DISCORD_TOKEN) {
-  logger.error('DISCORD_TOKEN is required for bot-client');
+  logger.error({}, 'DISCORD_TOKEN is required for bot-client');
   process.exit(1);
 }
 
@@ -217,7 +217,7 @@ async function start(): Promise<void> {
     logger.info('[Bot] Checking gateway health...');
     const isHealthy = await services.gatewayClient.healthCheck();
     if (!isHealthy) {
-      logger.warn('[Bot] Gateway health check failed, but continuing...');
+      logger.warn({}, '[Bot] Gateway health check failed, but continuing...');
     } else {
       logger.info('[Bot] Gateway is healthy');
     }

@@ -155,6 +155,7 @@ export async function optimizeAvatar(
 
     if (exceedsTarget) {
       logger.warn(
+        {},
         `[ImageProcessor] Avatar still exceeds ${(opts.maxSizeBytes / 1024).toFixed(0)}KB after optimization: ${processedSizeKB.toFixed(2)} KB`
       );
     }

@@ -65,7 +65,7 @@ export async function deployCommands(global = true): Promise<void> {
       const command = (await import(filePath)) as Command;
 
       if (!command.data || !command.execute) {
-        logger.warn(`Skipping invalid command file: ${filePath}`);
+        logger.warn({}, `Skipping invalid command file: ${filePath}`);
         continue;
       }
 

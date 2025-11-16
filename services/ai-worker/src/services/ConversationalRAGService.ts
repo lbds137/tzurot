@@ -280,6 +280,7 @@ export class ConversationalRAGService {
         );
       } else if (historyBudget <= 0) {
         logger.warn(
+          {},
           `[RAG] No history budget available! System prompt and current message consumed entire context window.`
         );
       }
@@ -358,6 +359,7 @@ export class ConversationalRAGService {
         );
       } else {
         logger.warn(
+          {},
           `[RAG] No persona found for user ${context.userId}, skipping LTM storage`
         );
       }

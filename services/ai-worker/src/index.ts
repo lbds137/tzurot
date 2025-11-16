@@ -90,8 +90,9 @@ async function main(): Promise<void> {
     if (healthy) {
       logger.info('[AIWorker] Pgvector memory initialized successfully');
     } else {
-      logger.warn('[AIWorker] Pgvector health check failed');
+      logger.warn({}, '[AIWorker] Pgvector health check failed');
       logger.warn(
+        {},
         '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
       );
       await memoryManager.disconnect(); // Clean up Prisma connection
@@ -100,6 +101,7 @@ async function main(): Promise<void> {
   } catch (error) {
     logger.error({ err: error }, '[AIWorker] Failed to initialize pgvector memory');
     logger.warn(
+      {},
       '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
     );
     if (memoryManager) {
