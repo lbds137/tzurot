@@ -25,8 +25,8 @@ export function extractOwnerId(req: Request): string | undefined {
   }
 
   // Check body (used by some endpoints like db-sync)
-  if (req.body && typeof req.body.ownerId === 'string') {
-    return req.body.ownerId;
+  if (req.body !== null && req.body !== undefined && typeof (req.body as Record<string, unknown>).ownerId === 'string') {
+    return (req.body as Record<string, string>).ownerId;
   }
 
   return undefined;
@@ -41,7 +41,7 @@ export function extractOwnerId(req: Request): string | undefined {
 export function isValidOwner(ownerId: string | undefined): boolean {
   const config = getConfig();
 
-  if (!ownerId || !config.BOT_OWNER_ID) {
+  if (ownerId === undefined || ownerId.length === 0 || config.BOT_OWNER_ID === undefined || config.BOT_OWNER_ID.length === 0) {
     return false;
   }
 
@@ -69,7 +69,7 @@ export function requireOwnerAuth(customMessage?: string) {
       // Log unauthorized access attempt for security monitoring
       logger.warn(
         {
-          ownerId: ownerId || 'none',
+          ownerId: ownerId ?? 'none',
           path: req.path,
           method: req.method,
           ip: req.ip,
