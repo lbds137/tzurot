@@ -18,12 +18,17 @@ const config = getConfig();
 
 // Get Redis connection config from environment
 const parsedUrl =
-  config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
+  config.REDIS_URL !== undefined && config.REDIS_URL.length > 0
+    ? parseRedisUrl(config.REDIS_URL)
+    : null;
 
 const redisConfig = createRedisSocketConfig({
-  host: parsedUrl?.host || config.REDIS_HOST,
-  port: parsedUrl?.port || config.REDIS_PORT,
-  password: parsedUrl?.password || config.REDIS_PASSWORD,
+  host: parsedUrl?.host !== undefined && parsedUrl.host.length > 0 ? parsedUrl.host : config.REDIS_HOST,
+  port: parsedUrl?.port !== undefined && parsedUrl.port > 0 ? parsedUrl.port : config.REDIS_PORT,
+  password:
+    parsedUrl?.password !== undefined && parsedUrl.password.length > 0
+      ? parsedUrl.password
+      : config.REDIS_PASSWORD,
   username: parsedUrl?.username,
   family: 6, // Railway private network uses IPv6
 });
@@ -64,7 +69,7 @@ redis.connect().catch(error => {
 export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
   try {
     const transcript = await redis.get(`transcript:${attachmentUrl}`);
-    if (transcript) {
+    if (transcript !== null && transcript.length > 0) {
       logger.debug(`[Redis] Cache HIT for voice transcript: ${attachmentUrl.substring(0, 50)}...`);
     } else {
       logger.debug(`[Redis] Cache MISS for voice transcript: ${attachmentUrl.substring(0, 50)}...`);
@@ -143,7 +148,7 @@ export async function getJobResult<T = unknown>(jobId: string): Promise<T | null
     const key = `${REDIS_KEY_PREFIXES.JOB_RESULT}${jobId}`;
     const value = await redis.get(key);
 
-    if (!value) {
+    if (value === null || value.length === 0) {
       logger.debug({ jobId, key }, '[Redis] Job result not found');
       return null;
     }
