@@ -31,12 +31,17 @@ const envConfig = getConfig();
 
 // Get Redis connection config from environment
 const parsedUrl =
-  envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0 ? parseRedisUrl(envConfig.REDIS_URL) : null;
+  envConfig.REDIS_URL !== undefined && envConfig.REDIS_URL.length > 0
+    ? parseRedisUrl(envConfig.REDIS_URL)
+    : null;
 
 const redisConfig = createBullMQRedisConfig({
-  host: parsedUrl?.host || envConfig.REDIS_HOST,
-  port: parsedUrl?.port || envConfig.REDIS_PORT,
-  password: parsedUrl?.password || envConfig.REDIS_PASSWORD,
+  host: parsedUrl?.host !== undefined && parsedUrl.host.length > 0 ? parsedUrl.host : envConfig.REDIS_HOST,
+  port: parsedUrl?.port !== undefined && parsedUrl.port > 0 ? parsedUrl.port : envConfig.REDIS_PORT,
+  password:
+    parsedUrl?.password !== undefined && parsedUrl.password.length > 0
+      ? parsedUrl.password
+      : envConfig.REDIS_PASSWORD,
   username: parsedUrl?.username,
   family: 6, // Railway private network uses IPv6
 });
@@ -60,7 +65,7 @@ async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
 
   // Validate AI worker-specific required environment variables
-  if (!envConfig.OPENAI_API_KEY) {
+  if (envConfig.OPENAI_API_KEY === undefined || envConfig.OPENAI_API_KEY.length === 0) {
     logger.fatal('OPENAI_API_KEY environment variable is required for memory embeddings');
     process.exit(1);
   }
@@ -118,7 +123,7 @@ async function main(): Promise<void> {
   const worker = new Worker<AnyJobData, AnyJobResult>(
     config.worker.queueName,
     async (job: Job<AnyJobData>) => {
-      return await jobProcessor.processJob(job);
+      return jobProcessor.processJob(job);
     },
     {
       connection: config.redis,
@@ -212,7 +217,7 @@ async function main(): Promise<void> {
     }
   );
 
-  scheduledWorker.on('completed', (job: Job, result: any) => {
+  scheduledWorker.on('completed', (job: Job, result: unknown) => {
     logger.info({ result }, `[Scheduled] Job ${job.name} completed`);
   });
 
@@ -241,7 +246,7 @@ async function main(): Promise<void> {
   }
 
   // Graceful shutdown
-  const shutdown = async () => {
+  const shutdown = async (): Promise<void> => {
     logger.info('[AIWorker] Shutting down gracefully...');
     await worker.close();
     await scheduledWorker.close();
@@ -251,8 +256,12 @@ async function main(): Promise<void> {
     process.exit(0);
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => {
+    void shutdown();
+  });
+  process.on('SIGINT', () => {
+    void shutdown();
+  });
 
   logger.info('[AIWorker] AI Worker is fully operational! 🚀');
 }
@@ -273,7 +282,8 @@ async function startHealthServer(
         try {
           const memoryHealthy =
             memoryManager !== undefined ? await memoryManager.healthCheck() : true; // If memory is disabled, we're still healthy
-          const workerHealthy = !(await worker.closing);
+          // Worker is healthy if it's running (not paused)
+          const workerHealthy = !worker.isPaused();
 
           const status = memoryHealthy && workerHealthy ? 200 : 503;
           const health = {
