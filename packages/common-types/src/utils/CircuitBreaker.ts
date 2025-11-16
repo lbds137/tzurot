@@ -57,10 +57,10 @@ export class CircuitBreaker {
   private readonly name: string;
 
   constructor(options: CircuitBreakerOptions = {}) {
-    this.failureThreshold = options.failureThreshold || 5;
-    this.failureWindow = options.failureWindow || CIRCUIT_BREAKER.FAILURE_WINDOW;
-    this.recoveryTimeout = options.recoveryTimeout || CIRCUIT_BREAKER.RECOVERY_TIMEOUT;
-    this.name = options.name || 'unnamed';
+    this.failureThreshold = options.failureThreshold ?? 5;
+    this.failureWindow = options.failureWindow ?? CIRCUIT_BREAKER.FAILURE_WINDOW;
+    this.recoveryTimeout = options.recoveryTimeout ?? CIRCUIT_BREAKER.RECOVERY_TIMEOUT;
+    this.name = options.name ?? 'unnamed';
   }
 
   /**
