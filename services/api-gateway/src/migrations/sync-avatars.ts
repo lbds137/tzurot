@@ -53,8 +53,13 @@ export async function syncAvatars(): Promise<void> {
         // File doesn't exist, create it from DB
       }
 
+      // Skip if no avatar data (should not happen due to where clause, but TypeScript doesn't know that)
+      if (personality.avatarData === null) {
+        continue;
+      }
+
       // avatarData is already raw bytes, just write to file
-      const buffer = Buffer.from(personality.avatarData!);
+      const buffer = Buffer.from(personality.avatarData);
       await writeFile(avatarPath, buffer);
 
       const sizeKB = (buffer.length / 1024).toFixed(2);

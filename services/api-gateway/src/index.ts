@@ -22,7 +22,7 @@ import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
 const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const pinoHttp = require('pino-http');
 import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
@@ -50,6 +50,7 @@ const app = express();
 app.use(express.json({ limit: '10mb' })); // Support large message payloads
 
 // HTTP request logging with pino-http
+// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 app.use(pinoHttp({ logger }));
 
 // CORS headers (simple implementation for now)

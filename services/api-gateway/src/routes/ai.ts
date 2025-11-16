@@ -35,7 +35,8 @@ export const aiRouter: Router = Router();
  *
  * Handles request deduplication - identical requests within 5s return the same job.
  */
-aiRouter.post('/generate', async (req, res) => {
+aiRouter.post('/generate', (req, res) => {
+  void (async () => {
   const startTime = Date.now();
   let userId: string | undefined;
   let personalityName: string | undefined;
@@ -46,11 +47,12 @@ aiRouter.post('/generate', async (req, res) => {
 
     if (!validationResult.success) {
       const errorResponse = ErrorResponses.validationError('Invalid request body');
+      const body = req.body as { context?: { userId?: string }; personality?: { name?: string } };
       logger.warn(
         {
           errors: validationResult.error.issues,
-          userId: req.body?.context?.userId,
-          personalityName: req.body?.personality?.name,
+          userId: body?.context?.userId,
+          personalityName: body?.personality?.name,
         },
         '[AI] Validation error'
       );
@@ -155,6 +157,7 @@ aiRouter.post('/generate', async (req, res) => {
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
 
 /**
@@ -167,16 +170,26 @@ aiRouter.post('/generate', async (req, res) => {
  * - wait=true: Wait for job completion using Redis pub/sub (no polling)
  * - wait=false (default): Return job ID immediately
  */
-aiRouter.post('/transcribe', async (req, res) => {
+aiRouter.post('/transcribe', (req, res) => {
+  void (async () => {
   const startTime = Date.now();
   const waitForCompletion = req.query.wait === 'true';
 
   try {
+    const body = req.body as {
+      attachments?: {
+        url: string;
+        contentType: string;
+        name?: string;
+        size?: number;
+      }[];
+    };
+
     // Validate request has attachments
     if (
-      !req.body.attachments ||
-      !Array.isArray(req.body.attachments) ||
-      req.body.attachments.length === 0
+      body.attachments === undefined ||
+      !Array.isArray(body.attachments) ||
+      body.attachments.length === 0
     ) {
       const errorResponse = ErrorResponses.validationError('Missing or invalid attachments array');
       res.status(getStatusCode(errorResponse.error)).json(errorResponse);
@@ -186,7 +199,7 @@ aiRouter.post('/transcribe', async (req, res) => {
     const requestId = randomUUID();
 
     // Download attachments to local storage
-    const localAttachments = await downloadAndStoreAttachments(requestId, req.body.attachments);
+    const localAttachments = await downloadAndStoreAttachments(requestId, body.attachments);
 
     // Use first audio attachment (transcribe endpoint expects single audio file)
     const audioAttachment = localAttachments[0];
@@ -214,7 +227,10 @@ aiRouter.post('/transcribe', async (req, res) => {
     // If client wants to wait, use Redis pub/sub
     if (waitForCompletion) {
       try {
-        const result = await job.waitUntilFinished(queueEvents, TIMEOUTS.JOB_WAIT);
+        const result: { transcription: string } = (await job.waitUntilFinished(
+          queueEvents,
+          TIMEOUTS.JOB_WAIT
+        )) as { transcription: string };
 
         logger.info(`[AI] Transcribe job ${job.id} completed after ${Date.now() - startTime}ms`);
 
@@ -253,6 +269,7 @@ aiRouter.post('/transcribe', async (req, res) => {
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
 
 /**
@@ -260,7 +277,8 @@ aiRouter.post('/transcribe', async (req, res) => {
  *
  * Get the status of a specific job.
  */
-aiRouter.get('/job/:jobId', async (req, res) => {
+aiRouter.get('/job/:jobId', (req, res) => {
+  void (async () => {
   const { jobId } = req.params;
 
   try {
@@ -273,8 +291,8 @@ aiRouter.get('/job/:jobId', async (req, res) => {
     }
 
     const state = await job.getState();
-    const progress = job.progress;
-    const returnvalue = job.returnvalue;
+    const progress: number | object = job.progress as number | object;
+    const returnvalue: unknown = job.returnvalue;
 
     res.json({
       jobId: job.id,
@@ -298,6 +316,7 @@ aiRouter.get('/job/:jobId', async (req, res) => {
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
 
 /**
@@ -306,7 +325,8 @@ aiRouter.get('/job/:jobId', async (req, res) => {
  * Confirm that a job result has been successfully delivered to Discord.
  * Updates the job_results table status from PENDING_DELIVERY to DELIVERED.
  */
-aiRouter.post('/job/:jobId/confirm-delivery', async (req, res) => {
+aiRouter.post('/job/:jobId/confirm-delivery', (req, res) => {
+  void (async () => {
   const { jobId } = req.params;
 
   try {
@@ -367,4 +387,5 @@ aiRouter.post('/job/:jobId/confirm-delivery', async (req, res) => {
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
