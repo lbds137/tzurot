@@ -106,7 +106,7 @@ export async function downloadAndStoreAttachments(
     }
 
     // Get filename from original URL or use name with index to avoid collisions
-    const filename = attachment.name || `attachment-${index}-${Date.now()}.bin`;
+    const filename = attachment.name ?? `attachment-${index}-${Date.now()}.bin`;
     const localPath = join(requestDir, filename);
 
     // Download and optionally resize if it's a large image
@@ -119,7 +119,7 @@ export async function downloadAndStoreAttachments(
     await writeFile(localPath, buffer);
 
     // Build our gateway URL
-    const gatewayUrl = config.PUBLIC_GATEWAY_URL || config.GATEWAY_URL;
+    const gatewayUrl = config.PUBLIC_GATEWAY_URL ?? config.GATEWAY_URL;
     const localUrl = `${gatewayUrl}/temp-attachments/${requestId}/${encodeURIComponent(filename)}`;
 
     logger.info(
