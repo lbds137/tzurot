@@ -217,14 +217,23 @@ pnpm dev
 
 ## Documentation
 
+### Project Status & Planning
+
 - **[CURRENT_WORK.md](CURRENT_WORK.md)** - Current project status and what's being worked on
-- **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
+- **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** - Version history and changelogs
+- **[V2 Feature Tracking](docs/planning/V2_FEATURE_TRACKING.md)** - What's been ported from v2
+
+### Architecture & Design
+
 - **[Architecture Decisions](docs/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
 - **[Timeout Allocation Guide](docs/architecture/TIMEOUT_ALLOCATION.md)** - Railway timeout budget management
-- **[V2 Feature Tracking](docs/planning/V2_FEATURE_TRACKING.md)** - What's been ported from v2
-- **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Railway deployment guide
+- **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
+
+### Development Guides
+
 - **[Development Guide](docs/guides/DEVELOPMENT.md)** - Local development setup
 - **[Testing Guide](docs/guides/TESTING.md)** - Testing philosophy and patterns
+- **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Railway deployment guide
 
 ## Project History
 
