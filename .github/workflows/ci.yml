@@ -34,6 +34,9 @@ jobs:
     - name: Generate Prisma client
       run: npx prisma generate
 
+    - name: Build packages
+      run: pnpm --filter './packages/*' build
+
     - name: Run linter
       run: pnpm run lint
 
