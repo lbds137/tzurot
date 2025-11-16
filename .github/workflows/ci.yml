@@ -53,6 +53,12 @@ jobs:
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
 
+    - name: Clean build artifacts
+      run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
+
+    - name: Build packages
+      run: pnpm --filter './packages/*' build
+
     - name: Run tests
       run: pnpm test
 
@@ -77,6 +83,9 @@ jobs:
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
+
+    - name: Clean build artifacts
+      run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
 
     - name: Build all services
       run: pnpm run build
