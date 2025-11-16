@@ -88,11 +88,16 @@ export class MessageHandler {
     const { message, personality, personaId, userMessageContent, userMessageTime } = jobContext;
 
     // BOUNDARY VALIDATION: Validate result has valid content before using it
-    if (!result.content || typeof result.content !== 'string') {
+    if (
+      result.content === undefined ||
+      result.content === null ||
+      result.content.length === 0 ||
+      typeof result.content !== 'string'
+    ) {
       logger.error(
         {
           jobId,
-          hasContent: !!result.content,
+          hasContent: result.content !== undefined && result.content !== null,
           contentType: typeof result.content,
         },
         '[MessageHandler] Job result missing or invalid content field'
