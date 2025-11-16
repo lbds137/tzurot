@@ -6,7 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
+import { PgvectorMemoryAdapter, MemoryMetadataSchema } from '../services/PgvectorMemoryAdapter.js';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('PendingMemoryProcessor');
@@ -60,13 +60,37 @@ export class PendingMemoryProcessor {
       for (const pending of pendingMemories) {
         stats.processed++;
 
+        // Validate metadata using Zod schema (safe runtime validation)
+        const validationResult = MemoryMetadataSchema.safeParse(pending.metadata);
+
+        if (!validationResult.success) {
+          // Metadata is invalid - log error and skip this record
+          logger.error(
+            {
+              pendingId: pending.id,
+              validationError: validationResult.error.flatten(),
+              invalidData: pending.metadata,
+            },
+            '[PendingMemory] Metadata validation failed, skipping record'
+          );
+          stats.skipped++;
+          // Mark as failed so it doesn't get retried indefinitely
+          await this.prisma.pendingMemory.update({
+            where: { id: pending.id },
+            data: {
+              attempts: 999, // Set high attempts to prevent retry
+              lastAttemptAt: new Date(),
+              error: `Invalid metadata: ${validationResult.error.message}`,
+            },
+          });
+          continue;
+        }
+
         try {
-          // Attempt to store the memory
-          // Prisma Json type requires runtime validation before use as MemoryMetadata
+          // Metadata is now safely validated and typed!
           await this.memoryAdapter.addMemory({
             text: pending.text,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-            metadata: pending.metadata as any, // Cast from Prisma Json to MemoryMetadata
+            metadata: validationResult.data,
           });
 
           // Success! Delete the pending memory

@@ -58,13 +58,24 @@ const client = new Client({
 });
 
 /**
+ * Services returned by the composition root
+ */
+interface Services {
+  messageHandler: MessageHandler;
+  gatewayClient: GatewayClient;
+  jobTracker: JobTracker;
+  resultsListener: ResultsListener;
+  webhookManager: WebhookManager;
+  personalityService: PersonalityService;
+}
+
+/**
  * Composition Root
  *
  * This is where all dependencies are instantiated and wired together.
  * Full dependency injection - no service creates its own dependencies.
  */
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function createServices() {
+function createServices(): Services {
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);
   const webhookManager = new WebhookManager(client);
