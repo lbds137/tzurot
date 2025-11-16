@@ -116,7 +116,7 @@ export class PgvectorMemoryAdapter {
 
       // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
       const expectedDimensions = 1536;
-      if (!queryEmbedding || queryEmbedding.length !== expectedDimensions) {
+      if (queryEmbedding?.length !== expectedDimensions) {
         throw new Error(
           `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding?.length || 0}`
         );
@@ -276,7 +276,7 @@ export class PgvectorMemoryAdapter {
 
       // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
       const expectedDimensions = 1536;
-      if (!embedding || embedding.length !== expectedDimensions) {
+      if (embedding?.length !== expectedDimensions) {
         throw new Error(
           `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding?.length || 0}`
         );

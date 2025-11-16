@@ -54,7 +54,7 @@ export function countTextTokens(text: string, model: TiktokenModel = DEFAULT_TOK
  * @param imageCount - Number of images (defaults to 1)
  * @returns Estimated token count
  */
-export function estimateImageTokens(imageCount: number = 1): number {
+export function estimateImageTokens(imageCount = 1): number {
   return TOKEN_ESTIMATES.IMAGE * imageCount;
 }
 
@@ -110,7 +110,7 @@ export function estimateMessageTokens(options: {
  * @returns Number of messages that fit within budget (from the end)
  */
 export function calculateMessagesFitInBudget(
-  messages: Array<{ tokenCount: number }>,
+  messages: { tokenCount: number }[],
   tokenBudget: number
 ): number {
   let currentTokens = 0;

@@ -40,7 +40,7 @@ interface MigrationResult {
   memoriesMigrated: number;
   legacyCollectionDeleted: boolean;
   targetPersonaId: string;
-  errors: Array<{ memoryId: string; error: string }>;
+  errors: { memoryId: string; error: string }[];
 }
 
 class LegacyPersonaMigration {
@@ -236,7 +236,7 @@ class LegacyPersonaMigration {
   private async migrateMemories(
     legacyCollectionName: string,
     targetPersonaId: string,
-    errors: Array<{ memoryId: string; error: string }>
+    errors: { memoryId: string; error: string }[]
   ): Promise<number> {
     const targetCollectionName = `persona-${targetPersonaId}`;
     let migratedCount = 0;

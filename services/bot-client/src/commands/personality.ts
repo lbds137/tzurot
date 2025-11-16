@@ -434,15 +434,15 @@ async function handleEdit(
       ownerId: interaction.user.id,
     };
 
-    if (name !== null) payload.name = name;
-    if (characterInfo !== null) payload.characterInfo = characterInfo;
-    if (personalityTraits !== null) payload.personalityTraits = personalityTraits;
-    if (displayName !== null) payload.displayName = displayName;
-    if (tone !== null) payload.personalityTone = tone;
-    if (age !== null) payload.personalityAge = age;
-    if (likes !== null) payload.personalityLikes = likes;
-    if (dislikes !== null) payload.personalityDislikes = dislikes;
-    if (avatarBase64) payload.avatarData = avatarBase64;
+    if (name !== null) {payload.name = name;}
+    if (characterInfo !== null) {payload.characterInfo = characterInfo;}
+    if (personalityTraits !== null) {payload.personalityTraits = personalityTraits;}
+    if (displayName !== null) {payload.displayName = displayName;}
+    if (tone !== null) {payload.personalityTone = tone;}
+    if (age !== null) {payload.personalityAge = age;}
+    if (likes !== null) {payload.personalityLikes = likes;}
+    if (dislikes !== null) {payload.personalityDislikes = dislikes;}
+    if (avatarBase64) {payload.avatarData = avatarBase64;}
 
     // Call API Gateway to edit personality
     const gatewayUrl = config.GATEWAY_URL;
@@ -484,15 +484,15 @@ async function handleEdit(
       .setTimestamp();
 
     const updatedFields: string[] = [];
-    if (name) updatedFields.push(`Name: ${name}`);
-    if (characterInfo) updatedFields.push('Character Info');
-    if (personalityTraits) updatedFields.push('Personality Traits');
-    if (displayName) updatedFields.push(`Display Name: ${displayName}`);
-    if (tone) updatedFields.push(`Tone: ${tone}`);
-    if (age) updatedFields.push(`Age: ${age}`);
-    if (likes) updatedFields.push('Likes');
-    if (dislikes) updatedFields.push('Dislikes');
-    if (avatarAttachment) updatedFields.push('Avatar');
+    if (name) {updatedFields.push(`Name: ${name}`);}
+    if (characterInfo) {updatedFields.push('Character Info');}
+    if (personalityTraits) {updatedFields.push('Personality Traits');}
+    if (displayName) {updatedFields.push(`Display Name: ${displayName}`);}
+    if (tone) {updatedFields.push(`Tone: ${tone}`);}
+    if (age) {updatedFields.push(`Age: ${age}`);}
+    if (likes) {updatedFields.push('Likes');}
+    if (dislikes) {updatedFields.push('Dislikes');}
+    if (avatarAttachment) {updatedFields.push('Avatar');}
 
     embed.addFields({ name: 'Updated Fields', value: updatedFields.join('\n'), inline: false });
 
@@ -637,18 +637,18 @@ async function handleImport(
 
     // Show what was imported
     const importedFields: string[] = [];
-    if (payload.characterInfo) importedFields.push('Character Info');
-    if (payload.personalityTraits) importedFields.push('Personality Traits');
-    if (payload.displayName) importedFields.push('Display Name');
-    if (payload.personalityTone) importedFields.push('Tone');
-    if (payload.personalityAge) importedFields.push('Age');
-    if (payload.personalityAppearance) importedFields.push('Appearance');
-    if (payload.personalityLikes) importedFields.push('Likes');
-    if (payload.personalityDislikes) importedFields.push('Dislikes');
-    if (payload.conversationalGoals) importedFields.push('Conversational Goals');
-    if (payload.conversationalExamples) importedFields.push('Conversational Examples');
-    if (payload.customFields) importedFields.push('Custom Fields');
-    if (payload.avatarData) importedFields.push('Avatar Data');
+    if (payload.characterInfo) {importedFields.push('Character Info');}
+    if (payload.personalityTraits) {importedFields.push('Personality Traits');}
+    if (payload.displayName) {importedFields.push('Display Name');}
+    if (payload.personalityTone) {importedFields.push('Tone');}
+    if (payload.personalityAge) {importedFields.push('Age');}
+    if (payload.personalityAppearance) {importedFields.push('Appearance');}
+    if (payload.personalityLikes) {importedFields.push('Likes');}
+    if (payload.personalityDislikes) {importedFields.push('Dislikes');}
+    if (payload.conversationalGoals) {importedFields.push('Conversational Goals');}
+    if (payload.conversationalExamples) {importedFields.push('Conversational Examples');}
+    if (payload.customFields) {importedFields.push('Custom Fields');}
+    if (payload.avatarData) {importedFields.push('Avatar Data');}
 
     embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
 

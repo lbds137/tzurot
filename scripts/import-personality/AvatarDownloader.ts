@@ -136,13 +136,13 @@ export class AvatarDownloader {
    * Get file extension from content-type header
    */
   private getExtensionFromContentType(contentType: string | null): string {
-    if (!contentType) return 'png'; // Default to PNG
+    if (!contentType) {return 'png';} // Default to PNG
 
-    if (contentType.includes('image/png')) return 'png';
-    if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) return 'jpg';
-    if (contentType.includes('image/gif')) return 'gif';
-    if (contentType.includes('image/webp')) return 'webp';
-    if (contentType.includes('image/svg')) return 'svg';
+    if (contentType.includes('image/png')) {return 'png';}
+    if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) {return 'jpg';}
+    if (contentType.includes('image/gif')) {return 'gif';}
+    if (contentType.includes('image/webp')) {return 'webp';}
+    if (contentType.includes('image/svg')) {return 'svg';}
 
     return 'png'; // Default fallback
   }
@@ -199,7 +199,7 @@ export class AvatarDownloader {
   /**
    * List all downloaded avatars
    */
-  async list(): Promise<Array<{ slug: string; filename: string; size: number }>> {
+  async list(): Promise<{ slug: string; filename: string; size: number }[]> {
     try {
       const files = await fs.readdir(this.storageDir);
       const avatars = [];

@@ -102,7 +102,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
 
       await prisma.$disconnect();
 
-      if (!personality || !personality.avatarData) {
+      if (!personality?.avatarData) {
         // Not in DB either, return 404
         const errorResponse = ErrorResponses.notFound(`Avatar for personality '${slug}'`);
         res.status(StatusCodes.NOT_FOUND).json(errorResponse);

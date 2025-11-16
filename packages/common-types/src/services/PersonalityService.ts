@@ -267,7 +267,7 @@ export class PersonalityService {
    * Handles {user}, {{user}}, {assistant}, {shape}, {{char}}, {personality}
    */
   private replacePlaceholders(text: string | null | undefined, personalityName: string): string | undefined {
-    if (!text) return undefined;
+    if (!text) {return undefined;}
 
     let result = text;
 

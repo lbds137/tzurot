@@ -583,7 +583,7 @@ export class MessageReferenceExtractor {
     const embedString = snapshot.embeds?.length
       ? snapshot.embeds
           .map((embed, index) => {
-            const embedNumber = snapshot.embeds!.length > 1 ? ` ${index + 1}` : '';
+            const embedNumber = snapshot.embeds.length > 1 ? ` ${index + 1}` : '';
             // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
             const apiEmbed: any = 'toJSON' in embed && typeof embed.toJSON === 'function'
               ? embed.toJSON()

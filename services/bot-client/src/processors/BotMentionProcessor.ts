@@ -22,7 +22,7 @@ export class BotMentionProcessor implements IMessageProcessor {
 
   async process(message: Message): Promise<boolean> {
     // Check for generic bot mention
-    if (!message.mentions.has(message.client.user!)) {
+    if (!message.mentions.has(message.client.user)) {
       return false; // No bot mention, message is unhandled
     }
 

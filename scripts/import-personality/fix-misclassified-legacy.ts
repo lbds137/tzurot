@@ -105,7 +105,7 @@ async function fixCollection(
       }
 
       offset = response.next_page_offset;
-      if (!offset) break;
+      if (!offset) {break;}
     }
 
     console.log(`   Found ${existingIds.size} existing memories in target`);
@@ -138,7 +138,7 @@ async function fixCollection(
     }
 
     offset = response.next_page_offset;
-    if (!offset) break;
+    if (!offset) {break;}
   }
 
   console.log(`   Memories to move: ${pointsToMove.length}`);

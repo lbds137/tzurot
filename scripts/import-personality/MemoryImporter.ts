@@ -67,13 +67,13 @@ export class MemoryImporter {
     console.log('  Phase 1: Preparing memory points...');
     const pointsByCollection = new Map<
       string,
-      Array<{
+      {
         id: string;
         vector: number[];
         payload: Record<string, any>;
         memoryId: string;
         shapesUserId: string;
-      }>
+      }[]
     >();
 
     for (const memory of shapesMemories) {
@@ -112,13 +112,13 @@ export class MemoryImporter {
    * Returns array of points ready to be batched
    */
   private async prepareMemoryPoints(memory: ShapesIncMemory): Promise<
-    Array<{
+    {
       id: string;
       vector: number[];
       payload: Record<string, any>;
       memoryId: string;
       shapesUserId: string;
-    }>
+    }[]
   > {
     if (!memory.senders || memory.senders.length === 0) {
       throw new Error('No senders found in memory');
@@ -135,13 +135,13 @@ export class MemoryImporter {
       embedding = await this.generateEmbedding(summaryText);
     }
 
-    const points: Array<{
+    const points: {
       id: string;
       vector: number[];
       payload: Record<string, any>;
       memoryId: string;
       shapesUserId: string;
-    }> = [];
+    }[] = [];
 
     // Create a separate memory entry for each sender
     for (const shapesUserId of memory.senders) {
@@ -225,13 +225,13 @@ export class MemoryImporter {
    */
   private async batchUpsertPoints(
     collectionName: string,
-    points: Array<{
+    points: {
       id: string;
       vector: number[];
       payload: Record<string, any>;
       memoryId: string;
       shapesUserId: string;
-    }>
+    }[]
   ): Promise<void> {
     if (!this.options.qdrant || this.options.dryRun) {
       return;

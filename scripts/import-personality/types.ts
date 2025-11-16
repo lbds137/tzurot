@@ -189,7 +189,7 @@ export interface MemoryImportResult {
   failed: number;
   migratedToV3: number; // Known users auto-migrated to v3 personas
   legacyPersonasCreated: number; // Unknown users stored in legacy collections
-  errors: Array<{ memoryId: string; error: string }>;
+  errors: { memoryId: string; error: string }[];
 }
 
 export interface UUIDMapping {

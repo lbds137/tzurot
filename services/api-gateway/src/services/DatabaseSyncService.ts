@@ -188,11 +188,11 @@ export class DatabaseSyncService {
    * Verify both databases are on the same schema version
    */
   private async checkSchemaVersions(): Promise<string> {
-    const devMigrations = await this.devClient.$queryRaw<Array<{ migration_name: string }>>`
+    const devMigrations = await this.devClient.$queryRaw<{ migration_name: string }[]>`
       SELECT migration_name FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 1
     `;
 
-    const prodMigrations = await this.prodClient.$queryRaw<Array<{ migration_name: string }>>`
+    const prodMigrations = await this.prodClient.$queryRaw<{ migration_name: string }[]>`
       SELECT migration_name FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 1
     `;
 
@@ -224,7 +224,7 @@ export class DatabaseSyncService {
 
     // Get actual UUID columns from database schema
     const actualUuidColumns = await this.devClient.$queryRaw<
-      Array<{ table_name: string; column_name: string }>
+      { table_name: string; column_name: string }[]
     >`
       SELECT table_name, column_name
       FROM information_schema.columns
@@ -277,7 +277,7 @@ export class DatabaseSyncService {
     const syncedTables = new Set(Object.keys(SYNC_CONFIG));
     for (const tableName of schemaMap.keys()) {
       // Skip Prisma internal tables
-      if (tableName.startsWith('_prisma')) continue;
+      if (tableName.startsWith('_prisma')) {continue;}
 
       if (!syncedTables.has(tableName)) {
         warnings.push(

@@ -148,7 +148,7 @@ export class ConversationHistoryService {
   async getRecentHistory(
     channelId: string,
     personalityId: string,
-    limit: number = 20
+    limit = 20
   ): Promise<ConversationMessage[]> {
     try {
       const messages = await this.prisma.conversationHistory.findMany({
@@ -215,7 +215,7 @@ export class ConversationHistoryService {
   async getHistory(
     channelId: string,
     personalityId: string,
-    limit: number = 20,
+    limit = 20,
     cursor?: string
   ): Promise<{
     messages: ConversationMessage[];
@@ -424,7 +424,7 @@ export class ConversationHistoryService {
    * Clean up old history (older than X days)
    * Call this periodically to prevent unbounded growth
    */
-  async cleanupOldHistory(daysToKeep: number = 30): Promise<number> {
+  async cleanupOldHistory(daysToKeep = 30): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);

@@ -63,8 +63,8 @@ export class LLMInvoker {
     model: BaseChatModel,
     messages: BaseMessage[],
     modelName: string,
-    imageCount: number = 0,
-    audioCount: number = 0
+    imageCount = 0,
+    audioCount = 0
   ): Promise<BaseMessage> {
     // Calculate job timeout for logging (attachments processed in separate jobs)
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);

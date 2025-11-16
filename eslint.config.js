@@ -26,6 +26,8 @@ export default tseslint.config(
       '**/*.spec.ts',
       'coverage/**',
       '.pnpm-store/**',
+      '**/vitest.config.ts',
+      'tzurot-legacy/**',
     ],
   },
 

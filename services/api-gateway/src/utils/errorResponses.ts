@@ -82,7 +82,7 @@ export function getStatusCode(errorCode: ErrorCode): number {
  */
 export function createErrorFromException(
   error: unknown,
-  fallbackMessage: string = 'An unexpected error occurred',
+  fallbackMessage = 'An unexpected error occurred',
   requestId?: string
 ): ErrorResponse {
   const message = error instanceof Error ? error.message : fallbackMessage;
@@ -98,7 +98,7 @@ export const ErrorResponses = {
     createErrorResponse(ErrorCode.VALIDATION_ERROR, message, requestId),
 
   unauthorized: (
-    message: string = 'This endpoint is only available to the bot owner',
+    message = 'This endpoint is only available to the bot owner',
     requestId?: string
   ) => createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
 
@@ -108,7 +108,7 @@ export const ErrorResponses = {
   conflict: (message: string, requestId?: string) =>
     createErrorResponse(ErrorCode.CONFLICT, message, requestId),
 
-  internalError: (message: string = 'An internal error occurred', requestId?: string) =>
+  internalError: (message = 'An internal error occurred', requestId?: string) =>
     createErrorResponse(ErrorCode.INTERNAL_ERROR, message, requestId),
 
   configurationError: (message: string, requestId?: string) =>
