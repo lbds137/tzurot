@@ -5,8 +5,9 @@
  * Processes attachments (images, voice messages) in parallel for better performance.
  */
 
-import { createLogger, type ReferencedMessage, type LoadedPersonality, CONTENT_TYPES, TEXT_LIMITS } from '@tzurot/common-types';
+import { createLogger, type ReferencedMessage, type LoadedPersonality, CONTENT_TYPES, TEXT_LIMITS, RETRY_CONFIG } from '@tzurot/common-types';
 import { describeImage, transcribeAudio } from './MultimodalProcessor.js';
+import { withRetry } from '../utils/retryService.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
 
@@ -180,11 +181,18 @@ export class ReferencedMessageFormatter {
           '[ReferencedMessageFormatter] Transcribing voice message in referenced message'
         );
 
-        const transcription = await transcribeAudio(attachment, personality);
+        const result = await withRetry(
+          () => transcribeAudio(attachment, personality),
+          {
+            maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+            logger,
+            operationName: `Voice transcription (reference ${referenceNumber})`,
+          }
+        );
 
         return {
           index,
-          line: `- Voice Message (${attachment.duration}s): "${transcription}"`,
+          line: `- Voice Message (${attachment.duration}s): "${result.value}"`,
         };
       } catch (error) {
         logger.error(
@@ -193,7 +201,7 @@ export class ReferencedMessageFormatter {
             referenceNumber,
             url: attachment.url,
           },
-          '[ReferencedMessageFormatter] Failed to transcribe voice message in referenced message'
+          '[ReferencedMessageFormatter] Failed to transcribe voice message in referenced message after retries'
         );
 
         return {
@@ -215,11 +223,18 @@ export class ReferencedMessageFormatter {
           '[ReferencedMessageFormatter] Processing image in referenced message through vision model'
         );
 
-        const imageDescription = await describeImage(attachment, personality);
+        const result = await withRetry(
+          () => describeImage(attachment, personality),
+          {
+            maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+            logger,
+            operationName: `Image description (reference ${referenceNumber})`,
+          }
+        );
 
         return {
           index,
-          line: `- Image (${attachment.name}): ${imageDescription}`,
+          line: `- Image (${attachment.name}): ${result.value}`,
         };
       } catch (error) {
         logger.error(
@@ -228,7 +243,7 @@ export class ReferencedMessageFormatter {
             referenceNumber,
             url: attachment.url,
           },
-          '[ReferencedMessageFormatter] Failed to process image in referenced message'
+          '[ReferencedMessageFormatter] Failed to process image in referenced message after retries'
         );
 
         return {
