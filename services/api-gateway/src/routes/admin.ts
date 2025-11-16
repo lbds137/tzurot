@@ -20,13 +20,19 @@ const prisma = new PrismaClient();
  * POST /admin/db-sync
  * Bidirectional database synchronization between dev and prod
  */
-router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) => {
+router.post('/db-sync', requireOwnerAuth(), (req: Request, res: Response) => {
+  void (async () => {
   try {
-    const { dryRun = false } = req.body;
+    const { dryRun = false } = req.body as { dryRun?: boolean };
     const config = getConfig();
 
     // Verify database URLs are configured
-    if (!config.DEV_DATABASE_URL || !config.PROD_DATABASE_URL) {
+    if (
+      config.DEV_DATABASE_URL === undefined ||
+      config.DEV_DATABASE_URL.length === 0 ||
+      config.PROD_DATABASE_URL === undefined ||
+      config.PROD_DATABASE_URL.length === 0
+    ) {
       const errorResponse = ErrorResponses.configurationError(
         'Both DEV_DATABASE_URL and PROD_DATABASE_URL must be configured'
       );
@@ -39,7 +45,9 @@ router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) 
     // Execute sync
     const syncService = new DatabaseSyncService(config.DEV_DATABASE_URL, config.PROD_DATABASE_URL);
 
-    const result = await syncService.sync({ dryRun });
+    const result = await syncService.sync({
+      dryRun,
+    });
 
     logger.info({ result }, '[Admin] Database sync complete');
 
@@ -57,13 +65,15 @@ router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) 
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
 
 /**
  * POST /admin/personality
  * Create a new AI personality
  */
-router.post('/personality', requireOwnerAuth(), async (req: Request, res: Response) => {
+router.post('/personality', requireOwnerAuth(), (req: Request, res: Response) => {
+  void (async () => {
   try {
     const {
       name,
@@ -80,10 +90,34 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       conversationalExamples,
       customFields,
       avatarData,
-    } = req.body;
+    } = req.body as {
+      name?: string;
+      slug?: string;
+      characterInfo?: string;
+      personalityTraits?: string;
+      displayName?: string | null;
+      personalityTone?: string | null;
+      personalityAge?: string | null;
+      personalityAppearance?: string | null;
+      personalityLikes?: string | null;
+      personalityDislikes?: string | null;
+      conversationalGoals?: string | null;
+      conversationalExamples?: string | null;
+      customFields?: Record<string, unknown> | null;
+      avatarData?: string;
+    };
 
     // Validate required fields
-    if (!name || !slug || !characterInfo || !personalityTraits) {
+    if (
+      name === undefined ||
+      name.length === 0 ||
+      slug === undefined ||
+      slug.length === 0 ||
+      characterInfo === undefined ||
+      characterInfo.length === 0 ||
+      personalityTraits === undefined ||
+      personalityTraits.length === 0
+    ) {
       const errorResponse = ErrorResponses.validationError(
         'Missing required fields: name, slug, characterInfo, personalityTraits'
       );
@@ -105,7 +139,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       where: { slug },
     });
 
-    if (existing) {
+    if (existing !== null) {
       const errorResponse = ErrorResponses.conflict(
         `A personality with slug '${slug}' already exists`
       );
@@ -115,7 +149,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
 
     // Process avatar if provided
     let processedAvatarData: Buffer | undefined;
-    if (avatarData) {
+    if (avatarData !== undefined && avatarData.length > 0) {
       try {
         logger.info(`[Admin] Processing avatar for personality: ${slug}`);
 
@@ -148,18 +182,19 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       data: {
         name,
         slug,
-        displayName: displayName || null,
+        displayName: displayName ?? null,
         characterInfo,
         personalityTraits,
-        personalityTone: personalityTone || null,
-        personalityAge: personalityAge || null,
-        personalityAppearance: personalityAppearance || null,
-        personalityLikes: personalityLikes || null,
-        personalityDislikes: personalityDislikes || null,
-        conversationalGoals: conversationalGoals || null,
-        conversationalExamples: conversationalExamples || null,
-        customFields: customFields || null,
-        avatarData: processedAvatarData ? new Uint8Array(processedAvatarData) : null,
+        personalityTone: personalityTone ?? null,
+        personalityAge: personalityAge ?? null,
+        personalityAppearance: personalityAppearance ?? null,
+        personalityLikes: personalityLikes ?? null,
+        personalityDislikes: personalityDislikes ?? null,
+        conversationalGoals: conversationalGoals ?? null,
+        conversationalExamples: conversationalExamples ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+        ...(customFields !== null && customFields !== undefined && { customFields: customFields as any }),
+        avatarData: processedAvatarData !== undefined ? new Uint8Array(processedAvatarData) : null,
         voiceEnabled: false,
         imageEnabled: false,
       },
@@ -176,7 +211,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         },
       });
 
-      if (defaultLlmConfig) {
+      if (defaultLlmConfig !== null) {
         await prisma.personalityDefaultConfig.create({
           data: {
             personalityId: personality.id,
@@ -202,7 +237,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         name: personality.name,
         slug: personality.slug,
         displayName: personality.displayName,
-        hasAvatar: !!processedAvatarData,
+        hasAvatar: processedAvatarData !== undefined,
       },
       timestamp: new Date().toISOString(),
     });
@@ -215,13 +250,15 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
 
 /**
  * PATCH /admin/personality/:slug
  * Edit an existing AI personality
  */
-router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res: Response) => {
+router.patch('/personality/:slug', requireOwnerAuth(), (req: Request, res: Response) => {
+  void (async () => {
   try {
     const { slug } = req.params;
     const {
@@ -238,14 +275,28 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
       conversationalExamples,
       customFields,
       avatarData,
-    } = req.body;
+    } = req.body as {
+      name?: string;
+      characterInfo?: string;
+      personalityTraits?: string;
+      displayName?: string | null;
+      personalityTone?: string | null;
+      personalityAge?: string | null;
+      personalityAppearance?: string | null;
+      personalityLikes?: string | null;
+      personalityDislikes?: string | null;
+      conversationalGoals?: string | null;
+      conversationalExamples?: string | null;
+      customFields?: Record<string, unknown> | null;
+      avatarData?: string;
+    };
 
     // Check if personality exists
     const existing = await prisma.personality.findUnique({
       where: { slug },
     });
 
-    if (!existing) {
+    if (existing === null) {
       const errorResponse = ErrorResponses.notFound(`Personality with slug '${slug}'`);
       res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
@@ -253,7 +304,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
 
     // Process avatar if provided
     let processedAvatarData: Buffer | undefined;
-    if (avatarData) {
+    if (avatarData !== undefined && avatarData.length > 0) {
       try {
         logger.info(`[Admin] Processing avatar update for personality: ${slug}`);
 
@@ -315,7 +366,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
         name: personality.name,
         slug: personality.slug,
         displayName: personality.displayName,
-        hasAvatar: !!personality.avatarData,
+        hasAvatar: personality.avatarData !== null,
       },
       timestamp: new Date().toISOString(),
     });
@@ -328,6 +379,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
+  })();
 });
 
 export { router as adminRouter };
