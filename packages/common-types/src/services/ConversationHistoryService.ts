@@ -52,7 +52,7 @@ export class ConversationHistoryService {
   ): Promise<void> {
     try {
       // Normalize discordMessageId to array format
-      const messageIds = discordMessageId
+      const messageIds = discordMessageId !== undefined
         ? Array.isArray(discordMessageId)
           ? discordMessageId
           : [discordMessageId]
@@ -65,7 +65,7 @@ export class ConversationHistoryService {
       await this.prisma.conversationHistory.create({
         data: {
           channelId,
-          guildId: guildId || null,
+          guildId: guildId ?? null,
           personalityId,
           personaId,
           role,
@@ -73,12 +73,12 @@ export class ConversationHistoryService {
           tokenCount, // Cache token count for performance
           discordMessageId: messageIds,
           // Use provided timestamp if given, otherwise let PostgreSQL use default (now())
-          ...(timestamp && { createdAt: timestamp }),
+          ...(timestamp !== undefined && { createdAt: timestamp }),
         },
       });
 
       logger.debug(
-        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp ? 'explicit' : 'default'}, tokens: ${tokenCount})`
+        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId ?? 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp !== undefined ? 'explicit' : 'default'}, tokens: ${tokenCount})`
       );
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);
@@ -188,8 +188,8 @@ export class ConversationHistoryService {
           tokenCount: msg.tokenCount ?? undefined, // Use cached token count
           createdAt: msg.createdAt,
           personaId: msg.personaId,
-          personaName: msg.persona.preferredName || msg.persona.name,
-          discordMessageId: msg.discordMessageId || undefined,
+          personaName: msg.persona.preferredName ?? msg.persona.name,
+          discordMessageId: msg.discordMessageId,
         })
       );
 
@@ -236,7 +236,7 @@ export class ConversationHistoryService {
           createdAt: 'desc',
         },
         take: safeLimit + 1, // Fetch one extra to check if there are more
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        ...(cursor !== undefined && cursor.length > 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
         select: {
           id: true,
           role: true,
@@ -268,8 +268,8 @@ export class ConversationHistoryService {
           tokenCount: msg.tokenCount ?? undefined, // Use cached token count
           createdAt: msg.createdAt,
           personaId: msg.personaId,
-          personaName: msg.persona.preferredName || msg.persona.name,
-          discordMessageId: msg.discordMessageId || undefined,
+          personaName: msg.persona.preferredName ?? msg.persona.name,
+          discordMessageId: msg.discordMessageId,
         })
       );
 
@@ -277,7 +277,7 @@ export class ConversationHistoryService {
       const nextCursor = hasMore ? resultMessages[resultMessages.length - 1].id : undefined;
 
       logger.debug(
-        `Retrieved ${history.length} messages (hasMore: ${hasMore}, cursor: ${cursor || 'none'}) ` +
+        `Retrieved ${history.length} messages (hasMore: ${hasMore}, cursor: ${cursor ?? 'none'}) ` +
           `from history (channel: ${channelId}, personality: ${personalityId})`
       );
 
@@ -387,8 +387,8 @@ export class ConversationHistoryService {
         tokenCount: message.tokenCount ?? undefined,
         createdAt: message.createdAt,
         personaId: message.personaId,
-        personaName: message.persona.preferredName || message.persona.name,
-        discordMessageId: message.discordMessageId || undefined,
+        personaName: message.persona.preferredName ?? message.persona.name,
+        discordMessageId: message.discordMessageId,
       };
     } catch (error) {
       logger.error(
