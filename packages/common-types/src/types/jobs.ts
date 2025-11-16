@@ -137,8 +137,8 @@ export type AnyJobData =
 export interface AudioTranscriptionResult {
   requestId: string;
   success: boolean;
-  /** Transcribed text */
-  transcript?: string;
+  /** Transcribed text (uses 'content' for consistency with LLMGenerationResult) */
+  content?: string;
   /** Error message if failed */
   error?: string;
   metadata?: {

@@ -79,7 +79,7 @@ describe('AudioTranscriptionJob', () => {
       expect(result).toEqual({
         requestId: 'test-req-audio-0',
         success: true,
-        transcript: 'Mocked transcription text',
+        content: 'Mocked transcription text',
         metadata: {
           processingTimeMs: 1000,
           duration: 10,
@@ -134,7 +134,7 @@ describe('AudioTranscriptionJob', () => {
       const result = await processAudioTranscriptionJob(job);
 
       expect(result.success).toBe(true);
-      expect(result.transcript).toBe('Mocked transcription text');
+      expect(result.content).toBe('Mocked transcription text');
       expect(result.metadata.processingTimeMs).toBe(3500);
       expect(mockWithRetry).toHaveBeenCalledTimes(1);
     });
@@ -248,7 +248,7 @@ describe('AudioTranscriptionJob', () => {
       const result = await processAudioTranscriptionJob(job);
 
       expect(result.success).toBe(true);
-      expect(result.transcript).toBe('Mocked transcription text');
+      expect(result.content).toBe('Mocked transcription text');
       expect(mockWithRetry).toHaveBeenCalled();
     });
 

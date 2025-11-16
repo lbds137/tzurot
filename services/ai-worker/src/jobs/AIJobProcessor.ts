@@ -245,8 +245,8 @@ export class AIJobProcessor {
 
           if (dep.type === 'audio-transcription') {
             const result = await getJobResult<AudioTranscriptionResult>(key);
-            if (result?.success && result.transcript) {
-              transcriptions.push(result.transcript);
+            if (result?.success && result.content) {
+              transcriptions.push(result.content);
               logger.debug({ jobId: dep.jobId, key }, '[AIJobProcessor] Retrieved audio transcription');
             } else {
               logger.warn({ jobId: dep.jobId, key }, '[AIJobProcessor] Audio transcription job failed or has no result');
