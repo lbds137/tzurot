@@ -75,7 +75,7 @@ export function parseRedisUrl(url: string): RedisConnectionConfig {
       throw new Error('Failed to parse REDIS_URL in production environment');
     }
 
-    logger.warn('[RedisUtils] Falling back to localhost (development only)');
+    logger.warn({ err: error }, '[RedisUtils] Falling back to localhost (development only)');
     return {
       host: 'localhost',
       port: 6379,
