@@ -1,32 +1,41 @@
 # 🎯 Current Work
 
-> Last updated: 2025-11-06
+> Last updated: 2025-11-16
 
-## Status: Quality of Life Improvements 🎯
+## Status: Documentation & Infrastructure Improvements 🎯
 
-**Current Phase**: LLM Model & Personality Management
-
-**Priority Shift**: De-emphasized OpenMemory migration temporarily to focus on immediate production pain points (model refusal handling, easy model switching).
+**Current Phase**: Project Housekeeping & CI/CD Enhancement
 
 **Recent Completion**:
 
-- ✅ OpenMemory migration fully planned (6-9 week roadmap, comprehensive architecture review)
-- ✅ DeepAgents design patterns documented for Phase 9 agentic features
-- ✅ Documentation cleanup (archived obsolete Gemini chats)
-- ✅ Created comprehensive QoL improvement plan
+- ✅ **v3.0.0-alpha.39 Release** (2025-11-16) - Critical voice transcription fix
+  - Fixed AudioTranscriptionResult field mismatch (`transcript` → `content`)
+  - Voice messages now working correctly in production
+  - Documented async pattern architectural note
+- ✅ **CI/CD Pipeline** - Re-enabled with pnpm and v2 exclusions
+  - Automated tests, linting, type checking, builds
+  - Proper isolation of legacy v2 codebase
+- ✅ **CLAUDE.md Rebalancing** - Major reorganization (Gemini consultation)
+  - Separated universal principles from project-specific context
+  - Added CURRENT_WORK.md update guidance
+  - Added session handoff procedures
+- ✅ **Documentation Cleanup** - Removed redundant CHANGELOG, updated README
+  - GitHub Releases serve as version history
+  - Created comprehensive documentation audit
 
 ## Active Work
 
-**Next Session**: QoL Model Management - Phase 1 (Database setup)
-
-See section 1 below for full details.
+**Next Session**: Continue documentation improvements
+- Refresh V2_FEATURE_TRACKING.md with current v3 state
+- Research Claude Code workflow optimizations (subagents, skills)
+- Archive completed planning docs
 
 ## Planned Features (Priority Order)
 
-### 1. LLM Model & Personality Management 🎯 **[ACTIVE]**
+### 1. LLM Model & Personality Management 🎯 **[PLANNED]**
 
 **Priority**: **CRITICAL** - Blocking production issues
-**Status**: Planning complete, ready to implement
+**Status**: Planning complete, ready to implement when resumed
 **Branch**: Will be `feat/qol-model-management` (off `develop`)
 
 **Problem**: Claude Haiku gave refusal message to new user despite jailbreak, requiring manual model switch to Gemini 2.5 Flash. No easy way to manage LLM configs globally or per-user.
@@ -324,12 +333,13 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Webhook management (unique avatar/name per personality)
 - Message chunking (2000 char Discord limit)
 - Conversation history tracking
-- Long-term memory via Qdrant vectors
+- Long-term memory via pgvector
 - Image attachment support
-- Voice transcription support
+- **Voice transcription support** ✅ (fixed in alpha.39)
 - Model indicator in responses
 - Persistent typing indicators
 - Basic slash commands (/ping, /help)
+- **CI/CD pipeline** ✅ (re-enabled 2025-11-16)
 
 ### 📋 Not Yet Ported from v2
 
