@@ -1,9 +1,0 @@
-# Build outputs
-dist/
-*.tsbuildinfo
-
-# Dependencies
-node_modules/
-
-# v2 Legacy Codebase (reference only, not maintained)
-tzurot-legacy/
