@@ -35,7 +35,7 @@ const logger = createLogger('bot-client');
 const envConfig = getConfig();
 
 // Validate bot-client specific required env vars
-if (!envConfig.DISCORD_TOKEN) {
+if (envConfig.DISCORD_TOKEN === undefined || envConfig.DISCORD_TOKEN.length === 0) {
   logger.error({}, 'DISCORD_TOKEN is required for bot-client');
   process.exit(1);
 }
@@ -63,6 +63,7 @@ const client = new Client({
  * This is where all dependencies are instantiated and wired together.
  * Full dependency injection - no service creates its own dependencies.
  */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 function createServices() {
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);

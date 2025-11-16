@@ -62,9 +62,11 @@ export class PendingMemoryProcessor {
 
         try {
           // Attempt to store the memory
+          // Prisma Json type requires runtime validation before use as MemoryMetadata
           await this.memoryAdapter.addMemory({
             text: pending.text,
-            metadata: pending.metadata as any, // Cast from Json to MemoryMetadata
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+            metadata: pending.metadata as any, // Cast from Prisma Json to MemoryMetadata
           });
 
           // Success! Delete the pending memory
