@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --parallel --filter './services/*' dev",
-    "build": "pnpm --filter './services/*' build",
+    "build": "pnpm -r build",
     "start:bot": "pnpm --filter @tzurot/bot-client start",
     "start:gateway": "pnpm --filter @tzurot/api-gateway start",
     "start:worker": "pnpm --filter @tzurot/ai-worker start",
