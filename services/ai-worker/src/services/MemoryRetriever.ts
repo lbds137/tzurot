@@ -52,7 +52,7 @@ export class MemoryRetriever {
     // Resolve user's personaId for this personality
     const personaId = await this.getUserPersonaForPersonality(context.userId, personality.id);
 
-    if (!personaId) {
+    if (personaId === null || personaId.length === 0) {
       logger.warn(
         {},
         `[MemoryRetriever] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
@@ -64,8 +64,14 @@ export class MemoryRetriever {
       personaId, // Required: which persona's memories to search
       personalityId: personality.id, // Optional: filter to this personality's memories
       sessionId: context.sessionId,
-      limit: personality.memoryLimit || AI_DEFAULTS.MEMORY_LIMIT,
-      scoreThreshold: personality.memoryScoreThreshold || AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
+      limit:
+        personality.memoryLimit !== undefined && personality.memoryLimit > 0
+          ? personality.memoryLimit
+          : AI_DEFAULTS.MEMORY_LIMIT,
+      scoreThreshold:
+        personality.memoryScoreThreshold !== undefined && personality.memoryScoreThreshold > 0
+          ? personality.memoryScoreThreshold
+          : AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
       excludeNewerThan,
     };
 
@@ -85,12 +91,13 @@ export class MemoryRetriever {
         const id = typeof doc.metadata?.id === 'string' ? doc.metadata.id : 'unknown';
         const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
         const createdAt = doc.metadata?.createdAt as string | number | undefined;
-        const timestamp = createdAt ? formatMemoryTimestamp(createdAt) : null;
+        const timestamp =
+          createdAt !== undefined && createdAt !== null ? formatMemoryTimestamp(createdAt) : null;
         const content = doc.pageContent.substring(0, 120);
         const truncated = doc.pageContent.length > 120 ? '...' : '';
 
         logger.info(
-          `[MemoryRetriever] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp || 'unknown'} content="${content}${truncated}"`
+          `[MemoryRetriever] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp ?? 'unknown'} content="${content}${truncated}"`
         );
       });
     } else {
@@ -121,7 +128,7 @@ export class MemoryRetriever {
     // Fetch content for each participant
     for (const participant of context.participants) {
       const content = await this.getPersonaContent(participant.personaId);
-      if (content) {
+      if (content !== null && content.length > 0) {
         personaMap.set(participant.personaName, {
           content,
           isActive: participant.isActive,
@@ -158,20 +165,22 @@ export class MemoryRetriever {
         },
       });
 
-      if (!persona) {return null;}
+      if (persona === null) {
+        return null;
+      }
 
       // Build persona context with structured fields
       const parts: string[] = [];
 
-      if (persona.preferredName) {
+      if (persona.preferredName !== null && persona.preferredName.length > 0) {
         parts.push(`Name: ${persona.preferredName}`);
       }
 
-      if (persona.pronouns) {
+      if (persona.pronouns !== null && persona.pronouns.length > 0) {
         parts.push(`Pronouns: ${persona.pronouns}`);
       }
 
-      if (persona.content) {
+      if (persona.content !== null && persona.content.length > 0) {
         parts.push(persona.content);
       }
 
@@ -207,7 +216,11 @@ export class MemoryRetriever {
         select: { personaId: true },
       });
 
-      if (userPersonalityConfig?.personaId) {
+      if (
+        userPersonalityConfig?.personaId !== undefined &&
+        userPersonalityConfig.personaId !== null &&
+        userPersonalityConfig.personaId.length > 0
+      ) {
         logger.debug(
           `[MemoryRetriever] Using personality-specific persona override for user ${userId}, personality ${personalityId}`
         );
@@ -224,8 +237,8 @@ export class MemoryRetriever {
         },
       });
 
-      const personaId = user?.defaultPersonaLink?.personaId || null;
-      if (personaId) {
+      const personaId = user?.defaultPersonaLink?.personaId ?? null;
+      if (personaId !== null && personaId.length > 0) {
         logger.debug(`[MemoryRetriever] Using default persona for user ${userId}`);
       } else {
         logger.warn({}, `[MemoryRetriever] No persona found for user ${userId}`);
