@@ -32,6 +32,7 @@ export * from './utils/dateFormatting.js';
 export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
+export { requireBotOwner } from './utils/ownerMiddleware.js';
 
 // Export services
 export * from './services/prisma.js';
