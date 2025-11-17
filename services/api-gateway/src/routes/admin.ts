@@ -5,7 +5,7 @@
 
 import express, { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, getPrismaClient } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
@@ -14,7 +14,7 @@ import { optimizeAvatar } from '../utils/imageProcessor.js';
 
 const logger = createLogger('admin-routes');
 const router: Router = express.Router();
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 /**
  * POST /admin/db-sync
@@ -42,8 +42,21 @@ router.post('/db-sync', requireOwnerAuth(), (req: Request, res: Response) => {
 
     logger.info({ dryRun }, '[Admin] Starting database sync');
 
+    // Create Prisma clients for dev and prod databases
+    const devClient = new PrismaClient({
+      datasources: {
+        db: { url: config.DEV_DATABASE_URL },
+      },
+    });
+
+    const prodClient = new PrismaClient({
+      datasources: {
+        db: { url: config.PROD_DATABASE_URL },
+      },
+    });
+
     // Execute sync
-    const syncService = new DatabaseSyncService(config.DEV_DATABASE_URL, config.PROD_DATABASE_URL);
+    const syncService = new DatabaseSyncService(devClient, prodClient);
 
     const result = await syncService.sync({
       dryRun,
