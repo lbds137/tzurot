@@ -14,17 +14,17 @@
 
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, getConfig, CONTENT_TYPES, CACHE_CONTROL, HealthStatus } from '@tzurot/common-types';
+import { createLogger, getConfig, getPrismaClient, CONTENT_TYPES, CACHE_CONTROL, HealthStatus } from '@tzurot/common-types';
 import { createRequire } from 'module';
-import { aiRouter } from './routes/ai.js';
-import { adminRouter } from './routes/admin.js';
+import { createAIRouter } from './routes/ai.js';
+import { createAdminRouter } from './routes/admin.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const pinoHttp = require('pino-http');
-import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
+import { aiQueue, queueEvents, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
 import { syncAvatars } from './migrations/sync-avatars.js';
 import type { HealthResponse } from './types.js';
@@ -72,7 +72,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
+// Composition Root: Wire up dependencies
+const prisma = getPrismaClient();
+
+// Create routers with injected dependencies
+const aiRouter = createAIRouter(prisma, aiQueue, queueEvents);
+const adminRouter = createAdminRouter(prisma);
+
+// Register routes
 app.use('/ai', aiRouter);
 app.use('/admin', adminRouter);
 
