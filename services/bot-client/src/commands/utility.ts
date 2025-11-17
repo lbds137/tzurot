@@ -75,11 +75,17 @@ async function handleHelp(
   const categories = new Map<string, Command[]>();
 
   for (const command of commands.values()) {
-    const category = command.category || 'Other';
+    const category =
+      command.category !== undefined && command.category.length > 0
+        ? command.category
+        : 'Other';
     if (!categories.has(category)) {
       categories.set(category, []);
     }
-    categories.get(category)!.push(command);
+    const categoryCommands = categories.get(category);
+    if (categoryCommands !== undefined) {
+      categoryCommands.push(command);
+    }
   }
 
   // Add fields for each category
@@ -95,10 +101,14 @@ async function handleHelp(
           const subcommands = cmd.data.options
             .filter(opt => 'type' in opt && opt.type === 1) // Type 1 = Subcommand
             .filter(opt => 'name' in opt && 'description' in opt)
-            .map(
-              sub =>
-                `  • \`/${cmdName} ${'name' in sub ? sub.name : ''}\` - ${'description' in sub ? sub.description : ''}`
-            )
+            .map(sub => {
+              const subName = 'name' in sub && typeof sub.name === 'string' ? sub.name : '';
+              const subDesc =
+                'description' in sub && typeof sub.description === 'string'
+                  ? sub.description
+                  : '';
+              return `  • \`/${cmdName} ${subName}\` - ${subDesc}`;
+            })
             .join('\n');
 
           if (subcommands) {
