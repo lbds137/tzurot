@@ -48,7 +48,11 @@ export class ReferenceEnrichmentService {
     // Build a map of personaId -> personaName from conversation history for fast lookup
     const personaNameMap = new Map<string, string>();
     for (const msg of conversationHistory) {
-      if (msg.personaName) {
+      if (
+        msg.personaName !== undefined &&
+        msg.personaName !== null &&
+        msg.personaName.length > 0
+      ) {
         personaNameMap.set(msg.personaId, msg.personaName);
       }
     }
@@ -103,9 +107,15 @@ export class ReferenceEnrichmentService {
         );
       }
 
-      const isWebhook = webhookPersonality || reference.webhookId;
+      const isWebhook =
+        (webhookPersonality !== undefined &&
+          webhookPersonality !== null &&
+          webhookPersonality.length > 0) ||
+        (reference.webhookId !== undefined &&
+          reference.webhookId !== null &&
+          reference.webhookId.length > 0);
 
-      if (isWebhook) {
+      if (isWebhook === true) {
         logger.debug(
           {
             referenceNumber: reference.referenceNumber,
@@ -132,14 +142,22 @@ export class ReferenceEnrichmentService {
       // Check if this persona appears in conversation history (fast path)
       let personaName = personaNameMap.get(personaId);
 
-      if (!personaName) {
+      if (
+        personaName === undefined ||
+        personaName === null ||
+        personaName.length === 0
+      ) {
         // Not in history, fetch from database (slow path)
         // Note: Convert null to undefined for TypeScript type compatibility
         personaName = (await this.userService.getPersonaName(personaId)) ?? undefined;
       }
 
       // Update the authorDisplayName with the persona name
-      if (personaName) {
+      if (
+        personaName !== undefined &&
+        personaName !== null &&
+        personaName.length > 0
+      ) {
         reference.authorDisplayName = personaName;
         logger.debug(
           `[ReferenceEnrichmentService] Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`
@@ -158,8 +176,14 @@ export class ReferenceEnrichmentService {
           discordUserId: reference.discordUserId,
           authorUsername: reference.authorUsername,
           personalityId,
-          userId: userId || 'unknown',
-          personaId: personaId || 'unknown',
+          userId:
+            userId !== undefined && userId !== null && userId.length > 0
+              ? userId
+              : 'unknown',
+          personaId:
+            personaId !== undefined && personaId !== null && personaId.length > 0
+              ? personaId
+              : 'unknown',
         },
         '[ReferenceEnrichmentService] Failed to enrich reference with persona name'
       );
