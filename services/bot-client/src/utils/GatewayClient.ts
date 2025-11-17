@@ -4,7 +4,12 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { createLogger, getConfig, CONTENT_TYPES } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  CONTENT_TYPES,
+  JobStatus,
+} from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
 const logger = createLogger('GatewayClient');
@@ -116,7 +121,7 @@ export class GatewayClient {
 
       const data = (await response.json()) as GenerateResponse;
 
-      if ((data.status as string) !== 'completed') {
+      if (data.status !== JobStatus.Completed) {
         throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
       }
 
