@@ -5,6 +5,7 @@
  * Handles attachments, references, environment, and conversation history.
  */
 
+import type { PrismaClient } from '@prisma/client';
 import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,
@@ -49,9 +50,9 @@ export class MessageContextBuilder {
   private conversationHistory: ConversationHistoryService;
   private userService: UserService;
 
-  constructor() {
-    this.conversationHistory = new ConversationHistoryService();
-    this.userService = new UserService();
+  constructor(private prisma: PrismaClient) {
+    this.conversationHistory = new ConversationHistoryService(prisma);
+    this.userService = new UserService(prisma);
   }
 
   /**
@@ -138,6 +139,7 @@ export class MessageContextBuilder {
     // Uses conversation history for deduplication
     logger.debug('[MessageContextBuilder] Extracting referenced messages with deduplication');
     const referenceExtractor = new MessageReferenceExtractor({
+      prisma: this.prisma,
       maxReferences: 10,
       embedProcessingDelayMs: INTERVALS.EMBED_PROCESSING_DELAY,
       conversationHistoryMessageIds,

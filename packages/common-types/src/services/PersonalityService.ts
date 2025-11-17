@@ -3,7 +3,7 @@
  * Loads personalities from PostgreSQL with all their related configuration
  */
 
-import { getPrismaClient } from './prisma.js';
+import type { PrismaClient } from '@prisma/client';
 import { createLogger } from '../utils/logger.js';
 import { MODEL_DEFAULTS, AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../constants/index.js';
 import type { Decimal } from '@prisma/client/runtime/library';
@@ -124,15 +124,13 @@ export interface DatabasePersonality {
 }
 
 export class PersonalityService {
-  private prisma;
   private personalityCache: Map<string, LoadedPersonality>;
   private cacheExpiry: Map<string, number>;
   private cacheLastAccess: Map<string, number>;
   private readonly CACHE_TTL = TIMEOUTS.CACHE_TTL;
   private readonly MAX_CACHE_SIZE = 100; // Maximum personalities to cache
 
-  constructor() {
-    this.prisma = getPrismaClient();
+  constructor(private prisma: PrismaClient) {
     this.personalityCache = new Map();
     this.cacheExpiry = new Map();
     this.cacheLastAccess = new Map();

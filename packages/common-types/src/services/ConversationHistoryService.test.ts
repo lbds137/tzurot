@@ -3,12 +3,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { PrismaClient } from '@prisma/client';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '../constants/index.js';
 import * as tokenCounter from '../utils/tokenCounter.js';
 
-// Mock getPrismaClient
-const mockPrismaClient = {
+// Create mock Prisma client
+const createMockPrismaClient = () => ({
   conversationHistory: {
     create: vi.fn(),
     findFirst: vi.fn(),
@@ -16,11 +17,9 @@ const mockPrismaClient = {
     update: vi.fn(),
     deleteMany: vi.fn(),
   },
-};
+});
 
-vi.mock('./prisma.js', () => ({
-  getPrismaClient: vi.fn(() => mockPrismaClient),
-}));
+const mockPrismaClient = createMockPrismaClient();
 
 // Spy on countTextTokens to verify it's called correctly
 vi.spyOn(tokenCounter, 'countTextTokens');
@@ -29,7 +28,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
   let service: ConversationHistoryService;
 
   beforeEach(() => {
-    service = new ConversationHistoryService();
+    service = new ConversationHistoryService(mockPrismaClient as unknown as PrismaClient);
     vi.clearAllMocks();
   });
 

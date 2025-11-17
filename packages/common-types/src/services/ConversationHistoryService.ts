@@ -3,7 +3,7 @@
  * Manages short-term conversation history in PostgreSQL
  */
 
-import { getPrismaClient } from './prisma.js';
+import type { PrismaClient } from '@prisma/client';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
@@ -22,11 +22,7 @@ export interface ConversationMessage {
 }
 
 export class ConversationHistoryService {
-  private prisma;
-
-  constructor() {
-    this.prisma = getPrismaClient();
-  }
+  constructor(private prisma: PrismaClient) {}
 
   /**
    * Add a message to conversation history
