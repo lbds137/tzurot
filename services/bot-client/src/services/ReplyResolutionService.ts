@@ -26,7 +26,11 @@ export class ReplyResolutionService {
    */
   async resolvePersonality(message: Message): Promise<LoadedPersonality | null> {
     try {
-      if (!message.reference?.messageId) {
+      if (
+        message.reference?.messageId === undefined ||
+        message.reference.messageId === null ||
+        message.reference.messageId.length === 0
+      ) {
         logger.warn({}, '[ReplyResolutionService] Called with message that has no reference');
         return null;
       }
@@ -35,7 +39,11 @@ export class ReplyResolutionService {
       const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
 
       // Check if it's from a webhook (personality message)
-      if (!referencedMessage.webhookId) {
+      if (
+        referencedMessage.webhookId === undefined ||
+        referencedMessage.webhookId === null ||
+        referencedMessage.webhookId.length === 0
+      ) {
         logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
         return null;
       }
@@ -43,7 +51,9 @@ export class ReplyResolutionService {
       // Check if this webhook belongs to the current bot instance
       // This prevents both dev and prod bots from responding to the same personality webhook
       if (
-        referencedMessage.applicationId &&
+        referencedMessage.applicationId !== undefined &&
+        referencedMessage.applicationId !== null &&
+        referencedMessage.applicationId.length > 0 &&
         referencedMessage.applicationId !== message.client.user.id
       ) {
         logger.debug(
@@ -60,7 +70,13 @@ export class ReplyResolutionService {
       let personalityName = await getWebhookPersonality(referencedMessage.id);
 
       // Fallback: Parse webhook username if Redis lookup fails
-      if (!personalityName && referencedMessage.author) {
+      if (
+        (personalityName === undefined ||
+          personalityName === null ||
+          personalityName.length === 0) &&
+        referencedMessage.author !== undefined &&
+        referencedMessage.author !== null
+      ) {
         const webhookUsername = referencedMessage.author.username;
         logger.debug(
           { webhookUsername },
@@ -78,7 +94,11 @@ export class ReplyResolutionService {
         }
       }
 
-      if (!personalityName) {
+      if (
+        personalityName === undefined ||
+        personalityName === null ||
+        personalityName.length === 0
+      ) {
         logger.debug('[ReplyResolutionService] No personality found for webhook message');
         return null;
       }
