@@ -99,6 +99,27 @@ function deterministicMemoryUuid(
 }
 
 /**
+ * Type for raw database query result from pgvector similarity search
+ */
+interface MemoryQueryResult {
+  id: string;
+  content: string;
+  persona_id: string;
+  persona_name: string;
+  personality_id: string;
+  personality_name: string;
+  session_id: string | null;
+  canon_scope: string;
+  summary_type: string | null;
+  channel_id: string | null;
+  guild_id: string | null;
+  message_ids: string[] | null;
+  senders: string[] | null;
+  created_at: Date | string;
+  distance: number;
+}
+
+/**
  * Adapter that provides memory retrieval and storage using pgvector
  */
 export class PgvectorMemoryAdapter {
@@ -119,7 +140,10 @@ export class PgvectorMemoryAdapter {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    this.embeddingModel = process.env.EMBEDDING_MODEL || MODEL_DEFAULTS.EMBEDDING;
+    this.embeddingModel =
+      process.env.EMBEDDING_MODEL !== undefined && process.env.EMBEDDING_MODEL.length > 0
+        ? process.env.EMBEDDING_MODEL
+        : MODEL_DEFAULTS.EMBEDDING;
     logger.info({ embeddingModel: this.embeddingModel }, 'Pgvector Memory Adapter initialized');
   }
 
@@ -139,7 +163,7 @@ export class PgvectorMemoryAdapter {
       const expectedDimensions = 1536;
       if (queryEmbedding?.length !== expectedDimensions) {
         throw new Error(
-          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding?.length || 0}`
+          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding?.length ?? 0}`
         );
       }
 
@@ -149,10 +173,18 @@ export class PgvectorMemoryAdapter {
       const embeddingVector = `[${queryEmbedding.join(',')}]`;
 
       // Build query with vector similarity search
-      const limit = options.limit || 10;
+      const limit =
+        options.limit !== undefined && options.limit !== null && options.limit > 0
+          ? options.limit
+          : 10;
       // scoreThreshold is MINIMUM similarity (0-1 range)
       // Default 0.85 = only show highly similar memories
-      const minSimilarity = options.scoreThreshold || 0.85;
+      const minSimilarity =
+        options.scoreThreshold !== undefined &&
+        options.scoreThreshold !== null &&
+        options.scoreThreshold > 0
+          ? options.scoreThreshold
+          : 0.85;
 
       // pgvector distance: 0 = identical, 2 = opposite (practically 0-1 for normalized embeddings)
       // Cosine Distance = 1 - Cosine Similarity
@@ -163,12 +195,16 @@ export class PgvectorMemoryAdapter {
       const whereConditions: Prisma.Sql[] = [Prisma.sql`m.persona_id = ${options.personaId}::uuid`];
 
       // Optional personality filter
-      if (options.personalityId) {
+      if (options.personalityId !== undefined && options.personalityId.length > 0) {
         whereConditions.push(Prisma.sql`m.personality_id = ${options.personalityId}::uuid`);
       }
 
       // Exclude newer memories (for conversation history overlap prevention)
-      if (options.excludeNewerThan) {
+      if (
+        options.excludeNewerThan !== undefined &&
+        options.excludeNewerThan !== null &&
+        options.excludeNewerThan > 0
+      ) {
         // excludeNewerThan is already in milliseconds - don't multiply by 1000
         const excludeDate = new Date(options.excludeNewerThan).toISOString();
         whereConditions.push(Prisma.sql`m.created_at < ${excludeDate}::timestamptz`);
@@ -230,7 +266,7 @@ export class PgvectorMemoryAdapter {
         'Querying memories with pgvector'
       );
 
-      const memories = await this.prisma.$queryRaw<any[]>(sqlQuery);
+      const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>(sqlQuery);
 
       // Convert to MemoryDocument format and inject persona/personality names
       const documents: MemoryDocument[] = memories.map(memory => {
@@ -263,7 +299,7 @@ export class PgvectorMemoryAdapter {
       });
 
       logger.debug(
-        `Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId || 'all'})`
+        `Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId !== undefined && options.personalityId.length > 0 ? options.personalityId : 'all'})`
       );
       return documents;
     } catch (error) {
@@ -338,13 +374,13 @@ export class PgvectorMemoryAdapter {
           'tzurot-v3',
           ${data.text},
           ${`[${embedding.join(',')}]`}::vector(1536),
-          ${data.metadata.sessionId || null},
-          ${data.metadata.canonScope || 'personal'},
-          ${data.metadata.summaryType || null},
-          ${data.metadata.channelId || null},
-          ${data.metadata.guildId || null},
-          ${data.metadata.messageIds || []}::text[],
-          ${data.metadata.senders || []}::text[],
+          ${data.metadata.sessionId !== undefined && data.metadata.sessionId.length > 0 ? data.metadata.sessionId : null},
+          ${data.metadata.canonScope !== undefined && data.metadata.canonScope.length > 0 ? data.metadata.canonScope : 'personal'},
+          ${data.metadata.summaryType !== undefined && data.metadata.summaryType.length > 0 ? data.metadata.summaryType : null},
+          ${data.metadata.channelId !== undefined && data.metadata.channelId.length > 0 ? data.metadata.channelId : null},
+          ${data.metadata.guildId !== undefined && data.metadata.guildId.length > 0 ? data.metadata.guildId : null},
+          ${data.metadata.messageIds ?? []}::text[],
+          ${data.metadata.senders ?? []}::text[],
           false,
           ${createdAt.toISOString()}::timestamptz
         )
