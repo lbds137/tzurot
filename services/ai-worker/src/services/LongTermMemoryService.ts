@@ -47,9 +47,8 @@ export class LongTermMemoryService {
       }
 
       // Determine canon scope and prepare memory metadata
-      const canonScope: 'global' | 'personal' | 'session' = context.sessionId
-        ? 'session'
-        : 'personal';
+      const canonScope: 'global' | 'personal' | 'session' =
+        context.sessionId !== undefined && context.sessionId.length > 0 ? 'session' : 'personal';
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
       const interactionText = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
 
@@ -60,7 +59,8 @@ export class LongTermMemoryService {
         canonScope,
         timestamp: Date.now(), // Current timestamp for LTM
         summaryType: 'conversation',
-        contextType: context.channelId ? 'channel' : 'dm',
+        contextType:
+          context.channelId !== undefined && context.channelId.length > 0 ? 'channel' : 'dm',
         channelId: context.channelId,
         guildId: context.serverId,
         serverId: context.serverId,
@@ -73,6 +73,7 @@ export class LongTermMemoryService {
           personaId,
           personalityId: personality.id,
           text: interactionText,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
           metadata: memoryMetadata as any, // Cast to any for Prisma Json type
           attempts: 0,
         },
@@ -97,7 +98,7 @@ export class LongTermMemoryService {
       logger.error({ err: error }, '[LTM] Failed to store interaction to vector database');
 
       // Update pending_memory with error details (for retry later)
-      if (pendingMemoryId) {
+      if (pendingMemoryId !== null && pendingMemoryId.length > 0) {
         try {
           await prisma.pendingMemory.update({
             where: { id: pendingMemoryId },
