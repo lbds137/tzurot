@@ -5,18 +5,19 @@
  * Runs as a scheduled job to retry failed memory storage operations.
  */
 
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { PgvectorMemoryAdapter, MemoryMetadataSchema } from '../services/PgvectorMemoryAdapter.js';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('PendingMemoryProcessor');
 
 export class PendingMemoryProcessor {
-  private prisma: PrismaClient;
   private memoryAdapter: PgvectorMemoryAdapter | undefined;
 
-  constructor(memoryAdapter: PgvectorMemoryAdapter | undefined) {
-    this.prisma = new PrismaClient();
+  constructor(
+    private prisma: PrismaClient,
+    memoryAdapter: PgvectorMemoryAdapter | undefined
+  ) {
     this.memoryAdapter = memoryAdapter;
   }
 

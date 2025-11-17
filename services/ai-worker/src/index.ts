@@ -18,6 +18,7 @@ import {
   getConfig,
   parseRedisUrl,
   createBullMQRedisConfig,
+  getPrismaClient,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -83,6 +84,10 @@ async function main(): Promise<void> {
     '[AIWorker] Configuration:'
   );
 
+  // Composition Root: Create Prisma client for dependency injection
+  const prisma = getPrismaClient();
+  logger.info('[AIWorker] Prisma client initialized');
+
   // Initialize vector memory manager (pgvector)
   let memoryManager: PgvectorMemoryAdapter | undefined;
 
@@ -115,8 +120,8 @@ async function main(): Promise<void> {
     memoryManager = undefined;
   }
 
-  // Initialize job processor
-  const jobProcessor = new AIJobProcessor(memoryManager);
+  // Initialize job processor with injected dependencies
+  const jobProcessor = new AIJobProcessor(prisma, memoryManager);
 
   // Create BullMQ worker
   logger.info('[AIWorker] Creating BullMQ worker...');
@@ -173,9 +178,9 @@ async function main(): Promise<void> {
     logger.error({ err: error }, '[AIWorker] Worker error');
   });
 
-  // Set up pending memory retry system
+  // Set up pending memory retry system with injected dependencies
   logger.info('[AIWorker] Setting up pending memory retry system...');
-  const pendingMemoryProcessor = new PendingMemoryProcessor(memoryManager);
+  const pendingMemoryProcessor = new PendingMemoryProcessor(prisma, memoryManager);
 
   // Log initial stats
   const initialStats = await pendingMemoryProcessor.getStats();
