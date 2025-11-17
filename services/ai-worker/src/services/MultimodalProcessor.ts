@@ -96,12 +96,12 @@ export async function describeImage(
   );
 
   // Priority 1: Use personality's configured vision model if specified
-  if (personality.visionModel) {
+  if (personality.visionModel !== undefined && personality.visionModel.length > 0) {
     logger.info(
       { visionModel: personality.visionModel },
       'Using configured vision model (personality override)'
     );
-    return await describeWithVisionModel(attachment, personality, personality.visionModel);
+    return describeWithVisionModel(attachment, personality, personality.visionModel);
   }
 
   // Priority 2: Use personality's main model if it has native vision support
@@ -110,7 +110,7 @@ export async function describeImage(
       { model: personality.model },
       'Using main LLM for vision (native vision support detected)'
     );
-    return await describeWithVisionModel(attachment, personality, personality.model);
+    return describeWithVisionModel(attachment, personality, personality.model);
   }
 
   // Priority 3: Use default vision model (Qwen3-VL)
@@ -118,7 +118,12 @@ export async function describeImage(
     { mainModel: personality.model },
     'Using default vision model (Qwen3-VL) - main LLM lacks vision support'
   );
-  return await describeWithFallbackVision(attachment, personality.systemPrompt || '');
+  return describeWithFallbackVision(
+    attachment,
+    personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
+      ? personality.systemPrompt
+      : ''
+  );
 }
 
 /**
@@ -146,14 +151,15 @@ async function describeWithVisionModel(
   const model = new ChatOpenAI({
     modelName,
     apiKey,
-    configuration: baseURL ? { baseURL } : undefined,
+    configuration:
+      baseURL !== undefined && baseURL.length > 0 ? { baseURL } : undefined,
     temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });
 
   const messages = [];
 
   // Include personality's system prompt (with jailbreak)
-  if (personality.systemPrompt) {
+  if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
     messages.push(new SystemMessage(personality.systemPrompt));
   }
 
@@ -189,10 +195,17 @@ async function describeWithVisionModel(
     const context: Record<string, unknown> = { modelName };
 
     // Extract API response details if available
-    if (error && typeof error === 'object') {
-      if ('response' in error) {context.apiResponse = (error as any).response;}
-      if ('status' in error) {context.statusCode = (error as any).status;}
-      if ('statusText' in error) {context.statusText = (error as any).statusText;}
+    if (error !== null && typeof error === 'object') {
+      const errorObj = error as Record<string, unknown>;
+      if ('response' in errorObj) {
+        context.apiResponse = errorObj.response;
+      }
+      if ('status' in errorObj) {
+        context.statusCode = errorObj.status;
+      }
+      if ('statusText' in errorObj) {
+        context.statusText = errorObj.statusText;
+      }
     }
 
     logErrorWithDetails(logger, 'Vision model invocation failed', error, context);
@@ -261,10 +274,17 @@ async function describeWithFallbackVision(
     };
 
     // Extract API response details if available
-    if (error && typeof error === 'object') {
-      if ('response' in error) {context.apiResponse = (error as any).response;}
-      if ('status' in error) {context.statusCode = (error as any).status;}
-      if ('statusText' in error) {context.statusText = (error as any).statusText;}
+    if (error !== null && typeof error === 'object') {
+      const errorObj = error as Record<string, unknown>;
+      if ('response' in errorObj) {
+        context.apiResponse = errorObj.response;
+      }
+      if ('status' in errorObj) {
+        context.statusCode = errorObj.status;
+      }
+      if ('statusText' in errorObj) {
+        context.statusText = errorObj.statusText;
+      }
     }
 
     logErrorWithDetails(logger, 'Fallback vision model invocation failed', error, context);
@@ -284,12 +304,12 @@ export async function transcribeAudio(
   _personality?: LoadedPersonality
 ): Promise<string> {
   // Check Redis cache first (if originalUrl is available)
-  if (attachment.originalUrl) {
+  if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
     try {
       const { getVoiceTranscript } = await import('../redis.js');
       const cachedTranscript = await getVoiceTranscript(attachment.originalUrl);
 
-      if (cachedTranscript) {
+      if (cachedTranscript !== null && cachedTranscript.length > 0) {
         logger.info(
           {
             originalUrl: attachment.originalUrl,
@@ -336,9 +356,15 @@ export async function transcribeAudio(
     // Convert to buffer and create File object
     const audioBuffer = await response.arrayBuffer();
     const blob = new Blob([audioBuffer], { type: attachment.contentType });
-    const audioFile = new File([blob], attachment.name || 'audio.ogg', {
-      type: attachment.contentType,
-    });
+    const audioFile = new File(
+      [blob],
+      attachment.name !== undefined && attachment.name.length > 0
+        ? attachment.name
+        : 'audio.ogg',
+      {
+        type: attachment.contentType,
+      }
+    );
 
     // Transcribe using Whisper (with 5-minute timeout from OpenAI client config)
     logger.info(
@@ -392,7 +418,10 @@ async function processSingleAttachment(
       originalUrl: attachment.url,
       metadata: attachment,
     };
-  } else if (attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || attachment.isVoiceMessage) {
+  } else if (
+    attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
+    attachment.isVoiceMessage === true
+  ) {
     const description = await transcribeAudio(attachment, personality);
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
