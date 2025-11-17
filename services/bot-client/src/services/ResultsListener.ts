@@ -42,12 +42,16 @@ export class ResultsListener {
     // Create dedicated Redis connection for consuming stream
     // (best practice: separate connection for blocking reads)
     const parsedUrl =
-      config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
+      config.REDIS_URL !== undefined &&
+      config.REDIS_URL !== null &&
+      config.REDIS_URL.length > 0
+        ? parseRedisUrl(config.REDIS_URL)
+        : null;
 
     const redisConfig = createRedisSocketConfig({
-      host: parsedUrl?.host || config.REDIS_HOST,
-      port: parsedUrl?.port || config.REDIS_PORT,
-      password: parsedUrl?.password || config.REDIS_PASSWORD,
+      host: parsedUrl?.host ?? config.REDIS_HOST,
+      port: parsedUrl?.port ?? config.REDIS_PORT,
+      password: parsedUrl?.password ?? config.REDIS_PASSWORD,
       username: parsedUrl?.username,
       family: 6, // Railway private network uses IPv6
     });
@@ -179,7 +183,7 @@ export class ResultsListener {
           );
 
           // Parse LLMGenerationResult from JSON string
-          const result: LLMGenerationResult = JSON.parse(data.result);
+          const result = JSON.parse(data.result) as LLMGenerationResult;
 
           // Deliver to handler
           if (this.onResult) {
