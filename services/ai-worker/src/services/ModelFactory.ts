@@ -20,16 +20,22 @@ function validateModelForProvider(requestedModel: string | undefined, provider: 
   switch (provider) {
     case AIProvider.OpenRouter: {
       // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model
-      return requestedModel || config.DEFAULT_AI_MODEL;
+      return requestedModel !== undefined && requestedModel.length > 0
+        ? requestedModel
+        : config.DEFAULT_AI_MODEL;
     }
 
     case AIProvider.OpenAI: {
       // Use requested model or default
-      return requestedModel || config.DEFAULT_AI_MODEL;
+      return requestedModel !== undefined && requestedModel.length > 0
+        ? requestedModel
+        : config.DEFAULT_AI_MODEL;
     }
 
     default:
-      return requestedModel || config.DEFAULT_AI_MODEL;
+      return requestedModel !== undefined && requestedModel.length > 0
+        ? requestedModel
+        : config.DEFAULT_AI_MODEL;
   }
 }
 
@@ -58,12 +64,18 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
 
   switch (provider) {
     case AIProvider.OpenRouter: {
-      const apiKey = modelConfig.apiKey || config.OPENROUTER_API_KEY;
-      if (!apiKey) {
+      const apiKey =
+        modelConfig.apiKey !== undefined && modelConfig.apiKey.length > 0
+          ? modelConfig.apiKey
+          : config.OPENROUTER_API_KEY;
+      if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('OPENROUTER_API_KEY is required when AI_PROVIDER=openrouter');
       }
 
-      const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
+      const requestedModel =
+        modelConfig.modelName !== undefined && modelConfig.modelName.length > 0
+          ? modelConfig.modelName
+          : config.DEFAULT_AI_MODEL;
       const modelName = validateModelForProvider(requestedModel, AIProvider.OpenRouter);
 
       logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
@@ -82,12 +94,18 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
     }
 
     case AIProvider.OpenAI: {
-      const apiKey = modelConfig.apiKey || config.OPENAI_API_KEY;
-      if (!apiKey) {
+      const apiKey =
+        modelConfig.apiKey !== undefined && modelConfig.apiKey.length > 0
+          ? modelConfig.apiKey
+          : config.OPENAI_API_KEY;
+      if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai');
       }
 
-      const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
+      const requestedModel =
+        modelConfig.modelName !== undefined && modelConfig.modelName.length > 0
+          ? modelConfig.modelName
+          : config.DEFAULT_AI_MODEL;
       const modelName = validateModelForProvider(requestedModel, AIProvider.OpenAI);
 
       logger.info(`[ModelFactory] Creating OpenAI model: ${modelName}`);
@@ -112,7 +130,15 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
  */
 export function getModelCacheKey(modelConfig: ModelConfig): string {
   const provider = config.AI_PROVIDER;
-  const modelName = modelConfig.modelName || config.DEFAULT_AI_MODEL || 'default';
-  const apiKeyPrefix = modelConfig.apiKey?.substring(0, 10) || 'env';
+  const modelName =
+    modelConfig.modelName !== undefined && modelConfig.modelName.length > 0
+      ? modelConfig.modelName
+      : config.DEFAULT_AI_MODEL.length > 0
+        ? config.DEFAULT_AI_MODEL
+        : 'default';
+  const apiKeyPrefix =
+    modelConfig.apiKey !== undefined && modelConfig.apiKey.length >= 10
+      ? modelConfig.apiKey.substring(0, 10)
+      : 'env';
   return `${provider}-${modelName}-${apiKeyPrefix}`;
 }
