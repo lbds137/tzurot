@@ -300,13 +300,13 @@ export class ConversationalRAGService {
         context.attachments?.filter(
           att =>
             att.contentType.startsWith('image/') &&
-            !att.isVoiceMessage
+            att.isVoiceMessage !== true
         ).length ?? 0;
       const audioCount =
         context.attachments?.filter(
           att =>
             att.contentType.startsWith('audio/') ||
-            att.isVoiceMessage
+            att.isVoiceMessage === true
         ).length ?? 0;
 
       // Invoke the model with timeout and retry logic
@@ -326,7 +326,12 @@ export class ConversationalRAGService {
 
       // Replace placeholders in LLM output before sending to user
       // This handles cases where the LLM includes placeholders in its response
-      const userName = context.userName || context.activePersonaName || 'User';
+      const userName =
+        context.userName !== undefined && context.userName.length > 0
+          ? context.userName
+          : context.activePersonaName !== undefined && context.activePersonaName.length > 0
+            ? context.activePersonaName
+            : 'User';
       content = replacePromptPlaceholders(content, userName, personality.name);
 
       logger.debug(
@@ -349,7 +354,7 @@ export class ConversationalRAGService {
         personality.id
       );
 
-      if (personaId) {
+      if (personaId !== null && personaId.length > 0) {
         await this.longTermMemory.storeInteraction(
           personality,
           contentForStorage,
@@ -372,12 +377,17 @@ export class ConversationalRAGService {
                 // Add filename/type context before each description
                 let header = '';
                 if (a.type === AttachmentType.Image) {
-                  header = `[Image: ${a.metadata.name || 'attachment'}]`;
+                  header = `[Image: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
                 } else if (a.type === AttachmentType.Audio) {
-                  if (a.metadata.isVoiceMessage && a.metadata.duration) {
+                  if (
+                    a.metadata.isVoiceMessage === true &&
+                    a.metadata.duration !== undefined &&
+                    a.metadata.duration !== null &&
+                    a.metadata.duration > 0
+                  ) {
                     header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
                   } else {
-                    header = `[Audio: ${a.metadata.name || 'attachment'}]`;
+                    header = `[Audio: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
                   }
                 }
                 return `${header}\n${a.description}`;
@@ -385,10 +395,16 @@ export class ConversationalRAGService {
               .join('\n\n')
           : undefined;
 
+      // Extract token usage if available (some providers include this in response)
+      const responseData = response as unknown as {
+        usage_metadata?: { total_tokens?: number };
+      };
+      const tokensUsed = responseData.usage_metadata?.total_tokens;
+
       return {
         content,
         retrievedMemories: relevantMemories.length,
-        tokensUsed: (response as any).usage_metadata?.total_tokens,
+        tokensUsed,
         attachmentDescriptions,
         referencedMessagesDescriptions,
         modelUsed: modelName,
