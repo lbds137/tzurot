@@ -16,22 +16,31 @@ import { CONTENT_TYPES } from '@tzurot/common-types';
  * This allows user messages to be saved atomically before expensive API calls.
  */
 export function generateAttachmentPlaceholder(attachment: AttachmentMetadata): string {
-  if (attachment.isVoiceMessage && attachment.duration !== undefined) {
+  if (attachment.isVoiceMessage === true && attachment.duration !== undefined) {
     return `[Voice message: ${attachment.duration.toFixed(1)}s]`;
   }
 
   if (attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX)) {
-    const name = attachment.name || 'attachment';
+    const name =
+      attachment.name !== undefined && attachment.name !== null && attachment.name.length > 0
+        ? attachment.name
+        : 'attachment';
     return `[Audio: ${name}]`;
   }
 
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    const name = attachment.name || 'attachment';
+    const name =
+      attachment.name !== undefined && attachment.name !== null && attachment.name.length > 0
+        ? attachment.name
+        : 'attachment';
     return `[Image: ${name}]`;
   }
 
   // Generic file placeholder
-  const name = attachment.name || 'attachment';
+  const name =
+    attachment.name !== undefined && attachment.name !== null && attachment.name.length > 0
+      ? attachment.name
+      : 'attachment';
   return `[File: ${name}]`;
 }
 
