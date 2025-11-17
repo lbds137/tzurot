@@ -31,14 +31,13 @@ import {
   type LLMGenerationResult,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { PrismaClient, Prisma } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@prisma/client';
 import { publishJobResult, storeJobResult } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 
 const logger = createLogger('AIJobProcessor');
-const prisma = new PrismaClient();
 
 /**
  * Structure of data passed in the BullMQ job
@@ -147,7 +146,10 @@ export interface AIJobResult {
 export class AIJobProcessor {
   private ragService: ConversationalRAGService;
 
-  constructor(memoryManager?: PgvectorMemoryAdapter) {
+  constructor(
+    private prisma: PrismaClient,
+    memoryManager?: PgvectorMemoryAdapter
+  ) {
     this.ragService = new ConversationalRAGService(memoryManager);
   }
 
@@ -579,7 +581,7 @@ export class AIJobProcessor {
 
     try {
       // 1. Store result in database with PENDING_DELIVERY status
-      await prisma.jobResult.create({
+      await this.prisma.jobResult.create({
         data: {
           jobId,
           requestId: result.requestId,
@@ -598,7 +600,7 @@ export class AIJobProcessor {
 
       // 3. Opportunistically clean up old delivered results (runs ~5% of the time)
       // Non-blocking - don't await, let it run in background
-      void cleanupOldJobResults(prisma).catch(err => {
+      void cleanupOldJobResults(this.prisma).catch(err => {
         logger.error({ err }, '[AIJobProcessor] Background cleanup failed (non-critical)');
       });
     } catch (error) {
