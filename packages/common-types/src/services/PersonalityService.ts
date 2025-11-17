@@ -37,14 +37,14 @@ export const LlmConfigSchema = z.object({
   model: z.string().optional(),
   visionModel: z.string().nullable().optional(),
   temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
-  maxTokens: z.number().int().positive().optional(),
+  maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().optional()),
   topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  topK: z.number().int().optional(),
+  topK: z.preprocess(coerceToNumber, z.number().int().optional()),
   frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
   presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
   memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  memoryLimit: z.number().int().positive().optional(),
-  contextWindowTokens: z.number().int().positive().optional(),
+  memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().optional()),
+  contextWindowTokens: z.preprocess(coerceToNumber, z.number().int().positive().optional()),
 }).nullish();
 
 /**
