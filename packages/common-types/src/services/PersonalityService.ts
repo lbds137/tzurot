@@ -45,7 +45,7 @@ export const LlmConfigSchema = z.object({
   memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
   memoryLimit: z.number().int().positive().optional(),
   contextWindowTokens: z.number().int().positive().optional(),
-}).nullable();
+}).nullish();
 
 /**
  * Inferred TypeScript type from the Zod schema
