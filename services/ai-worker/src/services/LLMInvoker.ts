@@ -41,7 +41,11 @@ export class LLMInvoker {
       );
     }
 
-    return this.models.get(cacheKey)!;
+    const model = this.models.get(cacheKey);
+    if (model === undefined) {
+      throw new Error(`Model not found for cache key: ${cacheKey}`);
+    }
+    return model;
   }
 
   /**
