@@ -210,7 +210,7 @@ export class ConversationalRAGService {
 
       // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
       // Build system prompt first (without history) to count tokens
-      const fullSystemMessage = await this.promptBuilder.buildFullSystemPrompt(
+      const fullSystemMessage = this.promptBuilder.buildFullSystemPrompt(
         personality,
         participantPersonas,
         relevantMemories,
@@ -221,7 +221,7 @@ export class ConversationalRAGService {
 
       // Build current user message to count tokens
       const { message: humanMessage, contentForStorage } =
-        await this.promptBuilder.buildHumanMessage(
+        this.promptBuilder.buildHumanMessage(
           userMessage,
           processedAttachments,
           context.activePersonaName,
