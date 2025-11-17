@@ -6,6 +6,7 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
+import type { Queue, QueueEvents } from 'bullmq';
 import {
   createLogger,
   TIMEOUTS,
@@ -13,9 +14,8 @@ import {
   JobStatus,
   JobType,
   JOB_PREFIXES,
-  getPrismaClient,
 } from '@tzurot/common-types';
-import { aiQueue, queueEvents } from '../queue.js';
+import type { PrismaClient } from '@prisma/client';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
 import { createJobChain } from '../utils/jobChainOrchestrator.js';
@@ -23,9 +23,19 @@ import type { GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
-const prisma = getPrismaClient();
 
-export const aiRouter: Router = Router();
+/**
+ * Create AI router with injected dependencies
+ * @param prisma - Prisma client for database operations
+ * @param aiQueue - BullMQ queue for AI job processing
+ * @param queueEvents - BullMQ queue events for job completion waiting
+ */
+export function createAIRouter(
+  prisma: PrismaClient,
+  aiQueue: Queue,
+  queueEvents: QueueEvents
+): Router {
+  const router: Router = Router();
 
 /**
  * POST /ai/generate
@@ -35,7 +45,7 @@ export const aiRouter: Router = Router();
  *
  * Handles request deduplication - identical requests within 5s return the same job.
  */
-aiRouter.post('/generate', (req, res) => {
+router.post('/generate', (req, res) => {
   void (async () => {
   const startTime = Date.now();
   let userId: string | undefined;
@@ -170,7 +180,7 @@ aiRouter.post('/generate', (req, res) => {
  * - wait=true: Wait for job completion using Redis pub/sub (no polling)
  * - wait=false (default): Return job ID immediately
  */
-aiRouter.post('/transcribe', (req, res) => {
+router.post('/transcribe', (req, res) => {
   void (async () => {
   const startTime = Date.now();
   const waitForCompletion = req.query.wait === 'true';
@@ -277,7 +287,7 @@ aiRouter.post('/transcribe', (req, res) => {
  *
  * Get the status of a specific job.
  */
-aiRouter.get('/job/:jobId', (req, res) => {
+router.get('/job/:jobId', (req, res) => {
   void (async () => {
   const { jobId } = req.params;
 
@@ -325,7 +335,7 @@ aiRouter.get('/job/:jobId', (req, res) => {
  * Confirm that a job result has been successfully delivered to Discord.
  * Updates the job_results table status from PENDING_DELIVERY to DELIVERED.
  */
-aiRouter.post('/job/:jobId/confirm-delivery', (req, res) => {
+router.post('/job/:jobId/confirm-delivery', (req, res) => {
   void (async () => {
   const { jobId } = req.params;
 
@@ -389,3 +399,6 @@ aiRouter.post('/job/:jobId/confirm-delivery', (req, res) => {
   }
   })();
 });
+
+  return router;
+}

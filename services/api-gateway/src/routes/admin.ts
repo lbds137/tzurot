@@ -5,7 +5,7 @@
 
 import express, { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, getConfig, getPrismaClient } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
@@ -13,8 +13,13 @@ import { requireOwnerAuth } from '../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../utils/imageProcessor.js';
 
 const logger = createLogger('admin-routes');
-const router: Router = express.Router();
-const prisma = getPrismaClient();
+
+/**
+ * Create admin router with injected dependencies
+ * @param prisma - Prisma client for database operations
+ */
+export function createAdminRouter(prisma: PrismaClient): Router {
+  const router: Router = express.Router();
 
 /**
  * POST /admin/db-sync
@@ -395,4 +400,5 @@ router.patch('/personality/:slug', requireOwnerAuth(), (req: Request, res: Respo
   })();
 });
 
-export { router as adminRouter };
+  return router;
+}
