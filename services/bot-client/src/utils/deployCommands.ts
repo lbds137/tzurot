@@ -48,7 +48,12 @@ export async function deployCommands(global = true): Promise<void> {
     const token = config.DISCORD_TOKEN;
     const guildId = config.GUILD_ID;
 
-    if (!clientId || !token) {
+    if (
+      clientId === undefined ||
+      clientId.length === 0 ||
+      token === undefined ||
+      token.length === 0
+    ) {
       throw new Error('Missing DISCORD_CLIENT_ID or DISCORD_TOKEN environment variables');
     }
 
@@ -64,7 +69,12 @@ export async function deployCommands(global = true): Promise<void> {
     for (const filePath of commandFiles) {
       const command = (await import(filePath)) as Command;
 
-      if (!command.data || !command.execute) {
+      if (
+        command.data === undefined ||
+        command.data === null ||
+        command.execute === undefined ||
+        command.execute === null
+      ) {
         logger.warn({}, `Skipping invalid command file: ${filePath}`);
         continue;
       }
@@ -77,7 +87,12 @@ export async function deployCommands(global = true): Promise<void> {
 
     const rest = new REST().setToken(token);
 
-    if (!global && guildId) {
+    if (
+      global !== true &&
+      guildId !== undefined &&
+      guildId !== null &&
+      guildId.length > 0
+    ) {
       // Guild-specific deployment (dev/testing)
       logger.info(`Deploying to guild: ${guildId}`);
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
