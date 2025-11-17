@@ -665,7 +665,6 @@ it('should throw with details', async () => {
 - `docs/operations/` - Operational procedures (backups, monitoring)
 - `docs/reference/` - Reference docs (CLI, APIs)
 - `docs/templates/` - Reusable document templates
-- `docs/archive/` - Completed/obsolete documentation
 
 **When creating docs:**
 
@@ -712,13 +711,13 @@ it('should throw with details', async () => {
 
 **At end of session:**
 1. Update CURRENT_WORK.md with progress made
-2. Archive any completed documentation to `docs/archive/`
+2. Delete obsolete docs (git history preserves them)
 3. Update relevant doc timestamps (YYYY-MM-DD format)
 4. Commit work-in-progress if needed (use descriptive WIP commit messages)
 
 **When switching work focus:**
 1. Update CURRENT_WORK.md to reflect new direction
-2. Archive docs related to completed work
+2. Delete obsolete docs (git history preserves them)
 3. Update CLAUDE.md if project context has changed significantly
 
 ## Key Documentation

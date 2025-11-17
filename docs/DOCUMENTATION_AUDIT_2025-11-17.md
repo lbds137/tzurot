@@ -15,7 +15,7 @@ Comprehensive review of project documentation to identify:
 **docs/DOC_REORGANIZATION_PLAN.md**
 - Date: 2025-10-28
 - Status: COMPLETED - current structure matches proposed structure
-- Action: Move to `docs/archive/`
+- Action: Delete if obsolete (git history preserves it)
 
 ### 2. Update These Docs (Stale Content)
 
@@ -73,7 +73,7 @@ docs/
 **planning/** - Check for completed plans
 - `ASYNC_JOB_DELIVERY.md` - Is async delivery implemented?
 - `message-reference-extractor-refactor-plan.md` - Status?
-- `MESSAGE_REFERENCE_IMPLEMENTATION_PLAN.md` - Implemented or planned?
+- `MESSAGE_REFERENCE_IMPLEMENTATION_PLAN.md` - IMPLEMENTED ✅ (deleted after completion)
 
 ## Tech Debt & Improvements Consolidation
 

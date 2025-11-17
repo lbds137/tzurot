@@ -156,7 +156,7 @@ memories: {
 - [ ] Cancel Qdrant Cloud subscription ($25/month saved)
 - [ ] Delete old Railway Postgres instance
 - [ ] Update documentation to remove Qdrant references
-- [ ] Archive migration docs to `docs/archive/`
+- [ ] Delete obsolete migration docs (git history preserves them)
 
 ---
 

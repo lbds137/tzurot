@@ -143,7 +143,7 @@
 
    At end of session:
    1. Update CURRENT_WORK.md with progress
-   2. Archive completed docs to docs/archive/
+   2. Delete obsolete docs (git history preserves them)
    3. Update relevant doc timestamps
    4. Commit work-in-progress if needed
    ```

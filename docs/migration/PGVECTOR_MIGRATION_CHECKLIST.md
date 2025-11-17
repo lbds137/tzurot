@@ -259,7 +259,7 @@ git push origin develop
 - [ ] Update ARCHITECTURE.md to reflect pgvector
 - [ ] Update DEPLOYMENT.md with new setup
 - [ ] Update README.md if it mentions Qdrant
-- [ ] Archive this migration doc to `docs/archive/`
+- [ ] Delete this migration doc after completion (git history preserves it)
 
 ---
 
