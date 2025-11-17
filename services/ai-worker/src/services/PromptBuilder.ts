@@ -42,17 +42,17 @@ export class PromptBuilder {
     // Get text descriptions for all attachments
     const descriptions = processedAttachments
       .map(a => a.description)
-      .filter(d => d && !d.startsWith('['))
+      .filter(d => d.length > 0 && !d.startsWith('['))
       .join('\n\n');
 
     // For voice-only messages (no text), use transcription as search query
     // For images or mixed content, combine with user message
-    if (userMessage.trim() === 'Hello' && descriptions) {
+    if (userMessage.trim() === 'Hello' && descriptions.length > 0) {
       logger.info('[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback');
       return descriptions; // Voice message - use transcription
     }
 
-    return userMessage.trim()
+    return userMessage.trim().length > 0
       ? `${userMessage}\n\n${descriptions}` // Text + attachments
       : descriptions; // Attachments only
   }
@@ -66,12 +66,12 @@ export class PromptBuilder {
    * - Reduces API costs (vision/audio APIs are expensive)
    * - Provides consistent behavior between current turn and history
    */
-  async buildHumanMessage(
+  buildHumanMessage(
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
     activePersonaName?: string,
     referencedMessagesDescriptions?: string
-  ): Promise<{ message: HumanMessage; contentForStorage: string }> {
+  ): { message: HumanMessage; contentForStorage: string } {
     // Build the message content
     let messageContent = userMessage;
 
@@ -79,15 +79,15 @@ export class PromptBuilder {
       // Get text descriptions for all attachments
       const descriptions = processedAttachments
         .map(a => a.description)
-        .filter(d => d && !d.startsWith('['))
+        .filter(d => d.length > 0 && !d.startsWith('['))
         .join('\n\n');
 
       // For voice-only messages (no text), use transcription as primary message
       // For images or mixed content, combine with user message
       messageContent =
-        userMessage.trim() === 'Hello' && descriptions
+        userMessage.trim() === 'Hello' && descriptions.length > 0
           ? descriptions // Voice message with no text content
-          : userMessage.trim()
+          : userMessage.trim().length > 0
             ? `${userMessage}\n\n${descriptions}` // Text + attachments
             : descriptions; // Attachments only
 
@@ -102,10 +102,14 @@ export class PromptBuilder {
     }
 
     // Append referenced messages (with vision/transcription already processed)
-    if (referencedMessagesDescriptions) {
-      messageContent = messageContent
-        ? `${messageContent}\n\n${referencedMessagesDescriptions}`
-        : referencedMessagesDescriptions;
+    if (
+      referencedMessagesDescriptions !== undefined &&
+      referencedMessagesDescriptions.length > 0
+    ) {
+      messageContent =
+        messageContent.length > 0
+          ? `${messageContent}\n\n${referencedMessagesDescriptions}`
+          : referencedMessagesDescriptions;
 
       logger.info(
         {
@@ -122,7 +126,11 @@ export class PromptBuilder {
     // Add "Current Message" section to clarify who is speaking
     // This leverages recency bias - the LLM processes this RIGHT BEFORE the message
     // NOTE: This header is ONLY for the LLM prompt, NOT for storage
-    if (activePersonaName && messageContent.trim()) {
+    if (
+      activePersonaName !== undefined &&
+      activePersonaName.length > 0 &&
+      messageContent.trim().length > 0
+    ) {
       const currentMessageHeader = `---\n## Current Message\nYou are now responding to: **${activePersonaName}**\n\n`;
       messageContent = currentMessageHeader + messageContent;
     }
@@ -136,16 +144,18 @@ export class PromptBuilder {
   /**
    * Build full system prompt with personas, memories, and date context
    */
-  async buildFullSystemPrompt(
+  buildFullSystemPrompt(
     personality: LoadedPersonality,
     participantPersonas: Map<string, { content: string; isActive: boolean }>,
     relevantMemories: MemoryDocument[],
     context: ConversationContext,
     referencedMessagesFormatted?: string
-  ): Promise<SystemMessage> {
+  ): SystemMessage {
     const systemPrompt = this.buildSystemPrompt(
       personality,
-      context.activePersonaName || 'User',
+      context.activePersonaName !== undefined && context.activePersonaName.length > 0
+        ? context.activePersonaName
+        : 'User',
       personality.name
     );
     logger.debug(`[PromptBuilder] System prompt length: ${systemPrompt.length} chars`);
@@ -154,17 +164,19 @@ export class PromptBuilder {
     const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
 
     // Discord environment context (where conversation is happening)
-    const environmentContext = context.environment
-      ? `\n\n${this.formatEnvironmentContext(context.environment)}`
-      : '';
+    const environmentContext =
+      context.environment !== undefined && context.environment !== null
+        ? `\n\n${this.formatEnvironmentContext(context.environment)}`
+        : '';
 
     // Referenced messages (from replies and message links)
     // Use pre-formatted text to avoid duplicate vision/transcription API calls
-    const referencesContext = referencedMessagesFormatted
-      ? `\n\n${referencedMessagesFormatted}`
-      : '';
+    const referencesContext =
+      referencedMessagesFormatted !== undefined && referencedMessagesFormatted.length > 0
+        ? `\n\n${referencedMessagesFormatted}`
+        : '';
 
-    if (referencesContext) {
+    if (referencesContext.length > 0) {
       logger.info(`[PromptBuilder] referencesContext length after formatting: ${referencesContext.length}`);
     }
 
@@ -180,7 +192,7 @@ export class PromptBuilder {
 
       const pluralNote =
         participantPersonas.size > 1
-          ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${context.activePersonaName || 'Alice'}: message") to show who said what.`
+          ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${context.activePersonaName !== undefined && context.activePersonaName.length > 0 ? context.activePersonaName : 'Alice'}: message") to show who said what.`
           : '';
 
       participantsContext = `\n\n## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
@@ -192,10 +204,11 @@ export class PromptBuilder {
         ? '\n\n## Relevant Memories\n' +
           relevantMemories
             .map(doc => {
-              const timestamp = doc.metadata?.createdAt
-                ? formatMemoryTimestamp(doc.metadata.createdAt)
-                : null;
-              return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+              const timestamp =
+                doc.metadata?.createdAt !== undefined && doc.metadata.createdAt !== null
+                  ? formatMemoryTimestamp(doc.metadata.createdAt)
+                  : null;
+              return `- ${timestamp !== null && timestamp.length > 0 ? `[${timestamp}] ` : ''}${doc.pageContent}`;
             })
             .join('\n')
         : '';
@@ -208,7 +221,11 @@ export class PromptBuilder {
     );
 
     // Detailed prompt assembly logging (development only)
-    if (config.NODE_ENV === 'development') {
+    if (
+      config.NODE_ENV !== undefined &&
+      config.NODE_ENV.length > 0 &&
+      config.NODE_ENV === 'development'
+    ) {
       logger.debug(
         {
           personalityId: personality.id,
@@ -218,18 +235,28 @@ export class PromptBuilder {
           participantsContextLength: participantsContext.length,
           activePersonaName: context.activePersonaName,
           memoryCount: relevantMemories.length,
-          memoryIds: relevantMemories.map(m => m.metadata?.id || 'unknown'),
+          memoryIds: relevantMemories.map(
+            m =>
+              m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
+                ? m.metadata.id
+                : 'unknown'
+          ),
           memoryTimestamps: relevantMemories.map(m =>
-            m.metadata?.createdAt ? formatMemoryTimestamp(m.metadata.createdAt) : 'unknown'
+            m.metadata?.createdAt !== undefined && m.metadata.createdAt !== null
+              ? formatMemoryTimestamp(m.metadata.createdAt)
+              : 'unknown'
           ),
           totalMemoryChars: memoryContext.length,
           dateContextLength: dateContext.length,
           totalSystemPromptLength: fullSystemPrompt.length,
           // Include STM info for duplication detection
-          stmCount: context.conversationHistory?.length || 0,
-          stmOldestTimestamp: context.oldestHistoryTimestamp
-            ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
-            : null,
+          stmCount: context.conversationHistory?.length ?? 0,
+          stmOldestTimestamp:
+            context.oldestHistoryTimestamp !== undefined &&
+            context.oldestHistoryTimestamp !== null &&
+            context.oldestHistoryTimestamp > 0
+              ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
+              : null,
         },
         '[PromptBuilder] Detailed prompt assembly:'
       );
@@ -275,10 +302,16 @@ export class PromptBuilder {
     parts.push('This conversation is taking place in a Discord server:\n');
 
     // Guild name
-    parts.push(`**Server**: ${environment.guild!.name}`);
+    if (environment.guild !== undefined && environment.guild !== null) {
+      parts.push(`**Server**: ${environment.guild.name}`);
+    }
 
     // Category (if exists)
-    if (environment.category) {
+    if (
+      environment.category !== undefined &&
+      environment.category !== null &&
+      environment.category.name.length > 0
+    ) {
       parts.push(`**Category**: ${environment.category.name}`);
     }
 
@@ -286,7 +319,7 @@ export class PromptBuilder {
     parts.push(`**Channel**: #${environment.channel.name} (${environment.channel.type})`);
 
     // Thread (if exists)
-    if (environment.thread) {
+    if (environment.thread !== undefined && environment.thread !== null) {
       parts.push(`**Thread**: ${environment.thread.name}`);
     }
 
@@ -305,7 +338,7 @@ export class PromptBuilder {
 
     // Start with system prompt (jailbreak/behavior rules)
     // Replace {user} and {assistant} placeholders with actual names
-    if (personality.systemPrompt) {
+    if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
       const promptWithNames = replacePromptPlaceholders(
         personality.systemPrompt,
         userName,
@@ -315,50 +348,64 @@ export class PromptBuilder {
     }
 
     // Add explicit identity statement
-    sections.push(`\n## Your Identity\nYou are ${personality.displayName || personality.name}.`);
+    sections.push(
+      `\n## Your Identity\nYou are ${personality.displayName !== undefined && personality.displayName.length > 0 ? personality.displayName : personality.name}.`
+    );
 
     // Add character info (who they are, their history)
-    if (personality.characterInfo) {
+    if (personality.characterInfo !== undefined && personality.characterInfo.length > 0) {
       sections.push(`\n## Character Information\n${personality.characterInfo}`);
     }
 
     // Add personality traits
-    if (personality.personalityTraits) {
+    if (personality.personalityTraits !== undefined && personality.personalityTraits.length > 0) {
       sections.push(`\n## Personality Traits\n${personality.personalityTraits}`);
     }
 
     // Add tone/style
-    if (personality.personalityTone) {
+    if (personality.personalityTone !== undefined && personality.personalityTone.length > 0) {
       sections.push(`\n## Conversational Tone\n${personality.personalityTone}`);
     }
 
     // Add age
-    if (personality.personalityAge) {
+    if (personality.personalityAge !== undefined && personality.personalityAge.length > 0) {
       sections.push(`\n## Age\n${personality.personalityAge}`);
     }
 
     // Add appearance
-    if (personality.personalityAppearance) {
+    if (
+      personality.personalityAppearance !== undefined &&
+      personality.personalityAppearance.length > 0
+    ) {
       sections.push(`\n## Physical Appearance\n${personality.personalityAppearance}`);
     }
 
     // Add likes
-    if (personality.personalityLikes) {
+    if (personality.personalityLikes !== undefined && personality.personalityLikes.length > 0) {
       sections.push(`\n## What I Like\n${personality.personalityLikes}`);
     }
 
     // Add dislikes
-    if (personality.personalityDislikes) {
+    if (
+      personality.personalityDislikes !== undefined &&
+      personality.personalityDislikes.length > 0
+    ) {
       sections.push(`\n## What I Dislike\n${personality.personalityDislikes}`);
     }
 
     // Add conversational goals
-    if (personality.conversationalGoals) {
+    if (
+      personality.conversationalGoals !== undefined &&
+      personality.conversationalGoals.length > 0
+    ) {
       sections.push(`\n## Conversational Goals\n${personality.conversationalGoals}`);
     }
 
     // Add conversational examples
-    if (personality.conversationalExamples) {
+    if (
+      personality.conversationalExamples !== undefined &&
+      personality.conversationalExamples.length > 0
+    ) {
       sections.push(`\n## Conversational Examples\n${personality.conversationalExamples}`);
     }
 
@@ -372,30 +419,39 @@ export class PromptBuilder {
     let formatted = '';
 
     // Add context if this is a proxy message
-    if (context.isProxyMessage && context.userName) {
+    if (
+      context.isProxyMessage === true &&
+      context.userName !== undefined &&
+      context.userName.length > 0
+    ) {
       formatted += `[Message from ${context.userName}]\n`;
     }
 
     // Handle different message types
     if (typeof message === 'string') {
       formatted += message;
-    } else if (typeof message === 'object' && message !== null) {
+    } else if (typeof message === 'object' && message !== null && message !== undefined) {
       // Handle complex message objects
       if ('content' in message) {
         formatted += message.content;
       }
 
       // Add reference context if available
-      if ('referencedMessage' in message && message.referencedMessage) {
+      if (
+        'referencedMessage' in message &&
+        message.referencedMessage !== undefined &&
+        message.referencedMessage !== null
+      ) {
         const ref = message.referencedMessage;
-        const author = ref.author || 'someone';
+        const author =
+          ref.author !== undefined && ref.author.length > 0 ? ref.author : 'someone';
         formatted = `[Replying to ${author}: "${ref.content}"]\n${formatted}`;
       }
 
       // Note attachments if present
       if ('attachments' in message && Array.isArray(message.attachments)) {
         for (const attachment of message.attachments) {
-          formatted += `\n[Attachment: ${attachment.name || 'file'}]`;
+          formatted += `\n[Attachment: ${attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'file'}]`;
         }
       }
     }
@@ -416,10 +472,11 @@ export class PromptBuilder {
   countMemoryTokens(memories: MemoryDocument[]): number {
     let totalTokens = 0;
     for (const doc of memories) {
-      const timestamp = doc.metadata?.createdAt
-        ? formatMemoryTimestamp(doc.metadata.createdAt)
-        : null;
-      const memoryText = `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+      const timestamp =
+        doc.metadata?.createdAt !== undefined && doc.metadata.createdAt !== null
+          ? formatMemoryTimestamp(doc.metadata.createdAt)
+          : null;
+      const memoryText = `- ${timestamp !== null && timestamp.length > 0 ? `[${timestamp}] ` : ''}${doc.pageContent}`;
       totalTokens += countTextTokens(memoryText);
     }
     return totalTokens;
@@ -435,7 +492,7 @@ export class PromptBuilder {
 
     const descriptions = processedAttachments
       .map(a => a.description)
-      .filter(d => d && !d.startsWith('['))
+      .filter(d => d.length > 0 && !d.startsWith('['))
       .join('\n\n');
 
     return countTextTokens(descriptions);
