@@ -372,7 +372,7 @@ Total job:       270s (capped, may timeout)
 ## Related Documentation
 
 - **[Testing Guide](../guides/TESTING.md)** - How to test timeout behavior
-- **[Deployment Guide](../deployment/DEPLOYMENT.md)** - Railway configuration
+- **[Deployment Guide](../deployment/RAILWAY_DEPLOYMENT.md)** - Railway configuration
 - **[Architecture Decisions](./ARCHITECTURE_DECISIONS.md)** - Why we chose these patterns
 - **PR #225** - Implementation details and rationale
 
