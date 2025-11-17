@@ -21,26 +21,47 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 ┌─────────────┐     ┌──────────────┐     ┌────────────┐
 │  Discord    │────▶│  Bot Client  │────▶│    API     │
 │   Users     │◀────│   Service    │◀────│  Gateway   │
-└─────────────┘     └──────────────┘     └────────────┘
+└─────────────┘     └──────────────┘     └─────┬──────┘
                                                │
                                                ▼
                                          ┌────────────┐
                                          │   Queue    │
-                                         │  (BullMQ)  │
-                                         └────────────┘
+                                         │  (Redis    │
+                                         │  +BullMQ)  │
+                                         └─────┬──────┘
                                                │
                                                ▼
-                                         ┌────────────┐
-                                         │ AI Worker  │
-                                         │  Service   │
-                                         └────────────┘
-                                               │
-                                               ▼
-                                         ┌────────────┐
-                                         │ OpenRouter │
-                                         │    API     │
-                                         └────────────┘
+                    ┌──────────────────────────┴──────────────────────────┐
+                    │                                                      │
+                    ▼                                                      ▼
+              ┌────────────┐                                        ┌────────────┐
+              │ AI Worker  │───────────────────────────────────────▶│ PostgreSQL │
+              │  Service   │                                        │ (pgvector) │
+              └─────┬──────┘                                        └────────────┘
+                    │
+                    ├────────────┬────────────┬───────────┐
+                    ▼            ▼            ▼           ▼
+              ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+              │OpenRouter│ │  Gemini  │ │  OpenAI  │ │  Qdrant  │
+              │   API    │ │   API    │ │(Whisper, │ │ (Vector  │
+              │          │ │          │ │Embedding)│ │ Memory)  │
+              └──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
+
+**Services:**
+- **bot-client**: Discord.js interface, webhook management, slash commands
+- **api-gateway**: HTTP API, request routing, job queue management
+- **ai-worker**: AI processing, memory retrieval, prompt building, response generation
+
+**Data Stores:**
+- **PostgreSQL**: User data, personalities, conversation history, personas
+- **Qdrant**: Vector embeddings for long-term memory retrieval
+- **Redis**: BullMQ job queue for async processing
+
+**External APIs:**
+- **OpenRouter**: 400+ AI models via unified API (primary provider)
+- **Gemini**: Direct Google AI integration (alternative provider)
+- **OpenAI**: Whisper (voice transcription) + text-embedding-3-small (vectors)
 
 ## Quick Start
 
@@ -129,6 +150,7 @@ const provider = AIProviderFactory.create('openai', {
 
 - **Multiple Personalities**: @mention different personalities (@lilith, @default, @sarcastic)
 - **Reply Detection**: Reply to bot messages to continue conversations
+- **Message References**: Reference other messages via Discord links or replies
 - **Long-term Memory**: pgvector stores personality memories across sessions
 - **Conversation History**: Contextual responses using recent message history
 - **Webhook Avatars**: Each personality has unique name and avatar
@@ -136,12 +158,14 @@ const provider = AIProviderFactory.create('openai', {
 - **Voice Support**: Send voice messages for transcription
 - **Message Chunking**: Automatically handles Discord's 2000 character limit
 - **Model Indicators**: Shows which AI model generated each response
-- **Slash Commands**: Basic commands (/ping, /help)
+- **Slash Commands**:
+  - `/personality create/edit/import` - Manage personalities
+  - `/admin servers/kick/usage` - Bot administration
+  - `/ping`, `/help` - Utility commands
 
 ### 📋 Planned Features
 
-- Auto-response in activated channels
-- Full slash command suite (/personality add/remove/list)
+- Auto-response in activated channels (v2 feature not yet ported)
 - Rate limiting per user/channel
 - NSFW verification system
 

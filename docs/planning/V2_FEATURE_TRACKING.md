@@ -2,7 +2,7 @@
 
 This document tracks which features from Tzurot v2 have been ported to v3, which are planned, and which are intentionally avoided.
 
-**Last Updated:** 2025-10-02
+**Last Updated:** 2025-11-17
 
 ## Legend
 
@@ -51,10 +51,10 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 | Bot @mentions         | ✅ Ported  | Uses default personality                            |
 | DM support            | ✅ Ported  | Falls back to regular replies                       |
 | Guild channel support | ✅ Ported  | Uses webhooks                                       |
-| Referenced messages   | 📋 Planned | v2 supported replying to messages                   |
-| Slash commands        | 📋 Planned | Modern Discord commands (replacing v2's !tz prefix) |
+| Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing    |
+| Slash commands        | ✅ Ported  | /admin, /personality, /utility (create, edit, etc.) |
 | Auto-response system  | 📋 Planned | v2 had activated channels                           |
-| Conversation history  | 📋 Planned | v2 tracked recent messages                          |
+| Conversation history  | ✅ Ported  | ConversationPersistence service                     |
 
 ### AI Integration
 

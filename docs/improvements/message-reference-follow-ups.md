@@ -295,7 +295,7 @@ describe('Conversation History Deduplication', () => {
 
 - **Original PR**: #208
 - **Code Review**: PR feedback from web Claude Code (2025-11-02)
-- **Implementation Plan**: `docs/planning/MESSAGE_REFERENCE_IMPLEMENTATION_PLAN.md`
+- **Status**: Implemented (see MessageReferenceExtractor.ts and related services)
 - **Source Code**: `services/bot-client/src/context/MessageReferenceExtractor.ts`
 
 ---

@@ -1,17 +1,20 @@
 # 🎯 Current Work
 
-> Last updated: 2025-11-16
+> Last updated: 2025-11-17
 
-## Status: Documentation & Infrastructure Improvements 🎯
+## Status: Documentation Cleanup & Maintenance 🎯
 
-**Current Phase**: Project Housekeeping & CI/CD Enhancement
+**Current Phase**: Documentation Audit & Updates
 
 **Recent Completion**:
 
+- ✅ **v3.0.0-alpha.40 Release** (2025-11-17) - Massive linter cleanup
+  - Crushed 500+ linter errors across all services
+  - Enhanced pre-commit hooks (build → lint → test)
+  - LLM config parsing fixes (coerceToNumber for all numeric fields)
 - ✅ **v3.0.0-alpha.39 Release** (2025-11-16) - Critical voice transcription fix
   - Fixed AudioTranscriptionResult field mismatch (`transcript` → `content`)
   - Voice messages now working correctly in production
-  - Documented async pattern architectural note
 - ✅ **CI/CD Pipeline** - Re-enabled with pnpm and v2 exclusions
   - Automated tests, linting, type checking, builds
   - Proper isolation of legacy v2 codebase
@@ -19,16 +22,14 @@
   - Separated universal principles from project-specific context
   - Added CURRENT_WORK.md update guidance
   - Added session handoff procedures
-- ✅ **Documentation Cleanup** - Removed redundant CHANGELOG, updated README
-  - GitHub Releases serve as version history
-  - Created comprehensive documentation audit
 
 ## Active Work
 
-**Next Session**: Continue documentation improvements
-- Refresh V2_FEATURE_TRACKING.md with current v3 state
-- Research Claude Code workflow optimizations (subagents, skills)
-- Archive completed planning docs
+**Current Session**: Documentation cleanup
+- ✅ Created comprehensive Shapes.inc slash command design doc
+- 🔄 Updating stale documentation (CURRENT_WORK, V2_FEATURE_TRACKING)
+- 🔄 Archiving completed planning docs
+- 📋 Next: Delete obsolete docs, update README if needed
 
 ## Planned Features (Priority Order)
 
@@ -182,47 +183,26 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 
 ---
 
-### 3. Message Reference System 🔗
+### 3. ✅ Message Reference System 🔗 **[COMPLETED]**
 
-**Priority**: Medium - Feature parity with v2
-**Status**: Architecture designed, ready for implementation
+**Status**: Implemented and working in production
 
-**Goal**: Extract context from Discord replies and message links
+**What It Does**:
 
-**Features**:
+- Extracts content from replied-to messages
+- Parses Discord message links and fetches referenced messages
+- Creates default personas for referenced message authors
+- Adds referenced messages as separate prompt section
+- Full embed extraction with all fields
+- Replaces message links with numbered references
 
-- Extract content from replied-to messages
-- Parse Discord message links (format: `https://discord.com/channels/guild/channel/message`)
-- Look up or create default personas for referenced message authors
-- Add referenced messages as separate prompt section (not mixed with conversation history)
-- Improved embed extraction with all fields included
-- Replace message links in user's message with numbered references (e.g., "Reference 1", "Reference 2")
+**Implementation**:
 
-**Technical Approach**:
-
-- New module: `context/MessageReferenceExtractor.ts`
-- New module: `utils/EmbedParser.ts`
-- Separate prompt section: "## Referenced Messages"
-- Numbered references paired with message content:
-  - User message: "Check out Reference 1 and Reference 2"
-  - Context section: "[Reference 1] <message content>", "[Reference 2] <message content>"
-- Chronological ordering with same metadata as conversation history
-- Full embed extraction: title, description, fields, images, footers, etc.
-- LLM-friendly embed formatting
-
-**Design Decisions**:
-
-- **Max references**: 10 referenced messages (configurable in personality LLM config)
-- **Embed extraction**: Yes - extract and format all embed fields from referenced messages
-- **Inaccessible channels**: Skip silently (don't error, just exclude)
-- **Link replacement**: Replace Discord message links with "Reference N" (except reply-to, which has no link in content)
-- **Numbering**: Consistent numbering between user message and context section for LLM clarity
-
-**v2 Reference** (read-only, don't copy bad patterns):
-
-- `origin/feature/enhanced-context-metadata` branch
-- Problems with v2: messy structure, mixed concerns, not modular
-- Keep v3's clean prompt format
+- `services/bot-client/src/handlers/MessageReferenceExtractor.ts` - Main extraction logic
+- `services/bot-client/src/services/ReferenceEnrichmentService.ts` - Enrichment service
+- `services/bot-client/src/services/ReplyResolutionService.ts` - Reply handling
+- `services/bot-client/src/utils/referenceFormatter.ts` - Formatting utilities
+- Comprehensive test coverage in `MessageReferenceExtractor.test.ts`
 
 ---
 
@@ -330,6 +310,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 
 - @personality mentions (@lilith, @default, @sarcastic)
 - Reply detection (reply to bot messages)
+- **Message references** ✅ (Discord message links + reply context)
 - Webhook management (unique avatar/name per personality)
 - Message chunking (2000 char Discord limit)
 - Conversation history tracking
@@ -338,7 +319,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - **Voice transcription support** ✅ (fixed in alpha.39)
 - Model indicator in responses
 - Persistent typing indicators
-- Basic slash commands (/ping, /help)
+- **Slash commands** ✅ (admin, personality create/edit/import, utility)
 - **CI/CD pipeline** ✅ (re-enabled 2025-11-16)
 
 ### 📋 Not Yet Ported from v2
