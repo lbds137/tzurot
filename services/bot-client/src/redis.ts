@@ -19,12 +19,16 @@ const config = getConfig();
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
 const parsedUrl =
-  config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : null;
+  config.REDIS_URL !== undefined &&
+  config.REDIS_URL !== null &&
+  config.REDIS_URL.length > 0
+    ? parseRedisUrl(config.REDIS_URL)
+    : null;
 
 const redisConfig = createRedisSocketConfig({
-  host: parsedUrl?.host || config.REDIS_HOST,
-  port: parsedUrl?.port || config.REDIS_PORT,
-  password: parsedUrl?.password || config.REDIS_PASSWORD,
+  host: parsedUrl?.host ?? config.REDIS_HOST,
+  port: parsedUrl?.port ?? config.REDIS_PORT,
+  password: parsedUrl?.password ?? config.REDIS_PASSWORD,
   username: parsedUrl?.username,
   family: 6, // Railway private network uses IPv6
 });
@@ -92,7 +96,11 @@ export async function storeWebhookMessage(
 export async function getWebhookPersonality(messageId: string): Promise<string | null> {
   try {
     const personalityName = await redis.get(`webhook:${messageId}`);
-    if (personalityName) {
+    if (
+      personalityName !== undefined &&
+      personalityName !== null &&
+      personalityName.length > 0
+    ) {
       logger.debug(`[Redis] Retrieved webhook message: ${messageId} -> ${personalityName}`);
     }
     return personalityName;
@@ -129,7 +137,11 @@ export async function storeVoiceTranscript(
 export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
   try {
     const transcript = await redis.get(`transcript:${attachmentUrl}`);
-    if (transcript) {
+    if (
+      transcript !== undefined &&
+      transcript !== null &&
+      transcript.length > 0
+    ) {
       logger.debug(
         `[Redis] Retrieved cached voice transcript for: ${attachmentUrl.substring(0, 50)}...`
       );
