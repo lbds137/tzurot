@@ -250,7 +250,7 @@ pnpm dev
 ### Architecture & Design
 
 - **[Architecture Decisions](docs/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
-- **[Timeout Allocation Guide](docs/architecture/TIMEOUT_ALLOCATION.md)** - Railway timeout budget management
+- **[Independent Component Timeouts](packages/common-types/src/constants/timing.ts)** - Component-specific timeout configuration
 - **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
 
 ### Development Guides

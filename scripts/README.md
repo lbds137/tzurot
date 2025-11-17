@@ -16,7 +16,7 @@ These scripts **will not work** as `@qdrant/js-client-rest` has been removed fro
 
 If you need to reference the migration process, see:
 
-- `docs/migration/PGVECTOR_MIGRATION_CHECKLIST.md`
+- `docs/operations/CREATE_HNSW_INDEX.md` (vector index creation guide)
 - `docs/deployment/RAILWAY_DEPLOYMENT.md`
 
 ## Prerequisites
