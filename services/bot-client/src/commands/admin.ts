@@ -10,7 +10,15 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { getConfig, createLogger, TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS, CONTENT_TYPES } from '@tzurot/common-types';
+import {
+  getConfig,
+  createLogger,
+  requireBotOwner,
+  TEXT_LIMITS,
+  DISCORD_LIMITS,
+  DISCORD_COLORS,
+  CONTENT_TYPES,
+} from '@tzurot/common-types';
 
 const logger = createLogger('admin-command');
 
@@ -70,23 +78,12 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const config = getConfig();
-  const ownerId = config.BOT_OWNER_ID;
-
   // Owner-only check
-  if (
-    ownerId === undefined ||
-    ownerId === null ||
-    ownerId.length === 0 ||
-    interaction.user.id !== ownerId
-  ) {
-    await interaction.reply({
-      content: '❌ This command is only available to the bot owner.',
-      flags: MessageFlags.Ephemeral,
-    });
+  if (!(await requireBotOwner(interaction))) {
     return;
   }
 
+  const config = getConfig();
   const subcommand = interaction.options.getSubcommand();
 
   // Route to appropriate handler

@@ -14,7 +14,15 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { getConfig, createLogger, DISCORD_LIMITS, DISCORD_COLORS, CONTENT_TYPES, TEXT_LIMITS } from '@tzurot/common-types';
+import {
+  getConfig,
+  createLogger,
+  requireBotOwner,
+  DISCORD_LIMITS,
+  DISCORD_COLORS,
+  CONTENT_TYPES,
+  TEXT_LIMITS,
+} from '@tzurot/common-types';
 
 const logger = createLogger('personality-command');
 
@@ -153,22 +161,12 @@ export const data = new SlashCommandBuilder()
 export async function execute(
   interaction: ChatInputCommandInteraction | ModalSubmitInteraction
 ): Promise<void> {
-  const config = getConfig();
-  const ownerId = config.BOT_OWNER_ID;
-
   // Owner-only check
-  if (
-    ownerId === undefined ||
-    ownerId === null ||
-    ownerId.length === 0 ||
-    interaction.user.id !== ownerId
-  ) {
-    await interaction.reply({
-      content: '❌ This command is only available to the bot owner.',
-      flags: MessageFlags.Ephemeral,
-    });
+  if (!(await requireBotOwner(interaction))) {
     return;
   }
+
+  const config = getConfig();
 
   // Handle modal submissions
   if (interaction.isModalSubmit()) {
