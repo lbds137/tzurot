@@ -118,22 +118,10 @@ const SYNC_CONFIG = {
 } as const;
 
 export class DatabaseSyncService {
-  private devClient: PrismaClient;
-  private prodClient: PrismaClient;
-
-  constructor(devDatabaseUrl: string, prodDatabaseUrl: string) {
-    this.devClient = new PrismaClient({
-      datasources: {
-        db: { url: devDatabaseUrl },
-      },
-    });
-
-    this.prodClient = new PrismaClient({
-      datasources: {
-        db: { url: prodDatabaseUrl },
-      },
-    });
-  }
+  constructor(
+    private devClient: PrismaClient,
+    private prodClient: PrismaClient
+  ) {}
 
   /**
    * Perform bidirectional database synchronization
