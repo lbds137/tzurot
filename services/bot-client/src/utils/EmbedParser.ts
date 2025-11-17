@@ -32,21 +32,31 @@ export class EmbedParser {
     const parts: string[] = [];
 
     // Add title
-    if (embed.title) {
-      const titleText = embed.url ? `[${embed.title}](${embed.url})` : embed.title;
+    if (embed.title !== undefined && embed.title !== null && embed.title.length > 0) {
+      const titleText =
+        embed.url !== undefined && embed.url !== null && embed.url.length > 0
+          ? `[${embed.title}](${embed.url})`
+          : embed.title;
       parts.push(`## ${titleText}`);
     }
 
     // Add author
-    if (embed.author) {
-      const authorText = embed.author.url
-        ? `[${embed.author.name}](${embed.author.url})`
-        : embed.author.name;
+    if (embed.author !== undefined && embed.author !== null) {
+      const authorText =
+        embed.author.url !== undefined &&
+        embed.author.url !== null &&
+        embed.author.url.length > 0
+          ? `[${embed.author.name}](${embed.author.url})`
+          : embed.author.name;
       parts.push(`Author: ${authorText}`);
     }
 
     // Add description
-    if (embed.description) {
+    if (
+      embed.description !== undefined &&
+      embed.description !== null &&
+      embed.description.length > 0
+    ) {
       parts.push(embed.description);
     }
 
@@ -59,22 +69,38 @@ export class EmbedParser {
     }
 
     // Add image
-    if (embed.image?.url) {
+    if (
+      embed.image?.url !== undefined &&
+      embed.image.url !== null &&
+      embed.image.url.length > 0
+    ) {
       parts.push(``, `Image: ${embed.image.url}`);
     }
 
     // Add thumbnail
-    if (embed.thumbnail?.url) {
+    if (
+      embed.thumbnail?.url !== undefined &&
+      embed.thumbnail.url !== null &&
+      embed.thumbnail.url.length > 0
+    ) {
       parts.push(`Thumbnail: ${embed.thumbnail.url}`);
     }
 
     // Add footer
-    if (embed.footer?.text) {
+    if (
+      embed.footer?.text !== undefined &&
+      embed.footer.text !== null &&
+      embed.footer.text.length > 0
+    ) {
       parts.push(``, `_${embed.footer.text}_`);
     }
 
     // Add timestamp
-    if (embed.timestamp) {
+    if (
+      embed.timestamp !== undefined &&
+      embed.timestamp !== null &&
+      embed.timestamp.length > 0
+    ) {
       parts.push(`Timestamp: ${embed.timestamp}`);
     }
 
@@ -93,7 +119,11 @@ export class EmbedParser {
    * @returns Formatted embeds string, or empty string if no embeds
    */
   static parseMessageEmbeds(message: Message): string {
-    if (!message.embeds || message.embeds.length === 0) {
+    if (
+      message.embeds === undefined ||
+      message.embeds === null ||
+      message.embeds.length === 0
+    ) {
       return '';
     }
 
@@ -111,6 +141,10 @@ export class EmbedParser {
    * @returns True if message has embeds
    */
   static hasEmbeds(message: Message): boolean {
-    return Boolean(message.embeds && message.embeds.length > 0);
+    return (
+      message.embeds !== undefined &&
+      message.embeds !== null &&
+      message.embeds.length > 0
+    );
   }
 }
