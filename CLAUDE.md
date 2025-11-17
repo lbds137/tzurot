@@ -726,7 +726,7 @@ it('should throw with details', async () => {
 
 - [CURRENT_WORK.md](CURRENT_WORK.md) - Current project status
 - [README.md](README.md) - v3 overview and quick start
-- [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) - Railway deployment guide
+- [docs/deployment/RAILWAY_DEPLOYMENT.md](docs/deployment/RAILWAY_DEPLOYMENT.md) - Railway deployment guide
 - [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - What's ported vs. not
 
 ### Development Guides

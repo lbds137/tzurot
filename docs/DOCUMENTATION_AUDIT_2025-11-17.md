@@ -71,7 +71,7 @@ docs/
 - `SHAPES_INC_MIGRATION_STRATEGY.md` - Is Shapes.inc migration complete?
 
 **planning/** - Check for completed plans
-- `ASYNC_JOB_DELIVERY.md` - Is async delivery implemented?
+- `ASYNC_JOB_DELIVERY.md` - IMPLEMENTED ✅ (ResultsListener, JobTracker exist with tests)
 - `message-reference-extractor-refactor-plan.md` - Status?
 - `MESSAGE_REFERENCE_IMPLEMENTATION_PLAN.md` - IMPLEMENTED ✅ (deleted after completion)
 

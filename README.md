@@ -215,7 +215,7 @@ pnpm format
 
 **Note**: Not open to public yet - requires BYOK implementation to prevent unexpected API costs.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment guide.
+See [Railway Deployment Guide](docs/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
 
 ```bash
 # Deploy updates (auto-deploys on push)
@@ -257,7 +257,7 @@ pnpm dev
 
 - **[Development Guide](docs/guides/DEVELOPMENT.md)** - Local development setup
 - **[Testing Guide](docs/guides/TESTING.md)** - Testing philosophy and patterns
-- **[Deployment Guide](docs/deployment/DEPLOYMENT.md)** - Railway deployment guide
+- **[Deployment Guide](docs/deployment/RAILWAY_DEPLOYMENT.md)** - Railway deployment guide
 
 ## Project History
 

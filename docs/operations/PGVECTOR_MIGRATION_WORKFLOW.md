@@ -226,4 +226,4 @@ RUN npx prisma migrate deploy  # ← Runs migrations
 
 - [Prisma Migrate in Production](https://www.prisma.io/docs/guides/migrate/production-troubleshooting)
 - [pgvector Extension](https://github.com/pgvector/pgvector)
-- [Railway Migrations Guide](/docs/deployment/DEPLOYMENT.md)
+- [Railway Migrations Guide](/docs/deployment/RAILWAY_DEPLOYMENT.md)
