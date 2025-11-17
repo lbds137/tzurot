@@ -96,7 +96,11 @@ export async function describeImage(
   );
 
   // Priority 1: Use personality's configured vision model if specified
-  if (personality.visionModel !== undefined && personality.visionModel.length > 0) {
+  if (
+    personality.visionModel !== undefined &&
+    personality.visionModel !== null &&
+    personality.visionModel.length > 0
+  ) {
     logger.info(
       { visionModel: personality.visionModel },
       'Using configured vision model (personality override)'
