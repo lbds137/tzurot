@@ -160,17 +160,15 @@ export class AIJobProcessor {
     logger.info({ jobId: job.id, jobType }, '[AIJobProcessor] Processing job');
 
     // Route to appropriate handler based on job type
-    if (jobType === 'audio-transcription') {
-      return await this.processAudioTranscriptionJobWrapper(
-        job as Job<AudioTranscriptionJobData>
-      );
-    } else if (jobType === 'image-description') {
-      return await this.processImageDescriptionJobWrapper(job as Job<ImageDescriptionJobData>);
-    } else if (jobType === 'llm-generation') {
-      return await this.processLLMGenerationJob(job as Job<LLMGenerationJobData>);
+    if ((jobType as string) === 'audio-transcription') {
+      return this.processAudioTranscriptionJobWrapper(job as Job<AudioTranscriptionJobData>);
+    } else if ((jobType as string) === 'image-description') {
+      return this.processImageDescriptionJobWrapper(job as Job<ImageDescriptionJobData>);
+    } else if ((jobType as string) === 'llm-generation') {
+      return this.processLLMGenerationJob(job as Job<LLMGenerationJobData>);
     } else {
       logger.error({ jobType }, '[AIJobProcessor] Unknown job type');
-      throw new Error(`Unknown job type: ${jobType}`);
+      throw new Error(`Unknown job type: ${String(jobType)}`);
     }
   }
 
@@ -243,17 +241,25 @@ export class AIJobProcessor {
           // Extract key from resultKey (strip REDIS_KEY_PREFIXES.JOB_RESULT prefix)
           const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
 
-          if (dep.type === 'audio-transcription') {
+          if ((dep.type as string) === 'audio-transcription') {
             const result = await getJobResult<AudioTranscriptionResult>(key);
-            if (result?.success && result.content) {
+            if (
+              result?.success === true &&
+              result.content !== undefined &&
+              result.content.length > 0
+            ) {
               transcriptions.push(result.content);
               logger.debug({ jobId: dep.jobId, key }, '[AIJobProcessor] Retrieved audio transcription');
             } else {
               logger.warn({ jobId: dep.jobId, key }, '[AIJobProcessor] Audio transcription job failed or has no result');
             }
-          } else if (dep.type === 'image-description') {
+          } else if ((dep.type as string) === 'image-description') {
             const result = await getJobResult<ImageDescriptionResult>(key);
-            if (result?.success && result.descriptions) {
+            if (
+              result?.success === true &&
+              result.descriptions !== undefined &&
+              result.descriptions.length > 0
+            ) {
               imageDescriptions.push(...result.descriptions);
               logger.debug({ jobId: dep.jobId, key, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
             } else {
@@ -314,8 +320,8 @@ export class AIJobProcessor {
     // Debug: Check if referencedMessages exists in job data
     logger.info(
       `[AIJobProcessor] Job data context inspection: ` +
-        `hasReferencedMessages=${!!context.referencedMessages}, ` +
-        `count=${context.referencedMessages?.length || 0}, ` +
+        `hasReferencedMessages=${context.referencedMessages !== undefined && context.referencedMessages !== null}, ` +
+        `count=${context.referencedMessages?.length ?? 0}, ` +
         `type=${typeof context.referencedMessages}, ` +
         `contextKeys=[${Object.keys(context).join(', ')}]`
     );
@@ -325,7 +331,11 @@ export class AIJobProcessor {
       let oldestHistoryTimestamp: number | undefined;
       if (context.conversationHistory && context.conversationHistory.length > 0) {
         const timestamps = context.conversationHistory
-          .map(msg => (msg.createdAt ? new Date(msg.createdAt).getTime() : null))
+          .map(msg =>
+            msg.createdAt !== undefined && msg.createdAt.length > 0
+              ? new Date(msg.createdAt).getTime()
+              : null
+          )
           .filter((t): t is number => t !== null);
 
         if (timestamps.length > 0) {
@@ -435,15 +445,26 @@ export class AIJobProcessor {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
     const userMessagesWithPersona = history.filter(
-      m => m.role === MessageRole.User && m.personaId && m.personaName
+      m =>
+        m.role === MessageRole.User &&
+        m.personaId !== undefined &&
+        m.personaId.length > 0 &&
+        m.personaName !== undefined &&
+        m.personaName.length > 0
     ).length;
     logger.debug(
-      `[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`
+      `[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId ?? 'undefined'}, activePersonaName=${activePersonaName ?? 'undefined'}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`
     );
 
     // Extract from history
     for (const msg of history) {
-      if (msg.role === MessageRole.User && msg.personaId && msg.personaName) {
+      if (
+        msg.role === MessageRole.User &&
+        msg.personaId !== undefined &&
+        msg.personaId.length > 0 &&
+        msg.personaName !== undefined &&
+        msg.personaName.length > 0
+      ) {
         logger.debug(
           `[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`
         );
@@ -452,14 +473,19 @@ export class AIJobProcessor {
     }
 
     // Ensure active persona is included (even if not in history yet)
-    if (activePersonaId && activePersonaName) {
+    if (
+      activePersonaId !== undefined &&
+      activePersonaId.length > 0 &&
+      activePersonaName !== undefined &&
+      activePersonaName.length > 0
+    ) {
       logger.debug(
         `[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`
       );
       uniquePersonas.set(activePersonaId, activePersonaName);
     } else {
       logger.debug(
-        `[AIJobProcessor] Active persona not included - hasActivePersonaId: ${!!activePersonaId}, hasActivePersonaName: ${!!activePersonaName}, activePersonaId: ${activePersonaId}, activePersonaName: ${activePersonaName}`
+        `[AIJobProcessor] Active persona not included - hasActivePersonaId: ${activePersonaId !== undefined && activePersonaId.length > 0}, hasActivePersonaName: ${activePersonaName !== undefined && activePersonaName.length > 0}, activePersonaId: ${activePersonaId ?? 'undefined'}, activePersonaName: ${activePersonaName ?? 'undefined'}`
       );
     }
 
@@ -495,11 +521,11 @@ export class AIJobProcessor {
       if (msg.role === MessageRole.User) {
         const parts: string[] = [];
 
-        if (msg.personaName) {
+        if (msg.personaName !== undefined && msg.personaName.length > 0) {
           parts.push(`${msg.personaName}:`);
         }
 
-        if (msg.createdAt) {
+        if (msg.createdAt !== undefined && msg.createdAt.length > 0) {
           parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
         }
 
@@ -515,7 +541,7 @@ export class AIJobProcessor {
         // Use the personality name (e.g., "Lilith")
         parts.push(`${personalityName}:`);
 
-        if (msg.createdAt) {
+        if (msg.createdAt !== undefined && msg.createdAt.length > 0) {
           parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
         }
 
