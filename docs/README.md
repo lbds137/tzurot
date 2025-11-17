@@ -1,6 +1,6 @@
 # Tzurot v3 Documentation
 
-**Last Updated:** 2025-11-05
+**Last Updated:** 2025-11-17
 
 This directory contains all project documentation, organized by category for easy navigation.
 
@@ -23,7 +23,7 @@ Deployment guides and infrastructure setup.
 
 **Key docs:**
 
-- `DEPLOYMENT.md` - Railway deployment guide
+- `RAILWAY_DEPLOYMENT.md` - Railway deployment guide (primary reference)
 - `RAILWAY_SHARED_VARIABLES.md` - Environment variable setup
 - `RAILWAY_VOLUME_SETUP.md` - Persistent storage configuration
 
@@ -98,17 +98,6 @@ Reusable document templates.
 
 - `MIGRATION_TEMPLATE.md` - Template for migration procedures
 
-### 📦 [archive/](archive/)
-
-Completed plans, one-time audits, and historical documentation.
-
-**Contents:**
-
-- Completed implementation plans
-- One-time code quality audits
-- Obsolete architecture proposals
-- Historical snapshots
-
 ---
 
 ## Quick Links
@@ -117,7 +106,7 @@ Completed plans, one-time audits, and historical documentation.
 
 1. [Development Setup](guides/DEVELOPMENT.md)
 2. [Architecture Overview](architecture/ARCHITECTURE_DECISIONS.md)
-3. [Deployment Guide](deployment/DEPLOYMENT.md)
+3. [Deployment Guide](deployment/RAILWAY_DEPLOYMENT.md)
 
 **Understanding the System:**
 

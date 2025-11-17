@@ -17,7 +17,7 @@ These scripts **will not work** as `@qdrant/js-client-rest` has been removed fro
 If you need to reference the migration process, see:
 
 - `docs/migration/PGVECTOR_MIGRATION_CHECKLIST.md`
-- `docs/deployment/PRODUCTION_DEPLOYMENT_CHECKLIST.md`
+- `docs/deployment/RAILWAY_DEPLOYMENT.md`
 
 ## Prerequisites
 

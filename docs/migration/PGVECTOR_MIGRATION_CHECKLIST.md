@@ -257,7 +257,7 @@ git push origin develop
 ### Documentation Updates
 
 - [ ] Update ARCHITECTURE.md to reflect pgvector
-- [ ] Update DEPLOYMENT.md with new setup
+- [x] Update RAILWAY_DEPLOYMENT.md with new setup (pgvector documented)
 - [ ] Update README.md if it mentions Qdrant
 - [ ] Delete this migration doc after completion (git history preserves it)
 
