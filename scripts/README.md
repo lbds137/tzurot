@@ -14,10 +14,10 @@ The following scripts were used for the Qdrant → pgvector migration and are no
 
 These scripts **will not work** as `@qdrant/js-client-rest` has been removed from dependencies. They are kept for historical reference only.
 
-If you need to reference the migration process, see:
+If you need to reference database operations, see:
 
 - `docs/deployment/RAILWAY_DEPLOYMENT.md` (deployment guide)
-- `docs/operations/PGVECTOR_MIGRATION_WORKFLOW.md` (migration workflow)
+- `docs/operations/PRISMA_PGVECTOR_REFERENCE.md` (Prisma + pgvector operations)
 
 ## Prerequisites
 
