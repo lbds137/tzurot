@@ -63,7 +63,7 @@ export class DiscordResponseSender {
 
     // Add model indicator if provided
     let contentWithIndicator = content;
-    if (modelUsed) {
+    if (modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
       contentWithIndicator += `\n-# Model: [\`${modelUsed}\`](<${modelUrl}>)`;
     }
@@ -117,7 +117,7 @@ export class DiscordResponseSender {
     for (const chunk of chunks) {
       const sentMessage = await this.webhookManager.sendAsPersonality(channel, personality, chunk);
 
-      if (sentMessage) {
+      if (sentMessage !== null && sentMessage !== undefined) {
         // Store webhook message in Redis for reply routing (7 day TTL)
         await storeWebhookMessage(sentMessage.id, personality.name);
         chunkMessageIds.push(sentMessage.id);
