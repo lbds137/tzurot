@@ -34,6 +34,12 @@ This plan addresses technical debt and architectural improvements identified thr
   - Phase 3 (bot-client): All services refactored for DI
   - All 762 tests passing
   - Commits: 3 (one per phase)
+- **Task 1.2**: Extract Owner-Only Check Middleware ✅
+  - Created `requireBotOwner()` middleware in common-types
+  - Updated admin.ts and personality.ts to use middleware
+  - Eliminated ~30 lines of security code duplication
+  - 6 comprehensive tests added
+  - All 768 tests passing
 
 ### 🚧 IN PROGRESS
 None
@@ -46,6 +52,10 @@ None
 **Files affected**: ~15 files across services
 
 **Problem**: Multiple files create `new PrismaClient()` directly, and dependencies are hidden/hard to test
+
+---
+
+#### ~~Task 1.2: Extract Owner-Only Check Middleware~~ ✅ COMPLETED
 
 **Solution**: Implement proper DI architecture (based on Gemini consultation)
 
