@@ -13,8 +13,8 @@ import {
   JobStatus,
   JobType,
   JOB_PREFIXES,
+  getPrismaClient,
 } from '@tzurot/common-types';
-import { PrismaClient } from '@prisma/client';
 import { aiQueue, queueEvents } from '../queue.js';
 import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
@@ -23,7 +23,7 @@ import type { GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 export const aiRouter: Router = Router();
 
