@@ -4,6 +4,7 @@
  * Extracts and formats referenced messages from replies and message links
  */
 
+import type { PrismaClient } from '@prisma/client';
 import {
   Message,
   TextChannel,
@@ -38,6 +39,8 @@ export interface ReferenceExtractionResult {
  * Options for message reference extraction
  */
 export interface ReferenceExtractionOptions {
+  /** Prisma client for database operations */
+  prisma: PrismaClient;
   /** Maximum number of references to extract (default: 10) */
   maxReferences?: number;
   /** Delay in ms before fetching to allow Discord to process embeds (default: 2500ms) */
@@ -59,7 +62,7 @@ export class MessageReferenceExtractor {
   private conversationHistoryTimestamps: Date[];
   private readonly conversationHistoryService: ConversationHistoryService;
 
-  constructor(options: ReferenceExtractionOptions = {}) {
+  constructor(options: ReferenceExtractionOptions) {
     this.maxReferences = options.maxReferences ?? 10;
 
     // ARCHITECTURAL DECISION: 2.5s embed processing delay
@@ -77,7 +80,7 @@ export class MessageReferenceExtractor {
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds ?? []);
     this.conversationHistoryTimestamps = options.conversationHistoryTimestamps ?? [];
-    this.conversationHistoryService = new ConversationHistoryService();
+    this.conversationHistoryService = new ConversationHistoryService(options.prisma);
   }
 
   /**

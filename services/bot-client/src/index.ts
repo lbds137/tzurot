@@ -4,6 +4,7 @@ import {
   PersonalityService,
   UserService,
   disconnectPrisma,
+  getPrismaClient,
   getConfig,
 } from '@tzurot/common-types';
 import { GatewayClient } from './utils/GatewayClient.js';
@@ -76,6 +77,10 @@ interface Services {
  * Full dependency injection - no service creates its own dependencies.
  */
 function createServices(): Services {
+  // Composition Root: Create Prisma client for dependency injection
+  const prisma = getPrismaClient();
+  logger.info('[Bot] Prisma client initialized');
+
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);
   const webhookManager = new WebhookManager(client);
@@ -83,13 +88,13 @@ function createServices(): Services {
   const resultsListener = new ResultsListener();
 
   // Shared services (used by multiple processors)
-  const personalityService = new PersonalityService();
-  const userService = new UserService();
+  const personalityService = new PersonalityService(prisma);
+  const userService = new UserService(prisma);
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
-  const contextBuilder = new MessageContextBuilder();
-  const persistence = new ConversationPersistence();
+  const contextBuilder = new MessageContextBuilder(prisma);
+  const persistence = new ConversationPersistence(prisma);
   const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
   const referenceEnricher = new ReferenceEnrichmentService(userService);
   const replyResolver = new ReplyResolutionService(personalityService);
@@ -199,7 +204,8 @@ async function start(): Promise<void> {
 
     // Verify we can connect to database
     logger.info('[Bot] Verifying database connection...');
-    const tempPersonalityService = new PersonalityService();
+    const tempPrisma = getPrismaClient();
+    const tempPersonalityService = new PersonalityService(tempPrisma);
     const personalityList = await tempPersonalityService.loadAllPersonalities();
     logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
 

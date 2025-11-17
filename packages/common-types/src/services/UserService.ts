@@ -3,20 +3,18 @@
  * Manages User records - creates users on first interaction
  */
 
+import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
-import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 
 const logger = createLogger('UserService');
 
 export class UserService {
-  private prisma;
   private userCache: Map<string, string>; // discordId -> userId (UUID)
   private personaCache: Map<string, string>; // userId:personalityId -> personaId
 
-  constructor() {
-    this.prisma = getPrismaClient();
+  constructor(private prisma: PrismaClient) {
     this.userCache = new Map();
     this.personaCache = new Map();
   }
