@@ -23,6 +23,7 @@ import {
   CONTENT_TYPES,
   TEXT_LIMITS,
 } from '@tzurot/common-types';
+import { processAvatarAttachment, AvatarProcessingError } from '../utils/avatarProcessor.js';
 
 const logger = createLogger('personality-command');
 
@@ -233,39 +234,14 @@ async function handleCreate(
     // Validate avatar if provided
     let avatarBase64: string | undefined;
     if (avatarAttachment) {
-      // Check file type
-      if (
-        (avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false) === false
-      ) {
-        await interaction.editReply('❌ Avatar must be an image file (PNG, JPEG, etc.)');
-        return;
-      }
-
-      // Check file size (10MB limit from Discord)
-      if (avatarAttachment.size > DISCORD_LIMITS.AVATAR_SIZE) {
-        await interaction.editReply('❌ Avatar file is too large (max 10MB)');
-        return;
-      }
-
-      // Download and convert to base64
       try {
-        const response = await fetch(avatarAttachment.url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        // For now, store original - resize will be handled by API gateway
-        avatarBase64 = buffer.toString('base64');
-
-        logger.info(
-          `[Personality Create] Downloaded avatar: ${avatarAttachment.name} (${(buffer.length / 1024).toFixed(2)} KB)`
-        );
+        avatarBase64 = await processAvatarAttachment(avatarAttachment, 'Personality Create');
       } catch (error) {
-        logger.error({ err: error }, 'Failed to download avatar');
-        await interaction.editReply('❌ Failed to download avatar image');
+        if (error instanceof AvatarProcessingError) {
+          await interaction.editReply(error.message);
+        } else {
+          await interaction.editReply('❌ Failed to process avatar image');
+        }
         return;
       }
     }
@@ -406,37 +382,14 @@ async function handleEdit(
     // Validate avatar if provided
     let avatarBase64: string | undefined;
     if (avatarAttachment) {
-      // Check file type
-      if (
-        (avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false) === false
-      ) {
-        await interaction.editReply('❌ Avatar must be an image file (PNG, JPEG, etc.)');
-        return;
-      }
-
-      // Check file size (10MB limit from Discord)
-      if (avatarAttachment.size > DISCORD_LIMITS.AVATAR_SIZE) {
-        await interaction.editReply('❌ Avatar file is too large (max 10MB)');
-        return;
-      }
-
-      // Download and convert to base64
       try {
-        const response = await fetch(avatarAttachment.url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        avatarBase64 = buffer.toString('base64');
-
-        logger.info(
-          `[Personality Edit] Downloaded avatar: ${avatarAttachment.name} (${(buffer.length / 1024).toFixed(2)} KB)`
-        );
+        avatarBase64 = await processAvatarAttachment(avatarAttachment, 'Personality Edit');
       } catch (error) {
-        logger.error({ err: error }, 'Failed to download avatar');
-        await interaction.editReply('❌ Failed to download avatar image');
+        if (error instanceof AvatarProcessingError) {
+          await interaction.editReply(error.message);
+        } else {
+          await interaction.editReply('❌ Failed to process avatar image');
+        }
         return;
       }
     }
