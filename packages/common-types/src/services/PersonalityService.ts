@@ -32,19 +32,24 @@ function coerceToNumber(val: unknown): number | undefined {
 
 /**
  * Zod schema for LLM configuration with automatic Prisma Decimal conversion
+ *
+ * Safety notes:
+ * - All numeric fields use coerceToNumber to handle Prisma Decimal and null values
+ * - Range validation prevents invalid values from reaching the AI providers
+ * - .nullish() at top level handles both null and undefined for the entire config
  */
 export const LlmConfigSchema = z.object({
-  model: z.string().optional(),
+  model: z.string().nullable().optional(), // Nullable for extra safety despite DB constraint
   visionModel: z.string().nullable().optional(),
   temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
-  maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().optional()),
+  maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(1000000).optional()), // Max 1M tokens
   topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  topK: z.preprocess(coerceToNumber, z.number().int().optional()),
+  topK: z.preprocess(coerceToNumber, z.number().int().min(1).max(1000).optional()), // Common range: 1-1000
   frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
   presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
   memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().optional()),
-  contextWindowTokens: z.preprocess(coerceToNumber, z.number().int().positive().optional()),
+  memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()), // Max 1000 memories
+  contextWindowTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(2000000).optional()), // Max 2M tokens (future-proof)
 }).nullish();
 
 /**
