@@ -36,8 +36,8 @@ vi.mock('./PromptBuilder.js', () => {
     PromptBuilder: class {
       formatUserMessage = vi.fn().mockReturnValue({ text: 'Test message' });
       buildSearchQuery = vi.fn().mockReturnValue('Test query');
-      buildFullSystemPrompt = vi.fn().mockResolvedValue({ content: 'System prompt' });
-      buildHumanMessage = vi.fn().mockResolvedValue({
+      buildFullSystemPrompt = vi.fn().mockReturnValue({ content: 'System prompt' });
+      buildHumanMessage = vi.fn().mockReturnValue({
         message: new HumanMessage('Test message'),
         contentForStorage: 'Test message',
       });
@@ -120,8 +120,8 @@ describe('ConversationalRAGService - Token Count Caching Usage', () => {
       countTokensMock.mockReturnValue(100); // High fallback value to detect if called
 
       // Mock system prompt and current message token counts
-      mockPromptBuilder.buildFullSystemPrompt.mockResolvedValue({ content: 'System' });
-      mockPromptBuilder.buildHumanMessage.mockResolvedValue({
+      mockPromptBuilder.buildFullSystemPrompt.mockReturnValue({ content: 'System' });
+      mockPromptBuilder.buildHumanMessage.mockReturnValue({
         message: new HumanMessage('Current message'),
         contentForStorage: 'Current message',
       });
@@ -162,8 +162,8 @@ describe('ConversationalRAGService - Token Count Caching Usage', () => {
       const countTokensMock = vi.spyOn(mockPromptBuilder, 'countTokens');
 
       // Setup mocks
-      mockPromptBuilder.buildFullSystemPrompt.mockResolvedValue({ content: 'System' });
-      mockPromptBuilder.buildHumanMessage.mockResolvedValue({
+      mockPromptBuilder.buildFullSystemPrompt.mockReturnValue({ content: 'System' });
+      mockPromptBuilder.buildHumanMessage.mockReturnValue({
         message: new HumanMessage('Current'),
         contentForStorage: 'Current',
       });
@@ -203,8 +203,8 @@ describe('ConversationalRAGService - Token Count Caching Usage', () => {
 
       const countTokensMock = vi.spyOn(mockPromptBuilder, 'countTokens');
 
-      mockPromptBuilder.buildFullSystemPrompt.mockResolvedValue({ content: 'System' });
-      mockPromptBuilder.buildHumanMessage.mockResolvedValue({
+      mockPromptBuilder.buildFullSystemPrompt.mockReturnValue({ content: 'System' });
+      mockPromptBuilder.buildHumanMessage.mockReturnValue({
         message: new HumanMessage('Current'),
         contentForStorage: 'Current',
       });
@@ -238,8 +238,8 @@ describe('ConversationalRAGService - Token Count Caching Usage', () => {
 
       const countTokensMock = vi.spyOn(mockPromptBuilder, 'countTokens');
 
-      mockPromptBuilder.buildFullSystemPrompt.mockResolvedValue({ content: 'System' });
-      mockPromptBuilder.buildHumanMessage.mockResolvedValue({
+      mockPromptBuilder.buildFullSystemPrompt.mockReturnValue({ content: 'System' });
+      mockPromptBuilder.buildHumanMessage.mockReturnValue({
         message: new HumanMessage('Current'),
         contentForStorage: 'Current',
       });
@@ -283,8 +283,8 @@ describe('ConversationalRAGService - Token Count Caching Usage', () => {
 
       const countTokensMock = vi.spyOn(mockPromptBuilder, 'countTokens');
 
-      mockPromptBuilder.buildFullSystemPrompt.mockResolvedValue({ content: 'System' });
-      mockPromptBuilder.buildHumanMessage.mockResolvedValue({
+      mockPromptBuilder.buildFullSystemPrompt.mockReturnValue({ content: 'System' });
+      mockPromptBuilder.buildHumanMessage.mockReturnValue({
         message: new HumanMessage('Current'),
         contentForStorage: 'Current',
       });
@@ -332,8 +332,8 @@ describe('ConversationalRAGService - Token Count Caching Usage', () => {
 
       const countTokensMock = vi.spyOn(mockPromptBuilder, 'countTokens');
 
-      mockPromptBuilder.buildFullSystemPrompt.mockResolvedValue({ content: 'System' });
-      mockPromptBuilder.buildHumanMessage.mockResolvedValue({
+      mockPromptBuilder.buildFullSystemPrompt.mockReturnValue({ content: 'System' });
+      mockPromptBuilder.buildHumanMessage.mockReturnValue({
         message: new HumanMessage('Current'),
         contentForStorage: 'Current',
       });
