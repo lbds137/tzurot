@@ -74,7 +74,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const ownerId = config.BOT_OWNER_ID;
 
   // Owner-only check
-  if (!ownerId || interaction.user.id !== ownerId) {
+  if (
+    ownerId === undefined ||
+    ownerId === null ||
+    ownerId.length === 0 ||
+    interaction.user.id !== ownerId
+  ) {
     await interaction.reply({
       content: '❌ This command is only available to the bot owner.',
       flags: MessageFlags.Ephemeral,
@@ -153,7 +158,11 @@ async function handleDbSync(
     // Add sync summary
     const summary: string[] = [];
 
-    if (result.schemaVersion) {
+    if (
+      result.schemaVersion !== undefined &&
+      result.schemaVersion !== null &&
+      result.schemaVersion.length > 0
+    ) {
       summary.push(`**Schema Version**: \`${result.schemaVersion}\``);
     }
 
@@ -163,14 +172,18 @@ async function handleDbSync(
         const tableStats = stats as { devToProd?: number; prodToDev?: number; conflicts?: number };
         summary.push(
           `\`${table}\`: ` +
-            `${tableStats.devToProd || 0} dev→prod, ` +
-            `${tableStats.prodToDev || 0} prod→dev` +
-            (tableStats.conflicts ? `, ${tableStats.conflicts} conflicts` : '')
+            `${tableStats.devToProd ?? 0} dev→prod, ` +
+            `${tableStats.prodToDev ?? 0} prod→dev` +
+            (tableStats.conflicts !== undefined &&
+            tableStats.conflicts !== null &&
+            tableStats.conflicts > 0
+              ? `, ${tableStats.conflicts} conflicts`
+              : '')
         );
       }
     }
 
-    if (dryRun && result.changes) {
+    if (dryRun === true && result.changes !== undefined && result.changes !== null) {
       summary.push('\n**Changes Preview**:');
       summary.push('```');
       summary.push(
@@ -285,7 +298,11 @@ async function handleUsage(
   interaction: ChatInputCommandInteraction,
   config: ReturnType<typeof getConfig>
 ): Promise<void> {
-  const timeframe = interaction.options.getString('timeframe') || '7d';
+  const timeframeOption = interaction.options.getString('timeframe');
+  const timeframe =
+    timeframeOption !== undefined && timeframeOption !== null && timeframeOption.length > 0
+      ? timeframeOption
+      : '7d';
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
