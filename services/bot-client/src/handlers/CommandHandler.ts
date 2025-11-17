@@ -46,10 +46,15 @@ export class CommandHandler {
       try {
         // Convert file path to file URL for ESM imports
         const fileUrl = pathToFileURL(filePath).href;
-        const command = await import(fileUrl);
+        const importedModule = (await import(fileUrl)) as Partial<Command>;
 
         // Validate command structure
-        if (!command.data || !command.execute) {
+        if (
+          importedModule.data === undefined ||
+          importedModule.data === null ||
+          importedModule.execute === undefined ||
+          importedModule.execute === null
+        ) {
           logger.warn({}, `[CommandHandler] Invalid command file: ${filePath}`);
           continue;
         }
@@ -64,13 +69,13 @@ export class CommandHandler {
 
         // Create command object with category (don't mutate the imported module)
         const commandWithCategory: Command = {
-          data: command.data,
-          execute: command.execute,
+          data: importedModule.data,
+          execute: importedModule.execute,
           category,
         };
 
-        this.commands.set(command.data.name, commandWithCategory);
-        logger.info(`[CommandHandler] Loaded command: ${command.data.name}`);
+        this.commands.set(importedModule.data.name, commandWithCategory);
+        logger.info(`[CommandHandler] Loaded command: ${importedModule.data.name}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(

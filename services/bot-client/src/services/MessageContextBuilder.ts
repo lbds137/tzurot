@@ -71,7 +71,7 @@ export class MessageContextBuilder {
   ): Promise<ContextBuildResult> {
     // Get or create user record (needed for conversation history query)
     const displayName =
-      message.member?.displayName || message.author.globalName || message.author.username;
+      message.member?.displayName ?? message.author.globalName ?? message.author.username;
 
     const userId = await this.userService.getOrCreateUser(
       message.author.id,
@@ -104,7 +104,7 @@ export class MessageContextBuilder {
 
     // Extract Discord message IDs and timestamps for deduplication
     const conversationHistoryMessageIds = history
-      .flatMap(msg => msg.discordMessageId || [])
+      .flatMap(msg => msg.discordMessageId ?? [])
       .filter((id): id is string => id !== undefined && id !== null);
 
     const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
@@ -112,20 +112,22 @@ export class MessageContextBuilder {
     // Debug logging for voice message replies
     if (
       message.attachments.some(
-        a => a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.duration !== null
+        a =>
+          (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
+          (a.duration !== null && a.duration !== undefined)
       )
     ) {
       const mostRecentAssistant = history.filter(m => m.role === MessageRole.Assistant).slice(-1)[0];
-      const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId || [];
+      const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId ?? [];
 
       logger.debug(
         {
           isReply: message.reference !== null,
           replyToMessageId: message.reference?.messageId,
-          messageContent: content || '(empty - voice only)',
+          messageContent: content ?? '(empty - voice only)',
           historyCount: history.length,
           replyMatchesRecentAssistant: mostRecentAssistantIds.includes(
-            message.reference?.messageId || ''
+            message.reference?.messageId ?? ''
           ),
         },
         '[MessageContextBuilder] Processing voice message reply - deduplication data'
@@ -183,7 +185,7 @@ export class MessageContextBuilder {
       serverId: message.guild?.id,
       messageContent,
       activePersonaId: personaId,
-      activePersonaName: personaName || undefined,
+      activePersonaName: personaName ?? undefined,
       conversationHistory,
       attachments,
       environment,

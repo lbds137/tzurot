@@ -169,8 +169,9 @@ export function formatEnvironmentForPrompt(context: DiscordEnvironment): string 
 
   const parts: string[] = [];
 
-  // Guild name
-  parts.push(`**Server**: ${context.guild!.name}`);
+  // Guild name (should always exist if not DM, but handle gracefully)
+  const guildName = context.guild?.name ?? 'Unknown Server';
+  parts.push(`**Server**: ${guildName}`);
 
   // Category (if exists)
   if (context.category) {

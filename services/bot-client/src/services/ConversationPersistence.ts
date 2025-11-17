@@ -102,16 +102,16 @@ export class ConversationPersistence {
       personaId,
       MessageRole.User,
       userMessageContent,
-      message.guild?.id || null,
+      message.guild?.id ?? null,
       message.id // Discord message ID for deduplication
     );
 
     logger.debug(
       {
         hasAttachments: attachments && attachments.length > 0,
-        attachmentCount: attachments?.length || 0,
+        attachmentCount: attachments?.length ?? 0,
         hasReferences: referencedMessages && referencedMessages.length > 0,
-        referenceCount: referencedMessages?.length || 0,
+        referenceCount: referencedMessages?.length ?? 0,
         contentLength: userMessageContent.length,
       },
       '[ConversationPersistence] Saved user message with placeholder descriptions'
@@ -132,7 +132,14 @@ export class ConversationPersistence {
     attachmentDescriptions?: string,
     referencedMessagesDescriptions?: string
   ): Promise<void> {
-    if (!attachmentDescriptions && !referencedMessagesDescriptions) {
+    if (
+      (attachmentDescriptions === undefined ||
+        attachmentDescriptions === null ||
+        attachmentDescriptions.length === 0) &&
+      (referencedMessagesDescriptions === undefined ||
+        referencedMessagesDescriptions === null ||
+        referencedMessagesDescriptions.length === 0)
+    ) {
       logger.debug(
         '[ConversationPersistence] No rich descriptions available, keeping placeholders'
       );
@@ -142,7 +149,11 @@ export class ConversationPersistence {
     let enrichedContent = messageContent;
 
     // Upgrade attachment placeholders to rich descriptions
-    if (attachmentDescriptions) {
+    if (
+      attachmentDescriptions !== undefined &&
+      attachmentDescriptions !== null &&
+      attachmentDescriptions.length > 0
+    ) {
       enrichedContent = enrichedContent
         ? `${enrichedContent}\n\n${attachmentDescriptions}`
         : attachmentDescriptions;
@@ -154,7 +165,11 @@ export class ConversationPersistence {
     }
 
     // Upgrade reference placeholders to rich descriptions
-    if (referencedMessagesDescriptions) {
+    if (
+      referencedMessagesDescriptions !== undefined &&
+      referencedMessagesDescriptions !== null &&
+      referencedMessagesDescriptions.length > 0
+    ) {
       enrichedContent += `\n\n${referencedMessagesDescriptions}`;
 
       logger.debug(
@@ -211,7 +226,7 @@ export class ConversationPersistence {
       personaId,
       MessageRole.Assistant,
       content, // Clean content without model indicator
-      message.guild?.id || null,
+      message.guild?.id ?? null,
       chunkMessageIds, // Array of Discord message IDs
       assistantMessageTime // Explicit timestamp for chronological ordering
     );
