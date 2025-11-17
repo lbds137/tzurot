@@ -36,8 +36,9 @@ export class GatewayClient {
       // Debug: Check what fields are in context before sending
       logger.debug(
         {
-          hasReferencedMessages: !!context.referencedMessages,
-          count: context.referencedMessages?.length || 0,
+          hasReferencedMessages:
+            context.referencedMessages !== undefined && context.referencedMessages !== null,
+          count: context.referencedMessages?.length ?? 0,
           contextKeys: Object.keys(context),
         },
         '[GatewayClient] Sending context'
@@ -54,7 +55,7 @@ export class GatewayClient {
           message: context.messageContent,
           context: {
             ...context,
-            conversationHistory: context.conversationHistory || [],
+            conversationHistory: context.conversationHistory ?? [],
           },
         }),
         // Short timeout - we're just submitting the job
@@ -115,11 +116,15 @@ export class GatewayClient {
 
       const data = (await response.json()) as GenerateResponse;
 
-      if (data.status !== 'completed') {
+      if ((data.status as string) !== 'completed') {
         throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
       }
 
-      if (!data.result?.content) {
+      if (
+        data.result?.content === undefined ||
+        data.result.content === null ||
+        data.result.content.length === 0
+      ) {
         throw new Error('No transcript in job result');
       }
 
