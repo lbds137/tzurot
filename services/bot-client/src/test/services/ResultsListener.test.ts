@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { JobResult } from '@tzurot/common-types';
+import { JobStatus } from '@tzurot/common-types';
 
 // Mock the Redis client to prevent actual connections during tests
 vi.mock('redis', () => ({
@@ -57,14 +58,14 @@ describe('ResultsListener - JobResult Construction', () => {
       // ✅ CORRECT (what we fixed it to):
       const jobResult: JobResult = {
         jobId: redisMessage.jobId,
-        status: 'completed',
+        status: JobStatus.Completed,
         result: parsedResult, // ← Now properly nested!
       };
 
       // Verify structure matches TypeScript interface
       expect(jobResult).toEqual({
         jobId: 'job-123',
-        status: 'completed',
+        status: JobStatus.Completed,
         result: {
           content: 'AI response text',
           success: true,
@@ -93,7 +94,7 @@ describe('ResultsListener - JobResult Construction', () => {
       const parsedResult = JSON.parse(redisMessage.result);
       const jobResult: JobResult = {
         jobId: redisMessage.jobId,
-        status: 'completed',
+        status: JobStatus.Completed,
         result: parsedResult,
       };
 
@@ -121,7 +122,7 @@ describe('ResultsListener - JobResult Construction', () => {
       const parsedResult = JSON.parse(redisMessage.result);
       const jobResult: JobResult = {
         jobId: redisMessage.jobId,
-        status: 'completed',
+        status: JobStatus.Completed,
         result: parsedResult,
       };
 
@@ -162,7 +163,7 @@ describe('ResultsListener - JobResult Construction', () => {
       // ✅ THE FIX: Proper construction
       const fixedJobResult: JobResult = {
         jobId: redisMessage.jobId,
-        status: 'completed',
+        status: JobStatus.Completed,
         result: JSON.parse(redisMessage.result),
       };
 
