@@ -157,7 +157,12 @@ export async function execute(
   const ownerId = config.BOT_OWNER_ID;
 
   // Owner-only check
-  if (!ownerId || interaction.user.id !== ownerId) {
+  if (
+    ownerId === undefined ||
+    ownerId === null ||
+    ownerId.length === 0 ||
+    interaction.user.id !== ownerId
+  ) {
     await interaction.reply({
       content: '❌ This command is only available to the bot owner.',
       flags: MessageFlags.Ephemeral,
@@ -231,7 +236,9 @@ async function handleCreate(
     let avatarBase64: string | undefined;
     if (avatarAttachment) {
       // Check file type
-      if (!avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
+      if (
+        (avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false) === false
+      ) {
         await interaction.editReply('❌ Avatar must be an image file (PNG, JPEG, etc.)');
         return;
       }
@@ -271,11 +278,11 @@ async function handleCreate(
       slug,
       characterInfo,
       personalityTraits,
-      displayName: displayName || undefined,
-      personalityTone: tone || undefined,
-      personalityAge: age || undefined,
-      personalityLikes: likes || undefined,
-      personalityDislikes: dislikes || undefined,
+      displayName: displayName ?? undefined,
+      personalityTone: tone ?? undefined,
+      personalityAge: age ?? undefined,
+      personalityLikes: likes ?? undefined,
+      personalityDislikes: dislikes ?? undefined,
       avatarData: avatarBase64,
       ownerId: interaction.user.id,
     };
@@ -324,13 +331,17 @@ async function handleCreate(
       )
       .setTimestamp();
 
-    if (displayName) {
+    if (
+      displayName !== undefined &&
+      displayName !== null &&
+      displayName.length > 0
+    ) {
       embed.addFields({ name: 'Display Name', value: displayName, inline: true });
     }
-    if (tone) {
+    if (tone !== undefined && tone !== null && tone.length > 0) {
       embed.addFields({ name: 'Tone', value: tone, inline: true });
     }
-    if (age) {
+    if (age !== undefined && age !== null && age.length > 0) {
       embed.addFields({ name: 'Age', value: age, inline: true });
     }
     if (avatarAttachment) {
@@ -375,14 +386,16 @@ async function handleEdit(
 
     // Validate at least one field is provided
     if (
-      !name &&
-      !characterInfo &&
-      !personalityTraits &&
-      !displayName &&
-      !tone &&
-      !age &&
-      !likes &&
-      !dislikes &&
+      (name === undefined || name === null || name.length === 0) &&
+      (characterInfo === undefined || characterInfo === null || characterInfo.length === 0) &&
+      (personalityTraits === undefined ||
+        personalityTraits === null ||
+        personalityTraits.length === 0) &&
+      (displayName === undefined || displayName === null || displayName.length === 0) &&
+      (tone === undefined || tone === null || tone.length === 0) &&
+      (age === undefined || age === null || age.length === 0) &&
+      (likes === undefined || likes === null || likes.length === 0) &&
+      (dislikes === undefined || dislikes === null || dislikes.length === 0) &&
       !avatarAttachment
     ) {
       await interaction.editReply(
@@ -396,7 +409,9 @@ async function handleEdit(
     let avatarBase64: string | undefined;
     if (avatarAttachment) {
       // Check file type
-      if (!avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
+      if (
+        (avatarAttachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false) === false
+      ) {
         await interaction.editReply('❌ Avatar must be an image file (PNG, JPEG, etc.)');
         return;
       }
@@ -434,15 +449,15 @@ async function handleEdit(
       ownerId: interaction.user.id,
     };
 
-    if (name !== null) {payload.name = name;}
-    if (characterInfo !== null) {payload.characterInfo = characterInfo;}
-    if (personalityTraits !== null) {payload.personalityTraits = personalityTraits;}
-    if (displayName !== null) {payload.displayName = displayName;}
-    if (tone !== null) {payload.personalityTone = tone;}
-    if (age !== null) {payload.personalityAge = age;}
-    if (likes !== null) {payload.personalityLikes = likes;}
-    if (dislikes !== null) {payload.personalityDislikes = dislikes;}
-    if (avatarBase64) {payload.avatarData = avatarBase64;}
+    if (name !== null && name !== undefined && name.length > 0) {payload.name = name;}
+    if (characterInfo !== null && characterInfo !== undefined && characterInfo.length > 0) {payload.characterInfo = characterInfo;}
+    if (personalityTraits !== null && personalityTraits !== undefined && personalityTraits.length > 0) {payload.personalityTraits = personalityTraits;}
+    if (displayName !== null && displayName !== undefined && displayName.length > 0) {payload.displayName = displayName;}
+    if (tone !== null && tone !== undefined && tone.length > 0) {payload.personalityTone = tone;}
+    if (age !== null && age !== undefined && age.length > 0) {payload.personalityAge = age;}
+    if (likes !== null && likes !== undefined && likes.length > 0) {payload.personalityLikes = likes;}
+    if (dislikes !== null && dislikes !== undefined && dislikes.length > 0) {payload.personalityDislikes = dislikes;}
+    if (avatarBase64 !== undefined && avatarBase64 !== null && avatarBase64.length > 0) {payload.avatarData = avatarBase64;}
 
     // Call API Gateway to edit personality
     const gatewayUrl = config.GATEWAY_URL;
@@ -480,19 +495,19 @@ async function handleEdit(
     const embed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('✅ Personality Updated Successfully')
-      .setDescription(`Updated personality: **${name || slug}** (\`${slug}\`)`)
+      .setDescription(`Updated personality: **${name ?? slug}** (\`${slug}\`)`)
       .setTimestamp();
 
     const updatedFields: string[] = [];
-    if (name) {updatedFields.push(`Name: ${name}`);}
-    if (characterInfo) {updatedFields.push('Character Info');}
-    if (personalityTraits) {updatedFields.push('Personality Traits');}
-    if (displayName) {updatedFields.push(`Display Name: ${displayName}`);}
-    if (tone) {updatedFields.push(`Tone: ${tone}`);}
-    if (age) {updatedFields.push(`Age: ${age}`);}
-    if (likes) {updatedFields.push('Likes');}
-    if (dislikes) {updatedFields.push('Dislikes');}
-    if (avatarAttachment) {updatedFields.push('Avatar');}
+    if (name !== undefined && name !== null && name.length > 0) {updatedFields.push(`Name: ${name}`);}
+    if (characterInfo !== undefined && characterInfo !== null && characterInfo.length > 0) {updatedFields.push('Character Info');}
+    if (personalityTraits !== undefined && personalityTraits !== null && personalityTraits.length > 0) {updatedFields.push('Personality Traits');}
+    if (displayName !== undefined && displayName !== null && displayName.length > 0) {updatedFields.push(`Display Name: ${displayName}`);}
+    if (tone !== undefined && tone !== null && tone.length > 0) {updatedFields.push(`Tone: ${tone}`);}
+    if (age !== undefined && age !== null && age.length > 0) {updatedFields.push(`Age: ${age}`);}
+    if (likes !== undefined && likes !== null && likes.length > 0) {updatedFields.push('Likes');}
+    if (dislikes !== undefined && dislikes !== null && dislikes.length > 0) {updatedFields.push('Dislikes');}
+    if (avatarAttachment !== undefined && avatarAttachment !== null) {updatedFields.push('Avatar');}
 
     embed.addFields({ name: 'Updated Fields', value: updatedFields.join('\n'), inline: false });
 
@@ -521,7 +536,10 @@ async function handleImport(
     const fileAttachment = interaction.options.getAttachment('file', true);
 
     // Validate file type
-    if (!fileAttachment.contentType?.includes('json') && !fileAttachment.name.endsWith('.json')) {
+    if (
+      (fileAttachment.contentType?.includes('json') ?? false) === false &&
+      !fileAttachment.name.endsWith('.json')
+    ) {
       await interaction.editReply('❌ File must be a JSON file (.json)');
       return;
     }
@@ -541,7 +559,7 @@ async function handleImport(
       }
 
       const text = await response.text();
-      personalityData = JSON.parse(text);
+      personalityData = JSON.parse(text) as Record<string, unknown>;
 
       logger.info(
         `[Personality Import] Downloaded JSON: ${fileAttachment.name} (${(text.length / 1024).toFixed(2)} KB)`
@@ -556,7 +574,12 @@ async function handleImport(
 
     // Validate required fields
     const requiredFields = ['name', 'slug', 'characterInfo', 'personalityTraits'];
-    const missingFields = requiredFields.filter(field => !personalityData[field]);
+    const missingFields = requiredFields.filter(
+      field =>
+        personalityData[field] === undefined ||
+        personalityData[field] === null ||
+        personalityData[field] === ''
+    );
 
     if (missingFields.length > 0) {
       await interaction.editReply(
@@ -582,16 +605,16 @@ async function handleImport(
       slug: personalityData.slug,
       characterInfo: personalityData.characterInfo,
       personalityTraits: personalityData.personalityTraits,
-      displayName: personalityData.displayName || undefined,
-      personalityTone: personalityData.personalityTone || undefined,
-      personalityAge: personalityData.personalityAge || undefined,
-      personalityAppearance: personalityData.personalityAppearance || undefined,
-      personalityLikes: personalityData.personalityLikes || undefined,
-      personalityDislikes: personalityData.personalityDislikes || undefined,
-      conversationalGoals: personalityData.conversationalGoals || undefined,
-      conversationalExamples: personalityData.conversationalExamples || undefined,
-      customFields: personalityData.customFields || undefined,
-      avatarData: personalityData.avatarData || undefined,
+      displayName: personalityData.displayName ?? undefined,
+      personalityTone: personalityData.personalityTone ?? undefined,
+      personalityAge: personalityData.personalityAge ?? undefined,
+      personalityAppearance: personalityData.personalityAppearance ?? undefined,
+      personalityLikes: personalityData.personalityLikes ?? undefined,
+      personalityDislikes: personalityData.personalityDislikes ?? undefined,
+      conversationalGoals: personalityData.conversationalGoals ?? undefined,
+      conversationalExamples: personalityData.conversationalExamples ?? undefined,
+      customFields: personalityData.customFields ?? undefined,
+      avatarData: personalityData.avatarData ?? undefined,
       ownerId: interaction.user.id,
     };
 
@@ -632,23 +655,23 @@ async function handleImport(
     const embed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('✅ Personality Imported Successfully')
-      .setDescription(`Imported personality: **${payload.name}** (\`${slug}\`)`)
+      .setDescription(`Imported personality: **${String(payload.name)}** (\`${slug}\`)`)
       .setTimestamp();
 
     // Show what was imported
     const importedFields: string[] = [];
-    if (payload.characterInfo) {importedFields.push('Character Info');}
-    if (payload.personalityTraits) {importedFields.push('Personality Traits');}
-    if (payload.displayName) {importedFields.push('Display Name');}
-    if (payload.personalityTone) {importedFields.push('Tone');}
-    if (payload.personalityAge) {importedFields.push('Age');}
-    if (payload.personalityAppearance) {importedFields.push('Appearance');}
-    if (payload.personalityLikes) {importedFields.push('Likes');}
-    if (payload.personalityDislikes) {importedFields.push('Dislikes');}
-    if (payload.conversationalGoals) {importedFields.push('Conversational Goals');}
-    if (payload.conversationalExamples) {importedFields.push('Conversational Examples');}
-    if (payload.customFields) {importedFields.push('Custom Fields');}
-    if (payload.avatarData) {importedFields.push('Avatar Data');}
+    if (payload.characterInfo !== undefined && payload.characterInfo !== null) {importedFields.push('Character Info');}
+    if (payload.personalityTraits !== undefined && payload.personalityTraits !== null) {importedFields.push('Personality Traits');}
+    if (payload.displayName !== undefined && payload.displayName !== null) {importedFields.push('Display Name');}
+    if (payload.personalityTone !== undefined && payload.personalityTone !== null) {importedFields.push('Tone');}
+    if (payload.personalityAge !== undefined && payload.personalityAge !== null) {importedFields.push('Age');}
+    if (payload.personalityAppearance !== undefined && payload.personalityAppearance !== null) {importedFields.push('Appearance');}
+    if (payload.personalityLikes !== undefined && payload.personalityLikes !== null) {importedFields.push('Likes');}
+    if (payload.personalityDislikes !== undefined && payload.personalityDislikes !== null) {importedFields.push('Dislikes');}
+    if (payload.conversationalGoals !== undefined && payload.conversationalGoals !== null) {importedFields.push('Conversational Goals');}
+    if (payload.conversationalExamples !== undefined && payload.conversationalExamples !== null) {importedFields.push('Conversational Examples');}
+    if (payload.customFields !== undefined && payload.customFields !== null) {importedFields.push('Custom Fields');}
+    if (payload.avatarData !== undefined && payload.avatarData !== null) {importedFields.push('Avatar Data');}
 
     embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
 

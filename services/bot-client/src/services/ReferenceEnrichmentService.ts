@@ -108,9 +108,7 @@ export class ReferenceEnrichmentService {
       }
 
       const isWebhook =
-        (webhookPersonality !== undefined &&
-          webhookPersonality !== null &&
-          webhookPersonality.length > 0) ||
+        (webhookPersonality !== undefined && webhookPersonality !== null) ||
         (reference.webhookId !== undefined &&
           reference.webhookId !== null &&
           reference.webhookId.length > 0);

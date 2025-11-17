@@ -11,6 +11,7 @@ import {
   Channel,
   MessageReferenceType,
   MessageSnapshot,
+  APIEmbed,
 } from 'discord.js';
 import { MessageLinkParser, ParsedMessageLink } from '../utils/MessageLinkParser.js';
 import { EmbedParser } from '../utils/EmbedParser.js';
@@ -74,8 +75,8 @@ export class MessageReferenceExtractor {
     // Trade-off: Adds 2.5s latency to ALL personality responses
     // Benefit: Enables proper PluralKit integration (distinguishing proxy vs bot messages)
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
-    this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
-    this.conversationHistoryTimestamps = options.conversationHistoryTimestamps || [];
+    this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds ?? []);
+    this.conversationHistoryTimestamps = options.conversationHistoryTimestamps ?? [];
     this.conversationHistoryService = new ConversationHistoryService();
   }
 
@@ -106,7 +107,11 @@ export class MessageReferenceExtractor {
     const updatedMessage = await this.refetchMessage(message);
 
     // Extract reply-to reference (if present)
-    if (updatedMessage.reference?.messageId) {
+    if (
+      updatedMessage.reference?.messageId !== undefined &&
+      updatedMessage.reference.messageId !== null &&
+      updatedMessage.reference.messageId.length > 0
+    ) {
       logger.info(
         {
           hasReference: true,
@@ -129,7 +134,11 @@ export class MessageReferenceExtractor {
           );
 
           // Extract snapshots from the forwarded message
-          if (referencedMessage.messageSnapshots && referencedMessage.messageSnapshots.size > 0) {
+          if (
+            referencedMessage.messageSnapshots !== undefined &&
+            referencedMessage.messageSnapshots !== null &&
+            referencedMessage.messageSnapshots.size > 0
+          ) {
             let snapshotNumber = 1;
             for (const [, snapshot] of referencedMessage.messageSnapshots) {
               const snapshotRef = this.formatSnapshot(snapshot, snapshotNumber, referencedMessage);
@@ -185,8 +194,8 @@ export class MessageReferenceExtractor {
         }
       } catch (error) {
         // Differentiate between expected and unexpected errors
-        const discordError = error as any;
-        const errorCode = discordError?.code;
+        const discordError = error as Error & { code?: number };
+        const errorCode = discordError.code;
 
         if (errorCode === 10008) {
           // Unknown Message - deleted or never existed (expected)
@@ -388,7 +397,7 @@ export class MessageReferenceExtractor {
       }
 
       // Try to get channel from cache first (works for regular channels)
-      let channel: Channel | null = guild.channels.cache.get(link.channelId) || null;
+      let channel: Channel | null = guild.channels.cache.get(link.channelId) ?? null;
 
       // If not in channels cache, it might be a thread - fetch it
       if (!channel) {
@@ -407,7 +416,7 @@ export class MessageReferenceExtractor {
             {
               channelId: link.channelId,
               channelType: channel?.type,
-              isThread: channel?.isThread?.() || false,
+              isThread: (channel?.isThread?.() ?? false) === true,
             },
             '[MessageReferenceExtractor] Channel fetched successfully'
           );
@@ -428,9 +437,9 @@ export class MessageReferenceExtractor {
         logger.info(
           {
             channelId: link.channelId,
-            hasChannel: !!channel,
-            isTextBased: channel?.isTextBased?.() || false,
-            hasMessages: channel && 'messages' in channel,
+            hasChannel: channel !== null && channel !== undefined,
+            isTextBased: (channel?.isTextBased?.() ?? false) === true,
+            hasMessages: channel !== null && channel !== undefined && 'messages' in channel,
           },
           '[MessageReferenceExtractor] Channel not text-based or inaccessible'
         );
@@ -453,8 +462,8 @@ export class MessageReferenceExtractor {
       return fetchedMessage;
     } catch (error) {
       // Differentiate between expected and unexpected errors
-      const discordError = error as any;
-      const errorCode = discordError?.code;
+      const discordError = error as Error & { code?: number };
+      const errorCode = discordError.code;
 
       if (errorCode === 10008) {
         // Unknown Message - deleted or never existed (expected)
@@ -507,7 +516,7 @@ export class MessageReferenceExtractor {
     const embedImages = extractEmbedImages(message.embeds);
 
     // Combine both types of attachments
-    const allAttachments = [...(regularAttachments || []), ...(embedImages || [])];
+    const allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
 
     // Check if any attachments are voice messages with transcripts (Redis cache or database)
     let contentWithTranscript = message.content;
@@ -515,9 +524,17 @@ export class MessageReferenceExtractor {
       const transcripts: string[] = [];
 
       for (const attachment of regularAttachments) {
-        if (attachment.isVoiceMessage) {
+        if (
+          attachment.isVoiceMessage !== undefined &&
+          attachment.isVoiceMessage !== null &&
+          attachment.isVoiceMessage === true
+        ) {
           const transcript = await this.retrieveVoiceTranscript(message.id, attachment.url);
-          if (transcript) {
+          if (
+            transcript !== undefined &&
+            transcript !== null &&
+            transcript.length > 0
+          ) {
             transcripts.push(transcript);
           }
         }
@@ -566,32 +583,37 @@ export class MessageReferenceExtractor {
     const locationContext = formatEnvironmentForPrompt(environment);
 
     // Process regular attachments from snapshot
-    const regularAttachments = snapshot.attachments
-      ? extractAttachments(snapshot.attachments)
-      : undefined;
+    const regularAttachments =
+      snapshot.attachments !== undefined && snapshot.attachments !== null
+        ? extractAttachments(snapshot.attachments)
+        : undefined;
 
     // Extract images from snapshot embeds (for vision model processing)
     const embedImages = extractEmbedImages(snapshot.embeds);
 
     // Combine both types of attachments
     const allAttachments = [
-      ...(regularAttachments || []),
-      ...(embedImages || []),
+      ...(regularAttachments ?? []),
+      ...(embedImages ?? []),
     ];
 
     // Process embeds from snapshot
-    const embedString = snapshot.embeds?.length
-      ? snapshot.embeds
-          .map((embed, index) => {
-            const embedNumber = snapshot.embeds.length > 1 ? ` ${index + 1}` : '';
-            // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
-            const apiEmbed: any = 'toJSON' in embed && typeof embed.toJSON === 'function'
-              ? embed.toJSON()
-              : embed;
-            return `### Embed${embedNumber}\n\n${EmbedParser.parseEmbed(apiEmbed)}`;
-          })
-          .join('\n\n---\n\n')
-      : '';
+    const embedString =
+      snapshot.embeds !== undefined &&
+      snapshot.embeds !== null &&
+      snapshot.embeds.length > 0
+        ? snapshot.embeds
+            .map((embed, index) => {
+              const embedNumber = snapshot.embeds.length > 1 ? ` ${index + 1}` : '';
+              // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
+              const apiEmbed: APIEmbed =
+                'toJSON' in embed && typeof embed.toJSON === 'function'
+                  ? (embed.toJSON() as APIEmbed)
+                  : (embed as APIEmbed);
+              return `### Embed${embedNumber}\n\n${EmbedParser.parseEmbed(apiEmbed)}`;
+            })
+            .join('\n\n---\n\n')
+        : '';
 
     return {
       referenceNumber,
@@ -628,7 +650,11 @@ export class MessageReferenceExtractor {
   private async refetchMessage(message: Message): Promise<Message> {
     try {
       // Check if channel is text-based and has messages property
-      if ('messages' in message.channel && message.channel.messages) {
+      if (
+        'messages' in message.channel &&
+        message.channel.messages !== undefined &&
+        message.channel.messages !== null
+      ) {
         return await message.channel.messages.fetch(message.id);
       }
       return message;
@@ -663,7 +689,12 @@ export class MessageReferenceExtractor {
     // check if timestamp matches any message in conversation history
     // This handles race condition where Discord message ID hasn't been stored in DB yet
     // Common with voice messages in threads where transcription adds significant delay
-    if (message.webhookId || message.author.bot) {
+    if (
+      (message.webhookId !== undefined &&
+        message.webhookId !== null &&
+        message.webhookId.length > 0) ||
+      message.author.bot === true
+    ) {
       const messageTime = message.createdAt.getTime();
       const now = Date.now();
       const ageMs = now - messageTime;
@@ -701,9 +732,15 @@ export class MessageReferenceExtractor {
       {
         messageId: message.id,
         author: message.author.username,
-        isWebhook: !!message.webhookId,
+        isWebhook:
+          message.webhookId !== undefined &&
+          message.webhookId !== null &&
+          message.webhookId.length > 0,
         isBot: message.author.bot,
-        messageAge: message.createdAt ? `${Math.round((Date.now() - message.createdAt.getTime()) / 1000)}s` : 'unknown',
+        messageAge:
+          message.createdAt !== undefined && message.createdAt !== null
+            ? `${Math.round((Date.now() - message.createdAt.getTime()) / 1000)}s`
+            : 'unknown',
         historyIdsCount: this.conversationHistoryMessageIds.size,
         historyTimestampsCount: this.conversationHistoryTimestamps.length,
       },
@@ -732,7 +769,11 @@ export class MessageReferenceExtractor {
     try {
       // Tier 1: Check Redis cache (fast path for recent messages)
       const cachedTranscript = await getVoiceTranscript(attachmentUrl);
-      if (cachedTranscript) {
+      if (
+        cachedTranscript !== undefined &&
+        cachedTranscript !== null &&
+        cachedTranscript.length > 0
+      ) {
         logger.info(
           {
             messageId: discordMessageId,
@@ -751,7 +792,11 @@ export class MessageReferenceExtractor {
         discordMessageId
       );
 
-      if (dbMessage?.content) {
+      if (
+        dbMessage?.content !== undefined &&
+        dbMessage.content !== null &&
+        dbMessage.content.length > 0
+      ) {
         // The content field contains the transcript (voice messages use transcript as content)
         logger.info(
           {
