@@ -27,7 +27,9 @@ function coerceToNumber(val: unknown): number | undefined {
   if (val === null || val === undefined) {
     return undefined;
   }
-  return val as number; // Let Zod's number validation catch if it's not a number
+  // Unexpected type - log and return undefined to trigger Zod validation error
+  logger.warn({ val, type: typeof val }, 'Unexpected value type in coerceToNumber');
+  return undefined;
 }
 
 /**
@@ -37,19 +39,25 @@ function coerceToNumber(val: unknown): number | undefined {
  * - All numeric fields use coerceToNumber to handle Prisma Decimal and null values
  * - Range validation prevents invalid values from reaching the AI providers
  * - .nullish() at top level handles both null and undefined for the entire config
+ *
+ * Safety limit rationale:
+ * - maxTokens (1M): Most models support 32k-200k context windows; 1M prevents excessive API costs
+ * - topK (1-1000): Common LLM parameter range; prevents extreme values that degrade quality
+ * - memoryLimit (1000): Prevents excessive DB queries and API latency from too many memories
+ * - contextWindowTokens (2M): Future-proof for upcoming long-context models (Gemini 1.5 Pro supports 2M)
  */
 export const LlmConfigSchema = z.object({
   model: z.string().nullable().optional(), // Nullable for extra safety despite DB constraint
   visionModel: z.string().nullable().optional(),
   temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
-  maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(1000000).optional()), // Max 1M tokens
+  maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(1000000).optional()),
   topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  topK: z.preprocess(coerceToNumber, z.number().int().min(1).max(1000).optional()), // Common range: 1-1000
+  topK: z.preprocess(coerceToNumber, z.number().int().min(1).max(1000).optional()),
   frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
   presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
   memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()), // Max 1000 memories
-  contextWindowTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(2000000).optional()), // Max 2M tokens (future-proof)
+  memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()),
+  contextWindowTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(2000000).optional()),
 }).nullish();
 
 /**
@@ -67,8 +75,16 @@ function parseLlmConfig(dbConfig: unknown): LlmConfig {
   if (result.success) {
     return result.data;
   }
-  // Log validation errors for debugging
-  logger.warn({ error: result.error.format() }, 'Failed to parse LLM config, using defaults');
+  // Log validation errors with field-level detail for debugging
+  const invalidFields = result.error.issues.map(issue => issue.path.join('.'));
+  logger.warn(
+    {
+      error: result.error.format(),
+      invalidFields,
+      receivedConfig: dbConfig,
+    },
+    'Failed to parse LLM config, using defaults'
+  );
   return null;
 }
 
