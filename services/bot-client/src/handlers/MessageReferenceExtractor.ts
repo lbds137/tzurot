@@ -608,7 +608,7 @@ export class MessageReferenceExtractor {
               // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
               const apiEmbed: APIEmbed =
                 'toJSON' in embed && typeof embed.toJSON === 'function'
-                  ? (embed.toJSON() as APIEmbed)
+                  ? embed.toJSON()
                   : (embed as APIEmbed);
               return `### Embed${embedNumber}\n\n${EmbedParser.parseEmbed(apiEmbed)}`;
             })
