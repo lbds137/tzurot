@@ -33,7 +33,9 @@ export class VoiceTranscriptionService {
    */
   hasVoiceAttachment(message: Message): boolean {
     return message.attachments.some(
-      a => a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) || a.duration !== null
+      a =>
+        (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
+        a.duration !== null
     );
   }
 
@@ -59,7 +61,12 @@ export class VoiceTranscriptionService {
       // Extract voice attachment metadata
       const attachments = Array.from(message.attachments.values()).map(attachment => ({
         url: attachment.url,
-        contentType: attachment.contentType || CONTENT_TYPES.BINARY,
+        contentType:
+          attachment.contentType !== null &&
+          attachment.contentType !== undefined &&
+          attachment.contentType.length > 0
+            ? attachment.contentType
+            : CONTENT_TYPES.BINARY,
         name: attachment.name,
         size: attachment.size,
         isVoiceMessage: attachment.duration !== null,
@@ -89,7 +96,7 @@ export class VoiceTranscriptionService {
       // Cache transcript in Redis to avoid re-transcribing if this voice message also targets a personality
       // Key by attachment URL with 5 min TTL (long enough for personality processing)
       const voiceAttachment = attachments[0]; // We know there's at least one
-      if (voiceAttachment) {
+      if (voiceAttachment !== undefined && voiceAttachment !== null) {
         await storeVoiceTranscript(voiceAttachment.url, response.content);
         logger.debug(
           `[VoiceTranscriptionService] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
