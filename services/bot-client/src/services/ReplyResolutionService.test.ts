@@ -3,12 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ReplyResolutionService } from '../../services/ReplyResolutionService.js';
+import { ReplyResolutionService } from './ReplyResolutionService.js';
 import type { Message, MessageReference } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
 
 // Mock dependencies
-vi.mock('../../redis.js', () => ({
+vi.mock('../redis.js', () => ({
   getWebhookPersonality: vi.fn(),
 }));
 
@@ -20,7 +20,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { getWebhookPersonality } from '../../redis.js';
+import { getWebhookPersonality } from '../redis.js';
 
 describe('ReplyResolutionService', () => {
   let service: ReplyResolutionService;

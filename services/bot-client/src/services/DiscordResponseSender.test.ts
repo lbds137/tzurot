@@ -3,12 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { DiscordResponseSender } from '../../services/DiscordResponseSender.js';
+import { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { TextChannel, ThreadChannel } from 'discord.js';
 
 // Mock dependencies
-vi.mock('../../redis.js', () => ({
+vi.mock('../redis.js', () => ({
   storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
 }));
 
