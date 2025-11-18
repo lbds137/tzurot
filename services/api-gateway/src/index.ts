@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const pinoHttp = require('pino-http');
 import { aiQueue, queueEvents, checkQueueHealth, closeQueue } from './queue.js';
-import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
+import { deduplicationCache } from './utils/deduplicationCache.js';
 import { syncAvatars } from './migrations/sync-avatars.js';
 import type { HealthResponse } from './types.js';
 import { ErrorResponses } from './utils/errorResponses.js';
@@ -269,7 +269,7 @@ app.get('/metrics', (_req, res) => {
         total: waiting + active,
       },
       cache: {
-        size: getCacheSize(),
+        size: deduplicationCache.getCacheSize(),
       },
       uptime: Date.now() - startTime,
       timestamp: new Date().toISOString(),
@@ -330,9 +330,7 @@ async function main(): Promise<void> {
   // Sync avatars from database to filesystem cache
   await syncAvatars();
 
-  // Start request deduplication cleanup
-  startCleanup();
-  logger.info('[Gateway] Request deduplication started');
+  logger.info('[Gateway] Request deduplication cache initialized');
 
   // Start HTTP server
   const server = app.listen(config.port, (err?: Error) => {
@@ -359,8 +357,9 @@ async function main(): Promise<void> {
       logger.info('[Gateway] HTTP server closed');
     });
 
-    // Stop cleanup interval
-    stopCleanup();
+    // Dispose deduplication cache
+    deduplicationCache.dispose();
+    logger.info('[Gateway] Request deduplication cache disposed');
 
     // Close queue connections
     await closeQueue();
