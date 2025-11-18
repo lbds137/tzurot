@@ -40,7 +40,7 @@ describe('requireBotOwner', () => {
 
     expect(result).toBe(false);
     expect(mockInteraction.reply).toHaveBeenCalledWith({
-      content: '❌ This command is only available to the bot owner.',
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -54,7 +54,7 @@ describe('requireBotOwner', () => {
 
     expect(result).toBe(false);
     expect(mockInteraction.reply).toHaveBeenCalledWith({
-      content: '❌ This command is only available to the bot owner.',
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -68,7 +68,7 @@ describe('requireBotOwner', () => {
 
     expect(result).toBe(false);
     expect(mockInteraction.reply).toHaveBeenCalledWith({
-      content: '❌ This command is only available to the bot owner.',
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -82,7 +82,7 @@ describe('requireBotOwner', () => {
 
     expect(result).toBe(false);
     expect(mockInteraction.reply).toHaveBeenCalledWith({
-      content: '❌ This command is only available to the bot owner.',
+      content: '❌ Owner-only command. This command is restricted to the bot owner.',
       flags: MessageFlags.Ephemeral,
     });
   });
