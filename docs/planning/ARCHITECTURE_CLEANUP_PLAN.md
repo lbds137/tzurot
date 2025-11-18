@@ -460,7 +460,7 @@ services/sync/
 
 ## Phase 4: Utils to Classes
 
-### Task 4.1: Convert requestDeduplication to Class
+### Task 4.1: Convert requestDeduplication to Class ✅ COMPLETED
 **Priority**: MEDIUM (memory leak risk)
 **Effort**: 1.5 hours
 
@@ -492,10 +492,19 @@ export class RequestDeduplicationCache {
 }
 ```
 
-**Tests needed**:
-- Deduplication works
-- TTL cleanup works
-- Dispose cleans up properly
+**Outcome** (2025-11-17):
+- ✅ Created RequestDeduplicationCache class (182 lines) with proper lifecycle management
+- ✅ Created singleton instance in utils/deduplicationCache.ts
+- ✅ Updated index.ts to use singleton (removed manual startCleanup/stopCleanup calls)
+- ✅ Updated routes/ai.ts to use cache instance methods
+- ✅ Added 25 comprehensive tests covering:
+  - Deduplication logic (message, user, personality differentiation)
+  - Automatic cleanup with configurable TTL
+  - Dispose lifecycle management
+  - Hash collision resistance
+- ✅ All 996 tests passing (174 api-gateway tests, up from 149)
+- ✅ Fixed memory leak risk - cleanup timer properly disposed
+- ✅ Improved testability - instance-based design allows easy mocking
 
 ---
 

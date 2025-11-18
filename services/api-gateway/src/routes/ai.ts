@@ -16,7 +16,7 @@ import {
   JOB_PREFIXES,
 } from '@tzurot/common-types';
 import type { PrismaClient } from '@prisma/client';
-import { checkDuplicate, cacheRequest } from '../utils/requestDeduplication.js';
+import { deduplicationCache } from '../utils/deduplicationCache.js';
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
 import { createJobChain } from '../utils/jobChainOrchestrator.js';
 import type { GenerateResponse } from '../types.js';
@@ -77,7 +77,7 @@ router.post('/generate', (req, res) => {
     personalityName = request.personality.name;
 
     // Check for duplicate requests
-    const duplicate = checkDuplicate(request);
+    const duplicate = deduplicationCache.checkDuplicate(request);
     if (duplicate !== null) {
       const response: GenerateResponse = {
         jobId: duplicate.jobId,
@@ -133,7 +133,7 @@ router.post('/generate', (req, res) => {
     });
 
     // Cache request to prevent duplicates
-    cacheRequest(request, requestId, jobId);
+    deduplicationCache.cacheRequest(request, requestId, jobId);
 
     const creationTime = Date.now() - startTime;
 
