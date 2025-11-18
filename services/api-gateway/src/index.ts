@@ -29,6 +29,7 @@ import { deduplicationCache } from './utils/deduplicationCache.js';
 import { syncAvatars } from './migrations/sync-avatars.js';
 import type { HealthResponse } from './types.js';
 import { ErrorResponses } from './utils/errorResponses.js';
+import { AttachmentStorageService } from './services/AttachmentStorageService.js';
 
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();
@@ -75,8 +76,13 @@ app.use((req, res, next) => {
 // Composition Root: Wire up dependencies
 const prisma = getPrismaClient();
 
+// Create services
+const attachmentStorage = new AttachmentStorageService({
+  gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
+});
+
 // Create routers with injected dependencies
-const aiRouter = createAIRouter(prisma, aiQueue, queueEvents);
+const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
 const adminRouter = createAdminRouter(prisma);
 
 // Register routes
