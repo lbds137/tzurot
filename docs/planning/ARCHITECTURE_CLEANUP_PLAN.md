@@ -563,7 +563,7 @@ export class RequestDeduplicationCache {
 
 ---
 
-### Task 5.2: Extract PromptBuilder Formatters
+### Task 5.2: Extract PromptBuilder Formatters ✅ COMPLETED
 **Priority**: LOW
 **Effort**: 2 hours
 
@@ -573,6 +573,19 @@ export class RequestDeduplicationCache {
 - `prompt/EnvironmentFormatter.ts`
 - `prompt/ParticipantFormatter.ts`
 - `prompt/MemoryFormatter.ts`
+
+**Outcome** (2025-11-17):
+- ✅ Created EnvironmentFormatter (59 lines) with formatEnvironmentContext function
+- ✅ Created ParticipantFormatter (40 lines) with formatParticipantsContext function
+- ✅ Created MemoryFormatter (31 lines) with formatMemoriesContext function
+- ✅ Updated PromptBuilder to use extracted formatters (reduced from 500 → 430 lines, -14%)
+- ✅ Added 28 comprehensive tests covering all formatters:
+  - EnvironmentFormatter: 7 tests (DM, guild, category, thread)
+  - ParticipantFormatter: 9 tests (single/multiple participants, group notes)
+  - MemoryFormatter: 12 tests (timestamps, ordering, edge cases)
+- ✅ All 1048 tests passing (314 ai-worker tests, up from 286)
+- ✅ Improved modularity - formatters can be tested and reused independently
+- ✅ Better separation of concerns - PromptBuilder orchestrates, formatters handle details
 
 ---
 
