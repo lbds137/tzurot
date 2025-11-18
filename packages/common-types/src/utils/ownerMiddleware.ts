@@ -23,15 +23,19 @@ export async function requireBotOwner(
   const config = getConfig();
   const ownerId = config.BOT_OWNER_ID;
 
-  // Owner-only check
-  if (
-    ownerId === undefined ||
-    ownerId === null ||
-    ownerId.length === 0 ||
-    interaction.user.id !== ownerId
-  ) {
+  // Check if owner ID is configured
+  if (ownerId === undefined || ownerId === null || ownerId.length === 0) {
     await interaction.reply({
-      content: '❌ This command is only available to the bot owner.',
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  // Check if user is the owner
+  if (interaction.user.id !== ownerId) {
+    await interaction.reply({
+      content: '❌ Owner-only command. This command is restricted to the bot owner.',
       flags: MessageFlags.Ephemeral,
     });
     return false;

@@ -137,10 +137,18 @@ export class RequestDeduplicationCache {
 
     // Create stable hash using SHA-256 for the entire message
     // This prevents false positives from substring sampling
+    //
+    // Hash truncation rationale:
+    // - 16 hex chars = 64 bits of entropy
+    // - Hash is combined with personality:userId:channelId prefix (additional uniqueness)
+    // - TTL is 60s by default (very small collision window)
+    // - Birthday paradox: ~4.3B requests needed for 50% collision probability
+    // - Realistic usage: Single bot instance, <1000 requests/minute expected
+    // - Collision risk is negligible; can use full hash if needed in future
     const messageHash = createHash('sha256')
       .update(messageStr)
       .digest('hex')
-      .substring(0, 16); // Take first 16 chars for brevity
+      .substring(0, 16); // 64-bit hash (sufficient for current usage)
 
     return `${personalityName}:${contextStr}:${messageHash}`;
   }
