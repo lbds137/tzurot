@@ -538,13 +538,28 @@ export class RequestDeduplicationCache {
 
 ## Phase 5: Service Extraction
 
-### Task 5.1: Extract PersonalityService Cache
+### Task 5.1: Extract PersonalityService Cache ✅ COMPLETED
 **Priority**: LOW
 **Effort**: 1.5 hours
 
 **Problem**: PersonalityService does too much (loading, caching, LRU eviction, placeholder replacement)
 
 **Extract**: ~100 lines of cache logic to `utils/PersonalityCache.ts`
+
+**Outcome** (2025-11-17):
+- ✅ Created PersonalityCache utility class (146 lines) with generic LRU cache + TTL support
+- ✅ Extracted cache logic from PersonalityService (reduced from 492 → 430 lines, -62 lines)
+- ✅ Updated PersonalityService to use PersonalityCache instance
+- ✅ Added 24 comprehensive tests covering:
+  - Get/set operations
+  - TTL expiration
+  - LRU eviction (size-based)
+  - Access time tracking
+  - Edge cases (empty keys, null values, rapid sets)
+- ✅ All 1013 tests passing (126 common-types tests, up from 102)
+- ✅ Improved reusability - generic cache can be used for other services
+- ✅ Better testability - cache logic independently tested
+- ✅ Cleaner separation of concerns - PersonalityService focuses on loading, cache handles caching
 
 ---
 

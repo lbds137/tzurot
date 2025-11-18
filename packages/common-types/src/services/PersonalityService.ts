@@ -9,6 +9,7 @@ import { MODEL_DEFAULTS, AI_DEFAULTS, TIMEOUTS, PLACEHOLDERS } from '../constant
 import type { Decimal } from '@prisma/client/runtime/library';
 import type { LoadedPersonality } from '../types/schemas.js';
 import { z } from 'zod';
+import { PersonalityCache } from '../utils/PersonalityCache.js';
 
 const logger = createLogger('PersonalityService');
 
@@ -124,16 +125,13 @@ export interface DatabasePersonality {
 }
 
 export class PersonalityService {
-  private personalityCache: Map<string, LoadedPersonality>;
-  private cacheExpiry: Map<string, number>;
-  private cacheLastAccess: Map<string, number>;
-  private readonly CACHE_TTL = TIMEOUTS.CACHE_TTL;
-  private readonly MAX_CACHE_SIZE = 100; // Maximum personalities to cache
+  private cache: PersonalityCache<LoadedPersonality>;
 
   constructor(private prisma: PrismaClient) {
-    this.personalityCache = new Map();
-    this.cacheExpiry = new Map();
-    this.cacheLastAccess = new Map();
+    this.cache = new PersonalityCache({
+      ttl: TIMEOUTS.CACHE_TTL,
+      maxSize: 100, // Maximum personalities to cache
+    });
   }
 
   /**
@@ -160,7 +158,7 @@ export class PersonalityService {
    */
   async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
     // Check cache first
-    const cached = this.getFromCache(nameOrId);
+    const cached = this.cache.get(nameOrId);
     if (cached) {
       return cached;
     }
@@ -220,7 +218,7 @@ export class PersonalityService {
         dbPersonality as DatabasePersonality,
         globalDefaultConfig
       );
-      this.setCache(nameOrId, personality);
+      this.cache.set(nameOrId, personality);
 
       logger.info(
         {
@@ -330,7 +328,7 @@ export class PersonalityService {
 
       // Cache all personalities
       for (const personality of personalities) {
-        this.setCache(personality.name, personality);
+        this.cache.set(personality.name, personality);
       }
 
       logger.info(`Loaded ${personalities.length} personalities from database`);
@@ -428,64 +426,5 @@ export class PersonalityService {
       conversationalGoals: this.replacePlaceholders(db.conversationalGoals, db.name),
       conversationalExamples: this.replacePlaceholders(db.conversationalExamples, db.name),
     };
-  }
-
-  /**
-   * Get from cache if not expired
-   */
-  private getFromCache(key: string): LoadedPersonality | null {
-    const expiry = this.cacheExpiry.get(key);
-    if (expiry === undefined || Date.now() > expiry) {
-      this.personalityCache.delete(key);
-      this.cacheExpiry.delete(key);
-      this.cacheLastAccess.delete(key);
-      return null;
-    }
-
-    // Update last access time for LRU tracking
-    this.cacheLastAccess.set(key, Date.now());
-    return this.personalityCache.get(key) ?? null;
-  }
-
-  /**
-   * Set cache with expiry and LRU eviction
-   */
-  private setCache(key: string, personality: LoadedPersonality): void {
-    // Evict least recently used entries if cache is full
-    if (this.personalityCache.size >= this.MAX_CACHE_SIZE && !this.personalityCache.has(key)) {
-      this.evictLRU();
-    }
-
-    this.personalityCache.set(key, personality);
-    this.cacheExpiry.set(key, Date.now() + this.CACHE_TTL);
-    this.cacheLastAccess.set(key, Date.now());
-  }
-
-  /**
-   * Evict least recently used cache entries
-   */
-  private evictLRU(): void {
-    if (this.cacheLastAccess.size === 0) {
-      return;
-    }
-
-    // Find the least recently used entry
-    let lruKey: string | null = null;
-    let lruTime = Infinity;
-
-    for (const [key, lastAccess] of this.cacheLastAccess.entries()) {
-      if (lastAccess < lruTime) {
-        lruTime = lastAccess;
-        lruKey = key;
-      }
-    }
-
-    // Remove the LRU entry
-    if (lruKey !== null && lruKey.length > 0) {
-      this.personalityCache.delete(lruKey);
-      this.cacheExpiry.delete(lruKey);
-      this.cacheLastAccess.delete(lruKey);
-      logger.debug(`[PersonalityService] Evicted LRU cache entry: ${lruKey}`);
-    }
   }
 }
