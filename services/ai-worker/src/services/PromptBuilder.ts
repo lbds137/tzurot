@@ -19,10 +19,12 @@ import {
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import type {
   MemoryDocument,
-  DiscordEnvironment,
   ConversationContext,
 } from './ConversationalRAGService.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
+import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
+import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
 
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
@@ -166,7 +168,7 @@ export class PromptBuilder {
     // Discord environment context (where conversation is happening)
     const environmentContext =
       context.environment !== undefined && context.environment !== null
-        ? `\n\n${this.formatEnvironmentContext(context.environment)}`
+        ? `\n\n${formatEnvironmentContext(context.environment)}`
         : '';
 
     // Referenced messages (from replies and message links)
@@ -181,37 +183,13 @@ export class PromptBuilder {
     }
 
     // Conversation participants - ALL people involved
-    let participantsContext = '';
-    if (participantPersonas.size > 0) {
-      const participantsList: string[] = [];
-
-      for (const [personaName, { content }] of participantPersonas.entries()) {
-        // No "current speaker" marker here - we'll clarify that right before the current message
-        participantsList.push(`### ${personaName}\n${content}`);
-      }
-
-      const pluralNote =
-        participantPersonas.size > 1
-          ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${context.activePersonaName !== undefined && context.activePersonaName.length > 0 ? context.activePersonaName : 'Alice'}: message") to show who said what.`
-          : '';
-
-      participantsContext = `\n\n## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
-    }
+    const participantsContext = formatParticipantsContext(
+      participantPersonas,
+      context.activePersonaName
+    );
 
     // Relevant memories from past interactions
-    const memoryContext =
-      relevantMemories.length > 0
-        ? '\n\n## Relevant Memories\n' +
-          relevantMemories
-            .map(doc => {
-              const timestamp =
-                doc.metadata?.createdAt !== undefined && doc.metadata.createdAt !== null
-                  ? formatMemoryTimestamp(doc.metadata.createdAt)
-                  : null;
-              return `- ${timestamp !== null && timestamp.length > 0 ? `[${timestamp}] ` : ''}${doc.pageContent}`;
-            })
-            .join('\n')
-        : '';
+    const memoryContext = formatMemoriesContext(relevantMemories);
 
     const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${referencesContext}${participantsContext}${memoryContext}`;
 
@@ -275,55 +253,6 @@ export class PromptBuilder {
     }
 
     return new SystemMessage(fullSystemPrompt);
-  }
-
-  /**
-   * Format Discord environment context for inclusion in system prompt
-   */
-  private formatEnvironmentContext(environment: DiscordEnvironment): string {
-    logger.debug({ environment }, '[PromptBuilder] Formatting environment context');
-
-    if (environment.type === 'dm') {
-      logger.info('[PromptBuilder] Environment type: DM');
-      return '## Conversation Location\nThis conversation is taking place in a **Direct Message** (private one-on-one chat).';
-    }
-
-    logger.info(
-      {
-        guildName: environment.guild?.name,
-        channelName: environment.channel.name,
-        channelType: environment.channel.type,
-      },
-      '[PromptBuilder] Environment type: Guild'
-    );
-
-    const parts: string[] = [];
-    parts.push('## Conversation Location');
-    parts.push('This conversation is taking place in a Discord server:\n');
-
-    // Guild name
-    if (environment.guild !== undefined && environment.guild !== null) {
-      parts.push(`**Server**: ${environment.guild.name}`);
-    }
-
-    // Category (if exists)
-    if (
-      environment.category !== undefined &&
-      environment.category !== null &&
-      environment.category.name.length > 0
-    ) {
-      parts.push(`**Category**: ${environment.category.name}`);
-    }
-
-    // Channel
-    parts.push(`**Channel**: #${environment.channel.name} (${environment.channel.type})`);
-
-    // Thread (if exists)
-    if (environment.thread !== undefined && environment.thread !== null) {
-      parts.push(`**Thread**: ${environment.thread.name}`);
-    }
-
-    return parts.join('\n');
   }
 
   /**
