@@ -17,10 +17,10 @@ import {
 } from '@tzurot/common-types';
 import type { PrismaClient } from '@prisma/client';
 import { deduplicationCache } from '../utils/deduplicationCache.js';
-import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
 import { createJobChain } from '../utils/jobChainOrchestrator.js';
 import type { GenerateResponse } from '../types.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
+import type { AttachmentStorageService } from '../services/AttachmentStorageService.js';
 
 const logger = createLogger('AIRouter');
 
@@ -29,11 +29,13 @@ const logger = createLogger('AIRouter');
  * @param prisma - Prisma client for database operations
  * @param aiQueue - BullMQ queue for AI job processing
  * @param queueEvents - BullMQ queue events for job completion waiting
+ * @param attachmentStorage - Service for downloading and storing attachments
  */
 export function createAIRouter(
   prisma: PrismaClient,
   aiQueue: Queue,
-  queueEvents: QueueEvents
+  queueEvents: QueueEvents,
+  attachmentStorage: AttachmentStorageService
 ): Router {
   const router: Router = Router();
 
@@ -102,7 +104,7 @@ router.post('/generate', (req, res) => {
         { requestId, count: localAttachments.length },
         '[AI] Downloading attachments to local storage'
       );
-      localAttachments = await downloadAndStoreAttachments(requestId, localAttachments);
+      localAttachments = await attachmentStorage.downloadAndStore(requestId, localAttachments);
     }
 
     // Debug: Log referenced messages if present
@@ -209,7 +211,7 @@ router.post('/transcribe', (req, res) => {
     const requestId = randomUUID();
 
     // Download attachments to local storage
-    const localAttachments = await downloadAndStoreAttachments(requestId, body.attachments);
+    const localAttachments = await attachmentStorage.downloadAndStore(requestId, body.attachments);
 
     // Use first audio attachment (transcribe endpoint expects single audio file)
     const audioAttachment = localAttachments[0];

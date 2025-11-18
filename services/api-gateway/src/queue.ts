@@ -15,10 +15,15 @@ import {
   createBullMQRedisConfig,
   JOB_PREFIXES,
 } from '@tzurot/common-types';
-import { cleanupAttachments } from './utils/tempAttachmentStorage.js';
+import { AttachmentStorageService } from './services/AttachmentStorageService.js';
 
 const logger = createLogger('Queue');
 const config = getConfig();
+
+// Create attachment storage service for cleanup
+const attachmentStorage = new AttachmentStorageService({
+  gatewayUrl: config.PUBLIC_GATEWAY_URL ?? config.GATEWAY_URL,
+});
 
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
@@ -82,7 +87,7 @@ queueEvents.on('completed', ({ jobId }) => {
   if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
     const requestId = jobId.substring(JOB_PREFIXES.LLM_GENERATION.length);
     setTimeout(() => {
-      void cleanupAttachments(requestId);
+      void attachmentStorage.cleanup(requestId);
     }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
   }
 });
@@ -94,7 +99,7 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
   if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
     const requestId = jobId.substring(JOB_PREFIXES.LLM_GENERATION.length);
     setTimeout(() => {
-      void cleanupAttachments(requestId);
+      void attachmentStorage.cleanup(requestId);
     }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
   }
 });
