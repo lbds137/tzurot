@@ -311,13 +311,11 @@ export async function processAvatarAttachment(
 
 **Services needing tests**:
 - `bot-client/src/services/MessageContextBuilder.ts` (215 lines)
-- `api-gateway/src/services/DatabaseSyncService.ts` (551 lines)
-
-**Note**: DatabaseSyncService should be split first (Phase 3)
+- ~~`api-gateway/src/services/DatabaseSyncService.ts`~~ (Now split into smaller modules - Task 3.5 ✅)
 
 ---
 
-## Phase 3: Large File Splitting
+## Phase 3: Large File Splitting ✅ ALL TASKS COMPLETED
 
 ### ~~Task 3.1: Split personality.ts Command~~ ✅ COMPLETED
 **Priority**: HIGH (largest file, enables Task 2.2)
@@ -434,7 +432,7 @@ services/
 
 ---
 
-### Task 3.5: Split DatabaseSyncService
+### Task 3.5: Split DatabaseSyncService ✅ COMPLETED
 **Priority**: LOW
 **Effort**: 2 hours
 **Current**: 551 lines → **Target**: ~300 lines
@@ -450,6 +448,13 @@ services/sync/
 └── utils/
     └── syncValidation.ts    # Validation (~100 lines)
 ```
+
+**Outcome** (2025-11-17):
+- ✅ DatabaseSyncService: 539 → 332 lines (38.4% reduction)
+- ✅ Created sync/config/syncTables.ts (125 lines) - SYNC_CONFIG with proper TypeScript types
+- ✅ Created sync/utils/syncValidation.ts (135 lines) - checkSchemaVersions + validateSyncConfig
+- ✅ All 971 tests passing (149 api-gateway tests maintained)
+- ✅ Cleaner separation: config, validation utils, and core sync orchestration
 
 ---
 
