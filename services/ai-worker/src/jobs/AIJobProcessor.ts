@@ -9,18 +9,14 @@
 import { Job } from 'bullmq';
 import {
   ConversationalRAGService,
-  type RAGResponse,
 } from '../services/ConversationalRAGService.js';
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import {
-  MessageContent,
   createLogger,
   type LoadedPersonality,
   type ReferencedMessage,
-  formatRelativeTime,
   JobType,
   MessageRole,
-  REDIS_KEY_PREFIXES,
   type AnyJobData,
   type AnyJobResult,
   type AudioTranscriptionJobData,
@@ -30,12 +26,12 @@ import {
   type ImageDescriptionResult,
   type LLMGenerationResult,
 } from '@tzurot/common-types';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { PrismaClient, Prisma } from '@prisma/client';
 import { publishJobResult, storeJobResult } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
+import { LLMGenerationHandler } from './handlers/LLMGenerationHandler.js';
 
 const logger = createLogger('AIJobProcessor');
 
@@ -145,12 +141,14 @@ export interface AIJobResult {
 
 export class AIJobProcessor {
   private ragService: ConversationalRAGService;
+  private llmGenerationHandler: LLMGenerationHandler;
 
   constructor(
     private prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter
   ) {
     this.ragService = new ConversationalRAGService(memoryManager);
+    this.llmGenerationHandler = new LLMGenerationHandler(this.ragService);
   }
 
   /**
@@ -218,347 +216,13 @@ export class AIJobProcessor {
   private async processLLMGenerationJob(
     job: Job<LLMGenerationJobData>
   ): Promise<LLMGenerationResult> {
-    const { dependencies } = job.data;
+    // Delegate to LLM generation handler
+    const result = await this.llmGenerationHandler.processJob(job);
 
-    // If there are dependencies, fetch their results and merge into context
-    if (dependencies && dependencies.length > 0) {
-      logger.info(
-        {
-          jobId: job.id,
-          dependencyCount: dependencies.length,
-        },
-        '[AIJobProcessor] LLM job has dependencies - fetching preprocessing results'
-      );
+    // Persist to DB and publish to Redis Stream
+    await this.persistAndPublishResult(job, result);
 
-      // Fetch dependency results from Redis
-      const { getJobResult } = await import('../redis.js');
-
-      // Collect all audio transcriptions
-      const transcriptions: string[] = [];
-      // Collect all image descriptions
-      const imageDescriptions: { url: string; description: string }[] = [];
-
-      for (const dep of dependencies) {
-        try {
-          // Extract key from resultKey (strip REDIS_KEY_PREFIXES.JOB_RESULT prefix)
-          const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
-
-          if ((dep.type as string) === 'audio-transcription') {
-            const result = await getJobResult<AudioTranscriptionResult>(key);
-            if (
-              result?.success === true &&
-              result.content !== undefined &&
-              result.content.length > 0
-            ) {
-              transcriptions.push(result.content);
-              logger.debug({ jobId: dep.jobId, key }, '[AIJobProcessor] Retrieved audio transcription');
-            } else {
-              logger.warn({ jobId: dep.jobId, key }, '[AIJobProcessor] Audio transcription job failed or has no result');
-            }
-          } else if ((dep.type as string) === 'image-description') {
-            const result = await getJobResult<ImageDescriptionResult>(key);
-            if (
-              result?.success === true &&
-              result.descriptions !== undefined &&
-              result.descriptions.length > 0
-            ) {
-              imageDescriptions.push(...result.descriptions);
-              logger.debug({ jobId: dep.jobId, key, count: result.descriptions.length }, '[AIJobProcessor] Retrieved image descriptions');
-            } else {
-              logger.warn({ jobId: dep.jobId, key }, '[AIJobProcessor] Image description job failed or has no result');
-            }
-          }
-        } catch (error) {
-          logger.error(
-            { err: error, jobId: dep.jobId, type: dep.type },
-            '[AIJobProcessor] Failed to fetch dependency result - continuing without it'
-          );
-        }
-      }
-
-      // Merge preprocessing results into message context
-      // Build attachment descriptions string
-      let attachmentDescriptions = '';
-
-      if (imageDescriptions.length > 0) {
-        attachmentDescriptions += '## Image Descriptions\n\n';
-        imageDescriptions.forEach((img, i) => {
-          attachmentDescriptions += `**Image ${i + 1}**: ${img.description}\n\n`;
-        });
-      }
-
-      if (transcriptions.length > 0) {
-        attachmentDescriptions += '## Audio Transcriptions\n\n';
-        transcriptions.forEach((transcript, i) => {
-          attachmentDescriptions += `**Audio ${i + 1}**: ${transcript}\n\n`;
-        });
-      }
-
-      // Store the processed attachment descriptions for the LLM
-      // Note: The actual integration into the message will be handled by RAG service
-      if (attachmentDescriptions) {
-        // Store in a temporary property that RAG service can access
-        job.data.__preprocessedAttachments = attachmentDescriptions;
-      }
-
-      logger.info(
-        {
-          jobId: job.id,
-          transcriptionCount: transcriptions.length,
-          imageCount: imageDescriptions.length,
-        },
-        '[AIJobProcessor] Merged preprocessing results into job context'
-      );
-    }
-
-    // Now perform LLM generation
-    const startTime = Date.now();
-    const { requestId, personality, message, context, userApiKey } = job.data;
-
-    logger.info(
-      `[AIJobProcessor] Processing LLM generation job ${job.id} (${requestId}) for ${personality.name}`
-    );
-
-    // Debug: Check if referencedMessages exists in job data
-    logger.info(
-      `[AIJobProcessor] Job data context inspection: ` +
-        `hasReferencedMessages=${context.referencedMessages !== undefined && context.referencedMessages !== null}, ` +
-        `count=${context.referencedMessages?.length ?? 0}, ` +
-        `type=${typeof context.referencedMessages}, ` +
-        `contextKeys=[${Object.keys(context).join(', ')}]`
-    );
-
-    try {
-      // Calculate oldest timestamp from conversation history (for LTM deduplication)
-      let oldestHistoryTimestamp: number | undefined;
-      if (context.conversationHistory && context.conversationHistory.length > 0) {
-        const timestamps = context.conversationHistory
-          .map(msg =>
-            msg.createdAt !== undefined && msg.createdAt.length > 0
-              ? new Date(msg.createdAt).getTime()
-              : null
-          )
-          .filter((t): t is number => t !== null);
-
-        if (timestamps.length > 0) {
-          oldestHistoryTimestamp = Math.min(...timestamps);
-          logger.debug(
-            `[AIJobProcessor] Oldest conversation message: ${new Date(oldestHistoryTimestamp).toISOString()}`
-          );
-        }
-      }
-
-      // Extract unique participants BEFORE converting to BaseMessage
-      const participants = this.extractParticipants(
-        context.conversationHistory ?? [],
-        context.activePersonaId,
-        context.activePersonaName
-      );
-
-      // Convert conversation history to BaseMessage format
-      const conversationHistory = this.convertConversationHistory(
-        context.conversationHistory ?? [],
-        personality.name
-      );
-
-      // Generate response using RAG
-      const response: RAGResponse = await this.ragService.generateResponse(
-        personality,
-        message as MessageContent,
-        {
-          userId: context.userId,
-          userName: context.userName,
-          channelId: context.channelId,
-          serverId: context.serverId,
-          sessionId: context.sessionId,
-          isProxyMessage: context.isProxyMessage,
-          activePersonaId: context.activePersonaId,
-          activePersonaName: context.activePersonaName,
-          conversationHistory,
-          rawConversationHistory: context.conversationHistory,
-          oldestHistoryTimestamp,
-          participants,
-          attachments: context.attachments,
-          environment: context.environment,
-          referencedMessages: context.referencedMessages,
-        },
-        userApiKey
-      );
-
-      const processingTimeMs = Date.now() - startTime;
-
-      logger.info(`[AIJobProcessor] Job ${job.id} completed in ${processingTimeMs}ms`);
-
-      const jobResult: LLMGenerationResult = {
-        requestId,
-        success: true,
-        content: response.content,
-        attachmentDescriptions: response.attachmentDescriptions,
-        referencedMessagesDescriptions: response.referencedMessagesDescriptions,
-        metadata: {
-          retrievedMemories: response.retrievedMemories,
-          tokensUsed: response.tokensUsed,
-          processingTimeMs,
-          modelUsed: response.modelUsed,
-        },
-      };
-
-      logger.debug({ jobResult }, '[AIJobProcessor] Returning job result');
-
-      // Persist to DB and publish to Redis Stream
-      await this.persistAndPublishResult(job, jobResult);
-
-      return jobResult;
-    } catch (error) {
-      const processingTimeMs = Date.now() - startTime;
-
-      logger.error({ err: error }, `[AIJobProcessor] Job ${job.id} failed`);
-
-      const jobResult: LLMGenerationResult = {
-        requestId,
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        metadata: {
-          processingTimeMs,
-        },
-      };
-
-      // Persist to DB and publish to Redis Stream (even for failures)
-      await this.persistAndPublishResult(job, jobResult);
-
-      return jobResult;
-    }
-  }
-
-  /**
-   * Extract unique participants from conversation history
-   * Returns list of all personas involved in the conversation
-   */
-  private extractParticipants(
-    history: {
-      role: MessageRole;
-      content: string;
-      personaId?: string;
-      personaName?: string;
-    }[],
-    activePersonaId?: string,
-    activePersonaName?: string
-  ): { personaId: string; personaName: string; isActive: boolean }[] {
-    const uniquePersonas = new Map<string, string>(); // personaId -> personaName
-
-    const userMessagesWithPersona = history.filter(
-      m =>
-        m.role === MessageRole.User &&
-        m.personaId !== undefined &&
-        m.personaId.length > 0 &&
-        m.personaName !== undefined &&
-        m.personaName.length > 0
-    ).length;
-    logger.debug(
-      `[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId ?? 'undefined'}, activePersonaName=${activePersonaName ?? 'undefined'}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`
-    );
-
-    // Extract from history
-    for (const msg of history) {
-      if (
-        msg.role === MessageRole.User &&
-        msg.personaId !== undefined &&
-        msg.personaId.length > 0 &&
-        msg.personaName !== undefined &&
-        msg.personaName.length > 0
-      ) {
-        logger.debug(
-          `[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`
-        );
-        uniquePersonas.set(msg.personaId, msg.personaName);
-      }
-    }
-
-    // Ensure active persona is included (even if not in history yet)
-    if (
-      activePersonaId !== undefined &&
-      activePersonaId.length > 0 &&
-      activePersonaName !== undefined &&
-      activePersonaName.length > 0
-    ) {
-      logger.debug(
-        `[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`
-      );
-      uniquePersonas.set(activePersonaId, activePersonaName);
-    } else {
-      logger.debug(
-        `[AIJobProcessor] Active persona not included - hasActivePersonaId: ${activePersonaId !== undefined && activePersonaId.length > 0}, hasActivePersonaName: ${activePersonaName !== undefined && activePersonaName.length > 0}, activePersonaId: ${activePersonaId ?? 'undefined'}, activePersonaName: ${activePersonaName ?? 'undefined'}`
-      );
-    }
-
-    logger.debug(`[AIJobProcessor] Found ${uniquePersonas.size} unique participant(s)`);
-
-    // Convert to array with isActive flag
-    return Array.from(uniquePersonas.entries()).map(([personaId, personaName]) => ({
-      personaId,
-      personaName,
-      isActive: personaId === activePersonaId,
-    }));
-  }
-
-  /**
-   * Convert simple conversation history to LangChain BaseMessage format
-   * Includes persona names to help the AI understand who is speaking
-   */
-  private convertConversationHistory(
-    history: {
-      role: MessageRole;
-      content: string;
-      createdAt?: string;
-      personaId?: string;
-      personaName?: string;
-    }[],
-    personalityName: string
-  ): BaseMessage[] {
-    return history.map(msg => {
-      // Format message with speaker name and timestamp
-      let content = msg.content;
-
-      // For user messages, include persona name and timestamp
-      if (msg.role === MessageRole.User) {
-        const parts: string[] = [];
-
-        if (msg.personaName !== undefined && msg.personaName.length > 0) {
-          parts.push(`${msg.personaName}:`);
-        }
-
-        if (msg.createdAt !== undefined && msg.createdAt.length > 0) {
-          parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
-        }
-
-        if (parts.length > 0) {
-          content = `${parts.join(' ')} ${msg.content}`;
-        }
-      }
-
-      // For assistant messages, include personality name and timestamp
-      if (msg.role === MessageRole.Assistant) {
-        const parts: string[] = [];
-
-        // Use the personality name (e.g., "Lilith")
-        parts.push(`${personalityName}:`);
-
-        if (msg.createdAt !== undefined && msg.createdAt.length > 0) {
-          parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
-        }
-
-        content = `${parts.join(' ')} ${msg.content}`;
-      }
-
-      if (msg.role === MessageRole.User) {
-        return new HumanMessage(content);
-      } else if (msg.role === MessageRole.Assistant) {
-        return new AIMessage(content);
-      } else {
-        // System messages are handled separately in the prompt
-        return new HumanMessage(content);
-      }
-    });
+    return result;
   }
 
   /**
