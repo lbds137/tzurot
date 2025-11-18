@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PersonalityMessageHandler } from '../../services/PersonalityMessageHandler.js';
+import { PersonalityMessageHandler } from './PersonalityMessageHandler.js';
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { LoadedPersonality, ConversationMessage, ReferencedMessage } from '@tzurot/common-types';

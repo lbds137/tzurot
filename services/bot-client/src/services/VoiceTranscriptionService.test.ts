@@ -3,16 +3,16 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { VoiceTranscriptionService } from '../../services/VoiceTranscriptionService.js';
+import { VoiceTranscriptionService } from './VoiceTranscriptionService.js';
 import type { Message } from 'discord.js';
 import { CONTENT_TYPES } from '@tzurot/common-types';
 
 // Mock dependencies
-vi.mock('../../utils/GatewayClient.js', () => ({
+vi.mock('../utils/GatewayClient.js', () => ({
   GatewayClient: vi.fn(),
 }));
 
-vi.mock('../../redis.js', () => ({
+vi.mock('../redis.js', () => ({
   storeVoiceTranscript: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -32,7 +32,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 import { preserveCodeBlocks } from '@tzurot/common-types';
-import { storeVoiceTranscript } from '../../redis.js';
+import { storeVoiceTranscript } from '../redis.js';
 
 describe('VoiceTranscriptionService', () => {
   let service: VoiceTranscriptionService;

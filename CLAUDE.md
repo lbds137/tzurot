@@ -434,11 +434,11 @@ git push --force-with-lease origin feat/your-feature
 
 **Current Status**:
 
-- ✅ **497 tests passing** across 23 test files
-  - common-types: 91 tests
-  - api-gateway: 109 tests
-  - ai-worker: 162 tests
-  - bot-client: 135 tests
+- ✅ **989 tests passing** across 63 test files
+  - common-types: 102 tests in 6 files
+  - api-gateway: 174 tests in 8 files
+  - ai-worker: 291 tests in 15 files
+  - bot-client: 422 tests in 34 files
 - ✅ Utility functions fully tested
 - ✅ Error handling and retry utilities comprehensive
 - 🚧 Service layer coverage expanding
@@ -448,6 +448,52 @@ git push --force-with-lease origin feat/your-feature
 
 - **[Testing Guide](docs/guides/TESTING.md)** - Comprehensive testing patterns and best practices
 - **[Global Testing Philosophy](~/.claude/CLAUDE.md#universal-testing-philosophy)** - Universal testing principles
+
+### Test File Organization
+
+**Standard: Colocated Tests** (Established 2025-11-17)
+
+All unit and service-level tests MUST be colocated next to the source files they test:
+
+✅ **Correct Structure**:
+```
+src/
+├── services/
+│   ├── MyService.ts
+│   ├── MyService.test.ts        # ← Colocated with source
+│   ├── AnotherService.ts
+│   └── AnotherService.test.ts   # ← Colocated with source
+└── utils/
+    ├── helper.ts
+    └── helper.test.ts            # ← Colocated with source
+```
+
+❌ **Incorrect Structure** (Do NOT create):
+```
+src/
+├── services/
+│   ├── MyService.ts
+│   └── AnotherService.ts
+└── test/                         # ← Separate test directory
+    └── services/
+        ├── MyService.test.ts     # ← NOT colocated
+        └── AnotherService.test.ts
+```
+
+**Exceptions**: Integration/E2E tests that span multiple modules can live in `src/test/processors/` or similar directories, but ONLY for tests that genuinely test multiple modules together (not unit tests).
+
+**Benefits**:
+- High discoverability - easy to see if a module has tests
+- Safe refactoring - moving/renaming files keeps tests together
+- Low friction - encourages more testing
+- Simple imports - no complex relative paths
+
+**Build Configuration**: Ensure `tsconfig.json` excludes test files from production builds:
+```json
+{
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
+}
+```
 
 **Important Patterns**:
 
