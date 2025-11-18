@@ -3,11 +3,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ReferenceEnrichmentService } from '../../services/ReferenceEnrichmentService.js';
+import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 import type { ConversationMessage, ReferencedMessage } from '@tzurot/common-types';
 
 // Mock dependencies
-vi.mock('../../redis.js', () => ({
+vi.mock('../redis.js', () => ({
   getWebhookPersonality: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { getWebhookPersonality } from '../../redis.js';
+import { getWebhookPersonality } from '../redis.js';
 
 describe('ReferenceEnrichmentService', () => {
   let service: ReferenceEnrichmentService;

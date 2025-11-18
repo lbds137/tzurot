@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { JobTracker, type PendingJobContext } from '../../../src/services/JobTracker.js';
+import { JobTracker, type PendingJobContext } from './JobTracker.js';
 
 // Helper to create mock context
 function createMockContext(): PendingJobContext {

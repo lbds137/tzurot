@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ConversationPersistence } from '../../services/ConversationPersistence.js';
+import { ConversationPersistence } from './ConversationPersistence.js';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
 
@@ -23,13 +23,13 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('../../utils/attachmentPlaceholders.js', () => ({
+vi.mock('../utils/attachmentPlaceholders.js', () => ({
   generateAttachmentPlaceholders: vi.fn((attachments) => {
     return `\n\n[Placeholder: ${attachments.length} attachment(s)]`;
   }),
 }));
 
-vi.mock('../../utils/referenceFormatter.js', () => ({
+vi.mock('../utils/referenceFormatter.js', () => ({
   formatReferencesForDatabase: vi.fn((references) => {
     return `\n\n[Placeholder: ${references.length} reference(s)]`;
   }),
