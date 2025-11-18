@@ -1,59 +1,14 @@
 /**
- * Utility Command Group
- * Groups utility commands under /utility with subcommands
+ * Utility Help Subcommand
+ * Handles /utility help
  */
 
-import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
-import type { Command } from '../types.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
+import type { Command } from '../../types.js';
 import { DISCORD_COLORS } from '@tzurot/common-types';
 
-export const data = new SlashCommandBuilder()
-  .setName('utility')
-  .setDescription('Utility commands')
-  .addSubcommand(subcommand =>
-    subcommand.setName('ping').setDescription('Check if bot is responding')
-  )
-  .addSubcommand(subcommand =>
-    subcommand.setName('help').setDescription('Show all available commands')
-  );
-
-export async function execute(
-  interaction: ChatInputCommandInteraction,
-  commands?: Map<string, Command>
-): Promise<void> {
-  const subcommand = interaction.options.getSubcommand();
-
-  switch (subcommand) {
-    case 'ping':
-      await handlePing(interaction);
-      break;
-    case 'help':
-      await handleHelp(interaction, commands);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        ephemeral: true,
-      });
-  }
-}
-
-/**
- * Handle /utility ping subcommand
- */
-async function handlePing(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Use deferReply to get response timing
-  await interaction.deferReply();
-
-  const latency = Date.now() - interaction.createdTimestamp;
-
-  await interaction.editReply(`Pong! Latency: ${latency}ms`);
-}
-
-/**
- * Handle /utility help subcommand
- */
-async function handleHelp(
+export async function handleHelp(
   interaction: ChatInputCommandInteraction,
   commands?: Map<string, Command>
 ): Promise<void> {
