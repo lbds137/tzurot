@@ -33,6 +33,7 @@ export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export { requireBotOwner } from './utils/ownerMiddleware.js';
+export { PersonalityCache, type PersonalityCacheOptions } from './utils/PersonalityCache.js';
 
 // Export services
 export * from './services/prisma.js';
