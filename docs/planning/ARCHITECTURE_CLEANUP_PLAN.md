@@ -508,7 +508,7 @@ export class RequestDeduplicationCache {
 
 ---
 
-### Task 4.2: Convert tempAttachmentStorage to Class
+### Task 4.2: Convert tempAttachmentStorage to Class ✅ COMPLETED
 **Priority**: LOW
 **Effort**: 1 hour
 
@@ -517,6 +517,22 @@ export class RequestDeduplicationCache {
 **Current**: `services/api-gateway/src/utils/tempAttachmentStorage.ts`
 
 **New**: `AttachmentStorageService` class with proper lifecycle
+
+**Outcome** (2025-11-17):
+- ✅ Created AttachmentStorageService class (189 lines) with configurable storage paths and gateway URL
+- ✅ Created service instance in index.ts composition root
+- ✅ Updated routes/ai.ts to use injected service instance (factory pattern)
+- ✅ Updated queue.ts to use module-level service instance
+- ✅ Added 11 comprehensive tests covering:
+  - Download and store functionality
+  - Parallel attachment processing
+  - Fallback to original URL on failure
+  - Filename generation
+  - Multiple content types (images, PDFs, videos)
+  - Cleanup functionality
+- ✅ All 989 tests passing (186 api-gateway tests, up from 174)
+- ✅ Improved testability - class-based design with constructor injection
+- ✅ Better lifecycle management - service owns storage configuration
 
 ---
 

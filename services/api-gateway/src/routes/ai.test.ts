@@ -10,14 +10,12 @@ import { createAIRouter } from './ai.js';
 import type { PrismaClient } from '@prisma/client';
 import type { Queue, QueueEvents, Job } from 'bullmq';
 import { JobStatus } from '@tzurot/common-types';
+import type { AttachmentStorageService } from '../services/AttachmentStorageService.js';
 
 // Mock dependencies
 vi.mock('../utils/requestDeduplication.js', () => ({
   checkDuplicate: vi.fn().mockReturnValue(null),
   cacheRequest: vi.fn(),
-}));
-vi.mock('../utils/tempAttachmentStorage.js', () => ({
-  downloadAndStoreAttachments: vi.fn().mockImplementation(async (_requestId, attachments) => attachments),
 }));
 vi.mock('../utils/jobChainOrchestrator.js', () => ({
   createJobChain: vi.fn().mockResolvedValue('llm-req-123'),
@@ -47,11 +45,18 @@ const createMockQueueEvents = () => ({
   off: vi.fn(),
 });
 
+// Create mock AttachmentStorageService
+const createMockAttachmentStorage = () => ({
+  downloadAndStore: vi.fn().mockImplementation(async (_requestId, attachments) => attachments),
+  cleanup: vi.fn().mockResolvedValue(undefined),
+});
+
 describe('AI Routes', () => {
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
   let aiQueue: ReturnType<typeof createMockQueue>;
   let queueEvents: ReturnType<typeof createMockQueueEvents>;
+  let attachmentStorage: ReturnType<typeof createMockAttachmentStorage>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,6 +65,7 @@ describe('AI Routes', () => {
     prisma = createMockPrismaClient();
     aiQueue = createMockQueue();
     queueEvents = createMockQueueEvents();
+    attachmentStorage = createMockAttachmentStorage();
 
     // Create Express app with AI router
     app = express();
@@ -69,7 +75,8 @@ describe('AI Routes', () => {
       createAIRouter(
         prisma as unknown as PrismaClient,
         aiQueue as unknown as Queue,
-        queueEvents as unknown as QueueEvents
+        queueEvents as unknown as QueueEvents,
+        attachmentStorage as unknown as AttachmentStorageService
       )
     );
   });
