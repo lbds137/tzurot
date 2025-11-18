@@ -47,6 +47,18 @@ This plan addresses technical debt and architectural improvements identified thr
   - 14 comprehensive tests added (validation, download, edge cases)
   - Custom error type for better error handling
   - All 782 tests passing
+- **Task 2.1**: Add Route Handler Tests ✅
+  - AI routes: 9 comprehensive tests
+  - Admin routes: 10 comprehensive tests (added 4 new db-sync tests)
+  - All user-facing API routes now have test coverage
+  - All 911 tests passing
+- **Task 2.2**: Add Command Handler Tests ✅
+  - 14 test files covering all Discord command handlers
+  - Admin commands: 5 test files
+  - Personality commands: 6 test files
+  - Utility commands: 3 test files
+  - Completed alongside Task 3.1 command splitting
+  - All 911 tests passing
 - **Task 3.1**: Split Command Files into Modular Subcommand Handlers ✅
   - Split personality command (817 lines → 697 lines across 6 files)
     - personality/index.ts: Command registration and routing
@@ -59,7 +71,8 @@ This plan addresses technical debt and architectural improvements identified thr
     - utility/ping.ts, help.ts: Focused handlers
   - All commands follow consistent modular pattern
   - Pattern enables easier addition of future subcommands
-  - All 782 tests passing
+  - 14 test files added during splitting
+  - All 911 tests passing
   - Commits: 3 (one per command split)
 
 ### 🚧 IN PROGRESS
@@ -232,59 +245,63 @@ export async function processAvatarAttachment(
 
 ## Phase 2: Test Coverage (Critical Gaps)
 
-### Task 2.1: Add Route Handler Tests
+### ~~Task 2.1: Add Route Handler Tests~~ ✅ COMPLETED
 **Priority**: HIGH (user-facing, no tests)
 **Effort**: 3-4 hours
-**Files affected**: 2 route files + 2 new test files
+**Completed**: 2025-11-17
 
-**Files needing tests**:
-1. `services/api-gateway/src/routes/ai.ts` (391 lines)
-   - POST /ai/generate
-   - POST /ai/transcribe
-   - POST /ai/describe-image
-   - GET /ai/job/:jobId
+**Outcome**: All route handler tests implemented and passing:
+- **AI routes** (`services/api-gateway/src/routes/ai.test.ts`): 9 comprehensive tests
+  - POST /ai/generate (job creation, validation)
+  - POST /ai/transcribe (transcription job, validation)
+  - GET /ai/job/:jobId (status retrieval, 404 handling)
+  - POST /ai/job/:jobId/confirm-delivery (delivery confirmation, idempotency)
+- **Admin routes** (`services/api-gateway/src/routes/admin.test.ts`): 10 comprehensive tests
+  - POST /admin/personality (creation, validation, slug conflicts)
+  - PATCH /admin/personality/:slug (updates, 404 handling)
+  - POST /admin/db-sync (sync operations, dry runs, error handling)
+    - Added 4 new tests for db-sync endpoint
+    - Fixed mocks for PrismaClient and DatabaseSyncService constructors
 
-2. `services/api-gateway/src/routes/admin.ts` (385 lines)
-   - POST /admin/db-sync
-   - GET /admin/db-sync/status
-   - POST /admin/db-sync/cancel
+**Test strategy used**:
+- Mock PrismaClient and DatabaseSyncService as proper classes
+- Mock BullMQ queue for job creation
+- Comprehensive happy path and error case coverage
+- Validation testing for all endpoints
 
-**Test strategy**:
-- Mock Prisma client
-- Mock BullMQ queue
-- Test happy paths
-- Test error cases
-- Test validation
-
-**Estimated tests**: 30-40 test cases total
+**Impact**:
+- All user-facing API routes now have test coverage
+- 19 tests total for routes
+- All 911 project tests passing
+- Fixed vitest mocking patterns (must use `class` not arrow functions)
 
 ---
 
-### Task 2.2: Add Command Handler Tests
+### ~~Task 2.2: Add Command Handler Tests~~ ✅ COMPLETED
 **Priority**: MEDIUM (user-facing, complex logic)
 **Effort**: 4-5 hours
-**Files affected**: 2 command files + 2 new test files
+**Completed**: 2025-11-17 (alongside Task 3.1)
 
-**Files needing tests**:
-1. `services/bot-client/src/commands/admin.ts` (375 lines)
-   - /admin servers
-   - /admin leave
-   - /admin usage
+**Outcome**: All command handlers have comprehensive test coverage (14 test files):
+- **Admin commands** (5 test files):
+  - index.test.ts, db-sync.test.ts, kick.test.ts, servers.test.ts, usage.test.ts
+- **Personality commands** (6 test files):
+  - index.test.ts, create-modal.test.ts, create.test.ts, edit.test.ts, import.test.ts, modal.test.ts
+- **Utility commands** (3 test files):
+  - index.test.ts, help.test.ts, ping.test.ts
 
-2. `services/bot-client/src/commands/personality.ts` (866 lines)
-   - /personality create
-   - /personality edit
-   - /personality import
-   - /personality list
-
-**Test strategy**:
+**Test strategy used**:
 - Mock Discord interactions
-- Mock Prisma client
-- Test subcommand routing
-- Test validation
-- Test error handling
+- Mock gateway API calls
+- Test subcommand routing logic
+- Test validation and error handling
+- Test owner-only authorization
 
-**Note**: Should do this AFTER Task 3.1 (splitting personality.ts)
+**Impact**:
+- All Discord commands now have test coverage
+- Tests added during command file splitting (Task 3.1)
+- Comprehensive validation testing
+- All 911 project tests passing
 
 ---
 
