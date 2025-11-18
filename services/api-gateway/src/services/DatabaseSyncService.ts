@@ -6,6 +6,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '@tzurot/common-types';
+import { SYNC_CONFIG } from './sync/config/syncTables.js';
+import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
 
 const logger = createLogger('db-sync');
 
@@ -20,102 +22,6 @@ interface SyncOptions {
   dryRun: boolean;
 }
 
-/**
- * Tables to sync with their primary key field(s), timestamp fields, and UUID columns
- * NOTE: Column names must match database schema (snake_case), not Prisma model fields (camelCase)
- */
-const SYNC_CONFIG = {
-  users: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  personas: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id', 'owner_id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  user_default_personas: {
-    pk: 'user_id',
-    updatedAt: 'updated_at',
-    uuidColumns: ['user_id', 'persona_id'],
-    timestampColumns: ['updated_at'],
-  },
-  system_prompts: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  llm_configs: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id', 'owner_id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  personalities: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id', 'system_prompt_id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  personality_default_configs: {
-    pk: 'personality_id',
-    updatedAt: 'updated_at',
-    uuidColumns: ['personality_id', 'llm_config_id'],
-    timestampColumns: ['updated_at'],
-  },
-  personality_owners: {
-    pk: ['personality_id', 'user_id'], // Composite key
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['personality_id', 'user_id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  user_personality_configs: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  conversation_history: {
-    pk: 'id',
-    createdAt: 'created_at',
-    // No updatedAt - append-only
-    uuidColumns: ['id', 'persona_id', 'personality_id'],
-    timestampColumns: ['created_at'],
-  },
-  activated_channels: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id', 'personality_id', 'created_by'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
-  memories: {
-    pk: 'id',
-    createdAt: 'created_at',
-    // No updatedAt - append-only
-    uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id'],
-    timestampColumns: ['created_at'],
-  },
-  shapes_persona_mappings: {
-    pk: 'id',
-    createdAt: 'mapped_at',
-    // No updatedAt - mapping records are immutable once created
-    uuidColumns: ['id', 'shapes_user_id', 'persona_id', 'mapped_by'],
-    timestampColumns: ['mapped_at'],
-  },
-  // Skip pending_memories - transient queue data, doesn't need syncing
-} as const;
 
 export class DatabaseSyncService {
   constructor(
@@ -135,11 +41,11 @@ export class DatabaseSyncService {
       await this.prodClient.$connect();
 
       // Check schema versions match
-      const schemaVersion = await this.checkSchemaVersions();
+      const schemaVersion = await checkSchemaVersions(this.devClient, this.prodClient);
       logger.info({ schemaVersion }, '[Sync] Schema versions verified');
 
       // Validate SYNC_CONFIG matches actual schema
-      const configWarnings = await this.validateSyncConfig();
+      const configWarnings = await validateSyncConfig(this.devClient, SYNC_CONFIG);
 
       const stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }> = {};
       const warnings: string[] = [...configWarnings];
@@ -172,119 +78,6 @@ export class DatabaseSyncService {
     }
   }
 
-  /**
-   * Verify both databases are on the same schema version
-   */
-  private async checkSchemaVersions(): Promise<string> {
-    const devMigrations = await this.devClient.$queryRaw<{ migration_name: string }[]>`
-      SELECT migration_name FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 1
-    `;
-
-    const prodMigrations = await this.prodClient.$queryRaw<{ migration_name: string }[]>`
-      SELECT migration_name FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 1
-    `;
-
-    const devVersion = devMigrations[0]?.migration_name;
-    const prodVersion = prodMigrations[0]?.migration_name;
-
-    if (!devVersion || !prodVersion) {
-      throw new Error('Could not determine schema versions from migrations table');
-    }
-
-    if (devVersion !== prodVersion) {
-      throw new Error(
-        `Schema version mismatch!\n` +
-          `Dev: ${devVersion}\n` +
-          `Prod: ${prodVersion}\n\n` +
-          `Both databases must be on the same schema version before syncing.`
-      );
-    }
-
-    return devVersion;
-  }
-
-  /**
-   * Validate that SYNC_CONFIG matches actual database schema
-   * Returns warnings for any mismatches
-   */
-  private async validateSyncConfig(): Promise<string[]> {
-    const warnings: string[] = [];
-
-    // Get actual UUID columns from database schema
-    const actualUuidColumns = await this.devClient.$queryRaw<
-      { table_name: string; column_name: string }[]
-    >`
-      SELECT table_name, column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND data_type = 'uuid'
-      ORDER BY table_name, column_name
-    `;
-
-    // Build map of table -> UUID columns
-    const schemaMap = new Map<string, Set<string>>();
-    for (const row of actualUuidColumns) {
-      if (!schemaMap.has(row.table_name)) {
-        schemaMap.set(row.table_name, new Set());
-      }
-      const columnSet = schemaMap.get(row.table_name);
-      if (columnSet !== undefined) {
-        columnSet.add(row.column_name);
-      }
-    }
-
-    // Check each table in SYNC_CONFIG
-    for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
-      const actualColumns = schemaMap.get(tableName);
-
-      if (!actualColumns) {
-        warnings.push(
-          `⚠️  SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`
-        );
-        continue;
-      }
-
-      // Check for missing UUID columns in SYNC_CONFIG
-      const configColumns = config.uuidColumns as readonly string[];
-      for (const actualColumn of actualColumns) {
-        if (!configColumns.includes(actualColumn)) {
-          warnings.push(
-            `⚠️  Table '${tableName}' has UUID column '${actualColumn}' in schema but not in SYNC_CONFIG.uuidColumns`
-          );
-        }
-      }
-
-      // Check for extra UUID columns in SYNC_CONFIG
-      for (const configColumn of config.uuidColumns) {
-        if (!actualColumns.has(configColumn)) {
-          warnings.push(
-            `⚠️  Table '${tableName}' has '${configColumn}' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)`
-          );
-        }
-      }
-    }
-
-    // Check for tables in schema but not in SYNC_CONFIG
-    const syncedTables = new Set(Object.keys(SYNC_CONFIG));
-    for (const tableName of schemaMap.keys()) {
-      // Skip Prisma internal tables
-      if (tableName.startsWith('_prisma')) {continue;}
-
-      if (!syncedTables.has(tableName)) {
-        warnings.push(
-          `💡 Table '${tableName}' exists in database but is not in SYNC_CONFIG (will not be synced)`
-        );
-      }
-    }
-
-    if (warnings.length > 0) {
-      logger.warn({ warnings }, '[Sync] SYNC_CONFIG validation warnings detected');
-    } else {
-      logger.info('[Sync] SYNC_CONFIG validation passed - all UUID columns match schema');
-    }
-
-    return warnings;
-  }
 
   /**
    * Sync a single table using last-write-wins strategy
@@ -446,7 +239,7 @@ export class DatabaseSyncService {
     // Use updatedAt if available, otherwise createdAt
     const timestampField = 'updatedAt' in config ? config.updatedAt : config.createdAt;
 
-    if (!timestampField) {
+    if (timestampField === undefined) {
       // No timestamp field - consider them the same (shouldn't happen with our schema)
       return 'same';
     }
