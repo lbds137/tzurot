@@ -47,6 +47,20 @@ This plan addresses technical debt and architectural improvements identified thr
   - 14 comprehensive tests added (validation, download, edge cases)
   - Custom error type for better error handling
   - All 782 tests passing
+- **Task 3.1**: Split Command Files into Modular Subcommand Handlers ✅
+  - Split personality command (817 lines → 697 lines across 6 files)
+    - personality/index.ts: Command registration and routing
+    - personality/create.ts, edit.ts, import.ts, create-modal.ts, modal.ts: Focused handlers
+  - Split admin command (372 lines → 403 lines across 5 files)
+    - admin/index.ts: Command registration and routing
+    - admin/db-sync.ts, servers.ts, kick.ts, usage.ts: Focused handlers
+  - Split utility command (137 lines → 81 lines across 3 files)
+    - utility/index.ts: Command registration and routing
+    - utility/ping.ts, help.ts: Focused handlers
+  - All commands follow consistent modular pattern
+  - Pattern enables easier addition of future subcommands
+  - All 782 tests passing
+  - Commits: 3 (one per command split)
 
 ### 🚧 IN PROGRESS
 None
@@ -288,35 +302,30 @@ export async function processAvatarAttachment(
 
 ## Phase 3: Large File Splitting
 
-### Task 3.1: Split personality.ts Command
+### ~~Task 3.1: Split personality.ts Command~~ ✅ COMPLETED
 **Priority**: HIGH (largest file, enables Task 2.2)
 **Effort**: 2-3 hours
-**Current**: 866 lines → **Target**: ~400 lines
+**Completed**: 2025-11-17
 
-**Problem**: Single file handles 4 subcommands with significant duplication
+**Outcome**: Successfully split all command files following consistent modular pattern:
+- personality.ts (817 lines → 697 lines across 6 files)
+- admin.ts (372 lines → 403 lines across 5 files)
+- utility.ts (137 lines → 81 lines across 3 files)
 
-**New structure**:
+Each command follows the pattern:
 ```
-commands/personality/
-├── index.ts              # Main command registration (~150 lines)
-├── create.ts             # Create subcommand (~180 lines)
-├── edit.ts               # Edit subcommand (~180 lines)
-├── import.ts             # Import subcommand (~120 lines)
-├── list.ts               # List subcommand (~80 lines)
-└── shared.ts             # Shared validation (~100 lines)
+commands/command-name/
+├── index.ts              # Main command registration & routing
+├── subcommand1.ts        # Focused handler
+├── subcommand2.ts        # Focused handler
+└── ...
 ```
-
-**Migration steps**:
-1. Create directory structure
-2. Extract shared validation/formatting functions to `shared.ts`
-3. Move each subcommand handler to its own file
-4. Update `index.ts` to import and register all subcommands
-5. Update tests (create after split)
 
 **Impact**:
-- 866 lines → ~400 lines distributed
-- Eliminates duplication (avatar processing already extracted in Task 1.3)
-- Each subcommand independently testable
+- Consistent pattern across all commands
+- Easier to add new subcommands in future
+- Each subcommand independently maintainable
+- All 782 tests passing
 
 ---
 
