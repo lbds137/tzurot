@@ -1,6 +1,7 @@
 ---
 name: tzurot-observability
 description: Logging and observability for Tzurot v3 - Structured logging with Pino, correlation IDs, error tracking, privacy considerations, and Railway log analysis. Use when adding logging or debugging production issues.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Observability & Logging
@@ -614,6 +615,14 @@ LOG_LEVEL=info
 // Troubleshooting: trace level (very verbose)
 LOG_LEVEL=trace railway logs --service ai-worker
 ```
+
+## Related Skills
+
+- **tzurot-security** - Security logging (no PII, no tokens)
+- **tzurot-async-flow** - Job correlation IDs
+- **tzurot-db-vector** - Database query logging
+- **tzurot-constants** - Log level constants
+
 
 ## References
 

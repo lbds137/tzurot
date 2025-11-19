@@ -1,6 +1,7 @@
 ---
 name: tzurot-docs
 description: Documentation maintenance for Tzurot v3 - Updating CURRENT_WORK.md, CHANGELOG.md, folder structure, and keeping docs current. Use at session end or when documentation needs updating.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Documentation Maintenance
@@ -226,6 +227,13 @@ git commit -m "docs: remove obsolete feature spec (implemented in v3.0.0-alpha.4
 
 ### 5. Link Between Related Docs
 ```markdown
+## Related Skills
+
+- **tzurot-git-workflow** - Commit documentation updates
+- **tzurot-gemini-collab** - When to update vs create docs
+- **tzurot-architecture** - Document architectural decisions
+
+
 ## References
 
 - Architecture decisions: `docs/architecture/ARCHITECTURE_DECISIONS.md`
@@ -372,6 +380,13 @@ Before ending a session, verify:
 - [ ] Documentation timestamps updated (YYYY-MM-DD format)
 - [ ] Links between docs are correct
 - [ ] No duplicate information across docs
+
+## Related Skills
+
+- **tzurot-git-workflow** - Commit documentation updates
+- **tzurot-gemini-collab** - When to update vs create docs
+- **tzurot-architecture** - Document architectural decisions
+
 
 ## References
 

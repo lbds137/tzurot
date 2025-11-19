@@ -1,6 +1,7 @@
 ---
 name: tzurot-security
 description: Security best practices for Tzurot v3 - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permission verification, microservices security, and supply chain integrity. Use when handling secrets, user input, or security-critical code.
+lastUpdated: "2025-11-19"
 ---
 
 # Security Skill - Tzurot v3
@@ -702,6 +703,14 @@ Dependabot will create **immediate PRs** for security vulnerabilities (not just 
 # 4. Merge to develop
 # 5. Deploy to Railway (auto-deploys from develop)
 ```
+
+## Related Skills
+
+- **tzurot-observability** - Security logging without PII
+- **tzurot-shared-types** - Input validation with Zod schemas
+- **tzurot-git-workflow** - Pre-commit verification checks
+- **tzurot-async-flow** - Signed internal payloads for BullMQ
+
 
 ## 📚 References
 

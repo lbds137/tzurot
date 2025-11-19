@@ -1,6 +1,7 @@
 ---
 name: tzurot-testing
 description: Comprehensive testing patterns for Tzurot v3 - Vitest configuration, fake timers, promise handling, mocking strategies, and test organization. Use this when writing or modifying tests.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Testing Patterns
@@ -449,6 +450,13 @@ it('should work', () => { /* fixed implementation */ });
 - **Services:** Aim for >80% coverage
 - **Utils:** Aim for >90% coverage (these are pure functions)
 - **Types/Interfaces:** No coverage needed (TypeScript provides type safety)
+
+## Related Skills
+
+- **tzurot-constants** - Use named constants for test data and timeouts
+- **tzurot-observability** - Add logging to debug failing tests
+- **tzurot-shared-types** - Type-safe test fixtures and mocks
+- **tzurot-git-workflow** - Always run tests before committing/pushing
 
 ## References
 
