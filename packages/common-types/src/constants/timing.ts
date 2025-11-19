@@ -89,6 +89,8 @@ export const DATABASE_RECONNECT = {
   MAX_DELAY: 60000,
   /** Maximum reconnection attempts before giving up */
   MAX_ATTEMPTS: 20,
+  /** Exponential backoff multiplier (2^attempt) */
+  BACKOFF_MULTIPLIER: 2,
 } as const;
 
 /**

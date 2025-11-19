@@ -141,7 +141,7 @@ export class DatabaseNotificationListener {
 
     // Calculate delay with exponential backoff
     const delay = Math.min(
-      DATABASE_RECONNECT.INITIAL_DELAY * Math.pow(2, this.reconnectAttempts),
+      DATABASE_RECONNECT.INITIAL_DELAY * Math.pow(DATABASE_RECONNECT.BACKOFF_MULTIPLIER, this.reconnectAttempts),
       DATABASE_RECONNECT.MAX_DELAY
     );
 
