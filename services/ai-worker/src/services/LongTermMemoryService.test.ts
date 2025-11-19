@@ -353,16 +353,16 @@ describe('LongTermMemoryService', () => {
       expect(mockPendingMemoryCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
           metadata: expect.objectContaining({
-            timestamp: expect.any(Number),
+            createdAt: expect.any(Number),
           }),
         }),
       });
 
       // Verify timestamp is reasonable
       const callArgs = mockPendingMemoryCreate.mock.calls[0][0];
-      const timestamp = callArgs.data.metadata.timestamp;
-      expect(timestamp).toBeGreaterThanOrEqual(beforeTime);
-      expect(timestamp).toBeLessThanOrEqual(afterTime);
+      const createdAt = callArgs.data.metadata.createdAt;
+      expect(createdAt).toBeGreaterThanOrEqual(beforeTime);
+      expect(createdAt).toBeLessThanOrEqual(afterTime);
     });
 
     it('should handle empty sessionId as missing', async () => {

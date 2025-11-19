@@ -49,7 +49,7 @@ export interface MemoryMetadata {
   personalityName?: string;
   sessionId?: string;
   canonScope: 'global' | 'personal' | 'session';
-  timestamp: number;
+  createdAt: number; // Timestamp in milliseconds (from Date.now() or Date.getTime())
   summaryType?: string;
   contextType?: string;
   channelId?: string;
@@ -69,7 +69,7 @@ export const MemoryMetadataSchema = z.object({
   personalityName: z.string().optional(),
   sessionId: z.string().optional(),
   canonScope: z.enum(['global', 'personal', 'session']),
-  timestamp: z.number(),
+  createdAt: z.number(),
   summaryType: z.string().optional(),
   contextType: z.string().optional(),
   channelId: z.string().optional(),
@@ -347,7 +347,7 @@ export class PgvectorMemoryAdapter {
       );
 
       // Convert timestamp (already in milliseconds) to Date
-      const createdAt = new Date(data.metadata.timestamp);
+      const createdAt = new Date(data.metadata.createdAt);
 
       // Insert memory with pgvector embedding
       await this.prisma.$executeRaw`

@@ -57,7 +57,7 @@ export class LongTermMemoryService {
         personalityId: personality.id,
         sessionId: context.sessionId,
         canonScope,
-        timestamp: Date.now(), // Current timestamp for LTM
+        createdAt: Date.now(), // Current timestamp in milliseconds for LTM
         summaryType: 'conversation',
         contextType:
           context.channelId !== undefined && context.channelId.length > 0 ? 'channel' : 'dm',
