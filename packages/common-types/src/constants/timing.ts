@@ -61,6 +61,10 @@ export const INTERVALS = {
   MESSAGE_AGE_DEDUP_WINDOW: 60000,
   /** Timestamp tolerance for message deduplication (15 seconds) */
   MESSAGE_TIMESTAMP_TOLERANCE: 15000,
+  /** Webhook message tracking TTL in Redis (7 days in seconds) */
+  WEBHOOK_MESSAGE_TTL: 7 * 24 * 60 * 60,
+  /** Voice transcript cache TTL in Redis (5 minutes in seconds) */
+  VOICE_TRANSCRIPT_TTL: 5 * 60,
 } as const;
 
 /**
