@@ -44,11 +44,15 @@ export const JOB_REQUEST_SUFFIXES = {
 } as const;
 
 /**
- * Redis key prefixes for job data
+ * Redis key prefixes for job data and bot state
  */
 export const REDIS_KEY_PREFIXES = {
   /** Prefix for job result storage in Redis */
   JOB_RESULT: 'job-result:',
+  /** Prefix for webhook message -> personality mapping */
+  WEBHOOK_MESSAGE: 'webhook:',
+  /** Prefix for voice transcript cache */
+  VOICE_TRANSCRIPT: 'transcript:',
 } as const;
 
 /**

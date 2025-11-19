@@ -278,6 +278,30 @@ OpenRouter/Gemini API
 - Prevents duplication, ensures consistency, reduces refactoring later
 - Add package dependencies if needed (e.g., discord.js to common-types for Discord type imports)
 
+**Constants and Magic Numbers**:
+
+- **NO magic numbers or strings** - Use named constants from `@tzurot/common-types/constants`
+- **Domain-separated constants**: Constants live in `packages/common-types/src/constants/` organized by domain:
+  - `ai.ts` - AI provider settings, model defaults, endpoints
+  - `timing.ts` - Timeouts, intervals, TTLs, retry configuration
+  - `queue.ts` - Queue configuration, job prefixes, Redis key prefixes
+  - `discord.ts` - Discord API limits, colors, text limits
+  - `error.ts` - Error codes, error messages
+  - `media.ts` - Media limits, content types, attachment types
+  - `message.ts` - Message roles, placeholders
+  - `service.ts` - Service defaults, app settings
+- **Import pattern**: `import { TIMEOUTS, INTERVALS, REDIS_KEY_PREFIXES } from '@tzurot/common-types'`
+- **When to create constants**:
+  - ✅ Timeouts and delays (e.g., `TIMEOUTS.CACHE_TTL` not `5 * 60 * 1000`)
+  - ✅ Redis key prefixes (e.g., `REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE` not `'webhook:'`)
+  - ✅ Retry counts and intervals
+  - ✅ Buffer sizes and limits
+  - ✅ Repeated string literals (channel names, event types)
+  - ❌ One-off string literals that won't be reused
+  - ❌ Simple struct length checks (like `Object.keys().length === 2`)
+- **Naming convention**: `SCREAMING_SNAKE_CASE` for constant objects, descriptive names
+- **Documentation**: Always add JSDoc comments explaining what the constant represents and why the value was chosen
+
 ## Folder Structure Standards
 
 > **📁 ALWAYS FOLLOW**: See [docs/standards/FOLDER_STRUCTURE.md](docs/standards/FOLDER_STRUCTURE.md) for comprehensive folder structure and file naming standards.
