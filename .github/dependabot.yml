@@ -1,31 +1,23 @@
-# YAML anchors for common configuration
-x-common-schedule: &common-schedule
-  interval: "weekly"
-  day: "monday"
-  time: "09:00"
-  timezone: "America/New_York"
-
-x-common-labels: &common-labels
-  - "dependencies"
-  - "automated"
-
-x-common-reviewers: &common-reviewers
-  - "lbds137"
-
 version: 2
 updates:
   # Root dependencies
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 5
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       production-dependencies:
         dependency-type: "production"
@@ -40,14 +32,20 @@ updates:
   - package-ecosystem: "npm"
     directory: "/services/bot-client"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 3
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(deps/bot-client)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       bot-client-dependencies:
         patterns:
@@ -57,14 +55,20 @@ updates:
   - package-ecosystem: "npm"
     directory: "/services/api-gateway"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 3
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(deps/api-gateway)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       api-gateway-dependencies:
         patterns:
@@ -74,14 +78,20 @@ updates:
   - package-ecosystem: "npm"
     directory: "/services/ai-worker"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 3
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(deps/ai-worker)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       ai-worker-dependencies:
         patterns:
@@ -91,14 +101,20 @@ updates:
   - package-ecosystem: "npm"
     directory: "/packages/common-types"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 3
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(deps/common-types)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       common-types-dependencies:
         patterns:
@@ -108,14 +124,20 @@ updates:
   - package-ecosystem: "npm"
     directory: "/packages/api-clients"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 3
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(deps/api-clients)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       api-clients-dependencies:
         patterns:
@@ -125,11 +147,17 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      <<: *common-schedule
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     target-branch: "develop"
     open-pull-requests-limit: 2
-    reviewers: *common-reviewers
+    reviewers:
+      - "lbds137"
     commit-message:
       prefix: "chore(ci)"
       include: "scope"
-    labels: *common-labels
+    labels:
+      - "dependencies"
+      - "automated"
