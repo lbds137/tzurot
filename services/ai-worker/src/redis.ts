@@ -66,7 +66,7 @@ redis.connect().catch(error => {
  */
 export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
   try {
-    const transcript = await redis.get(`transcript:${attachmentUrl}`);
+    const transcript = await redis.get(`${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`);
     if (transcript !== null && transcript.length > 0) {
       logger.debug(`[Redis] Cache HIT for voice transcript: ${attachmentUrl.substring(0, 50)}...`);
     } else {
