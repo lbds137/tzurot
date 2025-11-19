@@ -1,0 +1,133 @@
+/**
+ * CacheInvalidationService
+ *
+ * Redis pub/sub service for broadcasting cache invalidation events across microservices.
+ * When LLM configs change, this service ensures all services invalidate their personality caches.
+ *
+ * Architecture:
+ * - Publisher: Service that modifies LLM configs (api-gateway, scripts)
+ * - Subscribers: All services with PersonalityService instances (api-gateway, ai-worker, bot-client)
+ *
+ * Events:
+ * - personality:invalidate:{id} - Invalidate specific personality cache
+ * - personality:invalidate:all - Invalidate all personality caches (global default changed)
+ */
+
+import { createLogger } from '../utils/logger.js';
+import type { Redis } from 'ioredis';
+import type { PersonalityService } from './PersonalityService.js';
+
+const logger = createLogger('CacheInvalidationService');
+
+export type InvalidationEvent =
+  | { type: 'personality'; personalityId: string }
+  | { type: 'all' };
+
+export class CacheInvalidationService {
+  private static readonly CHANNEL = 'cache:invalidation';
+  private subscriber: Redis | null = null;
+
+  constructor(
+    private redis: Redis,
+    private personalityService: PersonalityService
+  ) {}
+
+  /**
+   * Start listening for cache invalidation events
+   * Call this during service initialization
+   */
+  async subscribe(): Promise<void> {
+    try {
+      // Create a separate Redis connection for subscribing
+      // (Redis pub/sub requires dedicated connection)
+      this.subscriber = this.redis.duplicate();
+
+      await this.subscriber.subscribe(CacheInvalidationService.CHANNEL);
+
+      this.subscriber.on('message', (channel: string, message: string) => {
+        if (channel !== CacheInvalidationService.CHANNEL) {
+          return;
+        }
+
+        try {
+          const event = JSON.parse(message) as unknown as InvalidationEvent;
+          this.handleInvalidationEvent(event);
+        } catch (error) {
+          logger.error({ err: error, message }, 'Failed to parse invalidation event');
+        }
+      });
+
+      logger.info('Subscribed to cache invalidation events');
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to subscribe to cache invalidation events');
+      throw error;
+    }
+  }
+
+  /**
+   * Publish a cache invalidation event
+   * Call this when LLM configs are modified
+   */
+  async publish(event: InvalidationEvent): Promise<void> {
+    try {
+      const message = JSON.stringify(event);
+      await this.redis.publish(CacheInvalidationService.CHANNEL, message);
+
+      if (event.type === 'all') {
+        logger.info('Published cache invalidation event: ALL personalities');
+      } else {
+        logger.info(
+          { personalityId: event.personalityId },
+          'Published cache invalidation event for personality'
+        );
+      }
+    } catch (error) {
+      logger.error({ err: error, event }, 'Failed to publish invalidation event');
+      throw error;
+    }
+  }
+
+  /**
+   * Handle received invalidation event
+   * @private
+   */
+  private handleInvalidationEvent(event: InvalidationEvent): void {
+    if (event.type === 'all') {
+      logger.info('Received cache invalidation event: ALL personalities');
+      this.personalityService.invalidateAll();
+    } else {
+      logger.info(
+        { personalityId: event.personalityId },
+        'Received cache invalidation event for personality'
+      );
+      this.personalityService.invalidatePersonality(event.personalityId);
+    }
+  }
+
+  /**
+   * Clean up subscription on shutdown
+   */
+  async unsubscribe(): Promise<void> {
+    if (this.subscriber) {
+      await this.subscriber.unsubscribe(CacheInvalidationService.CHANNEL);
+      this.subscriber.disconnect();
+      this.subscriber = null;
+      logger.info('Unsubscribed from cache invalidation events');
+    }
+  }
+
+  /**
+   * Helper: Invalidate specific personality across all services
+   */
+  async invalidatePersonality(personalityId: string): Promise<void> {
+    await this.publish({ type: 'personality', personalityId });
+  }
+
+  /**
+   * Helper: Invalidate all personalities across all services
+   * Use when global default LLM config changes
+   */
+  async invalidateAll(): Promise<void> {
+    await this.publish({ type: 'all' });
+  }
+}

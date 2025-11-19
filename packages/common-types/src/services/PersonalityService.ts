@@ -287,6 +287,35 @@ export class PersonalityService {
   }
 
   /**
+   * Invalidate cache for a specific personality
+   * Useful when personality or its config has been updated
+   */
+  invalidatePersonality(nameOrId: string): void {
+    this.cache.delete(nameOrId);
+    logger.debug(`Invalidated cache for personality: ${nameOrId}`);
+  }
+
+  /**
+   * Invalidate all cached personalities
+   * Useful when global default config changes (affects all personalities using global default)
+   */
+  invalidateAll(): void {
+    this.cache.clear();
+    logger.info('Invalidated all personality cache entries');
+  }
+
+  /**
+   * Get cache statistics (for debugging/monitoring)
+   */
+  getCacheStats(): { size: number; maxSize: number; ttl: number } {
+    return {
+      size: this.cache.size(),
+      maxSize: 100,
+      ttl: TIMEOUTS.CACHE_TTL,
+    };
+  }
+
+  /**
    * Load all personalities
    */
   async loadAllPersonalities(): Promise<LoadedPersonality[]> {

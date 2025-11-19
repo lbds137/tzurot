@@ -5,8 +5,10 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { Redis } from 'ioredis';
 
 const prisma = new PrismaClient();
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
 async function setDefaultConfig(nameOrId: string) {
   console.log(`🔍 Looking for LLM config: ${nameOrId}\n`);
@@ -74,8 +76,14 @@ async function setDefaultConfig(nameOrId: string) {
 
     console.log(`  ✅ Set ${config.name} as default\n`);
 
+    // Invalidate personality caches across all services
+    console.log('🔄 Broadcasting cache invalidation to all services...');
+    const invalidationEvent = JSON.stringify({ type: 'all' });
+    await redis.publish('cache:invalidation', invalidationEvent);
+    console.log('  ✅ Cache invalidation event published\n');
+
     console.log('🎉 Default LLM config updated successfully!');
-    console.log(`\nNew personalities will now use: ${config.name}`);
+    console.log(`\nAll services will now use: ${config.name}`);
   } catch (error) {
     console.error('❌ Failed to set default config:', error);
     process.exit(1);
@@ -112,6 +120,7 @@ async function main() {
     process.exit(1);
   } finally {
     await prisma.$disconnect();
+    redis.disconnect();
   }
 }
 

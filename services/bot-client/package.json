@@ -18,6 +18,7 @@
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
     "discord.js": "^14.22.1",
+    "ioredis": "^5.8.2",
     "pino": "^10.1.0",
     "pino-pretty": "^13.1.2",
     "redis": "^5.9.0",
