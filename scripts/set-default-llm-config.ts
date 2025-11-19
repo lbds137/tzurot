@@ -120,7 +120,7 @@ async function main() {
     process.exit(1);
   } finally {
     await prisma.$disconnect();
-    redis.disconnect();
+    await redis.disconnect();
   }
 }
 
