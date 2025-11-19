@@ -187,8 +187,11 @@ railway variables set KEY=value --service service-name
 ### Database
 
 ```bash
-# Run migrations
-railway run npx prisma migrate dev
+# Migrations - see tzurot-db-vector skill for complete workflow
+# Quick reference:
+npx prisma migrate dev --create-only --name migration_name  # Create
+npx prisma migrate deploy                                    # Apply
+npx prisma migrate status                                    # Check
 
 # Generate Prisma client
 railway run npx prisma generate
@@ -196,6 +199,8 @@ railway run npx prisma generate
 # View database
 railway run psql
 ```
+
+**📚 See**: `tzurot-db-vector` skill for the complete migration workflow and checksum troubleshooting
 
 ## Standardized Commands - Tzurot v3
 

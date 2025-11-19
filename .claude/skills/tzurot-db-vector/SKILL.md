@@ -306,48 +306,146 @@ await prisma.$transaction(async (tx) => {
 
 ## Migrations
 
-### Creating Migrations
+### The One True Migration Workflow
+
+**This is the ONLY correct workflow for Railway development. Deviating causes checksum issues.**
 
 ```bash
-# Create migration after schema changes
-railway run npx prisma migrate dev --name add_memories_table
+# 1. Create migration file (don't apply yet)
+npx prisma migrate dev --create-only --name descriptive_name
 
-# Apply migrations in production
-railway run npx prisma migrate deploy
+# 2. Review/edit the generated SQL if needed (BEFORE applying)
+# Edit: prisma/migrations/<timestamp>_<name>/migration.sql
+
+# 3. Apply to Railway database
+npx prisma migrate deploy
+
+# That's it. Prisma handles checksums automatically.
+```
+
+**Why this works:**
+- `--create-only` generates SQL but doesn't apply it
+- You can review/edit before applying
+- `migrate deploy` applies and updates checksums atomically
+- No manual checksum management needed
+
+### Common Anti-Patterns (DON'T DO THESE)
+
+**❌ Running SQL manually then marking as applied**
+```bash
+# This causes checksum mismatches!
+npx prisma db execute --file migration.sql
+npx prisma migrate resolve --applied <migration_name>
+```
+
+**❌ Editing migrations after applying**
+```bash
+# Applied migration checksum won't match file!
+# Edit: prisma/migrations/20250101_initial/migration.sql
+```
+
+**❌ Using `railway run prisma migrate dev`**
+```bash
+# We're not running Prisma inside Railway containers
+# Always use local Prisma with DATABASE_URL from .env
+```
+
+**✅ Instead, create a new migration**
+```bash
+npx prisma migrate dev --create-only --name fix_previous_migration
+# Edit the new migration to correct the issue
+npx prisma migrate deploy
 ```
 
 ### Migration Best Practices
 
-**1. Always add migrations, never modify existing ones**
-```bash
-# ❌ BAD - Modifying existing migration
-# Edit: prisma/migrations/20250101_initial/migration.sql
+**1. Never modify applied migrations - create new ones**
 
-# ✅ GOOD - Create new migration
-prisma migrate dev --name add_index_to_memories
-```
+If you need to fix a migration that's already applied:
+- Create a new migration that corrects the issue
+- Use DROP/CREATE pattern for triggers/functions
+- Document why the fix was needed
 
-**2. Test migrations locally first**
-```bash
-# Test on local database
-prisma migrate dev
+**2. Migrations must be idempotent**
 
-# If successful, deploy to Railway
-railway run prisma migrate deploy
-```
-
-**3. Migrations should be idempotent**
 ```sql
--- ✅ GOOD - Idempotent index creation
-CREATE INDEX IF NOT EXISTS memories_embedding_idx
-ON memories USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+-- ✅ GOOD - Idempotent (safe to run multiple times)
+DROP TRIGGER IF EXISTS my_trigger ON my_table;
+CREATE TRIGGER my_trigger...
+
+DROP FUNCTION IF EXISTS my_function() CASCADE;
+CREATE OR REPLACE FUNCTION my_function()...
+
+CREATE INDEX IF NOT EXISTS idx_name ON table(column);
 
 -- ❌ BAD - Fails if already exists
-CREATE INDEX memories_embedding_idx
-ON memories USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+CREATE TRIGGER my_trigger...
+CREATE FUNCTION my_function()...
+CREATE INDEX idx_name ON table(column);
 ```
+
+**3. PostgreSQL triggers and functions**
+
+When creating triggers:
+- Always `DROP IF EXISTS` first
+- Use `CREATE OR REPLACE` for functions
+- CASCADE when dropping functions (drops dependent triggers)
+
+```sql
+-- Correct pattern for triggers
+DROP FUNCTION IF EXISTS notify_cache_invalidation() CASCADE;
+
+CREATE OR REPLACE FUNCTION notify_cache_invalidation()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM pg_notify('my_channel', row_to_json(NEW)::text);
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS cache_trigger ON my_table;
+CREATE TRIGGER cache_trigger
+  AFTER UPDATE ON my_table
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_cache_invalidation();
+```
+
+**4. Test migrations before applying**
+
+```bash
+# Check migration status
+npx prisma migrate status
+
+# Create migration
+npx prisma migrate dev --create-only --name test_feature
+
+# Review the SQL - does it look correct?
+cat prisma/migrations/<timestamp>_test_feature/migration.sql
+
+# Apply to Railway
+npx prisma migrate deploy
+```
+
+### Checksum Issues
+
+**What causes them:**
+- Editing migration files after applying
+- Running SQL manually via `db execute` then marking as applied
+- File corruption or encoding issues
+
+**How to avoid them:**
+- Always use the workflow above
+- Never edit applied migrations
+- Never manually mark migrations as applied (except emergencies)
+
+**If you get checksum errors:**
+1. Check `prisma migrate status` to see which migrations are affected
+2. If the migration was applied correctly, use `migrate resolve`:
+   ```bash
+   # EMERGENCY ONLY - when migration is correct but checksum is wrong
+   npx prisma migrate resolve --applied <migration_name>
+   ```
+3. If the migration has wrong logic, create a NEW migration to fix it
 
 ### Running Migrations in Microservices
 
@@ -373,6 +471,20 @@ async function main(): Promise<void> {
 // ❌ BAD - All services run migrations
 // Causes race conditions and duplicate migrations
 ```
+
+### Railway-Specific Notes
+
+**We work directly against Railway database:**
+- `.env` contains `DATABASE_URL` for Railway dev database
+- No local PostgreSQL needed for development
+- All migrations run against Railway directly
+- `npx prisma migrate deploy` reads `DATABASE_URL` from `.env`
+
+**Deployment:**
+- Push migration files to git
+- Railway auto-deploys code
+- Migrations run on api-gateway startup (via Prisma in application code)
+- No manual migration commands needed in Railway CLI
 
 ## Data Cleanup Patterns
 
