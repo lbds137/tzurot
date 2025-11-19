@@ -87,6 +87,9 @@ function createServices(): Services {
 
   // Initialize Redis for cache invalidation
   const cacheRedis = new Redis(envConfig.REDIS_URL ?? 'redis://localhost:6379');
+  cacheRedis.on('error', (err) => {
+    logger.error({ err }, '[Bot] Cache Redis connection error');
+  });
   logger.info('[Bot] Redis client initialized for cache invalidation');
 
   // Core infrastructure

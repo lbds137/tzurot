@@ -68,6 +68,16 @@ describe('CacheInvalidationService', () => {
 
       await expect(service.subscribe()).rejects.toThrow('Connection failed');
     });
+
+    it('should prevent resource leak from double-subscribe', async () => {
+      // First subscribe
+      await service.subscribe();
+      expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
+
+      // Second subscribe should be ignored
+      await service.subscribe();
+      expect(mockRedis.duplicate).toHaveBeenCalledTimes(1); // Still 1, not 2
+    });
   });
 
   describe('publish', () => {
