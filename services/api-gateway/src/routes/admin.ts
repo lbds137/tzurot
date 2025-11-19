@@ -5,7 +5,7 @@
 
 import express, { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, CacheInvalidationService } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
@@ -17,8 +17,12 @@ const logger = createLogger('admin-routes');
 /**
  * Create admin router with injected dependencies
  * @param prisma - Prisma client for database operations
+ * @param cacheInvalidationService - Service for invalidating personality caches across all services
  */
-export function createAdminRouter(prisma: PrismaClient): Router {
+export function createAdminRouter(
+  prisma: PrismaClient,
+  cacheInvalidationService: CacheInvalidationService
+): Router {
   const router: Router = express.Router();
 
 /**
@@ -393,6 +397,59 @@ router.patch('/personality/:slug', requireOwnerAuth(), (req: Request, res: Respo
 
     const errorResponse = ErrorResponses.internalError(
       error instanceof Error ? error.message : 'Failed to edit personality'
+    );
+
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+  }
+  })();
+});
+
+/**
+ * POST /admin/invalidate-cache
+ * Manually trigger cache invalidation for personality configurations
+ * Use after manually updating database (llm_configs, personalities, etc.)
+ */
+router.post('/invalidate-cache', requireOwnerAuth(), (req: Request, res: Response) => {
+  void (async () => {
+  try {
+    const { personalityId, all = false } = req.body as {
+      personalityId?: string;
+      all?: boolean;
+    };
+
+    if (all) {
+      // Invalidate all personality caches
+      await cacheInvalidationService.invalidateAll();
+      logger.info('[Admin] Invalidated all personality caches');
+
+      res.json({
+        success: true,
+        invalidated: 'all',
+        message: 'All personality caches invalidated across all services',
+        timestamp: new Date().toISOString(),
+      });
+    } else if (personalityId !== undefined && personalityId.length > 0) {
+      // Invalidate specific personality cache
+      await cacheInvalidationService.invalidatePersonality(personalityId);
+      logger.info(`[Admin] Invalidated cache for personality: ${personalityId}`);
+
+      res.json({
+        success: true,
+        invalidated: personalityId,
+        message: `Cache invalidated for personality ${personalityId} across all services`,
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      const errorResponse = ErrorResponses.validationError(
+        'Must provide either "personalityId" or "all: true"'
+      );
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+    }
+  } catch (error) {
+    logger.error({ err: error }, '[Admin] Failed to invalidate cache');
+
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Failed to invalidate cache'
     );
 
     res.status(getStatusCode(errorResponse.error)).json(errorResponse);
