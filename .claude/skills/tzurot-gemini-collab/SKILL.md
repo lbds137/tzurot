@@ -1,6 +1,7 @@
 ---
 name: tzurot-gemini-collab
 description: Best practices for using Gemini MCP in Tzurot v3 development - When to consult Gemini, how to structure prompts, and cost optimization. Use when planning major changes or needing a second opinion.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Gemini Collaboration
@@ -398,6 +399,14 @@ mcp__gemini-collab__ask_gemini({
 2. **Add to CLAUDE.md** (if project-wide principle)
 3. **Create ADR in docs/architecture/** (if architectural decision)
 4. **Don't rely on memory** - document for future sessions!
+
+## Related Skills
+
+- **tzurot-architecture** - Use for major design decisions
+- **tzurot-docs** - Document Gemini recommendations
+- **tzurot-security** - Get second opinion on security patterns
+- **tzurot-testing** - Ask for test case suggestions
+
 
 ## References
 

@@ -15,6 +15,9 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       production-dependencies:
         dependency-type: "production"
@@ -40,6 +43,9 @@ updates:
     commit-message:
       prefix: "chore(deps/bot-client)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       bot-client-dependencies:
         patterns:
@@ -60,6 +66,9 @@ updates:
     commit-message:
       prefix: "chore(deps/api-gateway)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       api-gateway-dependencies:
         patterns:
@@ -80,6 +89,9 @@ updates:
     commit-message:
       prefix: "chore(deps/ai-worker)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       ai-worker-dependencies:
         patterns:
@@ -100,6 +112,9 @@ updates:
     commit-message:
       prefix: "chore(deps/common-types)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       common-types-dependencies:
         patterns:
@@ -120,6 +135,9 @@ updates:
     commit-message:
       prefix: "chore(deps/api-clients)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       api-clients-dependencies:
         patterns:
@@ -140,3 +158,6 @@ updates:
     commit-message:
       prefix: "chore(ci)"
       include: "scope"
+    labels:
+      - "dependencies"
+      - "automated"

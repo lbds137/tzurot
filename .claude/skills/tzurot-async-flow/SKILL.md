@@ -1,6 +1,7 @@
 ---
 name: tzurot-async-flow
 description: BullMQ and async patterns for Tzurot v3 - Job queue architecture, Discord interaction deferral, idempotency, retry strategies, and error handling. Use when working with jobs or async operations.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Async Flow & Job Queue
@@ -630,6 +631,15 @@ describe('processLLMGeneration', () => {
   });
 });
 ```
+
+## Related Skills
+
+- **tzurot-architecture** - Async workflow design
+- **tzurot-constants** - Job names and queue configuration
+- **tzurot-observability** - Job logging and correlation IDs
+- **tzurot-shared-types** - Job data type definitions
+- **tzurot-security** - Signed payloads for job verification
+
 
 ## References
 

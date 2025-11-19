@@ -1,6 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Git Workflow
@@ -511,6 +512,13 @@ git push --force origin main
 # ✅ RIGHT - Only force-push to feature branches
 git push --force-with-lease origin feat/my-feature
 ```
+
+## Related Skills
+
+- **tzurot-docs** - Session handoff and CURRENT_WORK.md updates
+- **tzurot-testing** - Always run tests before committing
+- **tzurot-security** - Pre-commit security checks
+
 
 ## References
 
