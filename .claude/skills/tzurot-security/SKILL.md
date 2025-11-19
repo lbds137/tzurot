@@ -651,6 +651,58 @@ npm audit --audit-level=moderate || {
 }
 ```
 
+#### Automated Dependency Updates with Dependabot:
+
+**Configuration**: Tzurot v3 uses Dependabot for automated dependency updates and security patches.
+
+See `.github/dependabot.yml` for full configuration.
+
+**Key Features:**
+- **Weekly updates** (Mondays at 9am ET) - avoids daily spam
+- **Targets `develop` branch** - follows project workflow
+- **Grouped updates** - production vs development dependencies
+- **Limited open PRs** (2-5 per directory) - manageable for solo dev
+- **Auto-assignment** - PRs automatically assigned for review
+- **Monorepo support** - separate configs for each service/package
+
+**Benefits:**
+```typescript
+✅ Automatic security vulnerability patches
+✅ Keeps dependencies current
+✅ Reduces manual dependency management
+✅ Solo dev friendly: manageable PR volume with grouping
+✅ Conventional commit format for changelog integration
+```
+
+**When Dependabot Creates a PR:**
+
+1. **Review the changelog** - What changed?
+2. **Check for breaking changes** - Especially for major version bumps
+3. **Run tests locally** (or wait for CI):
+   ```bash
+   git fetch origin
+   git checkout dependabot/npm_and_yarn/services/bot-client/discord.js-14.15.0
+   pnpm install
+   pnpm test
+   ```
+4. **Merge if green** - Tests passing = safe to merge
+5. **Batch minor/patch updates** - Can merge multiple dependency PRs together
+
+**Security Vulnerabilities:**
+
+Dependabot will create **immediate PRs** for security vulnerabilities (not just weekly updates).
+
+**Priority:** Security PRs should be reviewed and merged ASAP.
+
+**Workflow:**
+```bash
+# 1. Dependabot creates PR: "chore(deps/ai-worker): bump openai from 4.20.0 to 4.20.1 [security]"
+# 2. Review the security advisory linked in the PR
+# 3. Check tests pass
+# 4. Merge to develop
+# 5. Deploy to Railway (auto-deploys from develop)
+```
+
 ## 📚 References
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
