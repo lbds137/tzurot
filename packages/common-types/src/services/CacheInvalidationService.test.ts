@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CacheInvalidationService } from './CacheInvalidationService.js';
 import { PersonalityService } from './PersonalityService.js';
+import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
 import type { PrismaClient } from '@prisma/client';
 
@@ -59,7 +60,7 @@ describe('CacheInvalidationService', () => {
       await service.subscribe();
 
       expect(mockRedis.duplicate).toHaveBeenCalledTimes(1);
-      expect(mockSubscriber.subscribe).toHaveBeenCalledWith('cache:invalidation');
+      expect(mockSubscriber.subscribe).toHaveBeenCalledWith(REDIS_CHANNELS.CACHE_INVALIDATION);
       expect(mockSubscriber.on).toHaveBeenCalledWith('message', expect.any(Function));
     });
 
@@ -67,6 +68,15 @@ describe('CacheInvalidationService', () => {
       vi.mocked(mockSubscriber.subscribe).mockRejectedValue(new Error('Connection failed'));
 
       await expect(service.subscribe()).rejects.toThrow('Connection failed');
+    });
+
+    it('should clean up subscriber on subscription error', async () => {
+      vi.mocked(mockSubscriber.subscribe).mockRejectedValue(new Error('Connection failed'));
+
+      await expect(service.subscribe()).rejects.toThrow('Connection failed');
+
+      // Verify that the subscriber connection was cleaned up
+      expect(mockSubscriber.disconnect).toHaveBeenCalledTimes(1);
     });
 
     it('should prevent resource leak from double-subscribe', async () => {
@@ -87,7 +97,7 @@ describe('CacheInvalidationService', () => {
       await service.publish(event);
 
       expect(mockRedis.publish).toHaveBeenCalledWith(
-        'cache:invalidation',
+        REDIS_CHANNELS.CACHE_INVALIDATION,
         JSON.stringify(event)
       );
     });
@@ -98,7 +108,7 @@ describe('CacheInvalidationService', () => {
       await service.publish(event);
 
       expect(mockRedis.publish).toHaveBeenCalledWith(
-        'cache:invalidation',
+        REDIS_CHANNELS.CACHE_INVALIDATION,
         JSON.stringify(event)
       );
     });
@@ -123,7 +133,7 @@ describe('CacheInvalidationService', () => {
       // Simulate receiving message
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
-      handler!('cache:invalidation', message);
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       expect(mockPersonalityService.invalidatePersonality).toHaveBeenCalledWith('test-id');
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
@@ -136,7 +146,7 @@ describe('CacheInvalidationService', () => {
       // Simulate receiving message
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
-      handler!('cache:invalidation', message);
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       expect(mockPersonalityService.invalidateAll).toHaveBeenCalledTimes(1);
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
@@ -162,7 +172,7 @@ describe('CacheInvalidationService', () => {
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
       expect(() => {
-        handler!('cache:invalidation', malformedMessage);
+        handler!(REDIS_CHANNELS.CACHE_INVALIDATION, malformedMessage);
       }).not.toThrow();
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
@@ -175,7 +185,7 @@ describe('CacheInvalidationService', () => {
 
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
-      handler!('cache:invalidation', message);
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
@@ -187,7 +197,7 @@ describe('CacheInvalidationService', () => {
 
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
-      handler!('cache:invalidation', message);
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
@@ -199,7 +209,7 @@ describe('CacheInvalidationService', () => {
 
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
-      handler!('cache:invalidation', message);
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
@@ -211,7 +221,7 @@ describe('CacheInvalidationService', () => {
 
       const handler = messageHandlers.get('message');
       expect(handler).toBeDefined();
-      handler!('cache:invalidation', message);
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
@@ -224,7 +234,7 @@ describe('CacheInvalidationService', () => {
       expect(handler).toBeDefined();
 
       for (const invalidMessage of invalidEvents) {
-        handler!('cache:invalidation', invalidMessage);
+        handler!(REDIS_CHANNELS.CACHE_INVALIDATION, invalidMessage);
       }
 
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
@@ -237,7 +247,7 @@ describe('CacheInvalidationService', () => {
       await service.subscribe();
       await service.unsubscribe();
 
-      expect(mockSubscriber.unsubscribe).toHaveBeenCalledWith('cache:invalidation');
+      expect(mockSubscriber.unsubscribe).toHaveBeenCalledWith(REDIS_CHANNELS.CACHE_INVALIDATION);
       expect(mockSubscriber.disconnect).toHaveBeenCalledTimes(1);
     });
 
@@ -279,7 +289,7 @@ describe('CacheInvalidationService', () => {
 
       // Simulate receiving the published message
       const handler = messageHandlers.get('message');
-      handler!('cache:invalidation', JSON.stringify(event));
+      handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify(event));
 
       // Verify invalidation was called
       expect(mockPersonalityService.invalidateAll).toHaveBeenCalledTimes(1);
@@ -298,7 +308,7 @@ describe('CacheInvalidationService', () => {
 
       const handler = messageHandlers.get('message');
       for (const event of events) {
-        handler!('cache:invalidation', JSON.stringify(event));
+        handler!(REDIS_CHANNELS.CACHE_INVALIDATION, JSON.stringify(event));
       }
 
       expect(mockPersonalityService.invalidatePersonality).toHaveBeenCalledTimes(3);

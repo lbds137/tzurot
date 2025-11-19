@@ -14,6 +14,7 @@
  */
 
 import { createLogger } from '../utils/logger.js';
+import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
 import type { PersonalityService } from './PersonalityService.js';
 
@@ -45,7 +46,6 @@ function isValidInvalidationEvent(obj: unknown): obj is InvalidationEvent {
 }
 
 export class CacheInvalidationService {
-  private static readonly CHANNEL = 'cache:invalidation';
   private subscriber: Redis | null = null;
 
   constructor(
@@ -69,10 +69,10 @@ export class CacheInvalidationService {
       // (Redis pub/sub requires dedicated connection)
       this.subscriber = this.redis.duplicate();
 
-      await this.subscriber.subscribe(CacheInvalidationService.CHANNEL);
+      await this.subscriber.subscribe(REDIS_CHANNELS.CACHE_INVALIDATION);
 
       this.subscriber.on('message', (channel: string, message: string) => {
-        if (channel !== CacheInvalidationService.CHANNEL) {
+        if (channel !== REDIS_CHANNELS.CACHE_INVALIDATION) {
           return;
         }
 
@@ -96,6 +96,11 @@ export class CacheInvalidationService {
 
       logger.info('Subscribed to cache invalidation events');
     } catch (error) {
+      // Clean up the subscriber connection on failure to prevent resource leak
+      if (this.subscriber) {
+        this.subscriber.disconnect();
+        this.subscriber = null;
+      }
       logger.error({ err: error }, 'Failed to subscribe to cache invalidation events');
       throw error;
     }
@@ -108,7 +113,7 @@ export class CacheInvalidationService {
   async publish(event: InvalidationEvent): Promise<void> {
     try {
       const message = JSON.stringify(event);
-      await this.redis.publish(CacheInvalidationService.CHANNEL, message);
+      await this.redis.publish(REDIS_CHANNELS.CACHE_INVALIDATION, message);
 
       if (event.type === 'all') {
         logger.info('Published cache invalidation event: ALL personalities');
@@ -146,7 +151,7 @@ export class CacheInvalidationService {
    */
   async unsubscribe(): Promise<void> {
     if (this.subscriber) {
-      await this.subscriber.unsubscribe(CacheInvalidationService.CHANNEL);
+      await this.subscriber.unsubscribe(REDIS_CHANNELS.CACHE_INVALIDATION);
       this.subscriber.disconnect();
       this.subscriber = null;
       logger.info('Unsubscribed from cache invalidation events');
