@@ -11,8 +11,9 @@
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
-import { countTextTokens, createLogger, formatMemoryTimestamp } from '@tzurot/common-types';
+import { countTextTokens, createLogger } from '@tzurot/common-types';
 import type { PromptContext, MemoryDocument, TokenBudget } from './PromptContext.js';
+import { formatSingleMemory } from '../prompt/MemoryFormatter.js';
 
 const logger = createLogger('ContextWindowManager');
 
@@ -198,8 +199,9 @@ export class ContextWindowManager {
   /**
    * Count tokens for memories (formatted with timestamps)
    *
-   * Note: This duplicates the formatting logic from MemoryFormatter to ensure
-   * accurate token counts. The formatted string must match what appears in the prompt.
+   * Uses formatSingleMemory() to ensure token counting matches the exact
+   * format that appears in prompts. Any changes to memory formatting will
+   * automatically be reflected in token counts.
    */
   private countMemoryTokens(memories: MemoryDocument[]): number {
     if (memories.length === 0) {
@@ -209,13 +211,7 @@ export class ContextWindowManager {
     let totalTokens = 0;
 
     for (const doc of memories) {
-      const timestamp =
-        doc.metadata?.createdAt !== undefined && doc.metadata.createdAt !== null
-          ? formatMemoryTimestamp(doc.metadata.createdAt)
-          : null;
-
-      // Format exactly as it appears in the prompt
-      const memoryText = `- ${timestamp !== null && timestamp.length > 0 ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+      const memoryText = formatSingleMemory(doc);
       totalTokens += countTextTokens(memoryText);
     }
 
