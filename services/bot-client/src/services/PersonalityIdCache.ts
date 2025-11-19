@@ -42,17 +42,26 @@ export class PersonalityIdCache {
       return this.personalityService.loadPersonality(nameOrId);
     }
 
-    // Check if we have a cached ID for this name
-    const cached = this.nameToIdMap.get(nameOrId.toLowerCase());
+    // Check both name and slug caches (namespaced to prevent collisions)
+    // Example: personality.slug="sarcastic" shouldn't collide with another personality.name="Sarcastic"
+    const normalizedInput = nameOrId.toLowerCase();
+    const cachedByName = this.nameToIdMap.get(`name:${normalizedInput}`);
+    const cachedBySlug = this.nameToIdMap.get(`slug:${normalizedInput}`);
+    const cached = cachedByName ?? cachedBySlug;
+
     if (cached !== undefined) {
       // Check if cache entry is still valid
       const age = Date.now() - cached.timestamp;
       if (age < this.cacheTTL) {
-        logger.debug({ name: nameOrId, cachedId: cached.id, age }, 'Using cached personality ID');
+        logger.debug(
+          { input: nameOrId, cachedId: cached.id, age, cacheType: cachedByName ? 'name' : 'slug' },
+          'Using cached personality ID'
+        );
         return this.personalityService.loadPersonality(cached.id);
       } else {
-        logger.debug({ name: nameOrId, age }, 'Cached personality ID expired, refetching');
-        this.nameToIdMap.delete(nameOrId.toLowerCase());
+        logger.debug({ input: nameOrId, age }, 'Cached personality ID expired, refetching');
+        this.nameToIdMap.delete(`name:${normalizedInput}`);
+        this.nameToIdMap.delete(`slug:${normalizedInput}`);
       }
     }
 
@@ -60,9 +69,12 @@ export class PersonalityIdCache {
     const personality = await this.personalityService.loadPersonality(nameOrId);
     if (personality) {
       const now = Date.now();
-      // Cache all possible name variations
-      this.nameToIdMap.set(personality.name.toLowerCase(), { id: personality.id, timestamp: now });
-      this.nameToIdMap.set(personality.slug, { id: personality.id, timestamp: now });
+      // Cache with namespaced keys to prevent slug/name collisions
+      this.nameToIdMap.set(`name:${personality.name.toLowerCase()}`, {
+        id: personality.id,
+        timestamp: now,
+      });
+      this.nameToIdMap.set(`slug:${personality.slug}`, { id: personality.id, timestamp: now });
       logger.debug(
         { name: personality.name, slug: personality.slug, id: personality.id },
         'Cached personality ID mapping'

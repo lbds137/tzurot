@@ -37,7 +37,7 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     target-branch: "develop"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     reviewers:
       - "lbds137"
     commit-message:
@@ -60,7 +60,7 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     target-branch: "develop"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     reviewers:
       - "lbds137"
     commit-message:
@@ -83,7 +83,7 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     target-branch: "develop"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     reviewers:
       - "lbds137"
     commit-message:
@@ -106,7 +106,7 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     target-branch: "develop"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     reviewers:
       - "lbds137"
     commit-message:
@@ -129,7 +129,7 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     target-branch: "develop"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     reviewers:
       - "lbds137"
     commit-message:
@@ -152,7 +152,7 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     target-branch: "develop"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 5
     reviewers:
       - "lbds137"
     commit-message:
