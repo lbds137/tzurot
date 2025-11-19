@@ -43,10 +43,68 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 - **Alternative**: Direct Gemini API
 - **Architecture**: Vendor-agnostic provider abstraction
 
+## Claude Code Skills
+
+Tzurot v3 includes 10 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
+
+### Available Skills
+
+**Core Development Skills:**
+1. **tzurot-testing** - Vitest patterns, fake timers, promise handling, mocking strategies, colocated tests
+2. **tzurot-constants** - Magic numbers elimination, domain-separated organization, centralization rules
+3. **tzurot-git-workflow** - Rebase-only strategy, PR creation against develop, commit format, safety checks
+
+**Architecture & Design Skills:**
+4. **tzurot-architecture** - Microservices boundaries, service responsibilities, dependency rules, anti-patterns from v2
+5. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md), session handoff protocol
+6. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini, cost optimization, prompt structuring
+
+**Advanced Technical Skills:**
+7. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports, runtime validation
+8. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search, connection pooling, migrations
+9. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral, idempotency, retry strategies
+10. **tzurot-observability** - Structured logging with Pino, correlation IDs, privacy considerations, Railway log analysis
+
+### How Skills Work
+
+Skills automatically activate when their topics become relevant during development. They provide:
+- **Context-aware guidance** - Relevant patterns and anti-patterns
+- **Best practice enforcement** - Codified standards from experience
+- **Quick reference** - No need to search through docs
+- **Consistency** - Same patterns applied across all development
+
+### Invoking Skills Manually
+
+While skills auto-activate, you can explicitly invoke them:
+
+```typescript
+// Example: Need testing guidance
+skill: "tzurot-testing"
+
+// Example: Working with database
+skill: "tzurot-db-vector"
+
+// Example: Refactoring code
+skill: "tzurot-architecture"
+```
+
+### Skill Maintenance
+
+**When to update skills:**
+- New patterns emerge from production experience
+- Post-mortem lessons learned
+- Architecture changes
+- Tool upgrades (e.g., Vitest version)
+
+**Skills are source-controlled** - Changes go through PR process like code.
+
 ## Project Structure
 
 ```
 tzurot/
+├── .claude/                     # Claude Code configuration
+│   └── skills/                 # Project-specific skills (10 skills)
+│
 ├── services/                    # Microservices
 │   ├── bot-client/             # Discord interface
 │   ├── api-gateway/            # HTTP API + job queue
