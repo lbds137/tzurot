@@ -1,6 +1,7 @@
 ---
 name: tzurot-shared-types
 description: Type management for Tzurot v3 - Zod schemas, type guards, DTOs, workspace exports, and ensuring type safety across microservices. Use when creating types or working with data validation.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Shared Types & Validation
@@ -540,6 +541,14 @@ enum MessageRole {
 const ROLES = ['user', 'assistant', 'system'] as const;
 type MessageRole = typeof ROLES[number];
 ```
+
+## Related Skills
+
+- **tzurot-db-vector** - Prisma schema and database types
+- **tzurot-async-flow** - BullMQ job data types
+- **tzurot-testing** - Type-safe test fixtures
+- **tzurot-security** - Input validation with Zod
+
 
 ## References
 

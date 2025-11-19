@@ -45,7 +45,7 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 
 ## Claude Code Skills
 
-Tzurot v3 includes 11 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
+Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
 
 ### Available Skills
 
@@ -77,6 +77,8 @@ Tzurot v3 includes 11 project-specific Claude Code Skills in `.claude/skills/` t
     idempotency, retry strategies
 11. **tzurot-observability** - Structured logging with Pino, correlation IDs,
     privacy considerations, Railway log analysis
+12. **tzurot-deployment** - Railway operations, service management, log analysis,
+    troubleshooting production issues
 
 ### How Skills Work
 
@@ -111,7 +113,7 @@ skill: "tzurot-architecture"  # Service design decisions
 ```
 tzurot/
 ├── .claude/                     # Claude Code configuration
-│   └── skills/                 # Project-specific skills (11 skills)
+│   └── skills/                 # Project-specific skills (12 skills)
 │
 ├── services/                    # Microservices
 │   ├── bot-client/             # Discord interface

@@ -1,6 +1,7 @@
 ---
 name: tzurot-architecture
 description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Architecture
@@ -478,6 +479,14 @@ services/ai-worker/src/
 │   ├── LLMGenerationJob.ts
 │   └── LLMGenerationJob.test.ts  # Tests with mocked AI provider
 ```
+
+## Related Skills
+
+- **tzurot-async-flow** - Async workflow design patterns
+- **tzurot-db-vector** - Database service responsibilities
+- **tzurot-shared-types** - Type definitions across services
+- **tzurot-gemini-collab** - Consult for major design decisions
+
 
 ## References
 

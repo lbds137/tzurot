@@ -1,6 +1,7 @@
 ---
 name: tzurot-constants
 description: Constants management for Tzurot v3 - Identifies magic numbers/strings, guides domain-separated organization, and enforces centralization patterns. Use when writing code with hardcoded values or refactoring.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Constants Management
@@ -474,6 +475,13 @@ export const REDIS_KEY_PREFIXES = {
   VOICE_TRANSCRIPT: 'transcript:',
 } as const;
 ```
+
+## Related Skills
+
+- **tzurot-testing** - Use constants for test data and timeouts
+- **tzurot-async-flow** - Job naming conventions use constants
+- **tzurot-observability** - Logging constants and error codes
+- **tzurot-shared-types** - Export constants from common-types
 
 ## References
 

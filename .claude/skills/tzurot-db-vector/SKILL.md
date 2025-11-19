@@ -1,6 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
+lastUpdated: "2025-11-19"
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -634,6 +635,14 @@ describe('PersonalityService', () => {
   });
 });
 ```
+
+## Related Skills
+
+- **tzurot-shared-types** - Prisma schema and type definitions
+- **tzurot-observability** - Query logging and performance monitoring
+- **tzurot-architecture** - Database service placement
+- **tzurot-constants** - Connection pool limits and timeouts
+
 
 ## References
 
