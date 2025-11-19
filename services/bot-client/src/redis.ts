@@ -11,6 +11,8 @@ import {
   getConfig,
   parseRedisUrl,
   createRedisSocketConfig,
+  REDIS_KEY_PREFIXES,
+  INTERVALS,
 } from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
@@ -78,10 +80,10 @@ redis.connect().catch(error => {
 export async function storeWebhookMessage(
   messageId: string,
   personalityName: string,
-  ttlSeconds: number = 7 * 24 * 60 * 60 // 7 days
+  ttlSeconds: number = INTERVALS.WEBHOOK_MESSAGE_TTL
 ): Promise<void> {
   try {
-    await redis.setEx(`webhook:${messageId}`, ttlSeconds, personalityName);
+    await redis.setEx(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`, ttlSeconds, personalityName);
     logger.debug(`[Redis] Stored webhook message: ${messageId} -> ${personalityName}`);
   } catch (error) {
     logger.error({ err: error }, `[Redis] Failed to store webhook message: ${messageId}`);
@@ -95,7 +97,7 @@ export async function storeWebhookMessage(
  */
 export async function getWebhookPersonality(messageId: string): Promise<string | null> {
   try {
-    const personalityName = await redis.get(`webhook:${messageId}`);
+    const personalityName = await redis.get(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`);
     if (
       personalityName !== undefined &&
       personalityName !== null &&
@@ -119,10 +121,10 @@ export async function getWebhookPersonality(messageId: string): Promise<string |
 export async function storeVoiceTranscript(
   attachmentUrl: string,
   transcript: string,
-  ttlSeconds: number = 5 * 60 // 5 minutes
+  ttlSeconds: number = INTERVALS.VOICE_TRANSCRIPT_TTL
 ): Promise<void> {
   try {
-    await redis.setEx(`transcript:${attachmentUrl}`, ttlSeconds, transcript);
+    await redis.setEx(`${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`, ttlSeconds, transcript);
     logger.debug(`[Redis] Stored voice transcript cache for: ${attachmentUrl.substring(0, 50)}...`);
   } catch (error) {
     logger.error({ err: error }, '[Redis] Failed to store voice transcript');
@@ -136,7 +138,7 @@ export async function storeVoiceTranscript(
  */
 export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
   try {
-    const transcript = await redis.get(`transcript:${attachmentUrl}`);
+    const transcript = await redis.get(`${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`);
     if (
       transcript !== undefined &&
       transcript !== null &&
