@@ -65,7 +65,7 @@ export class DiscordResponseSender {
     let contentWithIndicator = content;
     if (modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
-      contentWithIndicator += `\n-# Model: [\`${modelUsed}\`](<${modelUrl}>)`;
+      contentWithIndicator += `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
     }
 
     // Determine if this is a webhook-capable channel
