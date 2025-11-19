@@ -87,8 +87,11 @@ describe('DiscordResponseSender', () => {
 
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
       expect(calledContent).toContain('Response content');
-      expect(calledContent).toContain('Model:');
-      expect(calledContent).toContain('anthropic/claude-sonnet-4.5');
+
+      // Verify exact format: Model: [model-name](<url>) without backticks
+      expect(calledContent).toMatch(
+        /\n-# Model: \[anthropic\/claude-sonnet-4\.5\]\(<https:\/\/openrouter\.ai\/[^>]+>\)$/
+      );
     });
 
     it('should handle chunked messages', async () => {
