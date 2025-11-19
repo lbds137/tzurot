@@ -45,7 +45,7 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 
 ## Claude Code Skills
 
-Tzurot v3 includes 10 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
+Tzurot v3 includes 11 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
 
 ### Available Skills
 
@@ -53,17 +53,18 @@ Tzurot v3 includes 10 project-specific Claude Code Skills in `.claude/skills/` t
 1. **tzurot-testing** - Vitest patterns, fake timers, promise handling, mocking strategies, colocated tests
 2. **tzurot-constants** - Magic numbers elimination, domain-separated organization, centralization rules
 3. **tzurot-git-workflow** - Rebase-only strategy, PR creation against develop, commit format, safety checks
+4. **tzurot-security** - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permissions, microservices security, supply chain integrity
 
 **Architecture & Design Skills:**
-4. **tzurot-architecture** - Microservices boundaries, service responsibilities, dependency rules, anti-patterns from v2
-5. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md), session handoff protocol
-6. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini, cost optimization, prompt structuring
+5. **tzurot-architecture** - Microservices boundaries, service responsibilities, dependency rules, anti-patterns from v2
+6. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md), session handoff protocol
+7. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini, cost optimization, prompt structuring
 
 **Advanced Technical Skills:**
-7. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports, runtime validation
-8. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search, connection pooling, migrations
-9. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral, idempotency, retry strategies
-10. **tzurot-observability** - Structured logging with Pino, correlation IDs, privacy considerations, Railway log analysis
+8. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports, runtime validation
+9. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search, connection pooling, migrations
+10. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral, idempotency, retry strategies
+11. **tzurot-observability** - Structured logging with Pino, correlation IDs, privacy considerations, Railway log analysis
 
 ### How Skills Work
 
@@ -103,7 +104,7 @@ skill: "tzurot-architecture"
 ```
 tzurot/
 ├── .claude/                     # Claude Code configuration
-│   └── skills/                 # Project-specific skills (10 skills)
+│   └── skills/                 # Project-specific skills (11 skills)
 │
 ├── services/                    # Microservices
 │   ├── bot-client/             # Discord interface
@@ -325,40 +326,25 @@ OpenRouter/Gemini API
 
 - Use Pino logger from @tzurot/common-types
 - Structure: `logger.info({ context }, 'message')`
-- Never log secrets/tokens
-- See privacy logging guide for user data
+- Never log secrets/tokens or PII
+
+**📚 See**: `tzurot-observability` skill for structured logging patterns, correlation IDs, privacy considerations, and Railway log analysis
 
 **Type Centralization**:
 
 - **ALWAYS define reusable types in `common-types` package IMMEDIATELY** - Don't let duplication happen
-- Common pattern: If a type/type guard might be used in >1 service, put it in common-types right away
-- Example: `TypingChannel` type and `isTypingChannel()` type guard in `packages/common-types/src/types/discord-types.ts`
-- Prevents duplication, ensures consistency, reduces refactoring later
-- Add package dependencies if needed (e.g., discord.js to common-types for Discord type imports)
+- If a type/type guard might be used in >1 service, put it in common-types right away
+
+**📚 See**: `tzurot-shared-types` skill for Zod schemas, type guards, DTOs, and workspace exports
 
 **Constants and Magic Numbers**:
 
 - **NO magic numbers or strings** - Use named constants from `@tzurot/common-types/constants`
-- **Domain-separated constants**: Constants live in `packages/common-types/src/constants/` organized by domain:
-  - `ai.ts` - AI provider settings, model defaults, endpoints
-  - `timing.ts` - Timeouts, intervals, TTLs, retry configuration
-  - `queue.ts` - Queue configuration, job prefixes, Redis key prefixes
-  - `discord.ts` - Discord API limits, colors, text limits
-  - `error.ts` - Error codes, error messages
-  - `media.ts` - Media limits, content types, attachment types
-  - `message.ts` - Message roles, placeholders
-  - `service.ts` - Service defaults, app settings
+- **Domain-separated constants**: Constants live in `packages/common-types/src/constants/` organized by domain (ai, timing, queue, discord, error, media, message, service)
 - **Import pattern**: `import { TIMEOUTS, INTERVALS, REDIS_KEY_PREFIXES } from '@tzurot/common-types'`
-- **When to create constants**:
-  - ✅ Timeouts and delays (e.g., `TIMEOUTS.CACHE_TTL` not `5 * 60 * 1000`)
-  - ✅ Redis key prefixes (e.g., `REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE` not `'webhook:'`)
-  - ✅ Retry counts and intervals
-  - ✅ Buffer sizes and limits
-  - ✅ Repeated string literals (channel names, event types)
-  - ❌ One-off string literals that won't be reused
-  - ❌ Simple struct length checks (like `Object.keys().length === 2`)
-- **Naming convention**: `SCREAMING_SNAKE_CASE` for constant objects, descriptive names
-- **Documentation**: Always add JSDoc comments explaining what the constant represents and why the value was chosen
+- **Naming convention**: `SCREAMING_SNAKE_CASE` with JSDoc comments
+
+**📚 See**: `tzurot-constants` skill for when to create constants, domain organization details, and migration patterns
 
 ## Folder Structure Standards
 
@@ -387,13 +373,7 @@ See the full documentation for detailed examples and migration guidance.
 
 **THIS PROJECT USES REBASE-ONLY. NO SQUASH. NO MERGE. ONLY REBASE.**
 
-GitHub repository settings enforce this:
-
-- ✅ **Rebase and merge** - ONLY option enabled
-- ❌ **Squash and merge** - DISABLED
-- ❌ **Create a merge commit** - DISABLED
-
-**Why this matters**: Squash/merge creates duplicate commits with different hashes, causing rebase conflicts and confusion.
+GitHub repository settings enforce this (rebase and merge is the ONLY option enabled).
 
 ### 🚨 CRITICAL: Always Target `develop` for PRs
 
@@ -402,92 +382,28 @@ GitHub repository settings enforce this:
 - ✅ **Feature PRs → `develop`** (v3 is still in testing)
 - ❌ **Feature PRs → `main`** (only for releases)
 
-**Example PR creation**:
-
 ```bash
-# ✅ CORRECT - Always target develop
+# ✅ CORRECT
 gh pr create --base develop --title "feat: your feature"
-
-# ❌ WRONG - Don't target main for features!
-gh pr create --base main --title "feat: your feature"
 ```
 
 ### Branch Strategy
 
 - `main` - Production releases only (v3 not ready yet)
 - `develop` - Active development branch (current v3 work)
-- Feature branches from `develop`
-
-**Common branch prefixes**:
-
-- `feat/` - New features
-- `fix/` - Bug fixes
-- `docs/` - Documentation updates
-- `refactor/` - Code refactoring
+- Feature branches from `develop` (prefixes: `feat/`, `fix/`, `docs/`, `refactor/`)
 
 ### Commit Messages
 
-```bash
-# Format: type: description
-feat: add voice transcription support
-fix: prevent message chunks exceeding 2000 chars
-chore: update dependencies
-docs: update deployment guide
-```
-
-### Standard PR Workflow
-
-1. **Create feature branch from develop**:
-
-```bash
-git checkout develop
-git pull origin develop
-git checkout -b feat/your-feature
-```
-
-2. **Make changes and commit**:
-
-```bash
-# Make changes
-git add .
-git commit -m "feat: your changes"
-```
-
-3. **Push and create PR to develop**:
-
-```bash
-git push -u origin feat/your-feature
-gh pr create --base develop --title "feat: your feature"
-```
-
-4. **After PR is merged**:
-
-```bash
-git checkout develop
-git pull origin develop  # This gets the rebased commits
-git branch -d feat/your-feature  # Clean up local branch
-```
-
-### Handling Rebase Conflicts
-
-If you need to rebase your feature branch onto latest develop:
-
-```bash
-git checkout develop
-git pull origin develop
-git checkout feat/your-feature
-git rebase develop  # May need to resolve conflicts
-git push --force-with-lease origin feat/your-feature
-```
-
-**Important**: GitHub will automatically update the PR when you force-push.
+Format: `type: description` (e.g., `feat: add voice transcription support`)
 
 ### Deployment Flow
 
-1. Merge PR to `develop` branch
-2. Railway auto-deploys from GitHub
-3. Check health endpoint: https://api-gateway-development-83e8.up.railway.app/health
-4. Monitor logs via `railway logs`
+1. Merge PR to `develop` → Railway auto-deploys
+2. Check health endpoint: https://api-gateway-development-83e8.up.railway.app/health
+3. Monitor logs via `railway logs`
+
+**📚 See**: `tzurot-git-workflow` skill for complete PR workflow, rebase conflict handling, commit format details, and git safety protocol
 
 ## Environment Variables
 
@@ -515,171 +431,60 @@ git push --force-with-lease origin feat/your-feature
 **Framework**: Vitest 4.0.3 with comprehensive test coverage
 
 **Current Status**:
-
 - ✅ **989 tests passing** across 63 test files
   - common-types: 102 tests in 6 files
   - api-gateway: 174 tests in 8 files
   - ai-worker: 291 tests in 15 files
   - bot-client: 422 tests in 34 files
-- ✅ Utility functions fully tested
-- ✅ Error handling and retry utilities comprehensive
 - 🚧 Service layer coverage expanding
 - 🚧 Integration tests planned
 
-**Key Resources**:
-
-- **[Testing Guide](docs/guides/TESTING.md)** - Comprehensive testing patterns and best practices
-- **[Global Testing Philosophy](~/.claude/CLAUDE.md#universal-testing-philosophy)** - Universal testing principles
-
-### Test File Organization
-
-**Standard: Colocated Tests** (Established 2025-11-17)
-
-All unit and service-level tests MUST be colocated next to the source files they test:
-
-✅ **Correct Structure**:
-```
-src/
-├── services/
-│   ├── MyService.ts
-│   ├── MyService.test.ts        # ← Colocated with source
-│   ├── AnotherService.ts
-│   └── AnotherService.test.ts   # ← Colocated with source
-└── utils/
-    ├── helper.ts
-    └── helper.test.ts            # ← Colocated with source
-```
-
-❌ **Incorrect Structure** (Do NOT create):
-```
-src/
-├── services/
-│   ├── MyService.ts
-│   └── AnotherService.ts
-└── test/                         # ← Separate test directory
-    └── services/
-        ├── MyService.test.ts     # ← NOT colocated
-        └── AnotherService.test.ts
-```
-
-**Exceptions**: Integration/E2E tests that span multiple modules can live in `src/test/processors/` or similar directories, but ONLY for tests that genuinely test multiple modules together (not unit tests).
-
-**Benefits**:
-- High discoverability - easy to see if a module has tests
-- Safe refactoring - moving/renaming files keeps tests together
-- Low friction - encourages more testing
-- Simple imports - no complex relative paths
-
-**Build Configuration**: Ensure `tsconfig.json` excludes test files from production builds:
-```json
-{
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
-}
-```
-
-**Important Patterns**:
-
-- Always run tests before pushing (`pnpm test`)
+**Key Standards**:
+- **Colocated tests**: `MyService.test.ts` next to `MyService.ts`
+- **Always run tests before pushing**: `pnpm test` (no exceptions!)
 - Test behavior, not implementation
 - Mock all external dependencies
 - Use fake timers for time-based code
-- See detailed Vitest patterns below and in Testing Guide
 
-**Next Steps**: Service layer tests, integration tests for service communication
+**📚 See**: `tzurot-testing` skill for comprehensive Vitest patterns, fake timer handling, promise rejection patterns, and mocking strategies
 
-### Testing Promise Rejections with Fake Timers (Vitest)
-
-**The Problem**: When testing code that rejects promises after timer delays (e.g., retry logic, timeouts), you may encounter `PromiseRejectionHandledWarning` even though tests pass. This happens because the rejection occurs before the test attaches a handler.
-
-**The Root Cause**: A race condition between timer advancement and handler attachment:
-1. `const promise = asyncFunction()` - Creates promise (no handler yet)
-2. `await vi.runAllTimersAsync()` - Advances timers, triggering rejection
-3. Promise is rejected with NO handler attached → Warning issued
-4. `await expect(promise).rejects...` - Handler attached too late
-
-**The Golden Rule**: **Attach assertion handlers BEFORE advancing timers**
-
-**Correct Pattern**:
-```typescript
-it('should throw error after timeout', async () => {
-  const error = new Error('Timeout');
-  const fn = vi.fn().mockRejectedValue(error);
-
-  // 1. Create the promise
-  const promise = withRetry(fn, { maxAttempts: 3, initialDelayMs: 100 });
-
-  // 2. Attach the assertion handler BEFORE advancing timers
-  const assertionPromise = expect(promise).rejects.toThrow(RetryError);
-
-  // 3. NOW advance the timers to trigger the rejection
-  await vi.runAllTimersAsync();
-
-  // 4. Await the assertion
-  await assertionPromise;
-
-  // 5. Additional synchronous assertions
-  expect(fn).toHaveBeenCalledTimes(3);
-});
-```
-
-**Incorrect Pattern** (causes warnings):
-```typescript
-it('should throw error after timeout', async () => {
-  const promise = withRetry(fn, { maxAttempts: 3 });
-
-  await vi.runAllTimersAsync(); // ❌ Rejection happens here
-
-  // ❌ Handler attached too late
-  await expect(promise).rejects.toThrow(RetryError);
-});
-```
-
-**Why `.rejects` Works**: The `expect().rejects` matcher attaches the necessary promise handler immediately when called, preventing the "unhandled rejection" state.
-
-**Alternative Pattern** (when you need to inspect the error):
-```typescript
-it('should throw with details', async () => {
-  expect.assertions(2);
-
-  try {
-    const promise = withRetry(fn, { maxAttempts: 3 });
-    await vi.runAllTimersAsync();
-    await promise;
-  } catch (e: any) {
-    expect(e).toBeInstanceOf(RetryError);
-    expect(e.attempts).toBe(3);
-  }
-});
-```
-
-**Reference**: This pattern was discovered during PR #206 implementation (2025-11-02) with assistance from Gemini AI collaboration.
+**Resources**:
+- [Testing Guide](docs/guides/TESTING.md) - Comprehensive testing patterns
+- [Global Testing Philosophy](~/.claude/CLAUDE.md#universal-testing-philosophy) - Universal principles
 
 ## Security
 
-### 🚨 NEVER COMMIT THESE - CRITICAL SECURITY VIOLATIONS
+### 🚨 NEVER COMMIT SECRETS - CRITICAL
 
-**Database Connection Strings**:
+**This has happened TWICE in this project. Always verify before committing.**
 
-- **NEVER** commit PostgreSQL URLs (format: `postgresql://user:PASSWORD@host:port/db`)
-- **NEVER** commit Redis URLs (format: `redis://user:PASSWORD@host:port`)
-- **NEVER** commit PostgreSQL connection strings
-- Database URLs contain passwords - committing them = immediate secret rotation required
-- **ALWAYS** use environment variables or Railway secrets for connection strings
-- **ALWAYS** use placeholders like `DATABASE_URL="your-database-url-here"` in examples
-
-**Other Secrets**:
-
+**Never commit:**
+- Database URLs (PostgreSQL, Redis) - contain passwords
 - API keys or tokens (Discord, OpenRouter, Gemini, OpenAI)
+- Private keys, session secrets, webhook URLs with tokens
 - Real user data in test files
 - `.env` files (use `.env.example`)
-- Any credential or authentication token
 
-### Always Use
-
+**Always use:**
 - Environment variables for all secrets
-- Railway's secrets management
-- Privacy-conscious logging (no PII)
-- Placeholders in documentation and examples
+- Railway's secrets management for production
+- Placeholders in documentation (`DATABASE_URL="your-database-url-here"`)
+
+**Pre-commit check:**
+```bash
+git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redis://)'
+```
+
+**If you commit a secret:** Rotate it immediately (don't just delete and recommit).
+
+**📚 See**: `tzurot-security` skill for comprehensive security patterns including:
+- Secret rotation protocol
+- AI-specific security (prompt injection, PII scrubbing, output sanitization)
+- Economic DoS prevention (token budgeting)
+- Discord permission verification
+- Signed internal payloads (BullMQ)
+- Content validation for attachments
+- Supply chain security (dependency auditing, pinning)
 
 ## Project Post-Mortems & Lessons Learned (v3 Development)
 
@@ -803,50 +608,19 @@ it('should throw with details', async () => {
 
 ## Documentation Maintenance
 
-### CURRENT_WORK.md Updates
+**Purpose**: Track active work and provide context for AI sessions (critical for solo dev + AI workflow)
 
-**Purpose**: Track active work and provide context for new sessions
+**Key Documents**:
+- **CURRENT_WORK.md** - Active work, recent completions, next planned work
+- **CHANGELOG.md** - Release history and notable changes
+- **docs/** - Organized by category (see docs/README.md)
 
-**Update at:**
-- Start of session: Read to understand current focus
-- End of major milestone: Document what was completed
-- Switching focus areas: Update with new direction
+**Update CURRENT_WORK.md at:**
+- Start of session (read to understand context)
+- End of major milestone (document completion)
+- Switching focus areas (update direction)
 
-**What to include:**
-- Current active work (what you're doing RIGHT NOW)
-- Recent completions (last 1-2 sessions only)
-- Next planned work
-- Last updated date
-
-**Format:**
-```markdown
-> Last updated: YYYY-MM-DD
-
-## Status: [Brief description of current focus]
-
-**Current Phase**: [What you're actively working on]
-
-**Recent Completion**: [Major milestone just finished]
-
-## Active Work
-[Details of current task]
-
-## Planned Features (Priority Order)
-[Upcoming work in priority order]
-```
-
-### Session Handoff
-
-**At end of session:**
-1. Update CURRENT_WORK.md with progress made
-2. Delete obsolete docs (git history preserves them)
-3. Update relevant doc timestamps (YYYY-MM-DD format)
-4. Commit work-in-progress if needed (use descriptive WIP commit messages)
-
-**When switching work focus:**
-1. Update CURRENT_WORK.md to reflect new direction
-2. Delete obsolete docs (git history preserves them)
-3. Update CLAUDE.md if project context has changed significantly
+**📚 See**: `tzurot-docs` skill for CURRENT_WORK.md format, session handoff protocol, documentation organization, and maintenance guidelines
 
 ## Key Documentation
 
