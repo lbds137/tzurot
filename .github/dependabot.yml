@@ -1,0 +1,142 @@
+version: 2
+updates:
+  # Root dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+        patterns:
+          - "*"
+      development-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "*"
+
+  # Service: bot-client
+  - package-ecosystem: "npm"
+    directory: "/services/bot-client"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(deps/bot-client)"
+      include: "scope"
+    groups:
+      bot-client-dependencies:
+        patterns:
+          - "*"
+
+  # Service: api-gateway
+  - package-ecosystem: "npm"
+    directory: "/services/api-gateway"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(deps/api-gateway)"
+      include: "scope"
+    groups:
+      api-gateway-dependencies:
+        patterns:
+          - "*"
+
+  # Service: ai-worker
+  - package-ecosystem: "npm"
+    directory: "/services/ai-worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(deps/ai-worker)"
+      include: "scope"
+    groups:
+      ai-worker-dependencies:
+        patterns:
+          - "*"
+
+  # Package: common-types
+  - package-ecosystem: "npm"
+    directory: "/packages/common-types"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(deps/common-types)"
+      include: "scope"
+    groups:
+      common-types-dependencies:
+        patterns:
+          - "*"
+
+  # Package: api-clients
+  - package-ecosystem: "npm"
+    directory: "/packages/api-clients"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(deps/api-clients)"
+      include: "scope"
+    groups:
+      api-clients-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    target-branch: "develop"
+    open-pull-requests-limit: 2
+    reviewers:
+      - "lbds137"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
