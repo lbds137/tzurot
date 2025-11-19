@@ -579,7 +579,171 @@ client.on('messageCreate', async (message) => {
 });
 ```
 
-### 10. Dependency Management (Supply Chain Security)
+### 10. Admin Endpoint Security
+
+**Problem**: Admin endpoints (cache invalidation, configuration, etc.) need stronger auth than user endpoints.
+
+**Current Implementation**: `/admin/invalidate-cache` uses `X-Owner-Id` header validation.
+
+**Security Concerns:**
+1. **Owner ID as Authentication** - Is it a secret?
+   - Owner ID is stored in `DATABASE_URL` (via Prisma query)
+   - NOT rotatable like API keys
+   - NOT truly secret (visible in logs, database)
+   - ⚠️ Weak authentication for production
+
+2. **No Rate Limiting** - Admin endpoints can be spammed
+3. **No Additional Verification** - Single factor authentication
+
+#### ✅ Recommended Production Security:
+
+**Option A: API Key + HMAC Signature (Recommended)**
+
+```typescript
+import crypto from 'crypto';
+
+class AdminAuthService {
+  private readonly ADMIN_API_KEY = process.env.ADMIN_API_KEY!; // Rotate-able secret
+
+  generateHMACSignature(payload: object, timestamp: number): string {
+    const message = JSON.stringify(payload) + timestamp;
+    return crypto
+      .createHmac('sha256', this.ADMIN_API_KEY)
+      .update(message)
+      .digest('hex');
+  }
+
+  verifyRequest(req: Request): boolean {
+    const { 'x-signature': signature, 'x-timestamp': timestamp } = req.headers;
+    const payload = req.body;
+
+    // Reject if timestamp is >5 minutes old (replay attack prevention)
+    if (Date.now() - Number(timestamp) > 5 * 60 * 1000) {
+      return false;
+    }
+
+    // Verify HMAC signature
+    const expectedSignature = this.generateHMACSignature(payload, Number(timestamp));
+    return crypto.timingSafeEqual(
+      Buffer.from(signature as string),
+      Buffer.from(expectedSignature)
+    );
+  }
+}
+
+// Usage in admin routes
+app.post('/admin/invalidate-cache', async (req, res) => {
+  // Verify HMAC signature
+  if (!adminAuth.verifyRequest(req)) {
+    return res.status(403).json({ error: 'Invalid authentication' });
+  }
+
+  // Process admin action
+  // ...
+});
+```
+
+**Client-side (curl example):**
+```bash
+#!/bin/bash
+ADMIN_API_KEY="your-admin-api-key"
+TIMESTAMP=$(date +%s)000  # Milliseconds
+PAYLOAD='{"type":"all"}'
+
+SIGNATURE=$(echo -n "${PAYLOAD}${TIMESTAMP}" | openssl dgst -sha256 -hmac "$ADMIN_API_KEY" | awk '{print $2}')
+
+curl -X POST https://api-gateway.railway.app/admin/invalidate-cache \
+  -H "Content-Type: application/json" \
+  -H "X-Signature: $SIGNATURE" \
+  -H "X-Timestamp: $TIMESTAMP" \
+  -d "$PAYLOAD"
+```
+
+**Option B: Owner ID + Rate Limiting (Current Dev Approach)**
+
+Keep X-Owner-Id for dev, but add rate limiting:
+
+```typescript
+import rateLimit from 'express-rate-limit';
+
+// Aggressive rate limiting for admin endpoints
+const adminRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 requests per window
+  message: 'Too many admin requests, try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply to all admin routes
+app.use('/admin', adminRateLimiter);
+
+// Owner ID verification middleware
+const verifyOwner = async (req: Request, res: Response, next: NextFunction) => {
+  const ownerId = req.headers['x-owner-id'];
+
+  if (!ownerId) {
+    return res.status(401).json({ error: 'Missing X-Owner-Id header' });
+  }
+
+  // Verify owner exists in database
+  const owner = await prisma.owner.findUnique({
+    where: { id: ownerId as string },
+  });
+
+  if (!owner) {
+    return res.status(403).json({ error: 'Invalid owner ID' });
+  }
+
+  next();
+};
+
+app.use('/admin', verifyOwner);
+```
+
+#### Current Status (v3.0.0-alpha.44):
+
+**Development Environment:**
+- ✅ Using X-Owner-Id header validation
+- ❌ No rate limiting on admin endpoints
+- ❌ No HMAC signatures
+- ❌ No additional auth factors
+
+**Before Public Production Launch:**
+- [ ] Implement Option A (HMAC signatures) OR strengthen Option B (rate limiting)
+- [ ] Add `ADMIN_API_KEY` environment variable to Railway
+- [ ] Document key rotation procedure
+- [ ] Add admin endpoint monitoring/alerting
+
+#### Owner ID Rotation (Emergency Procedure):
+
+If Owner ID is compromised:
+
+1. **Generate new owner** in database:
+   ```sql
+   INSERT INTO owners (id, email)
+   VALUES (gen_random_uuid(), 'your-email@example.com');
+   ```
+
+2. **Update Railway environment variable**:
+   ```bash
+   railway variables set OWNER_ID=<new-uuid> --service api-gateway
+   ```
+
+3. **Verify old owner can't access**:
+   ```bash
+   curl -X POST https://api-gateway.railway.app/admin/invalidate-cache \
+     -H "X-Owner-Id: <old-uuid>" \
+     -d '{"type":"all"}'
+   # Should return 403
+   ```
+
+4. **Delete old owner** from database:
+   ```sql
+   DELETE FROM owners WHERE id = '<old-uuid>';
+   ```
+
+### 11. Dependency Management (Supply Chain Security)
 
 **Problem**: AI assistants can hallucinate fake npm packages. Compromised packages can steal secrets.
 
