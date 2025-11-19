@@ -9,7 +9,7 @@ import type { Message } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
-import { PersonalityService } from '@tzurot/common-types';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('VoiceMessageProcessor');
@@ -23,7 +23,7 @@ const VOICE_TRANSCRIPT_KEY = Symbol('voiceTranscript');
 export class VoiceMessageProcessor implements IMessageProcessor {
   constructor(
     private readonly voiceService: VoiceTranscriptionService,
-    private readonly personalityService: PersonalityService
+    private readonly personalityService: IPersonalityLoader
   ) {}
 
   async process(message: Message): Promise<boolean> {

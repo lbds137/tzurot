@@ -9,8 +9,8 @@
  * **Performance**: Batches all personality lookups to minimize database calls
  */
 
-import type { PersonalityService } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 
 const logger = createLogger('PersonalityMentionParser');
 const MAX_MENTION_WORDS = 4;
@@ -66,7 +66,7 @@ interface PotentialMention {
 export async function findPersonalityMention(
   content: string,
   mentionChar: string,
-  personalityService: PersonalityService
+  personalityService: IPersonalityLoader
 ): Promise<PersonalityMentionResult | null> {
   logger.debug({ content, mentionChar }, '[PersonalityMentionParser] Parsing mentions');
 

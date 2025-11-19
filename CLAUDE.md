@@ -16,6 +16,29 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 
 **Why v3 Exists**: Shapes.inc (the AI API provider for v2) killed their API to force users to their website only, forcing a complete rewrite. v3 is vendor-agnostic and uses modern patterns.
 
+## No Backward Compatibility Concerns
+
+**This is a one-person project. You control all the code. There are no external users to maintain compatibility for.**
+
+- **NEVER** add backward compatibility layers, shims, or adapters
+- **NEVER** keep old code paths "just in case"
+- **NEVER** justify a decision with "but it maintains compatibility"
+- **ALWAYS** make the cleanest change possible, even if breaking
+
+**Examples of backward compatibility anti-patterns to avoid:**
+- "I'll keep both the old and new methods for compatibility"
+- "I'll add a migration layer so existing code still works"
+- "Let me make this work with the old format too"
+- "I'll cache by all three keys to maintain compatibility"
+
+**The correct approach:**
+- Change it the RIGHT way
+- Update all call sites
+- Delete the old code
+- Ship it
+
+If a change breaks something, that's fine - you'll fix it in the next commit. Clean code > compatibility.
+
 ## Tech Stack
 
 ### Core Technologies

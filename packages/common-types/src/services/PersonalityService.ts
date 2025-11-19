@@ -155,19 +155,23 @@ export class PersonalityService {
 
   /**
    * Load a personality by name or ID
+   * Cache is always keyed by ID for consistency
    */
   async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
-    // Check cache first
-    const cached = this.cache.get(nameOrId);
-    if (cached) {
-      return cached;
+    // Check if nameOrId is a valid UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      nameOrId
+    );
+
+    // If it's a UUID, check cache by ID first
+    if (isUUID) {
+      const cached = this.cache.get(nameOrId);
+      if (cached) {
+        return cached;
+      }
     }
 
     try {
-      // Check if nameOrId is a valid UUID (to avoid Prisma UUID parsing errors)
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        nameOrId
-      );
 
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
@@ -218,10 +222,13 @@ export class PersonalityService {
         dbPersonality as DatabasePersonality,
         globalDefaultConfig
       );
-      this.cache.set(nameOrId, personality);
+
+      // Cache by ID only for clean, normalized cache keys
+      this.cache.set(personality.id, personality);
 
       logger.info(
         {
+          id: personality.id,
           name: personality.name,
           model: personality.model,
           visionModel: personality.visionModel,
@@ -289,10 +296,13 @@ export class PersonalityService {
   /**
    * Invalidate cache for a specific personality
    * Useful when personality or its config has been updated
+   *
+   * Note: Cache invalidation events always provide personality ID,
+   * so nameOrId is expected to be a UUID in normal operation
    */
   invalidatePersonality(nameOrId: string): void {
     this.cache.delete(nameOrId);
-    logger.debug(`Invalidated cache for personality: ${nameOrId}`);
+    logger.debug({ key: nameOrId }, 'Invalidated cache for personality');
   }
 
   /**
@@ -355,9 +365,9 @@ export class PersonalityService {
         this.mapToPersonality(db, db.defaultConfigLink ? null : globalDefaultConfig)
       );
 
-      // Cache all personalities
+      // Cache all personalities by ID only
       for (const personality of personalities) {
-        this.cache.set(personality.name, personality);
+        this.cache.set(personality.id, personality);
       }
 
       logger.info(`Loaded ${personalities.length} personalities from database`);
