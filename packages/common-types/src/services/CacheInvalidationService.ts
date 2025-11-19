@@ -23,6 +23,27 @@ export type InvalidationEvent =
   | { type: 'personality'; personalityId: string }
   | { type: 'all' };
 
+/**
+ * Type guard to validate InvalidationEvent structure
+ */
+function isValidInvalidationEvent(obj: unknown): obj is InvalidationEvent {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+
+  const event = obj as Record<string, unknown>;
+
+  if (event.type === 'all') {
+    return Object.keys(event).length === 1;
+  }
+
+  if (event.type === 'personality') {
+    return typeof event.personalityId === 'string' && Object.keys(event).length === 2;
+  }
+
+  return false;
+}
+
 export class CacheInvalidationService {
   private static readonly CHANNEL = 'cache:invalidation';
   private subscriber: Redis | null = null;
@@ -50,8 +71,14 @@ export class CacheInvalidationService {
         }
 
         try {
-          const event = JSON.parse(message) as unknown as InvalidationEvent;
-          this.handleInvalidationEvent(event);
+          const parsed: unknown = JSON.parse(message);
+
+          if (!isValidInvalidationEvent(parsed)) {
+            logger.error({ message }, 'Invalid invalidation event structure');
+            return;
+          }
+
+          this.handleInvalidationEvent(parsed);
         } catch (error) {
           logger.error({ err: error, message }, 'Failed to parse invalidation event');
         }
