@@ -158,6 +158,68 @@ describe('CacheInvalidationService', () => {
       expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
       expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
     });
+
+    it('should reject invalid event type', () => {
+      const invalidEvent = { type: 'invalid' };
+      const message = JSON.stringify(invalidEvent);
+
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+      handler!('cache:invalidation', message);
+
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
+      expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should reject personality event missing personalityId', () => {
+      const invalidEvent = { type: 'personality' };
+      const message = JSON.stringify(invalidEvent);
+
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+      handler!('cache:invalidation', message);
+
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
+      expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should reject personality event with non-string personalityId', () => {
+      const invalidEvent = { type: 'personality', personalityId: 123 };
+      const message = JSON.stringify(invalidEvent);
+
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+      handler!('cache:invalidation', message);
+
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
+      expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should reject events with extra properties', () => {
+      const invalidEvent = { type: 'all', extraProp: 'unexpected' };
+      const message = JSON.stringify(invalidEvent);
+
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+      handler!('cache:invalidation', message);
+
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
+      expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should reject non-object events', () => {
+      const invalidEvents = ['null', '"string"', '123', 'true', '[]'];
+
+      const handler = messageHandlers.get('message');
+      expect(handler).toBeDefined();
+
+      for (const invalidMessage of invalidEvents) {
+        handler!('cache:invalidation', invalidMessage);
+      }
+
+      expect(mockPersonalityService.invalidateAll).not.toHaveBeenCalled();
+      expect(mockPersonalityService.invalidatePersonality).not.toHaveBeenCalled();
+    });
   });
 
   describe('unsubscribe', () => {
