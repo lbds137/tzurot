@@ -58,6 +58,12 @@ export class CacheInvalidationService {
    * Call this during service initialization
    */
   async subscribe(): Promise<void> {
+    // Prevent resource leak from double-subscribe
+    if (this.subscriber) {
+      logger.debug('Already subscribed to cache invalidation events, skipping');
+      return;
+    }
+
     try {
       // Create a separate Redis connection for subscribing
       // (Redis pub/sub requires dedicated connection)
@@ -80,6 +86,10 @@ export class CacheInvalidationService {
 
           this.handleInvalidationEvent(parsed);
         } catch (error) {
+          // Note: Failed invalidations are logged but not retried. This is acceptable
+          // because personality cache has a TTL (5 minutes), so stale data will
+          // eventually be invalidated. Critical config changes should be verified
+          // manually after execution.
           logger.error({ err: error, message }, 'Failed to parse invalidation event');
         }
       });

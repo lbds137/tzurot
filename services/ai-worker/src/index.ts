@@ -95,6 +95,9 @@ async function main(): Promise<void> {
   const cacheRedis = new Redis(
     envConfig.REDIS_URL ?? `redis://${config.redis.host}:${config.redis.port}`
   );
+  cacheRedis.on('error', (err) => {
+    logger.error({ err }, '[AIWorker] Cache Redis connection error');
+  });
   logger.info('[AIWorker] Redis client initialized for cache invalidation');
 
   // Initialize PersonalityService and CacheInvalidationService

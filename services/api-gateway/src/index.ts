@@ -350,6 +350,9 @@ async function main(): Promise<void> {
 
   // Initialize cache invalidation for personality configs
   const cacheRedis = new Redis(envConfig.REDIS_URL ?? 'redis://localhost:6379');
+  cacheRedis.on('error', (err) => {
+    logger.error({ err }, '[Gateway] Cache Redis connection error');
+  });
   logger.info('[Gateway] Redis client initialized for cache invalidation');
 
   const personalityService = new PersonalityService(prisma);
