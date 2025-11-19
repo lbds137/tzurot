@@ -13,7 +13,6 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@langchain/community": "^1.0.0",
     "@langchain/core": "^1.0.1",
     "@langchain/openai": "^1.0.0",
     "@prisma/client": "^6.7.0",
