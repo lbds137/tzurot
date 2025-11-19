@@ -19,19 +19,17 @@ const logger = createLogger('Redis');
 const config = getConfig();
 
 // Get Redis connection config from environment
-// Prefer REDIS_URL (Railway provides this), fall back to individual variables
-const parsedUrl =
-  config.REDIS_URL !== undefined &&
-  config.REDIS_URL !== null &&
-  config.REDIS_URL.length > 0
-    ? parseRedisUrl(config.REDIS_URL)
-    : null;
+if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
+  throw new Error('REDIS_URL environment variable is required');
+}
+
+const parsedUrl = parseRedisUrl(config.REDIS_URL);
 
 const redisConfig = createRedisSocketConfig({
-  host: parsedUrl?.host ?? config.REDIS_HOST,
-  port: parsedUrl?.port ?? config.REDIS_PORT,
-  password: parsedUrl?.password ?? config.REDIS_PASSWORD,
-  username: parsedUrl?.username,
+  host: parsedUrl.host,
+  port: parsedUrl.port,
+  password: parsedUrl.password,
+  username: parsedUrl.username,
   family: 6, // Railway private network uses IPv6
 });
 

@@ -34,19 +34,17 @@ const logger = createLogger('ai-worker');
 const envConfig = getConfig();
 
 // Get Redis connection config from environment
-const parsedUrl =
-  envConfig.REDIS_URL !== undefined && envConfig.REDIS_URL.length > 0
-    ? parseRedisUrl(envConfig.REDIS_URL)
-    : null;
+if (envConfig.REDIS_URL === undefined || envConfig.REDIS_URL.length === 0) {
+  throw new Error('REDIS_URL environment variable is required');
+}
+
+const parsedUrl = parseRedisUrl(envConfig.REDIS_URL);
 
 const redisConfig = createBullMQRedisConfig({
-  host: parsedUrl?.host !== undefined && parsedUrl.host.length > 0 ? parsedUrl.host : envConfig.REDIS_HOST,
-  port: parsedUrl?.port !== undefined && parsedUrl.port > 0 ? parsedUrl.port : envConfig.REDIS_PORT,
-  password:
-    parsedUrl?.password !== undefined && parsedUrl.password.length > 0
-      ? parsedUrl.password
-      : envConfig.REDIS_PASSWORD,
-  username: parsedUrl?.username,
+  host: parsedUrl.host,
+  port: parsedUrl.port,
+  password: parsedUrl.password,
+  username: parsedUrl.username,
   family: 6, // Railway private network uses IPv6
 });
 
@@ -92,9 +90,8 @@ async function main(): Promise<void> {
   logger.info('[AIWorker] Prisma client initialized');
 
   // Initialize Redis for cache invalidation (separate from BullMQ Redis)
-  const cacheRedis = new Redis(
-    envConfig.REDIS_URL ?? `redis://${config.redis.host}:${config.redis.port}`
-  );
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', (err) => {
     logger.error({ err }, '[AIWorker] Cache Redis connection error');
   });
