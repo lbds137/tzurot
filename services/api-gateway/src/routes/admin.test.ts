@@ -69,9 +69,19 @@ const createMockPrismaClient = () => ({
   },
 });
 
+// Create mock CacheInvalidationService
+const createMockCacheInvalidationService = () => ({
+  invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+  invalidateAll: vi.fn().mockResolvedValue(undefined),
+  publish: vi.fn().mockResolvedValue(undefined),
+  subscribe: vi.fn().mockResolvedValue(undefined),
+  unsubscribe: vi.fn().mockResolvedValue(undefined),
+});
+
 describe('Admin Routes', () => {
   let app: Express;
   let prisma: ReturnType<typeof createMockPrismaClient>;
+  let cacheInvalidationService: ReturnType<typeof createMockCacheInvalidationService>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,10 +89,16 @@ describe('Admin Routes', () => {
     // Create mock Prisma client
     prisma = createMockPrismaClient();
 
+    // Create mock cache invalidation service
+    cacheInvalidationService = createMockCacheInvalidationService();
+
     // Create Express app with admin router
     app = express();
     app.use(express.json());
-    app.use('/admin', createAdminRouter(prisma as unknown as PrismaClient));
+    app.use(
+      '/admin',
+      createAdminRouter(prisma as unknown as PrismaClient, cacheInvalidationService as any)
+    );
   });
 
   describe('POST /admin/personality', () => {

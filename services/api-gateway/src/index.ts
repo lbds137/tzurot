@@ -91,13 +91,11 @@ const attachmentStorage = new AttachmentStorageService({
   gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
 });
 
-// Create routers with injected dependencies
+// Create AI router (admin router created in main() after cache invalidation service)
 const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
-const adminRouter = createAdminRouter(prisma);
 
-// Register routes
+// Register AI routes (admin routes registered in main())
 app.use('/ai', aiRouter);
-app.use('/admin', adminRouter);
 
 // Serve personality avatars with DB fallback
 // Avatars are primarily served from filesystem (/data/avatars)
@@ -364,6 +362,11 @@ async function main(): Promise<void> {
   // Subscribe to cache invalidation events
   await cacheInvalidationService.subscribe();
   logger.info('[Gateway] Subscribed to personality cache invalidation events');
+
+  // Create and register admin routes with cache invalidation service
+  const adminRouter = createAdminRouter(prisma, cacheInvalidationService);
+  app.use('/admin', adminRouter);
+  logger.info('[Gateway] Admin routes registered with cache invalidation support');
 
   // Start HTTP server
   const server = app.listen(config.port, (err?: Error) => {

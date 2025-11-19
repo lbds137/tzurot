@@ -513,6 +513,112 @@ git push --force origin main
 git push --force-with-lease origin feat/my-feature
 ```
 
+## Release Workflow
+
+### Creating a Release PR to main
+
+**When:** Ready to deploy develop to production (main branch)
+
+**Process:**
+
+1. **Check current version**
+   ```bash
+   # Check version in package.json
+   cat package.json | grep '"version"' | head -1
+   # Current: "3.0.0-alpha.43" → Next: "3.0.0-alpha.44"
+   ```
+
+2. **Bump version in all packages**
+   ```bash
+   # Root package.json
+   # services/ai-worker/package.json
+   # services/api-gateway/package.json
+   # services/bot-client/package.json
+   # packages/common-types/package.json
+
+   # Increment alpha version: alpha.43 → alpha.44
+   # Or bump to beta/rc/release as appropriate
+   ```
+
+3. **Commit and push version bump**
+   ```bash
+   git add package.json services/*/package.json packages/*/package.json
+   git commit -m "chore: bump version to 3.0.0-alpha.44"
+   git push origin develop
+   ```
+
+4. **Create release PR to main**
+   ```bash
+   # IMPORTANT: Target main, not develop!
+   gh pr create --base main --head develop \
+     --title "Release v3.0.0-alpha.44: [Brief description]" \
+     --body "$(cat <<'EOF'
+   ## Release Summary
+   Brief overview of what's in this release
+
+   ## Major Changes
+   ### Feature Category 1
+   - Feature A
+   - Feature B
+
+   ### Feature Category 2
+   - Improvement C
+   - Fix D
+
+   ## Testing
+   All X,XXX tests passing:
+   - common-types: X tests
+   - api-gateway: X tests
+   - ai-worker: X tests
+   - bot-client: X tests
+
+   ## Deployment Verification
+   ✅ All services healthy in Railway development
+   ✅ Smoke tests passing
+   ✅ [Other verifications]
+
+   ## Breaking Changes
+   [None, or list breaking changes]
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   EOF
+   )"
+   ```
+
+5. **Review and merge**
+   - Verify all commits are included
+   - Merge using "Rebase and merge" (only option enabled)
+   - Delete develop branch? NO - keep it for ongoing development
+
+### Version Numbering
+
+**Current versioning scheme: Semantic Versioning with pre-release tags**
+
+- `3.0.0-alpha.X` - Alpha releases (current phase)
+- `3.0.0-beta.X` - Beta releases (after alpha testing complete)
+- `3.0.0-rc.X` - Release candidates (production-ready, final testing)
+- `3.0.0` - Production release
+- `3.1.0` - Minor version (new features, backward compatible)
+- `3.0.1` - Patch version (bug fixes only)
+- `4.0.0` - Major version (breaking changes)
+
+**When to increment:**
+- **Alpha**: Each release to main during alpha testing (increment X)
+- **Beta**: Transition from alpha when core features complete
+- **RC**: When ready for production, final testing phase
+- **Release**: When production-ready and verified
+- **Patch**: Bug fixes only, no new features
+- **Minor**: New features, backward compatible
+- **Major**: Breaking changes, API changes
+
+**Release checklist:**
+- [ ] Version bumped in all package.json files
+- [ ] CHANGELOG.md updated with release notes
+- [ ] All tests passing
+- [ ] Smoke tests in development environment passed
+- [ ] PR title includes version number
+- [ ] PR description includes comprehensive release notes
+
 ## Related Skills
 
 - **tzurot-docs** - Session handoff and CURRENT_WORK.md updates
