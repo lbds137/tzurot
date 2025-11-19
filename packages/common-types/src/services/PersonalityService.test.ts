@@ -34,7 +34,7 @@ describe('PersonalityService - Cache Invalidation', () => {
     it('should invalidate specific personality from cache', async () => {
       // Setup: Load a personality to cache it
       const mockPersonality = {
-        id: 'test-id',
+        id: '00000000-0000-0000-0000-000000000001',
         name: 'TestPersonality',
         displayName: 'Test Personality',
         slug: 'test',
@@ -67,21 +67,21 @@ describe('PersonalityService - Cache Invalidation', () => {
 
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
 
-      // Load personality (should cache it)
-      const loaded1 = await service.loadPersonality('test');
+      // Load personality by ID (should cache it by ID)
+      const loaded1 = await service.loadPersonality('00000000-0000-0000-0000-000000000001');
       expect(loaded1).not.toBeNull();
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
 
-      // Load again (should come from cache, no DB call)
-      const loaded2 = await service.loadPersonality('test');
+      // Load again by ID (should come from cache, no DB call)
+      const loaded2 = await service.loadPersonality('00000000-0000-0000-0000-000000000001');
       expect(loaded2).not.toBeNull();
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1); // Still 1
 
-      // Invalidate the cache
-      service.invalidatePersonality('test');
+      // Invalidate the cache by ID
+      service.invalidatePersonality('00000000-0000-0000-0000-000000000001');
 
-      // Load again (should hit DB again since cache was invalidated)
-      const loaded3 = await service.loadPersonality('test');
+      // Load again by ID (should hit DB again since cache was invalidated)
+      const loaded3 = await service.loadPersonality('00000000-0000-0000-0000-000000000001');
       expect(loaded3).not.toBeNull();
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2); // Now 2
     });
@@ -92,13 +92,65 @@ describe('PersonalityService - Cache Invalidation', () => {
         service.invalidatePersonality('non-existent');
       }).not.toThrow();
     });
+
+    it('should cache by ID and invalidate by ID', async () => {
+      // Setup: Mock personality with id, name, and slug
+      const mockPersonality = {
+        id: 'c0b36b1b-0c5b-59ac-a6e2-5d50d0e2036a',
+        name: 'COLD',
+        displayName: 'Cold',
+        slug: 'cold',
+        systemPrompt: { content: 'Test prompt' },
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'test-model',
+            visionModel: null,
+            temperature: 0.7,
+            topP: null,
+            topK: null,
+            frequencyPenalty: null,
+            presencePenalty: null,
+            maxTokens: 1000,
+            memoryScoreThreshold: 0.7,
+            memoryLimit: 10,
+            contextWindowTokens: 4096,
+          },
+        },
+        characterInfo: 'Test character',
+        personalityTraits: 'Test traits',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+      };
+
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+      // Load personality by ID (should cache by ID only)
+      await service.loadPersonality('c0b36b1b-0c5b-59ac-a6e2-5d50d0e2036a');
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+
+      // Load by ID again - should hit cache
+      await service.loadPersonality('c0b36b1b-0c5b-59ac-a6e2-5d50d0e2036a');
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1); // Still 1 (cache hit)
+
+      // Invalidate by ID (this is what cache invalidation events use)
+      service.invalidatePersonality('c0b36b1b-0c5b-59ac-a6e2-5d50d0e2036a');
+
+      // Load by ID again - should hit DB (cache was invalidated)
+      await service.loadPersonality('c0b36b1b-0c5b-59ac-a6e2-5d50d0e2036a');
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2); // Now 2 (cache miss)
+    });
   });
 
   describe('invalidateAll', () => {
     it('should clear entire cache', async () => {
       // Setup: Load multiple personalities
       const mockPersonality1 = {
-        id: 'test-id-1',
+        id: '00000000-0000-0000-0000-000000000011',
         name: 'TestPersonality1',
         displayName: 'Test 1',
         slug: 'test1',
@@ -131,7 +183,7 @@ describe('PersonalityService - Cache Invalidation', () => {
 
       const mockPersonality2 = {
         ...mockPersonality1,
-        id: 'test-id-2',
+        id: '00000000-0000-0000-0000-000000000022',
         name: 'TestPersonality2',
         displayName: 'Test 2',
         slug: 'test2',
@@ -143,22 +195,22 @@ describe('PersonalityService - Cache Invalidation', () => {
         .mockResolvedValueOnce(mockPersonality1 as any)
         .mockResolvedValueOnce(mockPersonality2 as any);
 
-      // Load two personalities (cache them)
-      await service.loadPersonality('test1');
-      await service.loadPersonality('test2');
+      // Load two personalities by ID (cache them)
+      await service.loadPersonality('00000000-0000-0000-0000-000000000011');
+      await service.loadPersonality('00000000-0000-0000-0000-000000000022');
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2);
 
-      // Verify cache hit
-      await service.loadPersonality('test1');
-      await service.loadPersonality('test2');
+      // Verify cache hit by loading by ID again
+      await service.loadPersonality('00000000-0000-0000-0000-000000000011');
+      await service.loadPersonality('00000000-0000-0000-0000-000000000022');
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2); // Still 2
 
       // Invalidate entire cache
       service.invalidateAll();
 
-      // Load both again (should hit DB since cache was cleared)
-      await service.loadPersonality('test1');
-      await service.loadPersonality('test2');
+      // Load both again by ID (should hit DB since cache was cleared)
+      await service.loadPersonality('00000000-0000-0000-0000-000000000011');
+      await service.loadPersonality('00000000-0000-0000-0000-000000000022');
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(4); // Now 4
     });
 
@@ -224,7 +276,7 @@ describe('PersonalityService - Cache Invalidation', () => {
       // Load a personality
       await service.loadPersonality('test');
 
-      // Cache should have 1 entry
+      // Cache should have 1 entry (by ID only)
       stats = service.getCacheStats();
       expect(stats.size).toBe(1);
 

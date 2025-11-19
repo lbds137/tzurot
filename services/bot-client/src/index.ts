@@ -24,6 +24,7 @@ import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.
 import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
+import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 
 // Processors
 import { BotMessageFilter } from './processors/BotMessageFilter.js';
@@ -104,6 +105,7 @@ function createServices(): Services {
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
+  const personalityIdCache = new PersonalityIdCache(personalityService); // Optimizes name→ID lookups
   const userService = new UserService(prisma);
 
   // Message handling services
@@ -112,7 +114,7 @@ function createServices(): Services {
   const persistence = new ConversationPersistence(prisma);
   const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
   const referenceEnricher = new ReferenceEnrichmentService(userService);
-  const replyResolver = new ReplyResolutionService(personalityService);
+  const replyResolver = new ReplyResolutionService(personalityIdCache);
 
   // Personality message handler (used by multiple processors)
   const personalityHandler = new PersonalityMessageHandler(
@@ -127,10 +129,10 @@ function createServices(): Services {
   const processors = [
     new BotMessageFilter(),
     new EmptyMessageFilter(),
-    new VoiceMessageProcessor(voiceTranscription, personalityService),
+    new VoiceMessageProcessor(voiceTranscription, personalityIdCache),
     new ReplyMessageProcessor(replyResolver, personalityHandler),
-    new PersonalityMentionProcessor(personalityService, personalityHandler),
-    new BotMentionProcessor(personalityService, personalityHandler),
+    new PersonalityMentionProcessor(personalityIdCache, personalityHandler),
+    new BotMentionProcessor(personalityIdCache, personalityHandler),
   ];
 
   // Create MessageHandler with full dependency injection

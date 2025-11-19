@@ -6,8 +6,9 @@
  */
 
 import type { Message } from 'discord.js';
-import { PersonalityService, createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { getWebhookPersonality } from '../redis.js';
 
 const logger = createLogger('ReplyResolutionService');
@@ -16,7 +17,7 @@ const logger = createLogger('ReplyResolutionService');
  * Resolves personality from replied-to messages
  */
 export class ReplyResolutionService {
-  constructor(private readonly personalityService: PersonalityService) {}
+  constructor(private readonly personalityService: IPersonalityLoader) {}
 
   /**
    * Resolve which personality a reply is targeting

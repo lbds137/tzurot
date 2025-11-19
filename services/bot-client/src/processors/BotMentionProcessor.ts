@@ -7,8 +7,9 @@
  */
 
 import type { Message } from 'discord.js';
-import { PersonalityService, createLogger } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 
@@ -16,7 +17,7 @@ const logger = createLogger('BotMentionProcessor');
 
 export class BotMentionProcessor implements IMessageProcessor {
   constructor(
-    private readonly personalityService: PersonalityService,
+    private readonly personalityService: IPersonalityLoader,
     private readonly personalityHandler: PersonalityMessageHandler
   ) {}
 
