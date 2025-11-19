@@ -35,6 +35,7 @@ import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
+import { ContextWindowManager } from './context/ContextWindowManager.js';
 
 const logger = createLogger('ConversationalRAGService');
 
@@ -127,6 +128,7 @@ export class ConversationalRAGService {
   private promptBuilder: PromptBuilder;
   private longTermMemory: LongTermMemoryService;
   private referencedMessageFormatter: ReferencedMessageFormatter;
+  private contextWindowManager: ContextWindowManager;
 
   constructor(memoryManager?: PgvectorMemoryAdapter) {
     this.llmInvoker = new LLMInvoker();
@@ -134,6 +136,7 @@ export class ConversationalRAGService {
     this.promptBuilder = new PromptBuilder();
     this.longTermMemory = new LongTermMemoryService(memoryManager);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
+    this.contextWindowManager = new ContextWindowManager();
   }
 
   /**
@@ -209,84 +212,39 @@ export class ConversationalRAGService {
           : undefined;
 
       // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
-      // Build system prompt first (without history) to count tokens
-      const fullSystemMessage = this.promptBuilder.buildFullSystemPrompt(
+      // Build system prompt and current message first
+      const systemPrompt = this.promptBuilder.buildFullSystemPrompt(
         personality,
         participantPersonas,
         relevantMemories,
         context,
         referencedMessagesDescriptions
       );
-      const systemPromptTokens = this.promptBuilder.countTokens(fullSystemMessage.content as string);
 
-      // Build current user message to count tokens
-      const { message: humanMessage, contentForStorage } =
+      const { message: currentMessage, contentForStorage } =
         this.promptBuilder.buildHumanMessage(
           userMessage,
           processedAttachments,
           context.activePersonaName,
           referencedMessagesDescriptions
         );
-      const currentMessageTokens = this.promptBuilder.countTokens(humanMessage.content as string);
 
-      // Count memory tokens
-      const memoryTokens = this.promptBuilder.countMemoryTokens(relevantMemories);
+      // Use ContextWindowManager to calculate budget and select history
+      const promptContext = this.contextWindowManager.buildContext({
+        systemPrompt,
+        currentMessage,
+        relevantMemories,
+        conversationHistory: context.conversationHistory ?? [],
+        rawConversationHistory: context.rawConversationHistory,
+        contextWindowTokens: personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
+      });
 
-      // Calculate history token budget
-      const contextWindowTokens = personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
-      const historyBudget = Math.max(
-        0,
-        contextWindowTokens - systemPromptTokens - currentMessageTokens - memoryTokens
-      );
-
-      logger.info(
-        `[RAG] Token budget: total=${contextWindowTokens}, system=${systemPromptTokens}, current=${currentMessageTokens}, memories=${memoryTokens}, historyBudget=${historyBudget}`
-      );
-
-      // Build conversation history
-      const messages: BaseMessage[] = [];
-      messages.push(fullSystemMessage);
-
-      // Add conversation history within token budget
-      if (context.conversationHistory && context.conversationHistory.length > 0 && historyBudget > 0) {
-        // Work backwards from newest message, counting tokens until budget exhausted
-        let historyTokensUsed = 0;
-        const historyToInclude: BaseMessage[] = [];
-        const rawHistory = context.rawConversationHistory ?? [];
-
-        for (let i = context.conversationHistory.length - 1; i >= 0; i--) {
-          const msg = context.conversationHistory[i];
-          const rawMsg = rawHistory[i];
-
-          // Use cached token count if available, otherwise compute it
-          // (Web Claude optimization: avoid recomputing tokens on every request)
-          const msgTokens = rawMsg?.tokenCount ?? this.promptBuilder.countTokens(msg.content as string);
-
-          // Stop if adding this message would exceed budget
-          if (historyTokensUsed + msgTokens > historyBudget) {
-            logger.debug(
-              `[RAG] Stopping history inclusion: would exceed budget (${historyTokensUsed + msgTokens} > ${historyBudget})`
-            );
-            break;
-          }
-
-          historyToInclude.unshift(msg); // Add to front to maintain chronological order
-          historyTokensUsed += msgTokens;
-        }
-
-        messages.push(...historyToInclude);
-        logger.info(
-          `[RAG] Including ${historyToInclude.length} history messages (${historyTokensUsed} tokens, budget: ${historyBudget})`
-        );
-      } else if (historyBudget <= 0) {
-        logger.warn(
-          {},
-          `[RAG] No history budget available! System prompt and current message consumed entire context window.`
-        );
-      }
-
-      // Add current user message last
-      messages.push(humanMessage);
+      // Build final messages array from prompt context
+      const messages: BaseMessage[] = [
+        promptContext.systemPrompt,
+        ...promptContext.selectedHistory,
+        promptContext.currentMessage,
+      ];
 
       // Get the appropriate model (provider determined by AI_PROVIDER env var)
       const { model, modelName } = this.llmInvoker.getModel(
