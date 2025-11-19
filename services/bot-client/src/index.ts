@@ -1,7 +1,9 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
+import { Redis } from 'ioredis';
 import {
   createLogger,
   PersonalityService,
+  CacheInvalidationService,
   UserService,
   disconnectPrisma,
   getPrismaClient,
@@ -68,6 +70,8 @@ interface Services {
   resultsListener: ResultsListener;
   webhookManager: WebhookManager;
   personalityService: PersonalityService;
+  cacheRedis: Redis;
+  cacheInvalidationService: CacheInvalidationService;
 }
 
 /**
@@ -81,6 +85,10 @@ function createServices(): Services {
   const prisma = getPrismaClient();
   logger.info('[Bot] Prisma client initialized');
 
+  // Initialize Redis for cache invalidation
+  const cacheRedis = new Redis(envConfig.REDIS_URL ?? 'redis://localhost:6379');
+  logger.info('[Bot] Redis client initialized for cache invalidation');
+
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);
   const webhookManager = new WebhookManager(client);
@@ -89,6 +97,7 @@ function createServices(): Services {
 
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
+  const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
   const userService = new UserService(prisma);
 
   // Message handling services
@@ -133,6 +142,8 @@ function createServices(): Services {
     resultsListener,
     webhookManager,
     personalityService,
+    cacheRedis,
+    cacheInvalidationService,
   };
 }
 
@@ -185,6 +196,8 @@ process.on('SIGINT', () => {
   services.jobTracker.cleanup();
   void services.resultsListener.stop();
   services.webhookManager.destroy();
+  void services.cacheInvalidationService.unsubscribe();
+  services.cacheRedis.disconnect();
   void closeRedis();
   void client.destroy();
   void disconnectPrisma();
@@ -230,6 +243,10 @@ async function start(): Promise<void> {
     logger.info('[Bot] Initializing services with dependency injection...');
     services = createServices();
     logger.info('[Bot] All services initialized');
+
+    // Subscribe to cache invalidation events
+    await services.cacheInvalidationService.subscribe();
+    logger.info('[Bot] Subscribed to personality cache invalidation events');
 
     // Health check gateway
     logger.info('[Bot] Checking gateway health...');

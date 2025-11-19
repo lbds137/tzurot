@@ -13,8 +13,18 @@
  */
 
 import express from 'express';
+import { Redis } from 'ioredis';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, getConfig, getPrismaClient, CONTENT_TYPES, CACHE_CONTROL, HealthStatus } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  getPrismaClient,
+  PersonalityService,
+  CacheInvalidationService,
+  CONTENT_TYPES,
+  CACHE_CONTROL,
+  HealthStatus,
+} from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { createAIRouter } from './routes/ai.js';
 import { createAdminRouter } from './routes/admin.js';
@@ -338,6 +348,17 @@ async function main(): Promise<void> {
 
   logger.info('[Gateway] Request deduplication cache initialized');
 
+  // Initialize cache invalidation for personality configs
+  const cacheRedis = new Redis(envConfig.REDIS_URL ?? 'redis://localhost:6379');
+  logger.info('[Gateway] Redis client initialized for cache invalidation');
+
+  const personalityService = new PersonalityService(prisma);
+  const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
+
+  // Subscribe to cache invalidation events
+  await cacheInvalidationService.subscribe();
+  logger.info('[Gateway] Subscribed to personality cache invalidation events');
+
   // Start HTTP server
   const server = app.listen(config.port, (err?: Error) => {
     if (err) {
@@ -366,6 +387,11 @@ async function main(): Promise<void> {
     // Dispose deduplication cache
     deduplicationCache.dispose();
     logger.info('[Gateway] Request deduplication cache disposed');
+
+    // Unsubscribe from cache invalidation
+    await cacheInvalidationService.unsubscribe();
+    cacheRedis.disconnect();
+    logger.info('[Gateway] Cache invalidation service closed');
 
     // Close queue connections
     await closeQueue();

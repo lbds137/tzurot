@@ -40,3 +40,4 @@ export * from './services/prisma.js';
 export * from './services/PersonalityService.js';
 export * from './services/ConversationHistoryService.js';
 export * from './services/UserService.js';
+export * from './services/CacheInvalidationService.js';

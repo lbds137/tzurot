@@ -10,6 +10,7 @@
  */
 
 import { Worker, Job, Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
@@ -19,6 +20,8 @@ import {
   parseRedisUrl,
   createBullMQRedisConfig,
   getPrismaClient,
+  PersonalityService,
+  CacheInvalidationService,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -87,6 +90,20 @@ async function main(): Promise<void> {
   // Composition Root: Create Prisma client for dependency injection
   const prisma = getPrismaClient();
   logger.info('[AIWorker] Prisma client initialized');
+
+  // Initialize Redis for cache invalidation (separate from BullMQ Redis)
+  const cacheRedis = new Redis(
+    envConfig.REDIS_URL ?? `redis://${config.redis.host}:${config.redis.port}`
+  );
+  logger.info('[AIWorker] Redis client initialized for cache invalidation');
+
+  // Initialize PersonalityService and CacheInvalidationService
+  const personalityService = new PersonalityService(prisma);
+  const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
+
+  // Subscribe to cache invalidation events
+  await cacheInvalidationService.subscribe();
+  logger.info('[AIWorker] Subscribed to personality cache invalidation events');
 
   // Initialize vector memory manager (pgvector)
   let memoryManager: PgvectorMemoryAdapter | undefined;
@@ -257,6 +274,8 @@ async function main(): Promise<void> {
     await scheduledWorker.close();
     await scheduledQueue.close();
     await pendingMemoryProcessor.disconnect();
+    await cacheInvalidationService.unsubscribe();
+    cacheRedis.disconnect();
     logger.info('[AIWorker] All workers and connections closed');
     process.exit(0);
   };
