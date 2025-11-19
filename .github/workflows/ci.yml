@@ -44,6 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v2
@@ -75,11 +77,6 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./packages/common-types/coverage/coverage-final.json,./services/api-gateway/coverage/coverage-final.json,./services/ai-worker/coverage/coverage-final.json,./services/bot-client/coverage/coverage-final.json
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-        verbose: true
 
     - name: Run type checking
       run: pnpm run typecheck
