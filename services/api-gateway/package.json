@@ -19,6 +19,7 @@
     "express": "^5.1.0",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.8.2",
+    "pg": "^8.16.3",
     "pino": "^10.1.0",
     "pino-http": "^11.0.0",
     "redis": "^5.9.0",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.19.1",
+    "@types/pg": "^8.15.6",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4"
   }

@@ -28,6 +28,7 @@ import {
 import { createRequire } from 'module';
 import { createAIRouter } from './routes/ai.js';
 import { createAdminRouter } from './routes/admin.js';
+import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
@@ -363,6 +364,18 @@ async function main(): Promise<void> {
   await cacheInvalidationService.subscribe();
   logger.info('[Gateway] Subscribed to personality cache invalidation events');
 
+  // Start listening for database NOTIFY events (PostgreSQL triggers)
+  // This automatically invalidates cache when database changes occur
+  if (envConfig.DATABASE_URL === undefined || envConfig.DATABASE_URL.length === 0) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+  const dbNotificationListener = new DatabaseNotificationListener(
+    envConfig.DATABASE_URL,
+    cacheInvalidationService
+  );
+  await dbNotificationListener.start();
+  logger.info('[Gateway] Listening for database change notifications');
+
   // Create and register admin routes with cache invalidation service
   const adminRouter = createAdminRouter(prisma, cacheInvalidationService);
   app.use('/admin', adminRouter);
@@ -396,6 +409,10 @@ async function main(): Promise<void> {
     // Dispose deduplication cache
     deduplicationCache.dispose();
     logger.info('[Gateway] Request deduplication cache disposed');
+
+    // Stop database notification listener
+    await dbNotificationListener.stop();
+    logger.info('[Gateway] Database notification listener stopped');
 
     // Unsubscribe from cache invalidation
     await cacheInvalidationService.unsubscribe();
