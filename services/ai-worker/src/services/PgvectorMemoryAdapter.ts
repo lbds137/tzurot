@@ -291,7 +291,7 @@ export class PgvectorMemoryAdapter {
             guildId: memory.guild_id,
             messageIds: memory.message_ids,
             senders: memory.senders,
-            timestamp: Math.floor(new Date(memory.created_at).getTime() / 1000),
+            createdAt: new Date(memory.created_at).getTime(), // Store as milliseconds for formatMemoryTimestamp
             distance: memory.distance,
             score: 1 - memory.distance, // Convert distance back to similarity score
           },
