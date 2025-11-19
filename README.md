@@ -1,5 +1,8 @@
 # Tzurot v3
 
+[![codecov](https://codecov.io/gh/lbds137/tzurot/branch/develop/graph/badge.svg)](https://codecov.io/gh/lbds137/tzurot)
+[![CI](https://github.com/lbds137/tzurot/workflows/CI/badge.svg)](https://github.com/lbds137/tzurot/actions)
+
 > **🔨 Status**: Active development deployment (private testing only)
 
 A modern, scalable Discord bot with customizable AI personalities, powered by microservices architecture with long-term memory.
