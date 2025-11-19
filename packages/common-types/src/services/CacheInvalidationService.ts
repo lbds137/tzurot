@@ -26,8 +26,9 @@ export type InvalidationEvent =
 
 /**
  * Type guard to validate InvalidationEvent structure
+ * Exported for use in DatabaseNotificationListener
  */
-function isValidInvalidationEvent(obj: unknown): obj is InvalidationEvent {
+export function isValidInvalidationEvent(obj: unknown): obj is InvalidationEvent {
   if (typeof obj !== 'object' || obj === null) {
     return false;
   }

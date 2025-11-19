@@ -12,15 +12,20 @@
  */
 
 import { Client } from 'pg';
-import { createLogger } from '@tzurot/common-types';
-import type { CacheInvalidationService, InvalidationEvent } from '@tzurot/common-types';
+import { createLogger, isValidInvalidationEvent } from '@tzurot/common-types';
+import type { CacheInvalidationService } from '@tzurot/common-types';
 
 const logger = createLogger('DatabaseNotificationListener');
+
+const INITIAL_RECONNECT_DELAY_MS = 1000; // Start with 1 second
+const MAX_RECONNECT_DELAY_MS = 60000; // Max 1 minute
+const MAX_RECONNECT_ATTEMPTS = 20; // Give up after 20 attempts
 
 export class DatabaseNotificationListener {
   private client: Client | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private isShuttingDown = false;
+  private reconnectAttempts = 0;
 
   constructor(
     private databaseUrl: string,
@@ -84,13 +89,19 @@ export class DatabaseNotificationListener {
    */
   private handleNotification(payload: string): void {
     try {
-      const event = JSON.parse(payload) as InvalidationEvent;
+      const parsed: unknown = JSON.parse(payload);
 
-      logger.debug({ event }, 'Received database notification');
+      // Validate event structure before forwarding
+      if (!isValidInvalidationEvent(parsed)) {
+        logger.error({ payload }, 'Invalid notification event structure from database');
+        return;
+      }
+
+      logger.debug({ event: parsed }, 'Received database notification');
 
       // Forward to Redis pub/sub (which all services subscribe to)
-      this.cacheInvalidationService.publish(event).catch((error) => {
-        logger.error({ err: error, event }, 'Failed to forward cache invalidation event');
+      this.cacheInvalidationService.publish(parsed).catch((error) => {
+        logger.error({ err: error, event: parsed }, 'Failed to forward cache invalidation event');
       });
     } catch (error) {
       logger.error({ err: error, payload }, 'Failed to parse database notification');
@@ -98,10 +109,19 @@ export class DatabaseNotificationListener {
   }
 
   /**
-   * Schedule reconnection attempt
+   * Schedule reconnection attempt with exponential backoff
    */
   private scheduleReconnect(): void {
     if (this.isShuttingDown) {
+      return;
+    }
+
+    // Give up after max attempts
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      logger.error(
+        { attempts: this.reconnectAttempts },
+        'Max reconnection attempts reached, giving up on database notifications'
+      );
       return;
     }
 
@@ -119,14 +139,31 @@ export class DatabaseNotificationListener {
       clearTimeout(this.reconnectTimeout);
     }
 
-    // Attempt reconnect after 5 seconds
+    // Calculate delay with exponential backoff
+    const delay = Math.min(
+      INITIAL_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempts),
+      MAX_RECONNECT_DELAY_MS
+    );
+
+    this.reconnectAttempts++;
+
+    // Attempt reconnect after calculated delay
     this.reconnectTimeout = setTimeout(() => {
-      logger.info('Attempting to reconnect to database notifications');
-      this.connect().catch((error) => {
-        logger.error({ err: error }, 'Reconnection attempt failed');
-        this.scheduleReconnect();
-      });
-    }, 5000);
+      logger.info(
+        { attempt: this.reconnectAttempts, delayMs: delay },
+        'Attempting to reconnect to database notifications'
+      );
+      this.connect()
+        .then(() => {
+          // Reset attempts on successful connection
+          this.reconnectAttempts = 0;
+          logger.info('Successfully reconnected to database notifications');
+        })
+        .catch((error) => {
+          logger.error({ err: error }, 'Reconnection attempt failed');
+          this.scheduleReconnect();
+        });
+    }, delay);
   }
 
   /**
