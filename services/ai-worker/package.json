@@ -13,13 +13,13 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@langchain/core": "^1.0.1",
-    "@langchain/openai": "^1.0.0",
-    "@prisma/client": "^6.7.0",
+    "@langchain/core": "^1.0.6",
+    "@langchain/openai": "^1.1.2",
+    "@prisma/client": "^6.19.0",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.1.0",
     "langchain": "^1.0.1",
-    "openai": "^6.7.0",
+    "openai": "^6.9.1",
     "pino": "^10.1.0",
     "redis": "^5.9.0",
     "sharp": "^0.34.4",
