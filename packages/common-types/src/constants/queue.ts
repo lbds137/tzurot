@@ -56,6 +56,14 @@ export const REDIS_KEY_PREFIXES = {
 } as const;
 
 /**
+ * Redis pub/sub channels
+ */
+export const REDIS_CHANNELS = {
+  /** Channel for broadcasting cache invalidation events across services */
+  CACHE_INVALIDATION: 'cache:invalidation',
+} as const;
+
+/**
  * Job status types for queue processing
  */
 export enum JobStatus {
