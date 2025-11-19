@@ -211,7 +211,7 @@ class TokenBudgetService {
 app.post('/ai/generate', async (req, res) => {
   const estimatedTokens = estimateTokens(req.body.prompt);
 
-  const hasbudget = await tokenBudgetService.checkBudget(
+  const hasBudget = await tokenBudgetService.checkBudget(
     req.body.userId,
     estimatedTokens
   );

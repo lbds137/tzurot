@@ -50,21 +50,33 @@ Tzurot v3 includes 11 project-specific Claude Code Skills in `.claude/skills/` t
 ### Available Skills
 
 **Core Development Skills:**
-1. **tzurot-testing** - Vitest patterns, fake timers, promise handling, mocking strategies, colocated tests
-2. **tzurot-constants** - Magic numbers elimination, domain-separated organization, centralization rules
-3. **tzurot-git-workflow** - Rebase-only strategy, PR creation against develop, commit format, safety checks
-4. **tzurot-security** - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permissions, microservices security, supply chain integrity
+1. **tzurot-testing** - Vitest patterns, fake timers, promise handling, mocking strategies,
+   colocated tests
+2. **tzurot-constants** - Magic numbers elimination, domain-separated organization,
+   centralization rules
+3. **tzurot-git-workflow** - Rebase-only strategy, PR creation against develop,
+   commit format, safety checks
+4. **tzurot-security** - Secret management, AI-specific security (prompt injection,
+   PII scrubbing), Economic DoS prevention, Discord permissions, microservices security,
+   supply chain integrity
 
 **Architecture & Design Skills:**
-5. **tzurot-architecture** - Microservices boundaries, service responsibilities, dependency rules, anti-patterns from v2
-6. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md), session handoff protocol
-7. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini, cost optimization, prompt structuring
+5. **tzurot-architecture** - Microservices boundaries, service responsibilities,
+   dependency rules, anti-patterns from v2
+6. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md),
+   session handoff protocol
+7. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
+   cost optimization, prompt structuring
 
 **Advanced Technical Skills:**
-8. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports, runtime validation
-9. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search, connection pooling, migrations
-10. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral, idempotency, retry strategies
-11. **tzurot-observability** - Structured logging with Pino, correlation IDs, privacy considerations, Railway log analysis
+8. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports,
+   runtime validation
+9. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search,
+   connection pooling, migrations
+10. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral,
+    idempotency, retry strategies
+11. **tzurot-observability** - Structured logging with Pino, correlation IDs,
+    privacy considerations, Railway log analysis
 
 ### How Skills Work
 
@@ -76,17 +88,12 @@ Skills automatically activate when their topics become relevant during developme
 
 ### Invoking Skills Manually
 
-While skills auto-activate, you can explicitly invoke them:
+While skills auto-activate, you can explicitly invoke them using the Skill tool:
 
-```typescript
-// Example: Need testing guidance
-skill: "tzurot-testing"
-
-// Example: Working with database
-skill: "tzurot-db-vector"
-
-// Example: Refactoring code
-skill: "tzurot-architecture"
+```
+skill: "tzurot-testing"       # Testing guidance
+skill: "tzurot-db-vector"     # Database/pgvector patterns
+skill: "tzurot-architecture"  # Service design decisions
 ```
 
 ### Skill Maintenance
