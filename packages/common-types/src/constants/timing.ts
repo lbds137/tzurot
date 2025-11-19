@@ -80,6 +80,18 @@ export const REDIS_CONNECTION = {
 } as const;
 
 /**
+ * Database notification listener reconnection configuration
+ */
+export const DATABASE_RECONNECT = {
+  /** Initial reconnection delay (1 second) */
+  INITIAL_DELAY: 1000,
+  /** Maximum reconnection delay (1 minute) */
+  MAX_DELAY: 60000,
+  /** Maximum reconnection attempts before giving up */
+  MAX_ATTEMPTS: 20,
+} as const;
+
+/**
  * Retry configuration for transient errors
  *
  * IMPORTANT: All components use MAX_ATTEMPTS: 3 (1 initial + 2 retries) for consistency.

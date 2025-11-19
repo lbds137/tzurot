@@ -12,14 +12,14 @@
  */
 
 import { Client } from 'pg';
-import { createLogger, isValidInvalidationEvent } from '@tzurot/common-types';
+import {
+  createLogger,
+  isValidInvalidationEvent,
+  DATABASE_RECONNECT,
+} from '@tzurot/common-types';
 import type { CacheInvalidationService } from '@tzurot/common-types';
 
 const logger = createLogger('DatabaseNotificationListener');
-
-const INITIAL_RECONNECT_DELAY_MS = 1000; // Start with 1 second
-const MAX_RECONNECT_DELAY_MS = 60000; // Max 1 minute
-const MAX_RECONNECT_ATTEMPTS = 20; // Give up after 20 attempts
 
 export class DatabaseNotificationListener {
   private client: Client | null = null;
@@ -117,7 +117,7 @@ export class DatabaseNotificationListener {
     }
 
     // Give up after max attempts
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    if (this.reconnectAttempts >= DATABASE_RECONNECT.MAX_ATTEMPTS) {
       logger.error(
         { attempts: this.reconnectAttempts },
         'Max reconnection attempts reached, giving up on database notifications'
@@ -141,8 +141,8 @@ export class DatabaseNotificationListener {
 
     // Calculate delay with exponential backoff
     const delay = Math.min(
-      INITIAL_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempts),
-      MAX_RECONNECT_DELAY_MS
+      DATABASE_RECONNECT.INITIAL_DELAY * Math.pow(2, this.reconnectAttempts),
+      DATABASE_RECONNECT.MAX_DELAY
     );
 
     this.reconnectAttempts++;
