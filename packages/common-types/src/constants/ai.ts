@@ -68,8 +68,5 @@ export type DefaultModelName = (typeof MODEL_DEFAULTS)[keyof typeof MODEL_DEFAUL
  */
 export enum AIProvider {
   OpenAI = 'openai',
-  Gemini = 'gemini',
-  Anthropic = 'anthropic',
   OpenRouter = 'openrouter',
-  Local = 'local',
 }

@@ -128,11 +128,10 @@ async function describeWithVisionModel(
   let baseURL: string | undefined;
 
   if (modelName.includes('gpt-') || modelName.includes('openai')) {
+    // Use direct OpenAI API for OpenAI models
     apiKey = config.OPENAI_API_KEY;
-  } else if (modelName.includes('claude')) {
-    apiKey = config.ANTHROPIC_API_KEY;
   } else {
-    // Use OpenRouter for other models
+    // Use OpenRouter for all other models (including Claude, Gemini, Llama, etc.)
     apiKey = config.OPENROUTER_API_KEY;
     baseURL = AI_ENDPOINTS.OPENROUTER_BASE_URL;
   }

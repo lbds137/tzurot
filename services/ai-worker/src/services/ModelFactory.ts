@@ -121,7 +121,8 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
     }
 
     default:
-      throw new Error(`Unknown AI provider: ${provider}. Supported: openrouter, openai`);
+      // Exhaustive check - should never reach here since all enum values are handled
+      throw new Error(`Unknown AI provider: ${String(provider)}. Supported: openrouter, openai`);
   }
 }
 
