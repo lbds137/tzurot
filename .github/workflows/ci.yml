@@ -68,8 +68,17 @@ jobs:
     - name: Build packages
       run: pnpm --filter './packages/*' build
 
-    - name: Run tests
-      run: pnpm test
+    - name: Run tests with coverage
+      run: pnpm test -- --coverage
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./packages/common-types/coverage/coverage-final.json,./services/api-gateway/coverage/coverage-final.json,./services/ai-worker/coverage/coverage-final.json,./services/bot-client/coverage/coverage-final.json
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        verbose: true
 
     - name: Run type checking
       run: pnpm run typecheck
