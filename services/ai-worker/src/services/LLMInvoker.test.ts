@@ -344,5 +344,160 @@ describe('LLMInvoker', () => {
         expect.objectContaining({ timeout: expect.any(Number) })
       );
     });
+
+    it('should retry on empty string response', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi
+          .fn()
+          .mockResolvedValueOnce({ content: '' }) // Empty string
+          .mockResolvedValueOnce({ content: 'Success after retry' }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      await vi.runAllTimersAsync();
+
+      const result = await promise;
+
+      expect(result.content).toBe('Success after retry');
+      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should retry on whitespace-only string response', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi
+          .fn()
+          .mockResolvedValueOnce({ content: '   \n\t  ' }) // Whitespace only
+          .mockResolvedValueOnce({ content: 'Success after retry' }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      await vi.runAllTimersAsync();
+
+      const result = await promise;
+
+      expect(result.content).toBe('Success after retry');
+      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should retry on empty multimodal array response', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi
+          .fn()
+          .mockResolvedValueOnce({ content: [] }) // Empty array
+          .mockResolvedValueOnce({ content: 'Success after retry' }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      await vi.runAllTimersAsync();
+
+      const result = await promise;
+
+      expect(result.content).toBe('Success after retry');
+      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should retry on multimodal array with only empty text blocks', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi
+          .fn()
+          .mockResolvedValueOnce({
+            content: [{ text: '' }, { text: '  ' }, { text: '\n' }], // All empty/whitespace
+          })
+          .mockResolvedValueOnce({ content: 'Success after retry' }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      await vi.runAllTimersAsync();
+
+      const result = await promise;
+
+      expect(result.content).toBe('Success after retry');
+      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should accept multimodal array with valid text content', async () => {
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue({
+          content: [{ text: 'Part 1' }, { text: ' Part 2' }],
+        }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const result = await invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      expect(result.content).toEqual([{ text: 'Part 1' }, { text: ' Part 2' }]);
+      expect(mockModel.invoke).toHaveBeenCalledTimes(1); // No retry needed
+    });
+
+    it('should handle multimodal array with mixed content types', async () => {
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue({
+          content: [
+            { text: 'Text part' },
+            { type: 'image', data: 'base64...' }, // Non-text content (no 'text' property)
+          ],
+        }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const result = await invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      // Should succeed because there's at least some text content
+      expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw after max retries on persistent empty responses', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue({ content: '' }), // Always empty
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      // Attach rejection handler BEFORE advancing timers
+      const rejectionPromise = expect(promise).rejects.toThrow();
+
+      await vi.runAllTimersAsync();
+
+      await rejectionPromise;
+
+      // Should retry max attempts (3)
+      expect(mockModel.invoke).toHaveBeenCalledTimes(3);
+
+      vi.useRealTimers();
+    });
   });
 });

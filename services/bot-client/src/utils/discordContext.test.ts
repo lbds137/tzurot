@@ -178,6 +178,179 @@ describe('extractDiscordEnvironment', () => {
       expect(result.channel.name).toBe('Unknown');
     });
   });
+
+  describe('Channel Type Identification', () => {
+    it('should identify voice channels correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'voice-123',
+        name: 'General Voice',
+        guild,
+        type: ChannelType.GuildVoice,
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('voice');
+    });
+
+    it('should identify group DM channels correctly', () => {
+      const channel = createMockTextChannel({
+        id: 'group-dm-123',
+        name: 'Group Chat',
+        type: ChannelType.GroupDM,
+      });
+      const message = createMockMessage({ channel, guild: null });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('dm');
+      expect(result.channel.type).toBe('unknown');
+    });
+
+    it('should identify announcement channels correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'announce-123',
+        name: 'announcements',
+        guild,
+        type: ChannelType.GuildAnnouncement,
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('announcement');
+    });
+
+    it('should identify forum channels correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'forum-123',
+        name: 'help-forum',
+        guild,
+        type: ChannelType.GuildForum,
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('forum');
+    });
+
+    it('should identify stage channels correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'stage-123',
+        name: 'Stage Channel',
+        guild,
+        type: ChannelType.GuildStageVoice,
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('stage');
+    });
+
+    it('should identify media channels correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'media-123',
+        name: 'media-gallery',
+        guild,
+        type: ChannelType.GuildMedia,
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('media');
+    });
+
+    it('should identify directory channels correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'directory-123',
+        name: 'Server Directory',
+        guild,
+        type: ChannelType.GuildDirectory,
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('directory');
+    });
+
+    it('should identify announcement threads correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const parentChannel = createMockTextChannel({
+        id: 'parent-123',
+        name: 'announcements',
+        guild,
+        type: ChannelType.GuildAnnouncement,
+      });
+      const thread = createMockThreadChannel({
+        id: 'thread-123',
+        name: 'Discussion',
+        parent: parentChannel,
+        guild,
+        type: ChannelType.AnnouncementThread,
+      });
+      const message = createMockThreadMessage({ channel: thread, guild });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.thread?.parentChannel.type).toBe('announcement');
+    });
+
+    it('should identify private threads correctly', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const parentChannel = createMockTextChannel({
+        id: 'parent-123',
+        name: 'private-channel',
+        guild,
+      });
+      const thread = createMockThreadChannel({
+        id: 'thread-123',
+        name: 'Private Discussion',
+        parent: parentChannel,
+        guild,
+        type: ChannelType.PrivateThread,
+      });
+      const message = createMockThreadMessage({ channel: thread, guild });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.thread).toBeDefined();
+    });
+
+    it('should handle unknown channel types with default case', () => {
+      const guild = createMockGuild({ name: 'Test Server' });
+      const channel = createMockTextChannel({
+        id: 'unknown-123',
+        name: 'unknown-channel',
+        guild,
+        type: 999 as ChannelType, // Invalid channel type
+      });
+      const message = createMockMessage({ guild, channel });
+
+      const result = extractDiscordEnvironment(message);
+
+      expect(result.type).toBe('guild');
+      expect(result.channel.type).toBe('unknown');
+    });
+  });
 });
 
 describe('formatEnvironmentForPrompt', () => {

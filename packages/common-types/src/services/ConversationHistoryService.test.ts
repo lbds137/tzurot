@@ -685,4 +685,369 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       ]);
     });
   });
+
+  describe('getHistory - Pagination', () => {
+    it('should enforce max limit of 100', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getHistory('channel-123', 'personality-456', 500); // Request 500
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 101, // Should be limited to 100 + 1
+        })
+      );
+    });
+
+    it('should indicate hasMore when more messages exist', async () => {
+      // Mock returns 21 messages (limit + 1) in DESC order (newest first)
+      const mockMessages = Array.from({ length: 21 }, (_, i) => ({
+        id: `msg-${20 - i}`, // Reverse order: msg-20, msg-19, ..., msg-0
+        role: MessageRole.User,
+        content: `Message ${20 - i}`,
+        tokenCount: 3,
+        createdAt: new Date(`2025-11-08T10:${(20 - i).toString().padStart(2, '0')}:00Z`),
+        personaId: `persona-${20 - i}`,
+        discordMessageId: [`discord-${20 - i}`],
+        persona: { name: 'User', preferredName: null },
+      }));
+
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
+
+      const result = await service.getHistory('channel-123', 'personality-456', 20);
+
+      expect(result.messages).toHaveLength(20); // Should only return 20
+      expect(result.hasMore).toBe(true);
+      // nextCursor is the last message after reversal (newest message in result: msg-20)
+      expect(result.nextCursor).toBe('msg-20');
+    });
+
+    it('should indicate no more messages when at the end', async () => {
+      const mockMessages = Array.from({ length: 10 }, (_, i) => ({
+        id: `msg-${i}`,
+        role: MessageRole.User,
+        content: `Message ${i}`,
+        tokenCount: 3,
+        createdAt: new Date(`2025-11-08T10:${i.toString().padStart(2, '0')}:00Z`),
+        personaId: `persona-${i}`,
+        discordMessageId: [`discord-${i}`],
+        persona: { name: 'User', preferredName: null },
+      }));
+
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
+
+      const result = await service.getHistory('channel-123', 'personality-456', 20);
+
+      expect(result.messages).toHaveLength(10);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeUndefined();
+    });
+
+    it('should use cursor for pagination', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getHistory('channel-123', 'personality-456', 20, 'cursor-msg-123');
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cursor: { id: 'cursor-msg-123' },
+          skip: 1,
+        })
+      );
+    });
+
+    it('should not use cursor when empty string provided', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getHistory('channel-123', 'personality-456', 20, '');
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          cursor: expect.anything(),
+        })
+      );
+    });
+
+    it('should return empty result on error', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
+
+      const result = await service.getHistory('channel-123', 'personality-456', 20);
+
+      expect(result.messages).toEqual([]);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeUndefined();
+    });
+  });
+
+  describe('updateLastAssistantMessageId', () => {
+    it('should update assistant message with Discord message IDs', async () => {
+      const discordIds = ['discord-chunk-1', 'discord-chunk-2', 'discord-chunk-3'];
+
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-assistant-123',
+        role: MessageRole.Assistant,
+        content: 'Long response',
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        createdAt: new Date(),
+        discordMessageId: [],
+      });
+
+      mockPrismaClient.conversationHistory.update.mockResolvedValue({
+        id: 'msg-assistant-123',
+        discordMessageId: discordIds,
+      });
+
+      const result = await service.updateLastAssistantMessageId(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        discordIds
+      );
+
+      expect(result).toBe(true);
+      expect(mockPrismaClient.conversationHistory.findFirst).toHaveBeenCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+          role: MessageRole.Assistant,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      expect(mockPrismaClient.conversationHistory.update).toHaveBeenCalledWith({
+        where: {
+          id: 'msg-assistant-123',
+        },
+        data: {
+          discordMessageId: discordIds,
+        },
+      });
+    });
+
+    it('should return false when no assistant message found', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
+
+      const result = await service.updateLastAssistantMessageId(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        ['discord-1']
+      );
+
+      expect(result).toBe(false);
+      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
+    });
+
+    it('should return false on error', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(
+        new Error('Database error')
+      );
+
+      const result = await service.updateLastAssistantMessageId(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        ['discord-1']
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('clearHistory', () => {
+    it('should delete all messages for channel and personality', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 42 });
+
+      const count = await service.clearHistory('channel-123', 'personality-456');
+
+      expect(count).toBe(42);
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+        },
+      });
+    });
+
+    it('should return 0 when no messages to delete', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 0 });
+
+      const count = await service.clearHistory('channel-empty', 'personality-456');
+
+      expect(count).toBe(0);
+    });
+
+    it('should throw error on database failure', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
+
+      await expect(
+        service.clearHistory('channel-123', 'personality-456')
+      ).rejects.toThrow('Database connection failed');
+    });
+  });
+
+  describe('cleanupOldHistory', () => {
+    it('should delete messages older than specified days', async () => {
+      // Use fake timers to control the date
+      vi.useFakeTimers();
+      const fixedDate = new Date('2025-11-18T00:00:00Z');
+      vi.setSystemTime(fixedDate);
+
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 15 });
+
+      const count = await service.cleanupOldHistory(30);
+
+      expect(count).toBe(15);
+
+      // Calculate expected cutoff the same way the implementation does
+      const expectedCutoff = new Date(fixedDate);
+      expectedCutoff.setDate(expectedCutoff.getDate() - 30);
+
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: {
+          createdAt: {
+            lt: expectedCutoff,
+          },
+        },
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('should use default 30 days if not specified', async () => {
+      vi.useFakeTimers();
+      const fixedDate = new Date('2025-11-18T00:00:00Z');
+      vi.setSystemTime(fixedDate);
+
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 5 });
+
+      const count = await service.cleanupOldHistory(); // No argument = default 30
+
+      expect(count).toBe(5);
+
+      // Calculate expected cutoff the same way the implementation does
+      const expectedCutoff = new Date(fixedDate);
+      expectedCutoff.setDate(expectedCutoff.getDate() - 30);
+
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: {
+          createdAt: {
+            lt: expectedCutoff,
+          },
+        },
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('should handle different cleanup periods', async () => {
+      vi.useFakeTimers();
+      const fixedDate = new Date('2025-11-18T00:00:00Z');
+      vi.setSystemTime(fixedDate);
+
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 3 });
+
+      const count = await service.cleanupOldHistory(7); // 7 days
+
+      expect(count).toBe(3);
+
+      // Calculate expected cutoff the same way the implementation does
+      const expectedCutoff = new Date(fixedDate);
+      expectedCutoff.setDate(expectedCutoff.getDate() - 7);
+
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: {
+          createdAt: {
+            lt: expectedCutoff,
+          },
+        },
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('should return 0 when no old messages to delete', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 0 });
+
+      const count = await service.cleanupOldHistory(30);
+
+      expect(count).toBe(0);
+    });
+
+    it('should throw error on database failure', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
+
+      await expect(service.cleanupOldHistory(30)).rejects.toThrow(
+        'Database connection failed'
+      );
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should throw error when addMessage fails', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaClient.conversationHistory.create.mockRejectedValue(error);
+
+      await expect(
+        service.addMessage(
+          'channel-123',
+          'personality-456',
+          'persona-789',
+          MessageRole.User,
+          'test message'
+        )
+      ).rejects.toThrow('Database connection failed');
+    });
+
+    it('should return false when updateLastUserMessage finds no message', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue(null);
+
+      const result = await service.updateLastUserMessage(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        'enriched content'
+      );
+
+      expect(result).toBe(false);
+      expect(mockPrismaClient.conversationHistory.update).not.toHaveBeenCalled();
+    });
+
+    it('should return false when updateLastUserMessage fails on update', async () => {
+      mockPrismaClient.conversationHistory.findFirst.mockResolvedValue({
+        id: 'msg-123',
+        content: 'original content',
+      });
+
+      mockPrismaClient.conversationHistory.update.mockRejectedValue(
+        new Error('Update failed')
+      );
+
+      const result = await service.updateLastUserMessage(
+        'channel-123',
+        'personality-456',
+        'persona-789',
+        'enriched content'
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it('should return empty array when getRecentHistory fails', async () => {
+      const error = new Error('Database query failed');
+      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
+
+      const result = await service.getRecentHistory('channel-123', 'personality-456', 20);
+
+      expect(result).toEqual([]);
+    });
+  });
 });
