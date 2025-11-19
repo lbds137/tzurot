@@ -86,7 +86,10 @@ function createServices(): Services {
   logger.info('[Bot] Prisma client initialized');
 
   // Initialize Redis for cache invalidation
-  const cacheRedis = new Redis(envConfig.REDIS_URL ?? 'redis://localhost:6379');
+  if (envConfig.REDIS_URL === undefined || envConfig.REDIS_URL.length === 0) {
+    throw new Error('REDIS_URL environment variable is required');
+  }
+  const cacheRedis = new Redis(envConfig.REDIS_URL);
   cacheRedis.on('error', (err) => {
     logger.error({ err }, '[Bot] Cache Redis connection error');
   });

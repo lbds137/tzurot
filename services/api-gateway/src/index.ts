@@ -349,7 +349,10 @@ async function main(): Promise<void> {
   logger.info('[Gateway] Request deduplication cache initialized');
 
   // Initialize cache invalidation for personality configs
-  const cacheRedis = new Redis(envConfig.REDIS_URL ?? 'redis://localhost:6379');
+  if (envConfig.REDIS_URL === undefined || envConfig.REDIS_URL.length === 0) {
+    throw new Error('REDIS_URL environment variable is required');
+  }
+  const cacheRedis = new Redis(envConfig.REDIS_URL);
   cacheRedis.on('error', (err) => {
     logger.error({ err }, '[Gateway] Cache Redis connection error');
   });
