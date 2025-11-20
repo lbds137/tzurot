@@ -29,7 +29,7 @@ export function createAdminRouter(
  * POST /admin/db-sync
  * Bidirectional database synchronization between dev and prod
  */
-router.post('/db-sync', requireOwnerAuth(), (req: Request, res: Response) => {
+  router.post('/db-sync', requireOwnerAuth(), (req: Request, res: Response) => {
   void (async () => {
   try {
     const { dryRun = false } = req.body as { dryRun?: boolean };
@@ -94,7 +94,7 @@ router.post('/db-sync', requireOwnerAuth(), (req: Request, res: Response) => {
  * POST /admin/personality
  * Create a new AI personality
  */
-router.post('/personality', requireOwnerAuth(), (req: Request, res: Response) => {
+  router.post('/personality', requireOwnerAuth(), (req: Request, res: Response) => {
   void (async () => {
   try {
     const {
@@ -279,7 +279,7 @@ router.post('/personality', requireOwnerAuth(), (req: Request, res: Response) =>
  * PATCH /admin/personality/:slug
  * Edit an existing AI personality
  */
-router.patch('/personality/:slug', requireOwnerAuth(), (req: Request, res: Response) => {
+  router.patch('/personality/:slug', requireOwnerAuth(), (req: Request, res: Response) => {
   void (async () => {
   try {
     const { slug } = req.params;
@@ -409,7 +409,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), (req: Request, res: Respo
  * Manually trigger cache invalidation for personality configurations
  * Use after manually updating database (llm_configs, personalities, etc.)
  */
-router.post('/invalidate-cache', requireOwnerAuth(), (req: Request, res: Response) => {
+  router.post('/invalidate-cache', requireOwnerAuth(), (req: Request, res: Response) => {
   void (async () => {
   try {
     const { personalityId, all = false } = req.body as {
