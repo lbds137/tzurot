@@ -12,8 +12,8 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
-    "discord.js": "^14.17.3",
+    "@prisma/client": "^7.0.0",
+    "discord.js": "^14.25.0",
     "ioredis": "^5.8.2",
     "openai": "^6.9.1",
     "pino": "^10.1.0",
@@ -21,8 +21,8 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "@types/node": "^22.19.1",
+    "@types/node": "^24.10.1",
     "pino-pretty": "^13.1.2",
-    "prisma": "^6.19.0"
+    "prisma": "^7.0.0"
   }
 }
