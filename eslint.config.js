@@ -28,6 +28,7 @@ export default tseslint.config(
       'coverage/**',
       '.pnpm-store/**',
       '**/vitest.config.ts',
+      'vitest.workspace.ts',
       'tzurot-legacy/**',
       'scripts/**',
       '**/scripts/**',
