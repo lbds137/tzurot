@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createAdminRouter } from './admin.js';
+import { createAdminRouter } from './admin/index.js';
 import type { PrismaClient } from '@prisma/client';
 
 // Mock DatabaseSyncService
