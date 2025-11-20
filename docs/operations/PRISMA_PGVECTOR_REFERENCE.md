@@ -25,6 +25,7 @@ npx prisma migrate dev --name add_memory_user_index
 ```
 
 Prisma will:
+
 - Generate the migration SQL automatically
 - Create the migration file in `prisma/migrations/`
 - Apply it to your development database
@@ -57,6 +58,7 @@ DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate status
 ```
 
 Expected output:
+
 ```
 Database schema is up to date!
 ```
@@ -100,6 +102,7 @@ DATABASE_URL="$PROD_DATABASE_URL" npx prisma db execute --file migration.sql --s
 **Cause**: Migration SQL was run directly on database before running `prisma migrate deploy`
 
 **Fix**: Mark the migration as applied
+
 ```bash
 npx prisma migrate resolve --applied "MIGRATION_NAME"
 
@@ -112,11 +115,13 @@ DATABASE_URL="$PROD_DATABASE_URL" npx prisma migrate resolve --applied "MIGRATIO
 **Cause**: Changed migration file after it was applied to database
 
 **Fix**: Create a new migration to correct the issue (don't modify applied migrations)
+
 ```bash
 npx prisma migrate dev --name fix_previous_migration
 ```
 
 If you must mark the modified migration as applied:
+
 ```bash
 npx prisma migrate resolve --applied "MIGRATION_NAME"
 ```
@@ -126,10 +131,12 @@ npx prisma migrate resolve --applied "MIGRATION_NAME"
 **Cause**: Index creation requires more memory than Railway's `maintenance_work_mem` allows
 
 **Fix**: Reduce index parameters
+
 - **HNSW**: Reduce `m` and `ef_construction` values
 - **IVFFlat**: Reduce `lists` parameter (e.g., from 100 to 50)
 
 Example:
+
 ```sql
 -- Instead of lists=100 (needs 65 MB)
 CREATE INDEX idx_memories_embedding ON memories
@@ -144,10 +151,12 @@ CREATE INDEX idx_memories_embedding ON memories
 ### IVFFlat Index Parameters
 
 **lists parameter** controls accuracy vs. speed trade-off:
+
 - **More lists** (100-200): Better accuracy, slower queries, more memory to build
 - **Fewer lists** (25-50): Slightly worse accuracy, faster queries, less memory to build
 
 **Railway constraints**: `maintenance_work_mem = 64 MB`
+
 - lists=100 requires ~65 MB (won't work)
 - lists=50 requires ~33 MB (works fine)
 
@@ -162,6 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories
 ```
 
 For production databases, consider using `CONCURRENTLY` (requires psql, not Prisma):
+
 ```sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_memories_embedding ON memories
   USING ivfflat (embedding vector_cosine_ops)
@@ -202,6 +212,7 @@ RUN npx prisma migrate deploy  # ← Runs pending migrations
 ```
 
 **Manual deployment** (if needed):
+
 ```bash
 railway run --service SERVICE_NAME npx prisma migrate deploy
 ```

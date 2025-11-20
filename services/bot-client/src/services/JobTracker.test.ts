@@ -169,7 +169,7 @@ describe('JobTracker', () => {
 
       // Should have sent timeout notification
       expect(mockChannel.send).toHaveBeenCalledWith(
-        expect.stringContaining("⏱️ This is taking longer than expected")
+        expect.stringContaining('⏱️ This is taking longer than expected')
       );
 
       // Typing should stop after timeout

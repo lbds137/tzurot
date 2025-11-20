@@ -221,18 +221,14 @@ describe('handleDbSync', () => {
 
   it('should handle HTTP errors', async () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Database not configured', { status: 500 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Database not configured', { status: 500 }));
 
     await handleDbSync(mockInteraction, mockConfig);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Database sync failed')
     );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('HTTP 500')
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 500'));
   });
 
   it('should handle network errors', async () => {
@@ -288,17 +284,13 @@ describe('handleDbSync', () => {
 
   it('should handle 403 unauthorized response', async () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Forbidden', { status: 403 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Forbidden', { status: 403 }));
 
     await handleDbSync(mockInteraction, mockConfig);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Database sync failed')
     );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('HTTP 403')
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 403'));
   });
 });

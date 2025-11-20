@@ -69,7 +69,7 @@ describe('FeatureFlags', () => {
         'features.test-flag': true,
         'features.disabled-flag': false,
       });
-      
+
       expect(testFlags.isEnabled('features.test-flag')).toBe(true);
       expect(testFlags.isEnabled('features.disabled-flag')).toBe(false);
     });
@@ -92,7 +92,7 @@ describe('FeatureFlags', () => {
       const testFlags = new FeatureFlags({
         'features.test-flag': false,
       });
-      
+
       expect(testFlags.isEnabled('features.test-flag')).toBe(false);
 
       testFlags.enable('features.test-flag');
@@ -112,7 +112,7 @@ describe('FeatureFlags', () => {
       const testFlags = new FeatureFlags({
         'features.test-flag': true,
       });
-      
+
       expect(testFlags.isEnabled('features.test-flag')).toBe(true);
 
       testFlags.disable('features.test-flag');
@@ -132,7 +132,7 @@ describe('FeatureFlags', () => {
       const testFlags = new FeatureFlags({
         'features.test-flag': false,
       });
-      
+
       expect(testFlags.isEnabled('features.test-flag')).toBe(false);
 
       testFlags.toggle('features.test-flag');
@@ -155,7 +155,7 @@ describe('FeatureFlags', () => {
         'features.test-flag': false,
         'features.another-flag': true,
       });
-      
+
       testFlags.enable('features.test-flag');
 
       const flags = testFlags.getAllFlags();
@@ -175,7 +175,7 @@ describe('FeatureFlags', () => {
         'features.api-flag': true,
         'debug.logging': false,
       });
-      
+
       testFlags.enable('features.ui-flag');
 
       const featureFlags = testFlags.getFlagsByPrefix('features');
@@ -200,7 +200,7 @@ describe('FeatureFlags', () => {
         'features.flag2': false,
         'features.flag3': false,
       });
-      
+
       testFlags.setFlags({
         'features.flag1': true,
         'features.flag2': true,
@@ -216,7 +216,7 @@ describe('FeatureFlags', () => {
       const testFlags = new FeatureFlags({
         'features.known-flag': true,
       });
-      
+
       expect(() => {
         testFlags.setFlags({
           'features.known-flag': true,
@@ -229,7 +229,7 @@ describe('FeatureFlags', () => {
       const testFlags = new FeatureFlags({
         'features.test-flag': false,
       });
-      
+
       expect(() => {
         testFlags.setFlags({
           'features.test-flag': 'yes',
@@ -245,7 +245,7 @@ describe('FeatureFlags', () => {
         'features.flag2': false,
         'features.flag3': false,
       });
-      
+
       testFlags.setFlags({
         'features.flag1': true,
         'features.flag2': true,
@@ -267,7 +267,7 @@ describe('FeatureFlags', () => {
         'features.write': false,
         'features.delete': false,
       });
-      
+
       testFlags.enable('features.read');
       testFlags.enable('features.write');
 
@@ -292,11 +292,11 @@ describe('FeatureFlags', () => {
     it('should create instances with independent state', () => {
       const instance1 = createFeatureFlags();
       const instance2 = createFeatureFlags();
-      
+
       // Add a flag to both instances for testing
       instance1.addFlag('features.test-flag', false);
       instance2.addFlag('features.test-flag', false);
-      
+
       // Enable flag in one instance
       instance1.enable('features.test-flag');
 
@@ -310,9 +310,9 @@ describe('FeatureFlags', () => {
         'features.test-flag': true,
         'features.another-flag': false,
       };
-      
+
       const instance = createFeatureFlags(config);
-      
+
       expect(instance.isEnabled('features.test-flag')).toBe(true);
       expect(instance.isEnabled('features.another-flag')).toBe(false);
     });

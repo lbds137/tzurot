@@ -7,6 +7,7 @@ This document outlines the plan to migrate from our custom LRUCache implementati
 ## Current State
 
 ### Custom Implementation
+
 - Location: `/src/utils/LRUCache.js`
 - Features:
   - Basic LRU eviction
@@ -15,6 +16,7 @@ This document outlines the plan to migrate from our custom LRUCache implementati
   - Simple Map-based implementation
 
 ### Current Usage
+
 1. **ProfileInfoCache** (`/src/core/api/ProfileInfoCache.js`)
    - Caches personality profile information from external API
    - Uses TTL for automatic expiration
@@ -28,6 +30,7 @@ This document outlines the plan to migrate from our custom LRUCache implementati
 ## Benefits of Migration
 
 ### npm `lru-cache` v11+ Features
+
 1. **Async Fetch with Deduplication**
    - Prevents thundering herd problem
    - Multiple requests for same key get single fetch
@@ -53,11 +56,13 @@ This document outlines the plan to migrate from our custom LRUCache implementati
 ## Migration Plan
 
 ### Phase 1: Analysis (Pre-Migration)
+
 1. Review all current usages of LRUCache
 2. Document specific requirements for each use case
 3. Map custom features to lru-cache equivalents
 
 ### Phase 2: Implementation
+
 1. Install `lru-cache` package: `npm install lru-cache@^11.0.0`
 2. Create adapter layer to maintain current API
 3. Update each usage incrementally:
@@ -65,11 +70,13 @@ This document outlines the plan to migrate from our custom LRUCache implementati
    - WebhookCache second (more complex)
 
 ### Phase 3: Testing
+
 1. Ensure all existing tests pass
 2. Add migration-specific tests
 3. Performance benchmarks (before/after)
 
 ### Phase 4: Cleanup
+
 1. Remove custom LRUCache implementation
 2. Update documentation
 3. Remove adapter layer if no longer needed
@@ -79,17 +86,19 @@ This document outlines the plan to migrate from our custom LRUCache implementati
 ### ProfileInfoCache Migration
 
 Current usage:
+
 ```javascript
 this.cache = new LRUCache({
   maxSize: 100,
   ttl: cacheTime, // 60 minutes default
   onEvict: (key, value) => {
     logger.debug(`[ProfileInfoCache] Evicting profile for ${key}`);
-  }
+  },
 });
 ```
 
 Migration to lru-cache:
+
 ```javascript
 const { LRUCache } = require('lru-cache');
 
@@ -100,26 +109,28 @@ this.cache = new LRUCache({
     logger.debug(`[ProfileInfoCache] Evicting profile for ${key}`);
   },
   // New feature: async fetch with deduplication
-  fetchMethod: async (key) => {
+  fetchMethod: async key => {
     return await this.fetcher.fetchProfileInfo(key);
-  }
+  },
 });
 ```
 
 ### WebhookCache Migration
 
 Current usage:
+
 ```javascript
 this.webhooks = new LRUCache({
   maxSize: 50,
   ttl: 30 * 60 * 1000, // 30 minutes
   onEvict: (key, webhook) => {
     logger.info(`[WebhookCache] Evicting webhook for channel ${key}`);
-  }
+  },
 });
 ```
 
 Migration to lru-cache:
+
 ```javascript
 const { LRUCache } = require('lru-cache');
 
@@ -130,23 +141,25 @@ this.webhooks = new LRUCache({
     logger.info(`[WebhookCache] Evicting webhook for channel ${key}`);
   },
   // New feature: size-based eviction
-  sizeCalculation: (webhook) => {
+  sizeCalculation: webhook => {
     // Estimate memory usage of webhook object
     return JSON.stringify(webhook).length;
   },
-  maxSize: 5 * 1024 * 1024 // 5MB total cache size
+  maxSize: 5 * 1024 * 1024, // 5MB total cache size
 });
 ```
 
 ## Breaking Changes
 
 ### API Differences
+
 1. `maxSize` → `max` (parameter name change)
 2. `onEvict` → `dispose` (callback name change)
 3. `set()` returns the cache instance (chainable)
 4. `get()` can trigger async fetch if configured
 
 ### Behavior Differences
+
 1. More aggressive eviction with size limits
 2. Async operations possible (optional)
 3. Different internal timing for TTL checks
@@ -154,11 +167,13 @@ this.webhooks = new LRUCache({
 ## Risk Assessment
 
 ### Low Risk
+
 - Well-tested npm package
 - Backward compatible with adapter
 - Can roll back if issues
 
 ### Mitigation Strategies
+
 1. Implement behind feature flag initially
 2. Monitor cache hit rates before/after
 3. Keep custom implementation during transition

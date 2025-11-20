@@ -137,9 +137,7 @@ describe('MessageHandler', () => {
       const message = createMockMessage();
 
       mockProcessor1.process.mockRejectedValue(new Error('Processor error'));
-      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('Channel deleted')
-      );
+      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Channel deleted'));
 
       // Should not throw
       await expect(messageHandler.handleMessage(message)).resolves.toBeUndefined();

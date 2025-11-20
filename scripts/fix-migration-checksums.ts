@@ -35,11 +35,15 @@ async function fixChecksums() {
     console.log(`New checksum: ${checksum}`);
 
     // Update checksum in database
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRawUnsafe(
+      `
       UPDATE "_prisma_migrations"
       SET "checksum" = $1
       WHERE "migration_name" = $2
-    `, checksum, migrationName);
+    `,
+      checksum,
+      migrationName
+    );
 
     console.log('✓ Updated\n');
   }

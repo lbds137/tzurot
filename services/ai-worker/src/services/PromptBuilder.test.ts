@@ -38,7 +38,9 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 vi.mock('../utils/promptPlaceholders.js', () => ({
-  replacePromptPlaceholders: vi.fn((text: string) => text.replace('{user}', 'TestUser').replace('{assistant}', 'TestBot')),
+  replacePromptPlaceholders: vi.fn((text: string) =>
+    text.replace('{user}', 'TestUser').replace('{assistant}', 'TestBot')
+  ),
 }));
 
 describe('PromptBuilder', () => {
@@ -174,8 +176,12 @@ describe('PromptBuilder', () => {
       const references = '**Referenced Message**: Some earlier message';
       const result = promptBuilder.buildHumanMessage('Reply text', [], undefined, references);
 
-      expect(result.message.content).toBe('Reply text\n\n**Referenced Message**: Some earlier message');
-      expect(result.contentForStorage).toBe('Reply text\n\n**Referenced Message**: Some earlier message');
+      expect(result.message.content).toBe(
+        'Reply text\n\n**Referenced Message**: Some earlier message'
+      );
+      expect(result.contentForStorage).toBe(
+        'Reply text\n\n**Referenced Message**: Some earlier message'
+      );
     });
 
     it('should add current message header when activePersonaName provided', () => {
@@ -537,10 +543,7 @@ describe('PromptBuilder', () => {
     it('should note attachments', () => {
       const message = {
         content: 'Check this out',
-        attachments: [
-          { name: 'image.jpg' },
-          { name: 'document.pdf' },
-        ],
+        attachments: [{ name: 'image.jpg' }, { name: 'document.pdf' }],
       };
 
       const result = promptBuilder.formatUserMessage(message, minimalContext);

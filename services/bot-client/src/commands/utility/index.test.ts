@@ -28,9 +28,7 @@ describe('utility command', () => {
 
     it('should have ping subcommand', () => {
       const options = data.options ?? [];
-      const pingSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'ping'
-      );
+      const pingSubcommand = options.find(opt => 'name' in opt && opt.name === 'ping');
 
       expect(pingSubcommand).toBeDefined();
       if (pingSubcommand && 'name' in pingSubcommand && 'description' in pingSubcommand) {
@@ -41,9 +39,7 @@ describe('utility command', () => {
 
     it('should have help subcommand', () => {
       const options = data.options ?? [];
-      const helpSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'help'
-      );
+      const helpSubcommand = options.find(opt => 'name' in opt && opt.name === 'help');
 
       expect(helpSubcommand).toBeDefined();
       if (helpSubcommand && 'name' in helpSubcommand && 'description' in helpSubcommand) {

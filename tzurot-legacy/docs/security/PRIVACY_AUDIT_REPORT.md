@@ -11,6 +11,7 @@ This report identifies instances where sensitive user data might be logged in pr
 #### HIGH PRIORITY - Info Level Logs
 
 **File: `src/handlers/messageHandler.js`**
+
 - **Line 656**: `logger.info(\`Activated personality ignoring command message: ${message.content}\`);`
   - **Issue**: Logs full message content at INFO level
   - **Impact**: User messages in activated channels are logged to production logs
@@ -19,6 +20,7 @@ This report identifies instances where sensitive user data might be logged in pr
 #### MEDIUM PRIORITY - Debug Level Logs
 
 **File: `src/handlers/messageHandler.js`**
+
 - **Line 135**: Debug log includes full message content
 - **Line 216**: Debug log includes partial message content (first 20 chars)
 - **Line 341**: Debug log includes full message content for commands
@@ -28,6 +30,7 @@ This report identifies instances where sensitive user data might be logged in pr
 ### 2. User Data in PluralKit Store
 
 **File: `src/handlers/messageHandler.js`**
+
 - **Lines 144-152**: Stores message content temporarily for PluralKit integration
   - **Data stored**: userId, channelId, content, guildId, username
   - **Note**: This appears to be temporary in-memory storage, but should be verified
@@ -35,6 +38,7 @@ This report identifies instances where sensitive user data might be logged in pr
 ### 3. Error Messages with Context
 
 **File: `src/utils/aiRequestManager.js`**
+
 - **Line 202**: Logs message sample in error cases (first 100 chars)
   - **Issue**: Could log partial user messages during errors
   - **Recommendation**: Consider removing or masking message content in error logs
@@ -42,6 +46,7 @@ This report identifies instances where sensitive user data might be logged in pr
 ### 4. Authentication Token Handling
 
 **Positive Finding**: Authentication tokens appear to be handled carefully:
+
 - No instances found of logging full auth tokens or API keys
 - Error messages reference tokens but don't log their values
 - Headers with auth information are not logged at INFO level
@@ -53,11 +58,13 @@ This report identifies instances where sensitive user data might be logged in pr
 ## Recommendations
 
 ### Immediate Actions
+
 1. Change line 656 in `messageHandler.js` from `logger.info` to `logger.debug`
 2. Review and mask any user message content in production error logs
 3. Add privacy guidelines to developer documentation
 
 ### Best Practices
+
 1. Never log message content at INFO level or higher
 2. Use DEBUG level for diagnostic logs that include user content
 3. Mask or truncate sensitive data in error messages

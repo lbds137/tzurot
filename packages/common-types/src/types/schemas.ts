@@ -139,7 +139,6 @@ export const loadedPersonalitySchema = z.object({
   conversationalExamples: z.string().optional(),
 });
 
-
 /**
  * Request context schema
  * Includes all contextual information about a message
@@ -190,12 +189,14 @@ export const generationPayloadSchema = z.object({
   content: z.string(),
   attachmentDescriptions: z.string().optional(),
   referencedMessagesDescriptions: z.string().optional(),
-  metadata: z.object({
-    retrievedMemories: z.number().optional(),
-    tokensUsed: z.number().optional(),
-    processingTimeMs: z.number().optional(),
-    modelUsed: z.string().optional(),
-  }).optional(),
+  metadata: z
+    .object({
+      retrievedMemories: z.number().optional(),
+      tokensUsed: z.number().optional(),
+      processingTimeMs: z.number().optional(),
+      modelUsed: z.string().optional(),
+    })
+    .optional(),
 });
 
 /**

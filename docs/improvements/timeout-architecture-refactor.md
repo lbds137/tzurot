@@ -15,6 +15,7 @@ Current timeout architecture treats all job components as **sequential**, subtra
 ### Issue 1: Insufficient Retry Budget
 
 **Current calculation (with audio)**:
+
 ```
 Job Timeout:  120s (base) + 90s (audio) + 90s (retry) = 300s
 LLM Timeout:  300s - 90s (audio) - 90s (retry) - 15s (overhead) = 105s
@@ -36,12 +37,13 @@ ai-worker job:
 ```
 
 **Timeout Calculation**:
+
 ```typescript
 // calculateJobTimeout()
-timeout = JOB_BASE + slowestBatchTime + retryBuffer
+timeout = JOB_BASE + slowestBatchTime + retryBuffer;
 
 // calculateLLMTimeout()
-llmTimeout = jobTimeout - slowestBatchTime - retryBuffer - overhead
+llmTimeout = jobTimeout - slowestBatchTime - retryBuffer - overhead;
 ```
 
 **The flaw**: LLM gets the "leftovers" after subtracting attachment time.
@@ -49,6 +51,7 @@ llmTimeout = jobTimeout - slowestBatchTime - retryBuffer - overhead
 ## Proposed Architecture: Independent Component Timeouts
 
 ### Core Principle
+
 Each pipeline component gets its **own independent timeout**, not competing for a shared budget. The job timeout should be the **sum** (or max) of component timeouts, not a zero-sum allocation.
 
 ### New Timeout Model
@@ -68,6 +71,7 @@ Total Job Timeout = MAX(audio, image) + LLM + overhead
 ### Timeout Constants Refactoring
 
 **Before**:
+
 ```typescript
 TIMEOUTS.LLM_API: 180000           // Per-attempt (3 min)
 RETRY_CONFIG.LLM_GLOBAL_TIMEOUT: 480000  // Misplaced in RETRY_CONFIG
@@ -75,6 +79,7 @@ TIMEOUTS.JOB_WAIT: 600000         // Gateway timeout
 ```
 
 **After**:
+
 ```typescript
 // Component-level timeouts (independent)
 TIMEOUTS.AUDIO_PROCESSING: 90000   // AUDIO_FETCH + WHISPER_API
@@ -122,22 +127,27 @@ export function calculateJobTimeout(imageCount: number, audioCount: number): num
 ## Benefits
 
 ### 1. Predictable Component Timeouts
+
 - Audio always gets 90s, regardless of LLM or image count
 - LLM always gets 480s (8 minutes) for retries
 - No components stealing time from each other
 
 ### 2. Proper Retry Support
+
 - 480s LLM budget allows 3 attempts at 180s each (540s max, capped at 480s)
 - First attempt timeout → 300s remaining for 2 retries
 - Much more forgiving for slow models
 
 ### 3. Simpler Mental Model
+
 - Job timeout = sum of component timeouts
 - Each component is independent
 - Easy to reason about and debug
 
 ### 4. Future-Proof for Async Components
+
 If we later make audio processing fully async (separate job):
+
 - Audio job: 90s timeout
 - LLM job: 480s timeout
 - They run in parallel, each with full time budget
@@ -145,11 +155,13 @@ If we later make audio processing fully async (separate job):
 ## Implementation Plan
 
 **Current State**: ✅ COMPLETE
+
 - ✅ Constants updated (TIMEOUTS.LLM_INVOCATION, VISION_MODEL, WHISPER_API, AUDIO_FETCH)
 - ✅ Timeout calculation functions use NEW independent budget model
 - ✅ All tests updated and passing (644 tests)
 
 ### Phase 1: Refactor Timeout Calculation ✅ COMPLETE
+
 - [x] Move `LLM_GLOBAL_TIMEOUT` to `TIMEOUTS.LLM_INVOCATION`
 - [x] Individual component timeouts defined (VISION_MODEL, WHISPER_API, AUDIO_FETCH)
 - [x] Rewrite `calculateJobTimeout()` to sum independent timeouts
@@ -158,12 +170,14 @@ If we later make audio processing fully async (separate job):
 - [x] All 644 tests passing
 
 ### Phase 2: Extract Component Timeouts (Future)
+
 - [ ] Create `AudioProcessor` class with 90s timeout
 - [ ] Create `ImageProcessor` class with 45s timeout
 - [ ] Each processor handles its own timeout and retries
 - [ ] Main job orchestrates but doesn't manage timeouts
 
 ### Phase 3: Fully Async Processing (Future)
+
 - [ ] Audio processing as separate BullMQ job
 - [ ] Results combined via Redis/job tracker
 - [ ] True parallel processing
@@ -171,16 +185,19 @@ If we later make audio processing fully async (separate job):
 ## Testing Strategy
 
 ### Unit Tests
+
 - Update `timeout.test.ts` with new calculation logic
 - Verify LLM always gets full 480s budget
 - Verify job timeout = sum of components
 
 ### Integration Tests
+
 - Test with various combinations of attachments
 - Verify actual timeouts in logs match expectations
 - Test retry scenarios with slow models
 
 ### Production Monitoring
+
 - Log component-level timing telemetry
 - Alert if any component consistently hitting timeout
 - Adjust constants based on real-world data

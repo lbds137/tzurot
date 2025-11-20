@@ -76,10 +76,7 @@ describe('handleUsage', () => {
 
     await handleUsage(mockInteraction, mockConfig);
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('timeframe=7d'),
-      expect.any(Object)
-    );
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('timeframe=7d'), expect.any(Object));
   });
 
   it('should use provided timeframe', async () => {
@@ -136,18 +133,14 @@ describe('handleUsage', () => {
 
   it('should handle HTTP errors', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Internal Server Error', { status: 500 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
     await handleUsage(mockInteraction, mockConfig);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Failed to retrieve usage statistics')
     );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('HTTP 500')
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 500'));
   });
 
   it('should handle network errors', async () => {
@@ -214,17 +207,13 @@ describe('handleUsage', () => {
 
   it('should handle 403 unauthorized response', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Unauthorized', { status: 403 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Unauthorized', { status: 403 }));
 
     await handleUsage(mockInteraction, mockConfig);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Failed to retrieve usage statistics')
     );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('HTTP 403')
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 403'));
   });
 });

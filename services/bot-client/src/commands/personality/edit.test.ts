@@ -216,9 +216,7 @@ describe('handleEdit', () => {
       return null;
     });
     vi.mocked(mockInteraction.options.getAttachment).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Not Found', { status: 404 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Not Found', { status: 404 }));
 
     await handleEdit(mockInteraction, mockConfig);
 
@@ -234,9 +232,7 @@ describe('handleEdit', () => {
       return null;
     });
     vi.mocked(mockInteraction.options.getAttachment).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Internal Server Error', { status: 500 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
     await handleEdit(mockInteraction, mockConfig);
 

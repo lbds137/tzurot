@@ -12,11 +12,13 @@ This reference documents both APIs based on reverse engineering and analysis.
 ## Authentication
 
 ### Public API
+
 - **Base URL**: `https://api.shapes.inc/` or `https://shapes.inc/api/`
 - **Authentication**: None required
 - **Rate Limits**: Unknown, appears generous
 
 ### Private API
+
 - **Authentication**: Session cookies required
 - **Access Method**: Users must manually export cookies from browser
 - **Sustainability**: Not viable for production use
@@ -25,6 +27,7 @@ This reference documents both APIs based on reverse engineering and analysis.
 ## Public API Endpoints
 
 ### Get Public Shape Profile
+
 ```
 GET /shapes/public/{username}
 GET /api/public/shapes/{username}
@@ -33,6 +36,7 @@ GET /api/public/shapes/{username}
 Returns basic personality profile information.
 
 #### Response Structure
+
 ```json
 {
   "id": "uuid",
@@ -57,7 +61,7 @@ Returns basic personality profile information.
   "banner": "https://files.shapes.inc/...",
   "allow_user_engine_override": true,
   "allow_multiple_messages": true|false,
-  
+
   // Optional fields (vary by personality)
   "tagline": "Short description",
   "typical_phrases": ["catchphrase1", "catchphrase2"],
@@ -84,6 +88,7 @@ Returns basic personality profile information.
 ```
 
 ### Limitations of Public API
+
 - **No AI configuration**: Missing prompts, model settings
 - **No voice data**: Missing ElevenLabs voice IDs
 - **No operational data**: Cannot generate responses
@@ -92,6 +97,7 @@ Returns basic personality profile information.
 ## Private API (Undocumented)
 
 ### Authentication Requirements
+
 ```javascript
 // Required cookies (obtained from browser)
 {
@@ -102,6 +108,7 @@ Returns basic personality profile information.
 ```
 
 ### Short-Term Memory (STM) Endpoint
+
 ```
 GET /api/shapes/{shape_id}/chat/history?limit={limit}&shape_id={shape_id}
 GET /api/shapes/{shape_id}/chat/history?limit={limit}&before_ts={timestamp}&shape_id={shape_id}
@@ -110,28 +117,31 @@ GET /api/shapes/{shape_id}/chat/history?limit={limit}&before_ts={timestamp}&shap
 Returns the rolling context window for active conversations.
 
 #### Parameters
+
 - `limit`: Number of messages to return (max 50)
 - `before_ts`: Unix timestamp to fetch messages before (for pagination)
 - `shape_id`: The personality UUID
 
 #### Response Structure
+
 ```json
 [
   {
     "id": "message-uuid",
     "reply": "AI response text (null for user messages)",
     "message": "User message text (null for AI responses)",
-    "ts": 1749880055.40032,  // Unix timestamp with microseconds
+    "ts": 1749880055.40032, // Unix timestamp with microseconds
     "voice_reply_url": "https://files.shapes.inc/voice-file.mp3",
     "attachment_url": "https://files.shapes.inc/attachment.jpg",
     "attachment_type": "image/png|audio/mp3|null",
-    "regenerated_replies": [],  // Array of previous regenerations
+    "regenerated_replies": [], // Array of previous regenerations
     "fallback_model_used": false
   }
 ]
 ```
 
 #### Key Features
+
 - **Context Window**: Returns up to 50 messages per request
 - **Timestamp-based Pagination**: Use `before_ts` to fetch older messages
 - **Rolling Access**: Can access full conversation history by paginating backwards
@@ -143,15 +153,18 @@ Returns the rolling context window for active conversations.
 - **Regeneration History**: Tracks if responses were regenerated
 
 #### Message Content Examples
-1. **Text with Discord Emotes**: 
+
+1. **Text with Discord Emotes**:
+
    ```
    "My love! <:heart_demon:774017016423120937>"
    ```
 
 2. **Image Attachments**: Include AI-generated descriptions
-   ```
+
+   ````
    "look at this image: ```Description of image```"
-   ```
+   ````
 
 3. **Audio Messages**: Voice notes with transcriptions
    ```
@@ -159,6 +172,7 @@ Returns the rolling context window for active conversations.
    ```
 
 #### Content Patterns Observed
+
 From analyzing actual chat history, shapes.inc supports:
 
 1. **Multimodal Interactions**:
@@ -187,36 +201,40 @@ From analyzing actual chat history, shapes.inc supports:
    - No apparent message editing capability
 
 #### Relationship to Long-Term Memory
+
 While primarily used for active conversation context (STM), this endpoint can retrieve complete conversation history using `before_ts` pagination. This serves dual purposes:
 
 1. **Short-Term Memory (STM)**: Without `before_ts`, returns recent messages for AI context
 2. **Full History Access**: With `before_ts`, enables browsing/exporting entire conversation history
 
 The retrieved messages are separate from:
+
 - **Long-term memories** (stored in `{name}_memories.json` files) - AI-generated summaries
 - **Knowledge base** (stored in `{name}_knowledge.json` files) - Factual information
 - **User personalization** (stored in `{name}_user_personalization.json` files) - Preferences
 
 #### Example: Complete History Retrieval
+
 ```javascript
 // Paginate through entire history
 let allMessages = [];
 let beforeTs = null;
 
 while (true) {
-  const url = beforeTs 
+  const url = beforeTs
     ? `/api/shapes/${shapeId}/chat/history?limit=50&before_ts=${beforeTs}`
     : `/api/shapes/${shapeId}/chat/history?limit=50`;
-    
+
   const batch = await fetch(url);
   if (batch.length === 0) break;
-  
+
   allMessages.push(...batch);
   beforeTs = Math.min(...batch.map(m => m.ts));
 }
 ```
 
 ### Long-Term Memory Structure
+
 From backup files (`{name}_memories.json`):
 
 ```json
@@ -241,19 +259,20 @@ From backup files (`{name}_memories.json`):
 This shows shapes.inc automatically summarizes conversations from STM into long-term memories for future retrieval.
 
 ### Shape Data Structure (Private API)
+
 The private API returns everything from public API plus:
 
 ```json
 {
   // All public fields plus:
-  
+
   // AI Configuration
   "user_prompt": "The actual personality prompt used by AI",
   "jailbreak": "Text generation unrestriction prompt",
   "image_jailbreak": "Image generation unrestriction prompt",
   "engine_model": "Specific AI model configuration",
   "engine_temperature": 1.0,
-  
+
   // Voice Configuration
   "voice_model": "eleven_multilingual_v2",
   "voice_id": "ElevenLabs voice identifier",
@@ -265,17 +284,17 @@ The private API returns everything from public API plus:
   "voice_transcription_enabled": true,
   "voice_engine_instructions": "",
   "voice_history_instructions": "",
-  
+
   // Image Generation
   "image_size": "square_hd",
   "force_image_size": false,
-  
+
   // User Management
   "user_id": ["owner-uuid"],
   "blocked_user_id": [],
   "credits_used": 0,
   "credits_available": 0,
-  
+
   // Moderation
   "is_high_risk": false,
   "is_sensitive": false,
@@ -284,9 +303,11 @@ The private API returns everything from public API plus:
   "auto_moderation_results": {
     "id": "modr-xxxx",
     "model": "omni-moderation-latest",
-    "results": [/* detailed breakdowns */]
+    "results": [
+      /* detailed breakdowns */
+    ]
   },
-  
+
   // Other
   "birthday": null,
   "deleted": false,
@@ -297,35 +318,39 @@ The private API returns everything from public API plus:
 ```
 
 ### Related Data Files
+
 Each personality in the private API also has associated data files:
+
 - `{username}_knowledge.json` - Knowledge base entries
 - `{username}_memories.json` - Conversation history
 - `{username}_user_personalization.json` - Per-user customizations
 
 ## Data Availability Comparison
 
-| Data Type | Public API | Private API | Required For |
-|-----------|------------|-------------|--------------|
-| Basic Profile | ✅ | ✅ | Display |
-| Description/Tags | ✅ | ✅ | Search/Discovery |
-| Statistics | ✅ | ✅ | Analytics |
-| Error Messages | ✅ | ✅ | User Experience |
-| AI Prompts | ❌ | ✅ | **Text Generation** |
-| Voice Config | ❌ | ✅ | **Voice Synthesis** |
-| Image Config | ❌ | ✅ | **Image Generation** |
-| Knowledge Base | ❌ | ✅ | **RAG/Context** |
-| Memories | ❌ | ✅ | **Conversation History** |
-| User Personalization | ❌ | ✅ | **Per-user Experience** |
+| Data Type            | Public API | Private API | Required For             |
+| -------------------- | ---------- | ----------- | ------------------------ |
+| Basic Profile        | ✅         | ✅          | Display                  |
+| Description/Tags     | ✅         | ✅          | Search/Discovery         |
+| Statistics           | ✅         | ✅          | Analytics                |
+| Error Messages       | ✅         | ✅          | User Experience          |
+| AI Prompts           | ❌         | ✅          | **Text Generation**      |
+| Voice Config         | ❌         | ✅          | **Voice Synthesis**      |
+| Image Config         | ❌         | ✅          | **Image Generation**     |
+| Knowledge Base       | ❌         | ✅          | **RAG/Context**          |
+| Memories             | ❌         | ✅          | **Conversation History** |
+| User Personalization | ❌         | ✅          | **Per-user Experience**  |
 
 ## Security Considerations
 
 ### Session Cookie Risks
+
 1. **Expiration**: Cookies expire, requiring manual refresh
 2. **Security**: Sharing cookies exposes user accounts
 3. **Revocation**: Shapes.inc can invalidate sessions anytime
 4. **Detection**: Automated use may trigger security measures
 
 ### Data Privacy
+
 - User data includes personal conversation histories
 - Knowledge bases may contain sensitive information
 - Proper data handling and user consent required
@@ -333,6 +358,7 @@ Each personality in the private API also has associated data files:
 ## Migration Necessity
 
 The public API's limitations make it impossible to:
+
 1. Generate AI responses (no prompts)
 2. Use voice features (no voice IDs)
 3. Generate images (no image configuration)

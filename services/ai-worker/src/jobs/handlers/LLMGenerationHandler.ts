@@ -83,9 +83,15 @@ export class LLMGenerationHandler {
             result.content.length > 0
           ) {
             transcriptions.push(result.content);
-            logger.debug({ jobId: dep.jobId, key }, '[LLMGenerationHandler] Retrieved audio transcription');
+            logger.debug(
+              { jobId: dep.jobId, key },
+              '[LLMGenerationHandler] Retrieved audio transcription'
+            );
           } else {
-            logger.warn({ jobId: dep.jobId, key }, '[LLMGenerationHandler] Audio transcription job failed or has no result');
+            logger.warn(
+              { jobId: dep.jobId, key },
+              '[LLMGenerationHandler] Audio transcription job failed or has no result'
+            );
           }
         } else if ((dep.type as string) === 'image-description') {
           const result = await getJobResult<ImageDescriptionResult>(key);
@@ -95,9 +101,15 @@ export class LLMGenerationHandler {
             result.descriptions.length > 0
           ) {
             imageDescriptions.push(...result.descriptions);
-            logger.debug({ jobId: dep.jobId, key, count: result.descriptions.length }, '[LLMGenerationHandler] Retrieved image descriptions');
+            logger.debug(
+              { jobId: dep.jobId, key, count: result.descriptions.length },
+              '[LLMGenerationHandler] Retrieved image descriptions'
+            );
           } else {
-            logger.warn({ jobId: dep.jobId, key }, '[LLMGenerationHandler] Image description job failed or has no result');
+            logger.warn(
+              { jobId: dep.jobId, key },
+              '[LLMGenerationHandler] Image description job failed or has no result'
+            );
           }
         }
       } catch (error) {

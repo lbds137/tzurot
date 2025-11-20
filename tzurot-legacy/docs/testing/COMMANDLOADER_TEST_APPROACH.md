@@ -38,8 +38,8 @@ Test the basic API structure without trying to mock the entire module behavior:
 
 ```javascript
 // Set up minimal mocks
-jest.mock('../../src/commands/index', () => ({ 
-  processCommand: jest.fn() 
+jest.mock('../../src/commands/index', () => ({
+  processCommand: jest.fn(),
 }));
 jest.mock('../../src/logger');
 

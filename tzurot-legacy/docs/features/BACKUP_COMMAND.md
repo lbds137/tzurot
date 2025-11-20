@@ -19,11 +19,13 @@ The backup command allows administrators to save personality data and memories f
 You must be authenticated with the AI service using browser session cookies:
 
 **Browser Session Cookie Authentication**
+
 ```
 !tz backup --set-cookie <cookie-value>
 ```
 
 To get your session cookie:
+
 1. Open the service website in your browser and log in
 2. Open Developer Tools (F12)
 3. Go to Application/Storage → Cookies
@@ -34,24 +36,29 @@ To get your session cookie:
 ### Commands
 
 **Backup a single personality:**
+
 ```
 !tz backup personality-name
 ```
 
 **Backup all owner personalities:**
+
 ```
 !tz backup --all
 ```
 
 **Set browser session cookie:**
+
 ```
 !tz backup --set-cookie <cookie-value>
 ```
+
 ⚠️ **Security Note:** Only use this command in DMs to avoid exposing your session cookie
 
 ## Data Storage
 
 Backups are saved to `data/personalities/` with the following structure:
+
 ```
 data/personalities/
 ├── personality-name/
@@ -94,6 +101,7 @@ The backup command now includes complete conversation history:
 ## Rate Limiting
 
 The command includes built-in delays between API requests to respect rate limits:
+
 - 1 second between individual requests
 - 2 seconds between different personalities during bulk backup
 
@@ -122,6 +130,7 @@ The command includes built-in delays between API requests to respect rate limits
 ## Configuration
 
 The backup command uses these environment variables:
+
 - `SERVICE_WEBSITE`: Base URL of the AI service
 - `PROFILE_INFO_PRIVATE_PATH`: API path for authenticated profile access
 
@@ -137,6 +146,7 @@ node scripts/backup-personalities-data.js personality1 personality2
 ```
 
 ### Script Features
+
 - Direct file system access (no Discord required)
 - Batch processing of multiple personalities
 - Same chronological memory storage format
@@ -144,6 +154,7 @@ node scripts/backup-personalities-data.js personality1 personality2
 - Automatic cookie format handling
 
 ### Getting Your Cookie for the Script
+
 1. Log into the service in your browser
 2. Open Developer Tools (F12)
 3. Go to Application/Storage → Cookies

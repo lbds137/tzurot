@@ -17,6 +17,7 @@ The chat history endpoint supports timestamp-based pagination:
 ### 🎉 No Changes Required!
 
 Chat history backup is now seamlessly integrated into all existing backup methods. Users don't need to:
+
 - Set additional flags
 - Provide separate cookies
 - Use different commands
@@ -49,6 +50,7 @@ node scripts/backup-personalities-data.js personality1 personality2
 ### Implementation Details
 
 The chat history backup is now fully integrated into the existing backup infrastructure:
+
 - Uses the same appSession cookie as other API calls
 - Automatically fetches personality IDs from the public API
 - Stores messages chronologically (oldest first) for efficient incremental updates
@@ -57,6 +59,7 @@ The chat history backup is now fully integrated into the existing backup infrast
 ## Getting Required Cookies
 
 ### Standard Session Cookie (appSession)
+
 Required for basic API access:
 
 1. Log into the service website in your browser
@@ -65,7 +68,8 @@ Required for basic API access:
 4. Find the `appSession` cookie
 5. Copy its value (the long string)
 
-### Chat-Specific Cookies (connect.sid, _csrf)
+### Chat-Specific Cookies (connect.sid, \_csrf)
+
 Required for chat history access:
 
 1. Open the service website and navigate to any personality chat
@@ -87,25 +91,25 @@ const { backupChatHistory } = require('./backup-chat-history');
 async function comprehensiveBackup(personality, cookies) {
   // 1. Backup personality data (existing)
   const personalityData = await backupPersonality(personality);
-  
+
   // 2. Backup full chat history (new)
   const { messages, outputPath } = await backupChatHistory(
     personality.id,
     personality.name,
     cookies
   );
-  
+
   // 3. Extract and save memories/knowledge if needed
   const memories = extractMemories(messages);
   const knowledge = extractKnowledge(messages);
-  
+
   return {
     personality: personalityData,
     chatHistory: outputPath,
     statistics: {
       messageCount: messages.length,
-      dateRange: getDateRange(messages)
-    }
+      dateRange: getDateRange(messages),
+    },
   };
 }
 ```
@@ -143,22 +147,26 @@ The backup creates a JSON file with the following structure:
 ## Considerations
 
 ### Rate Limiting
+
 - The script includes a 1-second delay between requests
 - For extensive histories, backups may take several minutes
 - Consider implementing resume capability for interrupted backups
 
 ### Storage Requirements
+
 - Chat histories can be large (potentially GB for active personalities)
 - Each message averages 1-2KB with metadata
 - 10,000 messages ≈ 10-20MB of JSON
 
 ### Privacy & Security
+
 - Chat histories contain personal conversations
 - Store backups securely
 - Consider encryption for sensitive content
 - Never share session cookies
 
 ### Performance Tips
+
 1. **Batch Processing**: Process messages in chunks to avoid memory issues
 2. **Compression**: Consider gzipping large backups
 3. **Incremental Backups**: Store last backup timestamp to fetch only new messages
@@ -173,18 +181,18 @@ async function incrementalBackup(shapeId, shapeName, cookies, lastBackupTs) {
   // Only fetch messages newer than last backup
   const newMessages = [];
   let beforeTs = null;
-  
+
   while (true) {
     const batch = await fetchBatch(shapeId, cookies, beforeTs);
-    
+
     // Filter messages newer than last backup
     const relevant = batch.filter(msg => msg.ts > lastBackupTs);
     if (relevant.length === 0) break;
-    
+
     newMessages.push(...relevant);
     beforeTs = Math.min(...batch.map(m => m.ts));
   }
-  
+
   return newMessages;
 }
 ```
@@ -195,23 +203,23 @@ async function incrementalBackup(shapeId, shapeName, cookies, lastBackupTs) {
 function extractSignificantExchanges(messages, threshold = 5) {
   const conversations = [];
   let current = [];
-  
+
   for (const msg of messages) {
     current.push(msg);
-    
+
     // Detect conversation boundaries (e.g., time gaps)
     if (isConversationEnd(msg, messages)) {
       if (current.length >= threshold) {
         conversations.push({
           messages: current,
           summary: generateSummary(current),
-          timestamp: current[0].ts
+          timestamp: current[0].ts,
         });
       }
       current = [];
     }
   }
-  
+
   return conversations;
 }
 ```

@@ -87,12 +87,7 @@ export async function deployCommands(global = true): Promise<void> {
 
     const rest = new REST().setToken(token);
 
-    if (
-      global !== true &&
-      guildId !== undefined &&
-      guildId !== null &&
-      guildId.length > 0
-    ) {
+    if (global !== true && guildId !== undefined && guildId !== null && guildId.length > 0) {
       // Guild-specific deployment (dev/testing)
       logger.info(`Deploying to guild: ${guildId}`);
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });

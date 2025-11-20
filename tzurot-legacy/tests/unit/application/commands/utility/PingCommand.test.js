@@ -20,13 +20,13 @@ describe('PingCommand', () => {
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
-    
+
     // Save original client and set up mock
     originalClient = global.tzurotClient;
     global.tzurotClient = {
       ws: {
-        ping: 42
-      }
+        ping: 42,
+      },
     };
 
     migrationHelper = createMigrationHelper();
@@ -48,7 +48,7 @@ describe('PingCommand', () => {
       respond: jest.fn().mockResolvedValue(undefined),
     };
   });
-  
+
   afterEach(() => {
     // Restore original client
     global.tzurotClient = originalClient;
@@ -132,13 +132,13 @@ describe('PingCommand', () => {
         ],
       });
     });
-    
+
     it('should handle missing websocket ping', async () => {
       // Test with no client
       global.tzurotClient = null;
-      
+
       await pingCommand.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -152,13 +152,13 @@ describe('PingCommand', () => {
         ],
       });
     });
-    
+
     it('should handle missing ws property', async () => {
       // Test with client but no ws
       global.tzurotClient = {};
-      
+
       await pingCommand.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({

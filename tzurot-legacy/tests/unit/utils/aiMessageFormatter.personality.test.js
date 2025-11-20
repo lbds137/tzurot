@@ -47,7 +47,7 @@ describe('aiMessageFormatter - Personality Display Names', () => {
 
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
-      
+
       const textContent = result[0].content[0].text;
       expect(textContent).toContain('Friendly Assistant (assistant-bot) said');
       expect(textContent).toContain('"Hello there!"');

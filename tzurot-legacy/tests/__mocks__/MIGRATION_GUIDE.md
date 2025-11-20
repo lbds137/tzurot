@@ -5,6 +5,7 @@ This guide explains how to migrate from the old scattered mock system to the new
 ## What Changed
 
 ### Before (Problems)
+
 ```
 tests/
 ├── __mocks__/node-fetch.js           # Basic fetch mock
@@ -18,13 +19,15 @@ tests/
 ```
 
 **Issues:**
+
 - ❌ Duplicate Discord mock implementations
-- ❌ Inconsistent APIs across mock files  
+- ❌ Inconsistent APIs across mock files
 - ❌ Three different fetch mocking approaches
 - ❌ Scattered mock utilities
 - ❌ No unified configuration system
 
 ### After (Solution)
+
 ```
 tests/__mocks__/
 ├── index.js          # Main entry point with presets
@@ -37,6 +40,7 @@ tests/__mocks__/
 ```
 
 **Benefits:**
+
 - ✅ Single source of truth for each mock type
 - ✅ Consistent APIs across all mocks
 - ✅ DRY - no duplicate implementations
@@ -48,6 +52,7 @@ tests/__mocks__/
 ### Command Tests
 
 #### Before
+
 ```javascript
 const { createMockMessage } = require('../../utils/discordMocks');
 const mockPersonalityManager = require('../../utils/mockFactories').createPersonalityManagerMock();
@@ -60,7 +65,7 @@ describe('Command Test', () => {
   it('should work', () => {
     const message = createMockMessage({
       content: '!tz test',
-      author: { id: 'user-123' }
+      author: { id: 'user-123' },
     });
     // Test logic...
   });
@@ -68,22 +73,23 @@ describe('Command Test', () => {
 ```
 
 #### After
+
 ```javascript
 const { presets } = require('../../__mocks__');
 
 describe('Command Test', () => {
   let mockEnv;
-  
+
   beforeEach(() => {
     mockEnv = presets.commandTest({
-      userPermissions: ['ADMINISTRATOR']
+      userPermissions: ['ADMINISTRATOR'],
     });
   });
-  
+
   it('should work', () => {
     const message = mockEnv.discord.createMessage({
       content: '!tz test',
-      author: { id: 'user-123' }
+      author: { id: 'user-123' },
     });
     // Test logic...
   });
@@ -93,18 +99,19 @@ describe('Command Test', () => {
 ### API/Webhook Tests
 
 #### Before
+
 ```javascript
 const { MockAIClient, createMockFetch } = require('../../utils/apiMocks');
 const { setupFetchSuccess } = require('../../mocks/profileInfoFetcher.mocks');
 
 describe('API Test', () => {
   let mockFetch;
-  
+
   beforeEach(() => {
     mockFetch = createMockFetch();
     setupFetchSuccess(mockFetch);
   });
-  
+
   it('should handle API calls', async () => {
     // Complex setup...
   });
@@ -112,24 +119,25 @@ describe('API Test', () => {
 ```
 
 #### After
+
 ```javascript
 const { presets } = require('../../__mocks__');
 
 describe('API Test', () => {
   let mockEnv;
-  
+
   beforeEach(() => {
     mockEnv = presets.webhookTest({
       mockResponses: {
-        'test-personality': 'Custom AI response'
-      }
+        'test-personality': 'Custom AI response',
+      },
     });
   });
-  
+
   it('should handle API calls', async () => {
     // Simple, consistent API
     const response = await mockEnv.api.ai.createChatCompletion({
-      messages: [{ role: 'user', content: 'test' }]
+      messages: [{ role: 'user', content: 'test' }],
     });
     expect(response.choices[0].message.content).toContain('Custom AI response');
   });
@@ -139,43 +147,57 @@ describe('API Test', () => {
 ## Preset Reference
 
 ### `presets.commandTest(options)`
+
 Perfect for command handler tests.
+
 ```javascript
 const mockEnv = presets.commandTest({
   userPermissions: ['ADMINISTRATOR', 'MANAGE_MESSAGES'],
   channelType: 'text',
   nsfw: false,
-  discord: { /* discord options */ },
-  modules: { /* module options */ }
+  discord: {
+    /* discord options */
+  },
+  modules: {
+    /* module options */
+  },
 });
 ```
 
 ### `presets.webhookTest(options)`
+
 Perfect for AI/webhook integration tests.
+
 ```javascript
 const mockEnv = presets.webhookTest({
   mockResponses: {
-    'personality-name': 'Custom response'
+    'personality-name': 'Custom response',
   },
-  api: { /* api options */ },
-  discord: { webhookSupport: true }
+  api: {
+    /* api options */
+  },
+  discord: { webhookSupport: true },
 });
 ```
 
 ### `presets.integrationTest(options)`
+
 Perfect for full integration tests.
+
 ```javascript
 const mockEnv = presets.integrationTest({
   discord: { fullSupport: true },
   api: { fullSupport: true },
-  modules: { fullSupport: true }
+  modules: { fullSupport: true },
 });
 ```
 
 ## Advanced Migration Patterns
 
 ### Custom Module Mocking
+
 #### Before
+
 ```javascript
 const mockLogger = jest.fn();
 mockLogger.info = jest.fn();
@@ -186,24 +208,27 @@ jest.mock('../../../src/logger', () => mockLogger);
 ```
 
 #### After
+
 ```javascript
 const { modules } = require('../../__mocks__');
 
 const moduleEnv = modules.createModuleEnvironment({
-  logger: { debug: true } // Enable debug logging for tests
+  logger: { debug: true }, // Enable debug logging for tests
 });
 
 // Use moduleEnv.logger with all methods available
 ```
 
 ### Custom API Responses
+
 #### Before
+
 ```javascript
-const mockFetch = jest.fn().mockImplementation((url) => {
+const mockFetch = jest.fn().mockImplementation(url => {
   if (url.includes('/profile/')) {
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({ id: '123', name: 'Test' })
+      json: () => Promise.resolve({ id: '123', name: 'Test' }),
     });
   }
   // Handle other URLs...
@@ -213,19 +238,21 @@ jest.mock('node-fetch', () => mockFetch);
 ```
 
 #### After
+
 ```javascript
 const { api } = require('../../__mocks__');
 
 const apiEnv = api.createApiEnvironment();
 apiEnv.fetch.setResponse('/profile/', {
   ok: true,
-  data: { id: '123', name: 'Test' }
+  data: { id: '123', name: 'Test' },
 });
 ```
 
 ## Files Safe to Remove
 
 Once you've migrated your tests, these old files can be removed:
+
 - ❌ `tests/mocks/discord.js.mock.js` (replaced by `tests/__mocks__/discord.js`)
 - ❌ `tests/mocks/profileInfoFetcher.mocks.js` (functionality in `tests/__mocks__/api.js`)
 - ❌ `tests/utils/apiMocks.js` (consolidated into `tests/__mocks__/api.js`)
@@ -233,6 +260,7 @@ Once you've migrated your tests, these old files can be removed:
 - ❌ `tests/utils/mockFactories.js` (consolidated into `tests/__mocks__/modules.js`)
 
 Keep these files:
+
 - ✅ `tests/__mocks__/*` (new consolidated system)
 - ✅ `tests/utils/commandTestHelpers.js` (still useful for command-specific helpers)
 - ✅ `tests/utils/fsMocks.js` (specialized file system mocking)

@@ -26,6 +26,7 @@
 ## Active Work
 
 **Current Session**: Documentation cleanup
+
 - ✅ Created comprehensive Shapes.inc slash command design doc
 - 🔄 Updating stale documentation (CURRENT_WORK, V2_FEATURE_TRACKING)
 - 🔄 Archiving completed planning docs
@@ -44,6 +45,7 @@
 **Goal**: Easy model switching for users and bot owner, proper ownership model, visibility control.
 
 **Features**:
+
 - ✅ Schema already supports this (just needs wiring)
 - Interactive slash commands for LLM config management
 - User overrides for personality models
@@ -52,6 +54,7 @@
 - Public/private personality visibility
 
 **Phases** (7-8 sessions total):
+
 1. Database setup (add `isPublic`, `isSuperuser`, assign ownership)
 2. LLM config slash commands (`/llm-config create`, list, delete)
 3. Model override commands (`/model set`, reset, show)
@@ -75,6 +78,7 @@
 **Goal**: Replace pgvector with sophisticated OpenMemory cognitive architecture.
 
 **Key Features**:
+
 - Multi-sector memory (episodic, semantic, emotional, procedural, reflective)
 - Waypoint graph system with associative learning
 - Hybrid scoring (60% similarity + 20% overlap + 15% waypoints + 5% recency)
@@ -83,12 +87,12 @@
 - **Deterministic reflection** (no LLM censorship concerns!)
 
 **Phases** (15-23 sessions for full vision):
-1-8. Core migration (10-15 sessions)
-9. Agentic features (5-8 sessions) - toolbox, "free will", memory management
+1-8. Core migration (10-15 sessions) 9. Agentic features (5-8 sessions) - toolbox, "free will", memory management
 
 **Timeline**: 6-9 weeks once resumed
 
 **Documentation**:
+
 - [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - Complete migration plan
 - DeepAgents design patterns documented for Phase 9
 

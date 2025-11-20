@@ -188,7 +188,8 @@ describe('AliasCommand', () => {
         embeds: [
           expect.objectContaining({
             title: '❌ Invalid Alias Format',
-            description: 'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
+            description:
+              'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
             color: 0xf44336,
           }),
         ],
@@ -380,7 +381,8 @@ describe('AliasCommand', () => {
         embeds: [
           expect.objectContaining({
             title: '❌ Invalid Alias Format',
-            description: 'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
+            description:
+              'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
           }),
         ],
       });

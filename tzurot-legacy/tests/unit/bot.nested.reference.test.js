@@ -110,7 +110,9 @@ describe('Nested Reference Handling', () => {
     };
     const mockBootstrap = {
       initialized: true,
-      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
+      getPersonalityApplicationService: jest
+        .fn()
+        .mockReturnValue(mockPersonalityApplicationService),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 

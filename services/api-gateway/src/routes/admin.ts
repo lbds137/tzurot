@@ -214,8 +214,9 @@ export function createAdminRouter(
             personalityDislikes: personalityDislikes ?? null,
             conversationalGoals: conversationalGoals ?? null,
             conversationalExamples: conversationalExamples ?? null,
-            ...(customFields !== null &&
-              customFields !== undefined && { customFields: customFields as Prisma.JsonValue }),
+            ...(customFields !== null && customFields !== undefined
+              ? { customFields: customFields as Prisma.InputJsonValue }
+              : {}),
             avatarData:
               processedAvatarData !== undefined ? new Uint8Array(processedAvatarData) : null,
             voiceEnabled: false,

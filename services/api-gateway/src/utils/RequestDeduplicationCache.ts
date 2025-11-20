@@ -145,10 +145,7 @@ export class RequestDeduplicationCache {
     // - Birthday paradox: ~4.3B requests needed for 50% collision probability
     // - Realistic usage: Single bot instance, <1000 requests/minute expected
     // - Collision risk is negligible; can use full hash if needed in future
-    const messageHash = createHash('sha256')
-      .update(messageStr)
-      .digest('hex')
-      .substring(0, 16); // 64-bit hash (sufficient for current usage)
+    const messageHash = createHash('sha256').update(messageStr).digest('hex').substring(0, 16); // 64-bit hash (sufficient for current usage)
 
     return `${personalityName}:${contextStr}:${messageHash}`;
   }

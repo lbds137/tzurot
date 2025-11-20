@@ -35,11 +35,12 @@
 ### ❌ NEVER Mock These (Module Under Test)
 
 1. **The Module Being Tested**
+
    ```javascript
    // In webhookCache.test.js
    // ❌ WRONG - Don't mock what you're testing!
    jest.mock('../../../src/utils/webhookCache');
-   
+
    // ✅ RIGHT - Import the real module
    const webhookCache = require('../../../src/utils/webhookCache');
    ```
@@ -63,8 +64,8 @@
 // webhookCache.test.js
 
 // ✅ Mock external dependencies
-jest.mock('discord.js');  // Heavy external library
-jest.mock('../../../src/logger');  // Logging is external
+jest.mock('discord.js'); // Heavy external library
+jest.mock('../../../src/logger'); // Logging is external
 
 // ✅ Import real module under test
 const webhookCache = require('../../../src/utils/webhookCache');

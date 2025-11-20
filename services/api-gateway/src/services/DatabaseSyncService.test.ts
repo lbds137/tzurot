@@ -54,7 +54,7 @@ describe('DatabaseSyncService', () => {
       // Mock default responses for all queries
       // Note: These mocks return the same data for all calls
       // Override in specific tests if different behavior is needed
-      devClient.$queryRaw.mockImplementation(async (query) => {
+      devClient.$queryRaw.mockImplementation(async query => {
         const queryStr = String(query);
 
         // Schema version query
@@ -75,7 +75,7 @@ describe('DatabaseSyncService', () => {
         return [];
       });
 
-      prodClient.$queryRaw.mockImplementation(async (query) => {
+      prodClient.$queryRaw.mockImplementation(async query => {
         const queryStr = String(query);
 
         // Schema version query
@@ -126,7 +126,7 @@ describe('DatabaseSyncService', () => {
 
     it('should throw error when schema versions mismatch', async () => {
       // Override default mock for this test
-      devClient.$queryRaw.mockImplementation(async (query) => {
+      devClient.$queryRaw.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
@@ -137,7 +137,7 @@ describe('DatabaseSyncService', () => {
         return [];
       });
 
-      prodClient.$queryRaw.mockImplementation(async (query) => {
+      prodClient.$queryRaw.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117153407_add_hnsw_index_to_memories' }];
@@ -179,7 +179,7 @@ describe('DatabaseSyncService', () => {
       devClient.$disconnect.mockRejectedValueOnce(new Error('Disconnect failed'));
 
       // Disconnect errors propagate to caller
-      await expect(service.sync({ dryRun: true})).rejects.toThrow('Disconnect failed');
+      await expect(service.sync({ dryRun: true })).rejects.toThrow('Disconnect failed');
 
       expect(devClient.$disconnect).toHaveBeenCalledTimes(1);
       // Prod disconnect won't be called since dev disconnect threw
@@ -269,7 +269,7 @@ describe('DatabaseSyncService', () => {
   describe('Data Sync Logic', () => {
     beforeEach(() => {
       // Mock schema version and validation queries
-      devClient.$queryRaw.mockImplementation(async (query) => {
+      devClient.$queryRaw.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
@@ -283,7 +283,7 @@ describe('DatabaseSyncService', () => {
         return [];
       });
 
-      prodClient.$queryRaw.mockImplementation(async (query) => {
+      prodClient.$queryRaw.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('_prisma_migrations')) {
           return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
@@ -301,7 +301,7 @@ describe('DatabaseSyncService', () => {
       };
 
       // Setup: Dev has a row, prod doesn't
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [devRow];
         }
@@ -314,8 +314,8 @@ describe('DatabaseSyncService', () => {
 
       // Should execute INSERT on prod
       expect(prodClient.$executeRawUnsafe).toHaveBeenCalled();
-      const insertCall = prodClient.$executeRawUnsafe.mock.calls.find(
-        (call) => String(call[0]).includes('INSERT INTO "users"')
+      const insertCall = prodClient.$executeRawUnsafe.mock.calls.find(call =>
+        String(call[0]).includes('INSERT INTO "users"')
       );
       expect(insertCall).toBeDefined();
 
@@ -337,7 +337,7 @@ describe('DatabaseSyncService', () => {
       // Setup: Prod has a row, dev doesn't
       devClient.$queryRawUnsafe.mockResolvedValue([]); // Dev has no rows
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [prodRow];
         }
@@ -348,8 +348,8 @@ describe('DatabaseSyncService', () => {
 
       // Should execute INSERT on dev
       expect(devClient.$executeRawUnsafe).toHaveBeenCalled();
-      const insertCall = devClient.$executeRawUnsafe.mock.calls.find(
-        (call) => String(call[0]).includes('INSERT INTO "users"')
+      const insertCall = devClient.$executeRawUnsafe.mock.calls.find(call =>
+        String(call[0]).includes('INSERT INTO "users"')
       );
       expect(insertCall).toBeDefined();
 
@@ -375,14 +375,14 @@ describe('DatabaseSyncService', () => {
         updated_at: new Date('2025-01-10'), // Older
       };
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [devRow];
         }
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [prodRow];
         }
@@ -418,14 +418,14 @@ describe('DatabaseSyncService', () => {
         updated_at: new Date('2025-01-15'), // Newer
       };
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [devRow];
         }
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [prodRow];
         }
@@ -459,14 +459,14 @@ describe('DatabaseSyncService', () => {
         updated_at: timestamp, // Identical
       };
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [devRow];
         }
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return [prodRow];
         }
@@ -477,8 +477,8 @@ describe('DatabaseSyncService', () => {
 
       // No writes should occur since rows are identical
       // (Only validation queries should have been executed)
-      const writeCallsToUsers = prodClient.$executeRawUnsafe.mock.calls.filter(
-        (call) => String(call[0]).includes('INSERT INTO "users"')
+      const writeCallsToUsers = prodClient.$executeRawUnsafe.mock.calls.filter(call =>
+        String(call[0]).includes('INSERT INTO "users"')
       );
       expect(writeCallsToUsers).toHaveLength(0);
 
@@ -497,7 +497,7 @@ describe('DatabaseSyncService', () => {
         updated_at: new Date('2025-01-01'),
       };
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('FROM "personality_owners"')) {
           return [devRow];
@@ -505,7 +505,7 @@ describe('DatabaseSyncService', () => {
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "personality_owners"')) {
           return [];
         }
@@ -516,8 +516,8 @@ describe('DatabaseSyncService', () => {
 
       // Should handle composite key in INSERT
       expect(prodClient.$executeRawUnsafe).toHaveBeenCalled();
-      const insertCall = prodClient.$executeRawUnsafe.mock.calls.find(
-        (call) => String(call[0]).includes('INSERT INTO "personality_owners"')
+      const insertCall = prodClient.$executeRawUnsafe.mock.calls.find(call =>
+        String(call[0]).includes('INSERT INTO "personality_owners"')
       );
       expect(insertCall).toBeDefined();
 
@@ -540,7 +540,7 @@ describe('DatabaseSyncService', () => {
         created_at: new Date('2025-01-01'),
       };
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('FROM "memories"')) {
           return [memoryRow];
@@ -548,7 +548,7 @@ describe('DatabaseSyncService', () => {
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "memories"')) {
           return [];
         }
@@ -559,8 +559,8 @@ describe('DatabaseSyncService', () => {
 
       // Should handle embedding column with ::vector cast
       expect(prodClient.$executeRawUnsafe).toHaveBeenCalled();
-      const insertCall = prodClient.$executeRawUnsafe.mock.calls.find(
-        (call) => String(call[0]).includes('INSERT INTO "memories"')
+      const insertCall = prodClient.$executeRawUnsafe.mock.calls.find(call =>
+        String(call[0]).includes('INSERT INTO "memories"')
       );
       expect(insertCall).toBeDefined();
 
@@ -614,14 +614,14 @@ describe('DatabaseSyncService', () => {
         },
       ];
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return devRows;
         }
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "users"')) {
           return prodRows;
         }
@@ -652,14 +652,14 @@ describe('DatabaseSyncService', () => {
         created_at: new Date('2025-01-10'), // Older
       };
 
-      devClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "conversation_history"')) {
           return [devRow];
         }
         return [];
       });
 
-      prodClient.$queryRawUnsafe.mockImplementation(async (query) => {
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
         if (String(query).includes('FROM "conversation_history"')) {
           return [prodRow];
         }

@@ -72,10 +72,7 @@ describe('MemoryRetriever', () => {
         personaId: 'override-persona-123',
       });
 
-      const result = await retriever.getUserPersonaForPersonality(
-        'user-123',
-        'personality-123'
-      );
+      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
 
       expect(result).toBe('override-persona-123');
       expect(mockPrismaClient.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
@@ -97,10 +94,7 @@ describe('MemoryRetriever', () => {
         },
       });
 
-      const result = await retriever.getUserPersonaForPersonality(
-        'user-123',
-        'personality-123'
-      );
+      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
 
       expect(result).toBe('default-persona-456');
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith({
@@ -120,10 +114,7 @@ describe('MemoryRetriever', () => {
         defaultPersonaLink: null,
       });
 
-      const result = await retriever.getUserPersonaForPersonality(
-        'user-123',
-        'personality-123'
-      );
+      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
 
       expect(result).toBeNull();
     });
@@ -133,10 +124,7 @@ describe('MemoryRetriever', () => {
         new Error('Database connection failed')
       );
 
-      const result = await retriever.getUserPersonaForPersonality(
-        'user-123',
-        'personality-123'
-      );
+      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
 
       expect(result).toBeNull();
     });
@@ -414,11 +402,7 @@ describe('MemoryRetriever', () => {
         sessionId: 'session-789',
       };
 
-      await retriever.retrieveRelevantMemories(
-        mockPersonality,
-        'test',
-        contextWithSession
-      );
+      await retriever.retrieveRelevantMemories(mockPersonality, 'test', contextWithSession);
 
       expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
         'test',

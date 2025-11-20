@@ -16,10 +16,7 @@
  */
 
 const logger = require('./logger');
-const {
-  processMediaForWebhook,
-  prepareAttachmentOptions,
-} = require('./utils/media');
+const { processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
 const webhookCache = require('./utils/webhookCache');
 const messageDeduplication = require('./utils/messageDeduplication');
 const avatarManager = require('./utils/avatarManager');

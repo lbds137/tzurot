@@ -215,9 +215,7 @@ describe('AudioProcessor', () => {
 
         (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-        await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow(
-          'Network error'
-        );
+        await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow('Network error');
       });
 
       it('should handle HTTP error responses', async () => {

@@ -10,11 +10,13 @@
 ### DRY Violations in Retry Logic
 
 **Current State**: Three different retry implementations:
+
 1. `retryService.ts` - Comprehensive, reusable utilities ✅
 2. `LLMInvoker.invokeWithRetry()` - Custom retry loop (115 lines) ❌
 3. `MultimodalProcessor.processAttachments()` - Custom parallel retry (70 lines) ❌
 
 **Issues**:
+
 - Code duplication makes maintenance harder
 - Inconsistent retry counting (0-based vs 1-based)
 - Each implementation has custom logging, timeout logic
@@ -23,11 +25,13 @@
 ### Tight Timeout Budgets
 
 **Current**: Components compete for shared timeout budget
+
 - Audio processing: 90s
 - LLM invocation: 105s (after subtracting audio time)
 - **Result**: Intermittent timeout errors in production
 
 **Desired**: Independent timeouts with generous limits
+
 - Audio job: 120s (30s fetch + 60s Whisper + buffer)
 - Image job: 60s (45s vision + buffer)
 - LLM job: 600s (10 minutes for slow models + retries)
@@ -37,6 +41,7 @@
 ### Part 1: Standardize Retry Configuration
 
 **Update `RETRY_CONFIG`**:
+
 ```typescript
 export const RETRY_CONFIG = {
   /** Standard retry attempts for ALL components (1 initial + 2 retries = 3 total) */
@@ -59,6 +64,7 @@ export const RETRY_CONFIG = {
 ```
 
 **Remove inconsistent configs**:
+
 - ❌ `LLM_MAX_RETRIES: 2` (confusing - means 3 total attempts)
 - ❌ `LLM_GLOBAL_TIMEOUT` in RETRY_CONFIG (move to TIMEOUTS)
 - ✅ Use `MAX_ATTEMPTS: 3` everywhere
@@ -68,6 +74,7 @@ export const RETRY_CONFIG = {
 #### LLMInvoker Refactoring
 
 **Before** (115 lines of custom retry logic):
+
 ```typescript
 async invokeWithRetry(...) {
   const maxRetries = RETRY_CONFIG.LLM_MAX_RETRIES;
@@ -80,6 +87,7 @@ async invokeWithRetry(...) {
 ```
 
 **After** (using retryService):
+
 ```typescript
 async invokeWithRetry(...) {
   return await withRetry(
@@ -99,6 +107,7 @@ private async invokeSingleAttempt(...) {
 ```
 
 **Benefits**:
+
 - 115 lines → ~30 lines
 - Consistent retry behavior
 - Automatic exponential backoff
@@ -107,6 +116,7 @@ private async invokeSingleAttempt(...) {
 #### MultimodalProcessor Refactoring
 
 **Before** (70 lines of custom parallel retry):
+
 ```typescript
 async processAttachments(...) {
   const succeeded = [];
@@ -120,6 +130,7 @@ async processAttachments(...) {
 ```
 
 **After** (using withParallelRetry):
+
 ```typescript
 async processAttachments(...) {
   const results = await withParallelRetry(
@@ -137,6 +148,7 @@ async processAttachments(...) {
 ```
 
 **Benefits**:
+
 - 70 lines → ~20 lines
 - Reuses battle-tested logic
 - Consistent with other components
@@ -197,6 +209,7 @@ api-gateway creates 3 jobs:
 The job chain architecture is designed for **graceful degradation** - preprocessing failures don't block the LLM response:
 
 **Scenario 1: Individual Audio Job Fails**
+
 ```
 User sends: "Transcribe these" + audio1.ogg + audio2.ogg
     ↓
@@ -209,6 +222,7 @@ Job 3 (LLM): ⚠️ Proceeds with partial results
 ```
 
 **Scenario 2: All Preprocessing Fails**
+
 ```
 User sends: "What's this?" + corrupted.png
     ↓
@@ -220,6 +234,7 @@ Job 2 (LLM): ⚠️ Proceeds without image description
 ```
 
 **Scenario 3: LLM Job Fails**
+
 ```
 User sends: "Hello" + image.png
     ↓
@@ -230,6 +245,7 @@ Job 2 (LLM): ❌ Fails after 3 attempts (model timeout)
 ```
 
 **Key Behaviors**:
+
 - **No cascading failures**: Preprocessing failure doesn't block LLM
 - **Individual retry budgets**: Each job retries independently (3 attempts)
 - **Redis cleanup**: Job results expire after 1 hour (prevents memory leaks)
@@ -237,6 +253,7 @@ Job 2 (LLM): ❌ Fails after 3 attempts (model timeout)
 - **User experience**: User gets response (possibly degraded) rather than total failure
 
 **Dependency Resolution & Timing (BullMQ FlowProducer)**:
+
 - **Flow Architecture**: Uses BullMQ FlowProducer for parent-child job relationships
   - **Parent Job**: LLM Generation (waits for all children to complete)
   - **Child Jobs**: Audio transcriptions + Image descriptions (run first, in parallel)
@@ -302,6 +319,7 @@ Each job has its own Railway worker timeout (no limit!)
 ```
 
 **Benefits**:
+
 - **Much more forgiving** for slow models/APIs
 - **Proper retry support** - each component can retry fully
 - **Better user experience** - fewer timeout errors
@@ -345,6 +363,7 @@ Each job has its own Railway worker timeout (no limit!)
 ## Migration Plan
 
 ### Phase 1: Consolidate Retry Logic ✅ COMPLETE
+
 - [x] Create refactoring plan (this document)
 - [x] Standardize RETRY_CONFIG (MAX_ATTEMPTS: 3 everywhere)
 - [x] Refactor LLMInvoker to use withRetry
@@ -353,6 +372,7 @@ Each job has its own Railway worker timeout (no limit!)
 - [x] Ready to deploy to dev
 
 ### Phase 2: Job Chain Architecture ✅ COMPLETE
+
 - [x] Design job dependency system
 - [x] Create AudioTranscriptionJob
 - [x] Create ImageDescriptionJob
@@ -362,6 +382,7 @@ Each job has its own Railway worker timeout (no limit!)
 - [x] Ready to deploy to dev
 
 ### Phase 3: Optimize Timeouts (Future PR)
+
 - [ ] Collect production timing data
 - [ ] Adjust timeouts based on P95/P99
 - [ ] Test with slow models
@@ -379,6 +400,7 @@ Each job has its own Railway worker timeout (no limit!)
 - [ ] User-facing latency unchanged or improved (PENDING - deployment)
 
 **Additional Achievements**:
+
 - [x] Type system cleaned up (removed JobResult duplication)
 - [x] Consolidated duplicate types using Zod schemas (DRY)
 - [x] Production bug fixes (defensive coding for invalid results)
@@ -387,12 +409,14 @@ Each job has its own Railway worker timeout (no limit!)
 ## Files to Modify
 
 ### Phase 1 (Retry Consolidation)
+
 - `packages/common-types/src/constants/timing.ts` - Standardize RETRY_CONFIG
 - `services/ai-worker/src/services/LLMInvoker.ts` - Use withRetry
 - `services/ai-worker/src/services/MultimodalProcessor.ts` - Use withParallelRetry
 - All related test files
 
 ### Phase 2 (Job Chains)
+
 - `packages/common-types/src/types/jobs.ts` - Add new job types
 - `services/ai-worker/src/jobs/AudioTranscriptionJob.ts` - New
 - `services/ai-worker/src/jobs/ImageDescriptionJob.ts` - New

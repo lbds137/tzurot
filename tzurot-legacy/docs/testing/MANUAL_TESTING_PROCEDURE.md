@@ -5,11 +5,13 @@ This document outlines a comprehensive manual testing procedure to verify that t
 ## Preparation
 
 1. Create a testing branch from the current main branch:
+
    ```bash
    git checkout -b test/deduplication-refactor main
    ```
 
 2. Apply the refactored changes to this branch:
+
    ```bash
    # Copy the modified files to the branch
    cp src/messageTracker.js path/to/branch/src/
@@ -17,6 +19,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
    ```
 
 3. Start the bot in development mode:
+
    ```bash
    npm run dev
    ```
@@ -24,9 +27,11 @@ This document outlines a comprehensive manual testing procedure to verify that t
 4. Ensure the bot is running in a test Discord server where you can safely send test messages.
 
 5. Run the verification script:
+
    ```bash
    node scripts/verify_message_tracker.js
    ```
+
    - Ensure all tests pass before proceeding.
 
 ## Test Scenarios
@@ -36,6 +41,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
 **Objective**: Verify that duplicate commands are properly detected and ignored.
 
 **Steps**:
+
 1. Send the same command twice in rapid succession (within 5 seconds)
    ```
    !tz help
@@ -51,6 +57,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
 **Objective**: Verify that duplicate replies are properly detected and ignored.
 
 **Steps**:
+
 1. Send a message to a personality (either by @mention or in a channel with an activated personality)
 2. After receiving a response, try to make the bot respond to the same message again immediately
 3. Check the logs for DUPLICATE OPERATION messages
@@ -62,6 +69,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
 **Objective**: Ensure that the deduplication works per channel.
 
 **Steps**:
+
 1. Send identical commands in two different channels in quick succession
 2. Check if both commands are processed (they should be, since they're in different channels)
 
@@ -72,6 +80,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
 **Objective**: Verify that error messages are still properly filtered.
 
 **Steps**:
+
 1. Trigger an error condition (e.g., by intentionally making the AI service unavailable)
 2. Observe the bot's behavior
 
@@ -82,6 +91,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
 **Objective**: Ensure that the message tracker doesn't increase memory usage over time.
 
 **Steps**:
+
 1. Start the bot and monitor memory usage for 10 minutes
 2. Send a variety of commands and messages during this time
 3. Check if memory usage stabilizes or grows continuously
@@ -93,6 +103,7 @@ This document outlines a comprehensive manual testing procedure to verify that t
 **Objective**: Test behavior under high message volume.
 
 **Steps**:
+
 1. Send 10+ commands in quick succession (can be different commands)
 2. Observe the bot's behavior and check logs
 

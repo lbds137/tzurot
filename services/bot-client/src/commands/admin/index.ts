@@ -33,7 +33,10 @@ export const data = new SlashCommandBuilder()
           .setName('direction')
           .setDescription('Sync direction')
           .setRequired(true)
-          .addChoices({ name: 'dev → prod', value: 'dev-to-prod' }, { name: 'prod → dev', value: 'prod-to-dev' })
+          .addChoices(
+            { name: 'dev → prod', value: 'dev-to-prod' },
+            { name: 'prod → dev', value: 'prod-to-dev' }
+          )
       )
   )
   .addSubcommand(subcommand =>
@@ -44,10 +47,7 @@ export const data = new SlashCommandBuilder()
       .setName('kick')
       .setDescription('Remove the bot from a server')
       .addStringOption(option =>
-        option
-          .setName('server-id')
-          .setDescription('Discord server ID to leave')
-          .setRequired(true)
+        option.setName('server-id').setDescription('Discord server ID to leave').setRequired(true)
       )
   )
   .addSubcommand(subcommand =>

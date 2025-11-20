@@ -17,16 +17,16 @@ coverage:
         informational: true
 
 comment:
-  layout: "reach,diff,flags,tree,files"
+  layout: 'reach,diff,flags,tree,files'
   behavior: default
   require_changes: false
   require_base: no
   require_head: yes
 
 ignore:
-  - "**/*.test.ts"
-  - "**/*.spec.ts"
-  - "**/dist/**"
-  - "**/node_modules/**"
-  - "scripts/**"
-  - "tzurot-legacy/**"
+  - '**/*.test.ts'
+  - '**/*.spec.ts'
+  - '**/dist/**'
+  - '**/node_modules/**'
+  - 'scripts/**'
+  - 'tzurot-legacy/**'

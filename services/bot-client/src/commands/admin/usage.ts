@@ -5,11 +5,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  DISCORD_COLORS,
-} from '@tzurot/common-types';
+import { getConfig, createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 
 const logger = createLogger('admin-usage');
 

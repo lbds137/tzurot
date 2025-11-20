@@ -155,11 +155,21 @@ export class PersonalityMapper {
     const errors: string[] = [];
 
     // Required fields
-    if (!config.id) {errors.push('Missing required field: id');}
-    if (!config.name) {errors.push('Missing required field: name');}
-    if (!config.username) {errors.push('Missing required field: username');}
-    if (!config.jailbreak) {errors.push('Missing required field: jailbreak (system prompt)');}
-    if (!config.engine_model) {errors.push('Missing required field: engine_model');}
+    if (!config.id) {
+      errors.push('Missing required field: id');
+    }
+    if (!config.name) {
+      errors.push('Missing required field: name');
+    }
+    if (!config.username) {
+      errors.push('Missing required field: username');
+    }
+    if (!config.jailbreak) {
+      errors.push('Missing required field: jailbreak (system prompt)');
+    }
+    if (!config.engine_model) {
+      errors.push('Missing required field: engine_model');
+    }
 
     // Validate slug format (username)
     if (config.username && !/^[a-z0-9-]+$/.test(config.username)) {

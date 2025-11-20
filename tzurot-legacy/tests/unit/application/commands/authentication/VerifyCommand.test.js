@@ -31,11 +31,11 @@ describe('VerifyCommand', () => {
         isAuthenticated: true,
         user: {
           nsfwStatus: {
-            verified: false
-          }
-        }
+            verified: false,
+          },
+        },
       }),
-      verifyNsfwAccess: jest.fn().mockResolvedValue()
+      verifyNsfwAccess: jest.fn().mockResolvedValue(),
     };
 
     // Mock channel utils
@@ -109,9 +109,9 @@ describe('VerifyCommand', () => {
         isAuthenticated: true,
         user: {
           nsfwStatus: {
-            verified: true
-          }
-        }
+            verified: true,
+          },
+        },
       });
 
       await verifyCommand.execute(mockContext);
@@ -313,7 +313,9 @@ describe('VerifyCommand', () => {
 
   describe('error handling', () => {
     it('should handle unexpected errors gracefully', async () => {
-      mockAuthenticationService.getAuthenticationStatus.mockRejectedValue(new Error('Database error'));
+      mockAuthenticationService.getAuthenticationStatus.mockRejectedValue(
+        new Error('Database error')
+      );
 
       await verifyCommand.execute(mockContext);
 

@@ -8,6 +8,7 @@
 ## Problem
 
 Whisper transcriptions of voice messages can be messy:
+
 - Missing or incorrect punctuation
 - Run-on sentences
 - Filler words (um, uh, like, you know)
@@ -26,6 +27,7 @@ Add an optional LLM-based cleanup pass after Whisper transcription, before addin
 **Where**: In `ai-worker` service, after Whisper transcription completes
 
 **Flow**:
+
 ```
 1. Download audio → AUDIO_FETCH (60s)
 2. Whisper transcription → WHISPER_API (90s)
@@ -34,6 +36,7 @@ Add an optional LLM-based cleanup pass after Whisper transcription, before addin
 ```
 
 **Model Selection**: Use a cheap, fast model for cleanup
+
 - Recommended: `anthropic/claude-haiku-4.5` or `gpt-3.5-turbo`
 - Temperature: 0.2-0.3 (deterministic)
 - Max tokens: 2048 (transcripts shouldn't be huge)
@@ -41,16 +44,17 @@ Add an optional LLM-based cleanup pass after Whisper transcription, before addin
 ### Configuration
 
 **Option 1: Global toggle**
+
 ```typescript
 // In config/config.ts
-AUTO_CLEANUP_TRANSCRIPTS: z
-  .enum(['true', 'false'])
+AUTO_CLEANUP_TRANSCRIPTS: z.enum(['true', 'false'])
   .optional()
   .transform(val => val === 'true')
-  .default(false)
+  .default(false);
 ```
 
 **Option 2: Personality-level setting** (more flexible)
+
 ```typescript
 // In personality JSON
 {
@@ -86,36 +90,40 @@ Current audio processing time: 150s (60s download + 90s transcription)
 With cleanup: 150s + 30s = 180s total
 
 **Updated `calculateJobTimeout()`**:
+
 ```typescript
-const audioBatchTime = audioCount > 0
-  ? TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API + TIMEOUTS.TRANSCRIPT_CLEANUP
-  : 0;
+const audioBatchTime =
+  audioCount > 0 ? TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API + TIMEOUTS.TRANSCRIPT_CLEANUP : 0;
 ```
 
 **New constant in `constants/timing.ts`**:
+
 ```typescript
 export const TIMEOUTS = {
   // ... existing timeouts
   /** Transcript cleanup with fast LLM (30 seconds) */
   TRANSCRIPT_CLEANUP: 30000,
-}
+};
 ```
 
 ### Implementation Plan
 
 **Phase 1: Core Functionality**
+
 1. Add `TRANSCRIPT_CLEANUP_PROMPT` and constants
 2. Create `TranscriptCleanupService` class
 3. Wire into audio attachment processing flow
 4. Add toggle configuration (start with global flag)
 
 **Phase 2: Testing**
+
 1. Unit tests for cleanup service
 2. Test with various transcript quality levels
 3. Verify timeout allocation works correctly
 4. Manual testing with real voice messages
 
 **Phase 3: Monitoring**
+
 1. Add logging for cleanup pass duration
 2. Track cleanup success/failure rate
 3. Monitor impact on total audio processing time
@@ -136,10 +144,7 @@ export class TranscriptCleanupService {
       return rawTranscript;
     }
 
-    const prompt = TRANSCRIPT_CLEANUP_PROMPT.replace(
-      '{transcript}',
-      rawTranscript
-    );
+    const prompt = TRANSCRIPT_CLEANUP_PROMPT.replace('{transcript}', rawTranscript);
 
     const model = this.createCleanupModel();
     const response = await this.llmInvoker.invokeWithRetry(
@@ -147,7 +152,7 @@ export class TranscriptCleanupService {
       [new HumanMessage(prompt)],
       TRANSCRIPT_CLEANUP_MODEL,
       0, // no image attachments
-      0  // no audio attachments
+      0 // no audio attachments
     );
 
     return response.content.toString().trim();
@@ -175,14 +180,17 @@ export class TranscriptCleanupService {
 ### Alternatives Considered
 
 **Alternative 1: Regex-based cleanup**
+
 - Pros: Instant, no API cost
 - Cons: Limited effectiveness, can't fix transcription errors
 
 **Alternative 2: Fine-tuned model**
+
 - Pros: Could be more specialized
 - Cons: Training/maintenance overhead, not worth it for this use case
 
 **Alternative 3: Always-on (no toggle)**
+
 - Pros: Simpler implementation
 - Cons: Adds 30s to every audio message, users can't opt out
 
@@ -195,16 +203,17 @@ export class TranscriptCleanupService {
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Cleanup changes meaning | Conservative prompt, fall back to original on failure |
-| Adds 30s to audio processing | Make it optional, monitor timeout rates |
-| API cost increase | Use cheapest model (Haiku ~$0.001 per message) |
-| Cleanup fails | Non-critical error, use original transcript |
+| Risk                         | Mitigation                                            |
+| ---------------------------- | ----------------------------------------------------- |
+| Cleanup changes meaning      | Conservative prompt, fall back to original on failure |
+| Adds 30s to audio processing | Make it optional, monitor timeout rates               |
+| API cost increase            | Use cheapest model (Haiku ~$0.001 per message)        |
+| Cleanup fails                | Non-critical error, use original transcript           |
 
 ## Success Metrics
 
 After implementing, track:
+
 - Cleanup success rate (should be >95%)
 - Average cleanup duration (should be <30s)
 - Timeout rate for audio messages (should not increase significantly)

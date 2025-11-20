@@ -109,10 +109,18 @@ describe('PersonalityProfile', () => {
 
     describe('object-only construction requirement', () => {
       it('should throw error for non-object parameter', () => {
-        expect(() => new PersonalityProfile('TestName')).toThrow('PersonalityProfile requires an object configuration');
-        expect(() => new PersonalityProfile(null)).toThrow('PersonalityProfile requires an object configuration');
-        expect(() => new PersonalityProfile(undefined)).toThrow('PersonalityProfile requires an object configuration');
-        expect(() => new PersonalityProfile(123)).toThrow('PersonalityProfile requires an object configuration');
+        expect(() => new PersonalityProfile('TestName')).toThrow(
+          'PersonalityProfile requires an object configuration'
+        );
+        expect(() => new PersonalityProfile(null)).toThrow(
+          'PersonalityProfile requires an object configuration'
+        );
+        expect(() => new PersonalityProfile(undefined)).toThrow(
+          'PersonalityProfile requires an object configuration'
+        );
+        expect(() => new PersonalityProfile(123)).toThrow(
+          'PersonalityProfile requires an object configuration'
+        );
       });
     });
 

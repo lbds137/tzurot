@@ -16,7 +16,10 @@ const config = getConfig();
 /**
  * Validate and normalize model name for the current provider
  */
-function validateModelForProvider(requestedModel: string | undefined, provider: AIProvider): string {
+function validateModelForProvider(
+  requestedModel: string | undefined,
+  provider: AIProvider
+): string {
   switch (provider) {
     case AIProvider.OpenRouter: {
       // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model

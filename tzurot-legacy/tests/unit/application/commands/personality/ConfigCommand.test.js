@@ -2,7 +2,9 @@
  * Tests for ConfigCommand
  */
 
-const { createConfigCommand } = require('../../../../../src/application/commands/personality/ConfigCommand');
+const {
+  createConfigCommand,
+} = require('../../../../../src/application/commands/personality/ConfigCommand');
 
 describe('ConfigCommand', () => {
   let command;
@@ -343,7 +345,9 @@ describe('ConfigCommand', () => {
       const settingOption = command.options.find(opt => opt.name === 'setting');
       expect(settingOption).toBeDefined();
       expect(settingOption.required).toBe(true);
-      expect(settingOption.choices).toEqual([{ name: 'context-metadata', value: 'context-metadata' }]);
+      expect(settingOption.choices).toEqual([
+        { name: 'context-metadata', value: 'context-metadata' },
+      ]);
 
       const valueOption = command.options.find(opt => opt.name === 'value');
       expect(valueOption).toBeDefined();

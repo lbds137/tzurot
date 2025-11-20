@@ -126,10 +126,7 @@ export interface LLMGenerationJobData extends BaseJobData {
 /**
  * Union type for all job data types
  */
-export type AnyJobData =
-  | AudioTranscriptionJobData
-  | ImageDescriptionJobData
-  | LLMGenerationJobData;
+export type AnyJobData = AudioTranscriptionJobData | ImageDescriptionJobData | LLMGenerationJobData;
 
 /**
  * Audio transcription result
@@ -177,7 +174,4 @@ export interface ImageDescriptionResult {
 /**
  * Union type for all job results
  */
-export type AnyJobResult =
-  | AudioTranscriptionResult
-  | ImageDescriptionResult
-  | LLMGenerationResult;
+export type AnyJobResult = AudioTranscriptionResult | ImageDescriptionResult | LLMGenerationResult;

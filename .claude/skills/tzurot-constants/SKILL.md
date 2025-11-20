@@ -1,7 +1,7 @@
 ---
 name: tzurot-constants
 description: Constants management for Tzurot v3 - Identifies magic numbers/strings, guides domain-separated organization, and enforces centralization patterns. Use when writing code with hardcoded values or refactoring.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Constants Management
@@ -13,6 +13,7 @@ lastUpdated: "2025-11-19"
 **NO MAGIC NUMBERS OR STRINGS** - Use named constants from `@tzurot/common-types/constants`
 
 Magic values make code hard to maintain, search, and update. Constants provide:
+
 - **Discoverability** - Easy to find all uses of a value
 - **Consistency** - Same value used everywhere
 - **Documentation** - JSDoc explains WHY the value was chosen
@@ -40,6 +41,7 @@ packages/common-types/src/constants/
 ### ✅ ALWAYS Create Constants For:
 
 **1. Timeouts and Delays**
+
 ```typescript
 // ❌ BAD - Magic number
 await new Promise(resolve => setTimeout(resolve, 5 * 60 * 1000));
@@ -50,6 +52,7 @@ await new Promise(resolve => setTimeout(resolve, TIMEOUTS.CACHE_TTL));
 ```
 
 **2. Redis Key Prefixes**
+
 ```typescript
 // ❌ BAD - Hardcoded string
 await redis.set(`webhook:${messageId}`, data);
@@ -60,6 +63,7 @@ await redis.set(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`, data);
 ```
 
 **3. Retry Counts and Intervals**
+
 ```typescript
 // ❌ BAD - Magic numbers
 const maxRetries = 3;
@@ -72,6 +76,7 @@ const retryDelay = RETRY_CONFIG.INITIAL_DELAY_MS;
 ```
 
 **4. Buffer Sizes and Limits**
+
 ```typescript
 // ❌ BAD - Magic number
 if (message.content.length > 2000) {
@@ -86,6 +91,7 @@ if (message.content.length > TEXT_LIMITS.MESSAGE_MAX_LENGTH) {
 ```
 
 **5. Repeated String Literals**
+
 ```typescript
 // ❌ BAD - Repeated strings
 logger.info('[Bot] Starting...');
@@ -98,6 +104,7 @@ logger.info(`${LOG_PREFIX} Ready!`);
 ```
 
 **6. Event Types and Channel Names**
+
 ```typescript
 // ❌ BAD - String literals
 client.on('messageCreate', handler);
@@ -114,12 +121,14 @@ client.on(DISCORD_EVENTS.MESSAGE_CREATE, handler);
 ### ❌ DON'T Create Constants For:
 
 **1. One-Off String Literals**
+
 ```typescript
 // ✅ FINE - Used once, clear in context
 logger.info('Personality cache initialized');
 ```
 
 **2. Simple Struct Length Checks**
+
 ```typescript
 // ✅ FINE - Structure validation, not a "magic number"
 if (Object.keys(event).length === 2) {
@@ -128,12 +137,14 @@ if (Object.keys(event).length === 2) {
 ```
 
 **3. Test-Only Values**
+
 ```typescript
 // ✅ FINE - Test-specific, not shared
 const mockUserId = 'test-user-123';
 ```
 
 **4. Self-Documenting Values**
+
 ```typescript
 // ✅ FINE - The value IS the documentation
 const defaultTemperature = 0.8; // AI temperature parameter
@@ -142,6 +153,7 @@ const defaultTemperature = 0.8; // AI temperature parameter
 ## Domain-Separated Constants
 
 ### `ai.ts` - AI Provider Settings
+
 ```typescript
 export const AI_DEFAULTS = {
   /** Default temperature for AI responses (0.0 = deterministic, 1.0 = creative) */
@@ -161,6 +173,7 @@ export const MODEL_DEFAULTS = {
 ```
 
 ### `timing.ts` - Timeouts, Intervals, TTLs
+
 ```typescript
 export const TIMEOUTS = {
   /** Cache TTL for personality/user data (5 minutes) */
@@ -191,6 +204,7 @@ export const RETRY_CONFIG = {
 ```
 
 ### `queue.ts` - Queue Configuration, Redis Keys
+
 ```typescript
 export const QUEUE_CONFIG = {
   /** Maximum number of completed jobs to keep */
@@ -215,6 +229,7 @@ export const REDIS_CHANNELS = {
 ```
 
 ### `discord.ts` - Discord API Limits
+
 ```typescript
 export const TEXT_LIMITS = {
   /** Discord message content limit */
@@ -236,6 +251,7 @@ export const DISCORD_LIMITS = {
 ```
 
 ### `error.ts` - Error Codes and Messages
+
 ```typescript
 export enum TransientErrorCode {
   NetworkError = 'NETWORK_ERROR',
@@ -274,12 +290,18 @@ import { TIMEOUTS } from '@tzurot/common-types/constants/timing';
 ## Naming Conventions
 
 ### Constant Objects: SCREAMING_SNAKE_CASE
+
 ```typescript
-export const RETRY_CONFIG = { /* ... */ } as const;
-export const REDIS_KEY_PREFIXES = { /* ... */ } as const;
+export const RETRY_CONFIG = {
+  /* ... */
+} as const;
+export const REDIS_KEY_PREFIXES = {
+  /* ... */
+} as const;
 ```
 
 ### Properties: SCREAMING_SNAKE_CASE
+
 ```typescript
 export const TIMEOUTS = {
   CACHE_TTL: 5 * 60 * 1000,
@@ -288,6 +310,7 @@ export const TIMEOUTS = {
 ```
 
 ### Always Use `as const`
+
 ```typescript
 // ✅ GOOD - Readonly, TypeScript infers literal types
 export const LIMITS = {
@@ -303,6 +326,7 @@ export const LIMITS = {
 ## Documentation Requirements
 
 **Always add JSDoc comments** explaining:
+
 1. What the constant represents
 2. Why the value was chosen
 3. Units (seconds, milliseconds, etc.)
@@ -334,11 +358,13 @@ export const TIMEOUTS = {
 ## Config vs. Constants
 
 **Environment Variables (Config)** - Values that differ per environment:
+
 - API keys (DISCORD_TOKEN, OPENROUTER_API_KEY)
 - Database URLs (DATABASE_URL, REDIS_URL)
 - Service URLs (GATEWAY_URL, PUBLIC_GATEWAY_URL)
 
 **Application Constants** - Values that are the same across environments:
+
 - Retry limits (RETRY_CONFIG.MAX_ATTEMPTS)
 - Timeouts (TIMEOUTS.CACHE_TTL)
 - Discord limits (TEXT_LIMITS.MESSAGE_MAX_LENGTH)
@@ -380,6 +406,7 @@ export const INTERVALS = {
 ## Refactoring to Constants
 
 ### Step 1: Identify Magic Values
+
 ```bash
 # Search for common patterns
 grep -r "60000\|5000\|3000" src/
@@ -388,12 +415,14 @@ grep -r "setTimeout\|setInterval" src/
 ```
 
 ### Step 2: Determine Domain
+
 - Timeouts/delays → `timing.ts`
 - Redis keys → `queue.ts`
 - Discord limits → `discord.ts`
 - AI config → `ai.ts`
 
 ### Step 3: Add to Appropriate File
+
 ```typescript
 // packages/common-types/src/constants/timing.ts
 export const TIMEOUTS = {
@@ -403,12 +432,14 @@ export const TIMEOUTS = {
 ```
 
 ### Step 4: Export from Index
+
 ```typescript
 // packages/common-types/src/constants/index.ts
 export { TIMEOUTS } from './timing.js';
 ```
 
 ### Step 5: Update Usage
+
 ```typescript
 // Before
 const timeout = 60000;
@@ -421,6 +452,7 @@ const timeout = TIMEOUTS.MY_NEW_TIMEOUT;
 ## Anti-Patterns
 
 ### ❌ Don't Nest Constants Objects Too Deeply
+
 ```typescript
 // ❌ BAD - Too nested
 export const CONFIG = {
@@ -442,6 +474,7 @@ export const AI_TIMEOUTS = {
 ```
 
 ### ❌ Don't Mix Constants and Functions
+
 ```typescript
 // ❌ BAD - Functions don't belong in constants files
 export const HELPERS = {
@@ -462,6 +495,7 @@ export function calculateDelay(attempt: number): number {
 ```
 
 ### ❌ Don't Use String Enums for Constants
+
 ```typescript
 // ❌ BAD - String enum is overkill
 enum RedisKeys {

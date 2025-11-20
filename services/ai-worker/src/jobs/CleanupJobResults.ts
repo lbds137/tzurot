@@ -33,10 +33,7 @@ const CLEANUP_THRESHOLD = 10000;
  * @param prisma Prisma client for database access
  * @param force If true, always run cleanup (ignores probability and threshold)
  */
-export async function cleanupOldJobResults(
-  prisma: PrismaClient,
-  force = false
-): Promise<void> {
+export async function cleanupOldJobResults(prisma: PrismaClient, force = false): Promise<void> {
   try {
     const cutoffTime = new Date(Date.now() - RETENTION_PERIOD_MS);
 

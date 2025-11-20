@@ -24,13 +24,13 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 vi.mock('../utils/attachmentPlaceholders.js', () => ({
-  generateAttachmentPlaceholders: vi.fn((attachments) => {
+  generateAttachmentPlaceholders: vi.fn(attachments => {
     return `\n\n[Placeholder: ${attachments.length} attachment(s)]`;
   }),
 }));
 
 vi.mock('../utils/referenceFormatter.js', () => ({
-  formatReferencesForDatabase: vi.fn((references) => {
+  formatReferencesForDatabase: vi.fn(references => {
     return `\n\n[Placeholder: ${references.length} reference(s)]`;
   }),
 }));
@@ -47,7 +47,9 @@ describe('ConversationPersistence', () => {
     vi.clearAllMocks();
 
     persistence = new ConversationPersistence();
-    mockConversationHistory = (persistence as unknown as {conversationHistory: typeof mockConversationHistory}).conversationHistory;
+    mockConversationHistory = (
+      persistence as unknown as { conversationHistory: typeof mockConversationHistory }
+    ).conversationHistory;
 
     mockPersonality = {
       id: 'personality-123',
@@ -120,9 +122,7 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
       });
 
-      const attachments = [
-        { url: 'https://cdn.discord.com/image.png', contentType: 'image/png' },
-      ];
+      const attachments = [{ url: 'https://cdn.discord.com/image.png', contentType: 'image/png' }];
 
       await persistence.saveUserMessage({
         message: mockMessage,
@@ -185,9 +185,7 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
       });
 
-      const attachments = [
-        { url: 'https://cdn.discord.com/image.png', contentType: 'image/png' },
-      ];
+      const attachments = [{ url: 'https://cdn.discord.com/image.png', contentType: 'image/png' }];
 
       const referencedMessages: ReferencedMessage[] = [
         {

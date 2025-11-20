@@ -5,7 +5,7 @@
 **Priority:** High (Major Architecture Enhancement)
 **Development Strategy:** Feature freeze on `develop` branch - full focus on architecture refactor
 
-> **Related Discussion (Archived):** [Gemini-OpenMemory_ Cognitive AI Memory System.md](../archive/Gemini-OpenMemory_%20Cognitive%20AI%20Memory%20System.md) - Initial exploration that led to this migration. Note: Some assumptions in that chat were corrected through our own deep codebase analysis.
+> **Related Discussion (Archived):** [Gemini-OpenMemory\_ Cognitive AI Memory System.md](../archive/Gemini-OpenMemory_%20Cognitive%20AI%20Memory%20System.md) - Initial exploration that led to this migration. Note: Some assumptions in that chat were corrected through our own deep codebase analysis.
 
 ## Executive Summary
 
@@ -29,6 +29,7 @@ This document outlines the plan to migrate Tzurot's long-term memory system from
 **Current Status (as of 2025-11-05):**
 
 **Embeddings API:**
+
 - ✅ OpenRouter provides an OpenAI-compatible embeddings API
 - ✅ Endpoint: `https://openrouter.ai/api/v1/embeddings`
 - ✅ Available models:
@@ -41,6 +42,7 @@ This document outlines the plan to migrate Tzurot's long-term memory system from
 - 💡 **Decision:** Use `text-embedding-3-large` for best quality
 
 **TypeScript SDK:**
+
 - ✅ Official `@openrouter/ai-sdk-provider` package available
 - ✅ Integrates with Vercel AI SDK
 - ✅ Access to 300+ models
@@ -48,20 +50,21 @@ This document outlines the plan to migrate Tzurot's long-term memory system from
 - 💡 **Recommendation:** Use OpenAI SDK with OpenRouter base URL for embeddings
 
 **Implementation Approach:**
+
 ```typescript
 // For chat completions - use OpenRouter SDK
-import OpenRouter from "@openrouter/ai-sdk-provider";
+import OpenRouter from '@openrouter/ai-sdk-provider';
 
 // For embeddings - use OpenAI SDK with OpenRouter endpoint
-import OpenAI from "openai";
+import OpenAI from 'openai';
 
 const embeddingsClient = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
+  baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
   defaultHeaders: {
-    "HTTP-Referer": process.env.YOUR_SITE_URL,
-    "X-Title": "Tzurot",
-  }
+    'HTTP-Referer': process.env.YOUR_SITE_URL,
+    'X-Title': 'Tzurot',
+  },
 });
 ```
 
@@ -72,6 +75,7 @@ const embeddingsClient = new OpenAI({
 Assumed OpenMemory's reflection job would use an LLM for memory consolidation. Researched uncensored models:
 
 **Venice Uncensored Dolphin Mistral 24B** (`venice/uncensored:free`)
+
 - FREE via Venice/OpenRouter partnership
 - 2.2% refusal rate (perfect for NSFW)
 - 24B parameters
@@ -79,6 +83,7 @@ Assumed OpenMemory's reflection job would use an LLM for memory consolidation. R
 **Codebase Analysis (2025-11-05 afternoon):**
 
 After examining the actual OpenMemory source code:
+
 - ✅ Reflection system is **100% deterministic** (no LLM)
 - ✅ Uses cosine similarity clustering on word frequency vectors
 - ✅ Generates summaries via pattern matching
@@ -91,6 +96,7 @@ After examining the actual OpenMemory source code:
 ### Phase 0: Pre-Migration Research & Preparation (CURRENT)
 
 **Tasks:**
+
 - [x] Research OpenMemory architecture and capabilities
 - [x] Research OpenRouter embeddings support
 - [x] Document current Tzurot memory implementation
@@ -99,6 +105,7 @@ After examining the actual OpenMemory source code:
 - [ ] Test OpenRouter embeddings API
 
 **Deliverables:**
+
 - This migration plan document
 - Local OpenMemory development environment
 - Working embeddings prototype
@@ -106,6 +113,7 @@ After examining the actual OpenMemory source code:
 ### Phase 1: Infrastructure Setup (2-3 days)
 
 **Railway Services:**
+
 1. Provision new PostgreSQL database for OpenMemory
    - Separate from Tzurot database
    - Configure pgvector extension if needed
@@ -116,6 +124,7 @@ After examining the actual OpenMemory source code:
    - Set up Railway private networking
 
 **Environment Variables:**
+
 ```bash
 # OpenMemory Backend Service - Database Configuration
 OM_METADATA_BACKEND=postgres
@@ -159,6 +168,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 ```
 
 **Tasks:**
+
 - [ ] Create Railway service from OpenMemory Dockerfile
 - [ ] Provision separate Postgres database
 - [ ] Configure environment variables
@@ -167,6 +177,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Document Railway deployment configuration
 
 **Deliverables:**
+
 - Running OpenMemory service on Railway
 - Documented deployment configuration
 - Health check verification
@@ -205,6 +216,7 @@ OM_LOG_AUTH=false  # Enable for debugging
    - Keep existing retry logic (still valuable)
 
 **Tasks:**
+
 - [ ] Create OpenMemoryAdapter with HTTP client
 - [ ] Create OpenMemoryEmbeddingsProvider
 - [ ] Update ConversationalRAGService
@@ -213,6 +225,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Write unit tests for new adapters
 
 **Deliverables:**
+
 - Working OpenMemory HTTP client
 - Updated RAG service
 - Test coverage for new code
@@ -222,7 +235,9 @@ OM_LOG_AUTH=false  # Enable for debugging
 **Migration Script:** `scripts/migrate-to-openmemory.ts`
 
 **Strategy:**
+
 1. Export existing memories from Tzurot Postgres
+
    ```sql
    SELECT id, content, "createdAt", "personaId", "personalityId", "guildId", "channelId"
    FROM memories
@@ -242,6 +257,7 @@ OM_LOG_AUTH=false  # Enable for debugging
    - Tag with `personality_id`
 
 **Tasks:**
+
 - [ ] Write migration script
 - [ ] Test on small subset (100 memories)
 - [ ] Run full migration in dev environment
@@ -249,6 +265,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Create rollback procedure
 
 **Deliverables:**
+
 - Data migration script
 - Migration log and verification
 - Rollback procedure documentation
@@ -262,6 +279,7 @@ OM_LOG_AUTH=false  # Enable for debugging
    - Still needs 1:1 dev/prod sync
 
 2. **Create `db-backup` for OpenMemory (State) DB**
+
    ```bash
    # Run nightly via cron or Railway scheduled job
    pg_dump $OPENMEMORY_DB_URL > backups/openmemory_$(date +%Y%m%d).sql
@@ -269,6 +287,7 @@ OM_LOG_AUTH=false  # Enable for debugging
    ```
 
 3. **Create `db-seed` for OpenMemory Dev**
+
    ```bash
    # Wipe dev database
    psql $OPENMEMORY_DEV_DB_URL -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
@@ -284,6 +303,7 @@ OM_LOG_AUTH=false  # Enable for debugging
    - Various canon types and sectors
 
 **Tasks:**
+
 - [ ] Update db-sync command to skip OpenMemory
 - [ ] Create db-backup script
 - [ ] Create db-seed script
@@ -291,6 +311,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Document new sync workflow
 
 **Deliverables:**
+
 - Updated sync scripts
 - Seed data file
 - Documentation of new workflow
@@ -300,6 +321,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 **Goal:** Slim down personality system prompts by moving static data to OpenMemory
 
 **Current Bloat:**
+
 ```typescript
 // Personality table fields that take up massive tokens:
 - characterInfo (long)
@@ -310,6 +332,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 ```
 
 **New Architecture:**
+
 ```typescript
 // Minimal Personality table:
 - id
@@ -325,6 +348,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 **Implementation:**
 
 1. **Migration Script:** `scripts/migrate-personality-data.ts`
+
    ```typescript
    for (const personality of personalities) {
      // Store each field as separate semantic memory
@@ -332,10 +356,10 @@ OM_LOG_AUTH=false  # Enable for debugging
        text: `Character Info: ${personality.characterInfo}`,
        metadata: {
          personality_id: personality.id,
-         canon_type: "personality_fact",
-         source_field: "characterInfo"
+         canon_type: 'personality_fact',
+         source_field: 'characterInfo',
        },
-       sector_override: "semantic"
+       sector_override: 'semantic',
      });
 
      // Repeat for traits, likes, dislikes, examples
@@ -344,20 +368,22 @@ OM_LOG_AUTH=false  # Enable for debugging
 
 2. **Update `ConversationalRAGService.buildSystemPrompt()`**
    - Query OpenMemory for personality facts
+
    ```typescript
    const personalityFacts = await this.memoryAdapter.queryMemories({
      query: userMessage, // Current message for relevance
      where: {
        personality_id: personality.id,
-       canon_type: "personality_fact"
+       canon_type: 'personality_fact',
      },
-     sector: "semantic"
+     sector: 'semantic',
    });
 
    // Inject only relevant facts into system prompt
    ```
 
 **Tasks:**
+
 - [ ] Create personality data migration script
 - [ ] Update system prompt building logic
 - [ ] Test with COLD personality
@@ -365,6 +391,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Verify personality behavior unchanged
 
 **Deliverables:**
+
 - Slimmed personality definitions
 - Token usage metrics (before/after)
 - Updated system prompt logic
@@ -395,12 +422,14 @@ OM_LOG_AUTH=false  # Enable for debugging
    - Triggers OpenMemory upsert
 
 **Implementation:**
+
 - Create command handlers in `bot-client/src/commands/memory/`
 - Add permission checks (user can only manage own memories)
 - Call OpenMemory API endpoints (`/query`, `/get`, `/edit`)
 - Format responses with Discord embeds
 
 **Tasks:**
+
 - [ ] Implement memory command handlers
 - [ ] Add permission checks
 - [ ] Create Discord embed formatters
@@ -408,6 +437,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Document usage in /help
 
 **Deliverables:**
+
 - Working memory management commands
 - User documentation
 - Permission system
@@ -444,6 +474,7 @@ OM_LOG_AUTH=false  # Enable for debugging
    - Rate limiting
 
 **Tasks:**
+
 - [ ] Write comprehensive test suite
 - [ ] Run integration tests in dev
 - [ ] Perform manual testing
@@ -451,6 +482,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Fix bugs found in testing
 
 **Deliverables:**
+
 - Test suite with high coverage
 - Performance metrics
 - Bug fixes
@@ -472,17 +504,20 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Create release notes
 
 **Rollback Plan:**
+
 1. Revert ai-worker to previous version
 2. Restore from database backup if needed
 3. Keep OpenMemory service running (no harm)
 
 **Tasks:**
+
 - [ ] Execute deployment checklist
 - [ ] Monitor production for 24 hours
 - [ ] Address any issues
 - [ ] Document lessons learned
 
 **Deliverables:**
+
 - Successful production deployment
 - Monitoring data
 - Release notes
@@ -521,6 +556,7 @@ These are post-migration enhancements unlocked by the new architecture:
 **What We Already Have:**
 
 OpenMemory includes LangChain/LangGraph integration:
+
 - MCP (Model Context Protocol) tools in `backend/src/ai/mcp.ts`
 - LangGraph integration in `backend/src/ai/graph.ts`
 - Built-in tool system
@@ -533,16 +569,19 @@ OpenMemory includes LangChain/LangGraph integration:
 - Keep it personality-aware (tools available per personality config)
 
 **Reference:**
+
 - GitHub: https://github.com/langchain-ai/deepagents
 - Blog: https://blog.langchain.com/deep-agents/
 
 ### 9.1: Agentic Toolbox (3-5 days)
 
 **Refactor ConversationalRAGService → Agent Executor:**
+
 - Move from static pipeline to dynamic tool selection
 - LLM decides which tools to use
 
 **Tools to Implement:**
+
 1. **Memory Tools:**
    - `openmemory_query` - Query memories
    - `openmemory_store` - Store new memories
@@ -568,6 +607,7 @@ OpenMemory includes LangChain/LangGraph integration:
 ### 9.2: "Free Will" Feature (4-5 days)
 
 **Proactive Agent System:**
+
 - Background job checks active channels every 5 minutes
 - Fetches last 10 messages (STM) for each active channel
 - Queries OpenMemory for each personality with STM as query
@@ -575,6 +615,7 @@ OpenMemory includes LangChain/LangGraph integration:
 - That personality proactively chimes in
 
 **Implementation:**
+
 1. Create `ProactiveAgentJob` in ai-worker
 2. Query `ActivatedChannel` table for potential speakers
 3. Fetch recent channel history
@@ -585,6 +626,7 @@ OpenMemory includes LangChain/LangGraph integration:
 ### 9.3: Intelligent Memory Management (2-3 days)
 
 **Agentic Memory Skills:**
+
 - Personalities can recognize important information
 - Call `openmemory_reinforce` when user says "remember this!"
 - Detect contradictions and ask for clarification
@@ -594,6 +636,7 @@ OpenMemory includes LangChain/LangGraph integration:
 ### 9.4: STM Reduction (1 day)
 
 **Optimize Context Window:**
+
 - Reduce STM from 30 → 10 messages
 - Rely on OpenMemory's sector search for facts
 - Measure token savings (expect 50-60% reduction)
@@ -643,9 +686,11 @@ Tzurot v3 (After Migration)
 ## Additional Considerations & Open Questions
 
 ### 1. Sector Classification Accuracy
+
 **Concern:** Will OpenMemory correctly classify NSFW/RP content into sectors?
 
 **Known:** Classification uses regex patterns in `hsg.ts` for:
+
 - Episodic (events/conversations)
 - Semantic (facts/rules)
 - Emotional (feelings)
@@ -653,6 +698,7 @@ Tzurot v3 (After Migration)
 - Reflective (meta-cognition)
 
 **Action Items:**
+
 - Test classification with real RP conversation data
 - May need to fork OpenMemory to adjust sector regex patterns for NSFW context
 - Can use `sector_override` parameter to manually specify sector if needed
@@ -664,12 +710,14 @@ Tzurot v3 (After Migration)
 After thoroughly examining the OpenMemory source code (hsg.ts, reflect.ts, graph.ts, decay.ts), here's what we found:
 
 **Reflection System:**
+
 - ✅ Deterministic (no LLM) - uses cosine similarity clustering on word frequency vectors
 - ✅ Smart cluster detection (>0.8 similarity threshold)
 - ✅ Multi-factor salience calculation (60% cluster size, 30% recency, 10% emotional)
 - ✅ **NO CENSORSHIP ISSUES** - huge win for NSFW/RP content!
 
 **Core Architecture (Actually Sophisticated!):**
+
 - ✅ Multi-sector vector embeddings with sector-specific decay rates
 - ✅ Waypoint graph system with strengthening, decay, and associative propagation
 - ✅ Hybrid scoring (60% similarity, 20% token overlap, 15% waypoints, 5% recency)
@@ -680,6 +728,7 @@ After thoroughly examining the OpenMemory source code (hsg.ts, reflect.ts, graph
 - ✅ Multi-layer caching (query cache, vector cache, salience cache, segment cache)
 
 **Sector-Specific Decay Rates:**
+
 - Episodic: 0.015 (events fade faster)
 - Semantic: 0.005 (facts persist longer)
 - Procedural: 0.008 (skills persist)
@@ -687,6 +736,7 @@ After thoroughly examining the OpenMemory source code (hsg.ts, reflect.ts, graph
 - Reflective: 0.001 (insights persist longest)
 
 **Verdict:** OpenMemory's architecture is genuinely sophisticated - not marketing BS. The deterministic reflection doesn't diminish the system's cognitive capabilities because:
+
 1. Cluster detection is smart (cosine similarity >0.8)
 2. Salience calculation considers multiple factors
 3. Reflections get full multi-sector embedding treatment
@@ -694,6 +744,7 @@ After thoroughly examining the OpenMemory source code (hsg.ts, reflect.ts, graph
 5. No LLM = no censorship issues for NSFW content
 
 **Configuration:**
+
 ```bash
 OM_AUTO_REFLECT=true  # Enable automatic reflection clustering
 OM_REFLECT_INTERVAL=10  # Run every 10 minutes (default)
@@ -707,14 +758,18 @@ OM_REFLECT_MIN_MEMORIES=20  # Minimum memories before reflection
 ## Key Advantages Discovered During Architecture Review
 
 ### 1. No NSFW Censorship Issues ✅
+
 Unlike initially planned LLM-based reflection (Venice Uncensored), the deterministic approach has **zero** censorship concerns:
+
 - No LLM refusing to process vampire sex roleplay
 - No "I cannot assist with that content" errors
 - No worrying about model updates changing behavior
 - **Reflection works perfectly for ANY content**
 
 ### 2. Learning & Self-Improvement 🧠
+
 OpenMemory isn't static - it learns from usage:
+
 - **Feedback scores:** Exponential moving average of query performance
 - **Retrieval reinforcement:** Memories gain salience when accessed
 - **Associative propagation:** Connected memories strengthen together
@@ -724,7 +779,9 @@ OpenMemory isn't static - it learns from usage:
 Result: The system gets smarter the more you use it!
 
 ### 3. Sophisticated Retrieval Beyond Simple Similarity 🎯
+
 Current Tzurot uses basic cosine similarity with manual threshold. OpenMemory uses:
+
 - **Multi-sector weighted scoring** (60% similarity, 20% overlap, 15% waypoints, 5% recency)
 - **Adaptive expansion** (automatically follows graph connections when needed)
 - **Z-score normalization** (proper statistical ranking)
@@ -734,7 +791,9 @@ Current Tzurot uses basic cosine similarity with manual threshold. OpenMemory us
 Result: Way more relevant results than just "similar embeddings."
 
 ### 4. Cognitive Realism 🧠
+
 The sector-specific decay rates mimic actual human memory:
+
 - Facts (semantic) persist longest (0.005 decay)
 - Events (episodic) fade moderately (0.015 decay)
 - Feelings (emotional) fade quickly (0.020 decay)
@@ -743,7 +802,9 @@ The sector-specific decay rates mimic actual human memory:
 Result: Personalities will naturally "forget" unimportant details while retaining core knowledge.
 
 ### 5. Smart Essence Extraction 📝
+
 Instead of storing full conversation dumps, OpenMemory scores and extracts key sentences:
+
 - Temporal references (dates, times) +5
 - Named entities (proper nouns) +3
 - Action verbs (bought, visited, learned) +4
@@ -753,7 +814,9 @@ Instead of storing full conversation dumps, OpenMemory scores and extracts key s
 Result: More efficient storage, better recall of important details.
 
 ### 6. Graph-Based Association 🕸️
+
 Memories don't exist in isolation - they form a graph:
+
 - **Cross-sector waypoints:** Same memory accessible via different cognitive sectors
 - **Inter-memory waypoints:** Similar memories link together
 - **Contextual waypoints:** Co-retrieved memories strengthen connections
@@ -762,6 +825,7 @@ Memories don't exist in isolation - they form a graph:
 Result: Natural memory associations like human cognition.
 
 ### 7. Performance Tiers for Different Use Cases ⚡
+
 - **deep (our choice):** Full 1536-dim embeddings, maximum cognitive features
 - **smart:** Hybrid approach, good balance
 - **fast:** Synthetic embeddings for speed
@@ -772,9 +836,11 @@ Result: We get the full cognitive architecture with configurable performance.
 ---
 
 ### 3. Embeddings Cost Monitoring
+
 **Concern:** Multi-vector system means 2-5x embedding costs per memory
 
 **Mitigation:**
+
 - Monitor embedding API usage closely in dev environment
 - Track cost per memory added
 - If costs become problematic:
@@ -783,18 +849,20 @@ Result: We get the full cognitive architecture with configurable performance.
   - Optimize memory storage frequency
 
 ### 4. Persona Seed Update Implementation
+
 **Question:** How to handle persona seed updates when user runs `/persona set`?
 
 **Proposed Approach:**
+
 ```typescript
 // Query with specific field identifier
 const existing = await openmemory.query({
-  query: "",
+  query: '',
   where: {
     persona_id: personaId,
-    canon_type: "user_fact",
-    field_name: "self_description"  // Unique identifier
-  }
+    canon_type: 'user_fact',
+    field_name: 'self_description', // Unique identifier
+  },
 });
 
 // Update if found, create if not
@@ -805,30 +873,36 @@ if (existing.length > 0) {
     text: newText,
     metadata: {
       persona_id: personaId,
-      canon_type: "user_fact",
-      field_name: "self_description"
-    }
+      canon_type: 'user_fact',
+      field_name: 'self_description',
+    },
   });
 }
 ```
 
 ### 5. Railway Private Networking
+
 **Action Item:** Research Railway service discovery and private networking
 
 **Questions:**
+
 - Can ai-worker communicate with openmemory-backend via service name?
 - Do we need special configuration for Railway private network?
 - What's the hostname format? `openmemory-backend:PORT` or different?
 
 ### 6. Database Growth Monitoring
+
 **Action Items:**
+
 - Monitor OpenMemory database size growth in dev
 - Estimate production growth rate
 - Plan for database scaling if needed
 - Consider archival strategy for very old memories
 
 ### 7. Testing with "Living" Database
+
 **Solution:**
+
 - Use deterministic seed data for tests
 - Disable background jobs in test environment (`OM_DECAY_INTERVAL_MINUTES=999999`)
 - Mock OpenMemory API for unit tests
@@ -837,40 +911,50 @@ if (existing.length > 0) {
 ## Risks & Mitigation
 
 ### Risk 1: OpenMemory Service Instability
+
 **Impact:** Memory operations fail, affecting all AI responses
 **Mitigation:**
+
 - Implement robust error handling in OpenMemoryAdapter
 - Add circuit breaker pattern
 - Fall back to "no memory" mode if OpenMemory down
 - Monitor service health with alerts
 
 ### Risk 2: Increased Latency
+
 **Impact:** Slower response times due to HTTP calls
 **Mitigation:**
+
 - Use Railway private networking (low latency)
 - Implement request timeouts
 - Cache frequently accessed memories
 - Monitor and optimize query patterns
 
 ### Risk 3: Data Migration Issues
+
 **Impact:** Lost or corrupted memories during migration
 **Mitigation:**
+
 - Test migration on small subset first
 - Keep old pgvector data intact during migration
 - Implement idempotent migration (can re-run)
 - Verify data integrity after migration
 
 ### Risk 4: OpenRouter Embeddings Reliability
+
 **Impact:** Embedding generation fails, blocking memory operations
 **Mitigation:**
+
 - Keep OpenAI as fallback option
 - Implement retry logic with exponential backoff
 - Monitor embedding API latency and errors
 - Consider using OpenMemory's "fast" tier as emergency fallback
 
 ### Risk 5: Loss of Dev/Prod Parity
+
 **Impact:** Harder to debug production issues in dev
 **Mitigation:**
+
 - Create comprehensive seed data that covers edge cases
 - Document process for creating prod-like test scenarios
 - Keep ability to restore prod backup to dev if critical debugging needed
@@ -879,6 +963,7 @@ if (existing.length > 0) {
 ## Success Criteria
 
 ### Phase 1-8 (Core Migration)
+
 - [ ] OpenMemory service running stably on Railway
 - [ ] All existing memories migrated successfully
 - [ ] Personality definitions slimmed down
@@ -890,6 +975,7 @@ if (existing.length > 0) {
 - [ ] Documentation updated
 
 ### Phase 9 (Advanced Features)
+
 - [ ] Agentic toolbox implemented
 - [ ] "Free will" feature working
 - [ ] Personalities can manage their own memories
@@ -904,19 +990,19 @@ The real bottlenecks are your available time for review/testing, Railway deploy 
 
 **Phase Breakdown:**
 
-| Phase | Focused Sessions | Description |
-|-------|------------------|-------------|
-| 1. Infrastructure Setup | 1-2 sessions | Deploy OpenMemory to Railway, configure env vars, verify health |
-| 2. HTTP Client Implementation | 2-3 sessions | Write OpenMemoryAdapter, update RAG service, test locally |
-| 3. Data Migration | 1-2 sessions | Write migration script, test subset, run full migration |
-| 4. DB Sync Strategy | 1 session | Update sync scripts, create seed data |
-| 5. Personality Refactoring | 2-3 sessions | Move static data to semantic memory, test behavior |
-| 6. Memory Commands | 1-2 sessions | Implement /memory commands in bot-client |
-| 7. Testing & Validation | 2-3 sessions | Write tests, manual testing, fix issues |
-| 8. Production Deployment | 1-2 sessions | Deploy to prod, monitor, address issues |
-| **Phases 1-8 Total** | **10-15 sessions** | Core migration complete |
-| 9. Agentic Features | 5-8 sessions | Toolbox, "free will", intelligent memory management |
-| **Full Vision Total** | **15-23 sessions** | Complete transformation |
+| Phase                         | Focused Sessions   | Description                                                     |
+| ----------------------------- | ------------------ | --------------------------------------------------------------- |
+| 1. Infrastructure Setup       | 1-2 sessions       | Deploy OpenMemory to Railway, configure env vars, verify health |
+| 2. HTTP Client Implementation | 2-3 sessions       | Write OpenMemoryAdapter, update RAG service, test locally       |
+| 3. Data Migration             | 1-2 sessions       | Write migration script, test subset, run full migration         |
+| 4. DB Sync Strategy           | 1 session          | Update sync scripts, create seed data                           |
+| 5. Personality Refactoring    | 2-3 sessions       | Move static data to semantic memory, test behavior              |
+| 6. Memory Commands            | 1-2 sessions       | Implement /memory commands in bot-client                        |
+| 7. Testing & Validation       | 2-3 sessions       | Write tests, manual testing, fix issues                         |
+| 8. Production Deployment      | 1-2 sessions       | Deploy to prod, monitor, address issues                         |
+| **Phases 1-8 Total**          | **10-15 sessions** | Core migration complete                                         |
+| 9. Agentic Features           | 5-8 sessions       | Toolbox, "free will", intelligent memory management             |
+| **Full Vision Total**         | **15-23 sessions** | Complete transformation                                         |
 
 **Calendar Time Translation:**
 
@@ -925,11 +1011,13 @@ The real bottlenecks are your available time for review/testing, Railway deploy 
 - **Focused sprint (3-4 sessions per week):** Phases 1-8 in 3-4 weeks, Phase 9 adds 2-3 weeks → **5-7 weeks total**
 
 **What Constitutes a "Focused Session":**
+
 - 2-4 hours of dedicated work time
 - Deploy → test → fix cycle
 - Review + decision-making included
 
 **Key Advantages of AI-Assisted Development:**
+
 - ✅ Code generation is near-instant
 - ✅ Can parallelize research and implementation
 - ✅ No context-switching fatigue
@@ -938,6 +1026,7 @@ The real bottlenecks are your available time for review/testing, Railway deploy 
 - ⚠️ Still constrained by: your availability, Railway deploy times, manual validation needs
 
 **Recommended Approach:**
+
 - Start with Phase 1 (infrastructure) to validate feasibility
 - Proceed phase-by-phase with testing at each stage
 - Don't rush - validate each phase before moving forward
@@ -947,6 +1036,7 @@ The real bottlenecks are your available time for review/testing, Railway deploy 
 ## Decision Log
 
 **2025-11-05 - Initial Planning:**
+
 - Decision: Proceed with OpenMemory migration
 - Rationale: Addresses core memory sophistication pain points, enables agentic architecture
 - Trade-offs accepted: Loss of dev/prod memory mirroring, increased DB size, additional Railway costs
@@ -981,6 +1071,7 @@ The real bottlenecks are your available time for review/testing, Railway deploy 
 **2025-11-05 - Architecture Validation:**
 
 After deep analysis of OpenMemory source code:
+
 - ✅ **Architecture is genuinely sophisticated** - not marketing BS
 - ✅ **Waypoint graph system** with associative propagation and learning
 - ✅ **Hybrid scoring** with 5+ factors intelligently combined

@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: Documentation maintenance for Tzurot v3 - Updating CURRENT_WORK.md, CHANGELOG.md, folder structure, and keeping docs current. Use at session end or when documentation needs updating.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Documentation Maintenance
@@ -13,6 +13,7 @@ lastUpdated: "2025-11-19"
 **For a one-person project with AI assistance, documentation is CRITICAL for context preservation.**
 
 Without proper docs, each new session starts with a blank slate. Good documentation:
+
 - Preserves context across sessions
 - Records decisions and rationale
 - Tracks progress and prevents duplicate work
@@ -25,12 +26,14 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 **Purpose:** Single source of truth for what's happening RIGHT NOW
 
 **Update at:**
+
 - Start of session (read to understand context)
 - End of session (document progress)
 - Switching focus areas (record new direction)
 - Completing major milestones
 
 **Format:**
+
 ```markdown
 > Last updated: YYYY-MM-DD
 
@@ -41,16 +44,20 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 **Recent Completion**: [Major milestone just finished]
 
 ## Active Work
+
 [Details of current task - what's in progress, blockers, next steps]
 
 ## Planned Features (Priority Order)
+
 [Upcoming work in priority order]
 
 ## Technical Debt
+
 [Known issues to address later]
 ```
 
 **Example:**
+
 ```markdown
 > Last updated: 2025-11-19
 
@@ -61,7 +68,9 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 **Recent Completion**: Smart cache invalidation (PR #244) - Redis pub/sub for cross-service cache invalidation
 
 ## Active Work
+
 ### Skills Creation (feat/claude-code-skills)
+
 - ✅ tzurot-testing - Vitest patterns, fake timers, mocking
 - ✅ tzurot-constants - Magic numbers, domain separation
 - ✅ tzurot-git-workflow - Rebase-only, PR format
@@ -69,6 +78,7 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 - ⏳ 6 more skills to create
 
 ## Planned Features (Priority Order)
+
 1. Complete remaining 6 skills
 2. Test skills functionality in Claude Code
 3. BYOK (Bring Your Own Key) - Critical for public launch
@@ -76,6 +86,7 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 ```
 
 **When NOT to update:**
+
 - Minor changes that don't affect project direction
 - Small bug fixes
 - Routine refactoring
@@ -85,11 +96,13 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 **Purpose:** Record all notable changes for users/developers
 
 **Update when:**
+
 - Merging PRs to develop
 - Releasing new versions
 - Making breaking changes
 
 **Format:** Follow [Keep a Changelog](https://keepachangelog.com/)
+
 ```markdown
 # Changelog
 
@@ -101,24 +114,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Smart cache invalidation via Redis pub/sub (PR #244)
 - Claude Code Skills for project-specific workflows
 
 ### Fixed
+
 - Resource leak in CacheInvalidationService subscribe() error path
 
 ### Changed
+
 - Centralized Redis channel constants to REDIS_CHANNELS
 
 ## [3.0.0-alpha.43] - 2025-11-17
 
 ### Added
+
 - Image attachment support in Discord messages
 - Voice transcription via Whisper API
-...
+  ...
 ```
 
 **Categories:**
+
 - **Added** - New features
 - **Changed** - Changes to existing functionality
 - **Deprecated** - Soon-to-be-removed features
@@ -131,12 +149,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Purpose:** Project-specific configuration and guidelines for AI assistants
 
 **Update when:**
+
 - Establishing new patterns (like constants management)
 - Adding important context (post-mortems)
 - Changing project structure
 - Documenting new conventions
 
 **Don't update for:**
+
 - Individual feature details (those go in docs/)
 - Temporary decisions
 - One-off instructions
@@ -170,23 +190,27 @@ docs/
 ### When to Create New Documentation
 
 **Create in `docs/` when:**
+
 - Documenting a complex feature
 - Recording architectural decisions
 - Writing operational procedures
 - Creating reusable templates
 
 **Don't create when:**
+
 - Feature is simple and obvious
 - Information already exists elsewhere
 - It's temporary information
 
 **Root documentation rules:**
+
 - **ONLY these files belong in root:** README.md, CHANGELOG.md, CLAUDE.md, CURRENT_WORK.md
 - Everything else goes in `docs/`
 
 ## Documentation Best Practices
 
 ### 1. Use Descriptive Names
+
 ```
 # ✅ GOOD
 docs/architecture/memory-and-context-redesign.md
@@ -198,6 +222,7 @@ docs/plan.md
 ```
 
 ### 2. Update Existing Docs Instead of Creating New Ones
+
 ```
 # ✅ GOOD - Update existing
 echo "New section" >> docs/guides/TESTING.md
@@ -207,6 +232,7 @@ touch docs/guides/TESTING_NEW.md
 ```
 
 ### 3. Delete Obsolete Docs
+
 Git history preserves them, so it's safe to delete when outdated.
 
 ```bash
@@ -216,6 +242,7 @@ git commit -m "docs: remove obsolete feature spec (implemented in v3.0.0-alpha.4
 ```
 
 ### 4. Use Consistent Date Format
+
 ```
 # ✅ GOOD
 > Last updated: 2025-11-19
@@ -226,13 +253,13 @@ git commit -m "docs: remove obsolete feature spec (implemented in v3.0.0-alpha.4
 ```
 
 ### 5. Link Between Related Docs
+
 ```markdown
 ## Related Skills
 
 - **tzurot-git-workflow** - Commit documentation updates
 - **tzurot-gemini-collab** - When to update vs create docs
 - **tzurot-architecture** - Document architectural decisions
-
 
 ## References
 
@@ -246,6 +273,7 @@ git commit -m "docs: remove obsolete feature spec (implemented in v3.0.0-alpha.4
 **At end of session:**
 
 1. **Update CURRENT_WORK.md**
+
 ```bash
 # Get current date
 date +%Y-%m-%d
@@ -254,18 +282,21 @@ date +%Y-%m-%d
 ```
 
 2. **Delete obsolete docs**
+
 ```bash
 # If any docs are now outdated
 git rm docs/planning/completed-feature.md
 ```
 
 3. **Update relevant doc timestamps**
+
 ```bash
 # If you modified architectural docs or guides
 # Update their "Last updated" timestamp
 ```
 
 4. **Commit work-in-progress if needed**
+
 ```bash
 # Use descriptive WIP commit messages
 git commit -m "wip: skills creation - 5/10 complete"
@@ -280,6 +311,7 @@ git commit -m "wip: skills creation - 5/10 complete"
 ## Documentation Anti-Patterns
 
 ### ❌ Don't Create Documentation Bloat
+
 ```
 # ❌ BAD - Too many docs for same topic
 docs/testing/
@@ -295,6 +327,7 @@ docs/guides/
 ```
 
 ### ❌ Don't Let CURRENT_WORK.md Get Stale
+
 ```
 # ❌ BAD - Last updated 2 months ago
 > Last updated: 2025-09-19
@@ -310,6 +343,7 @@ docs/guides/
 ```
 
 ### ❌ Don't Create README files in every directory
+
 ```
 # ❌ BAD - README bloat
 services/bot-client/README.md
@@ -322,6 +356,7 @@ docs/architecture/ARCHITECTURE_DECISIONS.md
 ```
 
 ### ❌ Don't Document Obvious Things
+
 ```
 # ❌ BAD - Documenting the obvious
 ## How to Install Dependencies
@@ -338,12 +373,14 @@ After installing dependencies, you must:
 ## Context Preservation for AI
 
 **Why this matters:** Each new AI session starts with limited context. Good documentation helps AI:
+
 - Understand current project state
 - Avoid suggesting completed work
 - Follow established patterns
 - Make informed decisions
 
 **Critical files to check at session start:**
+
 1. CURRENT_WORK.md - What's happening now?
 2. CLAUDE.md - What are the rules?
 3. docs/README.md - What docs exist?
@@ -352,20 +389,26 @@ After installing dependencies, you must:
 ## Linking Documentation
 
 **Use relative paths for internal links:**
+
 ```markdown
 # ✅ GOOD
+
 See [Testing Guide](docs/guides/TESTING.md) for details.
 
 # ❌ BAD
+
 See Testing Guide at /home/user/project/docs/guides/TESTING.md
 ```
 
 **Use code-style for file references:**
+
 ```markdown
 # ✅ GOOD
+
 Update `CURRENT_WORK.md` at session end.
 
 # ❌ BAD
+
 Update CURRENT_WORK.md at session end.
 ```
 
@@ -386,7 +429,6 @@ Before ending a session, verify:
 - **tzurot-git-workflow** - Commit documentation updates
 - **tzurot-gemini-collab** - When to update vs create docs
 - **tzurot-architecture** - Document architectural decisions
-
 
 ## References
 

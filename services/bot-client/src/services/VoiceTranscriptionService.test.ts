@@ -325,9 +325,7 @@ describe('VoiceTranscriptionService', () => {
       });
 
       mockGatewayClient.transcribe.mockRejectedValue(new Error('Transcription failed'));
-      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('Channel deleted')
-      );
+      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Channel deleted'));
 
       // Should not throw
       const result = await service.transcribe(message, false, false);

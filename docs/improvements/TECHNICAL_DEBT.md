@@ -77,18 +77,21 @@ this.prisma = new PrismaClient();
 **Issue**: Voice transcription uses synchronous `wait=true` pattern while AI generation uses async JobTracker pattern.
 
 **Current Implementation**:
+
 ```typescript
 // VoiceTranscriptionService uses wait=true (synchronous)
 const response = await this.gatewayClient.transcribe(attachments);
 ```
 
 **Impact**:
+
 - Architectural inconsistency - AI generation is fully async with JobTracker, transcription blocks
 - Causes harmless "Received result for unknown job" logs in MessageHandler
 - No typing indicator during transcription (unlike AI generation)
 - Results publish to Redis Stream but aren't handled async
 
 **Why It's Currently This Way**:
+
 - VoiceMessageProcessor needs transcript result to:
   - Send to Discord immediately as reply
   - Store on message object for other processors
@@ -96,17 +99,20 @@ const response = await this.gatewayClient.transcribe(attachments);
 - Simpler than async pattern for this use case
 
 **Recommended Future Refactor**:
+
 1. Use JobTracker for consistency
 2. Show typing indicator during transcription
 3. Handle result via Redis Stream (either in MessageHandler or dedicated handler)
 4. May require refactoring processor chain pattern to support async voice handling
 
 **Current Mitigation**:
+
 - Works correctly, just architecturally inconsistent
 - "Unknown job" logs are filtered/ignored in MessageHandler
 - Low priority - doesn't affect functionality
 
 **Tracking**:
+
 - Created: 2025-11-16
 - Discovered during voice transcription bug fix
 - Low priority since current implementation works correctly

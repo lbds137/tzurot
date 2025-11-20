@@ -139,8 +139,7 @@ async function describeWithVisionModel(
   const model = new ChatOpenAI({
     modelName,
     apiKey,
-    configuration:
-      baseURL !== undefined && baseURL.length > 0 ? { baseURL } : undefined,
+    configuration: baseURL !== undefined && baseURL.length > 0 ? { baseURL } : undefined,
     temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });
 

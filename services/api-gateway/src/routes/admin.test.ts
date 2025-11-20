@@ -127,14 +127,12 @@ describe('Admin Routes', () => {
       });
       prisma.llmConfig.findFirst.mockResolvedValue(null); // No default config
 
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({
-          name: 'Test Bot',
-          slug: 'test-bot',
-          characterInfo: 'A helpful assistant',
-          personalityTraits: 'Friendly and knowledgeable',
-        });
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly and knowledgeable',
+      });
 
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
@@ -156,26 +154,22 @@ describe('Admin Routes', () => {
     });
 
     it('should reject creation with missing required fields', async () => {
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({
-          name: 'Test Bot',
-          // Missing slug, characterInfo, personalityTraits
-        });
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        // Missing slug, characterInfo, personalityTraits
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
     });
 
     it('should reject creation with invalid slug format', async () => {
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({
-          name: 'Test Bot',
-          slug: 'Invalid Slug!', // Contains uppercase and special chars
-          characterInfo: 'A helpful assistant',
-          personalityTraits: 'Friendly',
-        });
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'Invalid Slug!', // Contains uppercase and special chars
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
@@ -187,14 +181,12 @@ describe('Admin Routes', () => {
         slug: 'test-bot',
       } as never);
 
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({
-          name: 'Test Bot',
-          slug: 'test-bot',
-          characterInfo: 'A helpful assistant',
-          personalityTraits: 'Friendly',
-        });
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
 
       expect(response.status).toBe(409);
       expect(response.body.error).toBeDefined();
@@ -215,11 +207,9 @@ describe('Admin Routes', () => {
         avatarData: null,
       } as never);
 
-      const response = await request(app)
-        .patch('/admin/personality/test-bot')
-        .send({
-          name: 'Updated Bot',
-        });
+      const response = await request(app).patch('/admin/personality/test-bot').send({
+        name: 'Updated Bot',
+      });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -233,11 +223,9 @@ describe('Admin Routes', () => {
     it('should return 404 when personality does not exist', async () => {
       prisma.personality.findUnique.mockResolvedValue(null);
 
-      const response = await request(app)
-        .patch('/admin/personality/nonexistent')
-        .send({
-          name: 'Updated Bot',
-        });
+      const response = await request(app).patch('/admin/personality/nonexistent').send({
+        name: 'Updated Bot',
+      });
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBeDefined();
@@ -260,9 +248,7 @@ describe('Admin Routes', () => {
         ],
       });
 
-      const response = await request(app)
-        .post('/admin/db-sync')
-        .send({ dryRun: false });
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: false });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -280,9 +266,7 @@ describe('Admin Routes', () => {
         dryRun: true,
       });
 
-      const response = await request(app)
-        .post('/admin/db-sync')
-        .send({ dryRun: true });
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: true });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -298,9 +282,7 @@ describe('Admin Routes', () => {
         changes: [],
       });
 
-      const response = await request(app)
-        .post('/admin/db-sync')
-        .send({});
+      const response = await request(app).post('/admin/db-sync').send({});
 
       expect(response.status).toBe(200);
       expect(mockSync).toHaveBeenCalledWith({ dryRun: false });
@@ -309,9 +291,7 @@ describe('Admin Routes', () => {
     it('should handle sync errors gracefully', async () => {
       mockSync.mockRejectedValue(new Error('Connection refused'));
 
-      const response = await request(app)
-        .post('/admin/db-sync')
-        .send({ dryRun: false });
+      const response = await request(app).post('/admin/db-sync').send({ dryRun: false });
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBeDefined();

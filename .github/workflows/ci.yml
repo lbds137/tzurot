@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 # Cancel in-progress runs for the same workflow and branch
 concurrency:
@@ -15,91 +15,91 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '22'
-        cache: 'pnpm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma client
-      run: npx prisma generate
+      - name: Generate Prisma client
+        run: npx prisma generate
 
-    - name: Build packages
-      run: pnpm --filter './packages/*' build
+      - name: Build packages
+        run: pnpm --filter './packages/*' build
 
-    - name: Run linter
-      run: pnpm run lint
+      - name: Run linter
+        run: pnpm run lint
 
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
-      with:
-        fetch-depth: 2
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '22'
-        cache: 'pnpm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma client
-      run: npx prisma generate
+      - name: Generate Prisma client
+        run: npx prisma generate
 
-    - name: Clean build artifacts
-      run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
+      - name: Clean build artifacts
+        run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
 
-    - name: Build packages
-      run: pnpm --filter './packages/*' build
+      - name: Build packages
+        run: pnpm --filter './packages/*' build
 
-    - name: Run tests with coverage
-      run: pnpm test -- --coverage
+      - name: Run tests with coverage
+        run: pnpm test -- --coverage
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        verbose: true
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
-    - name: Run type checking
-      run: pnpm run typecheck
+      - name: Run type checking
+        run: pnpm run typecheck
 
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '22'
-        cache: 'pnpm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-    - name: Generate Prisma client
-      run: npx prisma generate
+      - name: Generate Prisma client
+        run: npx prisma generate
 
-    - name: Clean build artifacts
-      run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
+      - name: Clean build artifacts
+        run: find . -name "*.tsbuildinfo" -delete && find ./packages/*/dist -type d -exec rm -rf {} + 2>/dev/null || true
 
-    - name: Build all services
-      run: pnpm run build
+      - name: Build all services
+        run: pnpm run build

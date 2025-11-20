@@ -85,9 +85,7 @@ export async function transcribeAudio(
     const blob = new Blob([audioBuffer], { type: attachment.contentType });
     const audioFile = new File(
       [blob],
-      attachment.name !== undefined && attachment.name.length > 0
-        ? attachment.name
-        : 'audio.ogg',
+      attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'audio.ogg',
       {
         type: attachment.contentType,
       }
@@ -114,7 +112,8 @@ export async function transcribeAudio(
         duration: attachment.duration,
         transcriptionLength: transcription.length,
         transcriptionPreview:
-          transcription.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW) + (transcription.length > TEXT_LIMITS.PERSONALITY_PREVIEW ? '...' : ''),
+          transcription.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW) +
+          (transcription.length > TEXT_LIMITS.PERSONALITY_PREVIEW ? '...' : ''),
       },
       'Audio transcribed successfully'
     );

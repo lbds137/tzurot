@@ -99,7 +99,9 @@ export class LinkExtractor {
           extractedMessageIds.add(referencedMessage.id);
         } else {
           // Regular message (not a forward)
-          references.push(await this.messageFormatter.formatMessage(referencedMessage, currentNumber));
+          references.push(
+            await this.messageFormatter.formatMessage(referencedMessage, currentNumber)
+          );
           linkMap.set(link.fullUrl, currentNumber);
           extractedMessageIds.add(referencedMessage.id);
           currentNumber++;
@@ -228,7 +230,9 @@ export class LinkExtractor {
 
       if (errorCode === 10008) {
         // Unknown Message - deleted or never existed (expected)
-        logger.debug(`[LinkExtractor] Message ${link.messageId} not found (deleted or inaccessible)`);
+        logger.debug(
+          `[LinkExtractor] Message ${link.messageId} not found (deleted or inaccessible)`
+        );
       } else if (errorCode === 50001 || errorCode === 50013) {
         // Missing Access / Missing Permissions (expected)
         logger.debug(`[LinkExtractor] No permission to access message ${link.messageId}`);

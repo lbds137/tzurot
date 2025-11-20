@@ -31,9 +31,7 @@ export async function handleHelp(
 
   for (const command of commands.values()) {
     const category =
-      command.category !== undefined && command.category.length > 0
-        ? command.category
-        : 'Other';
+      command.category !== undefined && command.category.length > 0 ? command.category : 'Other';
     if (!categories.has(category)) {
       categories.set(category, []);
     }
@@ -59,9 +57,7 @@ export async function handleHelp(
             .map(sub => {
               const subName = 'name' in sub && typeof sub.name === 'string' ? sub.name : '';
               const subDesc =
-                'description' in sub && typeof sub.description === 'string'
-                  ? sub.description
-                  : '';
+                'description' in sub && typeof sub.description === 'string' ? sub.description : '';
               return `  • \`/${cmdName} ${subName}\` - ${subDesc}`;
             })
             .join('\n');

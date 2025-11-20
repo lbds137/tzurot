@@ -111,7 +111,10 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
           return new Error('Max reconnection attempts reached');
         }
         // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
-        const delay = Math.min(retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER, RETRY_CONFIG.REDIS_MAX_DELAY);
+        const delay = Math.min(
+          retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER,
+          RETRY_CONFIG.REDIS_MAX_DELAY
+        );
         logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
         return delay;
       },
@@ -156,7 +159,10 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
         return new Error('Max reconnection attempts reached');
       }
       // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
-      const delay = Math.min(retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER, RETRY_CONFIG.REDIS_MAX_DELAY);
+      const delay = Math.min(
+        retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER,
+        RETRY_CONFIG.REDIS_MAX_DELAY
+      );
       logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
       return delay;
     },

@@ -15,6 +15,7 @@ This document explains Tzurot's sophisticated multi-layer deduplication system t
 ## Overview
 
 The deduplication system prevents the bot from:
+
 - Responding multiple times to the same message
 - Creating infinite loops with webhooks
 - Processing Discord's message update events as new messages
@@ -56,7 +57,7 @@ function hasProcessedMessage(messageId) {
 
 function markMessageAsProcessed(messageId) {
   processedMessages.add(messageId);
-  
+
   // Prevent memory leak by limiting set size
   if (processedMessages.size > MESSAGE_CACHE_SIZE) {
     const firstId = processedMessages.values().next().value;
@@ -76,18 +77,18 @@ const ourWebhooks = new Map(); // channelId -> Set<webhookId>
 function isOurWebhook(message) {
   // Check if message is from a webhook
   if (!message.webhookId) return false;
-  
+
   // Check if we've cached this webhook
   const channelWebhooks = ourWebhooks.get(message.channel.id);
   if (channelWebhooks?.has(message.webhookId)) {
     return true;
   }
-  
+
   // Check webhook naming pattern
   if (message.author.bot && message.author.username.includes(' | ')) {
     return true;
   }
-  
+
   return false;
 }
 ```
@@ -102,10 +103,10 @@ function checkSimilarity(content1, content2, threshold = 0.9) {
   // Remove whitespace and normalize
   const normalized1 = content1.toLowerCase().replace(/\s+/g, ' ').trim();
   const normalized2 = content2.toLowerCase().replace(/\s+/g, ' ').trim();
-  
+
   // Check exact match first
   if (normalized1 === normalized2) return true;
-  
+
   // Calculate similarity score
   const similarity = calculateSimilarity(normalized1, normalized2);
   return similarity >= threshold;
@@ -122,12 +123,12 @@ const recentNonces = new Map(); // nonce -> timestamp
 
 function isDuplicateNonce(nonce) {
   if (!nonce) return false;
-  
+
   const existing = recentNonces.get(nonce);
   if (existing) {
     return true;
   }
-  
+
   recentNonces.set(nonce, Date.now());
   cleanOldNonces(); // Clean entries older than 5 minutes
   return false;
@@ -144,11 +145,11 @@ const executingCommands = new Set();
 
 async function deduplicationMiddleware(message, args, next) {
   const key = `${message.id}-${message.author.id}`;
-  
+
   if (executingCommands.has(key)) {
     throw new Error('Command already being processed');
   }
-  
+
   executingCommands.add(key);
   try {
     return await next();
@@ -200,18 +201,18 @@ class MessageDeduplicator {
   constructor() {
     this.processing = new Map(); // messageId -> Promise
   }
-  
+
   async processMessage(message, handler) {
     // Check if already processing
     const existing = this.processing.get(message.id);
     if (existing) {
       return existing; // Return existing promise
     }
-    
+
     // Create new processing promise
     const promise = this.deduplicateAndProcess(message, handler);
     this.processing.set(message.id, promise);
-    
+
     try {
       return await promise;
     } finally {
@@ -232,14 +233,14 @@ class BoundedCache {
     this.cache = new Map();
     this.maxSize = maxSize;
   }
-  
+
   set(key, value) {
     // Delete oldest if at capacity
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       this.cache.delete(firstKey);
     }
-    
+
     this.cache.set(key, value);
   }
 }
@@ -252,11 +253,11 @@ class BoundedCache {
 ```javascript
 // In constants.js or config
 const DEDUP_CONFIG = {
-  MESSAGE_CACHE_SIZE: 1000,        // Number of message IDs to track
-  NONCE_TIMEOUT: 5 * 60 * 1000,    // 5 minutes
-  SIMILARITY_THRESHOLD: 0.9,        // 90% similarity
-  WEBHOOK_CACHE_TIME: 3600000,      // 1 hour
-  COMMAND_TIMEOUT: 30000            // 30 seconds
+  MESSAGE_CACHE_SIZE: 1000, // Number of message IDs to track
+  NONCE_TIMEOUT: 5 * 60 * 1000, // 5 minutes
+  SIMILARITY_THRESHOLD: 0.9, // 90% similarity
+  WEBHOOK_CACHE_TIME: 3600000, // 1 hour
+  COMMAND_TIMEOUT: 30000, // 30 seconds
 };
 ```
 
@@ -271,6 +272,7 @@ const DEDUP_CONFIG = {
 ### Deduplication Metrics
 
 The system tracks:
+
 - Total messages processed
 - Messages deduplicated by each layer
 - Cache hit rates
@@ -285,15 +287,15 @@ class DeduplicationMonitor {
       duplicateById: 0,
       duplicateByWebhook: 0,
       duplicateByNonce: 0,
-      duplicateBySimilarity: 0
+      duplicateBySimilarity: 0,
     };
   }
-  
+
   getStats() {
     return {
       ...this.stats,
       deduplicationRate: this.calculateRate(),
-      cacheEfficiency: this.calculateEfficiency()
+      cacheEfficiency: this.calculateEfficiency(),
     };
   }
 }
@@ -308,7 +310,7 @@ Enable detailed deduplication logging:
 logger.debug('[Dedup] Message rejected', {
   messageId: message.id,
   reason: 'duplicate_id',
-  layer: 'message_tracker'
+  layer: 'message_tracker',
 });
 ```
 
@@ -340,18 +342,18 @@ async function testDeduplication() {
   const msg1 = { id: '123', content: 'test' };
   await processMessage(msg1); // Should process
   await processMessage(msg1); // Should be deduped
-  
+
   // Test 2: Similar content
   const msg2 = { id: '124', content: 'Hello world!' };
   const msg3 = { id: '125', content: 'Hello  world!' };
   await processMessage(msg2); // Should process
   await processMessage(msg3); // Should be deduped
-  
+
   // Test 3: Webhook detection
-  const webhookMsg = { 
-    id: '126', 
+  const webhookMsg = {
+    id: '126',
     webhookId: 'xyz',
-    author: { bot: true, username: 'Personality | Tzurot' }
+    author: { bot: true, username: 'Personality | Tzurot' },
   };
   await processMessage(webhookMsg); // Should be deduped
 }

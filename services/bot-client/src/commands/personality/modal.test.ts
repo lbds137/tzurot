@@ -166,9 +166,7 @@ describe('handleModalSubmit', () => {
       if (id === 'displayName') return '';
       return '';
     });
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Conflict', { status: 409 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Conflict', { status: 409 }));
 
     await handleModalSubmit(mockInteraction, mockConfig);
 
@@ -186,9 +184,7 @@ describe('handleModalSubmit', () => {
       if (id === 'displayName') return '';
       return '';
     });
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Internal Server Error', { status: 500 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
     await handleModalSubmit(mockInteraction, mockConfig);
 
