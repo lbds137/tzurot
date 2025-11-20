@@ -53,9 +53,7 @@ export class VoiceTranscriptCache {
       );
 
       if (transcript !== null && transcript.length > 0) {
-        logger.debug(
-          `[VoiceTranscriptCache] Cache HIT for: ${attachmentUrl.substring(0, 50)}...`
-        );
+        logger.debug(`[VoiceTranscriptCache] Cache HIT for: ${attachmentUrl.substring(0, 50)}...`);
         return transcript;
       }
 
