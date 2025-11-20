@@ -45,7 +45,9 @@ export class RedisService {
         `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`
       );
       if (personalityName !== undefined && personalityName !== null && personalityName.length > 0) {
-        logger.debug(`[RedisService] Retrieved webhook message: ${messageId} -> ${personalityName}`);
+        logger.debug(
+          `[RedisService] Retrieved webhook message: ${messageId} -> ${personalityName}`
+        );
       }
       return personalityName;
     } catch (error) {
