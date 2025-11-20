@@ -9,7 +9,7 @@ import { CONTENT_TYPES } from '@tzurot/common-types';
 
 // Create mock functions
 const mockWhisperCreate = vi.fn().mockResolvedValue('Mocked transcription');
-const mockGetVoiceTranscript = vi.fn().mockResolvedValue(null);
+const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
 
 // Mock dependencies
 vi.mock('openai', () => ({
@@ -23,7 +23,10 @@ vi.mock('openai', () => ({
 }));
 
 vi.mock('../../redis.js', () => ({
-  getVoiceTranscript: mockGetVoiceTranscript,
+  voiceTranscriptCache: {
+    get: mockVoiceTranscriptCacheGet,
+    store: vi.fn(),
+  },
 }));
 
 // Mock fetch
@@ -44,7 +47,7 @@ describe('AudioProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockWhisperCreate.mockResolvedValue('Mocked transcription');
-    mockGetVoiceTranscript.mockResolvedValue(null);
+    mockVoiceTranscriptCacheGet.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -62,12 +65,12 @@ describe('AudioProcessor', () => {
           size: 1024,
         };
 
-        mockGetVoiceTranscript.mockResolvedValue('Cached transcription from Redis');
+        mockVoiceTranscriptCacheGet.mockResolvedValue('Cached transcription from Redis');
 
         const result = await transcribeAudio(attachment, mockPersonality);
 
         expect(result).toBe('Cached transcription from Redis');
-        expect(mockGetVoiceTranscript).toHaveBeenCalledWith(attachment.originalUrl);
+        expect(mockVoiceTranscriptCacheGet).toHaveBeenCalledWith(attachment.originalUrl);
         expect(global.fetch).not.toHaveBeenCalled();
         expect(mockWhisperCreate).not.toHaveBeenCalled();
       });
@@ -88,7 +91,7 @@ describe('AudioProcessor', () => {
 
         await transcribeAudio(attachment, mockPersonality);
 
-        expect(mockGetVoiceTranscript).not.toHaveBeenCalled();
+        expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
       });
 
@@ -108,7 +111,7 @@ describe('AudioProcessor', () => {
 
         await transcribeAudio(attachment, mockPersonality);
 
-        expect(mockGetVoiceTranscript).not.toHaveBeenCalled();
+        expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
       });
 
@@ -121,7 +124,7 @@ describe('AudioProcessor', () => {
           size: 1024,
         };
 
-        mockGetVoiceTranscript.mockRejectedValue(new Error('Redis connection failed'));
+        mockVoiceTranscriptCacheGet.mockRejectedValue(new Error('Redis connection failed'));
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -144,7 +147,7 @@ describe('AudioProcessor', () => {
           size: 1024,
         };
 
-        mockGetVoiceTranscript.mockResolvedValue(null);
+        mockVoiceTranscriptCacheGet.mockResolvedValue(null);
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -166,7 +169,7 @@ describe('AudioProcessor', () => {
           size: 1024,
         };
 
-        mockGetVoiceTranscript.mockResolvedValue('');
+        mockVoiceTranscriptCacheGet.mockResolvedValue('');
 
         (global.fetch as any).mockResolvedValue({
           ok: true,

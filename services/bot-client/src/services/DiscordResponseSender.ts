@@ -10,7 +10,7 @@ import { TextChannel, ThreadChannel } from 'discord.js';
 import { preserveCodeBlocks, createLogger, AI_ENDPOINTS } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
-import { storeWebhookMessage } from '../redis.js';
+import { redisService } from '../redis.js';
 
 const logger = createLogger('DiscordResponseSender');
 
@@ -119,7 +119,7 @@ export class DiscordResponseSender {
 
       if (sentMessage !== null && sentMessage !== undefined) {
         // Store webhook message in Redis for reply routing (7 day TTL)
-        await storeWebhookMessage(sentMessage.id, personality.name);
+        await redisService.storeWebhookMessage(sentMessage.id, personality.name);
         chunkMessageIds.push(sentMessage.id);
       }
     }
@@ -142,7 +142,7 @@ export class DiscordResponseSender {
       const sentMessage = await message.reply(chunk);
 
       // Store DM message in Redis for reply routing (7 day TTL)
-      await storeWebhookMessage(sentMessage.id, personality.name);
+      await redisService.storeWebhookMessage(sentMessage.id, personality.name);
       chunkMessageIds.push(sentMessage.id);
     }
   }

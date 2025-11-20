@@ -13,7 +13,10 @@ vi.mock('../utils/GatewayClient.js', () => ({
 }));
 
 vi.mock('../redis.js', () => ({
-  storeVoiceTranscript: vi.fn().mockResolvedValue(undefined),
+  voiceTranscriptCache: {
+    store: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn(),
+  },
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -32,7 +35,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 import { preserveCodeBlocks } from '@tzurot/common-types';
-import { storeVoiceTranscript } from '../redis.js';
+import { voiceTranscriptCache } from '../redis.js';
 
 describe('VoiceTranscriptionService', () => {
   let service: VoiceTranscriptionService;
@@ -143,7 +146,7 @@ describe('VoiceTranscriptionService', () => {
       expect(message.reply).toHaveBeenCalledWith('This is the transcribed text');
 
       // Should cache in Redis
-      expect(storeVoiceTranscript).toHaveBeenCalledWith(
+      expect(voiceTranscriptCache.store).toHaveBeenCalledWith(
         'https://cdn.discord.com/voice/123.ogg',
         'This is the transcribed text'
       );

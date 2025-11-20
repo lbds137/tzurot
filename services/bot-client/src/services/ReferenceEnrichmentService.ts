@@ -7,7 +7,7 @@
 
 import { UserService, createLogger } from '@tzurot/common-types';
 import type { ConversationMessage, ReferencedMessage } from '@tzurot/common-types';
-import { getWebhookPersonality } from '../redis.js';
+import { redisService } from '../redis.js';
 
 const logger = createLogger('ReferenceEnrichmentService');
 
@@ -95,7 +95,7 @@ export class ReferenceEnrichmentService {
       // Skip persona creation for ALL webhooks (AI personalities, PluralKit, etc.)
       let webhookPersonality = null;
       try {
-        webhookPersonality = await getWebhookPersonality(reference.discordMessageId);
+        webhookPersonality = await redisService.getWebhookPersonality(reference.discordMessageId);
       } catch (error) {
         logger.warn(
           { err: error, discordMessageId: reference.discordMessageId },

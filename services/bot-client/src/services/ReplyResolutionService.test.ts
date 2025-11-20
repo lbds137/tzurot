@@ -9,7 +9,12 @@ import type { LoadedPersonality } from '@tzurot/common-types';
 
 // Mock dependencies
 vi.mock('../redis.js', () => ({
-  getWebhookPersonality: vi.fn(),
+  redisService: {
+    getWebhookPersonality: vi.fn(),
+    storeWebhookMessage: vi.fn(),
+    checkHealth: vi.fn(),
+    close: vi.fn(),
+  },
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -20,7 +25,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { getWebhookPersonality } from '../redis.js';
+import { redisService } from '../redis.js';
 
 describe('ReplyResolutionService', () => {
   let service: ReplyResolutionService;
@@ -119,12 +124,12 @@ describe('ReplyResolutionService', () => {
         clientUserId: 'current-bot-789',
       });
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue('lilith');
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue('lilith');
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
       const result = await service.resolvePersonality(message);
 
-      expect(getWebhookPersonality).toHaveBeenCalledWith('ref-123');
+      expect(redisService.getWebhookPersonality).toHaveBeenCalledWith('ref-123');
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith');
       expect(result).toBe(mockPersonality);
     });
@@ -155,7 +160,7 @@ describe('ReplyResolutionService', () => {
         clientUserId: 'current-bot-789',
       });
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
       const result = await service.resolvePersonality(message);
@@ -178,7 +183,7 @@ describe('ReplyResolutionService', () => {
         fetchedReferencedMessage: referencedMessage,
       });
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
       const result = await service.resolvePersonality(message);
@@ -199,7 +204,7 @@ describe('ReplyResolutionService', () => {
         fetchedReferencedMessage: referencedMessage,
       });
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const result = await service.resolvePersonality(message);
 
@@ -244,7 +249,7 @@ describe('ReplyResolutionService', () => {
         clientUserId: 'current-bot-789',
       });
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
       const result = await service.resolvePersonality(message);
@@ -279,7 +284,7 @@ describe('ReplyResolutionService', () => {
         clientUserId: 'current-bot-789',
       });
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
       const result = await service.resolvePersonality(message);
