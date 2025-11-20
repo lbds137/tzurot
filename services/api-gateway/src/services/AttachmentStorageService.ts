@@ -60,6 +60,15 @@ export class AttachmentStorageService {
 
     // Download all attachments in parallel
     const downloadPromises = attachments.map(async (attachment, index) => {
+      // Validate URL is from Discord CDN to prevent SSRF attacks
+      const url = new URL(attachment.url);
+      const allowedHosts = ['cdn.discordapp.com', 'media.discordapp.net'];
+      if (!allowedHosts.includes(url.hostname)) {
+        throw new Error(
+          `Invalid attachment URL: must be from Discord CDN (${allowedHosts.join(', ')})`
+        );
+      }
+
       // Download from Discord CDN
       const response = await fetch(attachment.url);
       if (!response.ok) {
