@@ -122,45 +122,37 @@ describe('AI Routes Integration', () => {
 
   describe('generate route', () => {
     it('should reject requests without required fields', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send({});
+      const response = await request(app).post('/ai/generate').send({});
 
       // Should return 400 (validation error)
       expect(response.status).toBe(400);
     });
 
     it('should reject requests with invalid requestId', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send({
-          requestId: 123, // Should be string
-        });
+      const response = await request(app).post('/ai/generate').send({
+        requestId: 123, // Should be string
+      });
 
       // Should return 400 (validation error)
       expect(response.status).toBe(400);
     });
 
     it('should reject requests missing personalityName', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send({
-          requestId: 'test-request-id',
-          messages: [],
-        });
+      const response = await request(app).post('/ai/generate').send({
+        requestId: 'test-request-id',
+        messages: [],
+      });
 
       // Should return 400 (missing personalityName)
       expect(response.status).toBe(400);
     });
 
     it('should reject requests with invalid messages format', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send({
-          requestId: 'test-request-id',
-          personalityName: 'TestBot',
-          messages: 'not an array', // Should be array
-        });
+      const response = await request(app).post('/ai/generate').send({
+        requestId: 'test-request-id',
+        personalityName: 'TestBot',
+        messages: 'not an array', // Should be array
+      });
 
       // Should return 400 (validation error)
       expect(response.status).toBe(400);
@@ -169,21 +161,17 @@ describe('AI Routes Integration', () => {
 
   describe('transcribe route', () => {
     it('should reject requests without required fields', async () => {
-      const response = await request(app)
-        .post('/ai/transcribe')
-        .send({});
+      const response = await request(app).post('/ai/transcribe').send({});
 
       // Should return 400 (validation error)
       expect(response.status).toBe(400);
     });
 
     it('should reject requests with invalid audioUrl', async () => {
-      const response = await request(app)
-        .post('/ai/transcribe')
-        .send({
-          requestId: 'test-request-id',
-          audioUrl: 123, // Should be string
-        });
+      const response = await request(app).post('/ai/transcribe').send({
+        requestId: 'test-request-id',
+        audioUrl: 123, // Should be string
+      });
 
       // Should return 400 (validation error)
       expect(response.status).toBe(400);
@@ -210,9 +198,7 @@ describe('AI Routes Integration', () => {
   describe('confirm delivery route', () => {
     it('should handle POST requests with jobId', async () => {
       // Actual path is /job/:jobId/confirm-delivery
-      const response = await request(app)
-        .post('/ai/job/test-job-id/confirm-delivery')
-        .send({});
+      const response = await request(app).post('/ai/job/test-job-id/confirm-delivery').send({});
 
       // Route processes request (not 405 "method not allowed")
       // May return 404 for non-existent job, which is valid behavior
@@ -222,9 +208,7 @@ describe('AI Routes Integration', () => {
 
   describe('request/response format', () => {
     it('should return JSON responses for validation errors', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send({});
+      const response = await request(app).post('/ai/generate').send({});
 
       // Should have JSON content-type
       expect(response.headers['content-type']).toMatch(/json/);
@@ -269,9 +253,7 @@ describe('AI Routes Integration', () => {
     });
 
     it('should handle empty body', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send();
+      const response = await request(app).post('/ai/generate').send();
 
       // Should return 400 (validation error)
       expect(response.status).toBe(400);

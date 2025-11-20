@@ -30,7 +30,10 @@ describe('Admin Routes Integration', () => {
 
     // Create dependencies
     const personalityService = new PersonalityService(testEnv.prisma);
-    const cacheInvalidationService = new CacheInvalidationService(testEnv.redis, personalityService);
+    const cacheInvalidationService = new CacheInvalidationService(
+      testEnv.redis,
+      personalityService
+    );
 
     // Mount admin router
     const adminRouter = createAdminRouter(testEnv.prisma, cacheInvalidationService);
@@ -69,9 +72,7 @@ describe('Admin Routes Integration', () => {
 
   describe('db-sync route', () => {
     it('should accept POST requests', async () => {
-      const response = await request(app)
-        .post('/admin/db-sync')
-        .send({});
+      const response = await request(app).post('/admin/db-sync').send({});
 
       // Should not be 404 or 405
       expect(response.status).not.toBe(404);
@@ -81,20 +82,16 @@ describe('Admin Routes Integration', () => {
 
   describe('create personality route', () => {
     it('should reject unauthorized requests', async () => {
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({});
+      const response = await request(app).post('/admin/personality').send({});
 
       // Has requireOwnerAuth() middleware, returns 403 without auth
       expect(response.status).toBe(403);
     });
 
     it('should require authentication before validation', async () => {
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({
-          name: 123, // Should be string
-        });
+      const response = await request(app).post('/admin/personality').send({
+        name: 123, // Should be string
+      });
 
       // Auth runs first, returns 403 before validation
       expect(response.status).toBe(403);
@@ -103,9 +100,7 @@ describe('Admin Routes Integration', () => {
 
   describe('update personality route', () => {
     it('should reject unauthorized requests without auth', async () => {
-      const response = await request(app)
-        .patch('/admin/personality/test-slug')
-        .send({});
+      const response = await request(app).patch('/admin/personality/test-slug').send({});
 
       // Has requireOwnerAuth() middleware, returns 403 without auth
       expect(response.status).toBe(403);
@@ -113,11 +108,9 @@ describe('Admin Routes Integration', () => {
 
     it('should reject requests with non-existent personality slug', async () => {
       const fakeSlug = 'nonexistent-slug-99999';
-      const response = await request(app)
-        .patch(`/admin/personality/${fakeSlug}`)
-        .send({
-          name: 'Updated Name',
-        });
+      const response = await request(app).patch(`/admin/personality/${fakeSlug}`).send({
+        name: 'Updated Name',
+      });
 
       // Auth middleware returns 403 first, or 404 if personality not found
       expect([403, 404, 500]).toContain(response.status);
@@ -126,9 +119,7 @@ describe('Admin Routes Integration', () => {
 
   describe('invalidate cache route', () => {
     it('should accept POST requests', async () => {
-      const response = await request(app)
-        .post('/admin/invalidate-cache')
-        .send({});
+      const response = await request(app).post('/admin/invalidate-cache').send({});
 
       // Should not be 404 or 405
       expect(response.status).not.toBe(404);
@@ -138,9 +129,7 @@ describe('Admin Routes Integration', () => {
 
   describe('request/response format', () => {
     it('should return JSON responses', async () => {
-      const response = await request(app)
-        .post('/admin/personality')
-        .send({});
+      const response = await request(app).post('/admin/personality').send({});
 
       // Should have JSON content-type
       expect(response.headers['content-type']).toMatch(/json/);
