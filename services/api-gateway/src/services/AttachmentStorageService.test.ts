@@ -66,7 +66,7 @@ describe('AttachmentStorageService', () => {
     it('should download and store attachments', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           contentType: 'image/png',
           name: 'image1.png',
           size: 5000,
@@ -85,7 +85,7 @@ describe('AttachmentStorageService', () => {
       expect(mkdir).toHaveBeenCalledWith('/tmp/test-attachments/req-123', { recursive: true });
 
       // Should download attachment
-      expect(mockFetch).toHaveBeenCalledWith('https://cdn.discord.com/image1.png');
+      expect(mockFetch).toHaveBeenCalledWith('https://cdn.discordapp.com/image1.png');
 
       // Should save to disk
       expect(writeFile).toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('AttachmentStorageService', () => {
       // Should return updated metadata with local URL
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
-        originalUrl: 'https://cdn.discord.com/image1.png',
+        originalUrl: 'https://cdn.discordapp.com/image1.png',
         url: 'https://gateway.example.com/temp-attachments/req-123/image1.png',
         contentType: 'image/png',
         name: 'image1.png',
@@ -103,13 +103,13 @@ describe('AttachmentStorageService', () => {
     it('should handle multiple attachments in parallel', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           contentType: 'image/png',
           name: 'image1.png',
           size: 5000,
         },
         {
-          url: 'https://cdn.discord.com/image2.jpg',
+          url: 'https://cdn.discordapp.com/image2.jpg',
           contentType: 'image/jpeg',
           name: 'image2.jpg',
           size: 7000,
@@ -131,7 +131,7 @@ describe('AttachmentStorageService', () => {
     it('should use original URL as fallback when download fails', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/broken.png',
+          url: 'https://cdn.discordapp.com/broken.png',
           contentType: 'image/png',
           name: 'broken.png',
           size: 5000,
@@ -149,14 +149,14 @@ describe('AttachmentStorageService', () => {
 
       // Should still return attachment with original URL
       expect(result).toHaveLength(1);
-      expect(result[0].url).toBe('https://cdn.discord.com/broken.png');
+      expect(result[0].url).toBe('https://cdn.discordapp.com/broken.png');
       expect(result[0]).not.toHaveProperty('originalUrl');
     });
 
     it('should generate filename from index when name is missing', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/file',
+          url: 'https://cdn.discordapp.com/file',
           contentType: 'application/octet-stream',
           size: 1000,
         },
@@ -177,7 +177,7 @@ describe('AttachmentStorageService', () => {
       const imageBuffer = Buffer.alloc(1024); // 1KB test buffer
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/image.png',
+          url: 'https://cdn.discordapp.com/image.png',
           contentType: 'image/png',
           name: 'image.png',
           size: imageBuffer.length,
@@ -200,7 +200,7 @@ describe('AttachmentStorageService', () => {
 
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/document.pdf',
+          url: 'https://cdn.discordapp.com/document.pdf',
           contentType: 'application/pdf',
           name: 'document.pdf',
           size: pdfBuffer.length,
@@ -244,7 +244,7 @@ describe('AttachmentStorageService', () => {
 
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://cdn.discord.com/video.mp4',
+          url: 'https://cdn.discordapp.com/video.mp4',
           contentType: 'video/mp4',
           name: 'video.mp4',
           size: videoBuffer.length,
