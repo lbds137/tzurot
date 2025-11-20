@@ -132,15 +132,10 @@ app.get('/avatars/:slug.png', (req, res) => {
     } catch {
       // File not found on filesystem, check database
       try {
-        const { PrismaClient } = await import('@prisma/client');
-        const prisma = new PrismaClient();
-
         const personality = await prisma.personality.findUnique({
           where: { slug },
           select: { avatarData: true },
         });
-
-        await prisma.$disconnect();
 
         if (!personality?.avatarData) {
           // Not in DB either, return 404

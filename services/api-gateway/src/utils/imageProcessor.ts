@@ -6,7 +6,7 @@
  */
 
 import sharp from 'sharp';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, AVATAR_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('image-processor');
 
@@ -18,7 +18,7 @@ export interface AvatarOptimizationOptions {
   targetWidth?: number;
   /** Target height in pixels (default: 256) */
   targetHeight?: number;
-  /** Maximum file size in bytes (default: 200KB) */
+  /** Maximum file size in bytes (default: AVATAR_LIMITS.TARGET_SIZE_KB * 1024) */
   maxSizeBytes?: number;
   /** Initial quality setting (default: 90) */
   initialQuality?: number;
@@ -50,7 +50,7 @@ export interface AvatarOptimizationResult {
 const DEFAULT_OPTIONS: Required<AvatarOptimizationOptions> = {
   targetWidth: 256,
   targetHeight: 256,
-  maxSizeBytes: 200 * 1024, // 200KB
+  maxSizeBytes: AVATAR_LIMITS.TARGET_SIZE_KB * 1024,
   initialQuality: 90,
   minQuality: 50,
   qualityStep: 10,

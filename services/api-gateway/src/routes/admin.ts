@@ -5,7 +5,13 @@
 
 import express, { Request, Response, Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, getConfig, CacheInvalidationService } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  CacheInvalidationService,
+  customFieldsSchema,
+  AVATAR_LIMITS,
+} from '@tzurot/common-types';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
@@ -156,6 +162,18 @@ export function createAdminRouter(
           return;
         }
 
+        // Validate customFields if provided
+        if (customFields !== undefined && customFields !== null) {
+          const validation = customFieldsSchema.safeParse(customFields);
+          if (!validation.success) {
+            const errorResponse = ErrorResponses.validationError(
+              `Invalid customFields: ${validation.error.message}`
+            );
+            res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+            return;
+          }
+        }
+
         // Check if personality already exists
         const existing = await prisma.personality.findUnique({
           where: { slug },
@@ -184,7 +202,7 @@ export function createAdminRouter(
             if (result.exceedsTarget) {
               logger.warn(
                 {},
-                `[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`
+                `[Admin] Avatar still exceeds ${AVATAR_LIMITS.TARGET_SIZE_KB}KB after optimization: ${result.processedSizeKB} KB`
               );
             }
 
@@ -326,6 +344,18 @@ export function createAdminRouter(
           return;
         }
 
+        // Validate customFields if provided
+        if (customFields !== undefined && customFields !== null) {
+          const validation = customFieldsSchema.safeParse(customFields);
+          if (!validation.success) {
+            const errorResponse = ErrorResponses.validationError(
+              `Invalid customFields: ${validation.error.message}`
+            );
+            res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+            return;
+          }
+        }
+
         // Process avatar if provided
         let processedAvatarData: Buffer | undefined;
         if (avatarData !== undefined && avatarData.length > 0) {
@@ -341,7 +371,7 @@ export function createAdminRouter(
             if (result.exceedsTarget) {
               logger.warn(
                 {},
-                `[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`
+                `[Admin] Avatar still exceeds ${AVATAR_LIMITS.TARGET_SIZE_KB}KB after optimization: ${result.processedSizeKB} KB`
               );
             }
 
