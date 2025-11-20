@@ -86,17 +86,27 @@ Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` t
    PII scrubbing), Economic DoS prevention, Discord permissions, microservices security,
    supply chain integrity
 
-**Architecture & Design Skills:** 5. **tzurot-architecture** - Microservices boundaries, service responsibilities,
-dependency rules, anti-patterns from v2 6. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md),
-session handoff protocol 7. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
-cost optimization, prompt structuring
+**Architecture & Design Skills:**
 
-**Advanced Technical Skills:** 8. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports,
-runtime validation 9. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search,
-connection pooling, migrations 10. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral,
-idempotency, retry strategies 11. **tzurot-observability** - Structured logging with Pino, correlation IDs,
-privacy considerations, Railway log analysis 12. **tzurot-deployment** - Railway operations, service management, log analysis,
-troubleshooting production issues
+1. **tzurot-architecture** - Microservices boundaries, service responsibilities,
+   dependency rules, anti-patterns from v2
+2. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md),
+   session handoff protocol
+3. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
+   cost optimization, prompt structuring
+
+**Advanced Technical Skills:**
+
+1. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports,
+   runtime validation
+2. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search,
+   connection pooling, migrations
+3. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral,
+   idempotency, retry strategies
+4. **tzurot-observability** - Structured logging with Pino, correlation IDs,
+   privacy considerations, Railway log analysis
+5. **tzurot-deployment** - Railway operations, service management, log analysis,
+   troubleshooting production issues
 
 ### How Skills Work
 
@@ -457,6 +467,7 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 **Installation script**: `./scripts/install-hooks.sh` copies hooks from `./hooks/` to `.git/hooks/`
 
 When modifying pre-commit checks:
+
 1. Edit `./hooks/pre-commit` (source-controlled)
 2. Run `./scripts/install-hooks.sh` to install updated hook locally
 3. Commit and push `./hooks/pre-commit` changes
