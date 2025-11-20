@@ -1,0 +1,9 @@
+# Legacy codebase
+tzurot-legacy/
+
+# Build output
+dist/
+coverage/
+
+# Dependencies
+node_modules/
