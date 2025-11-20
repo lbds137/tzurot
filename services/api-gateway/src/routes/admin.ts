@@ -333,6 +333,15 @@ export function createAdminRouter(
           avatarData?: string;
         };
 
+        // Validate slug format
+        if (!/^[a-z0-9-]+$/.test(slug)) {
+          const errorResponse = ErrorResponses.validationError(
+            'Invalid slug format. Use only lowercase letters, numbers, and hyphens.'
+          );
+          res.status(getStatusCode(errorResponse.error)).json(errorResponse);
+          return;
+        }
+
         // Check if personality exists
         const existing = await prisma.personality.findUnique({
           where: { slug },
@@ -422,7 +431,7 @@ export function createAdminRouter(
           updateData.conversationalExamples = conversationalExamples;
         }
         if (customFields !== undefined) {
-          updateData.customFields = customFields;
+          updateData.customFields = customFields as Prisma.InputJsonValue;
         }
         if (processedAvatarData !== undefined) {
           updateData.avatarData = new Uint8Array(processedAvatarData);
