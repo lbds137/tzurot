@@ -26,6 +26,7 @@ import {
   HealthStatus,
 } from '@tzurot/common-types';
 import { createRequire } from 'module';
+import { resolve } from 'path';
 import { createAIRouter } from './routes/ai.js';
 import { createAdminRouter } from './routes/admin.js';
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
@@ -112,7 +113,13 @@ app.get('/avatars/:slug.png', (req, res) => {
       return;
     }
 
-    const avatarPath = `/data/avatars/${slug}.png`;
+    // Construct and verify path stays within /data/avatars
+    const avatarPath = resolve('/data/avatars', `${slug}.png`);
+    if (!avatarPath.startsWith('/data/avatars/')) {
+      const errorResponse = ErrorResponses.validationError('Invalid avatar path');
+      res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
+      return;
+    }
 
     try {
       // Try to serve from filesystem first
