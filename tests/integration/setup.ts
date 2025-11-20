@@ -8,10 +8,17 @@
  * Environment detection automatically selects the appropriate setup.
  */
 
-import RedisMock from 'ioredis-mock';
+// Set up test environment variables before any imports
+// This prevents config validation errors when importing services
+if (!process.env.PROD_DATABASE_URL) {
+  // Use the same DATABASE_URL for PROD in tests
+  process.env.PROD_DATABASE_URL = process.env.DATABASE_URL || '';
+}
+
 import { PrismaClient } from '@prisma/client';
 import type { RedisClientType } from 'redis';
 import { createClient } from 'redis';
+import { createRedisClientMock } from './helpers/RedisClientMock';
 
 export interface TestEnvironment {
   prisma: PrismaClient;
@@ -50,17 +57,14 @@ async function setupLocal(): Promise<TestEnvironment> {
 
   // Create a Redis mock instance for local development
   // This avoids needing Redis running locally
-  const redisMock = new RedisMock();
-
-  // Type assertion needed because ioredis-mock doesn't perfectly match redis client type
-  const redis = redisMock as unknown as RedisClientType;
+  const redis = createRedisClientMock();
 
   return {
     prisma,
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
-      // Redis mock doesn't need explicit cleanup
+      await redis.quit();
     },
   };
 }
