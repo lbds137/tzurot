@@ -23,6 +23,24 @@ comment:
   require_base: no
   require_head: yes
 
+flag_management:
+  default_rules:
+    carryforward: true
+
+flags:
+  ai-worker:
+    paths:
+      - services/ai-worker/
+  api-gateway:
+    paths:
+      - services/api-gateway/
+  bot-client:
+    paths:
+      - services/bot-client/
+  common-types:
+    paths:
+      - packages/common-types/
+
 ignore:
   - '**/*.test.ts'
   - '**/*.spec.ts'
