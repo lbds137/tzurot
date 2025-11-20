@@ -62,6 +62,23 @@ export class AttachmentStorageService {
     const downloadPromises = attachments.map(async (attachment, index) => {
       // Validate URL is from Discord CDN to prevent SSRF attacks
       const url = new URL(attachment.url);
+
+      // Protocol must be HTTPS
+      if (url.protocol !== 'https:') {
+        throw new Error('Invalid attachment URL: protocol must be https:');
+      }
+
+      // Port must be default (443) or empty
+      if (url.port !== '' && url.port !== '443') {
+        throw new Error('Invalid attachment URL: non-standard port not allowed');
+      }
+
+      // No username/password allowed
+      if (url.username !== '' || url.password !== '') {
+        throw new Error('Invalid attachment URL: credentials not allowed');
+      }
+
+      // Hostname must be from allowed Discord CDN hosts
       const allowedHosts = ['cdn.discordapp.com', 'media.discordapp.net'];
       if (!allowedHosts.includes(url.hostname)) {
         throw new Error(
