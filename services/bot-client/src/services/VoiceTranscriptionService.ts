@@ -29,12 +29,35 @@ export class VoiceTranscriptionService {
   constructor(private readonly gatewayClient: GatewayClient) {}
 
   /**
-   * Check if message contains voice attachment
+   * Check if message contains voice attachment (in direct attachments or forwarded message snapshots)
    */
   hasVoiceAttachment(message: Message): boolean {
-    return message.attachments.some(
+    // Check direct attachments
+    const hasDirectAudio = message.attachments.some(
       a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
     );
+
+    if (hasDirectAudio) {
+      return true;
+    }
+
+    // Check forwarded message snapshots
+    if (message.messageSnapshots && message.messageSnapshots.size > 0) {
+      for (const snapshot of message.messageSnapshots.values()) {
+        if (snapshot.attachments && snapshot.attachments.size > 0) {
+          const hasSnapshotAudio = snapshot.attachments.some(
+            a =>
+              (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
+              a.duration !== null
+          );
+          if (hasSnapshotAudio) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -56,8 +79,8 @@ export class VoiceTranscriptionService {
         await message.channel.sendTyping();
       }
 
-      // Extract voice attachment metadata
-      const attachments = Array.from(message.attachments.values()).map(attachment => ({
+      // Extract voice attachment metadata from direct attachments
+      let attachments = Array.from(message.attachments.values()).map(attachment => ({
         url: attachment.url,
         contentType:
           attachment.contentType !== null &&
@@ -71,6 +94,42 @@ export class VoiceTranscriptionService {
         duration: attachment.duration ?? undefined,
         waveform: attachment.waveform ?? undefined,
       }));
+
+      // If no direct audio attachments, check forwarded message snapshots
+      if (attachments.length === 0 && message.messageSnapshots && message.messageSnapshots.size > 0) {
+        for (const snapshot of message.messageSnapshots.values()) {
+          if (snapshot.attachments && snapshot.attachments.size > 0) {
+            const snapshotAttachments = Array.from(snapshot.attachments.values())
+              .filter(
+                a =>
+                  (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
+                  a.duration !== null
+              )
+              .map(attachment => ({
+                url: attachment.url,
+                contentType:
+                  attachment.contentType !== null &&
+                  attachment.contentType !== undefined &&
+                  attachment.contentType.length > 0
+                    ? attachment.contentType
+                    : CONTENT_TYPES.BINARY,
+                name: attachment.name,
+                size: attachment.size,
+                isVoiceMessage: attachment.duration !== null,
+                duration: attachment.duration ?? undefined,
+                waveform: attachment.waveform ?? undefined,
+              }));
+
+            if (snapshotAttachments.length > 0) {
+              attachments = snapshotAttachments;
+              logger.debug(
+                '[VoiceTranscriptionService] Found audio in forwarded message snapshot'
+              );
+              break; // Use first snapshot with audio
+            }
+          }
+        }
+      }
 
       // Send transcribe job to api-gateway
       const response = await this.gatewayClient.transcribe(attachments);
@@ -87,8 +146,9 @@ export class VoiceTranscriptionService {
       );
 
       // Send each chunk as a reply (these will appear BEFORE personality webhook response)
+      // Don't ping the user - they already know they sent a voice message
       for (const chunk of chunks) {
-        await message.reply(chunk);
+        await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
       }
 
       // Cache transcript in Redis to avoid re-transcribing if this voice message also targets a personality
@@ -116,12 +176,17 @@ export class VoiceTranscriptionService {
       };
     } catch (error) {
       logger.error({ err: error }, '[VoiceTranscriptionService] Error transcribing voice message');
-      await message.reply("Sorry, I couldn't transcribe that voice message.").catch(replyError => {
-        logger.warn(
-          { err: replyError, messageId: message.id },
-          '[VoiceTranscriptionService] Failed to send error message to user'
-        );
-      });
+      await message
+        .reply({
+          content: "Sorry, I couldn't transcribe that voice message.",
+          allowedMentions: { repliedUser: false },
+        })
+        .catch(replyError => {
+          logger.warn(
+            { err: replyError, messageId: message.id },
+            '[VoiceTranscriptionService] Failed to send error message to user'
+          );
+        });
       return null;
     }
   }
