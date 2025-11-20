@@ -97,8 +97,12 @@ export class AttachmentStorageService {
         );
       }
 
-      // Download from Discord CDN
-      const response = await fetch(attachment.url);
+      // Construct sanitized URL from validated components to break taint flow
+      // This ensures we're not using the original user-provided URL
+      const sanitizedUrl = `https://${normalizedHostname}${url.pathname}${url.search}${url.hash}`;
+
+      // Download from Discord CDN using sanitized URL
+      const response = await fetch(sanitizedUrl);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
