@@ -104,6 +104,14 @@ app.use('/ai', aiRouter);
 app.get('/avatars/:slug.png', (req, res) => {
   void (async () => {
     const slug = req.params.slug;
+
+    // Validate slug to prevent path traversal attacks
+    if (!slug || !/^[a-zA-Z0-9_-]+$/.test(slug)) {
+      const errorResponse = ErrorResponses.validationError('Invalid personality slug');
+      res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
+      return;
+    }
+
     const avatarPath = `/data/avatars/${slug}.png`;
 
     try {
