@@ -47,7 +47,10 @@ export function replacePlaceholders(
  * Uses PUBLIC_GATEWAY_URL if available (for external access like Discord avatars),
  * falls back to GATEWAY_URL for local development
  */
-export function deriveAvatarUrl(slug: string, logger: { warn: (obj: object, msg: string) => void }): string | undefined {
+export function deriveAvatarUrl(
+  slug: string,
+  logger: { warn: (obj: object, msg: string) => void }
+): string | undefined {
   const publicUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
   if (publicUrl === undefined || publicUrl.length === 0) {
     logger.warn(
