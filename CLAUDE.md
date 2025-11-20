@@ -454,12 +454,14 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 - **ALWAYS update**: `./hooks/pre-commit` (the source-controlled version)
 - **NEVER edit**: `.git/hooks/pre-commit` directly (will not persist in repository)
 
+**Installation script**: `./scripts/install-hooks.sh` copies hooks from `./hooks/` to `.git/hooks/`
+
 When modifying pre-commit checks:
 1. Edit `./hooks/pre-commit` (source-controlled)
-2. Copy to `.git/hooks/pre-commit` if needed for local testing
+2. Run `./scripts/install-hooks.sh` to install updated hook locally
 3. Commit and push `./hooks/pre-commit` changes
 
-The hook gets installed from `./hooks/` to `.git/hooks/` during repository setup.
+New developers should run `./scripts/install-hooks.sh` after cloning the repository.
 
 ## Environment Variables
 
