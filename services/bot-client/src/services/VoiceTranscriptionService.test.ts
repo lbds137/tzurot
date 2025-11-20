@@ -142,8 +142,11 @@ describe('VoiceTranscriptionService', () => {
         },
       ]);
 
-      // Should reply with transcript
-      expect(message.reply).toHaveBeenCalledWith('This is the transcribed text');
+      // Should reply with transcript (without pinging user)
+      expect(message.reply).toHaveBeenCalledWith({
+        content: 'This is the transcribed text',
+        allowedMentions: { repliedUser: false },
+      });
 
       // Should cache in Redis
       expect(voiceTranscriptCache.store).toHaveBeenCalledWith(
@@ -266,9 +269,10 @@ describe('VoiceTranscriptionService', () => {
       const result = await service.transcribe(message, false, false);
 
       expect(result).toBeNull();
-      expect(message.reply).toHaveBeenCalledWith(
-        "Sorry, I couldn't transcribe that voice message."
-      );
+      expect(message.reply).toHaveBeenCalledWith({
+        content: "Sorry, I couldn't transcribe that voice message.",
+        allowedMentions: { repliedUser: false },
+      });
     });
 
     it('should return null when gateway returns empty response', async () => {
@@ -289,9 +293,10 @@ describe('VoiceTranscriptionService', () => {
       const result = await service.transcribe(message, false, false);
 
       expect(result).toBeNull();
-      expect(message.reply).toHaveBeenCalledWith(
-        "Sorry, I couldn't transcribe that voice message."
-      );
+      expect(message.reply).toHaveBeenCalledWith({
+        content: "Sorry, I couldn't transcribe that voice message.",
+        allowedMentions: { repliedUser: false },
+      });
     });
 
     it('should return null when gateway returns response without content', async () => {
