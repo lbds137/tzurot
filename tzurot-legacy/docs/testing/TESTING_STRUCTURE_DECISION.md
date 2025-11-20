@@ -3,7 +3,6 @@
 ## Decision: Hybrid Approach ✅
 
 After consulting with Gemini, we're adopting a **hybrid approach** that combines the best of both worlds:
-
 - **Mirror source structure** for findability
 - **Filename suffixes** for test type clarity
 
@@ -50,7 +49,6 @@ tests/
 ## Test Type Suffixes
 
 ### `.unit.test.js`
-
 - **Pure functions only**
 - No Discord.js imports
 - No mocking required
@@ -58,7 +56,6 @@ tests/
 - Example: parsing utilities, formatters
 
 ### `.service.test.js`
-
 - **Component/service layer tests**
 - Uses mocked Discord objects from factories
 - Tests single component in isolation
@@ -66,14 +63,12 @@ tests/
 - Example: command handlers, message handlers
 
 ### `.snapshot.test.js`
-
 - **Golden master tests**
 - Captures output for regression detection
 - Used heavily during refactoring
 - Example: formatting pipeline output
 
 ### `.integration.test.js`
-
 - **Multi-component tests** (rare for us)
 - Tests interaction between components
 - May use real file I/O or databases
@@ -81,7 +76,6 @@ tests/
 - Example: full command flow with persistence
 
 ### `.e2e.test.js`
-
 - **End-to-end tests** (manual for Discord bots)
 - Would test against real Discord (we don't do this)
 - Reserved for future if we add test bot infrastructure
@@ -127,7 +121,6 @@ npm test -- --testMatch="**/*.snapshot.test.js" -u
 ## Migration Strategy for Existing Tests
 
 ### Step 1: Analyze Current Tests
-
 ```bash
 # Create inventory of what we have
 ls tests/unit/*.test.js | wc -l  # Count total files
@@ -136,13 +129,11 @@ grep -L "discord.js" tests/unit/*.test.js | wc -l  # Count true unit tests
 ```
 
 ### Step 2: Categorize Tests
-
 1. **True Unit Tests** (no Discord imports) → `.unit.test.js`
 2. **Service Tests** (mock Discord objects) → `.service.test.js`
 3. **Snapshot Tests** (if any exist) → `.snapshot.test.js`
 
 ### Step 3: Create Directory Structure
-
 ```bash
 # Create mirrored directories
 mkdir -p tests/{handlers,utils,commands,core,adapters,application,domain}
@@ -151,7 +142,6 @@ mkdir -p tests/e2e
 ```
 
 ### Step 4: Move and Rename Files
-
 ```bash
 # Example migrations
 mv tests/unit/messageHandler.test.js tests/handlers/messageHandler.service.test.js
@@ -162,26 +152,22 @@ mv tests/unit/contextMetadataFormatter.test.js tests/utils/contextMetadataFormat
 ## Benefits of This Approach
 
 ### ✅ Findability
-
 - Working on `src/handlers/messageHandler.js`?
 - Tests are in `tests/handlers/messageHandler.*.test.js`
 - No searching required!
 
 ### ✅ Clear Test Scope
-
 - See `.unit.test.js`? It's fast and pure
 - See `.service.test.js`? It uses mocks
 - See `.snapshot.test.js`? It's a golden master
 
 ### ✅ Flexible Test Execution
-
 - Run all unit tests for speed
 - Run service tests for confidence
 - Run snapshots before refactoring
 - Run by directory for focused testing
 
 ### ✅ Scalable Structure
-
 - Adding new source file? Mirror it in tests/
 - Need different test types? Add more suffixes
 - Structure grows naturally with codebase
@@ -189,7 +175,6 @@ mv tests/unit/contextMetadataFormatter.test.js tests/utils/contextMetadataFormat
 ## Examples
 
 ### Unit Test Example
-
 ```javascript
 // tests/utils/messageSplitting.unit.test.js
 const { splitMessage } = require('../../src/utils/messageSplitting');
@@ -199,7 +184,7 @@ describe('splitMessage', () => {
     const result = splitMessage('Hello world');
     expect(result).toEqual(['Hello world']);
   });
-
+  
   test('splits at 2000 characters', () => {
     const longMessage = 'a'.repeat(2001);
     const result = splitMessage(longMessage);
@@ -210,7 +195,6 @@ describe('splitMessage', () => {
 ```
 
 ### Service Test Example
-
 ```javascript
 // tests/handlers/messageHandler.service.test.js
 const { MessageFactory } = require('../factories');
@@ -222,16 +206,15 @@ describe('messageHandler', () => {
       .withContent('@claude hello')
       .inGuild({ name: 'Test Server' })
       .build();
-
+    
     await handleMessage(message);
-
+    
     // Assert webhook was called, etc
   });
 });
 ```
 
 ### Snapshot Test Example
-
 ```javascript
 // tests/utils/aiMessageFormatter.snapshot.test.js
 const { MessageFactory } = require('../factories');
@@ -243,9 +226,9 @@ describe('aiMessageFormatter snapshots', () => {
       .withContent('Hello @claude')
       .withAttachment('http://example.com/image.png')
       .build();
-
+    
     const result = formatApiMessages(message);
-
+    
     expect(result).toMatchSnapshot();
   });
 });

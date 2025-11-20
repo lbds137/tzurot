@@ -3,7 +3,6 @@
 This guide consolidates all timer-related documentation for Tzurot, covering patterns, testing, enforcement, and migration.
 
 ## Table of Contents
-
 1. [Core Concepts](#core-concepts)
 2. [Required Patterns](#required-patterns)
 3. [Testing with Timers](#testing-with-timers)
@@ -15,7 +14,6 @@ This guide consolidates all timer-related documentation for Tzurot, covering pat
 ## Core Concepts
 
 ### Why Injectable Timers?
-
 - **Fast Tests**: No real delays in test execution (tests run in ms, not seconds)
 - **Deterministic**: Tests behave the same every time
 - **Verifiable**: Can assert on delay values and call counts
@@ -23,7 +21,6 @@ This guide consolidates all timer-related documentation for Tzurot, covering pat
 - **No Flaky Tests**: Eliminates timing-based test failures
 
 ### The Problem We're Solving
-
 ```javascript
 // ❌ UNTESTABLE: Forces real delays in tests
 async function retryOperation() {
@@ -46,7 +43,7 @@ async function retryOperation() {
 class MyService {
   constructor(options = {}) {
     // Injectable delay function with sensible default
-    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
   }
 
   async retryOperation() {
@@ -69,13 +66,16 @@ class DataStore {
     this.scheduler = options.scheduler || setInterval;
     this.cleanupPeriod = options.cleanupPeriod || 10 * 60 * 1000;
     this.cleanupInterval = null;
-
+    
     this.startCleanup();
   }
 
   startCleanup() {
-    this.cleanupInterval = this.scheduler(() => this.cleanup(), this.cleanupPeriod);
-
+    this.cleanupInterval = this.scheduler(
+      () => this.cleanup(),
+      this.cleanupPeriod
+    );
+    
     // Allow Node.js to exit even if interval is active
     if (this.cleanupInterval.unref) {
       this.cleanupInterval.unref();
@@ -95,7 +95,7 @@ class DataStore {
 
 ```javascript
 // ✅ CORRECT: Module-level timer injection
-let delayFn = ms => new Promise(resolve => setTimeout(resolve, ms));
+let delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function setDelayFunction(fn) {
   delayFn = fn;
@@ -118,14 +118,14 @@ module.exports = tracker;
 // ✅ GOOD: Lazy initialization
 module.exports = {
   MessageTracker,
-  create: deps => new MessageTracker(deps),
+  create: (deps) => new MessageTracker(deps),
   // Backward compatibility with lazy init
   get instance() {
     if (!this._instance) {
       this._instance = new MessageTracker();
     }
     return this._instance;
-  },
+  }
 };
 ```
 
@@ -147,14 +147,13 @@ describe('MyService', () => {
   test('should retry after delay', async () => {
     // Create mocks
     const mockDelay = jest.fn().mockResolvedValue();
-    const mockOperation = jest
-      .fn()
+    const mockOperation = jest.fn()
       .mockRejectedValueOnce(new Error('Fail'))
       .mockResolvedValueOnce('Success');
 
     // Inject mocks
     const service = new MyService({
-      delay: mockDelay,
+      delay: mockDelay
     });
     service.doSomething = mockOperation;
 
@@ -174,15 +173,14 @@ describe('MyService', () => {
 ```javascript
 test('retries with exponential backoff', async () => {
   const mockDelay = jest.fn().mockResolvedValue();
-  const mockOperation = jest
-    .fn()
+  const mockOperation = jest.fn()
     .mockRejectedValueOnce(new Error('Fail 1'))
     .mockRejectedValueOnce(new Error('Fail 2'))
     .mockResolvedValueOnce('Success');
 
   const service = new RetryService({
     delay: mockDelay,
-    getJitter: () => 100, // Fixed jitter for testing
+    getJitter: () => 100 // Fixed jitter for testing
   });
 
   const result = await service.executeWithRetry(mockOperation);
@@ -202,11 +200,14 @@ test('should set up cleanup interval', () => {
   const mockScheduler = jest.fn();
   const store = new DataStore({
     scheduler: mockScheduler,
-    cleanupPeriod: 60000,
+    cleanupPeriod: 60000
   });
 
   // Verify interval was set up
-  expect(mockScheduler).toHaveBeenCalledWith(expect.any(Function), 60000);
+  expect(mockScheduler).toHaveBeenCalledWith(
+    expect.any(Function),
+    60000
+  );
 
   // Manually trigger cleanup
   const cleanupFn = mockScheduler.mock.calls[0][0];
@@ -242,7 +243,7 @@ fi
 
 - name: Run Tests
   run: npm test
-
+  
 - name: Verify Test Speed
   run: |
     TEST_TIME=$(npm test -- --json | jq '.testResults[].perfStats.runtime' | awk '{s+=$1} END {print s}')
@@ -262,28 +263,26 @@ module.exports = {
       'error',
       {
         selector: 'NewExpression[callee.name="Promise"] CallExpression[callee.name="setTimeout"]',
-        message: 'Use injectable delay function instead of Promise-wrapped setTimeout',
+        message: 'Use injectable delay function instead of Promise-wrapped setTimeout'
       },
       {
         selector: 'CallExpression[callee.name="setTimeout"]:not([parent.type="MemberExpression"])',
-        message: 'setTimeout must be injectable through constructor/options',
-      },
-    ],
-  },
+        message: 'setTimeout must be injectable through constructor/options'
+      }
+    ]
+  }
 };
 ```
 
 ## Migration Guide
 
 ### Step 1: Identify Timer Usage
-
 ```bash
 # Find all timer usage
 grep -r "setTimeout\|setInterval\|new Promise" src/ --include="*.js" | grep -v node_modules
 ```
 
 ### Step 2: Update Class Constructors
-
 ```javascript
 // Before
 class MyClass {
@@ -302,7 +301,6 @@ class MyClass {
 ```
 
 ### Step 3: Update Promise Delays
-
 ```javascript
 // Before
 async function wait() {
@@ -314,11 +312,10 @@ async function wait(delay = defaultDelay) {
   await delay(1000);
 }
 
-const defaultDelay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 ```
 
 ### Step 4: Update Tests
-
 ```javascript
 // Before
 test('waits for delay', async () => {
@@ -338,16 +335,15 @@ test('waits for delay', async () => {
 ## Common Pitfalls
 
 ### Pitfall 1: Mixing Real and Fake Timers
-
 ```javascript
 // ❌ BAD: Inconsistent timer usage
 test('mixed timers', async () => {
   jest.useFakeTimers();
   const promise = operationWithDelay();
-
+  
   // This won't work - Promise uses real setTimeout internally
   jest.advanceTimersByTime(5000);
-
+  
   await promise; // Will hang!
 });
 
@@ -360,7 +356,6 @@ test('mixed timers', async () => {
 ```
 
 ### Pitfall 2: Forgetting Cleanup
-
 ```javascript
 // ❌ BAD: No cleanup
 class Service {
@@ -375,7 +370,7 @@ class Service {
     this.scheduler = options.scheduler || setInterval;
     this.interval = this.scheduler(() => {}, 1000);
   }
-
+  
   destroy() {
     if (this.interval) {
       clearInterval(this.interval);
@@ -386,13 +381,10 @@ class Service {
 ```
 
 ### Pitfall 3: Global Timer State
-
 ```javascript
 // ❌ BAD: Global state
 let retryCount = 0;
-setTimeout(() => {
-  retryCount++;
-}, 1000);
+setTimeout(() => { retryCount++; }, 1000);
 
 // ✅ GOOD: Encapsulated state
 class RetryManager {
@@ -401,11 +393,9 @@ class RetryManager {
     this.retryCount = 0;
     this.scheduleRetry();
   }
-
+  
   scheduleRetry() {
-    this.scheduler(() => {
-      this.retryCount++;
-    }, 1000);
+    this.scheduler(() => { this.retryCount++; }, 1000);
   }
 }
 ```
@@ -413,7 +403,6 @@ class RetryManager {
 ## Quick Reference
 
 ### Do's ✅
-
 - Make all timers injectable through constructor options
 - Provide sensible defaults for production
 - Always clean up intervals and timeouts
@@ -422,7 +411,6 @@ class RetryManager {
 - Document any use of real timers in tests
 
 ### Don'ts ❌
-
 - Use setTimeout/setInterval directly in classes
 - Create Promise delays inline
 - Execute timer code during module import
@@ -431,9 +419,8 @@ class RetryManager {
 - Use arbitrary sleep/delay in tests
 
 ### Code Review Checklist
-
 - [ ] All `setTimeout` calls are injectable
-- [ ] All `setInterval` calls are injectable
+- [ ] All `setInterval` calls are injectable  
 - [ ] Promise-wrapped timers use injectable delays
 - [ ] Tests provide mock timers, not real ones
 - [ ] Timer IDs are stored for cleanup
@@ -441,7 +428,6 @@ class RetryManager {
 - [ ] Cleanup methods exist for all intervals
 
 ### Metrics to Track
-
 - **Timer Pattern Violations**: Should be 0
 - **Test Execution Time**: Should be < 30s for full suite
 - **Flaky Test Count**: Should be 0 for timer-related tests

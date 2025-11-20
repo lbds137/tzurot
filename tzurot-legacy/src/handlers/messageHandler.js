@@ -631,7 +631,7 @@ async function handleMentions(message, client) {
 async function handleActiveConversation(message, client) {
   // Get the real user ID for PluralKit webhook messages
   const userId = webhookUserTracker.getRealUserId(message) || message.author.id;
-
+  
   // Check if auto-response is enabled for this user
   const autoResponseEnabled = isAutoResponseEnabled(userId);
 

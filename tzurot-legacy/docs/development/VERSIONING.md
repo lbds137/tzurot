@@ -17,27 +17,23 @@ For a Discord bot, the definition of "breaking changes" focuses on user-facing f
 ### What Constitutes a Breaking Change (MAJOR)?
 
 **1. Data Storage Changes (without migration)**
-
 - Personality data format changes that prevent old personalities from loading
 - Conversation history format changes that lose existing history
 - Authentication data changes that require users to re-authenticate
 - Any failed migration that leaves users in a broken state
 
 **2. Command Interface Changes**
-
 - Removing commands entirely
 - Changing command syntax incompatibly (e.g., `!tz add` → `!tz personality create` without alias)
 - Changing required vs optional parameters
 - Renaming commands without maintaining aliases
 
 **3. Permission/Access Changes**
-
 - Changing who can use certain commands
 - Adding authentication requirements to previously public commands
 - Modifying personality ownership rules
 
 **4. Feature Removals**
-
 - Removing support for media types (audio, images)
 - Dropping features users depend on
 - Removing personality capabilities (aliases, custom error messages, etc.)
@@ -45,48 +41,41 @@ For a Discord bot, the definition of "breaking changes" focuses on user-facing f
 ### What Are New Features (MINOR)?
 
 **1. New Functionality**
-
 - Adding new commands
 - Adding new personality features (with sensible defaults)
 - Supporting new media types or Discord features
 - Adding optional parameters to existing commands
 
 **2. Backwards-Compatible Improvements**
-
 - New notification systems (like release notifications)
 - Additional customization options
 - New integrations or services
 - Performance improvements with new features
 
 **3. Deprecations (with maintained compatibility)**
-
 - Marking features for future removal
 - Adding new preferred alternatives while keeping old ones
 
 ### What Are Bug Fixes (PATCH)?
 
 **1. Bug Fixes**
-
 - Fixing error handling
 - Correcting personality behavior
 - Resolving media handling issues
 - Fixing rate limiting problems
 
 **2. Performance Improvements**
-
 - Optimizing existing features
 - Reducing memory usage
 - Improving response times
 
 **3. Documentation & Logging**
-
 - Improving error messages
 - Better logging
 - Documentation updates
 - UI/UX improvements (embed formatting)
 
 **4. Internal Refactoring**
-
 - Code structure changes
 - Dependency updates (non-breaking)
 - Test improvements
@@ -95,7 +84,6 @@ For a Discord bot, the definition of "breaking changes" focuses on user-facing f
 ### Implementation Details Are NOT Breaking Changes
 
 The following are NOT considered breaking changes:
-
 - Internal refactoring
 - Changing AI service providers (if functionality remains)
 - Optimizing algorithms
@@ -105,7 +93,6 @@ The following are NOT considered breaking changes:
 ## Version Locations
 
 The version number is maintained in the following locations:
-
 1. `package.json` - The source of truth for the current version
 2. `CHANGELOG.md` - Documents all changes for each version
 
@@ -141,7 +128,6 @@ When preparing a release, ask:
 ## Examples
 
 ### Major Version Examples (Breaking)
-
 ```
 1.0.0 → 2.0.0
 - Changed personality storage format without migration
@@ -150,7 +136,6 @@ When preparing a release, ask:
 ```
 
 ### Minor Version Examples (Features)
-
 ```
 1.0.0 → 1.1.0
 - Added release notification system
@@ -160,7 +145,6 @@ When preparing a release, ask:
 ```
 
 ### Patch Version Examples (Fixes)
-
 ```
 1.0.0 → 1.0.1
 - Fixed personality error messages not showing
@@ -172,7 +156,6 @@ When preparing a release, ask:
 ## Pre-release Versions
 
 For testing releases, use pre-release identifiers:
-
 - Alpha: `1.3.0-alpha.1`
 - Beta: `1.3.0-beta.1`
 - Release Candidate: `1.3.0-rc.1`

@@ -1,11 +1,9 @@
 # Feature Ideas and Improvements
 
 ## 1. Random Personality Trigger
-
 **Feature**: Allow users to trigger a random personality to speak
-
 - **Command**: Could be implemented as `!tz random` or `!tz surprise`
-- **Behavior**:
+- **Behavior**: 
   - Randomly select from all activated personalities in the current channel
   - Generate a message from that personality
   - Could optionally accept a prompt: `!tz random What do you think about pizza?`
@@ -15,9 +13,7 @@
   - Could have a cooldown to prevent spam
 
 ## 2. Enhanced Multimodal Message Handling
-
 **Feature**: Improve handling of messages with multiple media attachments
-
 - **Current Limitation**: Only processes first media attachment
 - **Proposed Solution**:
   - When multiple media files are attached, send each as a separate message in the messages array to the AI service
@@ -29,21 +25,25 @@
   // User sends: "Check out these images" + [image1.png, image2.png, image3.png]
   messages: [
     {
-      role: 'user',
+      role: "user",
       content: [
-        { type: 'text', text: 'Check out these images' },
-        { type: 'image_url', image_url: { url: 'https://example.com/image1.png' } },
-      ],
+        { type: "text", text: "Check out these images" },
+        { type: "image_url", image_url: { url: "https://example.com/image1.png" } }
+      ]
     },
     {
-      role: 'user',
-      content: [{ type: 'image_url', image_url: { url: 'https://example.com/image2.png' } }],
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "https://example.com/image2.png" } }
+      ]
     },
     {
-      role: 'user',
-      content: [{ type: 'image_url', image_url: { url: 'https://example.com/image3.png' } }],
-    },
-  ];
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "https://example.com/image3.png" } }
+      ]
+    }
+  ]
   ```
 - **Implementation Notes**:
   - Update `messageHandler.js` to detect multiple attachments
@@ -55,28 +55,30 @@
   // User sends: "Listen to this and look at these" + [audio.mp3, image1.png, image2.png]
   messages: [
     {
-      role: 'user',
+      role: "user",
       content: [
-        { type: 'text', text: 'Listen to this and look at these' },
-        { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } },
-      ],
+        { type: "text", text: "Listen to this and look at these" },
+        { type: "audio_url", audio_url: { url: "https://example.com/audio.mp3" } }
+      ]
     },
     {
-      role: 'user',
-      content: [{ type: 'image_url', image_url: { url: 'https://example.com/image1.png' } }],
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "https://example.com/image1.png" } }
+      ]
     },
     {
-      role: 'user',
-      content: [{ type: 'image_url', image_url: { url: 'https://example.com/image2.png' } }],
-    },
-  ];
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: "https://example.com/image2.png" } }
+      ]
+    }
+  ]
   ```
 
 ## 3. Personality Storage Architecture Improvements
-
 **Feature**: Refactor personality storage to have clearer ownership and visibility models
-
-- **Current Issue**:
+- **Current Issue**: 
   - All personalities are technically global (available to any user)
   - `!tz list` only shows personalities added by the current user
   - Creates confusion about ownership and accessibility
@@ -96,13 +98,11 @@
      - Default to private, allow marking as public
 
 ## Implementation Priority
-
 1. **High Priority**: Personality storage improvements (affects core architecture)
 2. **Medium Priority**: Multimodal message handling (enhances existing functionality)
 3. **Low Priority**: Random personality trigger (nice-to-have feature)
 
 ## Next Steps
-
 - Discuss preferred approach for personality storage with team
 - Create detailed technical specifications for each feature
 - Implement features in priority order
@@ -112,9 +112,7 @@
 ## Additional Feature Ideas (August 2025)
 
 ### 4. User Preferences System with Voice Toggle
-
 **Feature**: User-specific preferences command system
-
 - **Command**: `!tz preferences` or `!tz prefs`
 - **Primary Use Case**: Toggle !voice prefix for personalities
 - **Behavior**:
@@ -128,9 +126,7 @@
   - Consider using existing user auth infrastructure
 
 ### 5. Emoji Reaction Actions
-
 **Feature**: Use emoji reactions on personality messages to trigger actions
-
 - **Behavior**:
   - ℹ️ or ❓ emoji: Display stats/details about the personality
   - 🔄 emoji: Regenerate the response
@@ -143,9 +139,7 @@
   - Store message-to-personality mapping for context
 
 ### 6. Multiple Personality Tags
-
 **Feature**: Tag multiple personalities in one message for group responses
-
 - **Behavior**:
   - Parse multiple @mentions in a single message
   - Queue responses from each tagged personality
@@ -158,9 +152,7 @@
   - Cost implications of multiple AI calls
 
 ### 7. Disable Replies for Disabled Tags
-
 **Feature**: Respect Discord's ping notification settings
-
 - **Behavior**:
   - Check if user has notifications enabled for personality mentions
   - If ping is disabled in Discord UI, optionally skip reply
@@ -170,9 +162,7 @@
   - Store user preference for this behavior
 
 ### 8. Forwarded Message Support
-
 **Feature**: Parse and handle Discord's forwarded message format
-
 - **Behavior**:
   - Detect forwarded message structure
   - Include forwarded content in personality context
@@ -182,9 +172,7 @@
   - Handle forwarded embeds appropriately
 
 ### 9. Smart Reference Inclusion
-
 **Feature**: Intelligent handling of webhook content references
-
 - **Behavior**:
   - Track which user an AI message was replying to
   - If different user, always include reference (bypass time check)
@@ -194,9 +182,7 @@
   - Store user context in message mapping
 
 ### 10. Personality Mention Stripping
-
 **Feature**: Smart handling of @mentions in personality messages
-
 - **Behavior**:
   - Strip @mentions at beginning/end of messages
   - Preserve @mentions in middle of sentences
@@ -207,9 +193,7 @@
   - Clean message before sending to AI service
 
 ### 11. Command Ordering for AI Service
-
 **Feature**: Ensure AI service commands appear before context metadata
-
 - **Behavior**:
   - Commands like !voice, !wack, !sleep, !reset, !web must appear first
   - Only one command per message allowed
@@ -219,9 +203,7 @@
   - Validate command presence and position
 
 ### 12. Discord Sticker Support
-
 **Feature**: Convert Discord stickers to images for AI processing
-
 - **Behavior**:
   - Detect sticker attachments in messages
   - Convert static stickers to images
@@ -235,22 +217,18 @@
 ## Feature Priority Matrix
 
 ### High Impact, Low Effort
-
 - Personality Mention Stripping (#10)
 - Command Ordering (#11)
 - User Preferences with Voice Toggle (#4)
 
 ### High Impact, High Effort
-
 - Multiple Personality Tags (#6)
 - Emoji Reaction Actions (#5)
 - Smart Reference Inclusion (#9)
 
 ### Low Impact, Low Effort
-
 - Forwarded Message Support (#8)
 - Disable Replies for Disabled Tags (#7)
 
 ### Low Impact, High Effort
-
 - Discord Sticker Support (#12)

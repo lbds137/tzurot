@@ -5,7 +5,6 @@ This guide explains how to create and manage GitHub releases for Tzurot.
 ## What are GitHub Releases?
 
 GitHub Releases are a way to package and deliver software versions to users. They:
-
 - Create git tags automatically
 - Provide downloadable archives of your code
 - Display release notes prominently
@@ -42,7 +41,6 @@ git pull origin main
 ```
 
 The script automatically:
-
 - Validates you're on the main branch
 - Checks that package.json version matches
 - Extracts release notes from CHANGELOG.md
@@ -75,17 +73,14 @@ Copy the relevant section from CHANGELOG.md and format it:
 ## What's Changed
 
 ### ✨ Added
-
 - Feature 1
 - Feature 2
 
 ### 🐛 Fixed
-
 - Bug fix 1
 - Bug fix 2
 
 ### 🔧 Changed
-
 - Change 1
 - Change 2
 
@@ -95,7 +90,6 @@ Copy the relevant section from CHANGELOG.md and format it:
 ## Automated Deployment
 
 If you have deployment automation:
-
 - Production deployments can trigger on new release tags
 - Development deployments can trigger on develop branch pushes
 
@@ -122,19 +116,16 @@ If you have deployment automation:
 After 3 weeks of development and 57 PRs, Tzurot is ready for its first stable release!
 
 ### ✨ What's New
-
 - Personality-specific error messages for more immersive interactions
 - Enhanced debug commands for easier troubleshooting
 - Comprehensive test coverage
 
 ### 🐛 Critical Fixes
-
 - Fixed add command parameter order bug (#56)
 - Fixed NSFW verification for threads and forums (#57)
 - Fixed NSFW verification requirement for DMs (#53)
 
 ### 📚 Documentation
-
 - Added comprehensive versioning strategy
 - Improved development workflow documentation
 

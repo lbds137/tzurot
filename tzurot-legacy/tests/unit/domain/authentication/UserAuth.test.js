@@ -112,6 +112,7 @@ describe('UserAuth', () => {
       });
     });
 
+
     it('should reject invalid token', () => {
       expect(() => userAuth.refreshToken('invalid')).toThrow('Invalid Token');
     });
@@ -153,7 +154,7 @@ describe('UserAuth', () => {
       const emptyAuth = UserAuth.createAuthenticated(userId, token);
       emptyAuth.expireToken(); // First expiry
       emptyAuth.markEventsAsCommitted();
-
+      
       // Second expiry should not emit event
       emptyAuth.expireToken();
       const events = emptyAuth.getUncommittedEvents();
@@ -198,6 +199,7 @@ describe('UserAuth', () => {
 
       expect(userAuth.getUncommittedEvents()).toHaveLength(0);
     });
+
   });
 
   describe('clearNsfwVerification', () => {
@@ -237,6 +239,7 @@ describe('UserAuth', () => {
     });
   });
 
+
   describe('isAuthenticated', () => {
     it('should return true for valid authentication', () => {
       const userAuth = UserAuth.createAuthenticated(userId, token);
@@ -251,6 +254,7 @@ describe('UserAuth', () => {
 
       expect(userAuth.isAuthenticated()).toBe(true); // Still true - AI service validates
     });
+
 
     it('should return false for user without token', () => {
       const userAuth = UserAuth.createAuthenticated(userId, token);
@@ -284,9 +288,9 @@ describe('UserAuth', () => {
 
     it('should require verification for NSFW in DMs', () => {
       expect(userAuth.canAccessNsfw(nsfwPersonality, dmContext)).toBe(false);
-
+      
       userAuth.verifyNsfw();
-
+      
       expect(userAuth.canAccessNsfw(nsfwPersonality, dmContext)).toBe(true);
     });
 
@@ -307,7 +311,7 @@ describe('UserAuth', () => {
     it('should check NSFW status for NSFW personalities in DMs', () => {
       // NSFW personality in DM requires verification
       const nsfwChannelContext = AuthContext.createForGuild('987654321098765432', false);
-
+      
       expect(userAuth.canAccessNsfw(nsfwPersonality, nsfwChannelContext)).toBe(false);
     });
   });
@@ -318,6 +322,7 @@ describe('UserAuth', () => {
 
       expect(userAuth.getRateLimit()).toBe(1);
     });
+
   });
 
   describe('event sourcing', () => {
@@ -341,13 +346,13 @@ describe('UserAuth', () => {
       // Create empty aggregate for event sourcing test - constructor is private
       // so we need to use a different approach
       const userAuth = UserAuth.createAuthenticated(userId, token);
-
+      
       // Reset state to simulate empty aggregate
       userAuth.nsfwStatus = NsfwStatus.createUnverified();
       userAuth.token = token; // Will be replaced by events
       userAuth.version = 0;
       userAuth.markEventsAsCommitted(); // Clear creation event
-
+      
       userAuth.loadFromHistory(events);
 
       expect(userAuth.token.value).toBe('refreshed-token');
@@ -386,12 +391,12 @@ describe('UserAuth', () => {
         userId: '123456789012345678',
         token: {
           value: 'test-token-value',
-          expiresAt: '2024-01-01T01:00:00.000Z',
+          expiresAt: '2024-01-01T01:00:00.000Z'
         },
         nsfwStatus: {
           verified: true,
-          verifiedAt: '2024-01-01T00:00:00.000Z',
-        },
+          verifiedAt: '2024-01-01T00:00:00.000Z'
+        }
       };
 
       const userAuth = UserAuth.fromData(data);
@@ -407,9 +412,9 @@ describe('UserAuth', () => {
       const data = {
         userId: '123456789012345678',
         token: {
-          value: 'test-token-value',
+          value: 'test-token-value'
           // No expiresAt
-        },
+        }
       };
 
       const userAuth = UserAuth.fromData(data);
@@ -421,8 +426,8 @@ describe('UserAuth', () => {
       const data = {
         userId: '123456789012345678',
         token: {
-          value: 'test-token-value',
-        },
+          value: 'test-token-value'
+        }
         // No nsfwStatus
       };
 
@@ -439,24 +444,20 @@ describe('UserAuth', () => {
       const data = {
         // No userId
         token: {
-          value: 'test-token-value',
-        },
+          value: 'test-token-value'
+        }
       };
 
-      expect(() => UserAuth.fromData(data)).toThrow(
-        'Cannot reconstitute UserAuth without userId and token'
-      );
+      expect(() => UserAuth.fromData(data)).toThrow('Cannot reconstitute UserAuth without userId and token');
     });
 
     it('should require token', () => {
       const data = {
-        userId: '123456789012345678',
+        userId: '123456789012345678'
         // No token
       };
 
-      expect(() => UserAuth.fromData(data)).toThrow(
-        'Cannot reconstitute UserAuth without userId and token'
-      );
+      expect(() => UserAuth.fromData(data)).toThrow('Cannot reconstitute UserAuth without userId and token');
     });
   });
 

@@ -3,7 +3,6 @@
 ## Project Overview
 
 Build a complete AI API service to replace Shapes.inc, featuring:
-
 - Character-based AI personalities with persistent memory
 - Hierarchical memory system (user-specific, group/server-specific, character core)
 - Integration with OpenRouter (LLMs), ElevenLabs (voice), Gemini (vision), and Flux (images)
@@ -81,31 +80,31 @@ class Config:
     # Railway provides these
     DATABASE_URL = os.getenv("DATABASE_URL")
     REDIS_URL = os.getenv("REDIS_URL")
-
+    
     # API Keys
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     FAL_API_KEY = os.getenv("FAL_API_KEY")
     INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
-
+    
     # Qdrant
     QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-
+    
     # Model settings
     DEFAULT_LLM_MODEL = "anthropic/claude-3-sonnet-20240229"
     DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
     DEFAULT_VOICE_MODEL = "eleven_turbo_v2_5"
-
+    
     # Memory settings
     MAX_SHORT_TERM_MESSAGES = 20
     MAX_MEMORY_SEARCH_RESULTS = 10
     MEMORY_RELEVANCE_THRESHOLD = 0.7
-
+    
     # Cache settings
     CACHE_TTL_SECONDS = 3600
-
+    
     # Rate limiting
     RATE_LIMIT_REQUESTS = 100
     RATE_LIMIT_WINDOW = 60
@@ -257,7 +256,7 @@ import base64
 
 class APIKeyEncryption:
     """Handles secure storage of user API keys"""
-
+    
     def __init__(self):
         # In production, load this from secure storage (e.g., Railway secrets)
         encryption_key = os.getenv("ENCRYPTION_KEY")
@@ -265,15 +264,15 @@ class APIKeyEncryption:
             # Generate a new key for development
             encryption_key = Fernet.generate_key().decode()
             logger.warning("Generated new encryption key - set ENCRYPTION_KEY in production!")
-
+        
         self.cipher = Fernet(encryption_key.encode() if isinstance(encryption_key, str) else encryption_key)
-
+    
     def encrypt(self, api_key: str) -> str:
         """Encrypt an API key for storage"""
         if not api_key:
             return None
         return self.cipher.encrypt(api_key.encode()).decode()
-
+    
     def decrypt(self, encrypted_key: str) -> str:
         """Decrypt an API key for use"""
         if not encrypted_key:
@@ -284,30 +283,30 @@ class APIKeyEncryption:
 
 class UserManager:
     """Manages users and their API keys"""
-
+    
     def __init__(self, db_pool: asyncpg.Pool, encryption: APIKeyEncryption):
         self.db = db_pool
         self.encryption = encryption
-
+        
     async def create_or_update_user(self, discord_id: str, username: str) -> Dict:
         """Create or update a user"""
-
+        
         async with self.db.acquire() as conn:
             user = await conn.fetchrow("""
                 INSERT INTO users (discord_id, username)
                 VALUES ($1, $2)
-                ON CONFLICT (discord_id)
-                DO UPDATE SET
+                ON CONFLICT (discord_id) 
+                DO UPDATE SET 
                     username = $2,
                     last_active = CURRENT_TIMESTAMP
                 RETURNING *
             """, discord_id, username)
-
+            
         return dict(user)
-
+    
     async def update_api_keys(self, user_id: str, keys: UserAPIKeys) -> None:
         """Update user's API keys (encrypted)"""
-
+        
         # Encrypt all provided keys
         encrypted_keys = {
             'openrouter': self.encryption.encrypt(keys.openrouter_key) if keys.openrouter_key else None,
@@ -315,42 +314,42 @@ class UserManager:
             'gemini': self.encryption.encrypt(keys.gemini_key) if keys.gemini_key else None,
             'fal': self.encryption.encrypt(keys.fal_key) if keys.fal_key else None,
         }
-
+        
         async with self.db.acquire() as conn:
             await conn.execute("""
                 INSERT INTO user_api_keys (
-                    user_id,
+                    user_id, 
                     openrouter_key_encrypted,
                     elevenlabs_key_encrypted,
                     gemini_key_encrypted,
                     fal_key_encrypted
                 ) VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (user_id)
+                ON CONFLICT (user_id) 
                 DO UPDATE SET
                     openrouter_key_encrypted = COALESCE($2, user_api_keys.openrouter_key_encrypted),
                     elevenlabs_key_encrypted = COALESCE($3, user_api_keys.elevenlabs_key_encrypted),
                     gemini_key_encrypted = COALESCE($4, user_api_keys.gemini_key_encrypted),
                     fal_key_encrypted = COALESCE($5, user_api_keys.fal_key_encrypted),
                     updated_at = CURRENT_TIMESTAMP
-            """,
+            """, 
                 user_id,
                 encrypted_keys['openrouter'],
                 encrypted_keys['elevenlabs'],
                 encrypted_keys['gemini'],
                 encrypted_keys['fal']
             )
-
+    
     async def get_user_api_keys(self, user_id: str) -> Dict[str, str]:
         """Get decrypted API keys for a user"""
-
+        
         async with self.db.acquire() as conn:
             keys = await conn.fetchrow("""
                 SELECT * FROM user_api_keys WHERE user_id = $1
             """, user_id)
-
+            
         if not keys:
             return {}
-
+        
         # Decrypt keys
         return {
             'openrouter': self.encryption.decrypt(keys['openrouter_key_encrypted']) if keys['openrouter_key_encrypted'] else None,
@@ -358,12 +357,12 @@ class UserManager:
             'gemini': self.encryption.decrypt(keys['gemini_key_encrypted']) if keys['gemini_key_encrypted'] else None,
             'fal': self.encryption.decrypt(keys['fal_key_encrypted']) if keys['fal_key_encrypted'] else None,
         }
-
+    
     async def validate_api_keys(self, keys: Dict[str, str]) -> Dict[str, bool]:
         """Validate which API keys are working"""
-
+        
         status = {}
-
+        
         # Test OpenRouter
         if keys.get('openrouter'):
             try:
@@ -377,7 +376,7 @@ class UserManager:
                 status['openrouter'] = False
         else:
             status['openrouter'] = False
-
+        
         # Test ElevenLabs
         if keys.get('elevenlabs'):
             try:
@@ -388,17 +387,17 @@ class UserManager:
                 status['elevenlabs'] = False
         else:
             status['elevenlabs'] = False
-
+        
         # Add tests for other services...
         status['gemini'] = bool(keys.get('gemini'))
         status['fal'] = bool(keys.get('fal'))
-
+        
         return status
-
-    async def track_usage(self, user_id: str, service: str,
+    
+    async def track_usage(self, user_id: str, service: str, 
                          tokens: int = 0, cost: float = 0.0) -> None:
         """Track API usage for billing transparency"""
-
+        
         async with self.db.acquire() as conn:
             await conn.execute("""
                 INSERT INTO api_usage (user_id, service, tokens_used, cost_estimate)
@@ -409,21 +408,21 @@ class UserManager:
 
 class UserAwareAIClients:
     """Manages AI service clients with user-specific API keys"""
-
+    
     def __init__(self, user_manager: UserManager):
         self.user_manager = user_manager
         self.embedding_model = SentenceTransformer(Config.DEFAULT_EMBEDDING_MODEL)
-
+        
     async def get_openrouter_client(self, user_id: str) -> AsyncOpenAI:
         """Get OpenRouter client with user's API key"""
-
+        
         keys = await self.user_manager.get_user_api_keys(user_id)
         if not keys.get('openrouter'):
             raise HTTPException(
-                status_code=402,
+                status_code=402, 
                 detail="OpenRouter API key required. Please configure your API keys."
             )
-
+        
         return AsyncOpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=keys['openrouter'],
@@ -432,58 +431,58 @@ class UserAwareAIClients:
                 "X-Title": "AI Character Service"
             }
         )
-
+    
     async def get_elevenlabs_client(self, user_id: str) -> AsyncElevenLabs:
         """Get ElevenLabs client with user's API key"""
-
+        
         keys = await self.user_manager.get_user_api_keys(user_id)
         if not keys.get('elevenlabs'):
             raise HTTPException(
                 status_code=402,
                 detail="ElevenLabs API key required for voice synthesis."
             )
-
+        
         return AsyncElevenLabs(api_key=keys['elevenlabs'])
-
+    
     async def configure_gemini(self, user_id: str) -> None:
         """Configure Gemini with user's API key"""
-
+        
         keys = await self.user_manager.get_user_api_keys(user_id)
         if not keys.get('gemini'):
             raise HTTPException(
                 status_code=402,
                 detail="Gemini API key required for image analysis."
             )
-
+        
         genai.configure(api_key=keys['gemini'])
-
+    
     async def configure_fal(self, user_id: str) -> None:
         """Configure Fal.ai with user's API key"""
-
+        
         keys = await self.user_manager.get_user_api_keys(user_id)
         if not keys.get('fal'):
             raise HTTPException(
                 status_code=402,
                 detail="Fal.ai API key required for image generation."
             )
-
+        
         fal_client.api_key = keys['fal']
 
 # ========== CHARACTER MANAGER (FUTURE: character.py) ==========
 
 class CharacterManager:
     """Handles character CRUD and personality management"""
-
+    
     def __init__(self, db_pool: asyncpg.Pool, cache: redis.Redis):
         self.db = db_pool
         self.cache = cache
-
+        
     async def create_character(self, character_data: CharacterCreate) -> Dict:
         """Create a new character with generated system prompt"""
-
+        
         # Generate comprehensive system prompt
         system_prompt = self._generate_system_prompt(character_data)
-
+        
         async with self.db.acquire() as conn:
             character = await conn.fetchrow("""
                 INSERT INTO characters (
@@ -492,7 +491,7 @@ class CharacterManager:
                     backstory, voice_id, system_prompt
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 RETURNING *
-            """,
+            """, 
                 character_data.name,
                 character_data.description,
                 json.dumps(character_data.personality_traits),
@@ -504,46 +503,46 @@ class CharacterManager:
                 character_data.voice_id,
                 system_prompt
             )
-
+            
         return dict(character)
-
+    
     async def get_character(self, character_id: str) -> Optional[Dict]:
         """Get character by ID with caching"""
-
+        
         # Check cache first
         cache_key = f"character:{character_id}"
         cached = await self.cache.get(cache_key)
         if cached:
             return json.loads(cached)
-
+        
         # Fetch from database
         async with self.db.acquire() as conn:
             character = await conn.fetchrow(
                 "SELECT * FROM characters WHERE id = $1",
                 character_id
             )
-
+            
         if character:
             character_dict = dict(character)
             # Cache for 1 hour
             await self.cache.setex(
-                cache_key,
+                cache_key, 
                 Config.CACHE_TTL_SECONDS,
                 json.dumps(character_dict, default=str)
             )
             return character_dict
-
+            
         return None
-
+    
     def _generate_system_prompt(self, character: CharacterCreate) -> str:
         """Generate a comprehensive system prompt for the character"""
-
+        
         prompt_parts = [
             f"You are {character.name}. {character.description}",
             "",
             "Your personality traits:"
         ]
-
+        
         # Add personality traits with strengths
         for trait, strength in character.personality_traits.items():
             if strength > 0.7:
@@ -553,7 +552,7 @@ class CharacterManager:
             else:
                 intensity = "slightly"
             prompt_parts.append(f"- You are {intensity} {trait}")
-
+        
         # Add interaction style
         prompt_parts.extend([
             "",
@@ -561,11 +560,11 @@ class CharacterManager:
             "",
             "Voice characteristics:"
         ])
-
+        
         # Add voice characteristics
         for key, value in character.voice_characteristics.items():
             prompt_parts.append(f"- {key}: {value}")
-
+        
         # Add knowledge domains
         if character.knowledge_domains:
             prompt_parts.extend([
@@ -573,7 +572,7 @@ class CharacterManager:
                 "You are knowledgeable about:",
                 ", ".join(character.knowledge_domains)
             ])
-
+        
         # Add backstory
         if character.backstory:
             prompt_parts.extend([
@@ -581,7 +580,7 @@ class CharacterManager:
                 "Your backstory:",
                 character.backstory
             ])
-
+        
         # Add example dialogues
         if character.example_dialogues:
             prompt_parts.extend([
@@ -592,29 +591,29 @@ class CharacterManager:
                 prompt_parts.append(f"User: {example.get('user', '')}")
                 prompt_parts.append(f"You: {example.get('assistant', '')}")
                 prompt_parts.append("")
-
+        
         return "\n".join(prompt_parts)
 
 # ========== MEMORY SYSTEM (FUTURE: memory.py) ==========
 
 class MemorySystem:
     """Hierarchical memory management with vector search"""
-
-    def __init__(self, db_pool: asyncpg.Pool, qdrant: QdrantClient,
+    
+    def __init__(self, db_pool: asyncpg.Pool, qdrant: QdrantClient, 
                  embedding_model: SentenceTransformer):
         self.db = db_pool
         self.qdrant = qdrant
         self.embedding_model = embedding_model
-
+        
     async def initialize_collections(self):
         """Create Qdrant collections for each memory type"""
-
+        
         collections = [
             "character_core_memories",
-            "character_user_memories",
+            "character_user_memories", 
             "character_group_memories"
         ]
-
+        
         for collection in collections:
             try:
                 await self.qdrant.create_collection(
@@ -627,16 +626,16 @@ class MemorySystem:
                 logger.info(f"Created collection: {collection}")
             except Exception as e:
                 logger.debug(f"Collection {collection} already exists")
-
-    async def store_memory(self, character_id: str, user_id: str,
+    
+    async def store_memory(self, character_id: str, user_id: str, 
                           guild_id: Optional[str], content: str,
                           memory_type: str = "user") -> None:
         """Store a memory in both PostgreSQL and Qdrant"""
-
+        
         # Generate embedding
         embedding = self.embedding_model.encode(content).tolist()
         embedding_id = str(uuid.uuid4())
-
+        
         # Store in PostgreSQL
         async with self.db.acquire() as conn:
             await conn.execute("""
@@ -645,7 +644,7 @@ class MemorySystem:
                     embedding_id, memory_type
                 ) VALUES ($1, $2, $3, $4, $5, $6)
             """, character_id, user_id, guild_id, content, embedding_id, memory_type)
-
+        
         # Determine collection based on memory type
         if memory_type == "core":
             collection = "character_core_memories"
@@ -653,7 +652,7 @@ class MemorySystem:
             collection = "character_group_memories"
         else:
             collection = "character_user_memories"
-
+        
         # Store in Qdrant
         await self.qdrant.upsert(
             collection_name=collection,
@@ -672,22 +671,22 @@ class MemorySystem:
                 )
             ]
         )
-
+    
     async def search_memories(self, character_id: str, user_id: str,
                             guild_id: Optional[str], query: str,
                             limit: int = 10) -> List[Dict]:
         """Search for relevant memories across all layers"""
-
+        
         # Generate query embedding
         query_embedding = self.embedding_model.encode(query).tolist()
-
+        
         memories = []
         weights = {
             "core": 0.3,
             "user": 0.5,
             "group": 0.2
         }
-
+        
         # Search core memories
         core_results = await self.qdrant.search(
             collection_name="character_core_memories",
@@ -699,12 +698,12 @@ class MemorySystem:
             },
             limit=5
         )
-
+        
         for result in core_results:
             result.payload["relevance_score"] = result.score * weights["core"]
             result.payload["source"] = "core"
             memories.append(result.payload)
-
+        
         # Search user-specific memories
         user_results = await self.qdrant.search(
             collection_name="character_user_memories",
@@ -717,12 +716,12 @@ class MemorySystem:
             },
             limit=7
         )
-
+        
         for result in user_results:
             result.payload["relevance_score"] = result.score * weights["user"]
             result.payload["source"] = "user"
             memories.append(result.payload)
-
+        
         # Search group memories if applicable
         if guild_id:
             group_results = await self.qdrant.search(
@@ -736,12 +735,12 @@ class MemorySystem:
                 },
                 limit=5
             )
-
+            
             for result in group_results:
                 result.payload["relevance_score"] = result.score * weights["group"]
                 result.payload["source"] = "group"
                 memories.append(result.payload)
-
+        
         # Sort by relevance and return top memories
         memories.sort(key=lambda x: x["relevance_score"], reverse=True)
         return memories[:limit]
@@ -750,44 +749,44 @@ class MemorySystem:
 
 class ConversationHandler:
     """Manages conversation flow and response generation"""
-
+    
     def __init__(self, ai_clients: UserAwareAIClients, memory_system: MemorySystem,
-                 character_manager: CharacterManager, user_manager: UserManager,
+                 character_manager: CharacterManager, user_manager: UserManager, 
                  cache: redis.Redis):
         self.ai = ai_clients
         self.memory = memory_system
         self.characters = character_manager
         self.users = user_manager
         self.cache = cache
-
-    async def generate_response(self, character_id: str,
+        
+    async def generate_response(self, character_id: str, 
                               message: MessageRequest) -> MessageResponse:
         """Generate a character response with memory context"""
-
+        
         start_time = datetime.utcnow()
-
+        
         # Get user from database
         user = await self.users.create_or_update_user(
-            message.user_id,
+            message.user_id, 
             message.user_id  # Use discord_id as username if not provided
         )
         user_id = str(user['id'])
-
+        
         # Check API key availability
         api_keys = await self.users.get_user_api_keys(user_id)
         api_status = await self.users.validate_api_keys(api_keys)
-
+        
         if not api_status.get('openrouter'):
             raise HTTPException(
                 status_code=402,
                 detail="OpenRouter API key required. Please configure your keys at /users/keys"
             )
-
+        
         # Get character
         character = await self.characters.get_character(character_id)
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
-
+        
         # Search relevant memories
         memories = await self.memory.search_memories(
             character_id=character_id,
@@ -795,12 +794,12 @@ class ConversationHandler:
             guild_id=message.guild_id,
             query=message.content
         )
-
+        
         # Build conversation messages
         messages = self._build_conversation_messages(
             character, message.content, memories
         )
-
+        
         # Handle image attachment if present
         if message.attachment_url and api_status.get('gemini'):
             await self.ai.configure_gemini(user_id)
@@ -809,7 +808,7 @@ class ConversationHandler:
                 "role": "system",
                 "content": f"The user has shared an image: {image_context}"
             })
-
+        
         # Generate response with user's OpenRouter key
         try:
             client = await self.ai.get_openrouter_client(user_id)
@@ -823,29 +822,29 @@ class ConversationHandler:
                 presence_penalty=0.1,
                 frequency_penalty=0.1
             )
-
+            
             response_content = completion.choices[0].message.content
             tokens_used = completion.usage.total_tokens if completion.usage else None
-
+            
             # Track usage
             if tokens_used:
                 # Estimate cost (example rates, adjust based on model)
                 cost_per_1k = 0.003  # $0.003 per 1K tokens
                 cost = (tokens_used / 1000) * cost_per_1k
                 await self.users.track_usage(user_id, 'openrouter', tokens_used, cost)
-
+            
         except Exception as e:
             logger.error(f"OpenRouter error: {e}")
             raise HTTPException(status_code=500, detail="Failed to generate response")
-
+        
         # Store the interaction as memories
         await self._store_interaction(
             character_id, message, response_content
         )
-
+        
         # Calculate processing time
         processing_time = (datetime.utcnow() - start_time).total_seconds()
-
+        
         return MessageResponse(
             response=response_content,
             character_id=character_id,
@@ -854,16 +853,16 @@ class ConversationHandler:
             tokens_used=tokens_used,
             api_keys_status=api_status
         )
-
-    def _build_conversation_messages(self, character: Dict,
+    
+    def _build_conversation_messages(self, character: Dict, 
                                    user_message: str,
                                    memories: List[Dict]) -> List[Dict]:
         """Build the messages array for the LLM"""
-
+        
         messages = [
             {"role": "system", "content": character['system_prompt']}
         ]
-
+        
         # Add relevant memories as context
         if memories:
             memory_context = self._format_memories(memories)
@@ -871,20 +870,20 @@ class ConversationHandler:
                 "role": "system",
                 "content": f"Relevant context from previous interactions:\n{memory_context}"
             })
-
+        
         # Add the user message
         messages.append({"role": "user", "content": user_message})
-
+        
         return messages
-
+    
     def _format_memories(self, memories: List[Dict]) -> str:
         """Format memories for context injection"""
-
+        
         formatted = []
         for memory in memories:
             source = memory.get('source', 'unknown')
             content = memory.get('content', '')
-
+            
             if source == 'user':
                 prefix = "[Previous conversation with this user]"
             elif source == 'group':
@@ -893,14 +892,14 @@ class ConversationHandler:
                 prefix = "[Core knowledge]"
             else:
                 prefix = "[Memory]"
-
+                
             formatted.append(f"{prefix} {content}")
-
+        
         return "\n".join(formatted)
-
+    
     def _get_temperature_for_style(self, style: str) -> float:
         """Get appropriate temperature for interaction style"""
-
+        
         temperature_map = {
             'formal': 0.3,
             'casual': 0.7,
@@ -910,38 +909,38 @@ class ConversationHandler:
             'sarcastic': 0.75
         }
         return temperature_map.get(style, 0.7)
-
+    
     async def _analyze_image(self, image_url: str) -> str:
         """Analyze image using Gemini Vision"""
-
+        
         try:
             # Download image
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url)
                 image_data = response.content
-
+            
             # Use Gemini to analyze
             model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content([
                 "Describe this image concisely, focusing on key elements.",
                 image_data
             ])
-
+            
             return response.text
-
+            
         except Exception as e:
             logger.error(f"Image analysis failed: {e}")
             return "an image (unable to analyze)"
-
+    
     async def _store_interaction(self, character_id: str,
                                message: MessageRequest,
                                response: str) -> None:
         """Store the interaction for future memory retrieval"""
-
+        
         # Create a summary of the exchange
         exchange_summary = f"User said: {message.content[:100]}... " \
                          f"Character responded: {response[:100]}..."
-
+        
         # Store as memory
         await self.memory.store_memory(
             character_id=character_id,
@@ -955,18 +954,18 @@ class ConversationHandler:
 
 class VoiceHandler:
     """Handles voice synthesis and audio streaming"""
-
+    
     def __init__(self, ai_clients: UserAwareAIClients, user_manager: UserManager):
         self.ai = ai_clients
         self.users = user_manager
-
+        
     async def synthesize_speech(self, user_id: str, text: str, voice_id: str) -> bytes:
         """Generate speech audio from text using user's API key"""
-
+        
         try:
             # Get user's ElevenLabs client
             client = await self.ai.get_elevenlabs_client(user_id)
-
+            
             audio = await client.generate(
                 text=text,
                 voice=voice_id,
@@ -978,14 +977,14 @@ class VoiceHandler:
                     use_speaker_boost=True
                 )
             )
-
+            
             # Track usage (ElevenLabs charges per character)
             char_count = len(text)
             cost = (char_count / 1_000_000) * 0.30  # $0.30 per 1M characters
             await self.users.track_usage(user_id, 'elevenlabs', char_count, cost)
-
+            
             return audio
-
+            
         except HTTPException:
             raise
         except Exception as e:
@@ -996,29 +995,29 @@ class VoiceHandler:
 
 class ImageHandler:
     """Handles image generation with Flux"""
-
+    
     def __init__(self, ai_clients: UserAwareAIClients, user_manager: UserManager):
         self.ai = ai_clients
         self.users = user_manager
-
+    
     async def generate_image(self, user_id: str, prompt: str, style: str = "quality") -> str:
         """Generate an image using Flux with user's API key"""
-
+        
         # Configure Fal with user's key
         await self.ai.configure_fal(user_id)
-
+        
         model_map = {
             "fast": "fal-ai/flux/schnell",
             "quality": "fal-ai/flux/dev",
             "pro": "fal-ai/flux/pro"
         }
-
+        
         cost_map = {
             "fast": 0.003,
             "quality": 0.025,
             "pro": 0.055
         }
-
+        
         try:
             result = await fal_client.submit_async(
                 model_map.get(style, "fal-ai/flux/dev"),
@@ -1030,12 +1029,12 @@ class ImageHandler:
                     "enable_safety_checker": True
                 }
             )
-
+            
             # Track usage
             await self.users.track_usage(user_id, 'fal', 1, cost_map.get(style, 0.025))
-
+            
             return result['images'][0]['url']
-
+            
         except Exception as e:
             logger.error(f"Image generation failed: {e}")
             raise HTTPException(status_code=500, detail="Image generation failed")
@@ -1049,43 +1048,43 @@ security = HTTPBearer()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources"""
-
+    
     # Initialize database
     app.state.db = await asyncpg.create_pool(Config.DATABASE_URL)
-
+    
     # Run migrations
     async with app.state.db.acquire() as conn:
         await conn.execute(SCHEMA_SQL)
-
+    
     # Initialize Redis
     app.state.redis = await redis.from_url(Config.REDIS_URL)
-
+    
     # Initialize Qdrant
     app.state.qdrant = QdrantClient(
         url=Config.QDRANT_URL,
         api_key=Config.QDRANT_API_KEY
     )
-
+    
     # Initialize encryption
     app.state.encryption = APIKeyEncryption()
-
+    
     # Initialize user manager
     app.state.user_manager = UserManager(app.state.db, app.state.encryption)
-
+    
     # Initialize AI clients (user-aware, no global keys needed)
     app.state.ai_clients = UserAwareAIClients(app.state.user_manager)
-
+    
     # Initialize services
     app.state.character_manager = CharacterManager(app.state.db, app.state.redis)
-
+    
     # Initialize embedding model (this runs locally)
     embedding_model = SentenceTransformer(Config.DEFAULT_EMBEDDING_MODEL)
-
+    
     app.state.memory_system = MemorySystem(
         app.state.db, app.state.qdrant, embedding_model
     )
     await app.state.memory_system.initialize_collections()
-
+    
     app.state.conversation_handler = ConversationHandler(
         app.state.ai_clients,
         app.state.memory_system,
@@ -1093,14 +1092,14 @@ async def lifespan(app: FastAPI):
         app.state.user_manager,
         app.state.redis
     )
-
+    
     app.state.voice_handler = VoiceHandler(app.state.ai_clients, app.state.user_manager)
     app.state.image_handler = ImageHandler(app.state.ai_clients, app.state.user_manager)
-
+    
     logger.info("Application initialized successfully")
-
+    
     yield
-
+    
     # Cleanup
     await app.state.db.close()
     await app.state.redis.close()
@@ -1151,14 +1150,14 @@ async def update_user_keys(
     """Update user's API keys"""
     # Get user
     user = await app.state.user_manager.create_or_update_user(discord_id, discord_id)
-
+    
     # Update keys
     await app.state.user_manager.update_api_keys(str(user['id']), keys)
-
+    
     # Validate keys
     stored_keys = await app.state.user_manager.get_user_api_keys(str(user['id']))
     status = await app.state.user_manager.validate_api_keys(stored_keys)
-
+    
     return {
         "message": "API keys updated",
         "status": status
@@ -1172,11 +1171,11 @@ async def check_user_keys_status(
     """Check which API keys are configured and valid"""
     # Get user
     user = await app.state.user_manager.create_or_update_user(discord_id, discord_id)
-
+    
     # Get and validate keys
     keys = await app.state.user_manager.get_user_api_keys(str(user['id']))
     status = await app.state.user_manager.validate_api_keys(keys)
-
+    
     return {"status": status}
 
 @app.get("/users/{discord_id}/usage")
@@ -1192,23 +1191,23 @@ async def get_user_usage(
             "SELECT id FROM users WHERE discord_id = $1",
             discord_id
         )
-
+        
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-
+        
         # Get usage data
         usage = await conn.fetch("""
-            SELECT
+            SELECT 
                 service,
                 SUM(tokens_used) as total_tokens,
                 SUM(cost_estimate) as total_cost,
                 COUNT(*) as request_count
             FROM api_usage
-            WHERE user_id = $1
+            WHERE user_id = $1 
                 AND timestamp > CURRENT_TIMESTAMP - INTERVAL '%s days'
             GROUP BY service
         """, user['id'], days)
-
+        
     return {
         "period_days": days,
         "usage": [dict(row) for row in usage]
@@ -1263,17 +1262,17 @@ async def generate_voice(
     """Generate voice audio for text"""
     # Get user
     user = await app.state.user_manager.create_or_update_user(discord_id, discord_id)
-
+    
     # Get character
     character = await app.state.character_manager.get_character(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
-
+    
     voice_id = character.get('voice_id', 'rachel')
     audio = await app.state.voice_handler.synthesize_speech(
         str(user['id']), text, voice_id
     )
-
+    
     return StreamingResponse(
         io.BytesIO(audio),
         media_type="audio/mpeg",
@@ -1290,7 +1289,7 @@ async def generate_image(
     """Generate an image from prompt"""
     # Get user
     user = await app.state.user_manager.create_or_update_user(discord_id, discord_id)
-
+    
     image_url = await app.state.image_handler.generate_image(
         str(user['id']), prompt, style
     )
@@ -1467,177 +1466,178 @@ const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const axios = require('axios');
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
-  ],
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+    ]
 });
 
 // Railway internal networking
-const API_URL = process.env.RAILWAY_PRIVATE_DOMAIN
-  ? `http://api.railway.internal:8000`
-  : 'http://localhost:8000';
+const API_URL = process.env.RAILWAY_PRIVATE_DOMAIN 
+    ? `http://api.railway.internal:8000`
+    : 'http://localhost:8000';
 
 const API_KEY = process.env.INTERNAL_API_KEY;
 const SETUP_URL = process.env.SETUP_URL || 'https://your-service.com/setup';
 
 // Map Discord channels/roles to characters
 const CHARACTER_MAPPING = {
-  general: 'uuid-for-general-character',
-  support: 'uuid-for-support-character',
-  // Add more mappings
+    'general': 'uuid-for-general-character',
+    'support': 'uuid-for-support-character',
+    // Add more mappings
 };
 
 // Helper to check if user has API keys configured
 async function checkUserSetup(discordId) {
-  try {
-    const response = await axios.get(`${API_URL}/users/${discordId}/keys/status`, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-    });
-    return response.data.status;
-  } catch (error) {
-    return null;
-  }
+    try {
+        const response = await axios.get(
+            `${API_URL}/users/${discordId}/keys/status`,
+            {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            }
+        );
+        return response.data.status;
+    } catch (error) {
+        return null;
+    }
 }
 
 // Handle the !setup command
 async function handleSetupCommand(message) {
-  const embed = new EmbedBuilder()
-    .setTitle('🔑 API Key Setup Required')
-    .setDescription('To use this AI service, you need to provide your own API keys.')
-    .addFields(
-      { name: 'Why?', value: 'This keeps the service free - you only pay for what you use!' },
-      {
-        name: 'Required Keys',
-        value:
-          '• OpenRouter (for AI responses)\n• ElevenLabs (optional, for voice)\n• Gemini (optional, for images)\n• Fal.ai (optional, for image generation)',
-      },
-      {
-        name: 'Setup Instructions',
-        value: `1. Visit ${SETUP_URL}\n2. Enter your Discord ID: \`${message.author.id}\`\n3. Add your API keys\n4. Come back and chat!`,
-      }
-    )
-    .setColor(0x5865f2)
-    .setFooter({ text: 'Your keys are encrypted and never shared.' });
-
-  await message.reply({ embeds: [embed] });
+    const embed = new EmbedBuilder()
+        .setTitle('🔑 API Key Setup Required')
+        .setDescription('To use this AI service, you need to provide your own API keys.')
+        .addFields(
+            { name: 'Why?', value: 'This keeps the service free - you only pay for what you use!' },
+            { name: 'Required Keys', value: '• OpenRouter (for AI responses)\n• ElevenLabs (optional, for voice)\n• Gemini (optional, for images)\n• Fal.ai (optional, for image generation)' },
+            { name: 'Setup Instructions', value: `1. Visit ${SETUP_URL}\n2. Enter your Discord ID: \`${message.author.id}\`\n3. Add your API keys\n4. Come back and chat!` }
+        )
+        .setColor(0x5865F2)
+        .setFooter({ text: 'Your keys are encrypted and never shared.' });
+    
+    await message.reply({ embeds: [embed] });
 }
 
 // Handle the !usage command
 async function handleUsageCommand(message) {
-  try {
-    const response = await axios.get(`${API_URL}/users/${message.author.id}/usage`, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-    });
-
-    const usage = response.data.usage;
-    let usageText =
-      usage.length > 0
-        ? usage.map(u => `• ${u.service}: ${u.total_cost.toFixed(4)}`).join('\n')
-        : 'No usage yet!';
-
-    const embed = new EmbedBuilder()
-      .setTitle('📊 Your API Usage (Last 30 Days)')
-      .setDescription(usageText)
-      .setColor(0x00ff00)
-      .setFooter({ text: 'Costs are estimates based on current pricing.' });
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    await message.reply('Could not fetch usage data. Try !setup first.');
-  }
+    try {
+        const response = await axios.get(
+            `${API_URL}/users/${message.author.id}/usage`,
+            {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            }
+        );
+        
+        const usage = response.data.usage;
+        let usageText = usage.length > 0 
+            ? usage.map(u => `• ${u.service}: ${u.total_cost.toFixed(4)}`).join('\n')
+            : 'No usage yet!';
+        
+        const embed = new EmbedBuilder()
+            .setTitle('📊 Your API Usage (Last 30 Days)')
+            .setDescription(usageText)
+            .setColor(0x00FF00)
+            .setFooter({ text: 'Costs are estimates based on current pricing.' });
+        
+        await message.reply({ embeds: [embed] });
+    } catch (error) {
+        await message.reply('Could not fetch usage data. Try !setup first.');
+    }
 }
 
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
-
-  // Handle commands
-  if (message.content === '!setup') {
-    return handleSetupCommand(message);
-  }
-
-  if (message.content === '!usage') {
-    return handleUsageCommand(message);
-  }
-
-  // Check if user has API keys configured
-  const keyStatus = await checkUserSetup(message.author.id);
-
-  if (!keyStatus || !keyStatus.openrouter) {
-    const embed = new EmbedBuilder()
-      .setTitle('⚠️ Setup Required')
-      .setDescription('You need to configure your API keys before chatting.')
-      .addFields({ name: 'Quick Start', value: 'Type `!setup` for instructions' })
-      .setColor(0xffff00);
-
-    return message.reply({ embeds: [embed] });
-  }
-
-  // Determine character based on channel or mentions
-  const characterId = CHARACTER_MAPPING[message.channel.name] || CHARACTER_MAPPING['general'];
-
-  try {
-    // Check for image attachments
-    let attachmentUrl = null;
-    if (message.attachments.size > 0 && keyStatus.gemini) {
-      attachmentUrl = message.attachments.first().url;
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    
+    // Handle commands
+    if (message.content === '!setup') {
+        return handleSetupCommand(message);
     }
-
-    // Call your API
-    const response = await axios.post(
-      `${API_URL}/characters/${characterId}/chat`,
-      {
-        user_id: message.author.id,
-        content: message.content,
-        guild_id: message.guild?.id,
-        channel_id: message.channel.id,
-        attachment_url: attachmentUrl,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    // Send response
-    await message.reply(response.data.response);
-
-    // If some services are unavailable, notify user
-    const unavailable = Object.entries(response.data.api_keys_status)
-      .filter(([_, status]) => !status)
-      .map(([service, _]) => service);
-
-    if (unavailable.length > 0 && Math.random() < 0.1) {
-      // 10% chance to remind
-      await message.channel.send(
-        `💡 Tip: Add ${unavailable.join(', ')} keys for more features! Type \`!setup\``
-      );
+    
+    if (message.content === '!usage') {
+        return handleUsageCommand(message);
     }
-  } catch (error) {
-    console.error('API Error:', error.response?.data || error.message);
-
-    if (error.response?.status === 402) {
-      await message.reply('⚠️ API key issue! Type `!setup` to check your configuration.');
-    } else {
-      await message.reply("I'm having trouble responding right now!");
+    
+    // Check if user has API keys configured
+    const keyStatus = await checkUserSetup(message.author.id);
+    
+    if (!keyStatus || !keyStatus.openrouter) {
+        const embed = new EmbedBuilder()
+            .setTitle('⚠️ Setup Required')
+            .setDescription('You need to configure your API keys before chatting.')
+            .addFields(
+                { name: 'Quick Start', value: 'Type `!setup` for instructions' }
+            )
+            .setColor(0xFFFF00);
+        
+        return message.reply({ embeds: [embed] });
     }
-  }
+    
+    // Determine character based on channel or mentions
+    const characterId = CHARACTER_MAPPING[message.channel.name] || 
+                       CHARACTER_MAPPING['general'];
+    
+    try {
+        // Check for image attachments
+        let attachmentUrl = null;
+        if (message.attachments.size > 0 && keyStatus.gemini) {
+            attachmentUrl = message.attachments.first().url;
+        }
+        
+        // Call your API
+        const response = await axios.post(
+            `${API_URL}/characters/${characterId}/chat`,
+            {
+                user_id: message.author.id,
+                content: message.content,
+                guild_id: message.guild?.id,
+                channel_id: message.channel.id,
+                attachment_url: attachmentUrl
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        // Send response
+        await message.reply(response.data.response);
+        
+        // If some services are unavailable, notify user
+        const unavailable = Object.entries(response.data.api_keys_status)
+            .filter(([_, status]) => !status)
+            .map(([service, _]) => service);
+        
+        if (unavailable.length > 0 && Math.random() < 0.1) { // 10% chance to remind
+            await message.channel.send(
+                `💡 Tip: Add ${unavailable.join(', ')} keys for more features! Type \`!setup\``
+            );
+        }
+        
+    } catch (error) {
+        console.error('API Error:', error.response?.data || error.message);
+        
+        if (error.response?.status === 402) {
+            await message.reply("⚠️ API key issue! Type `!setup` to check your configuration.");
+        } else {
+            await message.reply("I'm having trouble responding right now!");
+        }
+    }
 });
 
 // Handle DMs for private key setup assistance
-client.on('messageCreate', async message => {
-  if (message.author.bot || !message.inGuild()) return;
-
-  if (message.content.startsWith('!setkey')) {
-    await message.reply(
-      '⚠️ Never share API keys in Discord!\n' +
-        `Please visit ${SETUP_URL} to securely add your keys.`
-    );
-  }
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.inGuild()) return;
+    
+    if (message.content.startsWith('!setkey')) {
+        await message.reply(
+            "⚠️ Never share API keys in Discord!\n" +
+            `Please visit ${SETUP_URL} to securely add your keys.`
+        );
+    }
 });
 
 client.login(process.env.DISCORD_TOKEN);
@@ -1649,260 +1649,245 @@ client.login(process.env.DISCORD_TOKEN);
 <!-- setup-page/index.html - Host this on GitHub Pages or similar -->
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Service - API Key Setup</title>
     <style>
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        max-width: 600px;
-        margin: 0 auto;
-        padding: 20px;
-        background: #0d1117;
-        color: #c9d1d9;
-      }
-      .container {
-        background: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 6px;
-        padding: 20px;
-      }
-      h1 {
-        color: #58a6ff;
-        margin-top: 0;
-      }
-      input {
-        width: 100%;
-        padding: 8px 12px;
-        margin: 8px 0;
-        background: #0d1117;
-        border: 1px solid #30363d;
-        border-radius: 6px;
-        color: #c9d1d9;
-        font-size: 14px;
-      }
-      button {
-        background: #238636;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 16px;
-        width: 100%;
-        margin-top: 10px;
-      }
-      button:hover {
-        background: #2ea043;
-      }
-      .status {
-        margin: 10px 0;
-        padding: 10px;
-        border-radius: 6px;
-        display: none;
-      }
-      .success {
-        background: #1f6feb;
-        display: block;
-      }
-      .error {
-        background: #da3633;
-        display: block;
-      }
-      .key-status {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 5px 0;
-      }
-      .indicator {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-      }
-      .indicator.active {
-        background: #3fb950;
-      }
-      .indicator.inactive {
-        background: #f85149;
-      }
-      .info {
-        background: #1f6feb;
-        padding: 15px;
-        border-radius: 6px;
-        margin: 20px 0;
-      }
-      a {
-        color: #58a6ff;
-        text-decoration: none;
-      }
-      a:hover {
-        text-decoration: underline;
-      }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0d1117;
+            color: #c9d1d9;
+        }
+        .container {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        h1 {
+            color: #58a6ff;
+            margin-top: 0;
+        }
+        input {
+            width: 100%;
+            padding: 8px 12px;
+            margin: 8px 0;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 14px;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #2ea043;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        .success {
+            background: #1f6feb;
+            display: block;
+        }
+        .error {
+            background: #da3633;
+            display: block;
+        }
+        .key-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 5px 0;
+        }
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .indicator.active {
+            background: #3fb950;
+        }
+        .indicator.inactive {
+            background: #f85149;
+        }
+        .info {
+            background: #1f6feb;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <h1>🔑 API Key Setup</h1>
-
-      <div class="info">
-        <strong>Why do I need API keys?</strong><br />
-        This service is free to use - you just bring your own API keys! You only pay for what you
-        use directly to the API providers.
-      </div>
-
-      <form id="keyForm">
-        <label for="discordId">Discord ID:</label>
-        <input
-          type="text"
-          id="discordId"
-          placeholder="Your Discord ID (e.g., 123456789)"
-          required
-        />
-
-        <h3>API Keys</h3>
-
-        <label for="openrouter">OpenRouter API Key (Required):</label>
-        <input type="password" id="openrouter" placeholder="sk-or-..." />
-        <small
-          >Get one at
-          <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></small
-        >
-
-        <label for="elevenlabs">ElevenLabs API Key (Optional - for voice):</label>
-        <input type="password" id="elevenlabs" placeholder="Your ElevenLabs key" />
-        <small
-          >Get one at <a href="https://elevenlabs.io/api" target="_blank">elevenlabs.io</a></small
-        >
-
-        <label for="gemini">Gemini API Key (Optional - for image analysis):</label>
-        <input type="password" id="gemini" placeholder="Your Gemini key" />
-        <small
-          >Get one at
-          <a href="https://makersuite.google.com/app/apikey" target="_blank"
-            >Google AI Studio</a
-          ></small
-        >
-
-        <label for="fal">Fal.ai API Key (Optional - for image generation):</label>
-        <input type="password" id="fal" placeholder="Your Fal.ai key" />
-        <small>Get one at <a href="https://fal.ai/dashboard" target="_blank">fal.ai</a></small>
-
-        <button type="submit">Save API Keys</button>
-      </form>
-
-      <div id="status" class="status"></div>
-
-      <div id="keyStatus" style="display: none; margin-top: 20px;">
-        <h3>Key Status:</h3>
-        <div class="key-status">
-          <div class="indicator" id="openrouterStatus"></div>
-          <span>OpenRouter</span>
+        <h1>🔑 API Key Setup</h1>
+        
+        <div class="info">
+            <strong>Why do I need API keys?</strong><br>
+            This service is free to use - you just bring your own API keys! 
+            You only pay for what you use directly to the API providers.
         </div>
-        <div class="key-status">
-          <div class="indicator" id="elevenlabsStatus"></div>
-          <span>ElevenLabs</span>
+        
+        <form id="keyForm">
+            <label for="discordId">Discord ID:</label>
+            <input type="text" id="discordId" placeholder="Your Discord ID (e.g., 123456789)" required>
+            
+            <h3>API Keys</h3>
+            
+            <label for="openrouter">OpenRouter API Key (Required):</label>
+            <input type="password" id="openrouter" placeholder="sk-or-...">
+            <small>Get one at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></small>
+            
+            <label for="elevenlabs">ElevenLabs API Key (Optional - for voice):</label>
+            <input type="password" id="elevenlabs" placeholder="Your ElevenLabs key">
+            <small>Get one at <a href="https://elevenlabs.io/api" target="_blank">elevenlabs.io</a></small>
+            
+            <label for="gemini">Gemini API Key (Optional - for image analysis):</label>
+            <input type="password" id="gemini" placeholder="Your Gemini key">
+            <small>Get one at <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+            
+            <label for="fal">Fal.ai API Key (Optional - for image generation):</label>
+            <input type="password" id="fal" placeholder="Your Fal.ai key">
+            <small>Get one at <a href="https://fal.ai/dashboard" target="_blank">fal.ai</a></small>
+            
+            <button type="submit">Save API Keys</button>
+        </form>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="keyStatus" style="display: none; margin-top: 20px;">
+            <h3>Key Status:</h3>
+            <div class="key-status">
+                <div class="indicator" id="openrouterStatus"></div>
+                <span>OpenRouter</span>
+            </div>
+            <div class="key-status">
+                <div class="indicator" id="elevenlabsStatus"></div>
+                <span>ElevenLabs</span>
+            </div>
+            <div class="key-status">
+                <div class="indicator" id="geminiStatus"></div>
+                <span>Gemini</span>
+            </div>
+            <div class="key-status">
+                <div class="indicator" id="falStatus"></div>
+                <span>Fal.ai</span>
+            </div>
         </div>
-        <div class="key-status">
-          <div class="indicator" id="geminiStatus"></div>
-          <span>Gemini</span>
-        </div>
-        <div class="key-status">
-          <div class="indicator" id="falStatus"></div>
-          <span>Fal.ai</span>
-        </div>
-      </div>
     </div>
-
+    
     <script>
-      // Configure your API endpoint
-      const API_URL = 'https://your-service.railway.app';
-      const API_KEY = 'your-internal-api-key'; // In production, use a proxy to hide this
-
-      async function checkKeyStatus(discordId) {
-        try {
-          const response = await fetch(`${API_URL}/users/${discordId}/keys/status`, {
-            headers: {
-              Authorization: `Bearer ${API_KEY}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            displayKeyStatus(data.status);
-          }
-        } catch (error) {
-          console.error('Error checking key status:', error);
+        // Configure your API endpoint
+        const API_URL = 'https://your-service.railway.app';
+        const API_KEY = 'your-internal-api-key'; // In production, use a proxy to hide this
+        
+        async function checkKeyStatus(discordId) {
+            try {
+                const response = await fetch(`${API_URL}/users/${discordId}/keys/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayKeyStatus(data.status);
+                }
+            } catch (error) {
+                console.error('Error checking key status:', error);
+            }
         }
-      }
-
-      function displayKeyStatus(status) {
-        document.getElementById('keyStatus').style.display = 'block';
-
-        for (const [service, isActive] of Object.entries(status)) {
-          const indicator = document.getElementById(`${service}Status`);
-          if (indicator) {
-            indicator.className = `indicator ${isActive ? 'active' : 'inactive'}`;
-          }
+        
+        function displayKeyStatus(status) {
+            document.getElementById('keyStatus').style.display = 'block';
+            
+            for (const [service, isActive] of Object.entries(status)) {
+                const indicator = document.getElementById(`${service}Status`);
+                if (indicator) {
+                    indicator.className = `indicator ${isActive ? 'active' : 'inactive'}`;
+                }
+            }
         }
-      }
-
-      document.getElementById('keyForm').addEventListener('submit', async e => {
-        e.preventDefault();
-
-        const statusDiv = document.getElementById('status');
-        statusDiv.className = 'status';
-        statusDiv.textContent = 'Saving keys...';
-        statusDiv.style.display = 'block';
-
-        const discordId = document.getElementById('discordId').value;
-        const keys = {
-          openrouter_key: document.getElementById('openrouter').value || null,
-          elevenlabs_key: document.getElementById('elevenlabs').value || null,
-          gemini_key: document.getElementById('gemini').value || null,
-          fal_key: document.getElementById('fal').value || null,
-        };
-
-        try {
-          const response = await fetch(`${API_URL}/users/${discordId}/keys`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(keys),
-          });
-
-          const data = await response.json();
-
-          if (response.ok) {
-            statusDiv.className = 'status success';
-            statusDiv.textContent = '✅ Keys saved successfully! You can now use the bot.';
-            displayKeyStatus(data.status);
-
-            // Clear sensitive fields
-            document.getElementById('openrouter').value = '';
-            document.getElementById('elevenlabs').value = '';
-            document.getElementById('gemini').value = '';
-            document.getElementById('fal').value = '';
-          } else {
-            throw new Error(data.detail || 'Failed to save keys');
-          }
-        } catch (error) {
-          statusDiv.className = 'status error';
-          statusDiv.textContent = `❌ Error: ${error.message}`;
-        }
-      });
-
-      // Check status on Discord ID change
-      document.getElementById('discordId').addEventListener('change', e => {
-        if (e.target.value) {
-          checkKeyStatus(e.target.value);
-        }
-      });
+        
+        document.getElementById('keyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'status';
+            statusDiv.textContent = 'Saving keys...';
+            statusDiv.style.display = 'block';
+            
+            const discordId = document.getElementById('discordId').value;
+            const keys = {
+                openrouter_key: document.getElementById('openrouter').value || null,
+                elevenlabs_key: document.getElementById('elevenlabs').value || null,
+                gemini_key: document.getElementById('gemini').value || null,
+                fal_key: document.getElementById('fal').value || null
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/users/${discordId}/keys`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(keys)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ Keys saved successfully! You can now use the bot.';
+                    displayKeyStatus(data.status);
+                    
+                    // Clear sensitive fields
+                    document.getElementById('openrouter').value = '';
+                    document.getElementById('elevenlabs').value = '';
+                    document.getElementById('gemini').value = '';
+                    document.getElementById('fal').value = '';
+                } else {
+                    throw new Error(data.detail || 'Failed to save keys');
+                }
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        });
+        
+        // Check status on Discord ID change
+        document.getElementById('discordId').addEventListener('change', (e) => {
+            if (e.target.value) {
+                checkKeyStatus(e.target.value);
+            }
+        });
     </script>
-  </body>
+</body>
 </html>
 ```
 
@@ -1992,25 +1977,21 @@ railway up
 With this BYO (Bring Your Own) API key model:
 
 **What You Pay For:**
-
 - Railway hosting: ~$5-20/month (for PostgreSQL, Redis, and compute)
 - Qdrant: Free tier usually sufficient, or ~$25/month for larger deployments
 
 **What Users Pay For (directly to providers):**
-
 - OpenRouter: $0.002-0.06 per 1K tokens based on model choice
 - ElevenLabs: $5/month starter plan or pay-as-you-go
 - Gemini: Free tier includes 1M tokens/month
 - Fal.ai: Pay per image generated
 
 **Example User Costs:**
-
 - Casual user (100 messages/day): ~$1-3/month
 - Power user (1000 messages/day): ~$10-30/month
 - With voice/images: Add $5-20/month
 
 **Benefits of This Model:**
-
 - Users control their costs
 - No markup on API usage
 - Service remains sustainable
@@ -2028,7 +2009,6 @@ With this BYO (Bring Your Own) API key model:
 ## Deployment Steps
 
 1. **Create Railway Project**
-
    ```bash
    railway login
    railway init
@@ -2045,7 +2025,6 @@ With this BYO (Bring Your Own) API key model:
    - No external API keys required!
 
 4. **Deploy**
-
    ```bash
    railway up
    ```
@@ -2095,7 +2074,6 @@ Each phase maintains backward compatibility while improving code organization.
 ## Summary
 
 This implementation provides:
-
 - ✅ Complete character personality system with memory
 - ✅ User-provided API keys (no platform costs)
 - ✅ Secure key storage with encryption

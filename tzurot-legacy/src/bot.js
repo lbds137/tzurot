@@ -42,6 +42,7 @@ async function initBot() {
   // Make client available globally to avoid circular dependencies
   global.tzurotClient = client;
 
+
   // Set up event handlers
   client.on('ready', async () => {
     logger.info(`Logged in as ${client.user.tag}!`);
@@ -49,6 +50,7 @@ async function initBot() {
 
     // Register webhook manager event listeners AFTER client is ready
     webhookManager.registerEventListeners(client);
+
   });
 
   // Handle errors

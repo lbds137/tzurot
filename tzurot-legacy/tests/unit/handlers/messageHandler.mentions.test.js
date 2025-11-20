@@ -21,10 +21,10 @@ describe('checkForPersonalityMentions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-
+    
     // Mock message handler config
     messageHandlerConfig.getMaxAliasWordCount = jest.fn().mockReturnValue(1); // Default to single word
-
+    
     // Legacy getMaxAliasWordCount removed - using DDD system
     resolvePersonality.mockResolvedValue(null); // Default to no personality found
   });

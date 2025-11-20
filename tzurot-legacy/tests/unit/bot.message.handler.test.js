@@ -4,9 +4,7 @@
 
 // Mock the aiService module
 jest.mock('../../src/aiService', () => ({
-  getAiResponse: jest
-    .fn()
-    .mockResolvedValue({ content: 'This is a mock AI response', metadata: null }),
+  getAiResponse: jest.fn().mockResolvedValue({ content: 'This is a mock AI response', metadata: null }),
 }));
 
 // Mock the webhookManager module
@@ -39,6 +37,7 @@ jest.mock('../../src/adapters/CommandIntegrationAdapter', () => ({
   }),
 }));
 
+
 // Mock the logger module
 jest.mock('../../src/logger', () => ({
   info: jest.fn(),
@@ -65,8 +64,7 @@ function createMessageHandler() {
     aiService: require('../../src/aiService'),
     webhookManager: require('../../src/webhookManager'),
     conversationManager: require('../../src/core/conversation'),
-    commandAdapter:
-      require('../../src/adapters/CommandIntegrationAdapter').getCommandIntegrationAdapter(),
+    commandAdapter: require('../../src/adapters/CommandIntegrationAdapter').getCommandIntegrationAdapter(),
     // Legacy personalityManager removed
     config: require('../../config'),
     logger: require('../../src/logger'),
@@ -122,8 +120,7 @@ function createMessageHandler() {
     // Legacy personality manager removed - would use DDD system
     // In the real DDD system, this would lookup the personality and could return null
     // For this test, we'll simulate that a personality doesn't exist
-    const personality =
-      personalityName === 'nonexistent-personality' ? null : { fullName: personalityName };
+    const personality = personalityName === 'nonexistent-personality' ? null : { fullName: personalityName };
     if (!personality) {
       return null;
     }

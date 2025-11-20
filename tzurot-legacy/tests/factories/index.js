@@ -14,7 +14,7 @@ const {
   createMockAttachment,
   createMockEmbed,
   createMockWebhookClient,
-  createMockCollection,
+  createMockCollection
 } = require('./discord.factory');
 
 // Export everything from message factory
@@ -26,7 +26,7 @@ const {
   createWebhookMessage,
   createMediaMessage,
   createMentionMessage,
-  createReplyMessage,
+  createReplyMessage
 } = require('./message.factory');
 
 module.exports = {
@@ -41,10 +41,10 @@ module.exports = {
   createMockEmbed,
   createMockWebhookClient,
   createMockCollection,
-
+  
   // Message factory
   MessageFactory,
-
+  
   // Preset message creators
   createGuildMessage,
   createDMMessage,
@@ -53,7 +53,7 @@ module.exports = {
   createMediaMessage,
   createMentionMessage,
   createReplyMessage,
-
+  
   // Convenience namespace for presets
   Factories: {
     createGuildMessage,
@@ -62,6 +62,6 @@ module.exports = {
     createWebhookMessage,
     createMediaMessage,
     createMentionMessage,
-    createReplyMessage,
-  },
+    createReplyMessage
+  }
 };

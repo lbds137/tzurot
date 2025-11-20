@@ -32,11 +32,7 @@ jest.mock('../../src/application/bootstrap/ApplicationBootstrap');
 
 const logger = require('../../src/logger');
 const { getAiResponse } = require('../../src/aiService');
-const {
-  getPersonalityFromMessage,
-  isAutoResponseEnabled,
-  recordConversation,
-} = require('../../src/core/conversation');
+const { getPersonalityFromMessage, isAutoResponseEnabled, recordConversation } = require('../../src/core/conversation');
 const webhookManager = require('../../src/webhookManager');
 const threadHandler = require('../../src/utils/threadHandler');
 const personalityHandler = require('../../src/handlers/personalityHandler');
@@ -160,7 +156,7 @@ describe('Personality Handler - Model Metadata Indicator', () => {
     it('should generate model indicator from response metadata', async () => {
       // This is a simplified test that focuses on the model indicator generation
       // without going through the full handler flow
-
+      
       const testCases = [
         {
           metadata: { fallback_model_used: true, is_premium: false },
@@ -194,3 +190,4 @@ describe('Personality Handler - Model Metadata Indicator', () => {
   // Remove the thread handling tests since they're complex integration tests
   // The important functionality (generateModelIndicator) is already tested above
 });
+

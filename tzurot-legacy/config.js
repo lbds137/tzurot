@@ -11,10 +11,10 @@ const botConfig = {
   prefix: process.env.BOT_PREFIX || (isDevelopment ? '!rtz' : '!tz'),
   mentionChar: process.env.BOT_MENTION_CHAR || (isDevelopment ? '&' : '@'),
   token: process.env.DISCORD_TOKEN,
-
+  
   // Environment flag
   isDevelopment,
-  environment: process.env.NODE_ENV || 'production',
+  environment: process.env.NODE_ENV || 'production'
 };
 
 // Legacy export for backward compatibility
@@ -88,5 +88,5 @@ module.exports = {
   avatarConfig,
   publicBaseUrl,
   getAvatarUrl,
-  getPublicUrl,
+  getPublicUrl
 };

@@ -5,7 +5,6 @@ This checklist MUST be followed when creating new files or significant new funct
 ## Pre-Development Checklist
 
 Before writing any code:
-
 - [ ] Review existing patterns in similar files
 - [ ] Check if functionality already exists elsewhere
 - [ ] Ensure you're following DDD principles if applicable
@@ -14,14 +13,13 @@ Before writing any code:
 ## Code Structure Requirements
 
 ### 1. Injectable Dependencies ✅
-
 All external dependencies MUST be injectable:
 
 ```javascript
 // ✅ CORRECT
 class MyService {
   constructor(options = {}) {
-    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
     this.setInterval = options.setInterval || setInterval;
     this.clearInterval = options.clearInterval || clearInterval;
     this.fetch = options.fetch || require('node-fetch');
@@ -34,7 +32,7 @@ class MyService {
   constructor() {
     // Hard-coded dependencies make testing difficult
   }
-
+  
   async doSomething() {
     await new Promise(resolve => setTimeout(resolve, 1000)); // Not injectable!
   }
@@ -42,29 +40,24 @@ class MyService {
 ```
 
 ### 2. Timer Patterns ⏱️
-
 **NEVER use timers directly**:
-
 - [ ] All `setTimeout` calls must be injectable
 - [ ] All `setInterval` calls must be injectable
 - [ ] Intervals must have cleanup methods
 - [ ] Consider using `unref()` on intervals
 
 ### 3. File Size Limits 📏
-
 - [ ] Target: < 500 lines
 - [ ] Maximum: < 1000 lines (linter will warn)
 - [ ] If approaching limit, refactor into multiple modules
 
 ### 4. Error Handling 🚨
-
 - [ ] All async operations wrapped in try/catch
 - [ ] Errors logged with context
 - [ ] User-friendly error messages
 - [ ] No error swallowing
 
 ### 5. Testing Requirements 🧪
-
 - [ ] Write tests BEFORE or WITH implementation
 - [ ] Mock all external dependencies
 - [ ] Use fake timers for any time-based logic
@@ -76,21 +69,18 @@ class MyService {
 When creating domain models or adapters:
 
 ### Domain Models
-
 - [ ] Extend appropriate base class (AggregateRoot, ValueObject, etc.)
 - [ ] Emit domain events for state changes
 - [ ] No external dependencies in domain layer
 - [ ] Immutable value objects
 
 ### Repository Adapters
-
 - [ ] Implement domain repository interface
 - [ ] Handle persistence errors gracefully
 - [ ] Include shutdown/cleanup methods
 - [ ] Make all I/O operations injectable
 
 ### Application Services
-
 - [ ] Orchestrate domain operations only
 - [ ] No business logic (belongs in domain)
 - [ ] Handle cross-cutting concerns
@@ -99,7 +89,6 @@ When creating domain models or adapters:
 ## Pre-Commit Checklist
 
 Before committing:
-
 - [ ] Run `npm run lint:timers` - Fix any errors
 - [ ] Run `npm test` - All tests pass
 - [ ] Run `npm run lint` - No linting errors
@@ -119,7 +108,6 @@ Before committing:
 ## Enforcement
 
 These patterns are enforced by:
-
 - Pre-commit hooks
 - CI/CD pipeline
 - Code review process
@@ -128,7 +116,6 @@ These patterns are enforced by:
 ## Examples of Good Patterns
 
 See these files for reference:
-
 - Injectable timers: `src/utils/rateLimiter.js`
 - Clean domain model: `src/domain/personality/Personality.js`
 - Good adapter: `src/adapters/discord/DiscordMessageAdapter.js`

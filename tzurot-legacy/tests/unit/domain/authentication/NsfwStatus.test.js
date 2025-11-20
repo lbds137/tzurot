@@ -8,6 +8,7 @@
  * - Uses fake timers for time-based testing
  */
 
+
 // Domain model under test - NOT mocked!
 const { NsfwStatus } = require('../../../../src/domain/authentication/NsfwStatus');
 

@@ -39,6 +39,5 @@ This feature allows the bot to detect audio files (like MP3, WAV, OGG) from pers
 ## Future Improvements
 
 Possible future enhancements:
-
 - Caching to avoid redundant downloads of the same file
 - Fallback behavior for files that are too large for Discord's attachment limit

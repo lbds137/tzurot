@@ -25,11 +25,9 @@ The DDD Conversation domain is **NOT ready** to replace the legacy ConversationM
 ### ❌ What DDD is Missing
 
 #### 1. Message-to-Personality Mapping (CRITICAL)
-
-**Legacy**:
-
+**Legacy**: 
 ```javascript
-conversationManager.recordConversation(userId, channelId, messageIds, personalityName);
+conversationManager.recordConversation(userId, channelId, messageIds, personalityName)
 // Maps Discord message IDs to personality names for reply detection
 ```
 
@@ -38,12 +36,10 @@ conversationManager.recordConversation(userId, channelId, messageIds, personalit
 **Impact**: Cannot identify which personality sent a message when replying
 
 #### 2. Auto-Response User Management (CRITICAL)
-
 **Legacy**:
-
 ```javascript
-conversationManager.enableAutoResponse(userId);
-conversationManager.isAutoResponseEnabled(userId);
+conversationManager.enableAutoResponse(userId)
+conversationManager.isAutoResponseEnabled(userId)
 // Tracks which users have auto-response enabled globally
 ```
 
@@ -52,12 +48,10 @@ conversationManager.isAutoResponseEnabled(userId);
 **Impact**: Autorespond command won't work
 
 #### 3. Channel Activation System (CRITICAL)
-
 **Legacy**:
-
 ```javascript
-conversationManager.activatePersonality(channelId, personalityName, userId);
-conversationManager.getActivatedPersonality(channelId);
+conversationManager.activatePersonality(channelId, personalityName, userId)
+conversationManager.getActivatedPersonality(channelId)
 // Tracks which personality is activated in each channel
 ```
 
@@ -66,7 +60,6 @@ conversationManager.getActivatedPersonality(channelId);
 **Impact**: Activate/deactivate commands won't work
 
 #### 4. Multi-Personality Conversations
-
 **Legacy**: Can track multiple active conversations per channel (different personalities)
 
 **DDD**: ConversationId structure assumes one conversation per user-channel
@@ -74,11 +67,9 @@ conversationManager.getActivatedPersonality(channelId);
 **Impact**: Users can't switch between personalities in same channel
 
 #### 5. Message History by Personality
-
 **Legacy**:
-
 ```javascript
-conversationManager.getPersonalityFromMessage(messageId, options);
+conversationManager.getPersonalityFromMessage(messageId, options)
 // Finds which personality sent a specific message
 ```
 
@@ -87,11 +78,9 @@ conversationManager.getPersonalityFromMessage(messageId, options);
 **Impact**: Reply detection breaks
 
 #### 6. Clear Conversation by Personality
-
 **Legacy**:
-
 ```javascript
-conversationManager.clearConversation(userId, channelId, personalityName);
+conversationManager.clearConversation(userId, channelId, personalityName)
 // Clears conversation for specific personality
 ```
 
@@ -102,19 +91,16 @@ conversationManager.clearConversation(userId, channelId, personalityName);
 ## Missing Infrastructure
 
 ### 1. No Application Service
-
 - No ConversationApplicationService exists
 - No orchestration layer for complex operations
 - No integration with other domains
 
 ### 2. No Bootstrap Integration
-
 - FileConversationRepository not initialized
 - No dependency injection setup
 - No event handlers registered
 
 ### 3. Incompatible Method Signatures
-
 - DDD uses domain objects (ConversationId, Message)
 - Legacy uses primitive strings
 - Would require adapters everywhere
@@ -122,7 +108,6 @@ conversationManager.clearConversation(userId, channelId, personalityName);
 ## Data Model Mismatches
 
 ### Legacy Data Structure
-
 ```javascript
 {
   conversations: {
@@ -151,7 +136,6 @@ conversationManager.clearConversation(userId, channelId, personalityName);
 ```
 
 ### DDD Data Structure
-
 ```javascript
 {
   conversations: {

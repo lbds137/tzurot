@@ -21,7 +21,6 @@ When enabled, the bot automatically includes the following context with each AI 
 ### Data Sources
 
 The enhanced context pulls from:
-
 - **PersonalityDataRepository**: Automatically detects backup data in `data/personalities/`
 - **PersonalityDataService**: Provides unified access to personality data
 - **ExtendedPersonalityProfile**: Converts backup data to structured format on first access
@@ -31,7 +30,6 @@ The enhanced context pulls from:
 ### For Development/Testing
 
 Add to your `.env` file:
-
 ```env
 FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=true
 ```
@@ -45,7 +43,6 @@ FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=true
 ## Data Migration
 
 The feature includes automatic, transparent migration:
-
 - No manual intervention required
 - Migration happens on first access (lazy loading)
 - Converts backup data to ExtendedPersonalityProfile format

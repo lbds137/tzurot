@@ -16,9 +16,7 @@ const {
 } = require('../../../src/utils/aliasResolver');
 
 const logger = require('../../../src/logger');
-const {
-  getApplicationBootstrap,
-} = require('../../../src/application/bootstrap/ApplicationBootstrap');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('aliasResolver', () => {
   let mockPersonalityApplicationService;
@@ -34,9 +32,7 @@ describe('aliasResolver', () => {
 
     // Setup bootstrap mock
     mockBootstrap = {
-      getPersonalityApplicationService: jest
-        .fn()
-        .mockReturnValue(mockPersonalityApplicationService),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       initialized: true,
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
@@ -71,12 +67,8 @@ describe('aliasResolver', () => {
 
       expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[AliasResolver] Resolving personality for: "test"'
-      );
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[AliasResolver] Found personality: Test Personality'
-      );
+      expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "test"');
+      expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Found personality: Test Personality');
     });
 
     it('should trim input before resolving', async () => {
@@ -94,9 +86,7 @@ describe('aliasResolver', () => {
       const result = await resolvePersonality('unknown');
 
       expect(result).toBeNull();
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[AliasResolver] Resolving personality for: "unknown"'
-      );
+      expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "unknown"');
       expect(logger.debug).not.toHaveBeenCalledWith(expect.stringContaining('Found personality'));
     });
 
@@ -108,10 +98,7 @@ describe('aliasResolver', () => {
       // The new implementation catches errors and returns null
       const result = await resolvePersonality('test');
       expect(result).toBeNull();
-      expect(logger.error).toHaveBeenCalledWith(
-        '[AliasResolver] Error resolving personality:',
-        'Service error'
-      );
+      expect(logger.error).toHaveBeenCalledWith('[AliasResolver] Error resolving personality:', 'Service error');
     });
   });
 
@@ -160,22 +147,18 @@ describe('aliasResolver', () => {
     it('should handle resolution errors gracefully', async () => {
       mockPersonalityApplicationService.getPersonality
         .mockResolvedValueOnce(mockPersonality1)
-        .mockImplementationOnce(() => {
-          throw new Error('Resolution error');
-        })
+        .mockImplementationOnce(() => { throw new Error('Resolution error'); })
         .mockResolvedValueOnce(mockPersonality2);
 
       // The new implementation catches errors and continues with other resolutions
       const result = await resolveMultiplePersonalities(['name1', 'error', 'name2']);
       expect(result).toEqual([mockPersonality1, mockPersonality2]); // Both successful resolutions
-      expect(logger.error).toHaveBeenCalledWith(
-        '[AliasResolver] Error resolving personality:',
-        'Resolution error'
-      );
+      expect(logger.error).toHaveBeenCalledWith('[AliasResolver] Error resolving personality:', 'Resolution error');
     });
   });
 
   describe('personalityExists', () => {
+
     it('should return true when personality exists', async () => {
       mockPersonalityApplicationService.getPersonality.mockResolvedValue({ fullName: 'Test' });
 
@@ -200,6 +183,7 @@ describe('aliasResolver', () => {
   });
 
   describe('getFullName', () => {
+
     it('should return full name when personality exists', async () => {
       mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         profile: {
@@ -228,6 +212,7 @@ describe('aliasResolver', () => {
   });
 
   describe('getAliases', () => {
+
     it('should return aliases when personality exists', async () => {
       mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'Test',
@@ -281,7 +266,7 @@ describe('aliasResolver', () => {
       mockPersonalityApplicationService.getPersonality.mockResolvedValue(mockPersonality);
 
       const result = await resolvePersonality('test');
-
+      
       // Service is already set via setPersonalityService, no need to call getApplicationBootstrap
       expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
@@ -291,7 +276,7 @@ describe('aliasResolver', () => {
       mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await resolvePersonality('nonexistent');
-
+      
       expect(result).toBeNull();
       expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('nonexistent');
     });
@@ -299,12 +284,12 @@ describe('aliasResolver', () => {
     it('should use lazy loading when service not set', async () => {
       // Reset the service to null to test lazy loading
       setPersonalityService(null);
-
+      
       const mockPersonality = { fullName: 'Lazy Loaded' };
       mockPersonalityApplicationService.getPersonality.mockResolvedValue(mockPersonality);
 
       const result = await resolvePersonality('lazy');
-
+      
       expect(getApplicationBootstrap).toHaveBeenCalled();
       expect(mockBootstrap.getPersonalityApplicationService).toHaveBeenCalled();
       expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('lazy');
@@ -317,7 +302,7 @@ describe('aliasResolver', () => {
       mockBootstrap.initialized = false;
 
       const result = await resolvePersonality('notready');
-
+      
       expect(result).toBeNull();
       expect(logger.warn).toHaveBeenCalledWith('[AliasResolver] Personality service not available');
     });

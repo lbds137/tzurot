@@ -3,7 +3,6 @@
 This guide consolidates our testing philosophy, patterns, and anti-patterns into a single comprehensive resource.
 
 ## Table of Contents
-
 1. [Core Testing Philosophy](#core-testing-philosophy)
 2. [Behavior-Based Testing](#behavior-based-testing)
 3. [Anti-Pattern Reference](#anti-pattern-reference)
@@ -28,7 +27,6 @@ This guide consolidates our testing philosophy, patterns, and anti-patterns into
 ### Key Questions to Ask
 
 When writing tests, ask yourself:
-
 - "What would a user of this code expect to happen?"
 - "What are the observable effects of this operation?"
 - "If I completely rewrote this implementation, should this test still pass?"
@@ -42,14 +40,13 @@ If the answer to the last question is "no", you're probably testing implementati
 #### Example 1: Testing Message Handling
 
 **❌ Implementation-Based (Brittle)**
-
 ```javascript
 it('should parse personality from message using regex', async () => {
   // Trying to test HOW it extracts the personality name
   const regex = /\*\*([^:]+):\*\*/;
   const match = content.match(regex);
   expect(match[1]).toBe('TestPersonality');
-
+  
   // Mocking internal parsing methods
   jest.spyOn(handler, '_extractPersonalityName').mockReturnValue('TestPersonality');
   jest.spyOn(handler, '_findInMessageHistory').mockResolvedValue(mockMessage);
@@ -57,13 +54,12 @@ it('should parse personality from message using regex', async () => {
 ```
 
 **✅ Behavior-Based (Robust)**
-
 ```javascript
 it('should handle replies to personality messages', async () => {
   // Test WHAT it does: handles the reply correctly
-
+  
   const result = await dmHandler.handleDmReply(mockMessage, mockClient);
-
+  
   // Assert observable behavior
   expect(result).toBe(true);
   expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
@@ -78,59 +74,55 @@ it('should handle replies to personality messages', async () => {
 #### Example 2: Testing Data Cleanup
 
 **❌ Implementation-Based (Complex)**
-
 ```javascript
 test('cleanup runs every 10 minutes', () => {
   jest.useFakeTimers();
   const tracker = new MessageTracker();
-
+  
   // Mock setInterval and verify timing
   const intervalSpy = jest.spyOn(global, 'setInterval');
   jest.advanceTimersByTime(10 * 60 * 1000);
-
+  
   expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 600000);
 });
 ```
 
 **✅ Behavior-Based (Simple)**
-
 ```javascript
 test('cleanup removes old processed messages', () => {
   // Test the BEHAVIOR: old data gets removed
-
+  
   tracker.addMessage('msg-1', { timestamp: oldTimestamp });
   tracker.addMessage('msg-2', { timestamp: recentTimestamp });
-
+  
   tracker.cleanup();
-
+  
   expect(tracker.hasMessage('msg-1')).toBe(false); // Old message removed
-  expect(tracker.hasMessage('msg-2')).toBe(true); // Recent message kept
+  expect(tracker.hasMessage('msg-2')).toBe(true);  // Recent message kept
 });
 ```
 
 #### Example 3: Testing Error Handling
 
 **❌ Implementation-Based**
-
 ```javascript
 test('should catch and log errors', async () => {
   const error = new Error('Test error');
   handler._handleError = jest.fn();
-
+  
   await handler.process();
-
+  
   expect(handler._handleError).toHaveBeenCalledWith(error);
 });
 ```
 
 **✅ Behavior-Based**
-
 ```javascript
 test('should return error message when processing fails', async () => {
   mockAPI.call.mockRejectedValue(new Error('API Error'));
-
+  
   const result = await handler.process(mockMessage);
-
+  
   expect(result).toContain('An error occurred');
   expect(logger.error).toHaveBeenCalled();
 });
@@ -141,7 +133,6 @@ test('should return error message when processing fails', async () => {
 ### 🚫 Critical Anti-patterns (Test Failures)
 
 #### 1. Real Timeouts
-
 ```javascript
 // ❌ NEVER DO THIS
 await new Promise(resolve => setTimeout(resolve, 5000));
@@ -152,7 +143,6 @@ jest.advanceTimersByTime(5000);
 ```
 
 #### 2. Missing Await
-
 ```javascript
 // ❌ NEVER DO THIS
 expect(asyncFunc()).resolves.toBe(true);
@@ -162,7 +152,6 @@ await expect(asyncFunc()).resolves.toBe(true);
 ```
 
 #### 3. Test Focus (.only, .skip)
-
 ```javascript
 // ❌ NEVER COMMIT
 it.only('should work', () => {});
@@ -173,7 +162,6 @@ it('should work', () => {});
 ```
 
 #### 4. Real Network Calls
-
 ```javascript
 // ❌ NEVER DO THIS
 await fetch('https://api.example.com');
@@ -186,7 +174,6 @@ fetchMock.mockResolvedValue({ data: 'test' });
 ### ⚠️ Quality Anti-patterns (Code Smells)
 
 #### 5. Implementation Testing
-
 ```javascript
 // ❌ AVOID
 expect(handler._privateMethod).toHaveBeenCalled();
@@ -197,13 +184,12 @@ expect(handler.getStatus()).toBe('processing');
 ```
 
 #### 6. Over-Mocking
-
 ```javascript
 // ❌ AVOID
 const mockSet = {
   add: jest.fn(),
   has: jest.fn().mockReturnValue(true),
-  size: 2,
+  size: 2
 };
 
 // ✅ PREFER
@@ -211,7 +197,6 @@ const realSet = new Set(['item1', 'item2']);
 ```
 
 #### 7. Unmocked Console
-
 ```javascript
 // ❌ AVOID
 console.log('Debug info');
@@ -224,7 +209,6 @@ beforeEach(() => {
 ```
 
 #### 8. Real User Data
-
 ```javascript
 // ❌ AVOID
 const email = 'john.doe@gmail.com';
@@ -238,7 +222,6 @@ const username = '@TestUser';
 ### 🔧 Structural Anti-patterns
 
 #### 9. Missing Cleanup
-
 ```javascript
 // ❌ AVOID
 jest.mock('../module');
@@ -253,42 +236,28 @@ afterEach(() => {
 ```
 
 #### 10. Shared State
-
 ```javascript
 // ❌ AVOID
 let cache = {};
-it('test 1', () => {
-  cache.value = 1;
-});
-it('test 2', () => {
-  expect(cache.value).toBe(1);
-}); // Depends on test 1!
+it('test 1', () => { cache.value = 1; });
+it('test 2', () => { expect(cache.value).toBe(1); }); // Depends on test 1!
 
 // ✅ ISOLATE TESTS
 describe('cache tests', () => {
   let cache;
-  beforeEach(() => {
-    cache = {};
-  });
-
-  it('test 1', () => {
-    cache.value = 1;
-    expect(cache.value).toBe(1);
-  });
-  it('test 2', () => {
-    expect(cache.value).toBeUndefined();
-  });
+  beforeEach(() => { cache = {}; });
+  
+  it('test 1', () => { cache.value = 1; expect(cache.value).toBe(1); });
+  it('test 2', () => { expect(cache.value).toBeUndefined(); });
 });
 ```
 
 ## Best Practices
 
 ### 1. Focus on Public APIs
-
 Test the methods that other parts of the code use, not private helper functions.
 
 ### 2. Test Outcomes, Not Steps
-
 ```javascript
 // ❌ Bad: Testing steps
 expect(fetchUserData).toHaveBeenCalled();
@@ -302,12 +271,11 @@ expect(await getUser(user.id)).toEqual(user);
 ```
 
 ### 3. Use Real Objects When Possible
-
 ```javascript
 // ❌ Bad: Over-mocking
 const mockCollection = {
   size: jest.fn().mockReturnValue(2),
-  clear: jest.fn(),
+  clear: jest.fn()
 };
 
 // ✅ Good: Real data structures
@@ -317,7 +285,6 @@ expect(collection.size).toBe(0);
 ```
 
 ### 4. Test Error Scenarios by Effects
-
 ```javascript
 // ❌ Bad: Testing error internals
 expect(error.code).toBe('RATE_LIMIT');
@@ -325,7 +292,9 @@ expect(error.retryAfter).toBe(5000);
 
 // ✅ Good: Testing error behavior
 await expect(apiCall()).rejects.toThrow('Rate limit exceeded');
-expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Please try again'));
+expect(mockMessage.reply).toHaveBeenCalledWith(
+  expect.stringContaining('Please try again')
+);
 ```
 
 ## Case Studies
@@ -339,7 +308,7 @@ expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Please t
 ```javascript
 // ❌ What we tested
 const mockClient = {
-  getAllReleases: jest.fn(), // This method doesn't exist!
+  getAllReleases: jest.fn() // This method doesn't exist!
 };
 
 // ✅ What we should have tested
@@ -362,7 +331,7 @@ module.exports = tracker;
 
 // ✅ The solution
 module.exports = {
-  create: deps => new MessageTracker(deps),
+  create: (deps) => new MessageTracker(deps)
 };
 ```
 
@@ -371,7 +340,6 @@ module.exports = {
 ## Quick Reference
 
 ### Testing Checklist
-
 - [ ] Tests pass when implementation changes but behavior stays the same
 - [ ] No private methods or internal state being tested
 - [ ] Using real objects instead of mocks where practical
@@ -384,7 +352,6 @@ module.exports = {
 - [ ] Tests are isolated (no shared state)
 
 ### Red Flags in Your Tests
-
 If you see these patterns, consider refactoring:
 
 1. **Mocking private methods**: `jest.spyOn(obj, '_privateMethod')`
@@ -396,7 +363,6 @@ If you see these patterns, consider refactoring:
 7. **Brittle assertions**: `expect(mock.mock.calls[0][1]).toBe('value')`
 
 ### When to Make Exceptions
-
 Sometimes you need to test implementation details, but these should be rare:
 
 1. **Performance-critical code** - When the algorithm matters

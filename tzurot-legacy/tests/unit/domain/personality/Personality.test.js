@@ -296,7 +296,7 @@ describe('Personality', () => {
         profileWithoutDisplayName,
         model
       );
-
+      
       expect(personalityWithoutDisplayName.getDisplayName()).toBe('claude-3-opus');
     });
   });

@@ -438,7 +438,9 @@ async function formatApiMessages(
 
       // For proxy messages only: prepend speaker identification if we have a userName
       const contentWithProxyPrefix =
-        isProxyMessage && userName !== 'a user' ? `${userName}: ${content}` : content;
+        isProxyMessage && userName !== 'a user'
+          ? `${userName}: ${content}`
+          : content;
 
       // Combine context metadata with content
       const finalContent = contextPrefix + contentWithProxyPrefix;

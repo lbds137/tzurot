@@ -1,9 +1,7 @@
 # Database Migration Plan for Tzurot
 
 ## Overview
-
 This plan addresses the critical pain point of data loss during deployments, particularly:
-
 - Authentication tokens being wiped (forcing users to re-authenticate)
 - 66 personalities taking 9-10 minutes to reload due to API rate limits
 - Aliases needing to be reconfigured
@@ -11,13 +9,11 @@ This plan addresses the critical pain point of data loss during deployments, par
 ## Phase 1: Immediate Relief (1-2 days)
 
 ### Option A: Railway Persistent Volume
-
 1. Configure Railway persistent volume at `/app/data`
 2. No code changes required
 3. Immediate fix for deployment data loss
 
 ### Option B: External Object Storage
-
 1. Use Railway's object storage or AWS S3
 2. Backup data before deployment
 3. Restore after deployment
@@ -30,11 +26,11 @@ Create a clean abstraction that supports both JSON and database backends:
 ```javascript
 // src/core/persistence/PersistenceAdapter.js
 class PersistenceAdapter {
-  async save(collection, key, data) {}
-  async load(collection, key) {}
-  async loadAll(collection) {}
-  async delete(collection, key) {}
-  async exists(collection, key) {}
+  async save(collection, key, data) { }
+  async load(collection, key) { }
+  async loadAll(collection) { }
+  async delete(collection, key) { }
+  async exists(collection, key) { }
 }
 
 // src/core/persistence/JsonAdapter.js
@@ -125,7 +121,6 @@ CREATE INDEX idx_personalities_added_by ON personalities(added_by);
 ### Implementation Steps
 
 1. **Add Dependencies**
-
    ```json
    {
      "dependencies": {
@@ -139,24 +134,23 @@ CREATE INDEX idx_personalities_added_by ON personalities(added_by);
    ```
 
 2. **Create Database Service**
-
    ```javascript
    // src/core/persistence/DatabaseService.js
    const { Pool } = require('pg');
-
+   
    class DatabaseService {
      constructor() {
        this.pool = new Pool({
          connectionString: process.env.DATABASE_URL,
-         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
        });
      }
-
+     
      async query(text, params) {
        const result = await this.pool.query(text, params);
        return result.rows;
      }
-
+     
      async transaction(callback) {
        const client = await this.pool.connect();
        try {
@@ -175,14 +169,13 @@ CREATE INDEX idx_personalities_added_by ON personalities(added_by);
    ```
 
 3. **Migrate Personality Manager First**
-
    ```javascript
    // src/core/personality/PersonalityPersistence.js
    class PersonalityPersistence {
      constructor(adapter) {
        this.adapter = adapter; // Can be JsonAdapter or PostgresAdapter
      }
-
+     
      async savePersonality(personality) {
        if (this.adapter instanceof PostgresAdapter) {
          await this.adapter.query(
@@ -190,13 +183,8 @@ CREATE INDEX idx_personalities_added_by ON personalities(added_by);
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (full_name) DO UPDATE
             SET display_name = $2, avatar_url = $3`,
-           [
-             personality.fullName,
-             personality.displayName,
-             personality.avatarUrl,
-             personality.addedBy,
-             personality.addedAt,
-           ]
+           [personality.fullName, personality.displayName, personality.avatarUrl, 
+            personality.addedBy, personality.addedAt]
          );
        } else {
          // Existing JSON logic
@@ -208,7 +196,6 @@ CREATE INDEX idx_personalities_added_by ON personalities(added_by);
 ## Phase 4: Advanced Features (Optional)
 
 Once migrated, you can add:
-
 - Connection pooling for better performance
 - Read replicas for scaling
 - Automated backups

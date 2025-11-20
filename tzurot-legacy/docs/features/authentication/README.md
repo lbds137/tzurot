@@ -20,7 +20,6 @@ Tzurot implements a sophisticated authentication system that provides:
 ## Key Features
 
 ### Authentication Flow
-
 1. User initiates auth with `!tz auth start`
 2. System generates secure authorization code
 3. User submits code via DM for verification
@@ -28,7 +27,6 @@ Tzurot implements a sophisticated authentication system that provides:
 5. Token enables personality management and AI interactions
 
 ### Security Measures
-
 - **DM-Only Verification**: Prevents channel-based token interception
 - **Time-Limited Codes**: Authorization codes expire quickly
 - **Token Rotation**: Automatic renewal and secure storage
@@ -36,7 +34,6 @@ Tzurot implements a sophisticated authentication system that provides:
 - **Rate Limiting**: Prevents abuse and ensures fair usage
 
 ### PluralKit Compatibility
-
 - **Non-Conflicting**: Works alongside PluralKit without interference
 - **Message Detection**: Recognizes and respects PluralKit proxy messages
 - **User Mapping**: Correctly attributes messages to original users
@@ -45,13 +42,11 @@ Tzurot implements a sophisticated authentication system that provides:
 ## Security Best Practices
 
 ### For Users
-
 - Only submit auth codes in DMs to the bot
 - Don't share your API tokens
 - Use `!tz auth status` to check your session
 
 ### For Developers
-
 - Never log auth tokens or codes
 - Validate all user permissions before command execution
 - Implement proper session timeouts

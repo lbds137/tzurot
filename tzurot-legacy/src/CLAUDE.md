@@ -38,14 +38,12 @@ bot.js
 **CRITICAL: The AI service is the heart of personality interactions.**
 
 Key responsibilities:
-
 - **Deduplication**: Uses pendingRequests Map to prevent duplicate API calls
 - **Multimodal Support**: Handles text, images, and audio content
 - **Reference Processing**: Properly fetches and includes referenced messages
 - **Error Handling**: Implements retry logic with exponential backoff
 
 ⚠️ **Common Pitfalls**:
-
 - Never bypass the pendingRequests check - it prevents expensive duplicate API calls
 - Always use X-User-Auth header for user-specific requests
 - Maintain the multimodal content extraction logic for embeds
@@ -56,7 +54,6 @@ Key responsibilities:
 **WARNING: This is the largest file in the codebase and needs refactoring.**
 
 Critical functionality that must be preserved:
-
 - **Webhook Caching**: NEVER create webhooks without checking cache first
 - **Message Splitting**: Discord has a 2000 char limit - maintain the splitting logic
 - **DM Fallback**: DMs don't support webhooks - maintain the direct send fallback
@@ -64,16 +61,14 @@ Critical functionality that must be preserved:
 - **Rate Limit Handling**: Implement exponential backoff on 429 errors
 
 ⚠️ **Injectable Timers Required**:
-
 ```javascript
 // Current pattern that needs to be maintained:
-let delayFn = ms => new Promise(resolve => setTimeout(resolve, ms));
+let delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 ```
 
 ### Conversation Manager (`conversationManager.js`) - ~570 lines
 
 Maintains conversation state - critical for multi-turn interactions:
-
 - **Message Mapping**: Links Discord message IDs to personality data
 - **Auto-respond**: Tracks which personalities should auto-respond
 - **History Management**: Maintains conversation context
@@ -83,7 +78,6 @@ Maintains conversation state - critical for multi-turn interactions:
 ### Personality Manager (`personalityManager.js`) - ~690 lines
 
 The personality system core:
-
 - **Registration**: Validates and stores personality data
 - **Persistence**: Saves to disk - maintain backward compatibility
 - **Alias System**: One personality can have multiple aliases
@@ -94,7 +88,6 @@ The personality system core:
 ## Common Patterns
 
 1. **Logging**: Use the structured logger:
-
    ```javascript
    const logger = require('./logger');
    logger.info('[Component] Action performed');
@@ -102,7 +95,6 @@ The personality system core:
    ```
 
 2. **Error Handling**:
-
    ```javascript
    try {
      await someAsyncOperation();
@@ -118,20 +110,19 @@ The personality system core:
    const requestId = createUniqueId();
    pendingRequests.set(requestId, {
      timestamp: Date.now(),
-     promise: asyncOperation(),
+     promise: asyncOperation()
    });
    ```
 
 ## Critical Patterns to Follow
 
 ### Rate Limiting Pattern
-
 ```javascript
 // Always use the RateLimiter class for external APIs
 const rateLimiter = new RateLimiter({
   minRequestSpacing: 3000,
   maxRetries: 5,
-  cooldownPeriod: 60000,
+  cooldownPeriod: 60000
 });
 
 await rateLimiter.enqueue(async () => {
@@ -140,7 +131,6 @@ await rateLimiter.enqueue(async () => {
 ```
 
 ### Authentication Pattern
-
 ```javascript
 // Always validate user tokens before personality operations
 // DDD Authentication Pattern
@@ -154,7 +144,6 @@ if (!authStatus.isAuthenticated) {
 ```
 
 ### Media Handling Pattern
-
 ```javascript
 // Always validate media before processing
 if (attachment) {
@@ -166,7 +155,6 @@ if (attachment) {
 ```
 
 ### Deduplication Pattern
-
 ```javascript
 // Always check for duplicates before processing
 const messageKey = `${message.id}-${personality.name}`;
@@ -224,14 +212,12 @@ processedMessages.add(messageKey);
 ## File Size Warnings
 
 These files exceed recommended limits and need refactoring:
-
 - `webhookManager.js` (2800+ lines) - Split into webhook, message, and media modules
 - `aiService.js` (1700+ lines) - Extract request handling and formatting
 
 ## Testing Considerations
 
 When modifying any component:
-
 1. **Mock all external calls** - No real API calls in tests
 2. **Use injectable timers** - See timer patterns in root CLAUDE.md
 3. **Test error cases** - Every try/catch needs a test
@@ -242,70 +228,57 @@ When modifying any component:
 ### When to Use MCP for Source Code Review
 
 **High-Value Scenarios:**
-
 1. **Large Module Refactoring** - Breaking down files >1000 lines
-
    ```javascript
-   mcp__gemini -
-     collab__gemini_brainstorm({
-       topic: 'Refactor webhookManager.js (2800 lines) into focused modules',
-       constraints:
-         'Maintain backward compatibility, preserve all webhook caching and deduplication',
-     });
+   mcp__gemini-collab__gemini_brainstorm({
+     topic: "Refactor webhookManager.js (2800 lines) into focused modules",
+     constraints: "Maintain backward compatibility, preserve all webhook caching and deduplication"
+   })
    ```
 
 2. **Security-Critical Code** - Authentication, token handling, data validation
-
    ```javascript
-   mcp__gemini -
-     collab__gemini_code_review({
-       code: authenticationCode,
-       focus: 'security',
-       language: 'javascript',
-     });
+   mcp__gemini-collab__gemini_code_review({
+     code: authenticationCode,
+     focus: "security",
+     language: "javascript"
+   })
    ```
 
 3. **Complex Error Handling** - Multi-layer retry logic, rate limiting
-
    ```javascript
-   mcp__gemini -
-     collab__gemini_test_cases({
-       code_or_feature: 'Rate limiter with exponential backoff and blackout periods',
-       test_type: 'edge cases',
-     });
+   mcp__gemini-collab__gemini_test_cases({
+     code_or_feature: "Rate limiter with exponential backoff and blackout periods",
+     test_type: "edge cases"
+   })
    ```
 
 4. **Performance Optimization** - Caching strategies, deduplication logic
    ```javascript
-   mcp__gemini -
-     collab__gemini_explain({
-       topic: 'Optimal caching strategy for webhook objects with LRU eviction',
-       level: 'expert',
-     });
+   mcp__gemini-collab__gemini_explain({
+     topic: "Optimal caching strategy for webhook objects with LRU eviction",
+     level: "expert"
+   })
    ```
 
 ### Component-Specific MCP Usage
 
 **AI Service (`aiService.js`)**
-
 - Review multimodal content handling for edge cases
 - Validate deduplication logic for race conditions
 - Check token security in request headers
 
 **Webhook Manager (`webhookManager.js`)**
-
 - Brainstorm module splitting strategies
 - Review message splitting algorithm for Discord limits
 - Validate rate limit handling implementation
 
 **Personality System**
-
 - Review alias resolution logic for conflicts
 - Validate ownership checks for security
 - Test persistence layer for data integrity
 
 **Command System**
-
 - Review middleware chain for proper error propagation
 - Validate permission checks across all commands
 - Test command routing with feature flags

@@ -21,21 +21,18 @@ Tzurot supports rich media interactions including:
 ## Key Features
 
 ### Audio Support
-
 - Automatic transcription for AI context
 - Volume level detection and testing
 - Multiple format support
 - Streaming for large files
 
-### Image Support
-
+### Image Support  
 - Automatic AI vision integration
 - Thumbnail generation
 - Format conversion
 - Size optimization
 
 ### Cross-Platform
-
 - Works in Discord channels via webhooks
 - Full support in DM conversations
 - Handles Discord's file size limitations

@@ -2,8 +2,8 @@
 
 /**
  * Development startup script
- *
- * This script starts the bot in development mode with clear logging
+ * 
+ * This script starts the bot in development mode with clear logging 
  * about which environment is being used.
  */
 

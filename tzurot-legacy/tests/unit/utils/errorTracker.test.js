@@ -24,9 +24,7 @@ describe('errorTracker', () => {
       const error = new Error('Test error');
       const errorId = errorTracker.trackError(error);
 
-      expect(errorId).toMatch(
-        /^ERR-unk-unk-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(errorId).toMatch(/^ERR-unk-unk-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('[ErrorTracker] UNKNOWN: Test error'),
         expect.objectContaining({
@@ -49,9 +47,7 @@ describe('errorTracker', () => {
 
       const errorId = errorTracker.trackError(error, context);
 
-      expect(errorId).toMatch(
-        /^ERR-dis-sen-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(errorId).toMatch(/^ERR-dis-sen-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('[ErrorTracker] CRITICAL DISCORD_API: Critical error'),
         expect.objectContaining({
@@ -119,9 +115,7 @@ describe('errorTracker', () => {
         const error = new Error(`Error for ${category}`);
         const errorId = errorTracker.trackError(error, { category });
 
-        expect(errorId).toMatch(
-          /^ERR-[a-z_]{3}-unk-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-        );
+        expect(errorId).toMatch(/^ERR-[a-z_]{3}-unk-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringContaining(
             `[ErrorTracker] ${category.toUpperCase()}: Error for ${category}`
@@ -210,9 +204,7 @@ describe('errorTracker', () => {
       );
 
       // Error should have errorId attached
-      expect(webhookError.errorId).toMatch(
-        /^ERR-web-sen-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(webhookError.errorId).toMatch(/^ERR-web-sen-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     });
 
     it('should truncate long message content in error metadata', async () => {
@@ -274,9 +266,7 @@ describe('errorTracker', () => {
       expect(error.operation).toBe('fetchAvatar');
       expect(error.metadata).toEqual({ userId: '12345' });
       expect(error.timestamp).toBeDefined();
-      expect(error.errorId).toMatch(
-        /^ERR-ava-fet-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(error.errorId).toMatch(/^ERR-ava-fet-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 
       // Should have tracked the error
       expect(logger.warn).toHaveBeenCalledWith(
@@ -348,9 +338,7 @@ describe('errorTracker', () => {
       });
 
       // Should only use first 3 characters of operation and include UUID
-      expect(errorId).toMatch(
-        /^ERR-unk-ver-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(errorId).toMatch(/^ERR-unk-ver-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     });
 
     it('should handle concurrent error tracking', () => {
@@ -395,9 +383,7 @@ describe('errorTracker', () => {
         operation: undefined,
       });
 
-      expect(errorId).toMatch(
-        /^ERR-unk-unk-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      );
+      expect(errorId).toMatch(/^ERR-unk-unk-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(logger.warn).toHaveBeenCalled();
     });
   });

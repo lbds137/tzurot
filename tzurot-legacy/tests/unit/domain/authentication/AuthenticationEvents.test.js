@@ -198,6 +198,7 @@ describe('AuthenticationEvents', () => {
     });
   });
 
+
   describe('AuthenticationDenied', () => {
     it('should create event with required fields', () => {
       const payload = {

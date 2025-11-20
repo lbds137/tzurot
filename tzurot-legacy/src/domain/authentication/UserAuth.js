@@ -173,6 +173,7 @@ class UserAuth extends AggregateRoot {
     );
   }
 
+
   /**
    * Check if user is authenticated
    * @returns {boolean} True if authenticated (has token)

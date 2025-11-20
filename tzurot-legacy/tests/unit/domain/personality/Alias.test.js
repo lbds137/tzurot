@@ -160,7 +160,7 @@ describe('Alias', () => {
       expect(() => Alias.fromString('')).toThrow();
       expect(() => Alias.fromString('   ')).toThrow(); // Whitespace-only
       expect(() => Alias.fromString('a'.repeat(51))).toThrow();
-
+      
       // Should silently trim spaces
       const alias = Alias.fromString('  spaced  ');
       expect(alias.value).toBe('spaced');

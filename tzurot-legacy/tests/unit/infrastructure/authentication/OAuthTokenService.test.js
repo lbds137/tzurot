@@ -2,9 +2,7 @@
  * Tests for OAuthTokenService
  */
 
-const {
-  OAuthTokenService,
-} = require('../../../../src/infrastructure/authentication/OAuthTokenService');
+const { OAuthTokenService } = require('../../../../src/infrastructure/authentication/OAuthTokenService');
 const logger = require('../../../../src/logger');
 
 // Mock dependencies
@@ -20,7 +18,7 @@ describe('OAuthTokenService', () => {
     jest.clearAllMocks();
 
     mockHttpClient = jest.fn();
-
+    
     config = {
       appId: 'test-app-id',
       apiKey: 'test-api-key',
@@ -54,7 +52,7 @@ describe('OAuthTokenService', () => {
       };
 
       const envService = new OAuthTokenService();
-
+      
       expect(envService.appId).toBe('env-app-id');
       expect(envService.apiKey).toBe('env-api-key');
       expect(envService.authApiEndpoint).toBe('https://env-api.example.com/auth');
@@ -69,9 +67,7 @@ describe('OAuthTokenService', () => {
       process.env = { ...originalEnv };
       delete process.env.SERVICE_APP_ID;
       delete config.appId;
-      expect(() => new OAuthTokenService(config)).toThrow(
-        'App ID is required for OAuth token service'
-      );
+      expect(() => new OAuthTokenService(config)).toThrow('App ID is required for OAuth token service');
       process.env = originalEnv;
     });
 
@@ -80,9 +76,7 @@ describe('OAuthTokenService', () => {
       process.env = { ...originalEnv };
       delete process.env.SERVICE_API_KEY;
       delete config.apiKey;
-      expect(() => new OAuthTokenService(config)).toThrow(
-        'API key is required for OAuth token service'
-      );
+      expect(() => new OAuthTokenService(config)).toThrow('API key is required for OAuth token service');
       process.env = originalEnv;
     });
 
@@ -96,7 +90,7 @@ describe('OAuthTokenService', () => {
   describe('getAuthorizationUrl', () => {
     it('should generate authorization URL with state', async () => {
       const url = await service.getAuthorizationUrl('test-state');
-
+      
       expect(url).toBe('https://example.com/authorize?app_id=test-app-id');
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Generating authorization URL');
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Generated auth URL:', url);
@@ -104,9 +98,10 @@ describe('OAuthTokenService', () => {
 
     it('should generate authorization URL without state', async () => {
       const url = await service.getAuthorizationUrl();
-
+      
       expect(url).toBe('https://example.com/authorize?app_id=test-app-id');
     });
+
   });
 
   describe('exchangeCode', () => {
@@ -134,20 +129,21 @@ describe('OAuthTokenService', () => {
         expiresAt: new Date('2024-12-31T23:59:59Z'),
       });
 
-      expect(mockHttpClient).toHaveBeenCalledWith('https://api.example.com/auth/nonce', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          app_id: 'test-app-id',
-          code: 'auth-code-123',
-        }),
-      });
-
-      expect(logger.info).toHaveBeenCalledWith(
-        '[OAuthTokenService] Exchanging code for user user-123'
+      expect(mockHttpClient).toHaveBeenCalledWith(
+        'https://api.example.com/auth/nonce',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            app_id: 'test-app-id',
+            code: 'auth-code-123',
+          }),
+        }
       );
+
+      expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Exchanging code for user user-123');
     });
 
     it('should handle HTTP errors', async () => {
@@ -169,9 +165,7 @@ describe('OAuthTokenService', () => {
     it('should handle network errors', async () => {
       mockHttpClient.mockRejectedValue(new Error('Network error'));
 
-      await expect(service.exchangeCode('auth-code-123', 'user-123')).rejects.toThrow(
-        'Network error'
-      );
+      await expect(service.exchangeCode('auth-code-123', 'user-123')).rejects.toThrow('Network error');
 
       expect(logger.error).toHaveBeenCalledWith(
         '[OAuthTokenService] Failed to exchange code for user user-123:',
@@ -229,20 +223,21 @@ describe('OAuthTokenService', () => {
         expiresAt: new Date('2024-12-31T23:59:59Z'),
       });
 
-      expect(mockHttpClient).toHaveBeenCalledWith('https://api.example.com/auth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'test-api-key',
-        },
-        body: JSON.stringify({
-          discord_id: 'user-123',
-        }),
-      });
-
-      expect(logger.info).toHaveBeenCalledWith(
-        '[OAuthTokenService] Direct token exchange for user user-123'
+      expect(mockHttpClient).toHaveBeenCalledWith(
+        'https://api.example.com/auth/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'test-api-key',
+          },
+          body: JSON.stringify({
+            discord_id: 'user-123',
+          }),
+        }
       );
+
+      expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Direct token exchange for user user-123');
     });
 
     it('should handle exchange errors', async () => {
@@ -272,9 +267,7 @@ describe('OAuthTokenService', () => {
 
     beforeEach(() => {
       mockHttpClient.mockResolvedValue(mockResponse);
-      mockResponse.headers.entries = jest
-        .fn()
-        .mockReturnValue([['content-type', 'application/json']]);
+      mockResponse.headers.entries = jest.fn().mockReturnValue([['content-type', 'application/json']]);
     });
 
     it('should validate token successfully', async () => {
@@ -291,20 +284,23 @@ describe('OAuthTokenService', () => {
         userId: 'user-123',
       });
 
-      expect(mockHttpClient).toHaveBeenCalledWith('https://api.example.com/auth/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'test-api-key',
-        },
-        body: JSON.stringify({
-          token: 'token-123',
-        }),
-      });
+      expect(mockHttpClient).toHaveBeenCalledWith(
+        'https://api.example.com/auth/validate',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'test-api-key',
+          },
+          body: JSON.stringify({
+            token: 'token-123',
+          }),
+        }
+      );
 
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Validating token:', {
         tokenPrefix: 'token-12...',
-        endpoint: 'https://api.example.com/auth/validate',
+        endpoint: 'https://api.example.com/auth/validate'
       });
     });
 
@@ -333,9 +329,7 @@ describe('OAuthTokenService', () => {
         valid: false,
       });
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        '[OAuthTokenService] No response data from validation endpoint'
-      );
+      expect(logger.warn).toHaveBeenCalledWith('[OAuthTokenService] No response data from validation endpoint');
     });
 
     it('should handle network errors during validation', async () => {
@@ -343,10 +337,13 @@ describe('OAuthTokenService', () => {
 
       await expect(service.validateToken('token-123')).rejects.toThrow('Network timeout');
 
-      expect(logger.error).toHaveBeenCalledWith('[OAuthTokenService] Failed to validate token:', {
-        message: 'Network timeout',
-        code: undefined,
-      });
+      expect(logger.error).toHaveBeenCalledWith(
+        '[OAuthTokenService] Failed to validate token:',
+        {
+          message: 'Network timeout',
+          code: undefined,
+        }
+      );
     });
   });
 
@@ -375,16 +372,19 @@ describe('OAuthTokenService', () => {
         expiresAt: new Date('2024-12-31T23:59:59Z'),
       });
 
-      expect(mockHttpClient).toHaveBeenCalledWith('https://api.example.com/auth/refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'test-api-key',
-        },
-        body: JSON.stringify({
-          token: 'old-token-123',
-        }),
-      });
+      expect(mockHttpClient).toHaveBeenCalledWith(
+        'https://api.example.com/auth/refresh',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'test-api-key',
+          },
+          body: JSON.stringify({
+            token: 'old-token-123',
+          }),
+        }
+      );
 
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Refreshing token');
     });
@@ -437,12 +437,8 @@ describe('OAuthTokenService', () => {
       expect(mockHttpClient).not.toHaveBeenCalled();
 
       // Should log that it's handling locally
-      expect(logger.info).toHaveBeenCalledWith(
-        '[OAuthTokenService] Token revocation requested - handling locally only'
-      );
-      expect(logger.warn).toHaveBeenCalledWith(
-        '[OAuthTokenService] No remote revocation endpoint available, token will be expired locally'
-      );
+      expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Token revocation requested - handling locally only');
+      expect(logger.warn).toHaveBeenCalledWith('[OAuthTokenService] No remote revocation endpoint available, token will be expired locally');
     });
 
     it('should always succeed since revocation is local-only', async () => {
@@ -478,12 +474,15 @@ describe('OAuthTokenService', () => {
         discriminator: '1234',
       });
 
-      expect(mockHttpClient).toHaveBeenCalledWith('https://api.example.com/v1/profile', {
-        method: 'GET',
-        headers: {
-          'X-User-Auth': 'token-123',
-        },
-      });
+      expect(mockHttpClient).toHaveBeenCalledWith(
+        'https://api.example.com/v1/profile',
+        {
+          method: 'GET',
+          headers: {
+            'X-User-Auth': 'token-123',
+          },
+        }
+      );
 
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Getting user info');
     });
@@ -550,9 +549,7 @@ describe('OAuthTokenService', () => {
         json: jest.fn().mockResolvedValue({}),
         headers: new Map([['content-type', 'application/json']]),
       };
-      mockErrorResponse.headers.entries = jest
-        .fn()
-        .mockReturnValue([['content-type', 'application/json']]);
+      mockErrorResponse.headers.entries = jest.fn().mockReturnValue([['content-type', 'application/json']]);
       mockHttpClient.mockResolvedValue(mockErrorResponse);
 
       // validateToken doesn't throw for HTTP errors, it returns { valid: false }
@@ -569,7 +566,9 @@ describe('OAuthTokenService', () => {
       };
       mockHttpClient.mockResolvedValue(mockErrorResponse);
 
-      await expect(service.refreshToken('token')).rejects.toThrow('Invalid JSON');
+      await expect(service.refreshToken('token')).rejects.toThrow(
+        'Invalid JSON'
+      );
     });
   });
 });

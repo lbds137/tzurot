@@ -121,9 +121,7 @@ function createBotIntegrationTest() {
      */
     createBotEnvironment: () => {
       const mockAiService = {
-        getAiResponse: jest
-          .fn()
-          .mockResolvedValue({ content: 'This is a mock AI response', metadata: null }),
+        getAiResponse: jest.fn().mockResolvedValue({ content: 'This is a mock AI response', metadata: null }),
       };
 
       const mockWebhookManager = {

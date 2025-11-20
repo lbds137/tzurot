@@ -9,6 +9,7 @@
  * - No mocking needed (testing the actual implementation)
  */
 
+
 // Domain model under test - NOT mocked!
 const { Token } = require('../../../../src/domain/authentication/Token');
 
@@ -54,7 +55,7 @@ describe('Token', () => {
       const token1 = new Token('test-token', null);
       expect(token1.value).toBe('test-token');
       expect(token1.expiresAt).toBeNull();
-
+      
       const token2 = new Token('test-token', undefined);
       expect(token2.value).toBe('test-token');
       expect(token2.expiresAt).toBeNull();
@@ -72,7 +73,7 @@ describe('Token', () => {
     it('should allow past expiration (AI service handles validation)', () => {
       const pastDate = new Date('2023-12-31T23:59:59Z');
       const token = new Token('test-token', pastDate);
-
+      
       expect(token.value).toBe('test-token');
       expect(token.expiresAt).toEqual(pastDate);
     });
@@ -80,7 +81,7 @@ describe('Token', () => {
     it('should allow expiration at current time (AI service handles validation)', () => {
       const now = new Date();
       const token = new Token('test-token', now);
-
+      
       expect(token.value).toBe('test-token');
       expect(token.expiresAt).toEqual(now);
     });
@@ -112,7 +113,7 @@ describe('Token', () => {
         expiresAt: '2024-01-01T01:00:00.000Z',
       });
     });
-
+    
     it('should serialize null expiresAt', () => {
       const token = new Token('test-token-value', null);
 

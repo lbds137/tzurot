@@ -82,10 +82,7 @@ describe('CommandIntegrationAdapter', () => {
         'test',
         ['arg1']
       );
-      expect(result).toEqual({
-        success: true,
-        result: { success: true, response: 'Command executed' },
-      });
+      expect(result).toEqual({ success: true, result: { success: true, response: 'Command executed' } });
     });
 
     it('should handle unknown commands', async () => {

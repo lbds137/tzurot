@@ -39,18 +39,15 @@ Example: `!tz help`, `!tz add personality-name`
 Commands for managing AI personalities in your personal collection.
 
 ##### `add` (alias: `create`)
-
 Add a new AI personality to your collection.
 
 **Syntax:** `!tz add <personality_name> [alias]`
 
 **Parameters:**
-
 - `personality_name` (required): The exact name of the personality on the AI service
 - `alias` (optional): A nickname for easier reference
 
 **Examples:**
-
 ```
 !tz add lilith-tzel-shani
 !tz add lilith-tzel-shani lilith
@@ -58,7 +55,6 @@ Add a new AI personality to your collection.
 ```
 
 **Notes:**
-
 - Personality names are case-sensitive
 - Aliases are case-insensitive
 - Each user maintains their own personality collection
@@ -66,13 +62,11 @@ Add a new AI personality to your collection.
 ---
 
 ##### `remove` (alias: `delete`)
-
 Remove a personality from your collection.
 
 **Syntax:** `!tz remove <personality_or_alias>`
 
 **Examples:**
-
 ```
 !tz remove lilith
 !tz delete complex-personality-name
@@ -81,33 +75,28 @@ Remove a personality from your collection.
 ---
 
 ##### `list`
-
 Display your added personalities with pagination support.
 
 **Syntax:** `!tz list [page]`
 
 **Examples:**
-
 ```
 !tz list
 !tz list 2
 ```
 
 **Notes:**
-
 - Shows 10 personalities per page
 - Displays personality names, aliases, and avatar URLs
 
 ---
 
 ##### `alias`
-
 Add an alias to an existing personality.
 
 **Syntax:** `!tz alias <personality> <new_alias>`
 
 **Examples:**
-
 ```
 !tz alias lilith-tzel-shani lil
 !tz alias complex-name cn
@@ -116,13 +105,11 @@ Add an alias to an existing personality.
 ---
 
 ##### `info`
-
 Display detailed information about a personality.
 
 **Syntax:** `!tz info <personality_or_alias>`
 
 **Examples:**
-
 ```
 !tz info lilith
 !tz info complex-personality-name
@@ -131,7 +118,6 @@ Display detailed information about a personality.
 #### Conversation Control
 
 ##### `activate`
-
 Activate a personality for the entire channel (moderator only).
 
 **Syntax:** `!tz activate <personality_or_alias>`
@@ -139,14 +125,12 @@ Activate a personality for the entire channel (moderator only).
 **Required Permissions:** Manage Messages + NSFW Channel
 
 **Examples:**
-
 ```
 !tz activate lilith
 !tz activate friendly-assistant
 ```
 
 **Notes:**
-
 - Channel-wide activation affects all users in the channel
 - Only one personality can be active per channel
 - Requires appropriate permissions
@@ -154,7 +138,6 @@ Activate a personality for the entire channel (moderator only).
 ---
 
 ##### `deactivate`
-
 Deactivate channel-wide personality.
 
 **Syntax:** `!tz deactivate`
@@ -164,26 +147,22 @@ Deactivate channel-wide personality.
 ---
 
 ##### `reset`
-
 Clear active conversation history.
 
 **Syntax:** `!tz reset`
 
 **Notes:**
-
 - Clears your conversation state with the current personality
 - Does not affect other users' conversations
 
 ---
 
 ##### `autorespond`
-
 Toggle personal auto-response mode.
 
 **Syntax:** `!tz autorespond [on|off]`
 
 **Examples:**
-
 ```
 !tz autorespond on
 !tz autorespond off
@@ -193,20 +172,17 @@ Toggle personal auto-response mode.
 #### Authentication
 
 ##### `auth`
-
 Manage authentication status with the AI service.
 
 **Syntax:** `!tz auth [token]`
 
 **Examples:**
-
 ```
 !tz auth
 !tz auth your-api-token
 ```
 
 **Notes:**
-
 - Without token: Shows current authentication status
 - With token: Sets authentication for AI service access
 - Tokens are stored securely and not logged
@@ -214,7 +190,6 @@ Manage authentication status with the AI service.
 ---
 
 ##### `verify`
-
 Verify your authentication status.
 
 **Syntax:** `!tz verify`
@@ -222,13 +197,11 @@ Verify your authentication status.
 #### System Commands
 
 ##### `help`
-
 Display help information.
 
 **Syntax:** `!tz help [command]`
 
 **Examples:**
-
 ```
 !tz help
 !tz help add
@@ -238,7 +211,6 @@ Display help information.
 ---
 
 ##### `ping`
-
 Test bot responsiveness.
 
 **Syntax:** `!tz ping`
@@ -246,33 +218,28 @@ Test bot responsiveness.
 ---
 
 ##### `status`
-
 Display bot status and statistics.
 
 **Syntax:** `!tz status`
 
 **Notes:**
-
 - Shows uptime, memory usage, and system health
 - Available to all users
 
 ---
 
 ##### `purgbot`
-
 Purge bot messages from DM history.
 
 **Syntax:** `!tz purgbot`
 
 **Notes:**
-
 - Only works in direct messages
 - Removes bot messages to clean up conversation history
 
 #### Administrator Commands
 
 ##### `debug`
-
 Advanced debugging tools and system information.
 
 **Syntax:** `!tz debug [subcommand]`
@@ -281,34 +248,28 @@ Advanced debugging tools and system information.
 
 ### Permission Levels
 
-| Level           | Description            | Discord Permission |
-| --------------- | ---------------------- | ------------------ |
-| None            | Available to all users | -                  |
-| Manage Messages | Channel moderation     | Manage Messages    |
-| Administrator   | Bot administration     | Administrator      |
+| Level | Description | Discord Permission |
+|-------|-------------|-------------------|
+| None | Available to all users | - |
+| Manage Messages | Channel moderation | Manage Messages |
+| Administrator | Bot administration | Administrator |
 
 ### Interaction Methods
 
 #### Direct Commands
-
 Standard command syntax: `!tz command arguments`
 
 #### Mentions
-
 Summon personalities by mentioning them:
-
 - `@personality-name Hello!`
 - `@alias How are you?`
 
 #### Replies
-
 Reply to personality messages to continue conversations:
-
 - Reply to any message from a personality
 - Maintains conversation context
 
 #### Auto-Response
-
 When enabled, personalities respond to all your messages in the channel.
 
 ---
@@ -327,7 +288,7 @@ module.exports = {
   permissions: ['ADMIN', 'USER'], // Who can use this command
   execute: async (message, args, context) => {
     // Command implementation
-  },
+  }
 };
 ```
 
@@ -342,11 +303,10 @@ Commands are organized as follows:
 ### Creating New Commands
 
 1. **Create Handler File**
-
    ```javascript
    // handlers/newcommand.js
    const logger = require('../../logger');
-
+   
    module.exports = {
      name: 'newcommand',
      description: 'Description of new command',
@@ -358,17 +318,17 @@ Commands are organized as follows:
          if (args.length < 1) {
            return await message.reply('Please provide an argument');
          }
-
+   
          // Process the command
          const result = await doSomething(args[0]);
-
+         
          // Return a response to Discord
          return await message.reply(`Result: ${result}`);
        } catch (error) {
          logger.error(`Error in newcommand: ${error.message}`);
          return await message.reply('An error occurred while processing your command');
        }
-     },
+     }
    };
    ```
 
@@ -425,12 +385,12 @@ execute: async (message, args, context = {}) => {
     conversationManager = getConversationManager(),
     aiService = getAIService(),
     scheduler = setTimeout,
-    delay = ms => new Promise(resolve => setTimeout(resolve, ms)),
+    delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
   } = context;
-
+  
   // Use injected dependencies
   const personality = await personalityManager.getPersonality(name);
-};
+}
 ```
 
 #### Benefits
@@ -443,13 +403,13 @@ execute: async (message, args, context = {}) => {
 
 #### Standard Context Properties
 
-| Property              | Type     | Description                | Default                    |
-| --------------------- | -------- | -------------------------- | -------------------------- |
-| `personalityManager`  | Object   | Manages personality data   | Production instance        |
-| `conversationManager` | Object   | Manages conversation state | Production instance        |
-| `aiService`           | Object   | Handles AI API calls       | Production instance        |
-| `scheduler`           | Function | Timer scheduling           | `setTimeout`               |
-| `delay`               | Function | Async delays               | Promise-wrapped setTimeout |
+| Property | Type | Description | Default |
+|----------|------|-------------|---------|
+| `personalityManager` | Object | Manages personality data | Production instance |
+| `conversationManager` | Object | Manages conversation state | Production instance |
+| `aiService` | Object | Handles AI API calls | Production instance |
+| `scheduler` | Function | Timer scheduling | `setTimeout` |
+| `delay` | Function | Async delays | Promise-wrapped setTimeout |
 
 #### Usage Examples
 
@@ -461,13 +421,13 @@ await command.execute(message, args);
 await command.execute(message, args, {
   personalityManager: mockPersonalityManager,
   scheduler: mockScheduler,
-  delay: mockDelay,
+  delay: mockDelay
 });
 
 // Custom configuration
 await command.execute(message, args, {
   aiService: customAIService,
-  delay: fasterDelay,
+  delay: fasterDelay
 });
 ```
 
@@ -500,36 +460,40 @@ const command = require('../../src/commands/handlers/mycommand');
 describe('Command: mycommand', () => {
   let mockMessage;
   let mockContext;
-
+  
   beforeEach(() => {
     mockMessage = {
       reply: jest.fn().mockResolvedValue(undefined),
-      author: { id: '123' },
+      author: { id: '123' }
     };
-
+    
     mockContext = {
       personalityManager: {
-        getPersonality: jest.fn(),
+        getPersonality: jest.fn()
       },
       scheduler: jest.fn(),
-      delay: jest.fn().mockResolvedValue(),
+      delay: jest.fn().mockResolvedValue()
     };
   });
 
   it('should process valid arguments', async () => {
     mockContext.personalityManager.getPersonality.mockResolvedValue({
-      name: 'test-personality',
+      name: 'test-personality'
     });
 
     await command.execute(mockMessage, ['test-arg'], mockContext);
 
-    expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Success'));
+    expect(mockMessage.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Success')
+    );
   });
 
   it('should handle missing arguments', async () => {
     await command.execute(mockMessage, [], mockContext);
 
-    expect(mockMessage.reply).toHaveBeenCalledWith('Please provide an argument');
+    expect(mockMessage.reply).toHaveBeenCalledWith(
+      'Please provide an argument'
+    );
   });
 });
 ```
@@ -540,12 +504,12 @@ describe('Command: mycommand', () => {
 it('should use injected dependencies', async () => {
   const mockDelay = jest.fn().mockResolvedValue();
   const mockScheduler = jest.fn();
-
+  
   await command.execute(mockMessage, ['arg'], {
     delay: mockDelay,
-    scheduler: mockScheduler,
+    scheduler: mockScheduler
   });
-
+  
   expect(mockDelay).toHaveBeenCalledWith(1000);
   expect(mockScheduler).toHaveBeenCalled();
 });
@@ -556,32 +520,29 @@ it('should use injected dependencies', async () => {
 #### Updating Commands to Use Context
 
 1. **Add Context Parameter**
-
    ```javascript
    // Before
    execute: async (message, args) => {
-
-   // After
+   
+   // After  
    execute: async (message, args, context = {}) => {
    ```
 
 2. **Extract Dependencies**
-
    ```javascript
    // Before
    const personality = personalityManager.getPersonality(name);
-
+   
    // After
    const { personalityManager = getPersonalityManager() } = context;
    const personality = await personalityManager.getPersonality(name);
    ```
 
 3. **Update Tests**
-
    ```javascript
    // Before
    await command.execute(mockMessage, args);
-
+   
    // After
    await command.execute(mockMessage, args, mockContext);
    ```
@@ -599,7 +560,6 @@ it('should use injected dependencies', async () => {
 ## Summary
 
 The command system is designed for:
-
 - **User-friendly**: Clear syntax and helpful error messages
 - **Developer-friendly**: Consistent patterns and easy testing
 - **Maintainable**: Dependency injection and middleware architecture

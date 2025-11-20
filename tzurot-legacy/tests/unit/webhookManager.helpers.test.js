@@ -332,6 +332,7 @@ describe('WebhookManager - Helper Functions', () => {
     });
   });
 
+
   describe('Message preparation', () => {
     test('prepareMessageData should format message data correctly', () => {
       const content = 'Test message';

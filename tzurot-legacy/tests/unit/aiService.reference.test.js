@@ -13,7 +13,7 @@ const { resolvePersonality } = require('../../src/utils/aliasResolver');
 describe('AI Service Reference Message Handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-
+    
     // Setup default mock behavior for resolvePersonality
     resolvePersonality.mockResolvedValue({
       name: 'albert-einstein',
@@ -86,7 +86,8 @@ describe('AI Service Reference Message Handling', () => {
       const input = {
         messageContent: "What's wrong with this message?",
         referencedMessage: {
-          content: 'Error message with "quotes", \\backslashes\\, \nnewlines\n',
+          content:
+            'Error message with "quotes", \\backslashes\\, \nnewlines\n',
           author: 'SomeUser',
           isFromBot: false,
         },

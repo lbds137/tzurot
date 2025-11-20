@@ -74,7 +74,7 @@ describe('FilePersonalityRepository', () => {
           },
           aliases: [
             { value: 'test', originalCase: 'test' },
-            { value: 'testy', originalCase: 'testy' },
+            { value: 'testy', originalCase: 'testy' }
           ],
           savedAt: '2024-01-01T00:00:00.000Z',
         },
@@ -112,7 +112,10 @@ describe('FilePersonalityRepository', () => {
     it('should load existing data file', async () => {
       await repository.initialize();
 
-      expect(mockFsPromises.readFile).toHaveBeenCalledWith('test-data/personalities.json', 'utf8');
+      expect(mockFsPromises.readFile).toHaveBeenCalledWith(
+        'test-data/personalities.json',
+        'utf8'
+      );
       // Verify behavior - findById should work after initialization
       const personality = await repository.findById(new PersonalityId('test-personality'));
       expect(personality).not.toBeNull();
@@ -126,7 +129,7 @@ describe('FilePersonalityRepository', () => {
 
       expect(mockFsPromises.writeFile).toHaveBeenCalledWith(
         'test-data/personalities.json',
-        expect.stringContaining('"personalities": {}')
+        expect.stringContaining('"personalities": {}'),
       );
       // Verify behavior - should return empty results
       const personalities = await repository.findAll();
@@ -595,16 +598,12 @@ describe('FilePersonalityRepository', () => {
       expect(backupPath).toBe('test-data/personalities-backup-2024-01-15T10-30-45-123Z.json');
       expect(mockFsPromises.writeFile).toHaveBeenCalledWith(
         backupPath,
-        JSON.stringify(
-          {
-            personalities: mockFileData.personalities,
-            aliases: mockFileData.aliases,
-            version: '2.0.0',
-            backupDate: '2024-01-15T10:30:45.123Z',
-          },
-          null,
-          2
-        ),
+        JSON.stringify({
+          personalities: mockFileData.personalities,
+          aliases: mockFileData.aliases,
+          version: '2.0.0',
+          backupDate: '2024-01-15T10:30:45.123Z',
+        }, null, 2),
         'utf8'
       );
     });
@@ -679,6 +678,7 @@ describe('FilePersonalityRepository', () => {
       });
     });
   });
+
 
   describe('hydration behavior', () => {
     it('should handle aliases as strings', async () => {
@@ -881,11 +881,11 @@ describe('FilePersonalityRepository', () => {
             },
             model: {
               name: 'default',
-              path: '/default',
+              path: '/default'
             },
             aliases: [
               { value: 'test', original: 'test' },
-              { value: 'testy', original: 'testy' },
+              { value: 'testy', original: 'testy' }
             ],
             removed: false,
             savedAt: '2024-01-01T00:00:00.000Z',
@@ -901,7 +901,7 @@ describe('FilePersonalityRepository', () => {
             },
             model: {
               name: 'default',
-              path: '/default',
+              path: '/default'
             },
             aliases: [],
             removed: false,
@@ -918,27 +918,27 @@ describe('FilePersonalityRepository', () => {
             },
             model: {
               name: 'default',
-              path: '/default',
+              path: '/default'
             },
             aliases: [],
             removed: false,
             savedAt: '2024-01-01T00:00:00.000Z',
-          },
+          }
         },
         aliases: {
-          test: 'test-personality',
-          testy: 'test-personality',
-          another: 'another-personality',
-        },
+          'test': 'test-personality',
+          'testy': 'test-personality',
+          'another': 'another-personality'
+        }
       };
-
+      
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
       await repository.initialize();
     });
 
     it('should find by exact personality name when no alias matches', async () => {
       const result = await repository.findByNameOrAlias('test-personality');
-
+      
       expect(result).not.toBeNull();
       expect(result.personalityId.value).toBe('test-personality');
       expect(result.profile.name).toBe('test-personality');
@@ -946,21 +946,21 @@ describe('FilePersonalityRepository', () => {
 
     it('should find by personality ID', async () => {
       const result = await repository.findByNameOrAlias('another-personality');
-
+      
       expect(result).not.toBeNull();
       expect(result.personalityId.value).toBe('another-personality');
     });
 
     it('should find by global alias mapping first', async () => {
       const result = await repository.findByNameOrAlias('test');
-
+      
       expect(result).not.toBeNull();
       expect(result.personalityId.value).toBe('test-personality');
     });
 
     it('should find by display name as fallback', async () => {
       const result = await repository.findByNameOrAlias('Unique Display Name');
-
+      
       expect(result).not.toBeNull();
       expect(result.personalityId.value).toBe('display-name-test');
     });
@@ -978,22 +978,22 @@ describe('FilePersonalityRepository', () => {
         },
         model: {
           name: 'default',
-          path: '/default',
+          path: '/default'
         },
         aliases: [],
         removed: false,
         savedAt: '2024-01-01T00:00:00.000Z',
       };
-
+      
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
       repository = new FilePersonalityRepository({
         dataPath: 'test-data',
         filename: 'personalities.json',
       });
       await repository.initialize();
-
+      
       const result = await repository.findByNameOrAlias('test');
-
+      
       expect(result).not.toBeNull();
       // Should find via alias first, not the personality with name 'test'
       expect(result.personalityId.value).toBe('test-personality');
@@ -1003,16 +1003,16 @@ describe('FilePersonalityRepository', () => {
     it('should prioritize alias over display name', async () => {
       // Add alias that matches a display name to verify alias takes precedence
       mockFileData.aliases['another bot'] = 'test-personality';
-
+      
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
       repository = new FilePersonalityRepository({
         dataPath: 'test-data',
         filename: 'personalities.json',
       });
       await repository.initialize();
-
+      
       const result = await repository.findByNameOrAlias('Another Bot');
-
+      
       expect(result).not.toBeNull();
       // Should find via alias, not the personality with that display name
       expect(result.personalityId.value).toBe('test-personality');
@@ -1022,35 +1022,35 @@ describe('FilePersonalityRepository', () => {
       const result1 = await repository.findByNameOrAlias('TEST-PERSONALITY');
       const result2 = await repository.findByNameOrAlias('TEST');
       const result3 = await repository.findByNameOrAlias('unique display name');
-
+      
       expect(result1).not.toBeNull();
       expect(result1.personalityId.value).toBe('test-personality');
-
+      
       expect(result2).not.toBeNull();
       expect(result2.personalityId.value).toBe('test-personality');
-
+      
       expect(result3).not.toBeNull();
       expect(result3.personalityId.value).toBe('display-name-test');
     });
 
     it('should return null for non-existent name/alias', async () => {
       const result = await repository.findByNameOrAlias('non-existent');
-
+      
       expect(result).toBeNull();
     });
 
     it('should skip removed personalities', async () => {
       mockFileData.personalities['test-personality'].removed = true;
-
+      
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
       repository = new FilePersonalityRepository({
         dataPath: 'test-data',
         filename: 'personalities.json',
       });
       await repository.initialize();
-
+      
       const result = await repository.findByNameOrAlias('test-personality');
-
+      
       expect(result).toBeNull();
     });
 
@@ -1061,16 +1061,16 @@ describe('FilePersonalityRepository', () => {
         ownerId: '123456789012345678',
         removed: false,
       };
-
+      
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
       repository = new FilePersonalityRepository({
         dataPath: 'test-data',
         filename: 'personalities.json',
       });
       await repository.initialize();
-
+      
       const result = await repository.findByNameOrAlias('no-profile');
-
+      
       expect(result).not.toBeNull();
       expect(result.personalityId.value).toBe('no-profile');
     });
@@ -1082,9 +1082,9 @@ describe('FilePersonalityRepository', () => {
         filename: 'personalities.json',
       });
       await repository.initialize();
-
+      
       const result = await repository.findByNameOrAlias('anything');
-
+      
       expect(result).toBeNull();
     });
   });

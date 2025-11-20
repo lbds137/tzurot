@@ -9,25 +9,29 @@ Provides utilities for handling timeouts in tests without actually waiting for r
 ### Usage
 
 ```javascript
-const { setupFakeTimers, cleanupFakeTimers, mockTimeoutFetch } = require('../helpers/testTimeouts');
+const { 
+  setupFakeTimers, 
+  cleanupFakeTimers, 
+  mockTimeoutFetch 
+} = require('../helpers/testTimeouts');
 
 describe('MyComponent', () => {
   beforeEach(() => {
     setupFakeTimers();
   });
-
+  
   afterEach(() => {
     cleanupFakeTimers();
   });
-
+  
   it('should handle timeout', async () => {
     const timeoutMock = mockTimeoutFetch(nodeFetch);
-
+    
     const promise = downloadFile('https://example.com/file.mp3');
-
+    
     // Advance time to trigger timeout
     timeoutMock.advanceToTimeout();
-
+    
     await expect(promise).rejects.toThrow();
   });
 });
@@ -55,14 +59,14 @@ describe('MyComponent', () => {
 ```javascript
 it('should timeout after 30 seconds', async () => {
   jest.useFakeTimers();
-
+  
   const promise = operationWithTimeout();
-
+  
   // Fast-forward time
   jest.advanceTimersByTime(30000);
-
+  
   await expect(promise).rejects.toThrow('timeout');
-
+  
   jest.useRealTimers();
 });
 ```
@@ -72,24 +76,24 @@ it('should timeout after 30 seconds', async () => {
 ```javascript
 it('should retry 3 times before failing', async () => {
   jest.useFakeTimers();
-
+  
   let attempts = 0;
   mockFetch.mockImplementation(() => {
     attempts++;
     return Promise.reject(new Error('Network error'));
   });
-
+  
   const promise = fetchWithRetry('https://api.example.com/data');
-
+  
   // Advance through retry delays
   for (let i = 0; i < 3; i++) {
     await Promise.resolve(); // Let promises settle
     jest.advanceTimersByTime(1000); // 1 second retry delay
   }
-
+  
   await expect(promise).rejects.toThrow('Network error');
   expect(attempts).toBe(3);
-
+  
   jest.useRealTimers();
 });
 ```

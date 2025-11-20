@@ -19,9 +19,7 @@ jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 
 const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
 const { createFeatureFlags } = require('../../../src/application/services/FeatureFlags');
-const {
-  getApplicationBootstrap,
-} = require('../../../src/application/bootstrap/ApplicationBootstrap');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('Reference Handler Module', () => {
   // Mock Discord client and objects
@@ -44,7 +42,7 @@ describe('Reference Handler Module', () => {
 
   // Mock message handler
   const mockHandlePersonalityInteraction = jest.fn();
-
+  
   // Mock personality router that will be used in tests
   let mockPersonalityApplicationService;
 
@@ -58,7 +56,7 @@ describe('Reference Handler Module', () => {
 
     // Mock ApplicationBootstrap with personality router
     mockPersonalityApplicationService = {
-      getPersonality: jest.fn().mockImplementation(async name => {
+      getPersonality: jest.fn().mockImplementation(async (name) => {
         if (name === 'test-personality') {
           return mockPersonality;
         }
@@ -73,9 +71,7 @@ describe('Reference Handler Module', () => {
     };
     const mockBootstrap = {
       initialized: true,
-      getPersonalityApplicationService: jest
-        .fn()
-        .mockReturnValue(mockPersonalityApplicationService),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
@@ -189,9 +185,7 @@ describe('Reference Handler Module', () => {
         webhookUsername: 'Test Webhook',
       });
       // DDD system uses ApplicationBootstrap router instead of legacy getPersonality
-      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith(
-        'test-personality'
-      );
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test-personality');
 
       // Since we're mocking a non-DM channel and passing a client, delayedProcessing should be used
       // The delayedProcessing mock will call the handler with the client parameter

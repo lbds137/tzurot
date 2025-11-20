@@ -40,9 +40,7 @@ jest.mock('../../../../src/application/services/RequestTrackingService', () => {
     endMessageProcessing: jest.fn(),
     cleanup: jest.fn(),
     stopCleanup: jest.fn(),
-    getStats: jest
-      .fn()
-      .mockReturnValue({ pendingRequests: 0, completedRequests: 0, processingMessages: 0 }),
+    getStats: jest.fn().mockReturnValue({ pendingRequests: 0, completedRequests: 0, processingMessages: 0 }),
     clear: jest.fn(),
   }));
 });
@@ -75,12 +73,8 @@ const {
 const {
   getCommandIntegrationAdapter,
 } = require('../../../../src/adapters/CommandIntegrationAdapter');
-const {
-  OAuthTokenService,
-} = require('../../../../src/infrastructure/authentication/OAuthTokenService');
-const {
-  AuthenticationApplicationService,
-} = require('../../../../src/application/services/AuthenticationApplicationService');
+const { OAuthTokenService } = require('../../../../src/infrastructure/authentication/OAuthTokenService');
+const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
 
 describe('ApplicationBootstrap', () => {
   let mockEventBus;
@@ -159,7 +153,7 @@ describe('ApplicationBootstrap', () => {
     // Mock authentication services
     mockOAuthTokenService = {};
     OAuthTokenService.mockImplementation(() => mockOAuthTokenService);
-
+    
     mockAuthenticationApplicationService = {};
     AuthenticationApplicationService.mockImplementation(() => mockAuthenticationApplicationService);
 
@@ -396,7 +390,7 @@ describe('ApplicationBootstrap', () => {
       // Wait for async error handling
       await Promise.resolve(); // Let promises settle
       jest.runAllTimers(); // Run any pending timers
-
+      
       expect(logger.error).toHaveBeenCalledWith(
         '[ApplicationBootstrap] Error during reset shutdown:',
         expect.any(Error)
@@ -481,7 +475,7 @@ describe('ApplicationBootstrap', () => {
     it('should schedule seeding when DDD personality write is enabled', async () => {
       // Enable DDD personality write
       mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.write');
-
+      
       process.env.BOT_OWNER_ID = '123456789012345678';
       process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
 
@@ -498,7 +492,7 @@ describe('ApplicationBootstrap', () => {
     it('should schedule seeding when DDD personality write is disabled', async () => {
       // Disable DDD personality write
       mockFeatureFlags.isEnabled.mockImplementation(flag => flag !== 'ddd.personality.write');
-
+      
       process.env.BOT_OWNER_ID = '123456789012345678';
       process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
 
@@ -592,11 +586,7 @@ describe('ApplicationBootstrap', () => {
           { profile: { name: 'lilith' } },
         ]);
 
-        await bootstrap._seedOwnerPersonalitiesWithDDD('123456789012345678', [
-          'lilith',
-          'lucifer',
-          'baphomet',
-        ]);
+        await bootstrap._seedOwnerPersonalitiesWithDDD('123456789012345678', ['lilith', 'lucifer', 'baphomet']);
 
         expect(mockPersonalityService.registerPersonality).toHaveBeenCalledTimes(2);
         expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({

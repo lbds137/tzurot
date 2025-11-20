@@ -7,7 +7,6 @@ This runbook provides step-by-step procedures for deploying the DDD command syst
 ## Pre-Deployment Checklist
 
 ### Code Readiness
-
 - [ ] All Phase 3 commands migrated and tested (18/18 ✅)
 - [ ] 95%+ test coverage achieved across all DDD commands
 - [ ] CommandIntegrationAdapter includes all command mappings
@@ -15,7 +14,6 @@ This runbook provides step-by-step procedures for deploying the DDD command syst
 - [ ] Emergency rollback procedures documented
 
 ### Infrastructure Readiness
-
 - [ ] Monitoring infrastructure deployed
 - [ ] Health check endpoints available
 - [ ] Database backups scheduled (for personality data)
@@ -23,7 +21,6 @@ This runbook provides step-by-step procedures for deploying the DDD command syst
 - [ ] Alert thresholds set
 
 ### Team Readiness
-
 - [ ] Operations team briefed on rollback procedures
 - [ ] Support team aware of feature flag controls
 - [ ] Emergency contact list updated
@@ -104,19 +101,16 @@ railway restart
 **Commands Affected:** ping, status, help, notifications, debug, purgbot, volumetest
 
 **Monitoring:**
-
 - Watch error rates for 2 hours
 - Compare response times to baseline
 - Verify feature parity
 
 **Success Criteria:**
-
 - Zero errors in DDD utility commands
 - Response times within 10% of legacy
 - All functionality working correctly
 
 **Rollback if needed:**
-
 ```bash
 export FEATURE_FLAG_DDD_COMMANDS_UTILITY=false
 railway restart
@@ -135,13 +129,11 @@ railway restart
 **Commands Affected:** auth, verify
 
 **Critical Monitoring:**
-
 - Authentication flow integrity
 - Token generation and validation
 - NSFW verification process
 
 **Success Criteria:**
-
 - No authentication failures
 - Token security maintained
 - All auth workflows functional
@@ -151,7 +143,7 @@ railway restart
 ```bash
 # Prerequisites: Stages 1-2 successful
 
-# Enable conversation commands
+# Enable conversation commands  
 export FEATURE_FLAG_DDD_COMMANDS_CONVERSATION=true
 railway restart
 ```
@@ -159,7 +151,6 @@ railway restart
 **Commands Affected:** activate, deactivate, reset, autorespond
 
 **Critical Monitoring:**
-
 - Channel activation state
 - Conversation tracking accuracy
 - Auto-response behavior
@@ -178,14 +169,12 @@ railway restart
 **Commands Affected:** add, remove, info, alias, list
 
 **Critical Monitoring:**
-
 - Data integrity checks
 - Personality creation/deletion
 - Alias management
 - Performance under load
 
 **Enhanced Safeguards:**
-
 - Hourly data backups during first 24 hours
 - Side-by-side comparison testing
 - Ready rollback at first sign of issues
@@ -206,7 +195,7 @@ railway restart
 
 // Error rate tracking
 {
-  "metric": "command_error_rate",
+  "metric": "command_error_rate", 
   "system": "ddd",
   "errors_per_hour": 0,
   "total_executions": 1547
@@ -239,11 +228,11 @@ curl https://your-bot-domain/health/commands
 
 ### Alert Thresholds
 
-| Metric          | Warning  | Critical  |
-| --------------- | -------- | --------- |
-| Error Rate      | > 0.1%   | > 1%      |
-| Response Time   | +20%     | +50%      |
-| Memory Usage    | +25%     | +50%      |
+| Metric | Warning | Critical |
+|--------|---------|----------|
+| Error Rate | > 0.1% | > 1% |
+| Response Time | +20% | +50% |
+| Memory Usage | +25% | +50% |
 | Failed Commands | > 5/hour | > 20/hour |
 
 ## Emergency Rollback Procedures
@@ -307,7 +296,7 @@ npm run test:data:integrity
 ### Manual Verification Checklist
 
 - [ ] Bot responds to basic commands
-- [ ] Help system shows all commands correctly
+- [ ] Help system shows all commands correctly  
 - [ ] Personality operations work correctly
 - [ ] Authentication flow intact
 - [ ] Error handling working properly
@@ -318,7 +307,6 @@ npm run test:data:integrity
 ### Deployment Announcement
 
 **Internal Team:**
-
 ```
 🚀 DDD Command System Deployment - Phase 4 Stage X
 
@@ -332,7 +320,6 @@ Next Update: [time]
 ```
 
 **User-Facing (if needed):**
-
 ```
 🔧 Brief maintenance in progress
 Some commands may have slightly different response times
@@ -360,20 +347,17 @@ Next Update: [time]
 ## Success Criteria
 
 ### Performance Targets
-
 - **Response Time**: ±10% of legacy baseline
 - **Memory Usage**: <20% increase
 - **Error Rate**: <0.1%
 - **Availability**: >99.9%
 
-### Functional Targets
-
+### Functional Targets  
 - **Feature Parity**: 100% - all legacy functionality preserved
 - **Data Integrity**: 100% - no data loss or corruption
 - **User Experience**: No breaking changes visible to users
 
 ### Quality Targets
-
 - **Monitoring Coverage**: 100% of critical paths
 - **Rollback Time**: <2 minutes for emergency
 - **Recovery Time**: <5 minutes for any stage
@@ -383,7 +367,6 @@ Next Update: [time]
 ### Common Issues
 
 **Issue: Commands not routing to DDD system**
-
 ```bash
 # Check feature flags
 curl https://your-bot-domain/health/features
@@ -396,7 +379,6 @@ node -e "console.log(require('./src/adapters/CommandIntegrationAdapter').shouldU
 ```
 
 **Issue: Higher memory usage than expected**
-
 ```bash
 # Profile memory usage
 node --inspect bot.js
@@ -407,7 +389,6 @@ npm run test:memory-leak
 ```
 
 **Issue: Data inconsistency**
-
 ```bash
 # Run data integrity check
 npm run check:data-integrity
@@ -421,6 +402,6 @@ npm run test:comparison-test
 
 ---
 
-_Production Deployment Runbook v1.0_
-_Created: June 14, 2025_
-_Next Review: After Stage 1 completion_
+*Production Deployment Runbook v1.0*
+*Created: June 14, 2025*
+*Next Review: After Stage 1 completion*

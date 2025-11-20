@@ -12,27 +12,24 @@ const IMPROVED_ASSERTION_PATTERN = {
     // Get the full line to check context
     const lines = fileContent.split('\n');
     const line = lines[lineNumber - 1] || '';
-
+    
     // Check if this is testing for throw behavior (which is valid)
-    const isThrowTest =
-      line.includes('.toThrow') ||
-      line.includes('.rejects') ||
-      lines[lineNumber]?.includes('.toThrow') ||
-      lines[lineNumber]?.includes('.rejects');
-
+    const isThrowTest = line.includes('.toThrow') || 
+                       line.includes('.rejects') ||
+                       lines[lineNumber]?.includes('.toThrow') ||
+                       lines[lineNumber]?.includes('.rejects');
+    
     // Check if this is testing value object/domain model validation (valid pattern)
-    const isDomainValidation =
-      fileContent.includes('domain/') &&
-      (fileContent.includes('ValueObject') ||
-        fileContent.includes('DomainEvent') ||
-        fileContent.includes('Aggregate'));
-
+    const isDomainValidation = fileContent.includes('domain/') && 
+                              (fileContent.includes('ValueObject') || 
+                               fileContent.includes('DomainEvent') ||
+                               fileContent.includes('Aggregate'));
+    
     // Only flag if it's NOT a throw test AND NOT domain validation
     return !isThrowTest && (!isDomainValidation || !line.includes('Error'));
   },
-  message:
-    'Testing function directly. Test what the function does instead. (Exception: testing throw behavior)',
-  severity: 'warning',
+  message: 'Testing function directly. Test what the function does instead. (Exception: testing throw behavior)',
+  severity: 'warning'
 };
 
 // Example of how to integrate this into the existing check-test-antipatterns.js
@@ -79,16 +76,16 @@ const DOMAIN_FRIENDLY_PATTERNS = {
     pattern: /expect\s*\(\s*\(\s*\)\s*=>\s*new\s+\w+\([^)]*\)\s*\)\.toThrow/g,
     check: () => false, // Never flag this - it's valid
     message: 'Valid throw test pattern',
-    severity: 'none',
+    severity: 'none'
   },
-
+  
   // Pattern for value object validation
   valueObjectValidation: {
     pattern: /expect\s*\(\s*\(\s*\)\s*=>\s*new\s+\w+\([^)]*\)\s*\)\.toThrow\(['"`][\w\s]+['"`]\)/g,
     check: () => false, // This is how we test value object validation
     message: 'Valid value object validation test',
-    severity: 'none',
-  },
+    severity: 'none'
+  }
 };
 
 console.log(`

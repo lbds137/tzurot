@@ -14,7 +14,6 @@ The DDD system is fully built and tested but **NOT ACTIVE**. This guide explains
 ## Feature Flag Reference
 
 ### Global Flags
-
 ```bash
 FEATURE_FLAG_DDD_COMMANDS_ENABLED=true      # Enable DDD command system
 FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=true  # Enable routing to DDD
@@ -22,7 +21,6 @@ FEATURE_FLAG_DDD_EVENTS_ENABLED=true        # Enable domain events
 ```
 
 ### Category Flags
-
 ```bash
 FEATURE_FLAG_DDD_COMMANDS_UTILITY=true       # ping, help, status, debug, etc.
 FEATURE_FLAG_DDD_COMMANDS_PERSONALITY=true   # add, remove, info, alias, list
@@ -31,7 +29,6 @@ FEATURE_FLAG_DDD_COMMANDS_AUTHENTICATION=true # auth, verify
 ```
 
 ### Safety Flags
-
 ```bash
 FEATURE_FLAG_DDD_COMMANDS_FALLBACK_ON_ERROR=true  # Fallback to legacy on error
 ```
@@ -39,7 +36,6 @@ FEATURE_FLAG_DDD_COMMANDS_FALLBACK_ON_ERROR=true  # Fallback to legacy on error
 ## Recommended Enablement Strategy
 
 ### Phase 1: Development Testing (Week 1)
-
 Enable in development environment first:
 
 ```bash
@@ -51,7 +47,6 @@ FEATURE_FLAG_DDD_COMMANDS_FALLBACK_ON_ERROR=true
 ```
 
 Test thoroughly:
-
 - Run `!tz ping`, `!tz help`, `!tz status`
 - Check logs for routing decisions
 - Verify responses match legacy
@@ -59,7 +54,6 @@ Test thoroughly:
 ### Phase 2: Gradual Production Rollout (Week 2-3)
 
 #### Day 1-2: Utility Commands
-
 ```bash
 # Enable only utility commands
 FEATURE_FLAG_DDD_COMMANDS_ENABLED=true
@@ -68,33 +62,28 @@ FEATURE_FLAG_DDD_COMMANDS_UTILITY=true
 ```
 
 Monitor:
-
 - Error rates
 - Response times
 - User feedback
 
 #### Day 3-5: Personality Commands
-
 ```bash
 # Add personality commands
 FEATURE_FLAG_DDD_COMMANDS_PERSONALITY=true
 ```
 
 Test:
-
 - `!tz add`, `!tz remove`, `!tz list`
 - Verify data persistence
 - Check webhook creation
 
 #### Day 6-7: Conversation Commands
-
 ```bash
 # Add conversation commands
 FEATURE_FLAG_DDD_COMMANDS_CONVERSATION=true
 ```
 
 #### Day 8-9: Authentication Commands
-
 ```bash
 # Add auth commands (most sensitive)
 FEATURE_FLAG_DDD_COMMANDS_AUTHENTICATION=true
@@ -103,13 +92,11 @@ FEATURE_FLAG_DDD_COMMANDS_AUTHENTICATION=true
 ### Phase 3: Full Cutover (Week 4)
 
 1. **Disable Fallback**:
-
    ```bash
    FEATURE_FLAG_DDD_COMMANDS_FALLBACK_ON_ERROR=false
    ```
 
 2. **Enable Events**:
-
    ```bash
    FEATURE_FLAG_DDD_EVENTS_ENABLED=true
    ```
@@ -149,14 +136,12 @@ FEATURE_FLAG_DDD_COMMANDS_AUTHENTICATION=true
 If issues arise at any stage:
 
 1. **Immediate Rollback** (< 1 minute):
-
    ```bash
    # Set all DDD flags to false
    FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=false
    ```
 
 2. **Restart Bot**:
-
    ```bash
    # Your deployment restart command
    ```
@@ -179,19 +164,16 @@ Before each phase:
 ## Common Issues and Solutions
 
 ### Issue: Commands not routing to DDD
-
 - Check: Is `FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=true`?
 - Check: Is the specific category flag enabled?
 - Check: Are there initialization errors in logs?
 
 ### Issue: DDD commands failing
-
 - Check: Is fallback enabled?
 - Check: Are all required services initialized?
 - Check: Database/file permissions correct?
 
 ### Issue: Performance degradation
-
 - Check: Event system causing delays?
 - Check: Additional logging overhead?
 - Check: Memory leaks in new system?

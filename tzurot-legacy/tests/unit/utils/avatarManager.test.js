@@ -289,7 +289,7 @@ describe('Avatar Manager', () => {
       urlValidator.isTrustedDomain.mockReturnValue(false); // Not a trusted domain, so it will check isImageUrl
       urlValidator.hasImageExtension.mockReturnValue(true); // Has image extension
       urlValidator.isImageUrl.mockResolvedValue(true); // Valid image URL
-
+      
       // Mock fetch for warmup
       fetch.mockResolvedValue({
         ok: true,

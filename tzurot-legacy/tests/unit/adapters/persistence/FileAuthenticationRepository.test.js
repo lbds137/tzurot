@@ -68,7 +68,7 @@ describe('FileAuthenticationRepository', () => {
       filename: 'test-auth.json',
       tokenCleanupInterval: 1000, // 1 second for testing
       setInterval: jest.fn((fn, ms) => setInterval(fn, ms)),
-      clearInterval: jest.fn(id => clearInterval(id)),
+      clearInterval: jest.fn((id) => clearInterval(id)),
     });
   });
 
@@ -96,10 +96,7 @@ describe('FileAuthenticationRepository', () => {
 
       await repository.initialize();
 
-      expect(fs.readFile).toHaveBeenCalledWith(
-        path.join('./test-data', 'auth_tokens.json'),
-        'utf8'
-      );
+      expect(fs.readFile).toHaveBeenCalledWith(path.join('./test-data', 'auth_tokens.json'), 'utf8');
       expect(fs.readFile).toHaveBeenCalledWith(path.join('./test-data', 'test-auth.json'), 'utf8');
       // Cache should have the user data
       expect(repository._cache['123456789012345678']).toBeDefined();
@@ -142,7 +139,7 @@ describe('FileAuthenticationRepository', () => {
       // Token cleanup no longer removes expired tokens - domain logic handles expiry
       expect(repository._cache['123456789012345678'].token).toEqual({
         value: 'expired-token',
-        expiresAt: new Date(Date.now() - 1000).toISOString(),
+        expiresAt: new Date(Date.now() - 1000).toISOString()
       });
     });
 
@@ -155,9 +152,7 @@ describe('FileAuthenticationRepository', () => {
     it('should throw error for other file read errors', async () => {
       fs.readFile.mockRejectedValue(new Error('Read error'));
 
-      await expect(repository.initialize()).rejects.toThrow(
-        'Failed to initialize repository: Read error'
-      );
+      await expect(repository.initialize()).rejects.toThrow('Failed to initialize repository: Read error');
     });
 
     it('should not reinitialize if already initialized', async () => {
@@ -248,9 +243,7 @@ describe('FileAuthenticationRepository', () => {
       const token = new Token('new-token', null);
       const userAuth = UserAuth.createAuthenticated(userId, token);
 
-      await expect(repository.save(userAuth)).rejects.toThrow(
-        'Failed to save user auth: Failed to persist data: Write error'
-      );
+      await expect(repository.save(userAuth)).rejects.toThrow('Failed to save user auth: Failed to persist data: Write error');
     });
 
     it('should initialize if not already initialized', async () => {
@@ -400,12 +393,13 @@ describe('FileAuthenticationRepository', () => {
 
     it('should return 0 if no users', async () => {
       repository._cache = {};
-
+      
       const count = await repository.countAuthenticated();
 
       expect(count).toBe(0);
     });
   });
+
 
   describe('findExpiredTokens', () => {
     beforeEach(async () => {
@@ -447,7 +441,7 @@ describe('FileAuthenticationRepository', () => {
         .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
         .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
-
+      
       const data = {
         userId: '123456789012345678',
         token: { value: 'test-token', expiresAt: null },
@@ -468,7 +462,7 @@ describe('FileAuthenticationRepository', () => {
         .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
         .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
-
+      
       const userAuth = repository._hydrate({ userId: null }); // Missing required fields
 
       expect(userAuth).toBeNull();
@@ -479,7 +473,7 @@ describe('FileAuthenticationRepository', () => {
         .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
         .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
-
+      
       const data = {
         userId: '123456789012345678',
         token: { value: 'test-token', expiresAt: null },
@@ -512,10 +506,7 @@ describe('FileAuthenticationRepository', () => {
         JSON.stringify({ test: 'data' }, null, 2),
         'utf8'
       );
-      expect(fs.rename).toHaveBeenCalledWith(
-        'test-data/test-auth.json.tmp',
-        'test-data/test-auth.json'
-      );
+      expect(fs.rename).toHaveBeenCalledWith('test-data/test-auth.json.tmp', 'test-data/test-auth.json');
     });
 
     it('should format JSON with indentation', async () => {
@@ -523,11 +514,7 @@ describe('FileAuthenticationRepository', () => {
       await repository._persist();
 
       const expectedJson = JSON.stringify({ test: { nested: 'data' } }, null, 2);
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        'test-data/test-auth.json.tmp',
-        expectedJson,
-        'utf8'
-      );
+      expect(fs.writeFile).toHaveBeenCalledWith('test-data/test-auth.json.tmp', expectedJson, 'utf8');
     });
 
     it('should throw specific error on failure', async () => {
