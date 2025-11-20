@@ -157,8 +157,18 @@ export function createAdminRouter(
         return sendError(res, traitsValidation.error);
       }
 
+      // After validation, we know these values are defined
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const validatedName = name!;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const validatedSlug = slug!;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const validatedCharacterInfo = characterInfo!;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const validatedTraits = personalityTraits!;
+
       // Validate slug format
-      const slugFormatValidation = validateSlug(slug!);
+      const slugFormatValidation = validateSlug(validatedSlug);
       if (!slugFormatValidation.valid) {
         return sendError(res, slugFormatValidation.error);
       }
@@ -171,13 +181,13 @@ export function createAdminRouter(
 
       // Check if personality already exists
       const existing = await prisma.personality.findUnique({
-        where: { slug },
+        where: { slug: validatedSlug },
       });
 
       if (existing !== null) {
         return sendError(
           res,
-          ErrorResponses.conflict(`A personality with slug '${slug}' already exists`)
+          ErrorResponses.conflict(`A personality with slug '${validatedSlug}' already exists`)
         );
       }
 
@@ -185,7 +195,7 @@ export function createAdminRouter(
       let processedAvatarData: Buffer | undefined;
       if (avatarData !== undefined && avatarData.length > 0) {
         try {
-          logger.info(`[Admin] Processing avatar for personality: ${slug}`);
+          logger.info(`[Admin] Processing avatar for personality: ${validatedSlug}`);
 
           const result = await optimizeAvatar(avatarData);
 
@@ -215,11 +225,11 @@ export function createAdminRouter(
       // Create personality in database
       const personality = await prisma.personality.create({
         data: {
-          name: name!,
-          slug: slug!,
+          name: validatedName,
+          slug: validatedSlug,
           displayName: displayName ?? null,
-          characterInfo: characterInfo!,
-          personalityTraits: personalityTraits!,
+          characterInfo: validatedCharacterInfo,
+          personalityTraits: validatedTraits,
           personalityTone: personalityTone ?? null,
           personalityAge: personalityAge ?? null,
           personalityAppearance: personalityAppearance ?? null,
@@ -237,7 +247,7 @@ export function createAdminRouter(
         },
       });
 
-      logger.info(`[Admin] Created personality: ${slug} (${personality.id})`);
+      logger.info(`[Admin] Created personality: ${validatedSlug} (${personality.id})`);
 
       // Set default LLM config (find global default config)
       try {
@@ -255,7 +265,9 @@ export function createAdminRouter(
               llmConfigId: defaultLlmConfig.id,
             },
           });
-          logger.info(`[Admin] Set default LLM config for ${slug}: ${defaultLlmConfig.name}`);
+          logger.info(
+            `[Admin] Set default LLM config for ${validatedSlug}: ${defaultLlmConfig.name}`
+          );
         } else {
           logger.warn(
             {},
