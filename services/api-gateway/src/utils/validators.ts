@@ -9,9 +9,7 @@ import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 /**
  * Validation result structure (discriminated union)
  */
-export type ValidationResult =
-  | { valid: true }
-  | { valid: false; error: ErrorResponse };
+export type ValidationResult = { valid: true } | { valid: false; error: ErrorResponse };
 
 /**
  * Validates a personality slug format
