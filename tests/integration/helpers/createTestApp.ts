@@ -5,11 +5,10 @@
 
 import express, { type Express } from 'express';
 import type { PrismaClient } from '@prisma/client';
+import type { Queue } from 'bullmq';
 import { PersonalityService } from '@tzurot/common-types';
-
-// Import route creators - we'll need to mock some dependencies
-type AIRouter = ReturnType<typeof import('../../../services/api-gateway/src/routes/ai/index.js').createAIRouter>;
-type AdminRouter = ReturnType<typeof import('../../../services/api-gateway/src/routes/admin/index.js').createAdminRouter>;
+import type { RequestDeduplicationCache } from '../../../services/api-gateway/src/utils/RequestDeduplicationCache.js';
+import type { CacheInvalidationService } from '../../../services/api-gateway/src/services/CacheInvalidationService.js';
 
 export interface TestAppDependencies {
   prisma: PrismaClient;
@@ -29,22 +28,31 @@ export async function createTestApp(deps: TestAppDependencies): Promise<Express>
 
   // Import and mount routers dynamically
   const { createAIRouter } = await import('../../../services/api-gateway/src/routes/ai/index.js');
-  const { createAdminRouter } = await import('../../../services/api-gateway/src/routes/admin/index.js');
+  const { createAdminRouter } = await import(
+    '../../../services/api-gateway/src/routes/admin/index.js'
+  );
 
   // Create routers with dependencies
   // Note: Some routes may require additional dependencies (queue, redis, etc.)
   // For now, we'll test what we can with minimal setup
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const aiRouter = createAIRouter({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     personalityService: deps.personalityService,
-    queue: null as any, // Mock or skip queue-dependent tests
-    deduplicationCache: null as any,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    queue: null as unknown as Queue, // Mock or skip queue-dependent tests
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    deduplicationCache: null as unknown as RequestDeduplicationCache,
     prisma: deps.prisma,
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const adminRouter = createAdminRouter({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     personalityService: deps.personalityService,
     prisma: deps.prisma,
-    cacheInvalidationService: null as any, // Will skip cache-dependent tests
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    cacheInvalidationService: null as unknown as CacheInvalidationService, // Will skip cache-dependent tests
   });
 
   // Mount routers

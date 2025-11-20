@@ -21,6 +21,7 @@ import {
   AI_DEFAULTS,
   TEXT_LIMITS,
   AttachmentType,
+  ERROR_MESSAGES,
   type LoadedPersonality,
   type AttachmentMetadata,
   type ReferencedMessage,
@@ -272,6 +273,16 @@ export class ConversationalRAGService {
       );
 
       const rawContent = response.content as string;
+
+      // Check for censored response (Gemini models sometimes return just "ext")
+      // Treat this as a retryable error - it may succeed on retry
+      if (rawContent.trim() === ERROR_MESSAGES.CENSORED_RESPONSE_TEXT) {
+        logger.warn(
+          { model: modelName, personality: personality.name },
+          '[RAG] LLM censored response - throwing retryable error'
+        );
+        throw new Error(ERROR_MESSAGES.CENSORED_RESPONSE);
+      }
 
       // Strip personality prefix if model ignored prompt instructions
       // This ensures both Discord display AND storage are clean
