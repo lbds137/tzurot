@@ -41,3 +41,4 @@ export * from './services/PersonalityService.js';
 export * from './services/ConversationHistoryService.js';
 export * from './services/UserService.js';
 export * from './services/CacheInvalidationService.js';
+export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';

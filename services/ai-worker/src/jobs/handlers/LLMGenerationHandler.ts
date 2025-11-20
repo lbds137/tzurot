@@ -63,7 +63,7 @@ export class LLMGenerationHandler {
     );
 
     // Fetch dependency results from Redis
-    const { getJobResult } = await import('../../redis.js');
+    const { redisService } = await import('../../redis.js');
 
     // Collect all audio transcriptions
     const transcriptions: string[] = [];
@@ -76,7 +76,7 @@ export class LLMGenerationHandler {
         const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
 
         if ((dep.type as string) === 'audio-transcription') {
-          const result = await getJobResult<AudioTranscriptionResult>(key);
+          const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
           if (
             result?.success === true &&
             result.content !== undefined &&
@@ -94,7 +94,7 @@ export class LLMGenerationHandler {
             );
           }
         } else if ((dep.type as string) === 'image-description') {
-          const result = await getJobResult<ImageDescriptionResult>(key);
+          const result = await redisService.getJobResult<ImageDescriptionResult>(key);
           if (
             result?.success === true &&
             result.descriptions !== undefined &&

@@ -8,7 +8,7 @@
 import type { Message } from 'discord.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { preserveCodeBlocks, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
-import { storeVoiceTranscript } from '../redis.js';
+import { voiceTranscriptCache } from '../redis.js';
 
 const logger = createLogger('VoiceTranscriptionService');
 
@@ -95,7 +95,7 @@ export class VoiceTranscriptionService {
       // Key by attachment URL with 5 min TTL (long enough for personality processing)
       const voiceAttachment = attachments[0]; // We know there's at least one
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
-        await storeVoiceTranscript(voiceAttachment.url, response.content);
+        await voiceTranscriptCache.store(voiceAttachment.url, response.content);
         logger.debug(
           `[VoiceTranscriptionService] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
         );

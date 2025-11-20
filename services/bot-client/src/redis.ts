@@ -1,8 +1,7 @@
 /**
  * Redis Client for Bot
  *
- * Handles persistent storage for webhook message tracking.
- * Allows reply routing to survive bot restarts.
+ * Exports singleton RedisService and VoiceTranscriptCache instances.
  */
 
 import { createClient, type RedisClientType } from 'redis';
@@ -11,9 +10,9 @@ import {
   getConfig,
   parseRedisUrl,
   createRedisSocketConfig,
-  REDIS_KEY_PREFIXES,
-  INTERVALS,
+  VoiceTranscriptCache,
 } from '@tzurot/common-types';
+import { RedisService } from './services/RedisService.js';
 
 const logger = createLogger('Redis');
 const config = getConfig();
@@ -45,7 +44,7 @@ logger.info(
 );
 
 // Create Redis client with explicit type
-export const redis: RedisClientType = createClient(redisConfig) as RedisClientType;
+const redis: RedisClientType = createClient(redisConfig) as RedisClientType;
 
 // Error handling
 redis.on('error', error => {
@@ -69,108 +68,13 @@ redis.connect().catch(error => {
   logger.error({ err: error }, '[Redis] Failed to connect to Redis');
 });
 
-/**
- * Store webhook message -> personality mapping
- * @param messageId Discord message ID
- * @param personalityName Personality name
- * @param ttlSeconds Time to live in seconds (default: 7 days)
- */
-export async function storeWebhookMessage(
-  messageId: string,
-  personalityName: string,
-  ttlSeconds: number = INTERVALS.WEBHOOK_MESSAGE_TTL
-): Promise<void> {
-  try {
-    await redis.setEx(
-      `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`,
-      ttlSeconds,
-      personalityName
-    );
-    logger.debug(`[Redis] Stored webhook message: ${messageId} -> ${personalityName}`);
-  } catch (error) {
-    logger.error({ err: error }, `[Redis] Failed to store webhook message: ${messageId}`);
-  }
-}
+// Export singleton RedisService instance
+export const redisService = new RedisService(redis);
 
-/**
- * Get personality name from webhook message ID
- * @param messageId Discord message ID
- * @returns Personality name or null if not found
- */
-export async function getWebhookPersonality(messageId: string): Promise<string | null> {
-  try {
-    const personalityName = await redis.get(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`);
-    if (personalityName !== undefined && personalityName !== null && personalityName.length > 0) {
-      logger.debug(`[Redis] Retrieved webhook message: ${messageId} -> ${personalityName}`);
-    }
-    return personalityName;
-  } catch (error) {
-    logger.error({ err: error }, `[Redis] Failed to get webhook message: ${messageId}`);
-    return null;
-  }
-}
+// Export singleton VoiceTranscriptCache instance
+export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
 
-/**
- * Store voice transcript cache
- * @param attachmentUrl Discord CDN attachment URL
- * @param transcript Transcribed text
- * @param ttlSeconds Time to live in seconds (default: 5 minutes)
- */
-export async function storeVoiceTranscript(
-  attachmentUrl: string,
-  transcript: string,
-  ttlSeconds: number = INTERVALS.VOICE_TRANSCRIPT_TTL
-): Promise<void> {
-  try {
-    await redis.setEx(
-      `${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`,
-      ttlSeconds,
-      transcript
-    );
-    logger.debug(`[Redis] Stored voice transcript cache for: ${attachmentUrl.substring(0, 50)}...`);
-  } catch (error) {
-    logger.error({ err: error }, '[Redis] Failed to store voice transcript');
-  }
-}
-
-/**
- * Get cached voice transcript
- * @param attachmentUrl Discord CDN attachment URL
- * @returns Transcript text or null if not found
- */
-export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
-  try {
-    const transcript = await redis.get(`${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`);
-    if (transcript !== undefined && transcript !== null && transcript.length > 0) {
-      logger.debug(
-        `[Redis] Retrieved cached voice transcript for: ${attachmentUrl.substring(0, 50)}...`
-      );
-    }
-    return transcript;
-  } catch (error) {
-    logger.error({ err: error }, '[Redis] Failed to get voice transcript');
-    return null;
-  }
-}
-
-/**
- * Health check
- */
-export async function checkRedisHealth(): Promise<boolean> {
-  try {
-    await redis.ping();
-    return true;
-  } catch (error) {
-    logger.error({ err: error }, '[Redis] Health check failed');
-    return false;
-  }
-}
-
-/**
- * Graceful shutdown
- */
+// Export close function for graceful shutdown
 export async function closeRedis(): Promise<void> {
-  logger.info('[Redis] Closing Redis connection...');
-  await redis.close();
-  logger.info('[Redis] Redis connection closed');
+  await redisService.close();
 }

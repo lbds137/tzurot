@@ -18,7 +18,10 @@ const mockGetMessageByDiscordId = vi.fn();
 
 // Mock Redis
 vi.mock('../redis.js', () => ({
-  getVoiceTranscript: vi.fn(),
+  voiceTranscriptCache: {
+    store: vi.fn(),
+    get: vi.fn(),
+  },
 }));
 
 // Mock the logger and ConversationHistoryService
@@ -38,7 +41,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { getVoiceTranscript } from '../redis.js';
+import { voiceTranscriptCache } from '../redis.js';
 import { ConversationHistoryService } from '@tzurot/common-types';
 
 describe('MessageReferenceExtractor', () => {
@@ -1100,7 +1103,7 @@ describe('MessageReferenceExtractor', () => {
       const transcript = 'This is the transcribed voice message';
 
       // Mock Redis cache hit
-      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(transcript);
+      (voiceTranscriptCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(transcript);
 
       const referencedChannel = createConfiguredChannel({});
       const referencedMessage = createMockMessage({
@@ -1142,7 +1145,7 @@ describe('MessageReferenceExtractor', () => {
 
       expect(references).toHaveLength(1);
       expect(references[0].content).toBe(`[Voice transcript]: ${transcript}`);
-      expect(getVoiceTranscript).toHaveBeenCalledWith(voiceAttachmentUrl);
+      expect(voiceTranscriptCache.get).toHaveBeenCalledWith(voiceAttachmentUrl);
     });
 
     it('should include voice transcript from database when Redis cache expired', async () => {
@@ -1150,7 +1153,7 @@ describe('MessageReferenceExtractor', () => {
       const dbTranscript = 'This is the database-stored transcript';
 
       // Mock Redis cache miss
-      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (voiceTranscriptCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       // Mock database hit using shared mock
       mockGetMessageByDiscordId.mockResolvedValue({
@@ -1199,7 +1202,7 @@ describe('MessageReferenceExtractor', () => {
 
       expect(references).toHaveLength(1);
       expect(references[0].content).toBe(`[Voice transcript]: ${dbTranscript}`);
-      expect(getVoiceTranscript).toHaveBeenCalledWith(voiceAttachmentUrl);
+      expect(voiceTranscriptCache.get).toHaveBeenCalledWith(voiceAttachmentUrl);
       expect(mockGetMessageByDiscordId).toHaveBeenCalledWith('voice-msg-456');
     });
 
@@ -1207,7 +1210,7 @@ describe('MessageReferenceExtractor', () => {
       const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
 
       // Mock both Redis and database miss
-      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (voiceTranscriptCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockGetMessageByDiscordId.mockResolvedValue(null);
 
       const referencedChannel = createConfiguredChannel({});
@@ -1259,7 +1262,7 @@ describe('MessageReferenceExtractor', () => {
       const voiceAttachmentUrl = 'https://cdn.discord.com/attachments/123/456/voice.ogg';
       const transcript = 'Voice message transcript';
 
-      (getVoiceTranscript as ReturnType<typeof vi.fn>).mockResolvedValue(transcript);
+      (voiceTranscriptCache.get as ReturnType<typeof vi.fn>).mockResolvedValue(transcript);
 
       const referencedChannel = createConfiguredChannel({});
       const referencedMessage = createMockMessage({
@@ -1309,7 +1312,7 @@ describe('MessageReferenceExtractor', () => {
       const transcript1 = 'First voice message';
       const transcript2 = 'Second voice message';
 
-      (getVoiceTranscript as ReturnType<typeof vi.fn>)
+      (voiceTranscriptCache.get as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(transcript1)
         .mockResolvedValueOnce(transcript2);
 
@@ -1407,8 +1410,8 @@ describe('MessageReferenceExtractor', () => {
 
       expect(references).toHaveLength(1);
       expect(references[0].content).toBe('Music file');
-      // Should not have called getVoiceTranscript for non-voice audio
-      expect(getVoiceTranscript).not.toHaveBeenCalled();
+      // Should not have called voiceTranscriptCache.get for non-voice audio
+      expect(voiceTranscriptCache.get).not.toHaveBeenCalled();
     });
   });
 });

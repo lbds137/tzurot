@@ -9,7 +9,7 @@ import type { Message } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import { getWebhookPersonality } from '../redis.js';
+import { redisService } from '../redis.js';
 
 const logger = createLogger('ReplyResolutionService');
 
@@ -68,7 +68,7 @@ export class ReplyResolutionService {
       }
 
       // Try Redis lookup first (fast path for recent messages)
-      let personalityName = await getWebhookPersonality(referencedMessage.id);
+      let personalityName = await redisService.getWebhookPersonality(referencedMessage.id);
 
       // Fallback: Parse webhook username if Redis lookup fails
       if (
