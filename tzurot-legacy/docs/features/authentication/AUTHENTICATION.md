@@ -76,7 +76,6 @@ Bot: "Authentication successful!"
 ### 2. Automatic Message Deletion
 
 Messages containing authorization codes in public channels are:
-
 - Detected immediately
 - Deleted within milliseconds
 - Replaced with security reminder
@@ -101,11 +100,11 @@ Messages containing authorization codes in public channels are:
 
 ```javascript
 // Key functions
-startAuthProcess(userId); // Generates auth URL
-submitAuthCode(userId, code); // Exchanges code for token
-isAuthenticated(userId); // Checks auth status
-getAuthToken(userId); // Retrieves valid token
-revokeAuth(userId); // Removes authorization
+startAuthProcess(userId)     // Generates auth URL
+submitAuthCode(userId, code) // Exchanges code for token
+isAuthenticated(userId)      // Checks auth status
+getAuthToken(userId)         // Retrieves valid token
+revokeAuth(userId)          // Removes authorization
 ```
 
 ### Data Structure
@@ -113,11 +112,11 @@ revokeAuth(userId); // Removes authorization
 ```javascript
 // Token storage format
 authTokens = {
-  userId: {
-    token: 'encrypted_token_string',
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-  },
-};
+  "userId": {
+    token: "encrypted_token_string",
+    expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000)
+  }
+}
 ```
 
 ### Integration Points
@@ -178,7 +177,6 @@ if (tokenData.expiresAt < Date.now()) {
 Begins the authentication process.
 
 **Response:**
-
 ```
 To authenticate with the AI service:
 1. Visit this URL: https://service.example.com/auth?client_id=...
@@ -192,7 +190,6 @@ To authenticate with the AI service:
 Submits authorization code (DM only).
 
 **Security:**
-
 - Public channel messages deleted
 - Code validated before exchange
 - Success/failure reported
@@ -202,7 +199,6 @@ Submits authorization code (DM only).
 Checks current authentication status.
 
 **Response Examples:**
-
 ```
 ✅ Authenticated (expires in 25 days)
 ❌ Not authenticated
@@ -214,7 +210,6 @@ Checks current authentication status.
 Removes stored authentication.
 
 **Response:**
-
 ```
 Your authentication has been revoked successfully.
 ```
@@ -224,19 +219,16 @@ Your authentication has been revoked successfully.
 ### Common Errors
 
 1. **Invalid Authorization Code**
-
    ```
    Error: Invalid authorization code. Please try again.
    ```
 
 2. **Expired Token**
-
    ```
    Error: Your authentication has expired. Please re-authenticate with !tz auth start
    ```
 
 3. **No Authentication**
-
    ```
    Error: You need to authenticate first. Use !tz auth start
    ```
@@ -285,17 +277,15 @@ Your authentication has been revoked successfully.
 ### For Developers
 
 1. **Never log tokens**
-
    ```javascript
    // Bad
    logger.info(`Token: ${token}`);
-
+   
    // Good
    logger.info('Token validation successful');
    ```
 
 2. **Always validate expiration**
-
    ```javascript
    if (!tokenData || tokenData.expiresAt < Date.now()) {
      throw new Error('Invalid or expired token');
@@ -303,7 +293,6 @@ Your authentication has been revoked successfully.
    ```
 
 3. **Handle errors gracefully**
-
    ```javascript
    try {
      const token = await getAuthToken(userId);
@@ -366,7 +355,6 @@ Your authentication has been revoked successfully.
 ### Manual Testing
 
 1. **Happy Path**
-
    ```
    1. Run !tz auth start
    2. Visit URL
@@ -385,7 +373,6 @@ Your authentication has been revoked successfully.
 ### Automated Testing
 
 See `tests/unit/auth.test.js` for comprehensive test coverage including:
-
 - Token lifecycle
 - Expiration handling
 - Error scenarios

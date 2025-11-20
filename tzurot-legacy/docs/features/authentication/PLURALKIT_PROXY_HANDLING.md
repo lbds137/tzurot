@@ -15,7 +15,6 @@ We implemented a content-similarity based detection system with delayed processi
 ### 1. Content Similarity Detection
 
 We created a new utility module (`contentSimilarity.js`) that can:
-
 - Calculate the similarity between two message contents using Levenshtein distance
 - Determine if two messages are similar enough to be considered duplicates
 - Provide configuration for proxy message delay time
@@ -23,7 +22,6 @@ We created a new utility module (`contentSimilarity.js`) that can:
 ### 2. Message Tracking and History
 
 In bot.js, we implemented:
-
 - A `recentMessagesByChannel` map to track message history by channel
 - Functions to track messages and mark them as handled
 - A cleanup system to prevent memory issues
@@ -31,7 +29,6 @@ In bot.js, we implemented:
 ### 3. Delayed Processing for Server Personality Interactions
 
 For any message in a server that would trigger a personality response (mentions, active conversations, or activated channels):
-
 1. We track the message in the channel's history
 2. Check if a similar message was recently processed
 3. Add a delay before processing (configurable, default 2.5 seconds)
@@ -43,7 +40,6 @@ For any message in a server that would trigger a personality response (mentions,
 ### 4. Webhook Message Handling
 
 For webhook messages:
-
 1. We identify if they're from proxy systems like PluralKit
 2. Track them in the channel's message history
 3. Mark them as "handled" immediately to prevent duplicates
@@ -71,7 +67,6 @@ function getProxyDelayTime() {
 ### Bot.js Modifications
 
 1. **Message Tracking**:
-
 ```javascript
 function trackMessageInChannel(message) {
   // Track message in channel history
@@ -87,7 +82,6 @@ function hasSimilarRecentMessage(message) {
 ```
 
 2. **Delayed Processing for Server Interactions**:
-
 ```javascript
 // When any personality interaction is detected in a server (mentions, active conversations, activated channels)
 trackMessageInChannel(message);

@@ -37,6 +37,7 @@ jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   })),
 }));
 
+
 // Mock FeatureFlags module
 jest.mock('../../src/application/services/FeatureFlags', () => ({
   createFeatureFlags: jest.fn().mockReturnValue({
@@ -121,7 +122,7 @@ const { botPrefix } = require('../../config');
 describe('AI Service', () => {
   // Save original environment variables
   const originalEnv = process.env;
-
+  
   // Helper to create context with webhook bypass
   const createTestContext = (userId = 'user-123', channelId = 'channel-456') => ({
     userId,
@@ -129,8 +130,8 @@ describe('AI Service', () => {
     // Add webhook context to bypass authentication in tests
     message: {
       webhookId: 'test-webhook',
-      author: { username: 'TestWebhook' },
-    },
+      author: { username: 'TestWebhook' }
+    }
   });
 
   // Save original console methods
@@ -153,18 +154,18 @@ describe('AI Service', () => {
     // Clear all tracking maps
     pendingRequests.clear();
     errorBlackoutPeriods.clear();
-
+    
     // Set up default mock responses
     mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
       isAuthenticated: true,
-      user: {
+      user: { 
         nsfwStatus: { verified: true },
         token: {
-          value: 'mock-token',
-        },
-      },
+          value: 'mock-token'
+        }
+      }
     });
-
+    
     mockPersonalityApplicationService.getPersonality.mockResolvedValue({
       name: 'test-personality',
       profile: {
@@ -172,7 +173,7 @@ describe('AI Service', () => {
         displayName: 'Test Personality',
       },
     });
-
+    
     // Mock getAiClientForUser to return a valid client by default
     const openaiModule = require('openai');
     const OpenAI = openaiModule.OpenAI;
@@ -634,27 +635,27 @@ describe('AI Service', () => {
   // Integration test for getAiResponse function
   describe('getAiResponse', () => {
     let mockClient;
-
+    
     beforeEach(() => {
       // Reset DDD auth mock to ensure authentication passes
       mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
         isAuthenticated: true,
-        user: {
+        user: { 
           nsfwStatus: { verified: true },
           token: {
-            value: 'mock-token',
-          },
-        },
+            value: 'mock-token'
+          }
+        }
       });
-
+      
       // Ensure AI client is properly mocked
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       mockClient = new OpenAI();
-
+      
       // Mock createAIClient to return the mock client
       mockDDDAuthService.createAIClient.mockResolvedValue(mockClient);
-
+      
       // Reset the mock to return proper responses
       mockClient.chat.completions.create.mockResolvedValue({
         choices: [
@@ -665,7 +666,7 @@ describe('AI Service', () => {
           },
         ],
       });
-
+      
       // Legacy authManager removed - DDD authentication handles this
     });
 
@@ -882,16 +883,16 @@ describe('AI Service', () => {
 
       // Clear previous calls
       jest.clearAllMocks();
-
+      
       // Mock DDD auth to return authenticated user with token
       mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
         isAuthenticated: true,
-        user: { token: { value: 'test-token' }, nsfwStatus: { verified: true } },
+        user: { token: { value: 'test-token' }, nsfwStatus: { verified: true } }
       });
-
+      
       // Mock getAiClientForUser on the aiService module
       aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
-
+      
       mockClient.chat.completions.create.mockResolvedValue({
         choices: [
           {
@@ -944,6 +945,7 @@ describe('AI Service', () => {
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     });
 
+
     it('should bypass authentication for recognized webhook users', async () => {
       const context = {
         userId: 'webhook-user-123',
@@ -979,7 +981,7 @@ describe('AI Service', () => {
 
       const authError = new Error('Authentication required');
       mockClient.chat.completions.create.mockRejectedValue(authError);
-
+      
       // Mock getAiClientForUser on the aiService module
       aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
 
@@ -1011,7 +1013,7 @@ describe('AI Service', () => {
       const mockClient = new OpenAI();
 
       mockClient.chat.completions.create.mockRejectedValue(new Error('Test error'));
-
+      
       // Mock getAiClientForUser on the aiService module
       aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
 
@@ -1109,10 +1111,10 @@ describe('AI Service', () => {
       // Mock the DDD auth service to return authenticated user without token
       mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
         isAuthenticated: true,
-        user: {
-          nsfwStatus: { verified: true },
+        user: { 
+          nsfwStatus: { verified: true }
           // No token property - this will cause getAiClientForUser to return null
-        },
+        }
       });
 
       const response = await getAiResponse('test-personality', 'Hello', {
@@ -1121,8 +1123,8 @@ describe('AI Service', () => {
         // Add webhook context to bypass initial auth check
         message: {
           webhookId: 'test-webhook',
-          author: { username: 'TestWebhook' },
-        },
+          author: { username: 'TestWebhook' }
+        }
       });
 
       // When AI client is null due to missing token, the error is caught and returns auth error
@@ -1130,6 +1132,8 @@ describe('AI Service', () => {
         `BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`
       );
     });
+
+
 
     it('should handle invalid response structure', async () => {
       const personalityName = 'test-personality';
@@ -1154,9 +1158,7 @@ describe('AI Service', () => {
       // Should use personality error handler for invalid response
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(
-        /Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/
-      );
+      expect(response.content).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
 
     it('should handle non-string content from AI', async () => {

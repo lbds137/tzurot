@@ -9,14 +9,12 @@ The DDD implementation has **significant structural issues** including duplicate
 ### 1. Duplicate Class Names
 
 **PersonalityDataRepository** exists in TWO places with DIFFERENT implementations:
-
 ```
 src/domain/personality/PersonalityDataRepository.js       # Domain repository interface
 src/infrastructure/backup/PersonalityDataRepository.js    # Backup-specific implementation
 ```
 
 This is a **naming collision** that will cause:
-
 - Import confusion
 - Potential runtime errors
 - Maintenance nightmares
@@ -28,7 +26,6 @@ src/services/PersonalityDataService.js    # ❌ Wrong location!
 ```
 
 This service:
-
 - Lives outside the DDD structure
 - Uses forbidden singleton pattern
 - Imports from domain but isn't in application layer
@@ -41,7 +38,6 @@ Some components violate DDD boundaries by directly importing from incorrect laye
 ## 📁 Actual DDD Structure
 
 ### ✅ Correct DDD Directories
-
 ```
 src/
 ├── domain/              # ✅ Clean, no violations
@@ -68,7 +64,6 @@ src/
 ```
 
 ### ❌ Non-DDD Directories (Legacy)
-
 ```
 src/
 ├── services/           # ❌ PersonalityDataService.js should be in application/services
@@ -82,7 +77,6 @@ src/
 ## 🔍 Service Analysis
 
 ### Application Services (Correct Location)
-
 ```
 src/application/services/
 ├── AuthenticationApplicationService.js    ✅
@@ -93,7 +87,6 @@ src/application/services/
 ```
 
 ### Domain Services (Correct Location)
-
 ```
 src/domain/ai/AIService.js                 ✅ (interface only)
 src/domain/authentication/TokenService.js   ✅
@@ -101,7 +94,6 @@ src/domain/backup/BackupService.js         ✅
 ```
 
 ### Misplaced Services
-
 ```
 src/services/PersonalityDataService.js     ❌ Should be in application/services/
 src/aiService.js                           ❌ Legacy, not part of DDD
@@ -112,7 +104,6 @@ src/aiService.js                           ❌ Legacy, not part of DDD
 ### 1. Layer Dependencies
 
 **Correct Flow**:
-
 ```
 Domain → (nothing)
 Application → Domain
@@ -121,7 +112,6 @@ Infrastructure → Domain, Application
 ```
 
 **Violations Found**:
-
 - (PersonalityRouter has been removed)
 - BackupAPIClient (Infrastructure) → ApplicationBootstrap ❌
 
@@ -132,7 +122,7 @@ Infrastructure → Domain, Application
 let instance = null;
 class PersonalityDataService {
   constructor() {
-    if (instance) return instance; // ❌ Forbidden pattern!
+    if (instance) return instance;  // ❌ Forbidden pattern!
     instance = this;
   }
 }
@@ -141,25 +131,21 @@ class PersonalityDataService {
 ### 3. Repository Confusion
 
 Two different purposes, same name:
-
 - **Domain**: PersonalityDataRepository - For extended personality data
 - **Infrastructure**: PersonalityDataRepository - For backup operations
 
 ## 📊 Impact Assessment
 
 ### High Impact Issues
-
 1. **Name Collisions** - Will cause import errors
 2. **Service Misplacement** - Breaks architectural clarity
 3. **Boundary Violations** - Undermines DDD principles
 
 ### Medium Impact Issues
-
 1. **Singleton Usage** - Makes testing difficult
 2. **Inconsistent Naming** - Some use "ApplicationService" suffix, others don't
 
 ### Low Impact Issues
-
 1. **Bootstrap Imports** - Acceptable for wiring but should be minimized
 
 ## 🔧 Recommended Fixes
@@ -167,19 +153,17 @@ Two different purposes, same name:
 ### Immediate (High Priority)
 
 1. **Rename Duplicate Classes**
-
    ```bash
    # Option 1: Rename infrastructure version
    mv src/infrastructure/backup/PersonalityDataRepository.js \
       src/infrastructure/backup/BackupPersonalityRepository.js
-
+   
    # Option 2: Rename domain version
    mv src/domain/personality/PersonalityDataRepository.js \
       src/domain/personality/ExtendedPersonalityRepository.js
    ```
 
 2. **Move PersonalityDataService**
-
    ```bash
    mv src/services/PersonalityDataService.js \
       src/application/services/PersonalityDataApplicationService.js

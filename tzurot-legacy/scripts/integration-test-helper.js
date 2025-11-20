@@ -40,7 +40,7 @@ function extractCommandTests(content) {
   const commandSections = content.split(/####\s+\d+\.\s+/);
   const commands = [];
 
-  commandSections.slice(1).forEach(section => {
+  commandSections.slice(1).forEach((section) => {
     const lines = section.split('\n');
     const commandMatch = lines[0].match(/(.+?)\s+\(`(.+?)`\)/);
     if (commandMatch) {
@@ -48,7 +48,7 @@ function extractCommandTests(content) {
       const commandSyntax = commandMatch[2];
       const tests = [];
 
-      lines.forEach(line => {
+      lines.forEach((line) => {
         const testMatch = line.match(/- \[([ x])\] \*\*(.+?)\*\*: (.+)/i);
         if (testMatch) {
           tests.push({
@@ -63,7 +63,7 @@ function extractCommandTests(content) {
         name: commandName,
         syntax: commandSyntax,
         tests,
-        progress: tests.filter(t => t.checked).length,
+        progress: tests.filter((t) => t.checked).length,
         total: tests.length,
       });
     }
@@ -85,7 +85,7 @@ function generateReport() {
 
   console.log('\n📋 Command Testing Status:\n');
 
-  commands.forEach(cmd => {
+  commands.forEach((cmd) => {
     const cmdPercentage = cmd.total > 0 ? Math.round((cmd.progress / cmd.total) * 100) : 0;
     const statusColor = cmdPercentage === 100 ? GREEN : cmdPercentage > 0 ? YELLOW : RED;
     const status = cmdPercentage === 100 ? '✅' : cmdPercentage > 0 ? '🔄' : '❌';
@@ -96,8 +96,8 @@ function generateReport() {
     if (cmdPercentage > 0 && cmdPercentage < 100) {
       console.log('   Remaining:');
       cmd.tests
-        .filter(t => !t.checked)
-        .forEach(t => {
+        .filter((t) => !t.checked)
+        .forEach((t) => {
           console.log(`   - ${t.category}: ${t.description}`);
         });
     }
@@ -105,9 +105,9 @@ function generateReport() {
   });
 
   // Summary statistics
-  const completeCommands = commands.filter(c => c.progress === c.total).length;
-  const inProgressCommands = commands.filter(c => c.progress > 0 && c.progress < c.total).length;
-  const notStartedCommands = commands.filter(c => c.progress === 0).length;
+  const completeCommands = commands.filter((c) => c.progress === c.total).length;
+  const inProgressCommands = commands.filter((c) => c.progress > 0 && c.progress < c.total).length;
+  const notStartedCommands = commands.filter((c) => c.progress === 0).length;
 
   console.log('📈 Summary:');
   console.log(`${GREEN}✅ Complete: ${completeCommands} commands${RESET}`);
@@ -117,11 +117,11 @@ function generateReport() {
   // Next steps
   if (notStartedCommands > 0 || inProgressCommands > 0) {
     console.log('\n🎯 Next Steps:');
-    const nextCommand = commands.find(c => c.progress < c.total);
+    const nextCommand = commands.find((c) => c.progress < c.total);
     if (nextCommand) {
       console.log(`Test "${nextCommand.name}" command next:`);
       console.log(`Syntax: ${BLUE}${nextCommand.syntax}${RESET}`);
-      const nextTest = nextCommand.tests.find(t => !t.checked);
+      const nextTest = nextCommand.tests.find((t) => !t.checked);
       if (nextTest) {
         console.log(`Start with: ${nextTest.category} - ${nextTest.description}`);
       }

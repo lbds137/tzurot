@@ -45,7 +45,6 @@ This guide helps diagnose and resolve common issues with Tzurot. If you can't fi
 ### Bot Won't Start
 
 #### Symptoms
-
 - Bot process exits immediately
 - Error messages on startup
 - No "Bot is ready!" message
@@ -53,44 +52,39 @@ This guide helps diagnose and resolve common issues with Tzurot. If you can't fi
 #### Common Causes & Solutions
 
 1. **Missing Environment Variables**
-
    ```bash
    # Check if .env file exists
    ls -la .env
-
+   
    # Verify required variables are set
    grep -E "DISCORD_TOKEN|SERVICE_API_KEY" .env
    ```
-
+   
    **Solution**: Copy `.env.example` to `.env` and fill in all required values.
 
 2. **Invalid Discord Token**
-
    ```
    Error: An invalid token was provided.
    ```
-
-   **Solution**:
+   
+   **Solution**: 
    - Verify token in Discord Developer Portal
    - Regenerate token if compromised
    - Ensure no extra spaces or quotes in `.env`
 
 3. **Node.js Version**
-
    ```bash
    node --version  # Should be 16.0.0 or higher
    ```
-
+   
    **Solution**: Update Node.js to version 16 or higher.
 
 4. **Missing Dependencies**
-
    ```
    Error: Cannot find module 'discord.js'
    ```
-
+   
    **Solution**:
-
    ```bash
    npm install
    # or for production
@@ -100,7 +94,6 @@ This guide helps diagnose and resolve common issues with Tzurot. If you can't fi
 ### Bot Not Responding
 
 #### Symptoms
-
 - Bot shows as online but doesn't respond
 - Commands don't work
 - No reaction to mentions
@@ -108,7 +101,6 @@ This guide helps diagnose and resolve common issues with Tzurot. If you can't fi
 #### Diagnostic Steps
 
 1. **Check Bot Status**
-
    ```
    !tz ping
    !tz status
@@ -157,7 +149,6 @@ This guide helps diagnose and resolve common issues with Tzurot. If you can't fi
 #### Quick Checks
 
 1. **Correct Syntax**
-
    ```
    !tz help          # Should work
    !tzhelp           # Won't work (missing space)
@@ -175,13 +166,11 @@ This guide helps diagnose and resolve common issues with Tzurot. If you can't fi
 ### Permission Errors
 
 #### "Missing Permissions" Error
-
 ```
 Error: Missing Permissions - Manage Webhooks
 ```
 
 **Solution**:
-
 1. Go to Server Settings → Roles
 2. Find bot's role
 3. Enable required permissions:
@@ -190,13 +179,11 @@ Error: Missing Permissions - Manage Webhooks
    - Add Reactions (for confirmations)
 
 #### "Unauthorized" Error
-
 ```
 Error: You don't have permission to use this command
 ```
 
 **Solution**:
-
 - Check if command requires admin/moderator role
 - Verify your Discord permissions
 - Some commands are owner-only (BOT_OWNER_ID)
@@ -204,7 +191,6 @@ Error: You don't have permission to use this command
 ### Command Timeouts
 
 #### Symptoms
-
 - Commands take too long to respond
 - "This interaction failed" messages
 
@@ -216,7 +202,6 @@ Error: You don't have permission to use this command
    - Check service status page
 
 2. **Increase Timeouts**
-
    ```env
    API_TIMEOUT=60000  # 60 seconds
    ```
@@ -251,14 +236,12 @@ Error: You don't have permission to use this command
 #### Diagnostic Steps
 
 1. **Check Personality Status**
-
    ```
    !tz info personality-name
    !tz list
    ```
 
 2. **Verify Mention Format**
-
    ```
    @personality-alias Hello    # Correct
    @personality-alias Hello    # Wrong (double space)
@@ -297,13 +280,11 @@ Error: You don't have permission to use this command
 #### "Invalid authorization code"
 
 **Causes**:
-
 - Code expired (usually 10 minutes)
 - Code already used
 - Typed incorrectly
 
 **Solution**:
-
 1. Start fresh: `!tz auth start`
 2. Copy code exactly (no spaces)
 3. Submit quickly via DM
@@ -313,7 +294,6 @@ Error: You don't have permission to use this command
 **Security Feature**: Codes must be submitted in DMs
 
 **Solution**:
-
 1. Click bot's username
 2. Send direct message
 3. Use `!tz auth code YOUR_CODE`
@@ -321,7 +301,6 @@ Error: You don't have permission to use this command
 ### Token Expired
 
 #### Symptoms
-
 ```
 Error: Your authentication has expired
 ```
@@ -329,13 +308,11 @@ Error: Your authentication has expired
 #### Solution
 
 1. **Check Status**
-
    ```
    !tz auth status
    ```
 
 2. **Re-authenticate**
-
    ```
    !tz auth start
    # Follow the flow
@@ -355,7 +332,6 @@ Error: Your authentication has expired
    - Or add bot as friend
 
 2. **Code Format Issues**
-
    ```
    !tz auth code ABC123     # Correct
    !tz auth ABC123          # Wrong
@@ -373,7 +349,6 @@ Error: Your authentication has expired
 #### Error: "Missing Permissions"
 
 **Solution**:
-
 1. Grant "Manage Webhooks" permission to bot
 2. Check channel-specific permission overrides
 3. Verify channel webhook limit (10 per channel)
@@ -381,7 +356,6 @@ Error: Your authentication has expired
 #### Error: "Maximum number of webhooks reached"
 
 **Solution**:
-
 1. Check existing webhooks:
    - Channel Settings → Integrations → Webhooks
 2. Remove unused webhooks
@@ -390,7 +364,6 @@ Error: Your authentication has expired
 ### Messages Not Using Webhooks
 
 #### Symptoms
-
 - Personality messages show bot's name/avatar
 - Embed format instead of webhook
 
@@ -411,7 +384,6 @@ Error: Your authentication has expired
 ### Webhook Rate Limits
 
 #### Symptoms
-
 ```
 Error: You are being rate limited
 ```
@@ -435,7 +407,6 @@ Error: You are being rate limited
 ### Discord Connection Lost
 
 #### Symptoms
-
 - Bot shows as offline
 - "WebSocket connection closed" errors
 - Reconnection attempts in logs
@@ -443,7 +414,6 @@ Error: You are being rate limited
 #### Solutions
 
 1. **Network Issues**
-
    ```bash
    # Test connectivity
    ping discord.com
@@ -494,13 +464,11 @@ curl -X POST https://api.example.com/v1/chat/completions \
 #### Solutions
 
 1. **Increase Timeouts**
-
    ```env
    API_TIMEOUT=60000
    ```
 
 2. **Check Latency**
-
    ```bash
    ping api.example.com
    traceroute api.example.com
@@ -519,20 +487,18 @@ curl -X POST https://api.example.com/v1/chat/completions \
 #### Diagnostic Tools
 
 1. **Built-in Status**
-
    ```
    !tz status
    ```
 
 2. **System Tools**
-
    ```bash
    # Process memory
    ps aux | grep node
-
+   
    # System memory
    free -h
-
+   
    # Detailed view
    htop
    ```
@@ -579,7 +545,6 @@ curl -X POST https://api.example.com/v1/chat/completions \
 #### Diagnostic Steps
 
 1. **Check Logs**
-
    ```bash
    # Look for slow operations
    grep -i "slow\|delay\|timeout" logs/*.log
@@ -602,7 +567,6 @@ curl -X POST https://api.example.com/v1/chat/completions \
 #### Common Issues
 
 1. **Environment Setup**
-
    ```bash
    # Ensure test environment
    NODE_ENV=test npm test
@@ -649,7 +613,6 @@ npm run lint
 #### Common Patterns
 
 1. **Unused Variables**
-
    ```javascript
    // Use underscore prefix
    catch (_error) {
@@ -671,7 +634,6 @@ npm run lint
 #### Solutions
 
 1. **Install Dependencies**
-
    ```bash
    npm install
    rm -rf node_modules package-lock.json
@@ -679,11 +641,10 @@ npm run lint
    ```
 
 2. **Check Imports**
-
    ```javascript
    // Correct
    const { Client } = require('discord.js');
-
+   
    // Wrong
    const Client = require('discord.js');
    ```
@@ -691,8 +652,8 @@ npm run lint
 3. **File Paths**
    ```javascript
    // Use correct relative paths
-   require('./utils/logger'); // Same directory
-   require('../utils/logger'); // Parent directory
+   require('./utils/logger');     // Same directory
+   require('../utils/logger');    // Parent directory
    require('../../utils/logger'); // Two levels up
    ```
 
@@ -754,7 +715,6 @@ ERROR - Error conditions that need immediate attention
 ### Common Log Patterns
 
 1. **Successful Startup**
-
    ```
    INFO: Bot client initialized
    INFO: Connected to Discord as BotName#1234
@@ -762,7 +722,6 @@ ERROR - Error conditions that need immediate attention
    ```
 
 2. **API Errors**
-
    ```
    ERROR: AI Service API Error: 429 Too Many Requests
    WARN: Retrying API request in 5 seconds...
@@ -817,7 +776,6 @@ sudo nano /etc/logrotate.d/tzurot
 When reporting issues, include:
 
 1. **Environment Details**
-
    ```
    Node Version: 16.x.x
    OS: Ubuntu 20.04

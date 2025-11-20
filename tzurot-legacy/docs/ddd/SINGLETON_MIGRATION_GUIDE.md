@@ -3,7 +3,6 @@
 ## Quick Reference
 
 ### ❌ Don't Do This
-
 ```javascript
 // Creates instance on import
 const tracker = new MessageTracker();
@@ -11,12 +10,11 @@ module.exports = tracker;
 ```
 
 ### ✅ Do This Instead
-
 ```javascript
 // Option 1: Export class and factory
 module.exports = {
   MessageTracker,
-  create: deps => new MessageTracker(deps),
+  create: (deps) => new MessageTracker(deps)
 };
 
 // Option 2: Lazy getter
@@ -25,14 +23,13 @@ module.exports = {
   get instance() {
     if (!instance) instance = new MessageTracker();
     return instance;
-  },
+  }
 };
 ```
 
 ## Step-by-Step Migration
 
 ### 1. Find All Singletons
-
 ```bash
 npm run lint:antipatterns
 ```
@@ -40,16 +37,13 @@ npm run lint:antipatterns
 ### 2. For Each Singleton Module
 
 #### Step 1: Keep backward compatibility
-
 ```javascript
 // OLD: messageTracker.js
 const tracker = new MessageTracker();
 module.exports = tracker;
 
-// NEW: messageTracker.js
-class MessageTracker {
-  /* ... */
-}
+// NEW: messageTracker.js  
+class MessageTracker { /* ... */ }
 
 // Lazy singleton
 let instance;
@@ -61,11 +55,10 @@ function getInstance() {
 // Export both for migration
 module.exports = getInstance(); // Backward compatible
 module.exports.MessageTracker = MessageTracker;
-module.exports.create = deps => new MessageTracker(deps);
+module.exports.create = (deps) => new MessageTracker(deps);
 ```
 
 #### Step 2: Update imports gradually
-
 ```javascript
 // OLD usage
 const messageTracker = require('./messageTracker');
@@ -79,25 +72,19 @@ const { instance } = require('./messageTracker');
 ```
 
 #### Step 3: Remove singleton export
-
 Once all imports are updated, remove the direct export.
 
 ## Common Patterns
 
 ### Pattern 1: Manager Classes
-
 ```javascript
 // Before
-class PersonalityManager {
-  /* ... */
-}
+class PersonalityManager { /* ... */ }
 const personalityManager = new PersonalityManager();
 module.exports = personalityManager;
 
 // After
-class PersonalityManager {
-  /* ... */
-}
+class PersonalityManager { /* ... */ }
 
 let instance;
 module.exports = {
@@ -113,7 +100,6 @@ module.exports = {
 ```
 
 ### Pattern 2: Service Classes with Timers
-
 ```javascript
 // Before
 class RateLimiter {
@@ -123,22 +109,22 @@ class RateLimiter {
 }
 module.exports = new RateLimiter();
 
-// After
+// After  
 class RateLimiter {
   constructor(options = {}) {
     this.timers = options.timers || {
       setInterval: global.setInterval,
-      clearInterval: global.clearInterval,
+      clearInterval: global.clearInterval
     };
     this.cleanupInterval = null;
   }
-
+  
   start() {
     if (!this.cleanupInterval) {
       this.cleanupInterval = this.timers.setInterval(() => this.cleanup(), 60000);
     }
   }
-
+  
   stop() {
     if (this.cleanupInterval) {
       this.timers.clearInterval(this.cleanupInterval);
@@ -148,23 +134,22 @@ class RateLimiter {
 
 module.exports = {
   RateLimiter,
-  create: options => {
+  create: (options) => {
     const limiter = new RateLimiter(options);
     if (!options || options.autoStart !== false) {
       limiter.start();
     }
     return limiter;
-  },
+  }
 };
 ```
 
 ### Pattern 3: Configuration Objects
-
 ```javascript
 // Before
 const config = {
   apiUrl: process.env.API_URL || 'https://api.example.com',
-  timeout: parseInt(process.env.TIMEOUT) || 5000,
+  timeout: parseInt(process.env.TIMEOUT) || 5000
 };
 module.exports = config;
 
@@ -172,7 +157,7 @@ module.exports = config;
 function createConfig(overrides = {}) {
   return {
     apiUrl: overrides.apiUrl || process.env.API_URL || 'https://api.example.com',
-    timeout: overrides.timeout || parseInt(process.env.TIMEOUT) || 5000,
+    timeout: overrides.timeout || parseInt(process.env.TIMEOUT) || 5000
   };
 }
 
@@ -186,7 +171,6 @@ module.exports.createConfig = createConfig;
 ## Testing Patterns
 
 ### Before: Fighting the singleton
-
 ```javascript
 // Had to do weird things like this
 beforeEach(() => {
@@ -197,14 +181,13 @@ beforeEach(() => {
 ```
 
 ### After: Clean dependency injection
-
 ```javascript
 const { create } = require('../src/messageTracker');
 
 beforeEach(() => {
   tracker = create({
     timers: { setInterval: jest.fn(), clearInterval: jest.fn() },
-    logger: mockLogger,
+    logger: mockLogger
   });
 });
 ```

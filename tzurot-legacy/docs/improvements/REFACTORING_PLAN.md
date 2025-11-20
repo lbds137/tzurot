@@ -1,11 +1,9 @@
 # Pragmatic Refactoring Plan
 
 ## Goal
-
 Make the codebase less painful to work with, especially for adding features like voice toggle, without massive architectural changes.
 
 ## Current Pain Points
-
 1. **Message content gets modified in multiple places** - Hard to track what the final prompt looks like
 2. **Three separate code paths** (DMs, mentions, activated channels) with duplicated logic
 3. **Massive files**: webhookManager.js (2800 lines), aiService.js (1700 lines), messageHandler.js (766 lines)
@@ -15,11 +13,9 @@ Make the codebase less painful to work with, especially for adding features like
 ## Bite-Sized Refactorings (In Priority Order)
 
 ### Phase 1: Create a Request Context Object (1-2 hours)
-
 **Why First**: This unblocks everything else. Once we have a context object, we can pass settings and modifications through the entire flow.
 
 **What**:
-
 - Create a `RequestContext` object in messageHandler.js that contains:
   - Original message
   - Working content (gets modified)
@@ -28,19 +24,16 @@ Make the codebase less painful to work with, especially for adding features like
   - Settings (empty for now)
   - Response placeholder
 
-**Files to touch**:
-
+**Files to touch**: 
 - `src/handlers/messageHandler.js` (create context)
 - Start with ONE downstream function to accept context
 
 **Success metric**: Can pass context through one complete flow without breaking
 
 ### Phase 2: Content Processing Pipeline (2-3 hours)
-
 **Why Second**: This directly addresses the voice toggle problem - we need ONE place to modify content.
 
 **What**:
-
 - Create `src/utils/contentProcessor.js`
 - Move content modifications into pipeline steps:
   1. Strip mentions
@@ -50,7 +43,6 @@ Make the codebase less painful to work with, especially for adding features like
 - Each step is a pure function: `(ctx) => ctx`
 
 **Files to touch**:
-
 - Create `src/utils/contentProcessor.js`
 - Update `messageHandler.js` to use pipeline
 - Update `personalityHandler.js` to stop doing its own modifications
@@ -58,11 +50,9 @@ Make the codebase less painful to work with, especially for adding features like
 **Success metric**: All content modifications happen in ONE place
 
 ### Phase 3: Simple Config Service (2-3 hours)
-
 **Why Third**: Voice toggle needs somewhere to store user preferences.
 
 **What**:
-
 - Create `src/services/configService.js`
 - Start with JSON file storage (`data/userPrefs.json`)
 - Functions:
@@ -72,7 +62,6 @@ Make the codebase less painful to work with, especially for adding features like
 - Add to RequestContext
 
 **Files to touch**:
-
 - Create `src/services/configService.js`
 - Update `messageHandler.js` to load settings into context
 - Create `data/userPrefs.json`
@@ -80,29 +69,24 @@ Make the codebase less painful to work with, especially for adding features like
 **Success metric**: Can store and retrieve a user's voice preference
 
 ### Phase 4: AI Adapter Facade (3-4 hours)
-
 **Why Fourth**: Clean interface for AI calls makes adding features predictable.
 
 **What**:
-
 - Create `src/adapters/aiAdapter.js`
 - Single clean function: `getAiResponse(ctx)`
 - Handles all the messy aiService.js interaction
 - Returns standardized response
 
 **Files to touch**:
-
 - Create `src/adapters/aiAdapter.js`
 - Update ONE handler to use adapter instead of direct aiService calls
 
 **Success metric**: One code path uses clean adapter instead of messy aiService
 
 ### Phase 5: Extract Response Formatting (2-3 hours)
-
 **Why Fifth**: Separates Discord formatting from AI logic.
 
 **What**:
-
 - Create `src/utils/responseFormatter.js`
 - Move webhook payload building logic
 - Functions:
@@ -110,7 +94,6 @@ Make the codebase less painful to work with, especially for adding features like
   - `formatDirectMessage(aiResponse)`
 
 **Files to touch**:
-
 - Create `src/utils/responseFormatter.js`
 - Extract formatting from `webhookManager.js`
 - Update one flow to use formatter

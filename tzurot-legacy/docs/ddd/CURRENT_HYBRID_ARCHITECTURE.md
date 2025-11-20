@@ -14,7 +14,7 @@ Discord Message
    Is it a command? ─────→ YES ─→ CommandIntegrationAdapter ─→ DDD Commands
       ↓ NO                              ↓
    personalityHandler.js               Uses DDD Services:
-   (Legacy)                            - AuthenticationApplicationService
+   (Legacy)                            - AuthenticationApplicationService  
       ↓                                - PersonalityApplicationService
    aiService.js (Legacy)               - FeatureFlags
       ↓                                - EventBus
@@ -29,7 +29,6 @@ Discord Message
 **Location**: `src/domain/`, `src/application/`, `src/adapters/`
 
 **Components**:
-
 - All 18 commands (add, remove, info, list, etc.)
 - Authentication domain (tokens, blacklist, verification)
 - Personality domain (used by commands only)
@@ -37,7 +36,6 @@ Discord Message
 - File-based repositories
 
 **Entry Points**:
-
 - `CommandIntegrationAdapter` - Bridge from legacy to DDD
 - `ApplicationBootstrap` - Dependency injection container
 
@@ -46,7 +44,6 @@ Discord Message
 **Location**: `src/`, `src/core/`, `src/handlers/`
 
 **Components**:
-
 - Message routing (`bot.js`)
 - AI request handling (`aiService.js`)
 - Webhook management (`webhookManager.js`)
@@ -54,14 +51,12 @@ Discord Message
 - Personality message flow (`personalityHandler.js`)
 
 **Entry Points**:
-
 - `bot.js` - Main Discord client
 - `index.js` - Application startup
 
 ## Integration Points
 
 ### 1. Command Processing
-
 ```javascript
 // In bot.js (legacy)
 if (message.content.startsWith(commandPrefix)) {
@@ -72,7 +67,6 @@ if (message.content.startsWith(commandPrefix)) {
 ```
 
 ### 2. Authentication Checks
-
 ```javascript
 // In personalityHandler.js (legacy)
 const authService = applicationBootstrap.getServices().authenticationService;
@@ -80,7 +74,6 @@ const result = await authService.checkPersonalityAccess(userId, personality);
 ```
 
 ### 3. Personality Lookups
-
 ```javascript
 // In commands (DDD)
 const personality = await personalityService.getPersonality(name);
@@ -92,7 +85,6 @@ const personality = personalityManager.getPersonality(name);
 ## Data Flow Examples
 
 ### Command Flow (DDD)
-
 1. User types: `!tz add Claude "You are Claude"`
 2. `bot.js` detects command prefix
 3. Routes to `CommandIntegrationAdapter`
@@ -103,7 +95,6 @@ const personality = personalityManager.getPersonality(name);
 8. Emits domain events
 
 ### Message Flow (Legacy)
-
 1. User types: `@Claude hello`
 2. `bot.js` detects mention
 3. Routes to `personalityHandler.js`
@@ -115,16 +106,13 @@ const personality = personalityManager.getPersonality(name);
 ## Shared Resources
 
 ### File System
-
 Both systems read/write the same files:
-
 - `data/personalities.json` - Personality data
 - `data/blacklist.json` - Blacklist data
 - `data/tokens.json` - User tokens
 - `data/conversations.json` - Conversation data
 
 ### Services Used by Both
-
 - `logger` - Shared logging
 - `config` - Configuration values
 - Discord client - Same bot instance
@@ -132,22 +120,18 @@ Both systems read/write the same files:
 ## Key Differences
 
 ### Error Handling
-
 - **DDD**: Throws domain exceptions, caught at boundaries
 - **Legacy**: Returns error objects, logs directly
 
 ### Async Patterns
-
 - **DDD**: Async/await throughout
 - **Legacy**: Mix of callbacks, promises, async/await
 
 ### Dependency Management
-
 - **DDD**: Constructor injection via ApplicationBootstrap
 - **Legacy**: Direct requires, some singletons
 
 ### Testing
-
 - **DDD**: Full dependency injection, easy mocking
 - **Legacy**: Some modules hard to test
 
@@ -156,7 +140,6 @@ Both systems read/write the same files:
 ### Adding New Features
 
 **If it's a command**: Use DDD patterns
-
 ```javascript
 // Create in src/application/commands/
 class MyCommand extends Command {
@@ -165,7 +148,6 @@ class MyCommand extends Command {
 ```
 
 **If it's message processing**: Use legacy patterns
-
 ```javascript
 // Modify in src/handlers/ or src/
 // Follow existing patterns
@@ -174,12 +156,10 @@ class MyCommand extends Command {
 ### Modifying Existing Features
 
 **Commands or Auth**: Modify DDD code
-
 - Look in `src/application/commands/`
 - Or `src/domain/authentication/`
 
 **AI, Webhooks, Conversations**: Modify legacy code
-
 - `src/aiService.js`
 - `src/webhookManager.js`
 - `src/core/conversation/`
@@ -194,23 +174,19 @@ class MyCommand extends Command {
 ## Future Considerations
 
 ### Option 1: Complete Migration
-
 Would need to migrate:
-
 - AI service (3 weeks)
 - Message handlers (4 weeks)
 - Conversation system (4 weeks)
 - Webhook system (2 weeks)
 
 ### Option 2: Maintain Hybrid
-
 - Document patterns clearly
 - Improve integration points
 - Build new features appropriately
 - Accept the split architecture
 
 ### Option 3: Gradual Migration
-
 - Migrate when touching code
 - Could take years
 - Risk of more inconsistency

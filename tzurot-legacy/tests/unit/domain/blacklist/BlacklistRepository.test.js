@@ -9,8 +9,12 @@
  */
 
 // Domain models under test - NOT mocked!
-const { BlacklistRepository } = require('../../../../src/domain/blacklist/BlacklistRepository');
-const { BlacklistedUser } = require('../../../../src/domain/blacklist/BlacklistedUser');
+const {
+  BlacklistRepository,
+} = require('../../../../src/domain/blacklist/BlacklistRepository');
+const {
+  BlacklistedUser,
+} = require('../../../../src/domain/blacklist/BlacklistedUser');
 
 describe('BlacklistRepository', () => {
   let repository;
@@ -253,8 +257,18 @@ describe('BlacklistRepository', () => {
 
       const repo = new BatchCapableRepo();
       const users = [
-        new BlacklistedUser('111111111111111111', 'Reason 1', '987654321098765432', new Date()),
-        new BlacklistedUser('222222222222222222', 'Reason 2', '987654321098765432', new Date()),
+        new BlacklistedUser(
+          '111111111111111111',
+          'Reason 1',
+          '987654321098765432',
+          new Date()
+        ),
+        new BlacklistedUser(
+          '222222222222222222',
+          'Reason 2',
+          '987654321098765432',
+          new Date()
+        ),
       ];
 
       await repo.addBatch(users);
@@ -307,7 +321,12 @@ describe('BlacklistRepository', () => {
         )
       );
       await repo.add(
-        new BlacklistedUser('222222222222222222', 'Harassment', '987654321098765432', new Date())
+        new BlacklistedUser(
+          '222222222222222222',
+          'Harassment',
+          '987654321098765432',
+          new Date()
+        )
       );
 
       const spammers = await repo.findByReason('Spamming');

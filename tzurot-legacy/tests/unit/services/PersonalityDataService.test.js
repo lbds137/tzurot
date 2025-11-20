@@ -7,13 +7,8 @@ jest.mock('../../../src/logger');
 jest.mock('../../../src/domain/personality/PersonalityDataRepository');
 jest.mock('../../../src/domain/personality/PersonalityProfile');
 
-const {
-  PersonalityDataService,
-  getPersonalityDataService,
-} = require('../../../src/services/PersonalityDataService');
-const {
-  PersonalityDataRepository,
-} = require('../../../src/domain/personality/PersonalityDataRepository');
+const { PersonalityDataService, getPersonalityDataService } = require('../../../src/services/PersonalityDataService');
+const { PersonalityDataRepository } = require('../../../src/domain/personality/PersonalityDataRepository');
 const logger = require('../../../src/logger');
 
 describe('PersonalityDataService', () => {
@@ -22,7 +17,7 @@ describe('PersonalityDataService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
+    
     // Setup mock repository
     mockRepository = {
       getExtendedProfile: jest.fn(),
@@ -31,10 +26,10 @@ describe('PersonalityDataService', () => {
       getMemories: jest.fn(),
       getKnowledge: jest.fn(),
     };
-
+    
     // Mock the repository constructor
     PersonalityDataRepository.mockImplementation(() => mockRepository);
-
+    
     // Create service instance
     service = new PersonalityDataService();
   });
@@ -179,7 +174,7 @@ describe('PersonalityDataService', () => {
       expect(mockRepository.getChatHistory).not.toHaveBeenCalled();
       expect(mockRepository.getMemories).not.toHaveBeenCalled();
       expect(mockRepository.getKnowledge).not.toHaveBeenCalled();
-
+      
       expect(result).toEqual({
         history: [],
         memories: [],
@@ -383,7 +378,7 @@ describe('PersonalityDataService', () => {
 
       const cacheKey = 'test-personality:user123';
       expect(service.contextCache.has(cacheKey)).toBe(true);
-
+      
       const history = service.contextCache.get(cacheKey);
       expect(history).toHaveLength(1);
       expect(history[0]).toMatchObject({
@@ -394,11 +389,9 @@ describe('PersonalityDataService', () => {
 
     it('should maintain maximum of 50 messages', async () => {
       const cacheKey = 'test-personality:user123';
-
+      
       // Pre-fill with 50 messages (create individual objects)
-      const oldMessages = Array(50)
-        .fill(null)
-        .map((_, i) => ({ content: `old-${i}` }));
+      const oldMessages = Array(50).fill(null).map((_, i) => ({ content: `old-${i}` }));
       service.contextCache.set(cacheKey, oldMessages);
 
       // Add new message

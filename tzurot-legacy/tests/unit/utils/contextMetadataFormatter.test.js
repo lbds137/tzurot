@@ -1,8 +1,4 @@
-const {
-  formatContextMetadata,
-  formatTimestamp,
-  getChannelPath,
-} = require('../../../src/utils/contextMetadataFormatter');
+const { formatContextMetadata, formatTimestamp, getChannelPath } = require('../../../src/utils/contextMetadataFormatter');
 
 describe('contextMetadataFormatter', () => {
   describe('formatTimestamp', () => {
@@ -22,7 +18,7 @@ describe('contextMetadataFormatter', () => {
       const beforeCall = new Date().toISOString();
       const result = formatTimestamp('invalid');
       const afterCall = new Date().toISOString();
-
+      
       // Result should be between before and after call times
       expect(new Date(result).getTime()).toBeGreaterThanOrEqual(new Date(beforeCall).getTime());
       expect(new Date(result).getTime()).toBeLessThanOrEqual(new Date(afterCall).getTime());
@@ -44,7 +40,7 @@ describe('contextMetadataFormatter', () => {
       const channel = {
         type: 11,
         name: 'My Thread',
-        parent: { name: 'general' },
+        parent: { name: 'general' }
       };
       expect(getChannelPath(channel)).toBe('#general > My Thread');
     });
@@ -53,7 +49,7 @@ describe('contextMetadataFormatter', () => {
       const channel = {
         type: 12,
         name: 'Private Thread',
-        parent: { name: 'staff' },
+        parent: { name: 'staff' }
       };
       expect(getChannelPath(channel)).toBe('#staff > Private Thread');
     });
@@ -62,7 +58,7 @@ describe('contextMetadataFormatter', () => {
       const channel = {
         type: 15,
         name: 'Help Request',
-        parent: { name: 'support' },
+        parent: { name: 'support' }
       };
       expect(getChannelPath(channel)).toBe('#support > Help Request');
     });
@@ -70,7 +66,7 @@ describe('contextMetadataFormatter', () => {
     it('should handle missing parent gracefully', () => {
       const channel = {
         type: 11,
-        name: 'Orphan Thread',
+        name: 'Orphan Thread'
       };
       expect(getChannelPath(channel)).toBe('#unknown-channel > Orphan Thread');
     });
@@ -91,9 +87,9 @@ describe('contextMetadataFormatter', () => {
       const message = {
         guild: { name: 'Test Server' },
         channel: { type: 0, name: 'general' },
-        createdTimestamp: 1720625445000,
+        createdTimestamp: 1720625445000
       };
-
+      
       const result = formatContextMetadata(message);
       expect(result).toBe('[Discord: Test Server > #general | 2024-07-10T15:30:45.000Z]');
     });
@@ -102,9 +98,9 @@ describe('contextMetadataFormatter', () => {
       const message = {
         guild: null,
         channel: { type: 1 },
-        createdTimestamp: 1720625445000,
+        createdTimestamp: 1720625445000
       };
-
+      
       const result = formatContextMetadata(message);
       expect(result).toBe('[Discord: Direct Messages | 2024-07-10T15:30:45.000Z]');
     });
@@ -115,15 +111,13 @@ describe('contextMetadataFormatter', () => {
         channel: {
           type: 11,
           name: 'Discussion Thread',
-          parent: { name: 'general' },
+          parent: { name: 'general' }
         },
-        createdTimestamp: 1720625445000,
+        createdTimestamp: 1720625445000
       };
-
+      
       const result = formatContextMetadata(message);
-      expect(result).toBe(
-        '[Discord: Cool Server > #general > Discussion Thread | 2024-07-10T15:30:45.000Z]'
-      );
+      expect(result).toBe('[Discord: Cool Server > #general > Discussion Thread | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should format metadata for forum posts', () => {
@@ -132,31 +126,29 @@ describe('contextMetadataFormatter', () => {
         channel: {
           type: 15,
           name: 'How to use bot?',
-          parent: { name: 'support' },
+          parent: { name: 'support' }
         },
-        createdTimestamp: 1720625445000,
+        createdTimestamp: 1720625445000
       };
-
+      
       const result = formatContextMetadata(message);
-      expect(result).toBe(
-        '[Discord: Help Server > #support > How to use bot? | 2024-07-10T15:30:45.000Z]'
-      );
+      expect(result).toBe('[Discord: Help Server > #support > How to use bot? | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should use current time if createdTimestamp is missing', () => {
       const message = {
         guild: { name: 'Test Server' },
-        channel: { type: 0, name: 'general' },
+        channel: { type: 0, name: 'general' }
       };
-
+      
       const beforeCall = Date.now();
       const result = formatContextMetadata(message);
       const afterCall = Date.now();
-
+      
       // Extract timestamp from result
       const timestampMatch = result.match(/\[Discord: (.*?) > (.*?) \| (.*?)\]/);
       expect(timestampMatch).toBeTruthy();
-
+      
       const timestamp = new Date(timestampMatch[3]).getTime();
       expect(timestamp).toBeGreaterThanOrEqual(beforeCall);
       expect(timestamp).toBeLessThanOrEqual(afterCall);
@@ -165,11 +157,9 @@ describe('contextMetadataFormatter', () => {
     it('should handle errors gracefully', () => {
       const message = null;
       const result = formatContextMetadata(message);
-
+      
       // Should still return a valid format
-      expect(result).toMatch(
-        /^\[Discord: Unknown \| \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]$/
-      );
+      expect(result).toMatch(/^\[Discord: Unknown \| \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]$/);
     });
   });
 });

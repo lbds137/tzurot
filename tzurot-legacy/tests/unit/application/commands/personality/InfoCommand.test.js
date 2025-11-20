@@ -110,6 +110,7 @@ describe('InfoCommand', () => {
       );
     });
 
+
     it('should handle missing personality name', async () => {
       mockContext.args = [];
 
@@ -266,9 +267,9 @@ describe('InfoCommand', () => {
         expect.objectContaining({
           embeds: expect.arrayContaining([
             expect.objectContaining({
-              title: 'Personality Info',
-            }),
-          ]),
+              title: 'Personality Info'
+            })
+          ])
         })
       );
     });

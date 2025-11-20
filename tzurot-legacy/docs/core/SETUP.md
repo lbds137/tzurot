@@ -50,7 +50,6 @@ npm install
 ```
 
 This installs all required packages including:
-
 - discord.js - Discord API wrapper
 - node-fetch - HTTP client
 - dotenv - Environment variable management
@@ -236,7 +235,6 @@ CONVERSATION_TIMEOUT=1800000
    - `applications.commands` (if using slash commands)
 
 3. Select bot permissions:
-
    ```
    Required:
    ✓ View Channels
@@ -247,7 +245,7 @@ CONVERSATION_TIMEOUT=1800000
    ✓ Add Reactions
    ✓ Attach Files
    ✓ Use External Emojis
-
+   
    Recommended:
    ✓ Embed Links
    ✓ Mention Everyone (for error messages)
@@ -300,7 +298,6 @@ npm run dev
 ```
 
 Features:
-
 - Automatic restart on code changes
 - Verbose logging
 - Source map support
@@ -487,7 +484,6 @@ LOG_LEVEL=debug npm run dev
 ```
 
 This shows:
-
 - All API requests/responses
 - Detailed error messages
 - Message processing flow

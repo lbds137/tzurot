@@ -81,9 +81,9 @@ describe('Authentication Enforcement', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
+    
     // Mock getAiClientForUser to return different clients based on auth
-    aiService.getAiClientForUser = jest.fn().mockImplementation(async userId => {
+    aiService.getAiClientForUser = jest.fn().mockImplementation(async (userId) => {
       const authStatus = await mockDDDAuthService.getAuthenticationStatus(userId);
       if (authStatus && authStatus.isAuthenticated) {
         return authenticatedClient;

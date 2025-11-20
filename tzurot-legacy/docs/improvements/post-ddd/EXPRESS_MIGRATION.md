@@ -1,11 +1,9 @@
 # Express.js Migration Consideration
 
 ## Overview
-
 The bot currently uses a custom lightweight HTTP routing system. As the HTTP endpoints grow in complexity, migrating to Express.js could provide significant benefits.
 
 ## Current System
-
 - Custom route handler in `httpServer.js`
 - Simple pattern matching for routes
 - Basic request/response handling
@@ -14,7 +12,6 @@ The bot currently uses a custom lightweight HTTP routing system. As the HTTP end
 ## Benefits of Express.js
 
 ### 1. **Advanced Routing**
-
 ```javascript
 // Current system - limited pattern matching
 { method: 'GET', path: '/avatars', handler: avatarHandler }
@@ -25,7 +22,6 @@ app.get('/users/:userId/personalities/:personalityName', handler);
 ```
 
 ### 2. **Middleware Support**
-
 ```javascript
 // Authentication, logging, error handling as middleware
 app.use(authMiddleware);
@@ -34,7 +30,6 @@ app.use(errorHandler);
 ```
 
 ### 3. **Built-in Features**
-
 - Request body parsing (`express.json()`)
 - Static file serving (`express.static()`)
 - Better error handling
@@ -42,7 +37,6 @@ app.use(errorHandler);
 - Cookie and session support
 
 ### 4. **Ecosystem**
-
 - Huge ecosystem of middleware packages
 - Well-documented patterns
 - Community support
@@ -51,7 +45,6 @@ app.use(errorHandler);
 ## When to Consider Migration
 
 Consider migrating when:
-
 - Need more complex routing patterns
 - Want to add authentication middleware
 - Need request body parsing for POST/PUT endpoints
@@ -63,13 +56,11 @@ Consider migrating when:
 ## Migration Impact
 
 ### Low Risk
-
 - Express can coexist with Discord.js
 - Can migrate incrementally (route by route)
 - Backward compatible with existing routes
 
 ### Considerations
-
 - Adds dependency (~500KB)
 - Slight learning curve
 - May be overkill for simple endpoints
@@ -116,13 +107,11 @@ app.listen(port, () => {
 ## Recommendation
 
 Current system is adequate for:
-
 - Health checks
 - Simple webhooks
 - Static file serving
 
 Consider Express when adding:
-
 - User authentication
 - Complex API endpoints
 - File uploads
@@ -130,6 +119,5 @@ Consider Express when adding:
 - RESTful APIs
 
 ## References
-
 - [Express.js Documentation](https://expressjs.com/)
 - [Express vs Native HTTP](https://stackoverflow.com/questions/17589178/why-should-i-use-express-when-developing-a-web-app-with-node-js)

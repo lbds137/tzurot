@@ -3,14 +3,12 @@
 ## ⚠️ CRITICAL: Never Hardcode Bot Prefixes!
 
 We've encountered multiple bugs from hardcoded `!tz` prefixes. The bot uses different prefixes in different environments:
-
-- **Production**: `!tz`
+- **Production**: `!tz` 
 - **Development**: `!rtz`
 
 ## The Problem
 
 Hardcoding prefixes causes:
-
 1. **Wrong commands shown to users** in development environment
 2. **Broken help text** that doesn't match actual commands
 3. **Confusion** when users copy commands that don't work
@@ -19,7 +17,7 @@ Hardcoding prefixes causes:
 
 ```javascript
 // ❌ BAD - Hardcoded prefix
-footerText = 'Use !tz notifications off to opt out.';
+footerText = "Use !tz notifications off to opt out.";
 embed.setFooter({ text: 'Use !tz help for more info' });
 
 // ✅ GOOD - Dynamic prefix
@@ -30,7 +28,6 @@ embed.setFooter({ text: `Use ${botPrefix} help for more info` });
 ## How to Access the Bot Prefix
 
 ### In Command Handlers
-
 ```javascript
 const { botPrefix } = require('../../../config');
 
@@ -39,7 +36,6 @@ message.reply(`Use ${botPrefix} help for available commands`);
 ```
 
 ### In Classes/Services
-
 ```javascript
 class MyService {
   constructor(options = {}) {
@@ -49,7 +45,6 @@ class MyService {
 ```
 
 ### In Singleton Services
-
 ```javascript
 const { botPrefix } = require('../../../config');
 
@@ -71,14 +66,12 @@ function getInstance() {
 ## Enforcement
 
 ### Manual Search
-
 ```bash
 # Find potential hardcoded prefixes
 grep -r "!tz\|!rtz" src/ --include="*.js" | grep -v "config.js"
 ```
 
 ### ESLint Rule (To Be Implemented)
-
 ```javascript
 // .eslintrc.js
 {
@@ -93,7 +86,6 @@ grep -r "!tz\|!rtz" src/ --include="*.js" | grep -v "config.js"
 ## Migration Checklist
 
 When fixing hardcoded prefixes:
-
 - [ ] Import `botPrefix` from config
 - [ ] Replace all hardcoded strings
 - [ ] Test in both production and dev environments

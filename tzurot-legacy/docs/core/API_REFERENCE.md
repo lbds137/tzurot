@@ -52,9 +52,9 @@ module.exports = client; // Discord.Client instance
 #### Key Properties
 
 ```javascript
-client.user; // Bot user information
-client.guilds; // Collection of guilds
-client.channels; // Collection of channels
+client.user        // Bot user information
+client.guilds      // Collection of guilds
+client.channels    // Collection of channels
 ```
 
 ### aiService.js
@@ -68,7 +68,6 @@ Handles communication with the AI service API.
 Sends a message to the AI service and returns the response.
 
 **Parameters:**
-
 - `prompt` (string) - The user's message
 - `personalityName` (string) - Full name of the personality
 - `userId` (string) - Discord user ID
@@ -77,19 +76,17 @@ Sends a message to the AI service and returns the response.
 **Returns:** Promise<string> - AI response text
 
 **Throws:**
-
 - `AuthenticationError` - Invalid or missing authentication
 - `APIError` - AI service returned an error
 - `TimeoutError` - Request timed out
 
 **Example:**
-
 ```javascript
 const response = await sendMessageToAI(
-  'Hello, how are you?',
-  'friendly-assistant',
-  '123456789',
-  '987654321'
+  "Hello, how are you?",
+  "friendly-assistant",
+  "123456789",
+  "987654321"
 );
 ```
 
@@ -98,7 +95,6 @@ const response = await sendMessageToAI(
 Sanitizes AI responses to prevent exploits.
 
 **Parameters:**
-
 - `response` (string) - Raw AI response
 
 **Returns:** string - Sanitized response
@@ -114,11 +110,9 @@ Manages user authentication for AI service access.
 Initiates authentication flow for a user.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 
 **Returns:** Object
-
 ```javascript
 {
   url: "https://auth.example.com/authorize?...",
@@ -131,14 +125,12 @@ Initiates authentication flow for a user.
 Exchanges authorization code for access token.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `code` (string) - Authorization code
 
 **Returns:** Promise<boolean> - Success status
 
 **Throws:**
-
 - `InvalidCodeError` - Code is invalid or expired
 
 ##### isAuthenticated(userId)
@@ -146,7 +138,6 @@ Exchanges authorization code for access token.
 Checks if user has valid authentication.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 
 **Returns:** boolean
@@ -156,13 +147,11 @@ Checks if user has valid authentication.
 Retrieves user's authentication token.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 
 **Returns:** string | null - Token or null if not authenticated
 
 **Throws:**
-
 - `TokenExpiredError` - Token has expired
 
 ##### revokeAuth(userId)
@@ -170,7 +159,6 @@ Retrieves user's authentication token.
 Removes user's authentication.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 
 **Returns:** boolean - Success status
@@ -186,13 +174,11 @@ Manages AI personality registration and metadata.
 Adds a personality to user's collection.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `personalityName` (string) - Full personality name
 - `alias` (string, optional) - Nickname for the personality
 
 **Returns:** Promise<Object>
-
 ```javascript
 {
   success: true,
@@ -209,7 +195,6 @@ Adds a personality to user's collection.
 Removes a personality from user's collection.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `personalityNameOrAlias` (string) - Personality name or alias
 
@@ -220,12 +205,10 @@ Removes a personality from user's collection.
 Retrieves personality information.
 
 **Parameters:**
-
 - `personalityNameOrAlias` (string) - Name or alias to look up
 - `userId` (string, optional) - Limit search to user's personalities
 
 **Returns:** Object | null
-
 ```javascript
 {
   fullName: "personality-name",
@@ -240,12 +223,10 @@ Retrieves personality information.
 Lists user's personalities with pagination.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `page` (number) - Page number (default: 1)
 
 **Returns:** Object
-
 ```javascript
 {
   personalities: [...],
@@ -260,7 +241,6 @@ Lists user's personalities with pagination.
 Adds an alias to existing personality.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `personalityName` (string) - Personality name
 - `newAlias` (string) - New alias to add
@@ -278,7 +258,6 @@ Manages Discord webhooks for personality messages.
 Sends a message using a webhook.
 
 **Parameters:**
-
 - `channel` (TextChannel) - Discord channel
 - `displayName` (string) - Name to display
 - `avatarUrl` (string) - Avatar URL
@@ -292,7 +271,6 @@ Sends a message using a webhook.
 Gets existing or creates new webhook for channel.
 
 **Parameters:**
-
 - `channel` (TextChannel) - Discord channel
 
 **Returns:** Promise<Webhook> - Discord webhook instance
@@ -302,7 +280,6 @@ Gets existing or creates new webhook for channel.
 Handles responses in DM channels (no webhooks).
 
 **Parameters:**
-
 - `message` (Message) - Original message
 - `displayName` (string) - Personality display name
 - `avatarUrl` (string) - Personality avatar
@@ -321,7 +298,6 @@ Tracks active conversations and personality interactions.
 Starts a new conversation.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `channelId` (string) - Discord channel ID
 - `personalityName` (string) - Active personality
@@ -334,7 +310,6 @@ Starts a new conversation.
 Gets user's active personality in channel.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `channelId` (string) - Discord channel ID
 
@@ -345,7 +320,6 @@ Gets user's active personality in channel.
 Toggles auto-response mode for user.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `enabled` (boolean) - Enable/disable state
 
@@ -356,7 +330,6 @@ Toggles auto-response mode for user.
 Activates personality for entire channel.
 
 **Parameters:**
-
 - `channelId` (string) - Discord channel ID
 - `personalityName` (string) - Personality to activate
 
@@ -367,7 +340,6 @@ Activates personality for entire channel.
 Clears user's active conversation.
 
 **Parameters:**
-
 - `userId` (string) - Discord user ID
 - `channelId` (string) - Discord channel ID
 
@@ -382,17 +354,17 @@ Each command module must export:
 ```javascript
 module.exports = {
   meta: {
-    name: 'commandname', // Command name (required)
-    description: 'Description', // Help text (required)
-    usage: 'commandname [args]', // Usage syntax (required)
+    name: 'commandname',           // Command name (required)
+    description: 'Description',    // Help text (required)
+    usage: 'commandname [args]',   // Usage syntax (required)
     aliases: ['alias1', 'alias2'], // Alternative names (optional)
-    permissions: ['PERMISSION'], // Required permissions (optional)
-    cooldown: 5000, // Cooldown in ms (optional)
+    permissions: ['PERMISSION'],   // Required permissions (optional)
+    cooldown: 5000                 // Cooldown in ms (optional)
   },
   execute: async (message, args) => {
     // Command logic
     // Return result object or throw error
-  },
+  }
 };
 ```
 
@@ -405,7 +377,6 @@ module.exports = {
 Registers a new command.
 
 **Parameters:**
-
 - `command` (Object) - Command module
 
 **Returns:** void
@@ -415,7 +386,6 @@ Registers a new command.
 Retrieves command by name or alias.
 
 **Parameters:**
-
 - `commandName` (string) - Command name or alias
 
 **Returns:** Object | null - Command module or null
@@ -433,10 +403,10 @@ Middleware functions run before command execution:
 ```javascript
 module.exports = async (message, args, next) => {
   // Middleware logic
-
+  
   // Continue to next middleware
   return next();
-
+  
   // Or halt execution
   throw new Error('Middleware rejected');
 };
@@ -467,13 +437,11 @@ Main message processing logic.
 Processes incoming Discord messages.
 
 **Parameters:**
-
 - `message` (Message) - Discord message object
 
 **Returns:** Promise<void>
 
 **Flow:**
-
 1. Check if message should be processed
 2. Detect message type (command, mention, reply)
 3. Route to appropriate handler
@@ -488,13 +456,11 @@ Handles direct message interactions.
 Processes DM messages.
 
 **Parameters:**
-
 - `message` (Message) - Discord DM message
 
 **Returns:** Promise<void>
 
 **Features:**
-
 - No webhook support (uses embeds)
 - Auth code submission
 - Personal conversations only
@@ -508,11 +474,9 @@ Handles message replies and references.
 Processes messages with references.
 
 **Parameters:**
-
 - `message` (Message) - Message with reference
 
 **Returns:** Promise<Object | null>
-
 ```javascript
 {
   success: true,
@@ -530,7 +494,6 @@ Centralized error handling.
 Processes and logs errors.
 
 **Parameters:**
-
 - `error` (Error) - Error object
 - `context` (Object) - Error context
 
@@ -541,7 +504,6 @@ Processes and logs errors.
 Sends user-friendly error message.
 
 **Parameters:**
-
 - `channel` (TextChannel) - Discord channel
 - `userMessage` (string) - Error message for user
 
@@ -560,11 +522,9 @@ Central media processing interface.
 Processes message attachments.
 
 **Parameters:**
-
 - `attachments` (Collection) - Discord attachments
 
 **Returns:** Promise<Object>
-
 ```javascript
 {
   images: ["data:image/png;base64,..."],
@@ -580,7 +540,6 @@ Processes message attachments.
 Converts image URL to base64.
 
 **Parameters:**
-
 - `url` (string) - Image URL
 - `options` (Object) - Processing options
 
@@ -593,11 +552,9 @@ Converts image URL to base64.
 Processes audio URL for Discord.
 
 **Parameters:**
-
 - `url` (string) - Audio URL
 
 **Returns:** Promise<Object>
-
 ```javascript
 {
   attachment: Buffer,
@@ -614,7 +571,6 @@ Processes audio URL for Discord.
 Creates embed for personality messages.
 
 **Parameters:**
-
 - `displayName` (string) - Personality name
 - `avatarUrl` (string) - Avatar URL
 - `content` (string) - Message content
@@ -626,7 +582,6 @@ Creates embed for personality messages.
 Extracts text from Discord embeds.
 
 **Parameters:**
-
 - `embeds` (Array) - Discord embeds
 
 **Returns:** string - Combined text content
@@ -640,7 +595,6 @@ Extracts text from Discord embeds.
 Checks content similarity for deduplication.
 
 **Parameters:**
-
 - `content1` (string) - First content
 - `content2` (string) - Second content
 - `threshold` (number) - Similarity threshold (0-1)
@@ -654,7 +608,6 @@ Checks content similarity for deduplication.
 Validates URL safety.
 
 **Parameters:**
-
 - `url` (string) - URL to validate
 
 **Returns:** boolean - Is URL safe
@@ -664,7 +617,6 @@ Validates URL safety.
 Extracts URLs from content.
 
 **Parameters:**
-
 - `content` (string) - Text content
 
 **Returns:** Array<string> - Found URLs
@@ -678,12 +630,10 @@ Extracts URLs from content.
 Checks if action is rate limited.
 
 **Parameters:**
-
 - `userId` (string) - User ID
 - `action` (string) - Action type
 
 **Returns:** Object
-
 ```javascript
 {
   limited: boolean,
@@ -705,7 +655,6 @@ File-based storage interface.
 Saves data to JSON file.
 
 **Parameters:**
-
 - `filename` (string) - File name (without path)
 - `data` (Object) - Data to save
 
@@ -716,7 +665,6 @@ Saves data to JSON file.
 Loads data from JSON file.
 
 **Parameters:**
-
 - `filename` (string) - File name
 - `defaultValue` (any) - Default if file missing
 
@@ -739,21 +687,21 @@ The bot emits custom events for extensibility:
 client.emit('personalityAdded', {
   userId,
   personalityName,
-  personality,
+  personality
 });
 
 // Conversation started
 client.emit('conversationStarted', {
   userId,
   channelId,
-  personalityName,
+  personalityName
 });
 
 // Error occurred
 client.emit('botError', {
   error,
   context,
-  severity,
+  severity
 });
 ```
 
@@ -761,7 +709,7 @@ client.emit('botError', {
 
 ```javascript
 // Listen for custom events
-client.on('personalityAdded', data => {
+client.on('personalityAdded', (data) => {
   console.log(`New personality: ${data.personalityName}`);
 });
 ```
@@ -824,7 +772,6 @@ try {
 ### Module Usage
 
 1. **Always handle promises**
-
    ```javascript
    // Good
    try {
@@ -835,7 +782,6 @@ try {
    ```
 
 2. **Validate inputs**
-
    ```javascript
    if (!userId || !personalityName) {
      throw new ValidationError('Missing required parameters');
@@ -843,9 +789,11 @@ try {
    ```
 
 3. **Use appropriate error types**
-
    ```javascript
-   throw new PermissionError('Manage Messages permission required', ['MANAGE_MESSAGES']);
+   throw new PermissionError(
+     'Manage Messages permission required',
+     ['MANAGE_MESSAGES']
+   );
    ```
 
 4. **Clean up resources**

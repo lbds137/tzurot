@@ -8,9 +8,7 @@ const {
 } = require('../../../../../src/application/commands/utility/StatusCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
-const {
-  getApplicationBootstrap,
-} = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
+const { getApplicationBootstrap } = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
 
 // Mock logger
 jest.mock('../../../../../src/logger');
@@ -35,16 +33,16 @@ describe('StatusCommand', () => {
         isAuthenticated: true,
         user: {
           nsfwStatus: {
-            verified: true,
-          },
-        },
-      }),
+            verified: true
+          }
+        }
+      })
     };
     getApplicationBootstrap.mockReturnValue({
       initialized: true,
       getApplicationServices: jest.fn().mockReturnValue({
-        authenticationService: mockDDDAuthService,
-      }),
+        authenticationService: mockDDDAuthService
+      })
     });
     return mockDDDAuthService;
   }
@@ -54,7 +52,7 @@ describe('StatusCommand', () => {
     jest.clearAllMocks();
 
     migrationHelper = createMigrationHelper();
-
+    
     // Default mock for ApplicationBootstrap - not initialized
     getApplicationBootstrap.mockReturnValue({
       initialized: false,
@@ -87,7 +85,7 @@ describe('StatusCommand', () => {
       ws: { ping: 42 },
       guilds: { cache: { size: 5 } },
     };
-
+    
     // Mock context
     mockContext = {
       userId: 'user123',
@@ -173,22 +171,22 @@ describe('StatusCommand', () => {
     it('should show additional info for authenticated user', async () => {
       mockAuth.hasValidToken.mockReturnValue(true);
       mockAuth.isNsfwVerified.mockReturnValue(true);
-
+      
       // Setup authenticated user with DDD mocks
       const mockDDDAuthService = setupAuthenticatedUser();
-
+      
       // Mock personality service for personality count
       const mockDDDPersonalityService = {
-        listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2', 'p3']),
+        listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2', 'p3'])
       };
-
+      
       // Update the mock to include personality service
       getApplicationBootstrap.mockReturnValue({
         initialized: true,
         getApplicationServices: jest.fn().mockReturnValue({
           authenticationService: mockDDDAuthService,
-          personalityApplicationService: mockDDDPersonalityService,
-        }),
+          personalityApplicationService: mockDDDPersonalityService
+        })
       });
 
       await statusCommand.execute(mockContext);
@@ -318,20 +316,20 @@ describe('StatusCommand', () => {
 
     it('should show authenticated info in text response', async () => {
       mockAuth.hasValidToken.mockReturnValue(true);
-
+      
       // Setup authenticated user and personality service
       const mockDDDAuthService = setupAuthenticatedUser();
       const mockDDDPersonalityService = {
-        listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2']),
+        listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2'])
       };
-
+      
       // Update the mock to include personality service
       getApplicationBootstrap.mockReturnValue({
         initialized: true,
         getApplicationServices: jest.fn().mockReturnValue({
           authenticationService: mockDDDAuthService,
-          personalityApplicationService: mockDDDPersonalityService,
-        }),
+          personalityApplicationService: mockDDDPersonalityService
+        })
       });
 
       await statusCommand.execute(mockContext);

@@ -463,7 +463,7 @@ class FilePersonalityRepository {
     let profile;
     if (data.profile) {
       const profileMode = data.profile.mode || 'local';
-
+      
       // Build profile data based on mode
       const profileData = {
         mode: profileMode,
@@ -472,7 +472,7 @@ class FilePersonalityRepository {
         avatarUrl: data.profile.avatarUrl,
         errorMessage: data.profile.errorMessage,
       };
-
+      
       // Only add local-mode fields if not external
       if (profileMode !== 'external') {
         profileData.prompt = data.profile.prompt || `You are ${data.profile.name || data.id}`;
@@ -486,7 +486,7 @@ class FilePersonalityRepository {
         // For external mode, include lastFetched if available
         profileData.lastFetched = data.profile.lastFetched;
       }
-
+      
       // Use object constructor to preserve all fields
       profile = new PersonalityProfile(profileData);
     } else {

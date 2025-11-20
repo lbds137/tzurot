@@ -183,12 +183,10 @@ describe('Personality Handler Module', () => {
       isForcedThread: false,
     });
     threadHandler.isForumChannel.mockReturnValue(false);
-    threadHandler.buildThreadWebhookOptions.mockImplementation(
-      (channel, userId, threadInfo, isDMFormatted) => {
-        // Return options with realUserId when a userId is provided
-        return userId ? { realUserId: userId } : {};
-      }
-    );
+    threadHandler.buildThreadWebhookOptions.mockImplementation((channel, userId, threadInfo, isDMFormatted) => {
+      // Return options with realUserId when a userId is provided
+      return userId ? { realUserId: userId } : {};
+    });
     threadHandler.sendThreadMessage.mockResolvedValue({
       success: true,
       messageIds: ['thread-message-id'],
@@ -199,9 +197,9 @@ describe('Personality Handler Module', () => {
     mockAuthService = {
       checkPersonalityAccess: jest.fn().mockResolvedValue({
         allowed: true,
-      }),
+      })
     };
-
+    
     // Inject the mock auth service into personalityHandler
     personalityHandler.setAuthService(mockAuthService);
   });
@@ -209,6 +207,7 @@ describe('Personality Handler Module', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
+
 
   describe('startTypingIndicator', () => {
     it('should start typing indicator and return interval ID', () => {
@@ -231,7 +230,7 @@ describe('Personality Handler Module', () => {
         expect.stringContaining('Failed to start typing indicator')
       );
       expect(intervalId).toBeDefined();
-
+      
       // Clean up the interval using the injected timer function
       if (intervalId) {
         mockTimers.clearInterval(intervalId);
@@ -239,12 +238,13 @@ describe('Personality Handler Module', () => {
     });
   });
 
+
   describe('handlePersonalityInteraction', () => {
     it('should check NSFW channel requirements', async () => {
       // All personalities are treated as NSFW uniformly
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
         allowed: false,
-        reason: 'NSFW verification required',
+        reason: 'NSFW verification required'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -255,7 +255,7 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'NSFW verification required',
+        content: 'NSFW verification required'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
@@ -263,7 +263,7 @@ describe('Personality Handler Module', () => {
     it('should check authentication before age verification', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
         allowed: false,
-        reason: 'Personality requires authentication',
+        reason: 'Personality requires authentication'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -274,7 +274,7 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'Personality requires authentication',
+        content: 'Personality requires authentication'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
@@ -283,7 +283,7 @@ describe('Personality Handler Module', () => {
       mockPersonality.isNSFW = true;
       channelUtils.isChannelNSFW.mockReturnValue(true);
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        allowed: true,
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -302,7 +302,7 @@ describe('Personality Handler Module', () => {
       mockMessage.channel.type = 1; // DM channel
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
         allowed: false,
-        reason: 'NSFW verification required',
+        reason: 'NSFW verification required'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -313,7 +313,7 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'NSFW verification required',
+        content: 'NSFW verification required'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
@@ -384,11 +384,9 @@ describe('Personality Handler Module', () => {
       );
     });
 
+
     it('should handle error messages from AI service', async () => {
-      getAiResponse.mockResolvedValueOnce({
-        content: `BOT_ERROR_MESSAGE:Something went wrong`,
-        metadata: null,
-      });
+      getAiResponse.mockResolvedValueOnce({ content: `BOT_ERROR_MESSAGE:Something went wrong`, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -513,9 +511,9 @@ describe('Personality Handler Module', () => {
     it('should pass isProxyMessage flag to AI service for PluralKit messages', async () => {
       // Add webhookId to simulate a PluralKit message
       const pluralkitMessage = { ...mockMessage, webhookId: 'webhook-123' };
-
+      
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        allowed: true,
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -537,7 +535,7 @@ describe('Personality Handler Module', () => {
     it('should handle regular users without proxy message formatting', async () => {
       webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        allowed: true,
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -561,9 +559,9 @@ describe('Personality Handler Module', () => {
       mockMessage.webhookId = 'webhook-123';
       webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
       webhookUserTracker.getRealUserId.mockReturnValue('real-user-id');
-
+      
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        allowed: true,
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -594,7 +592,7 @@ describe('Personality Handler Module', () => {
     it('should check authentication for PluralKit proxy messages', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
         allowed: false,
-        reason: 'Personality requires authentication',
+        reason: 'Personality requires authentication'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -605,14 +603,14 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'Personality requires authentication',
+        content: 'Personality requires authentication'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
 
     it('should allow authenticated PluralKit users to use personalities', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        allowed: true,
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -642,7 +640,7 @@ describe('Personality Handler Module', () => {
     it('should show custom error message for unauthenticated PluralKit users', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
         allowed: false,
-        reason: 'Personality requires authentication',
+        reason: 'Personality requires authentication'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -653,17 +651,16 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'Personality requires authentication',
+        content: 'Personality requires authentication'
       });
     });
   });
 
   describe('Markdown Image Link Processing', () => {
     it('should convert markdown image links to media handler format', async () => {
-      const responseWithMarkdown =
-        'Here is an image: [https://example.com/image.png](https://example.com/image.png)';
+      const responseWithMarkdown = 'Here is an image: [https://example.com/image.png](https://example.com/image.png)';
       const expectedProcessed = 'Here is an image:\n[Image: https://example.com/image.png]';
-
+      
       getAiResponse.mockResolvedValueOnce({ content: responseWithMarkdown, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -683,11 +680,9 @@ describe('Personality Handler Module', () => {
     });
 
     it('should handle multiple images but only process the last one', async () => {
-      const responseWithMultiple =
-        'Image 1: [https://example.com/1.png](https://example.com/1.png) and Image 2: [https://example.com/2.png](https://example.com/2.png)';
-      const expectedProcessed =
-        'Image 1: [https://example.com/1.png](https://example.com/1.png) and Image 2:\n[Image: https://example.com/2.png]';
-
+      const responseWithMultiple = 'Image 1: [https://example.com/1.png](https://example.com/1.png) and Image 2: [https://example.com/2.png](https://example.com/2.png)';
+      const expectedProcessed = 'Image 1: [https://example.com/1.png](https://example.com/1.png) and Image 2:\n[Image: https://example.com/2.png]';
+      
       getAiResponse.mockResolvedValueOnce({ content: responseWithMultiple, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -708,7 +703,7 @@ describe('Personality Handler Module', () => {
 
     it('should not modify responses without markdown image links', async () => {
       const normalResponse = 'This is a normal response without images';
-
+      
       getAiResponse.mockResolvedValueOnce({ content: normalResponse, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -728,9 +723,8 @@ describe('Personality Handler Module', () => {
     });
 
     it('should not process markdown links with mismatched URLs', async () => {
-      const responseWithDifferentUrls =
-        '![image](https://example.com/image.png)(https://different.com/image.png)';
-
+      const responseWithDifferentUrls = '![image](https://example.com/image.png)(https://different.com/image.png)';
+      
       getAiResponse.mockResolvedValueOnce({ content: responseWithDifferentUrls, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -751,14 +745,14 @@ describe('Personality Handler Module', () => {
 
     it('should handle various image formats', async () => {
       const formats = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-
+      
       for (const format of formats) {
         jest.clearAllMocks();
         personalityHandler.setAuthService(mockAuthService);
-
+        
         const response = `[https://example.com/image.${format}](https://example.com/image.${format})`;
         const expected = `\n[Image: https://example.com/image.${format}]`;
-
+        
         getAiResponse.mockResolvedValueOnce({ content: response, metadata: null });
 
         await personalityHandler.handlePersonalityInteraction(
@@ -946,14 +940,14 @@ describe('Personality Handler Module', () => {
         expect.any(Error)
       );
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'An error occurred while checking authorization.',
+        content: 'An error occurred while checking authorization.'
       });
     });
 
     it('should handle sendAuthError failing gracefully', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
         allowed: false,
-        reason: 'Personality requires authentication',
+        reason: 'Personality requires authentication'
       });
       mockMessage.reply.mockRejectedValueOnce(new Error('Reply failed'));
 
@@ -1185,7 +1179,7 @@ describe('Personality Handler Module', () => {
         messageId: 'referenced-message-id',
         channelId: 'channel-id',
       };
-
+      
       // Mock fetch to return the referenced message first
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(referencedMessage);
 
@@ -1198,7 +1192,7 @@ describe('Personality Handler Module', () => {
 
       // The handler should process the referenced message
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('referenced-message-id');
-
+      
       expect(getAiResponse).toHaveBeenCalledWith(
         'test-personality',
         expect.objectContaining({
@@ -1258,7 +1252,7 @@ describe('Personality Handler Module', () => {
         attachments: new Map(),
         embeds: [],
         webhookId: 'webhook-123',
-        createdTimestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
+        createdTimestamp: Date.now() - (25 * 60 * 60 * 1000), // 25 hours ago
       };
 
       mockMessage.reference = {
@@ -1281,8 +1275,8 @@ describe('Personality Handler Module', () => {
         expect.objectContaining({
           messageContent: 'Test message',
           referencedMessage: expect.objectContaining({
-            content: 'Previous personality message',
-          }),
+            content: 'Previous personality message'
+          })
         }),
         expect.any(Object)
       );
@@ -1320,7 +1314,9 @@ describe('Personality Handler Module', () => {
         mockClient
       );
 
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('API Response error:'));
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('API Response error:')
+      );
     });
 
     it('should handle errors when trying to log request data', async () => {

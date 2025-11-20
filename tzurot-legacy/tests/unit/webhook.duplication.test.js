@@ -20,6 +20,7 @@ jest.mock('../../src/core/conversation', () => ({
   getActivatedPersonality: jest.fn(),
 }));
 
+
 // Mock messageTracker
 jest.mock('../../src/messageTracker', () => ({
   messageTracker: {

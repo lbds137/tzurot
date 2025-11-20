@@ -9,7 +9,11 @@
     "coverage/*",
     "scripts/*"
   ],
-  "watch": ["src/**/*.js", "index.js", "config.js"],
+  "watch": [
+    "src/**/*.js",
+    "index.js",
+    "config.js"
+  ],
   "ext": "js,json",
   "verbose": false,
   "delay": "2500"

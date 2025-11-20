@@ -235,7 +235,7 @@ describe('PluralKitMessageStore', () => {
       // Try to find it again
       const found2 = store.findDeletedMessage('Test message', 'channel-789');
       expect(found2).toBeNull();
-
+      
       // Verify it was removed from both storage locations
       const sizes = store.size();
       // The message should be removed from the old map after exact match

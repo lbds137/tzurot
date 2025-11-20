@@ -42,20 +42,17 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 ### Installation
 
 1. **Clone the repository**
-
    ```bash
    git clone https://github.com/lbds137/tzurot.git
    cd tzurot
    ```
 
 2. **Install dependencies**
-
    ```bash
    npm install
    ```
 
 3. **Configure environment**
-
    ```bash
    cp .env.example .env
    # Edit .env with your credentials
@@ -78,21 +75,18 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 ## ✨ Features
 
 ### Personality Management
-
 - Add personalities with custom aliases for easy reference
 - Each user maintains their own personality collection
 - Automatic profile fetching with avatar and display name
 - Support for problematic personalities with special handling
 
 ### Interaction Methods
-
 1. **Direct Mention**: `@personality Hello!`
 2. **Reply to Personality**: Reply to any personality message to continue the conversation
 3. **Auto-Response Mode**: Enable continuous conversation without mentions
 4. **Channel Activation**: Moderators can activate a personality for an entire channel
 
 ### Advanced Features
-
 - **Message Deduplication**: Sophisticated multi-layer system prevents duplicate responses
 - **Thread Support**: Full support for Discord threads
 - **DM Support**: Private conversations with personalities
@@ -102,7 +96,6 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 - **Enhanced Context** (Preview): Automatic personality data migration for external AI services
 
 ### Security & Authentication
-
 - OAuth-like authentication flow for API access
 - Secure token management with automatic expiration
 - DM-only authorization code submission
@@ -111,7 +104,6 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 ## 📚 Documentation
 
 ### Core Documentation
-
 - [🏗️ Architecture](docs/core/ARCHITECTURE.md) - System design and component overview
 - [🔧 Setup Guide](docs/core/SETUP.md) - Detailed development setup instructions
 - [📜 Commands](docs/core/COMMAND_SYSTEM.md) - Complete command system documentation
@@ -119,14 +111,12 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 - [🔒 Security](docs/core/SECURITY.md) - Security practices and guidelines
 
 ### Component Documentation
-
 - [🔐 Authentication](docs/components/AUTHENTICATION.md) - Auth system details
 - [🎵 Audio Handling](docs/components/AUDIO_ATTACHMENT.md) - Audio processing
 - [🖼️ Image Handling](docs/components/IMAGE_HANDLING.md) - Image processing
 - [📝 Message Format](docs/core/MESSAGE_FORMAT_SPECIFICATION.md) - Message specifications
 
 ### Development
-
 - [💻 Contributing](docs/core/CONTRIBUTING.md) - How to contribute
 - [📏 Coding Standards](docs/core/CODING_STANDARDS.md) - Code style guide
 - [🧪 Testing Guide](docs/testing/README.md) - Testing documentation
@@ -165,13 +155,11 @@ See [SETUP.md](docs/core/SETUP.md) for complete configuration details.
 ## 🎮 Commands
 
 ### Basic Commands
-
 - `!tz help [command]` - Display help information
 - `!tz ping` - Check bot responsiveness
 - `!tz status` - Show bot statistics
 
 ### Personality Management
-
 - `!tz add <name> [alias]` - Add a personality
 - `!tz remove <name>` - Remove a personality
 - `!tz list [page]` - List your personalities
@@ -179,14 +167,12 @@ See [SETUP.md](docs/core/SETUP.md) for complete configuration details.
 - `!tz alias <name> <alias>` - Add an alias
 
 ### Conversation Control
-
 - `!tz autorespond <on/off>` - Toggle auto-response
 - `!tz reset` - Clear active conversation
 - `!tz activate <name>` - Activate for channel (mod only)
 - `!tz deactivate` - Deactivate channel personality
 
 ### Authentication
-
 - `!tz auth start` - Begin authentication
 - `!tz auth status` - Check auth status
 - `!tz verify` - Verify authentication
@@ -298,7 +284,6 @@ Tzurot can be deployed in multiple ways:
 - **Systemd**: Linux service deployment
 
 **⚠️ Current Limitations:**
-
 - Data is stored in JSON files (not persistent across redeploys)
 - Auth tokens are stored in memory (users must re-authenticate after restarts)
 - For production use, database integration is recommended
@@ -317,7 +302,6 @@ Contributions are welcome! Please see the [Contributing Guide](docs/core/CONTRIB
 ### Development Workflow
 
 This project uses a feature branch workflow with protected branches:
-
 - All changes must be made via pull requests
 - CI checks (tests and linting) must pass
 - Feature branches are created from `develop`, not `main`

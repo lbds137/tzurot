@@ -1,16 +1,16 @@
 /**
  * Tests for authentication handling in personalityHandler
- *
+ * 
  * Focuses specifically on the checkPersonalityAuth function and its
  * handling of different message types (direct, webhook, PluralKit).
  */
 
 // Mock config first, before any imports
-jest.mock('../../../config', () => ({
+jest.mock('../../../config', () => ({ 
   botPrefix: '!tz',
   botConfig: {
-    isDevelopment: false,
-  },
+    isDevelopment: false
+  }
 }));
 
 // Mock dependencies
@@ -19,7 +19,7 @@ jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/domain/authentication/AuthContext');
 
-const {
+const { 
   checkPersonalityAuth,
   setAuthService,
   clearCache,
@@ -60,7 +60,7 @@ describe('PersonalityHandler - checkPersonalityAuth', () => {
     isChannelNSFW.mockReturnValue(true);
 
     // Mock AuthContext
-    AuthContext.mockImplementation(config => ({
+    AuthContext.mockImplementation((config) => ({
       channelType: config.channelType,
       channelId: config.channelId,
       isNsfwChannel: config.isNsfwChannel,
@@ -147,9 +147,7 @@ describe('PersonalityHandler - checkPersonalityAuth', () => {
 
       // Verify proxy authentication was used
       expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(mockProxyMessage);
-      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(
-        mockProxyMessage
-      );
+      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(mockProxyMessage);
 
       // Verify DDD auth was called with real user ID
       expect(mockAuthService.checkPersonalityAccess).toHaveBeenCalledWith(
@@ -175,9 +173,7 @@ describe('PersonalityHandler - checkPersonalityAuth', () => {
       });
 
       // Verify proxy authentication was attempted
-      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(
-        mockProxyMessage
-      );
+      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(mockProxyMessage);
 
       // Verify DDD auth was NOT called since proxy auth failed
       expect(mockAuthService.checkPersonalityAccess).not.toHaveBeenCalled();
@@ -208,9 +204,7 @@ describe('PersonalityHandler - checkPersonalityAuth', () => {
       });
 
       // Verify both auth methods were called
-      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(
-        mockProxyMessage
-      );
+      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(mockProxyMessage);
       expect(mockAuthService.checkPersonalityAccess).toHaveBeenCalledWith(
         realUserId,
         mockPersonality,

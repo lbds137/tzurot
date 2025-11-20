@@ -3,7 +3,6 @@
 This guide documents how to access files and volumes on Railway deployments.
 
 ## Table of Contents
-
 - [Current Limitations](#current-limitations)
 - [Railway SSH (New Feature)](#railway-ssh-new-feature)
 - [Accessing Volumes Through Code](#accessing-volumes-through-code)
@@ -13,7 +12,6 @@ This guide documents how to access files and volumes on Railway deployments.
 ## Current Limitations
 
 Railway does not provide traditional SSH access to deployed containers. The platform prioritizes immutability and security, which means:
-
 - No direct file browser UI
 - No file download via CLI
 - Volumes only accessible through application code
@@ -84,7 +82,6 @@ app.get('/debug/ls', async (req, res) => {
 ### 3. Using Environment Variables
 
 Railway automatically provides:
-
 - `RAILWAY_VOLUME_NAME` - Name of the volume
 - `RAILWAY_VOLUME_MOUNT_PATH` - Mount path of the volume
 
@@ -106,22 +103,19 @@ logger.info(`[PersonalityManager] Personalities loaded: ${Object.keys(personalit
 Use JSON logging for better filtering in Railway dashboard:
 
 ```javascript
-console.log(
-  JSON.stringify({
-    service: 'personality-manager',
-    action: 'load',
-    path: '/app/data/personalities.json',
-    success: true,
-    count: Object.keys(personalities).length,
-    names: Object.keys(personalities),
-  })
-);
+console.log(JSON.stringify({
+  service: "personality-manager",
+  action: "load",
+  path: "/app/data/personalities.json",
+  success: true,
+  count: Object.keys(personalities).length,
+  names: Object.keys(personalities)
+}));
 ```
 
 ### 3. Log Filtering in Railway
 
 Use these filters in the Railway dashboard:
-
 ```
 @service:tzurot
 @level:error
@@ -179,7 +173,6 @@ if (fs.existsSync(source)) {
 Based on the current issue with reply personality lookup:
 
 1. **Check if personalities.json exists and is populated**:
-
    ```javascript
    // Add to ApplicationBootstrap
    const personalitiesPath = path.join(dataPath, 'personalities.json');
@@ -194,21 +187,16 @@ Based on the current issue with reply personality lookup:
    ```
 
 2. **Verify personality registration**:
-
    ```javascript
    // In PersonalityManager
    logger.info(`[PersonalityManager] Registering ${personalityName} for owner ${ownerId}`);
-   logger.info(
-     `[PersonalityManager] Current personalities: ${Object.keys(this.personalities).join(', ')}`
-   );
+   logger.info(`[PersonalityManager] Current personalities: ${Object.keys(this.personalities).join(', ')}`);
    ```
 
 3. **Debug conversation tracking**:
    ```javascript
    // In ConversationTracker
-   logger.info(
-     `[ConversationTracker] Recording: ${personalityName} (using fullName: ${personality.fullName})`
-   );
+   logger.info(`[ConversationTracker] Recording: ${personalityName} (using fullName: ${personality.fullName})`);
    ```
 
 ## Railway CLI Reference

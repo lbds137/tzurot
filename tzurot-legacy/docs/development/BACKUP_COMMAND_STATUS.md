@@ -13,14 +13,12 @@ The backup command has been successfully ported to DDD architecture and is **now
 ### Current Status
 
 The DDD backup command is now available when the DDD command integration is enabled:
-
 - **DDD Implementation**: `/src/application/commands/utility/BackupCommand.js`
 - **Legacy Implementation**: `/src/commands/handlers/backup.js` (still present)
 
 ### Feature Flag Recommendation
 
 To control rollout of the DDD backup command, consider adding a feature flag in FeatureFlags.js:
-
 ```javascript
 // Command system flags
 'ddd.commands.backup': false, // Add this flag for controlled rollout
@@ -29,7 +27,6 @@ To control rollout of the DDD backup command, consider adding a feature flag in 
 ### Command Routing
 
 Currently, which implementation is used depends on:
-
 - If `ddd.commands.integration` is enabled → Uses DDD implementation
 - Otherwise → Falls back to legacy handler
 
@@ -41,7 +38,6 @@ Currently, which implementation is used depends on:
 ### Testing the DDD Implementation
 
 The DDD implementation is fully tested with 95.94% coverage and can be found at:
-
 - Implementation: `/src/application/commands/utility/BackupCommand.js`
 - Tests: `/tests/unit/application/commands/utility/BackupCommand.test.js`
 
@@ -55,7 +51,6 @@ The DDD implementation is fully tested with 95.94% coverage and can be found at:
 ## Implementation Details
 
 The DDD backup command provides:
-
 - ✅ Complete feature parity with legacy command
 - ✅ Standardized Discord embeds with color coding
 - ✅ Privacy-compliant session cookie handling
@@ -66,7 +61,6 @@ The DDD backup command provides:
 ## Next Steps
 
 To activate the DDD backup command:
-
 1. Follow the enablement steps above
 2. Test with a small group of users
 3. Monitor for any issues

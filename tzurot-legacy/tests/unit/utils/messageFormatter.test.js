@@ -3,7 +3,9 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
-const { prepareMessageData } = require('../../../src/utils/messageFormatter');
+const {
+  prepareMessageData,
+} = require('../../../src/utils/messageFormatter');
 
 // Mock dependencies
 jest.mock('../../../src/logger', () => ({
@@ -12,6 +14,7 @@ jest.mock('../../../src/logger', () => ({
   error: jest.fn(),
   debug: jest.fn(),
 }));
+
 
 describe('messageFormatter', () => {
   beforeEach(() => {
@@ -63,7 +66,9 @@ describe('messageFormatter', () => {
     });
 
     it('should include embeds when provided', () => {
-      const embed = new EmbedBuilder().setTitle('Test Embed').setDescription('Test Description');
+      const embed = new EmbedBuilder()
+        .setTitle('Test Embed')
+        .setDescription('Test Description');
 
       const result = prepareMessageData(
         'Message with embed',

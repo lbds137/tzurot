@@ -282,7 +282,7 @@ async function checkPersonality(context) {
   try {
     // Get personality name from args
     const personalityName = context.args?.[1];
-
+    
     if (!personalityName) {
       const errorEmbed = {
         title: '❌ Missing Personality Name',
@@ -300,9 +300,9 @@ async function checkPersonality(context) {
     } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const personalityService = bootstrap.getPersonalityApplicationService();
-
+    
     const personality = await personalityService.getPersonality(personalityName);
-
+    
     if (!personality) {
       const errorEmbed = {
         title: '❌ Personality Not Found',
@@ -333,11 +333,7 @@ async function checkPersonality(context) {
         { name: 'Full Name', value: debugInfo.name, inline: true },
         { name: 'Profile Mode', value: debugInfo.profileMode, inline: true },
         { name: 'Has Profile', value: debugInfo.hasProfile ? 'Yes' : 'No', inline: true },
-        {
-          name: 'Has Error Message',
-          value: debugInfo.hasErrorMessage ? 'Yes' : 'No',
-          inline: true,
-        },
+        { name: 'Has Error Message', value: debugInfo.hasErrorMessage ? 'Yes' : 'No', inline: true },
         { name: 'Profile Type', value: debugInfo.profileType, inline: true },
         { name: 'Has Prompt', value: debugInfo.prompt, inline: true },
         { name: 'Model Path', value: debugInfo.modelPath, inline: true },
@@ -346,8 +342,9 @@ async function checkPersonality(context) {
       color: 0x4caf50,
       timestamp: new Date().toISOString(),
     };
-
+    
     await context.respond({ embeds: [embed] });
+    
   } catch (error) {
     logger.error(`[Debug] Error checking personality: ${error.message}`);
     const errorEmbed = {

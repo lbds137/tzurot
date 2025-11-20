@@ -5,7 +5,6 @@ This CLAUDE.md file provides guidance for working with utility functions in Tzur
 ## Available Utilities
 
 ### Core Utilities
-
 - **channelUtils.js** - Discord channel type detection and utilities
 - **contentSimilarity.js** - Text similarity calculation for deduplication
 - **contextMetadataFormatter.js** - Discord context metadata formatting for AI messages
@@ -18,7 +17,6 @@ This CLAUDE.md file provides guidance for working with utility functions in Tzur
 - **webhookUserTracker.js** - Webhook-to-user association tracking
 
 ### Media Utilities (`media/`)
-
 - **mediaHandler.js** - Central media processing coordinator
 - **audioHandler.js** - Audio file download and processing
 - **imageHandler.js** - Image file download and processing
@@ -33,7 +31,6 @@ The media handling subsystem consists of:
 - `media/imageHandler.js` - Image file processing
 
 IMPORTANT: When handling media:
-
 1. Always check for null/undefined values
 2. Validate URLs with the urlValidator
 3. Handle different media types appropriately
@@ -85,7 +82,7 @@ try {
   // Track the error with context
   trackError('componentName', error, {
     userId: user.id,
-    operation: 'description',
+    operation: 'description'
   });
 }
 ```
@@ -133,7 +130,7 @@ pluralkitMessageStore.store(messageId, {
   channelId: message.channel.id,
   content: message.content,
   guildId: message.guild?.id,
-  username: message.author.username,
+  username: message.author.username
 });
 
 // When a message is deleted
@@ -158,25 +155,21 @@ const contextInfo = formatContextMetadata(message);
 ### Format Examples
 
 **Guild Messages:**
-
 ```
 [Discord: My Server > #general | 2024-07-10T15:30:45.000Z]
 ```
 
 **Direct Messages:**
-
 ```
 [Discord: Direct Messages | 2024-07-10T15:30:45.000Z]
 ```
 
 **Thread Messages:**
-
 ```
 [Discord: My Server > #general > Thread Name | 2024-07-10T15:30:45.000Z]
 ```
 
 **Forum Posts:**
-
 ```
 [Discord: Help Server > #support > How to use bot? | 2024-07-10T15:30:45.000Z]
 ```
@@ -198,7 +191,6 @@ const timestamp = formatTimestamp(message.createdTimestamp);
 ### Error Handling
 
 The utility includes comprehensive error handling:
-
 - Invalid timestamps fall back to current time
 - Missing channel information uses "Unknown" placeholders
 - All errors are logged with appropriate context
@@ -207,14 +199,12 @@ The utility includes comprehensive error handling:
 ## When to Create New Utilities
 
 Create a new utility when:
-
 1. **Functionality is used in 3+ places** - If code is repeated in multiple files
 2. **Logic is complex and self-contained** - If it's a non-trivial algorithm or process
 3. **It's a pure function** - Takes inputs, returns outputs, no side effects
 4. **It's testable in isolation** - Can be unit tested without mocking the entire app
 
 Don't create utilities for:
-
 1. **Single-use functions** - Keep them in the component that uses them
 2. **Business logic** - This belongs in handlers or managers
 3. **Stateful operations** - Utilities should be stateless

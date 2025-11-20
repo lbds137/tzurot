@@ -5,28 +5,23 @@ This document provides a comprehensive reference for all feature flags available
 ## How Feature Flags Work
 
 ### Environment Variable Format
-
 Feature flags are set via environment variables using this format:
-
 ```
 FEATURE_FLAG_<FLAG_NAME_IN_UPPERCASE>=true|false
 ```
 
 For example, the flag `ddd.commands.utility` becomes:
-
 ```bash
 FEATURE_FLAG_DDD_COMMANDS_UTILITY=true
 ```
 
 ### Dots and Hyphens
-
 - Dots (`.`) become underscores (`_`)
 - Hyphens (`-`) become underscores (`_`)
 
 Example: `ddd.events.cache-invalidation` → `FEATURE_FLAG_DDD_EVENTS_CACHE_INVALIDATION`
 
 ### Default Values
-
 All flags have default values defined in the code. Most new features default to `false` (disabled) for safety.
 
 ---
@@ -36,11 +31,10 @@ All flags have default values defined in the code. Most new features default to 
 These flags control the gradual migration from legacy systems to the new Domain-Driven Design (DDD) architecture.
 
 ### Core Domain Migration
-
 ```bash
 # Personality system migration
 FEATURE_FLAG_DDD_PERSONALITY_READ=false        # Use DDD for reading personality data
-FEATURE_FLAG_DDD_PERSONALITY_WRITE=false       # Use DDD for writing personality data
+FEATURE_FLAG_DDD_PERSONALITY_WRITE=false       # Use DDD for writing personality data  
 FEATURE_FLAG_DDD_PERSONALITY_DUAL_WRITE=false  # Write to both legacy and DDD systems
 
 # Conversation system migration
@@ -71,7 +65,6 @@ FEATURE_FLAG_DDD_EVENTS_CACHE_INVALIDATION=true          # Use events for cache 
 ```
 
 **Use Cases**:
-
 - `ddd.events.enabled`: Master switch for event system
 - `ddd.events.logging`: Debug event flow (safe to keep enabled)
 - `ddd.events.cache-invalidation`: Automatic cache updates when data changes
@@ -83,7 +76,6 @@ FEATURE_FLAG_DDD_EVENTS_CACHE_INVALIDATION=true          # Use events for cache 
 Controls which commands use the new DDD command system vs. legacy handlers.
 
 ### Global Command Flags
-
 ```bash
 FEATURE_FLAG_DDD_COMMANDS_ENABLED=false                  # Master switch for DDD commands
 FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=false              # Enable CommandIntegration routing
@@ -92,12 +84,11 @@ FEATURE_FLAG_DDD_COMMANDS_SLASH=false                    # Enable Discord slash 
 ```
 
 ### Command Category Flags
-
 ```bash
 # Utility commands: ping, status, debug, help, purgbot, volumetest, notifications
 FEATURE_FLAG_DDD_COMMANDS_UTILITY=false
 
-# Personality commands: add, remove, info, alias, list
+# Personality commands: add, remove, info, alias, list  
 FEATURE_FLAG_DDD_COMMANDS_PERSONALITY=false
 
 # Conversation commands: activate, deactivate, reset, autorespond
@@ -108,16 +99,14 @@ FEATURE_FLAG_DDD_COMMANDS_AUTHENTICATION=false
 ```
 
 **Command Categories Explained**:
-
 - **Utility**: Safe, read-only commands ideal for initial testing
 - **Personality**: Commands that modify personality data (test carefully)
 - **Conversation**: Commands that affect active conversations
 - **Authentication**: Security-sensitive commands (enable last)
 
 **Recommended Enablement Order**:
-
 1. Set `FEATURE_FLAG_DDD_COMMANDS_ENABLED=true`
-2. Set `FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=true`
+2. Set `FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=true` 
 3. Enable categories one at a time: `utility` → `personality` → `conversation` → `authentication`
 
 ---
@@ -133,7 +122,6 @@ FEATURE_FLAG_COMMANDS_PLATFORM_AGNOSTIC=false            # Platform-agnostic com
 ```
 
 **Notes**:
-
 - `commands.text.enabled`: Should stay `true` unless fully migrating to slash commands
 - `commands.platform-agnostic`: Experimental feature for multi-platform support
 
@@ -148,12 +136,11 @@ Controls experimental and optional features.
 FEATURE_FLAG_FEATURES_COMPARISON_TESTING=false           # A/B testing between legacy and DDD systems
 FEATURE_FLAG_FEATURES_PERFORMANCE_LOGGING=false          # Detailed performance metrics logging
 
-# External service features
+# External service features  
 FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=false             # Send enhanced context to AI services
 ```
 
 **Feature Descriptions**:
-
 - `features.comparison-testing`: Runs both legacy and DDD systems in parallel for comparison
 - `features.performance-logging`: Adds detailed timing logs (may impact performance)
 - `features.enhanced-context`: Sends additional context to AI services (may increase API costs)
@@ -163,7 +150,6 @@ FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=false             # Send enhanced context
 ## 🛠️ Common Configuration Scenarios
 
 ### Development Environment
-
 ```bash
 # Safe development testing
 FEATURE_FLAG_DDD_COMMANDS_ENABLED=true
@@ -174,7 +160,6 @@ FEATURE_FLAG_DDD_EVENTS_LOGGING=true
 ```
 
 ### Production Gradual Rollout
-
 ```bash
 # Week 1: Utility commands only
 FEATURE_FLAG_DDD_COMMANDS_ENABLED=true
@@ -185,7 +170,7 @@ FEATURE_FLAG_DDD_COMMANDS_FALLBACKONERROR=true
 # Week 2: Add personality commands
 FEATURE_FLAG_DDD_COMMANDS_PERSONALITY=true
 
-# Week 3: Add conversation commands
+# Week 3: Add conversation commands  
 FEATURE_FLAG_DDD_COMMANDS_CONVERSATION=true
 
 # Week 4: Add authentication (most sensitive)
@@ -193,7 +178,6 @@ FEATURE_FLAG_DDD_COMMANDS_AUTHENTICATION=true
 ```
 
 ### Full DDD Migration
-
 ```bash
 # All DDD systems enabled
 FEATURE_FLAG_DDD_COMMANDS_ENABLED=true
@@ -216,9 +200,7 @@ FEATURE_FLAG_DDD_AUTHENTICATION_WRITE=true
 ## 🔍 Monitoring and Debugging
 
 ### Key Log Messages
-
 When changing feature flags, watch for these log messages:
-
 ```
 [CommandIntegrationAdapter] Processing command "X" using new system
 [CommandIntegrationAdapter] Processing command "X" using legacy system
@@ -227,9 +209,7 @@ Unknown feature flag: flag-name  # Indicates typo in environment variable
 ```
 
 ### Testing Your Configuration
-
 You can test your feature flag configuration:
-
 ```bash
 # Check if a specific flag is enabled
 node -e "console.log(require('./src/application/services/FeatureFlags').getFeatureFlags().isEnabled('ddd.commands.utility'))"
@@ -243,16 +223,13 @@ node -e "const flags = require('./src/application/services/FeatureFlags').getFea
 ## ⚠️ Important Notes
 
 ### Safety Guidelines
-
 1. **Always enable fallback first**: Set `FEATURE_FLAG_DDD_COMMANDS_FALLBACKONERROR=true`
 2. **Test in development**: Never enable new flags directly in production
 3. **Monitor closely**: Watch logs and error rates when enabling new flags
 4. **Enable gradually**: One category at a time, not all at once
 
 ### Environment File Example
-
 Your `.env` file might look like:
-
 ```bash
 # Discord bot token
 DISCORD_TOKEN=your_token_here
@@ -267,7 +244,6 @@ FEATURE_FLAG_DDD_COMMANDS_FALLBACKONERROR=true
 ```
 
 ### Troubleshooting
-
 - **"Unknown feature flag" warnings**: Check your environment variable spelling
 - **Commands not using DDD**: Ensure both `enabled` and `integration` flags are true
 - **Commands failing**: Check if fallback is enabled and review error logs
@@ -282,5 +258,5 @@ FEATURE_FLAG_DDD_COMMANDS_FALLBACKONERROR=true
 
 ---
 
-_Last updated: 2025-06-19_  
-_For questions about feature flags, check the source code in `src/application/services/FeatureFlags.js`_
+*Last updated: 2025-06-19*  
+*For questions about feature flags, check the source code in `src/application/services/FeatureFlags.js`*

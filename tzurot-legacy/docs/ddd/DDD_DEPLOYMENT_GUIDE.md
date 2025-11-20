@@ -105,7 +105,6 @@ node scripts/test-ddd-commands.js
 ```
 
 You should see:
-
 - ✅ All feature flags enabled
 - ✅ 6 commands registered
 - ✅ Command lookup working
@@ -139,13 +138,11 @@ Watch for these log messages:
 If issues occur, you can instantly rollback:
 
 ### Option 1: Disable All DDD Commands
-
 ```bash
 FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=false
 ```
 
 ### Option 2: Disable Specific Commands
-
 ```bash
 # Keep some commands on DDD, rollback others
 FEATURE_FLAG_DDD_COMMANDS_ADD=false  # Use legacy /add
@@ -153,7 +150,6 @@ FEATURE_FLAG_DDD_COMMANDS_LIST=true  # Keep DDD /list
 ```
 
 ### Option 3: Emergency Full Rollback
-
 Remove all `FEATURE_FLAG_DDD_*` entries from `.env` and restart.
 
 ## 📊 Monitoring
@@ -191,21 +187,18 @@ grep "dual-write" logs/bot.log
 ### Conservative Approach (Recommended)
 
 Week 1:
-
 - Enable read operations only
 - `FEATURE_FLAG_DDD_PERSONALITY_READ=true`
 - `FEATURE_FLAG_DDD_COMMANDS_LIST=true`
 - `FEATURE_FLAG_DDD_COMMANDS_INFO=true`
 
 Week 2:
-
 - Enable write operations with dual-write
 - `FEATURE_FLAG_DDD_PERSONALITY_WRITE=true`
 - `FEATURE_FLAG_DDD_PERSONALITY_DUAL_WRITE=true`
 - Enable remaining commands
 
 Week 3:
-
 - Disable dual-write after verification
 - `FEATURE_FLAG_DDD_PERSONALITY_DUAL_WRITE=false`
 
@@ -218,7 +211,6 @@ Enable everything at once by copying `.env.ddd-testing` to `.env`.
 ### Commands Not Using DDD System
 
 Check:
-
 1. `FEATURE_FLAG_DDD_COMMANDS_INTEGRATION=true` is set
 2. Bot was restarted after changing `.env`
 3. No typos in environment variable names
@@ -226,14 +218,12 @@ Check:
 ### "PersonalityApplicationService not available" Error
 
 Ensure these are set:
-
 - `AI_SERVICE_URL` (your AI service endpoint)
 - `AI_SERVICE_API_KEY` (your API key)
 
 ### Data Not Syncing
 
 Enable dual-write:
-
 - `FEATURE_FLAG_DDD_PERSONALITY_DUAL_WRITE=true`
 
 ## 📝 Post-Deployment

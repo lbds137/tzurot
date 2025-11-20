@@ -5,30 +5,25 @@ This document outlines the complete workflow for migrating DDD tests to the cons
 ## Migration Workflow Steps
 
 ### 1. Pre-Migration Setup
-
 ```bash
 # Create a full backup of all DDD tests (one-time)
 ./scripts/backup-ddd-tests.sh
 ```
 
 ### 2. Select Test for Migration
-
 ```bash
 # Use the guide tool to analyze the test
 node scripts/guide-ddd-test-migration.js tests/unit/domain/personality/UserId.test.js
 ```
 
 ### 3. Create Individual Backup
-
 ```bash
 # Backup the specific test file
 cp tests/unit/domain/personality/UserId.test.js tests/unit/domain/personality/UserId.test.js.backup
 ```
 
 ### 4. Migrate the Test
-
 Follow the template provided by the guide tool and:
-
 - Add proper test headers (@jest-environment, @testType)
 - Import consolidated mocks (dddPresets)
 - Add comments clarifying what is/isn't mocked
@@ -36,7 +31,6 @@ Follow the template provided by the guide tool and:
 - Keep all test logic unchanged
 
 ### 5. Validate the Migration
-
 ```bash
 # Check syntax
 node scripts/validate-test-syntax.js tests/unit/domain/personality/UserId.migrated.test.js
@@ -49,9 +43,7 @@ diff -u tests/unit/domain/personality/UserId.test.js.backup tests/unit/domain/pe
 ```
 
 ### 6. Replace Original with Migrated Version
-
 Once validated:
-
 ```bash
 # Replace the original with the migrated version
 mv tests/unit/domain/personality/UserId.migrated.test.js tests/unit/domain/personality/UserId.test.js
@@ -61,13 +53,11 @@ rm tests/unit/domain/personality/UserId.test.js.backup
 ```
 
 ### 7. Update Documentation
-
 - Update `/docs/testing/DDD_TEST_MIGRATION_STATUS.md` with the completed migration
 - Commit with a descriptive message:
-
   ```
   test: migrate UserId test to consolidated mocks
-
+  
   - Migrated value object test
   - All 25 tests passing
   - DDD test migration: 5/45 files complete
@@ -83,11 +73,10 @@ When migrating multiple tests:
    - Migrate services together
 
 2. **Use Batch Commands**
-
    ```bash
    # Validate multiple files
    node scripts/validate-test-syntax.js tests/unit/domain/personality/*.migrated.test.js
-
+   
    # Run all migrated tests in a directory
    npx jest tests/unit/domain/personality/*.migrated.test.js --no-coverage
    ```
@@ -101,7 +90,6 @@ When migrating multiple tests:
 ## Migration Checklist Template
 
 For each test file:
-
 - [ ] Analyzed with guide tool
 - [ ] Created backup (.backup file)
 - [ ] Created migrated version (.migrated.test.js)
@@ -116,29 +104,24 @@ For each test file:
 ## Common Issues and Solutions
 
 ### Jest Mock Hoisting
-
 **Problem**: "The module factory of jest.mock() is not allowed to reference any out-of-scope variables"
 **Solution**: Define mocks inline without external references
 
 ### Trailing Commas
-
 **Problem**: Syntax validator reports trailing comma errors
 **Solution**: Remove trailing commas from objects and arrays
 
 ### Timer Issues
-
 **Problem**: Tests timeout or fail with timer-related errors
 **Solution**: Ensure jest.useFakeTimers() in beforeEach and jest.useRealTimers() in afterEach
 
 ### Missing Dependencies
-
 **Problem**: Test fails with "Cannot find module"
 **Solution**: Check that all required modules are properly imported
 
 ## Quality Standards
 
 Every migrated test must:
-
 1. ✅ Pass all existing tests without modification
 2. ✅ Follow consistent patterns for its test type
 3. ✅ Have clear documentation headers
@@ -157,14 +140,12 @@ Every migrated test must:
 ## Migration Summary
 
 As of the latest update:
-
 - ✅ **5/45 files migrated** (11.1%)
 - ✅ **154 tests** successfully migrated and passing
 - ✅ **All 5 files** cleaned up and merged
 - ✅ **0 files** awaiting cleanup
 
 ### Completed Migrations
-
 1. PersonalityId (35 tests) - MERGED ✅
 2. Alias (28 tests) - MERGED ✅
 3. Token (31 tests) - MERGED ✅
@@ -172,7 +153,6 @@ As of the latest update:
 5. FilePersonalityRepository (39 tests) - MERGED ✅
 
 ### Tools Created
-
 1. **backup-ddd-tests.sh** - Safe backup creation
 2. **guide-ddd-test-migration.js** - Migration analysis and templates
 3. **validate-test-syntax.js** - Syntax validation

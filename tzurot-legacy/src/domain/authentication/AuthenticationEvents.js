@@ -80,6 +80,7 @@ class UserNsfwVerificationCleared extends DomainEvent {
   }
 }
 
+
 /**
  * @class AuthenticationDenied
  * @extends DomainEvent

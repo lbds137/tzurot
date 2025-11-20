@@ -1,6 +1,6 @@
 /**
  * Message Splitting Utilities
- *
+ * 
  * Provides common message splitting functionality used across
  * webhooks, threads, and DMs to reduce code duplication.
  */
@@ -188,7 +188,7 @@ function splitByCharacterLimit(text) {
 /**
  * Prepare content for splitting by appending model indicator if provided
  * and then split into chunks respecting Discord's character limit.
- *
+ * 
  * @param {string} content - The message content to split
  * @param {Object} options - Options object that may contain modelIndicator
  * @param {string} context - Context for logging (e.g., 'Webhook', 'Thread', 'DM')
@@ -204,7 +204,7 @@ function prepareAndSplitMessage(content, options, context = 'Message') {
   // Split message if needed (Discord's character limit)
   const contentChunks = splitMessage(contentToSplit);
   logger.info(`[${context}] Split message into ${contentChunks.length} chunks`);
-
+  
   return contentChunks;
 }
 
@@ -217,8 +217,8 @@ const chunkHelpers = {
    * @param {number} index - Current chunk index
    * @returns {boolean}
    */
-  isFirstChunk: index => index === 0,
-
+  isFirstChunk: (index) => index === 0,
+  
   /**
    * Check if this is the last chunk
    * @param {number} index - Current chunk index
@@ -226,7 +226,7 @@ const chunkHelpers = {
    * @returns {boolean}
    */
   isLastChunk: (index, total) => index === total - 1,
-
+  
   /**
    * Get standard chunk delay in milliseconds
    * @returns {number}

@@ -16,9 +16,7 @@ jest.mock('../../../../../src/application/bootstrap/ApplicationBootstrap', () =>
   getApplicationBootstrap: jest.fn(),
 }));
 
-const {
-  getApplicationBootstrap,
-} = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
+const { getApplicationBootstrap } = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
 
 // Note: auth.js no longer exists - authManager is injected via context
 
@@ -55,18 +53,18 @@ describe('DebugCommand', () => {
     };
 
     // Legacy authManager removed - using DDD authentication
-
+    
     // Mock DDD authentication service
     mockDDDAuthService = {
       revokeAuthentication: jest.fn().mockResolvedValue(),
       cleanupExpiredTokens: jest.fn().mockResolvedValue([]),
     };
-
+    
     // Setup ApplicationBootstrap mock
     getApplicationBootstrap.mockReturnValue({
       getApplicationServices: jest.fn().mockReturnValue({
-        authenticationService: mockDDDAuthService,
-      }),
+        authenticationService: mockDDDAuthService
+      })
     });
 
     // Mock message tracker
@@ -129,18 +127,18 @@ describe('DebugCommand', () => {
       });
       expect(mockWebhookUserTracker.clearAllCachedWebhooks).not.toHaveBeenCalled();
     });
-
+    
     it('should allow bot owner access even without admin permissions', async () => {
       mockContext.isAdmin = false;
       mockContext.userId = '123456789012345678'; // Default fallback bot owner ID from constants
-
+      
       // Mock the constants module
       jest.doMock('../../../../../src/constants', () => ({
         USER_CONFIG: {
-          OWNER_ID: '123456789012345678',
-        },
+          OWNER_ID: '123456789012345678'
+        }
       }));
-
+      
       // Re-create the command with the mocked constants
       debugCommand = createDebugCommand({
         webhookUserTracker: mockWebhookUserTracker,
@@ -149,9 +147,9 @@ describe('DebugCommand', () => {
         // Legacy authManager removed - using DDD authentication
         messageTracker: mockMessageTracker,
       });
-
+      
       await debugCommand.execute(mockContext);
-
+      
       // Should show help instead of access denied
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
@@ -516,9 +514,7 @@ describe('DebugCommand', () => {
         getApplicationServices: jest.fn().mockReturnValue({
           authenticationService: mockDDDAuthService,
         }),
-        getPersonalityApplicationService: jest
-          .fn()
-          .mockReturnValue(mockPersonalityApplicationService),
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       });
     });
 
@@ -527,9 +523,7 @@ describe('DebugCommand', () => {
 
       await debugCommand.execute(mockContext);
 
-      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith(
-        'test-personality'
-      );
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test-personality');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -656,9 +650,7 @@ describe('DebugCommand', () => {
     });
 
     it('should handle errors when checking personality', async () => {
-      mockPersonalityApplicationService.getPersonality.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPersonalityApplicationService.getPersonality.mockRejectedValue(new Error('Database error'));
       mockContext.args = ['personality', 'test-personality'];
 
       await debugCommand.execute(mockContext);

@@ -19,7 +19,6 @@ Tzurot prioritizes user experience through intuitive interfaces and flexible cus
 ## Key Features
 
 ### Display Name Aliases
-
 Users can create custom, memorable names for personalities:
 
 - **Multiple Aliases**: Each personality can have several nicknames
@@ -28,7 +27,6 @@ Users can create custom, memorable names for personalities:
 - **Easy Management**: Simple commands to add/remove aliases
 
 ### Space-Separated Commands
-
 Natural command syntax that feels intuitive:
 
 - **Readable Commands**: `!tz add my awesome personality` instead of technical IDs
@@ -37,7 +35,6 @@ Natural command syntax that feels intuitive:
 - **Context Awareness**: Smart interpretation based on user intent
 
 ### User-Friendly Design
-
 - **Clear Feedback**: Every action provides informative responses
 - **Error Guidance**: Specific help when something goes wrong
 - **Progressive Disclosure**: Simple commands with advanced options
@@ -46,21 +43,18 @@ Natural command syntax that feels intuitive:
 ## Design Principles
 
 ### Accessibility
-
 - **Screen Reader Friendly**: Proper embed structure and alt text
 - **Mobile Optimized**: Works well on mobile Discord clients
 - **High Contrast**: Clear visual distinction between elements
 - **Simple Navigation**: Logical command organization
 
 ### Usability
-
 - **Discoverability**: `!tz help` provides comprehensive guidance
 - **Forgiveness**: Commands work with minor typos or variations
 - **Efficiency**: Common tasks require minimal typing
 - **Scalability**: Interface remains clean with many personalities
 
 ### Consistency
-
 - **Command Patterns**: Predictable verb-noun structure
 - **Response Format**: Standardized success/error messaging
 - **Visual Design**: Consistent colors and layouts
@@ -69,14 +63,12 @@ Natural command syntax that feels intuitive:
 ## User Journey
 
 ### New User Experience
-
 1. **Discovery**: `!tz help` shows clear getting started steps
 2. **First Success**: `!tz add personality` works immediately
 3. **Exploration**: Natural progression to advanced features
 4. **Mastery**: Power user features don't overwhelm beginners
 
 ### Daily Usage
-
 - **Quick Actions**: Common tasks are fast and memorable
 - **Context Switching**: Easy personality management
 - **Error Recovery**: Mistakes are easy to fix

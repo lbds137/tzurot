@@ -56,7 +56,7 @@ jest.mock('../../src/utils/aiRequestManager', () => ({
 }));
 
 jest.mock('../../src/utils/aiMessageFormatter', () => ({
-  formatApiMessages: jest.fn(messages => messages),
+  formatApiMessages: jest.fn((messages) => messages),
 }));
 
 jest.mock('../../src/utils/webhookUserTracker', () => ({
@@ -93,9 +93,7 @@ describe('AI Service - DDD Authentication Error Handling', () => {
   describe('getAiClientForUser - Authentication Errors', () => {
     it('should handle errors when checking user authentication (covers line 35-36)', async () => {
       // Mock the bootstrap to throw when getting auth service
-      const {
-        getApplicationBootstrap,
-      } = require('../../src/application/bootstrap/ApplicationBootstrap');
+      const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
       getApplicationBootstrap.mockImplementationOnce(() => {
         throw new Error('Bootstrap not initialized');
       });
@@ -128,7 +126,9 @@ describe('AI Service - DDD Authentication Error Handling', () => {
 
     it('should handle errors when getting AI client for user', async () => {
       // Mock the auth service to throw an error
-      mockAuthService.getAuthenticationStatus.mockRejectedValue(new Error('Service unavailable'));
+      mockAuthService.getAuthenticationStatus.mockRejectedValue(
+        new Error('Service unavailable')
+      );
 
       const { getAiClientForUser } = aiService;
       const result = await getAiClientForUser('test-user-id');
@@ -145,8 +145,8 @@ describe('AI Service - DDD Authentication Error Handling', () => {
       mockAuthService.getAuthenticationStatus.mockResolvedValue({
         isAuthenticated: true,
         user: {
-          token: { value: 'test-token' },
-        },
+          token: { value: 'test-token' }
+        }
       });
 
       // Mock OpenAI to throw
@@ -176,26 +176,25 @@ describe('AI Service - DDD Authentication Error Handling', () => {
     });
   });
 
+
   describe('Internal auth check function coverage', () => {
     it('should cover the error path in isUserAuthenticated (lines 35-36)', async () => {
       // This tests the internal function through getAiResponse flow
       // Mock bootstrap to throw error
-      const {
-        getApplicationBootstrap,
-      } = require('../../src/application/bootstrap/ApplicationBootstrap');
-
+      const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
+      
       // First call succeeds (for personality lookup)
       getApplicationBootstrap.mockImplementationOnce(() => ({
         getPersonalityApplicationService: jest.fn(() => mockPersonalityApplicationService),
       }));
-
-      // Second call fails (for auth check)
+      
+      // Second call fails (for auth check) 
       getApplicationBootstrap.mockImplementationOnce(() => {
         throw new Error('Bootstrap error');
       });
 
       mockPersonalityApplicationService.getPersonality.mockResolvedValue({
-        profile: { model: 'gpt-4' },
+        profile: { model: 'gpt-4' }
       });
 
       const { getAiResponse } = aiService;

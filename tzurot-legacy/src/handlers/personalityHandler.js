@@ -747,16 +747,12 @@ async function handlePersonalityInteraction(
         `[PersonalityHandler] Reference channel check: ${sameChannel ? 'SAME' : 'DIFFERENT'}`
       );
       logger.debug(
-        `[PersonalityHandler] Reference recency check: ${isRecent ? 'RECENT' : 'OLD'} (${
-          referenceTimestamp
-            ? (() => {
-                const minsAgo = Math.round((Date.now() - referenceTimestamp) / 1000 / 60);
-                if (minsAgo < 60) return minsAgo + ' mins ago';
-                const hoursAgo = Math.round(minsAgo / 60);
-                return hoursAgo + ' hours ago';
-              })()
-            : 'unknown'
-        })`
+        `[PersonalityHandler] Reference recency check: ${isRecent ? 'RECENT' : 'OLD'} (${referenceTimestamp ? (() => {
+          const minsAgo = Math.round((Date.now() - referenceTimestamp) / 1000 / 60);
+          if (minsAgo < 60) return minsAgo + ' mins ago';
+          const hoursAgo = Math.round(minsAgo / 60);
+          return hoursAgo + ' hours ago';
+        })() : 'unknown'})`
       );
 
       // Re-enable the same-personality optimization now that we've fixed the variable scope issues
@@ -800,9 +796,7 @@ async function handlePersonalityInteraction(
     // For webhook messages (PluralKit), use the real user ID for authentication
     // For regular messages, use the message author's ID
     const userId = webhookUserTracker.getRealUserId(message) || message.author?.id;
-    logger.debug(
-      `[PersonalityHandler] Using user ID for authentication: ${userId || 'none'} (message.author.id: ${message.author?.id})`
-    );
+    logger.debug(`[PersonalityHandler] Using user ID for authentication: ${userId || 'none'} (message.author.id: ${message.author?.id})`);
 
     // Debug logging for proxy context
     if (message.webhookId) {
@@ -899,7 +893,7 @@ async function handlePersonalityInteraction(
       threadInfo,
       isReplyToDMFormattedMessage
     );
-
+    
     // Add model indicator to webhook options
     webhookOptions.modelIndicator = modelIndicator;
 
@@ -989,13 +983,9 @@ async function handlePersonalityInteraction(
     // Send error message to user
     message
       .reply('Sorry, I encountered an error while processing your message. Check logs for details.')
-      .catch(replyError => {
-        logger.error(
-          `[PersonalityHandler] Failed to send error message to user: ${replyError.message}`
-        );
-        logger.error(
-          `[PersonalityHandler] Channel type: ${message.channel.type}, ID: ${message.channel.id}`
-        );
+      .catch((replyError) => {
+        logger.error(`[PersonalityHandler] Failed to send error message to user: ${replyError.message}`);
+        logger.error(`[PersonalityHandler] Channel type: ${message.channel.type}, ID: ${message.channel.id}`);
       });
   } finally {
     // Clear typing indicator if it's still active

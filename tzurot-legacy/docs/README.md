@@ -9,12 +9,10 @@ This directory contains the documentation for the Tzurot Discord bot project.
 ## 🎯 Active Work
 
 ### Currently Working On
-
-- **[Testing Infrastructure](testing/TESTING_STRATEGY.md)** - Golden master tests for safe refactoring _(Updated: Aug 2025)_
-- **[Formatting Domain Plan](improvements/FORMATTING_DOMAIN_PLAN.md)** - Next: Pipeline pattern for messages _(Updated: Aug 2025)_
+- **[Testing Infrastructure](testing/TESTING_STRATEGY.md)** - Golden master tests for safe refactoring *(Updated: Aug 2025)*
+- **[Formatting Domain Plan](improvements/FORMATTING_DOMAIN_PLAN.md)** - Next: Pipeline pattern for messages *(Updated: Aug 2025)*
 
 ### Essential References
-
 - **[Git & PR Workflow](development/GIT_AND_PR_WORKFLOW.md)** ⚠️ Never PR to main directly!
 - **[Timer Patterns](testing/TIMER_PATTERNS_COMPLETE.md)** - Required for all new code
 - **[CLAUDE.md](../CLAUDE.md)** - AI assistant context and rules
@@ -22,9 +20,7 @@ This directory contains the documentation for the Tzurot Discord bot project.
 ## 📁 Structure
 
 ### `/core` - Core Documentation
-
 Essential documentation for understanding and working with the system:
-
 - **SETUP.md** - Getting started guide
 - **ARCHITECTURE.md** - Legacy system architecture (currently active)
 - **API_REFERENCE.md** - API endpoints and interfaces
@@ -35,14 +31,11 @@ Essential documentation for understanding and working with the system:
 - **COMMAND_SYSTEM.md** - Complete command system documentation
 
 ### `/architecture` - Architecture Documentation
-
 - **ARCHITECTURE_OVERVIEW_2025-06-18.md** - Complete view of both legacy (active) and DDD (built, inactive) systems
 - **CORE_INTERACTION_FLOW.md** - Detailed interaction flows
 
 ### `/components` - Feature Documentation
-
 Documentation for specific features and components:
-
 - **AUTHENTICATION.md** - Authentication system details
 - **AUDIO_ATTACHMENT.md** - Audio handling capabilities
 - **DEDUPLICATION.md** - Message deduplication system
@@ -54,9 +47,7 @@ Documentation for specific features and components:
 - **SPACE_ALIASES.md** - Space-based alias handling
 
 ### `/testing` - Testing Documentation
-
 Testing guidelines and coverage information:
-
 - **README.md** - Testing overview and quick start
 - **TEST_PHILOSOPHY_AND_PATTERNS.md** - Testing philosophy, behavior-based testing, anti-patterns
 - **MOCK_SYSTEM_GUIDE.md** - Mock patterns, verification, and migration
@@ -68,9 +59,7 @@ Testing guidelines and coverage information:
 - **COMMANDLOADER_TEST_APPROACH.md** - Command loader testing
 
 ### `/improvements` - Improvement Tracking
-
 Organized by status and priority:
-
 - **README.md** - Overview of improvement organization
 - **active/** - Currently in-progress DDD migration work
   - **FEATURE_FREEZE_NOTICE.md** - Feature freeze during DDD migration
@@ -83,9 +72,7 @@ Organized by status and priority:
   - **FEATURE_IDEAS.md** - New feature proposals
 
 ### `/ddd` - Domain-Driven Design Documentation
-
 Complete DDD migration documentation:
-
 - **README.md** - DDD overview and phase status
 - **DDD_ACTUAL_STATUS_2025-06-18.md** - Current state (built but inactive)
 - **DDD_ENABLEMENT_GUIDE.md** - How to activate DDD features
@@ -95,40 +82,33 @@ Complete DDD migration documentation:
 - **DDD_PHASE_4_PLAN.md** - Current phase plan
 
 ### `/development` - Development Guides
-
 Development-specific documentation:
-
 - **GIT_AND_PR_WORKFLOW.md** - Complete git workflow, PR rules, and branch management
 - **GITHUB_RELEASES.md** - Release process and automation
 - **PREFIX_HANDLING_GUIDE.md** - Handling bot prefixes correctly
 - **VERSIONING.md** - Semantic versioning guidelines
 
 ### `/archive` - Historical Documentation
-
 - **DEVELOPMENT_HISTORY.md** - Archive of all historical fixes and development journey
 
 ## 🔍 Where to Find Information
 
 ### For New Developers
-
 1. Start with `/core/SETUP.md`
 2. Read `/core/ARCHITECTURE.md`
 3. Review the root `CLAUDE.md` for coding guidelines
 
 ### For Testing
-
 1. Read `/testing/TEST_PHILOSOPHY_AND_PATTERNS.md` for philosophy and anti-patterns
 2. Check `/testing/MOCK_SYSTEM_GUIDE.md` for mock patterns
 3. Review `/testing/TIMER_PATTERNS_COMPLETE.md` for timer testing
 
 ### For Contributing
-
 1. Read `/core/CONTRIBUTING.md`
 2. Check `/development/GIT_AND_PR_WORKFLOW.md` for workflow
 3. Review the root `CLAUDE.md` for coding standards
 
 ### For Feature Development
-
 1. Check `/components` for existing features
 2. Review `/improvements` for planned enhancements
 3. Read `src/CLAUDE.md` for source code guidelines

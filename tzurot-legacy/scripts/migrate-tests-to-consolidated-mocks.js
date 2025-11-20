@@ -18,7 +18,7 @@ const MANUAL_MOCK_PATTERNS = [
   /config\.\w+\s*=\s*jest\.fn/,
   /logger\.\w+\s*=\s*jest\.fn/,
   /new RateLimiter/,
-  /setTimeout.*\d{4,}/, // Timeouts > 1 second
+  /setTimeout.*\d{4,}/,  // Timeouts > 1 second
   /setInterval.*\d{4,}/,
 ];
 
@@ -31,7 +31,12 @@ const CONSOLIDATED_MOCK_PATTERNS = [
 ];
 
 // Known timeout-prone modules
-const TIMEOUT_PRONE_MODULES = ['RateLimiter', 'profileInfoFetcher', 'aiService', 'webhookManager'];
+const TIMEOUT_PRONE_MODULES = [
+  'RateLimiter',
+  'profileInfoFetcher',
+  'aiService',
+  'webhookManager',
+];
 
 async function analyzeTestFile(filePath) {
   const content = await fs.readFile(filePath, 'utf8');
@@ -45,13 +50,15 @@ async function analyzeTestFile(filePath) {
       issues.push({
         type: 'manual_mock',
         pattern: pattern.toString(),
-        match: match ? match[0] : 'pattern found',
+        match: match ? match[0] : 'pattern found'
       });
     }
   });
 
   // Check if using consolidated mocks
-  const usesConsolidatedMocks = CONSOLIDATED_MOCK_PATTERNS.some(pattern => pattern.test(content));
+  const usesConsolidatedMocks = CONSOLIDATED_MOCK_PATTERNS.some(pattern => 
+    pattern.test(content)
+  );
 
   if (!usesConsolidatedMocks && issues.length > 0) {
     suggestions.push('Use consolidated mocks from tests/__mocks__/');
@@ -63,7 +70,7 @@ async function analyzeTestFile(filePath) {
       issues.push({
         type: 'unmocked_module',
         module: module,
-        suggestion: `Mock ${module} to prevent timeouts`,
+        suggestion: `Mock ${module} to prevent timeouts`
       });
     }
   });
@@ -73,7 +80,7 @@ async function analyzeTestFile(filePath) {
     if (!content.includes('useFakeTimers')) {
       issues.push({
         type: 'missing_fake_timers',
-        suggestion: 'Add jest.useFakeTimers() to handle timeouts',
+        suggestion: 'Add jest.useFakeTimers() to handle timeouts'
       });
     }
   }
@@ -84,7 +91,7 @@ async function analyzeTestFile(filePath) {
     issues.push({
       type: 'high_timeout',
       timeout: timeoutMatch[1],
-      suggestion: 'Tests should complete in < 5 seconds. Check for unmocked operations.',
+      suggestion: 'Tests should complete in < 5 seconds. Check for unmocked operations.'
     });
   }
 
@@ -92,7 +99,7 @@ async function analyzeTestFile(filePath) {
     file: filePath,
     issues,
     suggestions,
-    usesConsolidatedMocks,
+    usesConsolidatedMocks
   };
 }
 
@@ -100,14 +107,18 @@ async function main() {
   console.log('Analyzing test files for migration needs...\n');
 
   const testFiles = glob.sync('tests/unit/**/*.test.js', {
-    cwd: process.cwd(),
+    cwd: process.cwd()
   });
 
-  const results = await Promise.all(testFiles.map(file => analyzeTestFile(file)));
+  const results = await Promise.all(
+    testFiles.map(file => analyzeTestFile(file))
+  );
 
   // Group results
   const needsMigration = results.filter(r => r.issues.length > 0);
-  const properlyMocked = results.filter(r => r.usesConsolidatedMocks && r.issues.length === 0);
+  const properlyMocked = results.filter(r => 
+    r.usesConsolidatedMocks && r.issues.length === 0
+  );
 
   // Report results
   console.log(`Total test files analyzed: ${results.length}`);
@@ -163,12 +174,11 @@ describe('Your Test', () => {
   }
 
   // List files with frequent timeout issues
-  const timeoutProne = needsMigration.filter(r =>
-    r.issues.some(
-      i =>
-        i.type === 'unmocked_module' ||
-        i.type === 'missing_fake_timers' ||
-        i.type === 'high_timeout'
+  const timeoutProne = needsMigration.filter(r => 
+    r.issues.some(i => 
+      i.type === 'unmocked_module' || 
+      i.type === 'missing_fake_timers' ||
+      i.type === 'high_timeout'
     )
   );
 

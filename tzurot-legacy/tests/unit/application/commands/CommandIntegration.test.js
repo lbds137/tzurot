@@ -55,9 +55,7 @@ jest.mock('../../../../src/application/commands/personality/AddCommand', () => {
 
 const logger = require('../../../../src/logger');
 const { createFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
-const {
-  getApplicationBootstrap,
-} = require('../../../../src/application/bootstrap/ApplicationBootstrap');
+const { getApplicationBootstrap } = require('../../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('CommandIntegration', () => {
   let integration;
@@ -69,7 +67,7 @@ describe('CommandIntegration', () => {
     jest.spyOn(console, 'error').mockImplementation();
     resetCommandIntegration();
     integration = new CommandIntegration();
-
+    
     // Create mock service required by CommandIntegration
     mockPersonalityApplicationService = {
       registerPersonality: jest.fn(),
@@ -142,11 +140,9 @@ describe('CommandIntegration', () => {
         throw new Error('Failed to create command');
       });
 
-      await expect(
-        integration.initialize({
-          personalityApplicationService: mockPersonalityApplicationService,
-        })
-      ).rejects.toThrow('Failed to create command');
+      await expect(integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      })).rejects.toThrow('Failed to create command');
       expect(logger.error).toHaveBeenCalledWith(
         '[CommandIntegration] Failed to initialize:',
         expect.any(Error)

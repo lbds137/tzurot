@@ -1,10 +1,10 @@
 /**
  * Golden Master Tests for Message Formatting Pipeline
- *
+ * 
  * These tests capture the current behavior of our message formatting system.
  * They serve as a safety net during refactoring - any change to the output
  * will be flagged, allowing us to verify if the change is intentional.
- *
+ * 
  * To update snapshots after verifying changes are correct:
  * npm test tests/snapshots/formatting -- -u
  */
@@ -18,15 +18,15 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
   // Mock Date.now() to ensure consistent timestamps in snapshots
   const FIXED_DATE = new Date('2024-01-15T12:00:00Z');
   const originalDateNow = Date.now;
-
+  
   beforeAll(() => {
     Date.now = jest.fn(() => FIXED_DATE.getTime());
   });
-
+  
   afterAll(() => {
     Date.now = originalDateNow;
   });
-
+  
   describe('Basic Message Formatting', () => {
     test('formats simple text message', async () => {
       const message = Factories.createGuildMessage('Hello world!');
@@ -41,9 +41,7 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
     });
 
     test('formats message with Discord markdown', async () => {
-      const message = Factories.createGuildMessage(
-        '**Bold** *italic* __underline__ ~~strikethrough~~ `code`'
-      );
+      const message = Factories.createGuildMessage('**Bold** *italic* __underline__ ~~strikethrough~~ `code`');
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
@@ -95,7 +93,7 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
         .inChannel({ name: 'general' })
         .createdAt(new Date('2024-01-15T12:30:45Z'))
         .build();
-
+      
       const contextMetadata = formatContextMetadata(message);
       expect(contextMetadata).toMatchSnapshot();
     });
@@ -113,7 +111,7 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
         .inGuild({ name: 'Dev Server' })
         .createdAt(new Date('2024-01-15T14:00:00Z'))
         .build();
-
+      
       const contextMetadata = formatContextMetadata(message);
       expect(contextMetadata).toMatchSnapshot();
     });
@@ -147,7 +145,7 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
     test('adds model indicator before splitting', () => {
       const content = 'a'.repeat(1990); // Close to limit
       const options = {
-        modelIndicator: '\n\n-# Fallback Model Used',
+        modelIndicator: '\n\n-# Fallback Model Used'
       };
       const chunks = prepareAndSplitMessage(content, options, 'Test');
       expect(chunks).toMatchSnapshot();
@@ -160,7 +158,7 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
         .withContent('This is from a system member')
         .asWebhook({ username: 'Alice | Wonderland System' })
         .build();
-
+      
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
@@ -171,9 +169,9 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
         .withContent('This is my reply')
         .asReplyTo(originalMessage)
         .build();
-
+      
       const formatted = await formatApiMessages([replyMessage], {
-        includeReferences: true,
+        includeReferences: true
       });
       expect(formatted).toMatchSnapshot();
     });
@@ -183,10 +181,10 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
         .withContent('Check out this image!')
         .withAttachment('https://example.com/image.png', {
           contentType: 'image/png',
-          name: 'screenshot.png',
+          name: 'screenshot.png'
         })
         .build();
-
+      
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
@@ -196,10 +194,10 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
         .withContent('Listen to this!')
         .withAttachment('https://example.com/audio.mp3', {
           contentType: 'audio/mpeg',
-          name: 'recording.mp3',
+          name: 'recording.mp3'
         })
         .build();
-
+      
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
@@ -211,10 +209,10 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
           title: 'Embedded Content',
           description: 'This is an embed description',
           url: 'https://example.com',
-          color: 0x5865f2,
+          color: 0x5865F2
         })
         .build();
-
+      
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
@@ -229,11 +227,11 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
           .withContent('Third with attachment')
           .withAttachment('https://example.com/file.pdf')
           .build(),
-        Factories.createWebhookMessage('Fourth from PluralKit', 'System Member'),
+        Factories.createWebhookMessage('Fourth from PluralKit', 'System Member')
       ];
-
+      
       const formatted = await formatApiMessages(messages, {
-        includeContext: true,
+        includeContext: true
       });
       expect(formatted).toMatchSnapshot();
     });
@@ -241,53 +239,47 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
     test('formats message with everything combined', async () => {
       const originalMessage = Factories.createGuildMessage('What do you think?');
       const message = new MessageFactory()
-        .withContent("@claude **Check this out!** Here's some `code` and an image:")
+        .withContent('@claude **Check this out!** Here\'s some `code` and an image:')
         .inGuild({ name: 'Tech Server' })
         .inChannel({ name: 'bot-testing' })
         .asReplyTo(originalMessage)
         .withAttachment('https://example.com/diagram.png')
         .withEmbed({
           title: 'Related Article',
-          description: 'Some interesting content here',
+          description: 'Some interesting content here'
         })
         .createdAt(new Date('2024-01-15T16:45:30Z'))
         .build();
-
+      
       const formatted = await formatApiMessages([message], {
         includeReferences: true,
-        includeContext: true,
+        includeContext: true
       });
       expect(formatted).toMatchSnapshot();
     });
 
     test('formats long message with mentions, code, and splitting', async () => {
-      const longCode =
-        '```javascript\nfunction example() {\n  console.log("test");\n}\n```\n'.repeat(50);
+      const longCode = '```javascript\nfunction example() {\n  console.log("test");\n}\n```\n'.repeat(50);
       const message = new MessageFactory()
         .withContent(`@claude Can you review this code?\n\n${longCode}\n\nThanks!`)
         .build();
-
+      
       const formatted = await formatApiMessages([message], {});
       // formatApiMessages returns an array of message objects for the API
       // We need to extract the content from the formatted result
-      const messageContent =
-        formatted && formatted.length > 0 && formatted[0]
-          ? formatted[0].content || formatted[0].text || ''
-          : '';
-
-      const chunks = prepareAndSplitMessage(
-        messageContent,
-        {
-          modelIndicator: '\n\n-# Primary Model Used (Free)',
-        },
-        'Test'
-      );
-
+      const messageContent = formatted && formatted.length > 0 && formatted[0] 
+        ? (formatted[0].content || formatted[0].text || '') 
+        : '';
+      
+      const chunks = prepareAndSplitMessage(messageContent, {
+        modelIndicator: '\n\n-# Primary Model Used (Free)'
+      }, 'Test');
+      
       expect({
         formattedMessages: formatted,
         extractedContent: messageContent,
         chunks,
-        chunkCount: chunks.length,
+        chunkCount: chunks.length
       }).toMatchSnapshot();
     });
   });
@@ -296,20 +288,18 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
     test('handles null/undefined values gracefully', async () => {
       const message = new MessageFactory()
         .withContent(null)
-        .with({
+        .with({ 
           author: { ...Factories.createGuildMessage().author, username: null },
-          guild: { ...Factories.createGuildMessage().guild, name: undefined },
+          guild: { ...Factories.createGuildMessage().guild, name: undefined }
         })
         .build();
-
+      
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
 
     test('handles messages with special characters', async () => {
-      const message = Factories.createGuildMessage(
-        'Test <@123> & "quotes" \'apostrophes\' \\ backslash'
-      );
+      const message = Factories.createGuildMessage('Test <@123> & "quotes" \'apostrophes\' \\ backslash');
       const formatted = await formatApiMessages([message], {});
       expect(formatted).toMatchSnapshot();
     });
@@ -321,3 +311,4 @@ describe('Message Formatting Pipeline - Golden Masters', () => {
     });
   });
 });
+

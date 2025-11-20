@@ -23,7 +23,7 @@ const patterns = [
   {
     // Fix: ${context.dependencies.botPrefix || '!tz'} -> ${context.commandPrefix || '!tz'}
     pattern: /\$\{context\.dependencies\.botPrefix \|\| '!tz'\}/g,
-    replacement: "${context.commandPrefix || '!tz'}",
+    replacement: '${context.commandPrefix || \'!tz\'}',
     description: 'Use context.commandPrefix instead of dependencies.botPrefix',
   },
   {
@@ -32,7 +32,7 @@ const patterns = [
     replacement: (match, command) => {
       // Skip if it's already using template literal
       if (match.includes('${')) return match;
-      return "`${context.commandPrefix || '!tz'} " + command + '`';
+      return '`${context.commandPrefix || \'!tz\'} ' + command + '`';
     },
     description: 'Fix usage examples in backticks',
   },
@@ -57,18 +57,12 @@ function processFile(filePath) {
 
   if (modified) {
     // Special handling for files that need context in scope
-    if (
-      content.includes('${context.commandPrefix') &&
-      !content.includes('const prefix = context.commandPrefix')
-    ) {
+    if (content.includes('${context.commandPrefix') && !content.includes('const prefix = context.commandPrefix')) {
       // Check if we're inside a function that has context
-      const functionPattern =
-        /function\s+\w+\s*\([^)]*context[^)]*\)|async\s+function[^(]*\([^)]*context[^)]*\)|=>\s*{[\s\S]*?context\.commandPrefix/;
-
+      const functionPattern = /function\s+\w+\s*\([^)]*context[^)]*\)|async\s+function[^(]*\([^)]*context[^)]*\)|=>\s*{[\s\S]*?context\.commandPrefix/;
+      
       if (!functionPattern.test(content)) {
-        console.log(
-          `${YELLOW}Warning: ${filePath} uses context.commandPrefix but context might not be in scope${RESET}`
-        );
+        console.log(`${YELLOW}Warning: ${filePath} uses context.commandPrefix but context might not be in scope${RESET}`);
       }
     }
 
@@ -110,8 +104,6 @@ files.forEach(file => {
 console.log(`\n${GREEN}Summary: Fixed ${fixedCount} file(s)${RESET}`);
 
 if (fixedCount > 0) {
-  console.log(
-    `\n${YELLOW}Note: Some files might need manual review to ensure 'context' is available in scope.${RESET}`
-  );
+  console.log(`\n${YELLOW}Note: Some files might need manual review to ensure 'context' is available in scope.${RESET}`);
   console.log('Run tests to verify all changes work correctly.');
 }

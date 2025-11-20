@@ -97,7 +97,10 @@ function registerBlacklistEventHandlers(dependencies) {
     createUserBlacklistedGloballyHandler(dependencies)
   );
 
-  eventBus.subscribe(UserUnblacklistedGlobally.name, createUserUnblacklistedGloballyHandler());
+  eventBus.subscribe(
+    UserUnblacklistedGlobally.name,
+    createUserUnblacklistedGloballyHandler()
+  );
 
   logger.info('[BlacklistEventHandlers] Registered blacklist event handlers');
 }

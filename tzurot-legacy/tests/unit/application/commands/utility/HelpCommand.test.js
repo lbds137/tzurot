@@ -467,24 +467,22 @@ describe('HelpCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          {
-            title: '📖 Command: add',
-            description: 'Add a new personality',
-            color: 0x2196f3,
-            fields: expect.arrayContaining([
-              {
-                name: 'Usage',
-                value: '`!tz add <name> [alias]`',
-                inline: false,
-              },
-            ]),
-            footer: {
-              text: 'Category: personality',
+        embeds: [{
+          title: '📖 Command: add',
+          description: 'Add a new personality',
+          color: 0x2196f3,
+          fields: expect.arrayContaining([
+            {
+              name: 'Usage',
+              value: '`!tz add <name> [alias]`',
+              inline: false,
             },
-            timestamp: expect.any(String),
+          ]),
+          footer: {
+            text: 'Category: personality',
           },
-        ],
+          timestamp: expect.any(String),
+        }],
       });
     });
   });

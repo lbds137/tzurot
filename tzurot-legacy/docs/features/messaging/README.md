@@ -19,7 +19,6 @@ Tzurot's messaging system provides sophisticated message processing capabilities
 ## Key Features
 
 ### Message Deduplication
-
 The bot implements multiple layers of deduplication to prevent spam:
 
 1. **Request Level**: Prevents duplicate API calls for identical content
@@ -28,7 +27,6 @@ The bot implements multiple layers of deduplication to prevent spam:
 4. **User Context**: Maintains conversation state to avoid confusion
 
 ### Rich Embed System
-
 - **Consistent Formatting**: Standardized appearance across all bot messages
 - **Color Coding**: Status-based colors for easy recognition
 - **Field Organization**: Structured information display
@@ -36,7 +34,6 @@ The bot implements multiple layers of deduplication to prevent spam:
 - **Thumbnail Support**: Profile images and status indicators
 
 ### Communication Patterns
-
 - **Direct Mentions**: `@personality Hello!`
 - **Reply Chains**: Continuous conversation through replies
 - **Auto-Response**: Optional hands-free conversation mode
@@ -45,7 +42,6 @@ The bot implements multiple layers of deduplication to prevent spam:
 ## System Architecture
 
 ### Deduplication Layers
-
 ```
 User Message → Request Dedup → Message Tracker → Webhook Dedup → Response
 ```
@@ -53,7 +49,6 @@ User Message → Request Dedup → Message Tracker → Webhook Dedup → Respons
 Each layer serves a specific purpose and should be maintained for optimal performance.
 
 ### Embed Framework
-
 - **Base Templates**: Consistent styling foundation
 - **Dynamic Content**: Runtime content population
 - **Error Handling**: Graceful degradation for invalid content

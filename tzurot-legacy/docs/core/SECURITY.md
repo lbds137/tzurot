@@ -20,7 +20,6 @@ This document outlines the security practices, implementations, and guidelines f
 ## Security Overview
 
 Tzurot implements multiple layers of security to protect:
-
 - User authentication tokens
 - API credentials
 - Discord bot token
@@ -65,7 +64,8 @@ User → Bot → Auth URL → Service → Code → Bot → Token
 
 ```javascript
 // src/auth.js - Secure code submission
-if (message.channel.type !== ChannelType.DM && message.content.includes('auth code')) {
+if (message.channel.type !== ChannelType.DM && 
+    message.content.includes('auth code')) {
   await message.delete(); // Delete immediately
   return sendSecurityWarning(message.channel);
 }
@@ -74,7 +74,6 @@ if (message.channel.type !== ChannelType.DM && message.content.includes('auth co
 ### Token Management
 
 1. **Expiration Checking**
-
    ```javascript
    if (tokenData.expiresAt < Date.now()) {
      delete authTokens[userId];
@@ -102,19 +101,18 @@ Commands check Discord permissions before execution:
 
 ```javascript
 // Admin commands
-permissions: ['ADMINISTRATOR'];
+permissions: ['ADMINISTRATOR']
 
-// Moderator commands
-permissions: ['MANAGE_MESSAGES'];
+// Moderator commands  
+permissions: ['MANAGE_MESSAGES']
 
 // User commands
-permissions: []; // No special permissions needed
+permissions: [] // No special permissions needed
 ```
 
 #### Bot Permissions
 
 Minimum required permissions:
-
 - View Channels
 - Send Messages
 - Manage Messages (for auth code deletion)
@@ -154,30 +152,28 @@ if (!/^[\w\s-]+$/.test(alias)) {
 ### Content Sanitization
 
 1. **AI Response Sanitization**
-
    ```javascript
    function sanitizeResponse(response) {
      // Remove potential command injections
      response = response.replace(/^!tz\s/gm, '');
-
+     
      // Remove @everyone/@here
      response = response.replace(/@(everyone|here)/g, '@\u200b$1');
-
+     
      // Limit length
      return response.substring(0, 2000);
    }
    ```
 
 2. **URL Validation**
-
    ```javascript
    function isValidUrl(url) {
      // Whitelist allowed protocols
      if (!url.match(/^https?:\/\//)) return false;
-
+     
      // Blacklist dangerous domains
      if (BLOCKED_DOMAINS.some(d => url.includes(d))) return false;
-
+     
      // Validate URL structure
      try {
        new URL(url);
@@ -205,12 +201,11 @@ if (!/^[\w\s-]+$/.test(alias)) {
 ### Implementation Layers
 
 1. **User-Level Rate Limiting**
-
    ```javascript
    const limits = {
      commands: { requests: 10, window: 60000 },
      messages: { requests: 30, window: 60000 },
-     api: { requests: 20, window: 60000 },
+     api: { requests: 20, window: 60000 }
    };
    ```
 
@@ -230,7 +225,7 @@ if (!/^[\w\s-]+$/.test(alias)) {
 if (rateLimited) {
   return message.reply({
     content: 'You are being rate limited. Please try again later.',
-    ephemeral: true,
+    ephemeral: true
   });
 }
 ```
@@ -240,11 +235,10 @@ if (rateLimited) {
 ### Sensitive Data Handling
 
 1. **Never Log Sensitive Data**
-
    ```javascript
    // Bad
    logger.info(`Auth token: ${token}`);
-
+   
    // Good
    logger.info('Authentication successful');
    ```
@@ -262,7 +256,6 @@ if (rateLimited) {
 ### Data Persistence
 
 1. **File Permissions**
-
    ```bash
    chmod 600 .env
    chmod 600 data/*.json
@@ -278,12 +271,11 @@ if (rateLimited) {
 ### Request Security
 
 1. **Header Validation**
-
    ```javascript
    const headers = {
-     Authorization: `Bearer ${token}`,
+     'Authorization': `Bearer ${token}`,
      'Content-Type': 'application/json',
-     'User-Agent': 'Tzurot/1.0',
+     'User-Agent': 'Tzurot/1.0'
    };
    ```
 
@@ -360,7 +352,6 @@ if (message.content.includes('Authorization:')) {
 ### Security Headers
 
 For health check endpoint:
-
 ```javascript
 res.setHeader('X-Content-Type-Options', 'nosniff');
 res.setHeader('X-Frame-Options', 'DENY');
@@ -457,7 +448,6 @@ I appreciate responsible disclosure of security vulnerabilities.
 #### What to Expect
 
 As this is a personal project, I'll do my best to:
-
 1. **Acknowledge** reports within a few days
 2. **Assess** the issue as soon as possible
 3. **Fix** based on severity and my availability
@@ -466,7 +456,6 @@ As this is a personal project, I'll do my best to:
 ### Recognition
 
 While I can't offer monetary rewards, I'll gladly:
-
 - Credit you in the changelog
 - Add you to a security contributors list
 - Give you early access to fixes
@@ -474,7 +463,6 @@ While I can't offer monetary rewards, I'll gladly:
 ### Out of Scope
 
 The following are not considered vulnerabilities:
-
 - Rate limiting bypass through multiple accounts
 - Social engineering Discord users
 - Physical access attacks
@@ -485,7 +473,6 @@ The following are not considered vulnerabilities:
 ### Keeping Secure
 
 1. **Dependencies**
-
    ```bash
    npm audit
    npm audit fix

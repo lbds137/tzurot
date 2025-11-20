@@ -80,7 +80,7 @@ describe('PersonalityApplicationService', () => {
     jest.spyOn(mockEventBus, 'publish').mockResolvedValue(undefined);
 
     mockProfileFetcher = {
-      fetchProfileInfo: jest.fn().mockImplementation(name =>
+      fetchProfileInfo: jest.fn().mockImplementation((name) => 
         Promise.resolve({
           name: name || 'TestBot',
           avatar: 'https://api.example.com/avatar.png',
@@ -262,7 +262,7 @@ describe('PersonalityApplicationService', () => {
         mockPersonalityRepository.findByName.mockResolvedValue(null);
         mockPersonalityRepository.findByAlias
           .mockResolvedValueOnce(null) // No alias for TB
-          .mockResolvedValueOnce(null) // No alias for TestB
+          .mockResolvedValueOnce(null) // No alias for TestB  
           .mockResolvedValueOnce(existingPersonality) // 'claude' is taken
           .mockResolvedValueOnce(null); // 'claude-3' is available
 
@@ -289,10 +289,10 @@ describe('PersonalityApplicationService', () => {
 
         // Verify that it tried to add display name as alias but found conflict
         expect(mockPersonalityRepository.findByAlias).toHaveBeenCalledWith('claude');
-
+        
         // Verify the save was called twice - once after initial save, once after adding generated alias
         expect(mockPersonalityRepository.save).toHaveBeenCalledTimes(2);
-
+        
         // Check that personality has the expected aliases
         expect(result.aliases).toHaveLength(3); // TB, TestB, claude-3
         expect(result.aliases.map(a => a.value)).toContain('tb');
@@ -372,7 +372,7 @@ describe('PersonalityApplicationService', () => {
 
       // Clear all previous mocks
       mockPersonalityRepository.findByAlias.mockReset();
-
+      
       mockPersonalityRepository.findByAlias
         .mockResolvedValueOnce(null) // 'tb' is available
         .mockResolvedValueOnce(conflictingPersonality) // 'testb' conflicts
@@ -905,7 +905,7 @@ describe('PersonalityApplicationService', () => {
       mockPersonalityRepository.findByNameOrAlias.mockRejectedValue(new Error('Database error'));
 
       await expect(service.getPersonality('TestBot')).rejects.toThrow('Database error');
-
+      
       expect(logger.error).toHaveBeenCalledWith(
         '[PersonalityApplicationService] Failed to get personality: Database error'
       );
@@ -1407,9 +1407,9 @@ describe('PersonalityApplicationService', () => {
 
     it('should update avatar URL if changed during preload', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-
+      
       // Mock the preloadPersonalityAvatar to update the avatar URL
-      mockPreloadPersonalityAvatar.mockImplementation(async personalityData => {
+      mockPreloadPersonalityAvatar.mockImplementation(async (personalityData) => {
         personalityData.avatarUrl = 'https://example.com/new-avatar.png';
       });
 
@@ -1464,7 +1464,7 @@ describe('PersonalityApplicationService', () => {
     it('should trigger avatar preloading after registering external personality', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-
+      
       // Mock the preloadAvatar method
       const preloadAvatarSpy = jest.spyOn(service, 'preloadAvatar').mockResolvedValue(undefined);
 
@@ -1486,11 +1486,11 @@ describe('PersonalityApplicationService', () => {
     it('should continue registration even if avatar preloading fails', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-
+      
       // Mock the preloadAvatar method to reject
-      const preloadAvatarSpy = jest
-        .spyOn(service, 'preloadAvatar')
-        .mockRejectedValue(new Error('Avatar preload error'));
+      const preloadAvatarSpy = jest.spyOn(service, 'preloadAvatar').mockRejectedValue(
+        new Error('Avatar preload error')
+      );
 
       const result = await service.registerPersonality({
         name: 'NewBot',
@@ -1516,15 +1516,15 @@ describe('PersonalityApplicationService', () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
       mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
-
+      
       // Mock profile fetcher to return a different display name
       // Note: API returns 'name' which becomes displayName in the profile
       mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
-        name: 'Lily', // This becomes displayName in PersonalityProfile.fromApiResponse
-        username: 'lilith-tzel-shani', // This becomes name
+        name: 'Lily',  // This becomes displayName in PersonalityProfile.fromApiResponse
+        username: 'lilith-tzel-shani',  // This becomes name
         avatar_url: 'https://example.com/lily.png',
       });
-
+      
       const command = {
         name: 'lilith-tzel-shani',
         ownerId: '123456789012345678',
@@ -1536,7 +1536,7 @@ describe('PersonalityApplicationService', () => {
       expect(result).toBeDefined();
       expect(result.profile.displayName).toBe('Lily');
       expect(result.displayNameAlias).toBe('lily');
-
+      
       // Verify the display name alias was saved
       const savedCalls = mockPersonalityRepository.save.mock.calls;
       const lastSave = savedCalls[savedCalls.length - 1][0];
@@ -1547,7 +1547,7 @@ describe('PersonalityApplicationService', () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
       mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
-
+      
       const command = {
         name: 'test-bot-full-name',
         ownerId: '123456789012345678',
@@ -1568,24 +1568,24 @@ describe('PersonalityApplicationService', () => {
 
     it('should handle display name alias collisions with smart alternates', async () => {
       mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
-
+      
       // First personality with display name 'Lily'
       mockProfileFetcher.fetchProfileInfo.mockResolvedValueOnce({
-        name: 'Lily', // This becomes displayName
-        username: 'lilith-tzel-shani', // This becomes name
+        name: 'Lily',  // This becomes displayName
+        username: 'lilith-tzel-shani',  // This becomes name
       });
-
+      
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-
+      
       const command1 = {
         name: 'lilith-tzel-shani',
         ownerId: '123456789012345678',
         mode: 'external',
       };
-
+      
       await service.registerPersonality(command1);
-
+      
       // Mock repository to return existing personality when checking alias
       mockPersonalityRepository.findByAlias.mockImplementation(alias => {
         if (alias === 'lily') {
@@ -1593,21 +1593,21 @@ describe('PersonalityApplicationService', () => {
         }
         return Promise.resolve(null);
       });
-
+      
       // Second personality with same display name
       mockProfileFetcher.fetchProfileInfo.mockResolvedValueOnce({
-        name: 'Lily', // This becomes displayName
-        username: 'lilith-sheda-khazra', // This becomes name
+        name: 'Lily',  // This becomes displayName
+        username: 'lilith-sheda-khazra',  // This becomes name
       });
-
+      
       const command2 = {
         name: 'lilith-sheda-khazra',
         ownerId: '123456789012345678',
         mode: 'external',
       };
-
+      
       const result2 = await service.registerPersonality(command2);
-
+      
       expect(result2).toBeDefined();
       expect(result2.displayNameAlias).toBe('lily-sheda'); // Smart alternate
     });
@@ -1616,12 +1616,12 @@ describe('PersonalityApplicationService', () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
       mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
-
+      
       mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
-        name: 'Lily', // This becomes displayName
-        username: 'lilith-tzel-shani', // This becomes name
+        name: 'Lily',  // This becomes displayName
+        username: 'lilith-tzel-shani',  // This becomes name
       });
-
+      
       const command = {
         name: 'lilith-tzel-shani',
         ownerId: '123456789012345678',
@@ -1639,14 +1639,14 @@ describe('PersonalityApplicationService', () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
       mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
-
+      
       // Mock API response with display name different from full name
       mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
-        name: 'TestDisplay', // This becomes displayName
-        username: 'test-full-name', // This becomes name
+        name: 'TestDisplay',  // This becomes displayName
+        username: 'test-full-name',  // This becomes name
         avatar_url: 'https://example.com/test.png',
       });
-
+      
       const command = {
         name: 'test-full-name',
         ownerId: '123456789012345678',

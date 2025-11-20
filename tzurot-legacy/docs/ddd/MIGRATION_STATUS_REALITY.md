@@ -9,30 +9,25 @@ The DDD migration is **~25% complete**. The command system and authentication do
 ## What's Actually Migrated
 
 ### ✅ Commands (100% Complete)
-
 All 18 commands use the DDD architecture:
-
 - **Authentication**: auth, verify, blacklist
-- **Personality**: add, remove, info, list, alias, config
+- **Personality**: add, remove, info, list, alias, config  
 - **Conversation**: activate, deactivate, reset
 - **Utility**: help, ping, status, debug, backup, notifications, purgbot
 
 **Implementation**:
-
 - Clean command abstraction in `src/application/commands/`
 - Dependency injection via ApplicationBootstrap
 - Excellent test coverage (95%+)
 - Commands work through CommandIntegrationAdapter bridge
 
 ### ✅ Authentication Domain (100% Complete)
-
 - Token management via TokenApplicationService
 - User authentication via AuthenticationApplicationService
 - Blacklist management with DDD patterns
 - File-based persistence repositories
 
 ### ✅ Domain Infrastructure (100% Complete)
-
 - Event bus and domain events
 - Repository patterns
 - Value objects and aggregates
@@ -41,28 +36,24 @@ All 18 commands use the DDD architecture:
 ## What's NOT Migrated
 
 ### ❌ AI Service Integration (0% Complete)
-
 - `aiService.js` is 100% legacy code
 - No DDD code paths for AI requests
 - HttpAIServiceAdapter exists but is unused
 - Domain models exist but aren't integrated
 
 ### ❌ Message Processing (0% Complete)
-
 - `bot.js` uses legacy routing
 - `personalityHandler.js` is entirely legacy
 - `webhookManager.js` has no DDD integration
 - Message flow bypasses all DDD components
 
 ### ❌ Conversation Management (10% Complete)
-
 - Commands migrated but core logic remains legacy
 - `conversationManager.js` is untouched
 - No DDD message history or context building
 - Legacy ConversationTracker still in use
 
 ### ❌ Personality Message Flow (0% Complete)
-
 - Personality lookups use legacy paths
 - No DDD integration in actual message handling
 - Profile fetching remains in legacy system
@@ -80,7 +71,6 @@ User Message → bot.js (legacy) → personalityHandler.js (legacy) → aiServic
 ```
 
 **Key Points**:
-
 1. Commands and authentication go through DDD, message flow is legacy
 2. No feature flags control the split - it's hardcoded
 3. The two systems share data files but not logic
@@ -89,22 +79,18 @@ User Message → bot.js (legacy) → personalityHandler.js (legacy) → aiServic
 ## Migration Challenges
 
 ### 1. No Clear Boundaries
-
 - Legacy and DDD code are intertwined
 - Shared dependencies create circular reference risks
 - No abstraction layer between systems
 
 ### 2. Missing Core Migrations
-
 The most critical components haven't been touched:
-
 - Message routing and processing
 - AI request/response cycle
 - Webhook management
 - Real-time conversation flow
 
 ### 3. Documentation Mismatch
-
 - Docs claim features that don't exist
 - False "complete migration" narrative
 - No honest assessment of hybrid state
@@ -112,21 +98,18 @@ The most critical components haven't been touched:
 ## Recommended Path Forward
 
 ### Option 1: Complete the Migration
-
 1. **AI Service First** - High impact, clear boundaries
 2. **Message Processing** - Core bot functionality
 3. **Conversation Management** - Complete the domain
 4. **Webhook System** - Final legacy component
 
 ### Option 2: Optimize the Hybrid
-
 1. **Accept the hybrid state** as permanent
 2. **Document integration points** clearly
 3. **Improve boundaries** between systems
 4. **Focus on new features** in appropriate system
 
 ### Option 3: Gradual Refactoring
-
 1. **Extract interfaces** from legacy components
 2. **Create adapters** for gradual migration
 3. **Move logic piece by piece** without big bang

@@ -1,12 +1,13 @@
 /**
  * Message formatting utilities for Discord messages
  * Handles preparing message data for sending
- *
+ * 
  * Note: Message splitting functions have been moved to messageSplitting.js
  */
 
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../logger');
+
 
 /**
  * Prepare message data for sending via webhook

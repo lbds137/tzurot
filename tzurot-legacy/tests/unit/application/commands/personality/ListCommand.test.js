@@ -376,6 +376,7 @@ describe('ListCommand', () => {
       });
     });
 
+
     it('should handle aliases as objects with value property', async () => {
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
         {

@@ -216,9 +216,7 @@ class ApplicationBootstrap {
       try {
         const updatedMaxWordCount = await personalityApplicationService.getMaxAliasWordCount();
         messageHandlerConfig.setMaxAliasWordCount(updatedMaxWordCount);
-        logger.info(
-          `[ApplicationBootstrap] Updated max alias word count after loading personalities: ${updatedMaxWordCount}`
-        );
+        logger.info(`[ApplicationBootstrap] Updated max alias word count after loading personalities: ${updatedMaxWordCount}`);
       } catch (configError) {
         logger.error('[ApplicationBootstrap] Failed to update max alias word count:', configError);
         // Continue with existing config value

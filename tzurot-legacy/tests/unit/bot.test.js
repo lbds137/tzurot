@@ -80,6 +80,7 @@ jest.mock('../../src/messageTracker', () => ({
   },
 }));
 
+
 jest.mock('../../src/handlers/personalityHandler', () => ({
   handlePersonalityMessage: jest.fn(),
 }));
@@ -164,6 +165,7 @@ describe('Bot Core Functionality', () => {
 
       expect(global.tzurotClient).toBe(client);
     });
+
 
     it('should login with Discord token', async () => {
       const client = await bot.initBot();
