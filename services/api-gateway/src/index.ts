@@ -302,27 +302,6 @@ app.get('/metrics', (_req, res) => {
 });
 
 /**
- * 404 handler
- */
-app.use((req, res) => {
-  const errorResponse = ErrorResponses.notFound(`Route ${req.method} ${req.path}`);
-  res.status(StatusCodes.NOT_FOUND).json(errorResponse);
-});
-
-/**
- * Error handler
- */
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error({ err }, '[Server] Unhandled error:');
-
-  const errorResponse = ErrorResponses.internalError(
-    config.env === 'production' ? 'Internal server error' : err.message
-  );
-
-  res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
-});
-
-/**
  * Start the server
  */
 async function main(): Promise<void> {
@@ -380,6 +359,23 @@ async function main(): Promise<void> {
   const adminRouter = createAdminRouter(prisma, cacheInvalidationService);
   app.use('/admin', adminRouter);
   logger.info('[Gateway] Admin routes registered with cache invalidation support');
+
+  // 404 handler - must be registered AFTER all routes
+  app.use((req, res) => {
+    const errorResponse = ErrorResponses.notFound(`Route ${req.method} ${req.path}`);
+    res.status(StatusCodes.NOT_FOUND).json(errorResponse);
+  });
+
+  // Error handler - must be registered LAST
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    logger.error({ err }, '[Server] Unhandled error:');
+
+    const errorResponse = ErrorResponses.internalError(
+      config.env === 'production' ? 'Internal server error' : err.message
+    );
+
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
+  });
 
   // Start HTTP server
   const server = app.listen(config.port, (err?: Error) => {
