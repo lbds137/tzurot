@@ -1,0 +1,173 @@
+/**
+ * PATCH /admin/personality/:slug
+ * Edit an existing AI personality
+ */
+
+import { Router, type Request, type Response } from 'express';
+import { createLogger, AVATAR_LIMITS } from '@tzurot/common-types';
+import { type PrismaClient, Prisma } from '@prisma/client';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
+import { optimizeAvatar } from '../../utils/imageProcessor.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
+import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { ErrorResponses } from '../../utils/errorResponses.js';
+import { validateSlug, validateCustomFields } from '../../utils/validators.js';
+
+const logger = createLogger('admin-update-personality');
+
+export function createUpdatePersonalityRoute(prisma: PrismaClient): Router {
+  const router = Router();
+
+  router.patch(
+    '/:slug',
+    requireOwnerAuth(),
+    asyncHandler(async (req: Request, res: Response) => {
+      const { slug } = req.params;
+      const {
+        name,
+        characterInfo,
+        personalityTraits,
+        displayName,
+        personalityTone,
+        personalityAge,
+        personalityAppearance,
+        personalityLikes,
+        personalityDislikes,
+        conversationalGoals,
+        conversationalExamples,
+        customFields,
+        avatarData,
+      } = req.body as {
+        name?: string;
+        characterInfo?: string;
+        personalityTraits?: string;
+        displayName?: string | null;
+        personalityTone?: string | null;
+        personalityAge?: string | null;
+        personalityAppearance?: string | null;
+        personalityLikes?: string | null;
+        personalityDislikes?: string | null;
+        conversationalGoals?: string | null;
+        conversationalExamples?: string | null;
+        customFields?: Record<string, unknown> | null;
+        avatarData?: string;
+      };
+
+      // Validate slug format
+      const slugValidation = validateSlug(slug);
+      if (!slugValidation.valid) {
+        return sendError(res, slugValidation.error);
+      }
+
+      // Check if personality exists
+      const existing = await prisma.personality.findUnique({
+        where: { slug },
+      });
+
+      if (existing === null) {
+        return sendError(res, ErrorResponses.notFound(`Personality with slug '${slug}'`));
+      }
+
+      // Validate customFields if provided
+      const customFieldsValidation = validateCustomFields(customFields);
+      if (!customFieldsValidation.valid) {
+        return sendError(res, customFieldsValidation.error);
+      }
+
+      // Process avatar if provided
+      let processedAvatarData: Buffer | undefined;
+      if (avatarData !== undefined && avatarData.length > 0) {
+        try {
+          logger.info(`[Admin] Processing avatar update for personality: ${slug}`);
+
+          const result = await optimizeAvatar(avatarData);
+
+          logger.info(
+            `[Admin] Avatar optimized: ${result.originalSizeKB} KB → ${result.processedSizeKB} KB (quality: ${result.quality})`
+          );
+
+          if (result.exceedsTarget) {
+            logger.warn(
+              {},
+              `[Admin] Avatar still exceeds ${AVATAR_LIMITS.TARGET_SIZE_KB}KB after optimization: ${result.processedSizeKB} KB`
+            );
+          }
+
+          processedAvatarData = result.buffer;
+        } catch (error) {
+          logger.error({ err: error }, '[Admin] Failed to process avatar');
+          return sendError(
+            res,
+            ErrorResponses.processingError(
+              'Failed to process avatar image. Ensure it is a valid image file.'
+            )
+          );
+        }
+      }
+
+      // Build update data object with only provided fields
+      const updateData: Record<string, unknown> = {};
+      if (name !== undefined) {
+        updateData.name = name;
+      }
+      if (characterInfo !== undefined) {
+        updateData.characterInfo = characterInfo;
+      }
+      if (personalityTraits !== undefined) {
+        updateData.personalityTraits = personalityTraits;
+      }
+      if (displayName !== undefined) {
+        updateData.displayName = displayName;
+      }
+      if (personalityTone !== undefined) {
+        updateData.personalityTone = personalityTone;
+      }
+      if (personalityAge !== undefined) {
+        updateData.personalityAge = personalityAge;
+      }
+      if (personalityAppearance !== undefined) {
+        updateData.personalityAppearance = personalityAppearance;
+      }
+      if (personalityLikes !== undefined) {
+        updateData.personalityLikes = personalityLikes;
+      }
+      if (personalityDislikes !== undefined) {
+        updateData.personalityDislikes = personalityDislikes;
+      }
+      if (conversationalGoals !== undefined) {
+        updateData.conversationalGoals = conversationalGoals;
+      }
+      if (conversationalExamples !== undefined) {
+        updateData.conversationalExamples = conversationalExamples;
+      }
+      if (customFields !== undefined) {
+        updateData.customFields = customFields as Prisma.InputJsonValue;
+      }
+      if (processedAvatarData !== undefined) {
+        updateData.avatarData = new Uint8Array(processedAvatarData);
+      }
+
+      // Update personality in database
+      const personality = await prisma.personality.update({
+        where: { slug },
+        data: updateData,
+      });
+
+      logger.info(`[Admin] Updated personality: ${slug} (${personality.id})`);
+
+      sendCustomSuccess(res, {
+        success: true,
+        personality: {
+          id: personality.id,
+          name: personality.name,
+          slug: personality.slug,
+          displayName: personality.displayName,
+          hasAvatar: personality.avatarData !== null,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    })
+  );
+
+  return router;
+}
