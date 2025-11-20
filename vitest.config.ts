@@ -8,6 +8,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
+      all: true,
+      include: ['src/**/*.ts'],
       exclude: [
         'node_modules/',
         'dist/',
@@ -15,6 +17,9 @@ export default defineConfig({
         '**/*.config.*',
         '**/scripts/**',
         'tzurot-legacy/',
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        '**/test/**',
       ],
     },
     // Use fake timers by default for consistent testing

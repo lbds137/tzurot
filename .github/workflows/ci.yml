@@ -67,13 +67,12 @@ jobs:
         run: pnpm --filter './packages/*' build
 
       - name: Run tests with coverage
-        run: pnpm test -- --coverage
+        run: npx vitest run --coverage
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./services/ai-worker/coverage/lcov.info,./services/api-gateway/coverage/lcov.info,./services/bot-client/coverage/lcov.info,./packages/common-types/coverage/lcov.info
           fail_ci_if_error: true
           verbose: true
 
