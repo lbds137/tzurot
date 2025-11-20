@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   logger.info('[AIWorker] Initializing pgvector memory connection...');
 
   try {
-    memoryManager = new PgvectorMemoryAdapter();
+    memoryManager = new PgvectorMemoryAdapter(prisma, envConfig.OPENAI_API_KEY);
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
@@ -122,7 +122,6 @@ async function main(): Promise<void> {
         {},
         '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
       );
-      await memoryManager.disconnect(); // Clean up Prisma connection
       memoryManager = undefined;
     }
   } catch (error) {
@@ -131,9 +130,6 @@ async function main(): Promise<void> {
       {},
       '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
     );
-    if (memoryManager) {
-      await memoryManager.disconnect(); // Clean up Prisma connection
-    }
     memoryManager = undefined;
   }
 
