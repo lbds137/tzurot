@@ -15,7 +15,11 @@ import {
   CONTENT_TYPES,
   INTERVALS,
 } from '@tzurot/common-types';
-import type { LoadedPersonality, ReferencedMessage, ConversationMessage } from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  ReferencedMessage,
+  ConversationMessage,
+} from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
@@ -118,7 +122,9 @@ export class MessageContextBuilder {
           (a.duration !== null && a.duration !== undefined)
       )
     ) {
-      const mostRecentAssistant = history.filter(m => m.role === MessageRole.Assistant).slice(-1)[0];
+      const mostRecentAssistant = history
+        .filter(m => m.role === MessageRole.Assistant)
+        .slice(-1)[0];
       const mostRecentAssistantIds = mostRecentAssistant?.discordMessageId ?? [];
 
       logger.debug(

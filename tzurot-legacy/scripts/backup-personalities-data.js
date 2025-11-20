@@ -169,7 +169,10 @@ async function saveChatHistoryData(username, personalityId, messages) {
     message_count: messages.length,
     date_range: {
       earliest: messages.length > 0 ? new Date(messages[0].ts * 1000).toISOString() : null,
-      latest: messages.length > 0 ? new Date(messages[messages.length - 1].ts * 1000).toISOString() : null,
+      latest:
+        messages.length > 0
+          ? new Date(messages[messages.length - 1].ts * 1000).toISOString()
+          : null,
     },
     export_date: new Date().toISOString(),
     messages: messages,
@@ -345,36 +348,38 @@ async function fetchChatHistory(personalityId, username) {
     while (true) {
       iteration++;
       let url = `${SERVICE_WEBSITE}/api/${PERSONALITY_JARGON_TERM}/${personalityId}/chat/history?limit=${CHAT_BATCH_SIZE}&shape_id=${personalityId}`;
-      
+
       if (beforeTs) {
         url += `&before_ts=${beforeTs}`;
       }
 
-      console.log(`  Fetching batch ${iteration}${beforeTs ? ` (before ${new Date(beforeTs * 1000).toISOString()})` : ''}...`);
-      
+      console.log(
+        `  Fetching batch ${iteration}${beforeTs ? ` (before ${new Date(beforeTs * 1000).toISOString()})` : ''}...`
+      );
+
       const messages = await httpsGet(url);
-      
+
       if (!Array.isArray(messages) || messages.length === 0) {
         console.log(`  No more messages found`);
         break;
       }
-      
+
       allMessages.push(...messages);
       console.log(`  Retrieved ${messages.length} messages (total: ${allMessages.length})`);
-      
+
       // Find earliest timestamp for next batch
       beforeTs = Math.min(...messages.map(m => m.ts));
-      
+
       await delay(DELAY_BETWEEN_REQUESTS);
     }
 
     // Sort by timestamp (oldest first)
     allMessages.sort((a, b) => a.ts - b.ts);
-    
+
     if (allMessages.length > 0) {
       // Save chat history
       await saveChatHistoryData(username, personalityId, allMessages);
-      
+
       // Calculate statistics
       const totalChars = allMessages.reduce((sum, msg) => {
         return sum + (msg.message?.length || 0) + (msg.reply?.length || 0);
@@ -459,12 +464,12 @@ async function main() {
   // Process each personality
   for (let i = 0; i < personalities.length; i++) {
     if (!shouldContinue) break;
-    
+
     const username = personalities[i];
     try {
       await fetchPersonalityData(username);
       successCount++;
-      
+
       if (i < personalities.length - 1) {
         await delay(DELAY_BETWEEN_REQUESTS * 2); // Extra delay between personalities
       }
@@ -472,7 +477,9 @@ async function main() {
       // Check if it's a 401 Unauthorized error
       if (error.message.includes('401')) {
         console.error(`\n❌ Authentication failed! Your session cookie may have expired.`);
-        console.error(`Successfully backed up ${successCount} of ${personalities.length} personalities before failure.\n`);
+        console.error(
+          `Successfully backed up ${successCount} of ${personalities.length} personalities before failure.\n`
+        );
         console.error(`Please get a fresh session cookie from your browser and try again.`);
         shouldContinue = false;
       } else {

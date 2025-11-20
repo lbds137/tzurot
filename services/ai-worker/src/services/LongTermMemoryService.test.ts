@@ -311,13 +311,7 @@ describe('LongTermMemoryService', () => {
 
       // Should not throw
       await expect(
-        service.storeInteraction(
-          testPersonality,
-          'Message',
-          'Response',
-          baseContext,
-          'persona-1'
-        )
+        service.storeInteraction(testPersonality, 'Message', 'Response', baseContext, 'persona-1')
       ).resolves.not.toThrow();
     });
 
@@ -327,13 +321,7 @@ describe('LongTermMemoryService', () => {
 
       // Should not throw even when both storage and update fail
       await expect(
-        service.storeInteraction(
-          testPersonality,
-          'Message',
-          'Response',
-          baseContext,
-          'persona-1'
-        )
+        service.storeInteraction(testPersonality, 'Message', 'Response', baseContext, 'persona-1')
       ).resolves.not.toThrow();
     });
 

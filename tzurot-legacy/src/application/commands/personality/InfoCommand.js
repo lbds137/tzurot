@@ -176,7 +176,6 @@ function createInfoCommand() {
             inline: false,
           });
 
-
           // Create the response
           const embedData = {
             title: 'Personality Info',

@@ -14,6 +14,7 @@ This guide provides best practices for logging in Tzurot while protecting user p
 ## Logging Levels and Privacy
 
 ### ❌ NEVER Log at INFO/WARN/ERROR Levels:
+
 - Message content (`message.content`)
 - User IDs in routine operations
 - User tokens or authentication data
@@ -21,6 +22,7 @@ This guide provides best practices for logging in Tzurot while protecting user p
 - DM content or private channel messages
 
 ### ✅ OK to Log at INFO Level:
+
 - System operations and state changes
 - Command names (not arguments)
 - Channel IDs (public channels only)
@@ -28,6 +30,7 @@ This guide provides best practices for logging in Tzurot while protecting user p
 - Performance metrics
 
 ### 🔍 Use DEBUG Level For:
+
 - User IDs in diagnostic messages
 - Message content for debugging
 - Command arguments
@@ -74,12 +77,12 @@ try {
 } catch (error) {
   // Log error without user content
   logger.error(`[MessageHandler] Failed to process message: ${error.message}`);
-  
+
   // Use DEBUG for detailed error info
   logger.debug(`[MessageHandler] Error details:`, {
     userId: message.author.id,
     channelId: message.channel.id,
-    errorStack: error.stack
+    errorStack: error.stack,
   });
 }
 ```
@@ -87,26 +90,31 @@ try {
 ## Special Considerations
 
 ### PluralKit and Proxy Systems
+
 - Be extra careful with webhook messages
 - These may contain user data from proxy systems
 - Apply same privacy rules to proxied content
 
 ### DM Handling
+
 - Direct Messages are private by nature
 - NEVER log DM content at INFO level or higher
 - Use extra caution with DM-related errors
 
 ### Activated Channels
+
 - Messages in activated channels are user interactions
 - Apply strict privacy rules to all activated channel logs
 
 ## Enforcement
 
 ### Pre-commit Hooks
+
 - Automated checks for common privacy violations
 - Blocks commits with INFO level user data logging
 
 ### Code Review Checklist
+
 - [ ] No message.content at INFO level or higher
 - [ ] No user IDs in routine INFO logs
 - [ ] No tokens or auth data in any logs
@@ -132,6 +140,7 @@ When updating existing code:
 ## Tools and Scripts
 
 Check for privacy violations:
+
 ```bash
 # Run privacy audit
 npm run audit:privacy
@@ -143,6 +152,7 @@ rg "logger\.(info|warn|error).*message\.content" src/
 ## Questions?
 
 If unsure about logging sensitive data:
+
 1. Default to NOT logging it
 2. Use DEBUG level if needed for diagnostics
 3. Ask in code review

@@ -73,10 +73,9 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
 
   // Log if we stripped anything (but skip if only whitespace was removed)
   if (cleaned !== originalContent) {
-    const strippedPrefix = originalContent.substring(
-      0,
-      originalContent.length - cleaned.length
-    ).trim();
+    const strippedPrefix = originalContent
+      .substring(0, originalContent.length - cleaned.length)
+      .trim();
 
     // Only log if we actually stripped meaningful content (not just whitespace)
     if (strippedPrefix.length > 0) {

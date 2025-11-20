@@ -44,21 +44,16 @@ export async function processAudioTranscriptionJob(
       !attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) &&
       attachment.isVoiceMessage !== true
     ) {
-      throw new Error(
-        `Invalid attachment type: ${attachment.contentType}. Expected audio.`
-      );
+      throw new Error(`Invalid attachment type: ${attachment.contentType}. Expected audio.`);
     }
 
     // Transcribe the audio with retry logic (3 attempts)
     // Note: Personality is optional for transcription (not currently used by Whisper API)
-    const result = await withRetry(
-      () => transcribeAudio(attachment),
-      {
-        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        logger,
-        operationName: `Audio transcription (${attachment.name})`,
-      }
-    );
+    const result = await withRetry(() => transcribeAudio(attachment), {
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      logger,
+      operationName: `Audio transcription (${attachment.name})`,
+    });
 
     logger.info(
       {

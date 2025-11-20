@@ -61,7 +61,7 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
           },
           aliases: [
             { value: 'test1', originalCase: 'test1' },
-            { value: 'testy1', originalCase: 'testy1' }
+            { value: 'testy1', originalCase: 'testy1' },
           ],
           savedAt: '2024-01-01T00:00:00.000Z',
         },
@@ -72,9 +72,7 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
             displayName: 'Test 2',
             name: 'test-2',
           },
-          aliases: [
-            { value: 'test2', originalCase: 'test2' }
-          ],
+          aliases: [{ value: 'test2', originalCase: 'test2' }],
           savedAt: '2024-01-01T00:00:00.000Z',
         },
       },
@@ -114,14 +112,15 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
         }),
         AIModel.createDefault()
       );
-      
+
       // Add only one alias (removing 'testy1')
       personality.addAlias(new Alias('test1'));
-      
+
       await repository.save(personality);
 
       // Check that the file was written with updated aliases
-      const lastWriteCall = mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
+      const lastWriteCall =
+        mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
       const writtenData = JSON.parse(lastWriteCall[1]);
 
       // Global aliases should only have 'test1' for this personality
@@ -143,15 +142,16 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
         }),
         AIModel.createDefault()
       );
-      
+
       // Add existing and new aliases
       personality.addAlias(new Alias('test1'));
       personality.addAlias(new Alias('testy1'));
       personality.addAlias(new Alias('newalias'));
-      
+
       await repository.save(personality);
 
-      const lastWriteCall = mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
+      const lastWriteCall =
+        mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
       const writtenData = JSON.parse(lastWriteCall[1]);
 
       expect(writtenData.aliases.test1).toBe('test-personality-1');
@@ -172,18 +172,19 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
         }),
         AIModel.createDefault()
       );
-      
+
       // Try to add an alias that belongs to another personality
       personality.addAlias(new Alias('test1'));
       personality.addAlias(new Alias('test2')); // This belongs to test-personality-2
-      
+
       await repository.save(personality);
 
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Alias "test2" already points to test-personality-2')
       );
 
-      const lastWriteCall = mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
+      const lastWriteCall =
+        mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
       const writtenData = JSON.parse(lastWriteCall[1]);
 
       // test2 should still point to test-personality-2
@@ -203,12 +204,13 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
         }),
         AIModel.createDefault()
       );
-      
+
       // Don't add any aliases
-      
+
       await repository.save(personality);
 
-      const lastWriteCall = mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
+      const lastWriteCall =
+        mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
       const writtenData = JSON.parse(lastWriteCall[1]);
 
       // Should not affect other aliases
@@ -230,12 +232,13 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
         }),
         AIModel.createDefault()
       );
-      
+
       // Don't add any aliases (removing all)
-      
+
       await repository.save(personality);
 
-      const lastWriteCall = mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
+      const lastWriteCall =
+        mockFsPromises.writeFile.mock.calls[mockFsPromises.writeFile.mock.calls.length - 1];
       const writtenData = JSON.parse(lastWriteCall[1]);
 
       // All aliases for test-personality-1 should be removed
@@ -251,7 +254,7 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
       await repository.initialize();
 
       const result = await repository.findByNameOrAlias('test1');
-      
+
       expect(result).toBeDefined();
       expect(result.personalityId.value).toBe('test-personality-1');
     });
@@ -283,13 +286,13 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
           testalias: 'personality-b', // Global alias points to personality-b
         },
       };
-      
+
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
       const repo = new FilePersonalityRepository();
       await repo.initialize();
 
       const result = await repo.findByNameOrAlias('testalias');
-      
+
       expect(result).toBeDefined();
       expect(result.personalityId.value).toBe('personality-b'); // Should find by global alias, not display name
     });

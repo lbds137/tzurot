@@ -118,16 +118,20 @@ export async function handleCreate(
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created new personality: **${name}** (\`${slug}\`)`)
       .addFields(
-        { name: 'Character Info', value: characterInfo.slice(0, DISCORD_LIMITS.EMBED_FIELD), inline: false },
-        { name: 'Personality Traits', value: personalityTraits.slice(0, DISCORD_LIMITS.EMBED_FIELD), inline: false }
+        {
+          name: 'Character Info',
+          value: characterInfo.slice(0, DISCORD_LIMITS.EMBED_FIELD),
+          inline: false,
+        },
+        {
+          name: 'Personality Traits',
+          value: personalityTraits.slice(0, DISCORD_LIMITS.EMBED_FIELD),
+          inline: false,
+        }
       )
       .setTimestamp();
 
-    if (
-      displayName !== undefined &&
-      displayName !== null &&
-      displayName.length > 0
-    ) {
+    if (displayName !== undefined && displayName !== null && displayName.length > 0) {
       embed.addFields({ name: 'Display Name', value: displayName, inline: true });
     }
     if (tone !== undefined && tone !== null && tone.length > 0) {

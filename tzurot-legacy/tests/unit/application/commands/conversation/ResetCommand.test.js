@@ -96,7 +96,6 @@ describe('ResetCommand', () => {
       });
     });
 
-
     it('should handle missing personality name', async () => {
       mockContext.args = [];
 

@@ -92,7 +92,7 @@ async function main(): Promise<void> {
   // Initialize Redis for cache invalidation (separate from BullMQ Redis)
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
-  cacheRedis.on('error', (err) => {
+  cacheRedis.on('error', err => {
     logger.error({ err }, '[AIWorker] Cache Redis connection error');
   });
   logger.info('[AIWorker] Redis client initialized for cache invalidation');

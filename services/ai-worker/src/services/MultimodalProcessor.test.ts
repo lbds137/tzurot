@@ -3,11 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  describeImage,
-  transcribeAudio,
-  processAttachments,
-} from './MultimodalProcessor.js';
+import { describeImage, transcribeAudio, processAttachments } from './MultimodalProcessor.js';
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
 
@@ -138,9 +134,7 @@ describe('MultimodalProcessor', () => {
 
       (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-      await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow(
-        'Network error'
-      );
+      await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow('Network error');
     });
 
     it('should handle Whisper API errors', async () => {

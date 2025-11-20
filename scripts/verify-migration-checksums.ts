@@ -10,11 +10,13 @@ async function verifyChecksums() {
 
   const migrationsDir = join(process.cwd(), 'prisma', 'migrations');
 
-  const dbMigrations = await prisma.$queryRaw<Array<{
-    migration_name: string;
-    checksum: string;
-    applied_steps_count: number;
-  }>>`
+  const dbMigrations = await prisma.$queryRaw<
+    Array<{
+      migration_name: string;
+      checksum: string;
+      applied_steps_count: number;
+    }>
+  >`
     SELECT migration_name, checksum, applied_steps_count
     FROM "_prisma_migrations"
     ORDER BY finished_at

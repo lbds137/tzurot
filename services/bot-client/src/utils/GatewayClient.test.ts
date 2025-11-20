@@ -292,7 +292,9 @@ describe('GatewayClient', () => {
         }),
       });
 
-      await expect(client.transcribe(testAttachments)).rejects.toThrow('No transcript in job result');
+      await expect(client.transcribe(testAttachments)).rejects.toThrow(
+        'No transcript in job result'
+      );
     });
 
     it('should throw when result is null', async () => {
@@ -305,7 +307,9 @@ describe('GatewayClient', () => {
         }),
       });
 
-      await expect(client.transcribe(testAttachments)).rejects.toThrow('No transcript in job result');
+      await expect(client.transcribe(testAttachments)).rejects.toThrow(
+        'No transcript in job result'
+      );
     });
 
     it('should throw on non-ok response', async () => {

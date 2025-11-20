@@ -11,7 +11,6 @@ jest.mock('../../src/utils/errorTracker', () => ({
   trackError: jest.fn(),
 }));
 
-
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
     getPersonalityApplicationService: jest.fn().mockReturnValue({
@@ -45,11 +44,13 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       mockPersonalityApplicationService = {
         getPersonality: jest.fn(),
       };
-      
+
       mockBootstrap = {
-        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
+        getPersonalityApplicationService: jest
+          .fn()
+          .mockReturnValue(mockPersonalityApplicationService),
       };
-      
+
       // Apply the mocks
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
     });
@@ -159,7 +160,9 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should handle errors when fetching personality data', async () => {
       // Mock error when getting personality
-      mockPersonalityApplicationService.getPersonality.mockRejectedValue(new Error('Database error'));
+      mockPersonalityApplicationService.getPersonality.mockRejectedValue(
+        new Error('Database error')
+      );
 
       const result = await analyzeErrorAndGenerateMessage(
         'rate limit',
@@ -213,11 +216,13 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       mockPersonalityApplicationService = {
         getPersonality: jest.fn(),
       };
-      
+
       mockBootstrap = {
-        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
+        getPersonalityApplicationService: jest
+          .fn()
+          .mockReturnValue(mockPersonalityApplicationService),
       };
-      
+
       // Apply the mocks
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
@@ -314,11 +319,13 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       mockPersonalityApplicationService = {
         getPersonality: jest.fn(),
       };
-      
+
       mockBootstrap = {
-        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
+        getPersonalityApplicationService: jest
+          .fn()
+          .mockReturnValue(mockPersonalityApplicationService),
       };
-      
+
       // Apply the mocks
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
     });
@@ -342,7 +349,9 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
 
       // Should use PersonalityApplicationService
-      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test-personality');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith(
+        'test-personality'
+      );
 
       // Should use personality error message
       expect(result).toMatch(/Test Error! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
@@ -350,7 +359,6 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
         '[AIErrorHandler] Using PersonalityApplicationService for test-personality'
       );
     });
-
 
     it('should handle missing errorMessage in personality gracefully', async () => {
       // Mock PersonalityApplicationService response without errorMessage

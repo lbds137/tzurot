@@ -32,7 +32,10 @@ const DEFAULT_TOKENIZER_MODEL: TiktokenModel = 'gpt-4';
  * @param model - The model to use for tokenization (defaults to gpt-4)
  * @returns Number of tokens
  */
-export function countTextTokens(text: string, model: TiktokenModel = DEFAULT_TOKENIZER_MODEL): number {
+export function countTextTokens(
+  text: string,
+  model: TiktokenModel = DEFAULT_TOKENIZER_MODEL
+): number {
   if (!text || text.length === 0) {
     return 0;
   }

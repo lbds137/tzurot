@@ -5,12 +5,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_COLORS,
-} from '@tzurot/common-types';
+import { getConfig, createLogger, CONTENT_TYPES, DISCORD_COLORS } from '@tzurot/common-types';
 import { processAvatarAttachment, AvatarProcessingError } from '../../utils/avatarProcessor.js';
 
 const logger = createLogger('personality-edit');
@@ -81,15 +76,37 @@ export async function handleEdit(
       ownerId: interaction.user.id,
     };
 
-    if (name !== null && name !== undefined && name.length > 0) {payload.name = name;}
-    if (characterInfo !== null && characterInfo !== undefined && characterInfo.length > 0) {payload.characterInfo = characterInfo;}
-    if (personalityTraits !== null && personalityTraits !== undefined && personalityTraits.length > 0) {payload.personalityTraits = personalityTraits;}
-    if (displayName !== null && displayName !== undefined && displayName.length > 0) {payload.displayName = displayName;}
-    if (tone !== null && tone !== undefined && tone.length > 0) {payload.personalityTone = tone;}
-    if (age !== null && age !== undefined && age.length > 0) {payload.personalityAge = age;}
-    if (likes !== null && likes !== undefined && likes.length > 0) {payload.personalityLikes = likes;}
-    if (dislikes !== null && dislikes !== undefined && dislikes.length > 0) {payload.personalityDislikes = dislikes;}
-    if (avatarBase64 !== undefined && avatarBase64 !== null && avatarBase64.length > 0) {payload.avatarData = avatarBase64;}
+    if (name !== null && name !== undefined && name.length > 0) {
+      payload.name = name;
+    }
+    if (characterInfo !== null && characterInfo !== undefined && characterInfo.length > 0) {
+      payload.characterInfo = characterInfo;
+    }
+    if (
+      personalityTraits !== null &&
+      personalityTraits !== undefined &&
+      personalityTraits.length > 0
+    ) {
+      payload.personalityTraits = personalityTraits;
+    }
+    if (displayName !== null && displayName !== undefined && displayName.length > 0) {
+      payload.displayName = displayName;
+    }
+    if (tone !== null && tone !== undefined && tone.length > 0) {
+      payload.personalityTone = tone;
+    }
+    if (age !== null && age !== undefined && age.length > 0) {
+      payload.personalityAge = age;
+    }
+    if (likes !== null && likes !== undefined && likes.length > 0) {
+      payload.personalityLikes = likes;
+    }
+    if (dislikes !== null && dislikes !== undefined && dislikes.length > 0) {
+      payload.personalityDislikes = dislikes;
+    }
+    if (avatarBase64 !== undefined && avatarBase64 !== null && avatarBase64.length > 0) {
+      payload.avatarData = avatarBase64;
+    }
 
     // Call API Gateway to edit personality
     const gatewayUrl = config.GATEWAY_URL;
@@ -131,15 +148,37 @@ export async function handleEdit(
       .setTimestamp();
 
     const updatedFields: string[] = [];
-    if (name !== undefined && name !== null && name.length > 0) {updatedFields.push(`Name: ${name}`);}
-    if (characterInfo !== undefined && characterInfo !== null && characterInfo.length > 0) {updatedFields.push('Character Info');}
-    if (personalityTraits !== undefined && personalityTraits !== null && personalityTraits.length > 0) {updatedFields.push('Personality Traits');}
-    if (displayName !== undefined && displayName !== null && displayName.length > 0) {updatedFields.push(`Display Name: ${displayName}`);}
-    if (tone !== undefined && tone !== null && tone.length > 0) {updatedFields.push(`Tone: ${tone}`);}
-    if (age !== undefined && age !== null && age.length > 0) {updatedFields.push(`Age: ${age}`);}
-    if (likes !== undefined && likes !== null && likes.length > 0) {updatedFields.push('Likes');}
-    if (dislikes !== undefined && dislikes !== null && dislikes.length > 0) {updatedFields.push('Dislikes');}
-    if (avatarAttachment !== undefined && avatarAttachment !== null) {updatedFields.push('Avatar');}
+    if (name !== undefined && name !== null && name.length > 0) {
+      updatedFields.push(`Name: ${name}`);
+    }
+    if (characterInfo !== undefined && characterInfo !== null && characterInfo.length > 0) {
+      updatedFields.push('Character Info');
+    }
+    if (
+      personalityTraits !== undefined &&
+      personalityTraits !== null &&
+      personalityTraits.length > 0
+    ) {
+      updatedFields.push('Personality Traits');
+    }
+    if (displayName !== undefined && displayName !== null && displayName.length > 0) {
+      updatedFields.push(`Display Name: ${displayName}`);
+    }
+    if (tone !== undefined && tone !== null && tone.length > 0) {
+      updatedFields.push(`Tone: ${tone}`);
+    }
+    if (age !== undefined && age !== null && age.length > 0) {
+      updatedFields.push(`Age: ${age}`);
+    }
+    if (likes !== undefined && likes !== null && likes.length > 0) {
+      updatedFields.push('Likes');
+    }
+    if (dislikes !== undefined && dislikes !== null && dislikes.length > 0) {
+      updatedFields.push('Dislikes');
+    }
+    if (avatarAttachment !== undefined && avatarAttachment !== null) {
+      updatedFields.push('Avatar');
+    }
 
     embed.addFields({ name: 'Updated Fields', value: updatedFields.join('\n'), inline: false });
 

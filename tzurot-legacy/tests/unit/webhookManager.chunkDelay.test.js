@@ -76,7 +76,7 @@ jest.mock('../../src/utils/messageSplitting', () => ({
     isFirstChunk: jest.fn(i => i === 0),
     isLastChunk: jest.fn((i, len) => i === len - 1),
     getChunkDelay: jest.fn(() => 750),
-  }
+  },
 }));
 
 jest.mock('../../src/utils/messageFormatter', () => ({
@@ -215,7 +215,7 @@ describe('WebhookManager - Chunk Delay Tests', () => {
         'This is a message that will be split into exactly two chunks for testing purposes.';
 
       await freshWebhookManager.sendWebhookMessage(mockChannel, content, personality);
-      
+
       // Should use custom delay function
       expect(customDelayFn).toHaveBeenCalledTimes(1);
       expect(customDelayFn).toHaveBeenCalledWith(750);

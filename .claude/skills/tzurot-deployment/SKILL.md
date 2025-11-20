@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: Railway deployment operations for Tzurot v3 - Service management, log analysis, environment variables, health checks, and troubleshooting. Use when deploying, debugging production issues, or managing Railway infrastructure.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Deployment Skill - Tzurot v3
@@ -62,6 +62,7 @@ railway logs --service ai-worker | grep "requestId:abc123"
 ```
 
 **Log Analysis Tips**:
+
 - Look for correlation IDs to trace requests end-to-end
 - Check for ERROR level logs first
 - Use timestamps to correlate events across services
@@ -108,6 +109,7 @@ curl https://api-gateway-development-83e8.up.railway.app/health
 ```
 
 **Troubleshooting Unhealthy Services**:
+
 1. Check logs: `railway logs --service <service-name> --tail 100`
 2. Verify environment variables: `railway variables --service <service-name>`
 3. Check database/Redis connectivity
@@ -118,23 +120,27 @@ curl https://api-gateway-development-83e8.up.railway.app/health
 **Standard Deployment Process**:
 
 1. **Merge PR to develop** (Railway auto-deploys):
+
    ```bash
    gh pr merge <PR-number> --rebase
    ```
 
 2. **Verify deployment started**:
+
    ```bash
    railway status --service api-gateway
    # Look for "Deploying" status
    ```
 
 3. **Monitor deployment logs**:
+
    ```bash
    railway logs --service api-gateway --tail 100
    # Watch for "Server started" or deployment errors
    ```
 
 4. **Verify health endpoint**:
+
    ```bash
    curl https://api-gateway-development-83e8.up.railway.app/health
    ```
@@ -145,6 +151,7 @@ curl https://api-gateway-development-83e8.up.railway.app/health
    ```
 
 **Auto-Deploy Configuration**:
+
 - **Branch**: `develop` (feature branches do NOT auto-deploy)
 - **Trigger**: Push to `develop` branch on GitHub
 - **Services**: All 3 services (bot-client, api-gateway, ai-worker) deploy independently
@@ -196,6 +203,7 @@ railway restart --service bot-client
 ```
 
 **When to restart**:
+
 - After changing environment variables
 - Service is stuck (check logs first!)
 - Memory leak suspected (check metrics)
@@ -237,7 +245,9 @@ railway run redis-cli
 **Symptoms**: Service shows "Crashed" or "Failed" status
 
 **Steps**:
+
 1. Check logs for errors:
+
    ```bash
    railway logs --service <service-name> --tail 100
    ```
@@ -259,17 +269,21 @@ railway run redis-cli
 **Symptoms**: API responses taking >5 seconds, timeouts
 
 **Steps**:
+
 1. Check service logs for slow operations:
+
    ```bash
    railway logs --service api-gateway | grep "duration"
    ```
 
 2. Check database query performance:
+
    ```bash
    railway logs --service ai-worker | grep "prisma"
    ```
 
 3. Check BullMQ job processing times:
+
    ```bash
    railway logs --service ai-worker | grep "job completed"
    ```
@@ -284,7 +298,9 @@ railway run redis-cli
 **Symptoms**: Bot appears online but doesn't respond to commands
 
 **Steps**:
+
 1. Check bot-client logs:
+
    ```bash
    railway logs --service bot-client --tail 50
    ```
@@ -292,11 +308,13 @@ railway run redis-cli
 2. Verify webhook creation (should see "Webhook created" in logs)
 
 3. Check API Gateway is reachable:
+
    ```bash
    curl https://api-gateway-development-83e8.up.railway.app/health
    ```
 
 4. Verify Discord token is set:
+
    ```bash
    railway variables --service bot-client | grep DISCORD_TOKEN
    ```
@@ -308,12 +326,15 @@ railway run redis-cli
 **Symptoms**: Service crashes after deployment with Prisma errors
 
 **Steps**:
+
 1. Check migration status:
+
    ```bash
    railway run npx prisma migrate status
    ```
 
 2. Apply missing migrations:
+
    ```bash
    railway run npx prisma migrate deploy
    ```
@@ -325,19 +346,23 @@ railway run redis-cli
 **Symptoms**: Service memory usage gradually increases, eventual crash
 
 **Steps**:
+
 1. Monitor memory usage in Railway dashboard
 
 2. Check for unclosed connections:
+
    ```bash
    railway logs --service ai-worker | grep "connection"
    ```
 
 3. Look for growing caches or queues:
+
    ```bash
    railway logs --service bot-client | grep "cache"
    ```
 
 4. Temporary fix: Restart service
+
    ```bash
    railway restart --service <service-name>
    ```
@@ -355,7 +380,7 @@ Railway services communicate via private networking (no public internet):
 const GATEWAY_URL = process.env.GATEWAY_URL; // e.g., "http://api-gateway.railway.internal"
 
 // ❌ WRONG - Don't use public URLs for internal communication
-const GATEWAY_URL = "https://api-gateway-development-83e8.up.railway.app";
+const GATEWAY_URL = 'https://api-gateway-development-83e8.up.railway.app';
 ```
 
 ### Environment Variable Injection
@@ -364,9 +389,9 @@ Railway automatically injects service URLs:
 
 ```typescript
 // Railway provides these automatically:
-const DATABASE_URL = process.env.DATABASE_URL;  // PostgreSQL addon
-const REDIS_URL = process.env.REDIS_URL;        // Redis addon
-const GATEWAY_URL = process.env.GATEWAY_URL;    // Service reference
+const DATABASE_URL = process.env.DATABASE_URL; // PostgreSQL addon
+const REDIS_URL = process.env.REDIS_URL; // Redis addon
+const GATEWAY_URL = process.env.GATEWAY_URL; // Service reference
 ```
 
 **No need to manually configure these** - Railway handles it.
@@ -403,6 +428,7 @@ See `tzurot-async-flow` skill for retry patterns.
 - **Addons**: PostgreSQL, Redis
 
 **Cost Monitoring**:
+
 - Check usage in Railway dashboard
 - Set up billing alerts (if available)
 - Monitor AI API costs (OpenRouter/Gemini) separately
@@ -436,6 +462,7 @@ See `tzurot-async-flow` skill for retry patterns.
 ## Railway Dashboard
 
 **Useful Sections**:
+
 - **Deployments**: View build logs and deployment history
 - **Metrics**: CPU, memory, bandwidth usage
 - **Variables**: Manage environment variables (easier than CLI for viewing)

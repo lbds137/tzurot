@@ -5,13 +5,16 @@
 ### Task 1: Create Message Router Infrastructure
 
 **Files to create:**
+
 - `src/core/routing/MessageRouter.js`
 - `src/core/routing/MessageRouter.test.js`
 
 **Files to modify:**
+
 - `src/handlers/messageHandler.js` - Add delegation to router
 
 **Implementation notes:**
+
 ```javascript
 // In messageHandler.js handleMessage function, near the top:
 const router = getMessageRouter();
@@ -22,6 +25,7 @@ if (router.isEnabled()) {
 ```
 
 **Feature flags to add:**
+
 ```javascript
 // In src/application/services/FeatureFlags.js
 'ddd.routing.enabled': false,
@@ -33,15 +37,18 @@ if (router.isEnabled()) {
 ### Task 2: First Vertical Slice - Personality Mention
 
 **Files to create:**
+
 - `src/application/slices/PersonalityMentionSlice.js`
 - `src/application/slices/PersonalityMentionSlice.test.js`
 - `src/domain/conversation/MessageContext.js`
 
 **Logic to extract from:**
+
 - `src/handlers/messageHandler.js` - `checkForPersonalityMentions()`
 - `src/handlers/personalityHandler.js` - mention handling logic
 
 **Key implementation points:**
+
 1. Reuse existing `PersonalityRepository` from DDD
 2. Create clean mention detection without regex soup
 3. Use event bus to emit `PersonalityMentioned` event
@@ -50,14 +57,17 @@ if (router.isEnabled()) {
 ### Task 3: Create Simplified Webhook Service
 
 **Files to create:**
+
 - `src/domain/infrastructure/WebhookService.js`
 - `src/domain/infrastructure/WebhookService.test.js`
 
 **Extract from:**
+
 - `src/webhookManager.js` - Just the sending logic
 - `src/utils/webhookCache.js` - Reuse as-is
 
 **Interface:**
+
 ```javascript
 class WebhookService {
   async send({ channel, message, personality }) {
@@ -69,10 +79,12 @@ class WebhookService {
 ### Task 4: Integration Testing Infrastructure
 
 **Files to create:**
+
 - `tests/integration/vertical-slices/PersonalityMentionSlice.test.js`
 - `tests/integration/vertical-slices/SliceTestHelper.js`
 
 **Test approach:**
+
 1. Send same message through legacy and DDD paths
 2. Compare the webhook payloads
 3. Ensure identical user experience
@@ -122,7 +134,7 @@ Create a simple progress tracker in the PR description:
 - [x] Message Router infrastructure
 - [ ] Personality Mention slice
   - [x] Implementation
-  - [x] Unit tests  
+  - [x] Unit tests
   - [ ] Integration tests
   - [ ] Feature flag testing
   - [ ] Production rollout

@@ -98,9 +98,7 @@ describe('handleImport', () => {
 
     await handleImport(mockInteraction, mockConfig);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      '❌ File must be a JSON file (.json)'
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ File must be a JSON file (.json)');
   });
 
   it('should validate file size', async () => {
@@ -115,9 +113,7 @@ describe('handleImport', () => {
 
     await handleImport(mockInteraction, mockConfig);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      '❌ File is too large (max 10MB)'
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ File is too large (max 10MB)');
   });
 
   it('should handle invalid JSON', async () => {
@@ -129,9 +125,7 @@ describe('handleImport', () => {
     } as Attachment;
 
     vi.mocked(mockInteraction.options.getAttachment).mockReturnValue(mockAttachment);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('not valid json', { status: 200 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('not valid json', { status: 200 }));
 
     await handleImport(mockInteraction, mockConfig);
 
@@ -155,9 +149,7 @@ describe('handleImport', () => {
     } as Attachment;
 
     vi.mocked(mockInteraction.options.getAttachment).mockReturnValue(mockAttachment);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(missingFieldsJson, { status: 200 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response(missingFieldsJson, { status: 200 }));
 
     await handleImport(mockInteraction, mockConfig);
 
@@ -182,9 +174,7 @@ describe('handleImport', () => {
     } as Attachment;
 
     vi.mocked(mockInteraction.options.getAttachment).mockReturnValue(mockAttachment);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(invalidSlugJson, { status: 200 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response(invalidSlugJson, { status: 200 }));
 
     await handleImport(mockInteraction, mockConfig);
 

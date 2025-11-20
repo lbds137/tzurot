@@ -16,7 +16,9 @@ jest.mock('../../src/utils/aiRequestManager', () => ({
   getPendingRequest: jest.fn().mockReturnValue(null),
   storePendingRequest: jest.fn(),
   removePendingRequest: jest.fn(),
-  createRequestId: jest.fn((personality, message, context) => `${personality}-${message}-${context.userId}`),
+  createRequestId: jest.fn(
+    (personality, message, context) => `${personality}-${message}-${context.userId}`
+  ),
   addToBlackoutList: jest.fn(),
   prepareRequestHeaders: jest.fn().mockReturnValue({}),
 }));
@@ -24,7 +26,7 @@ jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(true), // Return true to bypass auth
 }));
 jest.mock('../../config', () => ({
-  getModelPath: jest.fn((name) => `models/${name}`),
+  getModelPath: jest.fn(name => `models/${name}`),
   botPrefix: '!tz',
   botConfig: {
     isDevelopment: false,
@@ -44,7 +46,7 @@ const { getApplicationBootstrap } = require('../../src/application/bootstrap/App
 
 // Mock aiMessageFormatter
 jest.mock('../../src/utils/aiMessageFormatter', () => ({
-  formatApiMessages: jest.fn().mockImplementation((message) => {
+  formatApiMessages: jest.fn().mockImplementation(message => {
     return [{ role: 'user', content: message }];
   }),
 }));
@@ -103,7 +105,9 @@ describe('AI Service - Metadata Support', () => {
       getApplicationServices: jest.fn().mockReturnValue({
         authenticationService: mockAuthService,
       }),
-      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
+      getPersonalityApplicationService: jest
+        .fn()
+        .mockReturnValue(mockPersonalityApplicationService),
     });
 
     // Mock getAiClientForUser to return our mock client
@@ -137,8 +141,8 @@ describe('AI Service - Metadata Support', () => {
         // Add webhook context to bypass authentication
         message: {
           webhookId: 'test-webhook',
-          author: { username: 'TestWebhook' }
-        }
+          author: { username: 'TestWebhook' },
+        },
       });
 
       expect(mockCreateCompletion).toHaveBeenCalled();
@@ -176,8 +180,8 @@ describe('AI Service - Metadata Support', () => {
         // Add webhook context to bypass authentication
         message: {
           webhookId: 'test-webhook',
-          author: { username: 'TestWebhook' }
-        }
+          author: { username: 'TestWebhook' },
+        },
       });
 
       expect(result).toEqual({
@@ -212,8 +216,8 @@ describe('AI Service - Metadata Support', () => {
         // Add webhook context to bypass authentication
         message: {
           webhookId: 'test-webhook',
-          author: { username: 'TestWebhook' }
-        }
+          author: { username: 'TestWebhook' },
+        },
       });
 
       expect(result.metadata).toEqual({
@@ -226,8 +230,10 @@ describe('AI Service - Metadata Support', () => {
     it('should return object with null metadata on error', async () => {
       // Mock handleApiError to return a proper error message
       const { handleApiError } = require('../../src/utils/aiErrorHandler');
-      handleApiError.mockResolvedValue('Error occurred ||*(an error has occurred; reference: test123)*||');
-      
+      handleApiError.mockResolvedValue(
+        'Error occurred ||*(an error has occurred; reference: test123)*||'
+      );
+
       mockCreateCompletion.mockRejectedValue(new Error('API Error'));
 
       const result = await getAiResponse('test-personality', 'Hello AI', {
@@ -236,15 +242,17 @@ describe('AI Service - Metadata Support', () => {
         // Add webhook context to bypass authentication
         message: {
           webhookId: 'test-webhook',
-          author: { username: 'TestWebhook' }
-        }
+          author: { username: 'TestWebhook' },
+        },
       });
 
       // Error responses now return an object with content and null metadata
       expect(typeof result).toBe('object');
       expect(result).toHaveProperty('content');
       expect(result).toHaveProperty('metadata', null);
-      expect(result.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: test123\)\*\|\|$/);
+      expect(result.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: test123\)\*\|\|$/
+      );
     });
 
     it('should handle invalid response structure', async () => {
@@ -257,8 +265,8 @@ describe('AI Service - Metadata Support', () => {
         // Add webhook context to bypass authentication
         message: {
           webhookId: 'test-webhook',
-          author: { username: 'TestWebhook' }
-        }
+          author: { username: 'TestWebhook' },
+        },
       });
 
       expect(result).toEqual({

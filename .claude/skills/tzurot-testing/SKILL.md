@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Comprehensive testing patterns for Tzurot v3 - Vitest configuration, fake timers, promise handling, mocking strategies, and test organization. Use this when writing or modifying tests.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -19,6 +19,7 @@ lastUpdated: "2025-11-19"
 ## Test File Organization
 
 ### Standard Structure (Colocated)
+
 ```
 src/
 ├── services/
@@ -34,7 +35,9 @@ src/
 **Exception:** Integration tests that span multiple modules can live in `src/test/` directories.
 
 ### Build Configuration
+
 Ensure `tsconfig.json` excludes test files:
+
 ```json
 {
   "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
@@ -44,6 +47,7 @@ Ensure `tsconfig.json` excludes test files:
 ## Vitest Patterns
 
 ### Basic Test Structure
+
 ```typescript
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -64,7 +68,9 @@ describe('MyService', () => {
   describe('methodName', () => {
     it('should do the expected behavior', () => {
       // Arrange
-      const input = { /* test data */ };
+      const input = {
+        /* test data */
+      };
 
       // Act
       const result = service.methodName(input);
@@ -79,6 +85,7 @@ describe('MyService', () => {
 ## Fake Timers
 
 ### Always Use Fake Timers for Time-Based Code
+
 ```typescript
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -92,7 +99,8 @@ describe('time-based operations', () => {
   });
 
   it('should retry with exponential backoff', async () => {
-    const fn = vi.fn()
+    const fn = vi
+      .fn()
       .mockRejectedValueOnce(new Error('Fail 1'))
       .mockRejectedValueOnce(new Error('Fail 2'))
       .mockResolvedValueOnce('success');
@@ -116,6 +124,7 @@ describe('time-based operations', () => {
 **CRITICAL PATTERN:** When testing code that rejects promises after timer delays, attach assertion handlers BEFORE advancing timers to avoid unhandled rejection warnings.
 
 ### The Problem
+
 ```typescript
 // ❌ WRONG - Causes PromiseRejectionHandledWarning
 it('should throw error after timeout', async () => {
@@ -128,12 +137,14 @@ it('should throw error after timeout', async () => {
 ```
 
 **Why it fails:** Race condition between timer advancement and handler attachment:
+
 1. `const promise = asyncFunction()` - Creates promise (no handler)
 2. `await vi.runAllTimersAsync()` - Advances timers, triggers rejection
 3. Promise rejects with NO handler → Warning issued
 4. `await expect(promise).rejects...` - Handler attached too late
 
 ### The Solution
+
 ```typescript
 // ✅ CORRECT - Attach handler BEFORE advancing timers
 it('should throw error after timeout', async () => {
@@ -158,6 +169,7 @@ it('should throw error after timeout', async () => {
 ```
 
 ### Alternative Pattern (Inspecting Error Details)
+
 ```typescript
 it('should throw with details', async () => {
   expect.assertions(2);
@@ -176,6 +188,7 @@ it('should throw with details', async () => {
 ## Mocking Patterns
 
 ### Discord.js Mocking
+
 ```typescript
 import type { Message, TextChannel, Guild } from 'discord.js';
 
@@ -203,6 +216,7 @@ function createMockMessage(overrides?: Partial<Message>): Message {
 ```
 
 ### BullMQ Mocking
+
 ```typescript
 import type { Queue, Job } from 'bullmq';
 
@@ -228,6 +242,7 @@ function createMockJob(data: any): Job {
 ```
 
 ### Redis Mocking
+
 ```typescript
 import type { Redis } from 'ioredis';
 
@@ -246,6 +261,7 @@ function createMockRedis(): Redis {
 ```
 
 ### Prisma Mocking
+
 ```typescript
 import type { PrismaClient } from '@prisma/client';
 
@@ -269,6 +285,7 @@ function createMockPrisma(): PrismaClient {
 ```
 
 ### AI Provider Mocking (OpenRouter/Gemini)
+
 ```typescript
 interface MockAIResponse {
   content: string;
@@ -291,6 +308,7 @@ function createMockAIProvider() {
 ## Service Testing Patterns
 
 ### Constructor Injection Pattern
+
 ```typescript
 describe('PersonalityService', () => {
   let service: PersonalityService;
@@ -321,15 +339,14 @@ describe('PersonalityService', () => {
 ```
 
 ### Error Handling Tests
+
 ```typescript
 describe('error handling', () => {
   it('should handle database connection errors', async () => {
     const dbError = new Error('Database connection failed');
     vi.mocked(mockPrisma.personality.findUnique).mockRejectedValue(dbError);
 
-    await expect(service.getPersonality('test-id')).rejects.toThrow(
-      'Database connection failed'
-    );
+    await expect(service.getPersonality('test-id')).rejects.toThrow('Database connection failed');
   });
 
   it('should handle not found errors', async () => {
@@ -364,6 +381,7 @@ describe('prompt generation', () => {
 ## Running Tests
 
 ### Command Reference
+
 ```bash
 # Run all tests
 pnpm test
@@ -382,6 +400,7 @@ pnpm test -- --watch
 ```
 
 ### Before Pushing to Remote
+
 **ALWAYS run tests before pushing!** Even "simple" changes can break tests.
 
 ```bash
@@ -398,6 +417,7 @@ git push origin <branch-name>
 ## Anti-Patterns to Avoid
 
 ### ❌ Don't Test Implementation Details
+
 ```typescript
 // ❌ BAD - Testing private methods
 expect(service['privateMethod']()).toBe(value);
@@ -407,6 +427,7 @@ expect(service.publicMethod()).toBe(value);
 ```
 
 ### ❌ Don't Use Real Timeouts
+
 ```typescript
 // ❌ BAD - Real delay in tests
 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -417,17 +438,21 @@ await vi.advanceTimersByTimeAsync(1000);
 ```
 
 ### ❌ Don't Mock What You Don't Own
+
 ```typescript
 // ❌ BAD - Mocking Node.js built-ins directly
 vi.mock('fs');
 
 // ✅ GOOD - Wrap in your own abstraction and mock that
 class FileSystem {
-  readFile(path: string) { /* uses fs */ }
+  readFile(path: string) {
+    /* uses fs */
+  }
 }
 ```
 
 ### ❌ Don't Leave Console Logs in Tests
+
 ```typescript
 // ❌ BAD - Debugging logs left in
 it('should work', () => {
@@ -437,12 +462,17 @@ it('should work', () => {
 ```
 
 ### ❌ Don't Skip Tests Instead of Fixing
+
 ```typescript
 // ❌ BAD - Skipping broken tests
-it.skip('should work', () => { /* ... */ });
+it.skip('should work', () => {
+  /* ... */
+});
 
 // ✅ GOOD - Fix or remove the test
-it('should work', () => { /* fixed implementation */ });
+it('should work', () => {
+  /* fixed implementation */
+});
 ```
 
 ## Test Coverage Goals

@@ -3,6 +3,7 @@
 This guide consolidates all git workflow, PR rules, and branch management documentation into a single comprehensive resource.
 
 ## Table of Contents
+
 1. [Critical Rules - Read First!](#critical-rules---read-first)
 2. [Quick Command Reference](#quick-command-reference)
 3. [Branch Strategy](#branch-strategy)
@@ -19,11 +20,13 @@ This guide consolidates all git workflow, PR rules, and branch management docume
 ### 🚨 PR Target Branch Rules
 
 **NEVER create PRs directly to `main`!** The only exceptions:
+
 1. **Release PRs**: From `release/vX.Y.Z` branches after careful preparation
 2. **Emergency hotfixes**: With explicit approval and immediate sync
 3. **Branch sync**: When syncing `develop` → `main` after releases
 
 **ALWAYS create feature PRs to `develop`!** This includes:
+
 - Features (`feat/*`)
 - Fixes (`fix/*`)
 - Documentation (`docs/*`)
@@ -33,11 +36,13 @@ This guide consolidates all git workflow, PR rules, and branch management docume
 ### ⚠️ Common Mistake: Premature Syncing
 
 **WRONG sequence:**
+
 1. ❌ Merge feature PR to develop
 2. ❌ Try to sync develop with main ← **NO! Main doesn't have your changes yet!**
 3. ❌ Create release PR
 
 **CORRECT sequence:**
+
 1. ✅ Merge feature PR to develop
 2. ✅ Create release PR (develop → main)
 3. ✅ Merge release PR
@@ -63,6 +68,7 @@ git push origin main
 ```
 
 **Why rebase for releases?**
+
 - Preserves complete commit history for the release
 - Maintains individual feature commit messages
 - Avoids losing valuable development context
@@ -99,35 +105,35 @@ gitGraph
     branch develop
     checkout develop
     commit id: "dev work"
-    
+
     branch feat/feature-1
     checkout feat/feature-1
     commit id: "feature work"
-    
+
     checkout develop
     merge feat/feature-1
-    
+
     branch release/v1.0.0
     checkout release/v1.0.0
     commit id: "version bump"
-    
+
     checkout main
     merge release/v1.0.0
-    
+
     checkout develop
     merge main
 ```
 
 ### Branch Types
 
-| Branch | Purpose | Base Branch | Merge Target | Protected |
-|--------|---------|-------------|--------------|-----------|
-| `main` | Production | - | - | Yes |
-| `develop` | Integration | `main` | `main` | Yes |
-| `feat/*` | Features | `develop` | `develop` | No |
-| `fix/*` | Bug fixes | `develop` | `develop` | No |
-| `release/*` | Releases | `develop` | `main` | No |
-| `hotfix/*` | Emergency | `main` | `main` + `develop` | No |
+| Branch      | Purpose     | Base Branch | Merge Target       | Protected |
+| ----------- | ----------- | ----------- | ------------------ | --------- |
+| `main`      | Production  | -           | -                  | Yes       |
+| `develop`   | Integration | `main`      | `main`             | Yes       |
+| `feat/*`    | Features    | `develop`   | `develop`          | No        |
+| `fix/*`     | Bug fixes   | `develop`   | `develop`          | No        |
+| `release/*` | Releases    | `develop`   | `main`             | No        |
+| `hotfix/*`  | Emergency   | `main`      | `main` + `develop` | No        |
 
 ## Development Workflow
 
@@ -154,6 +160,7 @@ git commit -m "docs: update API documentation"
 ```
 
 **Commit Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -234,6 +241,7 @@ alias pr-to-main-danger='echo "⚠️ WARNING: Creating PR to main!" && gh pr cr
 ### PR Title Format
 
 Follow conventional commit format for PR titles:
+
 - `feat: add new personality command`
 - `fix: resolve webhook timeout issue`
 - `docs: update testing guidelines`
@@ -242,20 +250,24 @@ Follow conventional commit format for PR titles:
 
 ```markdown
 ## Summary
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 
 ## Testing
+
 - [ ] Tests pass locally
 - [ ] New tests added (if applicable)
 - [ ] Manual testing completed
 
 ## Checklist
+
 - [ ] PR targets `develop` branch
 - [ ] Commits follow conventional format
 - [ ] Documentation updated
@@ -294,11 +306,13 @@ Brief description of changes
 ### 🚨 CRITICAL: When to Sync (and When NOT to)
 
 **ONLY sync develop with main AFTER:**
+
 - ✅ Release PR has been merged to main
 - ✅ Hotfix PR has been merged to main
 - ✅ Any direct changes to main (rare)
 
 **NEVER sync develop with main WHEN:**
+
 - ❌ You've just merged a feature PR (feature → develop)
 - ❌ Before creating a release PR
 - ❌ When main is behind develop (normal state between releases)
@@ -315,7 +329,7 @@ git sync-develop
 
 # What it does:
 # 1. Checks out main and pulls
-# 2. Checks out develop and pulls  
+# 2. Checks out develop and pulls
 # 3. Rebases develop onto main
 # 4. Force pushes develop
 ```
@@ -366,6 +380,7 @@ jobs:
 ### Understanding the Release Flow
 
 **Before starting a release, understand the branch states:**
+
 - `develop` contains all new features/fixes ready for release
 - `main` contains the current production code
 - `develop` is AHEAD of `main` (this is normal!)
@@ -373,6 +388,7 @@ jobs:
 ### Creating a Release
 
 1. **Ensure Feature PRs are Merged to Develop**
+
    ```bash
    # Check that all intended features are in develop
    git checkout develop
@@ -381,12 +397,14 @@ jobs:
    ```
 
 2. **Create Release Branch FROM DEVELOP**
+
    ```bash
    # Always branch from develop, never from main!
    git checkout -b release/vX.Y.Z
    ```
 
 3. **Update Version and Changelog**
+
    ```bash
    # Edit package.json version
    # Update CHANGELOG.md
@@ -394,6 +412,7 @@ jobs:
    ```
 
 4. **Create PR to Main**
+
    ```bash
    # This brings develop's changes TO main
    gh pr create --base main --title "chore: release vX.Y.Z"
@@ -405,13 +424,14 @@ jobs:
    - Never use squash for releases
 
 6. **Create GitHub Release**
+
    ```bash
    # After successful merge to main
    git checkout main && git pull origin main
    ./scripts/create-release.sh vX.Y.Z
    ```
 
-6. **Sync Develop**
+7. **Sync Develop**
    ```bash
    git sync-develop
    ```
@@ -428,6 +448,7 @@ jobs:
 ### GitHub Actions Pipeline
 
 On every PR:
+
 1. **Linting**: ESLint checks
 2. **Tests**: Full test suite with coverage
 3. **Security**: Dependency vulnerability scan
@@ -458,16 +479,19 @@ graph LR
 ### Common Issues
 
 #### "Develop is behind main"
+
 ```bash
 git sync-develop  # Use the sync script
 ```
 
 #### "Cannot push to protected branch"
+
 - Verify you have correct permissions
 - Create PR instead of direct push
 - For emergencies, temporarily disable protection
 
 #### "Rebase conflicts"
+
 ```bash
 # Resolve conflicts file by file
 git status  # See conflicted files
@@ -477,6 +501,7 @@ git rebase --continue
 ```
 
 #### "Accidentally created PR to main"
+
 1. Close the PR immediately
 2. Create new PR targeting develop
 3. Use safety aliases to prevent recurrence
@@ -484,6 +509,7 @@ git rebase --continue
 ### Recovery Procedures
 
 #### Accidental Merge to Wrong Branch
+
 ```bash
 # If not pushed yet
 git reset --hard HEAD~1
@@ -494,6 +520,7 @@ git push --force-with-lease
 ```
 
 #### Deleted Branch Recovery
+
 ```bash
 # Find the commit
 git reflog
@@ -511,16 +538,16 @@ Add to `~/.gitconfig`:
 [alias]
     # Workflow aliases
     sync-develop = !sh -c 'git checkout main && git pull && git checkout develop && git pull && git rebase main && git push --force-with-lease origin develop'
-    
+
     # Safety aliases
     pushf = push --force-with-lease
-    
+
     # Utility aliases
     br = branch
     co = checkout
     st = status
     cm = commit -m
-    
+
     # Log aliases
     lg = log --graph --oneline --decorate
     recent = log --oneline -10
@@ -545,6 +572,7 @@ git status --porcelain
 ### Helper Scripts
 
 Located in `/scripts/`:
+
 - `sync-develop.sh` - Sync develop with main
 - `create-release.sh` - Automate release process
 - `check-branch-status.sh` - Verify branch health

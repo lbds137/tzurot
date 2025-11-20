@@ -4,12 +4,7 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import {
-  createLogger,
-  getConfig,
-  CONTENT_TYPES,
-  JobStatus,
-} from '@tzurot/common-types';
+import { createLogger, getConfig, CONTENT_TYPES, JobStatus } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
 const logger = createLogger('GatewayClient');

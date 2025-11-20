@@ -103,55 +103,55 @@ app.use('/ai', aiRouter);
 // If not found on filesystem, fall back to database and cache to filesystem
 app.get('/avatars/:slug.png', (req, res) => {
   void (async () => {
-  const slug = req.params.slug;
-  const avatarPath = `/data/avatars/${slug}.png`;
+    const slug = req.params.slug;
+    const avatarPath = `/data/avatars/${slug}.png`;
 
-  try {
-    // Try to serve from filesystem first
-    await access(avatarPath);
-    res.sendFile(avatarPath, {
-      maxAge: '7d', // Cache for 7 days
-      etag: true,
-      lastModified: true,
-    });
-  } catch {
-    // File not found on filesystem, check database
     try {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
-
-      const personality = await prisma.personality.findUnique({
-        where: { slug },
-        select: { avatarData: true },
+      // Try to serve from filesystem first
+      await access(avatarPath);
+      res.sendFile(avatarPath, {
+        maxAge: '7d', // Cache for 7 days
+        etag: true,
+        lastModified: true,
       });
+    } catch {
+      // File not found on filesystem, check database
+      try {
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
 
-      await prisma.$disconnect();
+        const personality = await prisma.personality.findUnique({
+          where: { slug },
+          select: { avatarData: true },
+        });
 
-      if (!personality?.avatarData) {
-        // Not in DB either, return 404
-        const errorResponse = ErrorResponses.notFound(`Avatar for personality '${slug}'`);
-        res.status(StatusCodes.NOT_FOUND).json(errorResponse);
-        return;
+        await prisma.$disconnect();
+
+        if (!personality?.avatarData) {
+          // Not in DB either, return 404
+          const errorResponse = ErrorResponses.notFound(`Avatar for personality '${slug}'`);
+          res.status(StatusCodes.NOT_FOUND).json(errorResponse);
+          return;
+        }
+
+        // avatarData is already raw bytes (Buffer)
+        const buffer = Buffer.from(personality.avatarData);
+
+        // Cache to filesystem for future requests
+        const { writeFile } = await import('fs/promises');
+        await writeFile(avatarPath, buffer);
+        logger.info(`[Gateway] Cached avatar from DB to filesystem: ${slug}`);
+
+        // Serve the image
+        res.set('Content-Type', CONTENT_TYPES.IMAGE_PNG);
+        res.set('Cache-Control', `max-age=${CACHE_CONTROL.AVATAR_MAX_AGE}`); // 7 days
+        res.send(buffer);
+      } catch (error) {
+        logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
+        const errorResponse = ErrorResponses.internalError('Failed to retrieve avatar');
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
       }
-
-      // avatarData is already raw bytes (Buffer)
-      const buffer = Buffer.from(personality.avatarData);
-
-      // Cache to filesystem for future requests
-      const { writeFile } = await import('fs/promises');
-      await writeFile(avatarPath, buffer);
-      logger.info(`[Gateway] Cached avatar from DB to filesystem: ${slug}`);
-
-      // Serve the image
-      res.set('Content-Type', CONTENT_TYPES.IMAGE_PNG);
-      res.set('Cache-Control', `max-age=${CACHE_CONTROL.AVATAR_MAX_AGE}`); // 7 days
-      res.send(buffer);
-    } catch (error) {
-      logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
-      const errorResponse = ErrorResponses.internalError('Failed to retrieve avatar');
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
     }
-  }
   })();
 });
 
@@ -208,7 +208,11 @@ async function ensureTempAttachmentDirectory(): Promise<void> {
 /**
  * Check avatar storage health
  */
-async function checkAvatarStorage(): Promise<{ status: HealthStatus; count?: number; error?: string }> {
+async function checkAvatarStorage(): Promise<{
+  status: HealthStatus;
+  count?: number;
+  error?: string;
+}> {
   try {
     await access('/data/avatars');
     const files = await readdir('/data/avatars');
@@ -226,39 +230,39 @@ async function checkAvatarStorage(): Promise<{ status: HealthStatus; count?: num
  */
 app.get('/health', (_req, res) => {
   void (async () => {
-  try {
-    const queueHealthy = await checkQueueHealth();
-    const avatarStorage = await checkAvatarStorage();
+    try {
+      const queueHealthy = await checkQueueHealth();
+      const avatarStorage = await checkAvatarStorage();
 
-    const health: HealthResponse = {
-      status: queueHealthy ? HealthStatus.Healthy : HealthStatus.Degraded,
-      services: {
-        redis: queueHealthy,
-        queue: queueHealthy,
-        avatarStorage: avatarStorage.status === HealthStatus.Ok,
-      },
-      avatars: avatarStorage,
-      timestamp: new Date().toISOString(),
-      uptime: Date.now() - startTime,
-    };
+      const health: HealthResponse = {
+        status: queueHealthy ? HealthStatus.Healthy : HealthStatus.Degraded,
+        services: {
+          redis: queueHealthy,
+          queue: queueHealthy,
+          avatarStorage: avatarStorage.status === HealthStatus.Ok,
+        },
+        avatars: avatarStorage,
+        timestamp: new Date().toISOString(),
+        uptime: Date.now() - startTime,
+      };
 
-    const statusCode = queueHealthy ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE;
-    res.status(statusCode).json(health);
-  } catch (error) {
-    logger.error({ err: error }, '[Health] Health check failed');
+      const statusCode = queueHealthy ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE;
+      res.status(statusCode).json(health);
+    } catch (error) {
+      logger.error({ err: error }, '[Health] Health check failed');
 
-    const health: HealthResponse = {
-      status: HealthStatus.Unhealthy,
-      services: {
-        redis: false,
-        queue: false,
-      },
-      timestamp: new Date().toISOString(),
-      uptime: Date.now() - startTime,
-    };
+      const health: HealthResponse = {
+        status: HealthStatus.Unhealthy,
+        services: {
+          redis: false,
+          queue: false,
+        },
+        timestamp: new Date().toISOString(),
+        uptime: Date.now() - startTime,
+      };
 
-    res.status(StatusCodes.SERVICE_UNAVAILABLE).json(health);
-  }
+      res.status(StatusCodes.SERVICE_UNAVAILABLE).json(health);
+    }
   })();
 });
 
@@ -267,37 +271,37 @@ app.get('/health', (_req, res) => {
  */
 app.get('/metrics', (_req, res) => {
   void (async () => {
-  try {
-    const [waiting, active, completed, failed] = await Promise.all([
-      aiQueue.getWaitingCount(),
-      aiQueue.getActiveCount(),
-      aiQueue.getCompletedCount(),
-      aiQueue.getFailedCount(),
-    ]);
+    try {
+      const [waiting, active, completed, failed] = await Promise.all([
+        aiQueue.getWaitingCount(),
+        aiQueue.getActiveCount(),
+        aiQueue.getCompletedCount(),
+        aiQueue.getFailedCount(),
+      ]);
 
-    res.json({
-      queue: {
-        waiting,
-        active,
-        completed,
-        failed,
-        total: waiting + active,
-      },
-      cache: {
-        size: deduplicationCache.getCacheSize(),
-      },
-      uptime: Date.now() - startTime,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    logger.error({ err: error }, '[Metrics] Failed to get metrics');
+      res.json({
+        queue: {
+          waiting,
+          active,
+          completed,
+          failed,
+          total: waiting + active,
+        },
+        cache: {
+          size: deduplicationCache.getCacheSize(),
+        },
+        uptime: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error({ err: error }, '[Metrics] Failed to get metrics');
 
-    const errorResponse = ErrorResponses.metricsError(
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+      const errorResponse = ErrorResponses.metricsError(
+        error instanceof Error ? error.message : 'Unknown error'
+      );
 
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
-  }
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
+    }
   })();
 });
 
@@ -331,7 +335,7 @@ async function main(): Promise<void> {
     throw new Error('REDIS_URL environment variable is required');
   }
   const cacheRedis = new Redis(envConfig.REDIS_URL);
-  cacheRedis.on('error', (err) => {
+  cacheRedis.on('error', err => {
     logger.error({ err }, '[Gateway] Cache Redis connection error');
   });
   logger.info('[Gateway] Redis client initialized for cache invalidation');
@@ -367,15 +371,17 @@ async function main(): Promise<void> {
   });
 
   // Error handler - must be registered LAST
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    logger.error({ err }, '[Server] Unhandled error:');
+  app.use(
+    (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      logger.error({ err }, '[Server] Unhandled error:');
 
-    const errorResponse = ErrorResponses.internalError(
-      config.env === 'production' ? 'Internal server error' : err.message
-    );
+      const errorResponse = ErrorResponses.internalError(
+        config.env === 'production' ? 'Internal server error' : err.message
+      );
 
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
-  });
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
+    }
+  );
 
   // Start HTTP server
   const server = app.listen(config.port, (err?: Error) => {

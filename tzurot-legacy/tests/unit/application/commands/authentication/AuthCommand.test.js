@@ -12,7 +12,9 @@ jest.mock('../../../../../src/logger');
 // Mock ApplicationBootstrap
 jest.mock('../../../../../src/application/bootstrap/ApplicationBootstrap');
 
-const { getApplicationBootstrap } = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
+const {
+  getApplicationBootstrap,
+} = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('AuthCommand', () => {
   let authCommand;
@@ -359,8 +361,8 @@ describe('AuthCommand', () => {
 
     it('should show status when authenticated', async () => {
       mockContext.args = ['status'];
-      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({ 
-        isAuthenticated: true
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+        isAuthenticated: true,
       });
 
       await authCommand.execute(mockContext);

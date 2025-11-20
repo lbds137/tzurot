@@ -62,8 +62,10 @@ describe('AddCommand', () => {
     mockRequestTracker = {
       isMessageProcessing: jest.fn().mockReturnValue(false),
       markMessageProcessing: jest.fn(),
-      generateAddCommandKey: jest.fn((userId, name, alias) => 
-        alias ? `${userId}-${name.toLowerCase()}-alias-${alias.toLowerCase()}` : `${userId}-${name.toLowerCase()}`
+      generateAddCommandKey: jest.fn((userId, name, alias) =>
+        alias
+          ? `${userId}-${name.toLowerCase()}-alias-${alias.toLowerCase()}`
+          : `${userId}-${name.toLowerCase()}`
       ),
       checkRequest: jest.fn().mockReturnValue({
         isPending: false,
@@ -610,7 +612,11 @@ describe('AddCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockRequestTracker.generateAddCommandKey).toHaveBeenCalledWith('user123', 'TestBot', 'tb');
+      expect(mockRequestTracker.generateAddCommandKey).toHaveBeenCalledWith(
+        'user123',
+        'TestBot',
+        'tb'
+      );
       expect(mockRequestTracker.checkRequest).toHaveBeenCalledWith('user123-testbot-alias-tb');
     });
 
@@ -662,14 +668,11 @@ describe('AddCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockRequestTracker.markPending).toHaveBeenCalledWith(
-        'user123-testbot-alias-tb',
-        {
-          userId: 'user123',
-          personalityName: 'TestBot',
-          alias: 'tb',
-        }
-      );
+      expect(mockRequestTracker.markPending).toHaveBeenCalledWith('user123-testbot-alias-tb', {
+        userId: 'user123',
+        personalityName: 'TestBot',
+        alias: 'tb',
+      });
     });
 
     it('should mark request as completed on success', async () => {
@@ -678,20 +681,15 @@ describe('AddCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockRequestTracker.markCompleted).toHaveBeenCalledWith(
-        'user123-testbot',
-        {
-          success: true,
-          personalityId: 'test-id',
-        }
-      );
+      expect(mockRequestTracker.markCompleted).toHaveBeenCalledWith('user123-testbot', {
+        success: true,
+        personalityId: 'test-id',
+      });
     });
 
     it('should mark request as failed on service error', async () => {
       mockContext.args = ['TestBot'];
-      mockPersonalityService.registerPersonality.mockRejectedValue(
-        new Error('Service error')
-      );
+      mockPersonalityService.registerPersonality.mockRejectedValue(new Error('Service error'));
 
       await command.execute(mockContext);
 
@@ -845,7 +843,7 @@ describe('AddCommand', () => {
         ...mockPersonality,
         alternateAliases: ['tb-testbot'],
       };
-      
+
       mockContext.args = ['TestBot', 'tb'];
       mockContext.respond = jest.fn().mockResolvedValue({});
       mockPersonalityService.registerPersonality.mockResolvedValue(personalityWithAlternateAlias);
@@ -895,7 +893,7 @@ describe('AddCommand', () => {
         ...mockPersonality,
         alternateAliases: ['bot-testbot'],
       };
-      
+
       mockContext.isSlashCommand = true;
       mockContext.options = {
         name: 'TestBot',

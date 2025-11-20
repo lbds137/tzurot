@@ -110,7 +110,10 @@ export async function publishJobResult(
       LIMIT: 100, // Max entries to trim per call
     });
   } catch (error) {
-    logger.error({ err: error, jobId, requestId }, '[Redis] Failed to publish job result to stream');
+    logger.error(
+      { err: error, jobId, requestId },
+      '[Redis] Failed to publish job result to stream'
+    );
     throw error; // Re-throw so caller knows about failure
   }
 }

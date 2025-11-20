@@ -101,7 +101,10 @@ export class PersonalityMessageHandler {
         '[PersonalityMessageHandler] Job submitted successfully, awaiting async result'
       );
     } catch (error) {
-      logger.error({ err: error }, '[PersonalityMessageHandler] Error handling personality message');
+      logger.error(
+        { err: error },
+        '[PersonalityMessageHandler] Error handling personality message'
+      );
 
       const errorMessage = error instanceof Error ? error.message : String(error);
       await message.reply(`Error: ${errorMessage}`).catch(replyError => {

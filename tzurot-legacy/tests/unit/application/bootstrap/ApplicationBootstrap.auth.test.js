@@ -41,7 +41,9 @@ jest.mock('../../../../src/application/services/RequestTrackingService', () => {
     endMessageProcessing: jest.fn(),
     cleanup: jest.fn(),
     stopCleanup: jest.fn(),
-    getStats: jest.fn().mockReturnValue({ pendingRequests: 0, completedRequests: 0, processingMessages: 0 }),
+    getStats: jest
+      .fn()
+      .mockReturnValue({ pendingRequests: 0, completedRequests: 0, processingMessages: 0 }),
     clear: jest.fn(),
   }));
 });
@@ -52,14 +54,28 @@ const {
 
 const logger = require('../../../../src/logger');
 const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
-const { PersonalityApplicationService } = require('../../../../src/application/services/PersonalityApplicationService');
+const {
+  PersonalityApplicationService,
+} = require('../../../../src/application/services/PersonalityApplicationService');
 const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServiceAdapter');
-const { EventHandlerRegistry } = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
-const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
-const { OAuthTokenService } = require('../../../../src/infrastructure/authentication/OAuthTokenService');
-const { FileAuthenticationRepository } = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
-const { FilePersonalityRepository } = require('../../../../src/adapters/persistence/FilePersonalityRepository');
-const { getCommandIntegrationAdapter } = require('../../../../src/adapters/CommandIntegrationAdapter');
+const {
+  EventHandlerRegistry,
+} = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
+const {
+  AuthenticationApplicationService,
+} = require('../../../../src/application/services/AuthenticationApplicationService');
+const {
+  OAuthTokenService,
+} = require('../../../../src/infrastructure/authentication/OAuthTokenService');
+const {
+  FileAuthenticationRepository,
+} = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
+const {
+  FilePersonalityRepository,
+} = require('../../../../src/adapters/persistence/FilePersonalityRepository');
+const {
+  getCommandIntegrationAdapter,
+} = require('../../../../src/adapters/CommandIntegrationAdapter');
 const avatarStorage = require('../../../../src/utils/avatarStorage');
 const aliasResolver = require('../../../../src/utils/aliasResolver');
 const messageHandlerConfig = require('../../../../src/config/MessageHandlerConfig');
@@ -109,8 +125,6 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
     };
     AuthenticationApplicationService.mockImplementation(() => mockAuthAppService);
 
-
-
     // Mock command adapter
     mockCommandAdapter = {
       initialize: jest.fn().mockResolvedValue(undefined),
@@ -146,10 +160,10 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
 
     // Mock avatar storage
     avatarStorage.initialize = jest.fn().mockResolvedValue(undefined);
-    
+
     // Mock alias resolver
     aliasResolver.setPersonalityApplicationService = jest.fn();
-    
+
     // Mock message handler config
     messageHandlerConfig.setMaxAliasWordCount = jest.fn();
   });
@@ -191,21 +205,19 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
       });
     });
 
-
     it('should use direct DDD service', async () => {
       const bootstrap = new ApplicationBootstrap();
-      
+
       await bootstrap.initialize();
-      
+
       const services = bootstrap.getApplicationServices();
       expect(services.auth).toBe(mockAuthAppService);
       expect(services.authenticationService).toBe(mockAuthAppService);
     });
 
-
     it('should include auth services in application services', async () => {
       const bootstrap = new ApplicationBootstrap();
-      
+
       await bootstrap.initialize();
 
       const services = bootstrap.getApplicationServices();
@@ -218,7 +230,6 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
     });
   });
 
-
   describe('Error Handling', () => {
     it('should handle token service creation failure', async () => {
       const error = new Error('Token service creation failed');
@@ -227,7 +238,7 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
       });
 
       const bootstrap = new ApplicationBootstrap();
-      
+
       await expect(bootstrap.initialize()).rejects.toThrow('Token service creation failed');
       expect(logger.error).toHaveBeenCalledWith(
         '[ApplicationBootstrap] Failed to initialize:',
@@ -242,7 +253,7 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
       });
 
       const bootstrap = new ApplicationBootstrap();
-      
+
       await expect(bootstrap.initialize()).rejects.toThrow('Auth service creation failed');
     });
   });

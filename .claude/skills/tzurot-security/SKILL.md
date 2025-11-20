@@ -1,7 +1,7 @@
 ---
 name: tzurot-security
 description: Security best practices for Tzurot v3 - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permission verification, microservices security, and supply chain integrity. Use when handling secrets, user input, or security-critical code.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Security Skill - Tzurot v3
@@ -17,6 +17,7 @@ lastUpdated: "2025-11-19"
 #### ❌ NEVER Commit These:
 
 **Database Connection Strings:**
+
 ```bash
 # ❌ WRONG - Contains password
 DATABASE_URL="postgresql://user:PASSWORD@host:5432/db"
@@ -27,6 +28,7 @@ DATABASE_URL="your-database-url-here"  # In docs/examples
 ```
 
 **API Keys and Tokens:**
+
 ```typescript
 // ❌ WRONG - Hardcoded tokens (NEVER do this!)
 const DISCORD_TOKEN = 'your-actual-discord-token-here';
@@ -38,6 +40,7 @@ const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 ```
 
 **Other Sensitive Data:**
+
 - Private keys
 - Session secrets
 - Webhook URLs with tokens
@@ -55,6 +58,7 @@ Before EVERY commit, verify:
    - `API_KEY`, `TOKEN`, `SECRET` variable assignments
 
 2. **Check staged files**:
+
    ```bash
    git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redis://)'
    ```
@@ -67,6 +71,7 @@ Before EVERY commit, verify:
 #### What to Do If You Commit a Secret:
 
 **Immediate Actions:**
+
 1. **DO NOT just delete and commit** - Secret is in git history
 2. **Rotate the secret immediately**:
    - Database: Generate new password in Railway
@@ -89,12 +94,7 @@ Before EVERY commit, verify:
 
 ```typescript
 // ✅ CORRECT - Fail fast if missing
-const requiredEnvVars = [
-  'DISCORD_TOKEN',
-  'DATABASE_URL',
-  'REDIS_URL',
-  'AI_PROVIDER',
-] as const;
+const requiredEnvVars = ['DISCORD_TOKEN', 'DATABASE_URL', 'REDIS_URL', 'AI_PROVIDER'] as const;
 
 for (const varName of requiredEnvVars) {
   if (!process.env[varName]) {
@@ -112,6 +112,7 @@ const config = {
 ```
 
 **Railway CLI Usage:**
+
 ```bash
 # Set secret
 railway variables set OPENROUTER_API_KEY=sk-or-v1-... --service ai-worker
@@ -143,6 +144,7 @@ logger.debug({ tokenPrefix: discordToken.slice(0, 10) }, 'Initializing Discord c
 ```
 
 **PII to NEVER Log:**
+
 - Email addresses
 - Phone numbers
 - IP addresses (usually)
@@ -151,6 +153,7 @@ logger.debug({ tokenPrefix: discordToken.slice(0, 10) }, 'Initializing Discord c
 - API keys, tokens, secrets
 
 **Safe to Log:**
+
 - User IDs (snowflakes)
 - Guild IDs
 - Channel IDs
@@ -197,12 +200,7 @@ class TokenBudgetService {
 
     // Update budget
     budget.tokensUsed += estimatedTokens;
-    await redis.set(
-      key,
-      JSON.stringify(budget),
-      'PX',
-      this.WINDOW_MS
-    );
+    await redis.set(key, JSON.stringify(budget), 'PX', this.WINDOW_MS);
 
     return true; // Budget available
   }
@@ -212,10 +210,7 @@ class TokenBudgetService {
 app.post('/ai/generate', async (req, res) => {
   const estimatedTokens = estimateTokens(req.body.prompt);
 
-  const hasBudget = await tokenBudgetService.checkBudget(
-    req.body.userId,
-    estimatedTokens
-  );
+  const hasBudget = await tokenBudgetService.checkBudget(req.body.userId, estimatedTokens);
 
   if (!hasBudget) {
     return res.status(429).json({
@@ -228,11 +223,12 @@ app.post('/ai/generate', async (req, res) => {
 ```
 
 **Discord Bot Integration:**
+
 ```typescript
 // In bot-client, inform users of limits
 if (!hasBudget) {
   await interaction.reply({
-    content: '⚠️ You\'ve reached your hourly token limit (50k tokens). Try again in an hour.',
+    content: "⚠️ You've reached your hourly token limit (50k tokens). Try again in an hour.",
     ephemeral: true,
   });
   return;
@@ -446,7 +442,8 @@ async function processLLMGeneration(job: Job) {
     logger.warn({ personalityId, jobId: job.id }, 'Jailbreak attempt detected');
 
     return {
-      content: '⚠️ Your prompt appears to contain instructions that violate bot policies. Please rephrase.',
+      content:
+        '⚠️ Your prompt appears to contain instructions that violate bot policies. Please rephrase.',
       flagged: true,
     };
   }
@@ -475,18 +472,12 @@ class JobSigningService {
 
   signPayload(payload: object): string {
     const payloadString = JSON.stringify(payload);
-    return crypto
-      .createHmac('sha256', this.SECRET)
-      .update(payloadString)
-      .digest('hex');
+    return crypto.createHmac('sha256', this.SECRET).update(payloadString).digest('hex');
   }
 
   verifySignature(payload: object, signature: string): boolean {
     const expectedSignature = this.signPayload(payload);
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
   }
 }
 
@@ -555,7 +546,7 @@ class AttachmentValidator {
 }
 
 // Usage in bot-client
-client.on('messageCreate', async (message) => {
+client.on('messageCreate', async message => {
   if (message.attachments.size > 0) {
     for (const attachment of message.attachments.values()) {
       // Download attachment
@@ -586,6 +577,7 @@ client.on('messageCreate', async (message) => {
 **Current Implementation**: `/admin/invalidate-cache` uses `X-Owner-Id` header validation.
 
 **Security Concerns:**
+
 1. **Owner ID as Authentication** - Is it a secret?
    - Owner ID is stored in `DATABASE_URL` (via Prisma query)
    - NOT rotatable like API keys
@@ -607,10 +599,7 @@ class AdminAuthService {
 
   generateHMACSignature(payload: object, timestamp: number): string {
     const message = JSON.stringify(payload) + timestamp;
-    return crypto
-      .createHmac('sha256', this.ADMIN_API_KEY)
-      .update(message)
-      .digest('hex');
+    return crypto.createHmac('sha256', this.ADMIN_API_KEY).update(message).digest('hex');
   }
 
   verifyRequest(req: Request): boolean {
@@ -624,10 +613,7 @@ class AdminAuthService {
 
     // Verify HMAC signature
     const expectedSignature = this.generateHMACSignature(payload, Number(timestamp));
-    return crypto.timingSafeEqual(
-      Buffer.from(signature as string),
-      Buffer.from(expectedSignature)
-    );
+    return crypto.timingSafeEqual(Buffer.from(signature as string), Buffer.from(expectedSignature));
   }
 }
 
@@ -644,6 +630,7 @@ app.post('/admin/invalidate-cache', async (req, res) => {
 ```
 
 **Client-side (curl example):**
+
 ```bash
 #!/bin/bash
 ADMIN_API_KEY="your-admin-api-key"
@@ -704,12 +691,14 @@ app.use('/admin', verifyOwner);
 #### Current Status (v3.0.0-alpha.44):
 
 **Development Environment:**
+
 - ✅ Using X-Owner-Id header validation
 - ❌ No rate limiting on admin endpoints
 - ❌ No HMAC signatures
 - ❌ No additional auth factors
 
 **Before Public Production Launch:**
+
 - [ ] Implement Option A (HMAC signatures) OR strengthen Option B (rate limiting)
 - [ ] Add `ADMIN_API_KEY` environment variable to Railway
 - [ ] Document key rotation procedure
@@ -720,17 +709,20 @@ app.use('/admin', verifyOwner);
 If Owner ID is compromised:
 
 1. **Generate new owner** in database:
+
    ```sql
    INSERT INTO owners (id, email)
    VALUES (gen_random_uuid(), 'your-email@example.com');
    ```
 
 2. **Update Railway environment variable**:
+
    ```bash
    railway variables set OWNER_ID=<new-uuid> --service api-gateway
    ```
 
 3. **Verify old owner can't access**:
+
    ```bash
    curl -X POST https://api-gateway.railway.app/admin/invalidate-cache \
      -H "X-Owner-Id: <old-uuid>" \
@@ -754,6 +746,7 @@ If Owner ID is compromised:
 Before installing ANY package suggested by AI:
 
 1. **Verify it exists**:
+
    ```bash
    npm view <package-name>
    ```
@@ -764,9 +757,11 @@ Before installing ANY package suggested by AI:
    - ❌ <100/week = Red flag
 
 3. **Check last publish date**:
+
    ```bash
    npm view <package-name> time.modified
    ```
+
    - ⚠️ Not updated in 2+ years = Potentially abandoned
 
 4. **Check for known vulnerabilities**:
@@ -781,22 +776,23 @@ Before installing ANY package suggested by AI:
 ```json
 {
   "dependencies": {
-    "discord.js": "14.14.1",          // ✅ Exact version
-    "bullmq": "5.1.0",                 // ✅ Exact version
-    "pino": "8.17.2"                   // ✅ Exact version
+    "discord.js": "14.14.1", // ✅ Exact version
+    "bullmq": "5.1.0", // ✅ Exact version
+    "pino": "8.17.2" // ✅ Exact version
   },
   "devDependencies": {
-    "vitest": "4.0.3"                  // ✅ Exact version
+    "vitest": "4.0.3" // ✅ Exact version
   }
 }
 ```
 
 **NOT:**
+
 ```json
 {
   "dependencies": {
-    "discord.js": "^14.14.1",   // ❌ Allows minor/patch updates
-    "bullmq": "~5.1.0"          // ❌ Allows patch updates
+    "discord.js": "^14.14.1", // ❌ Allows minor/patch updates
+    "bullmq": "~5.1.0" // ❌ Allows patch updates
   }
 }
 ```
@@ -823,6 +819,7 @@ npm audit --audit-level=moderate || {
 See `.github/dependabot.yml` for full configuration.
 
 **Key Features:**
+
 - **Weekly updates** (Mondays at 9am ET) - avoids daily spam
 - **Targets `develop` branch** - follows project workflow
 - **Grouped updates** - production vs development dependencies
@@ -831,6 +828,7 @@ See `.github/dependabot.yml` for full configuration.
 - **Monorepo support** - separate configs for each service/package
 
 **Benefits:**
+
 ```typescript
 ✅ Automatic security vulnerability patches
 ✅ Keeps dependencies current
@@ -860,6 +858,7 @@ Dependabot will create **immediate PRs** for security vulnerabilities (not just 
 **Priority:** Security PRs should be reviewed and merged ASAP.
 
 **Workflow:**
+
 ```bash
 # 1. Dependabot creates PR: "chore(deps/ai-worker): bump openai from 4.20.0 to 4.20.1 [security]"
 # 2. Review the security advisory linked in the PR
@@ -874,7 +873,6 @@ Dependabot will create **immediate PRs** for security vulnerabilities (not just 
 - **tzurot-shared-types** - Input validation with Zod schemas
 - **tzurot-git-workflow** - Pre-commit verification checks
 - **tzurot-async-flow** - Signed internal payloads for BullMQ
-
 
 ## 📚 References
 

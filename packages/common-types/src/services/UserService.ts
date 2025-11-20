@@ -211,7 +211,11 @@ export class UserService {
         },
       });
 
-      if (userConfig?.personaId !== null && userConfig?.personaId !== undefined && userConfig.personaId.length > 0) {
+      if (
+        userConfig?.personaId !== null &&
+        userConfig?.personaId !== undefined &&
+        userConfig.personaId.length > 0
+      ) {
         logger.debug(
           `Using personality-specific persona for user ${userId.substring(0, 8)}... with personality ${personalityId.substring(0, 8)}...`
         );
@@ -229,7 +233,11 @@ export class UserService {
         },
       });
 
-      if (defaultPersona?.personaId === null || defaultPersona?.personaId === undefined || defaultPersona?.personaId.length === 0) {
+      if (
+        defaultPersona?.personaId === null ||
+        defaultPersona?.personaId === undefined ||
+        defaultPersona?.personaId.length === 0
+      ) {
         // This should never happen since we create default personas in getOrCreateUser
         throw new Error(`No default persona found for user ${userId}`);
       }

@@ -36,7 +36,8 @@ class RateLimiter {
     // Injectable timer functions for testability
     // Note: We use inline functions here instead of module-level constants
     // to ensure Jest can properly mock setTimeout when using fake timers
-    this.delay = options.delay || ((ms) => new Promise(resolve => globalThis.setTimeout(resolve, ms)));
+    this.delay =
+      options.delay || (ms => new Promise(resolve => globalThis.setTimeout(resolve, ms)));
     this.scheduler = options.scheduler || globalThis.setTimeout;
 
     // State tracking

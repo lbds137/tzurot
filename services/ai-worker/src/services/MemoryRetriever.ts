@@ -123,7 +123,9 @@ export class MemoryRetriever {
       return personaMap;
     }
 
-    logger.debug(`[MemoryRetriever] Fetching content for ${context.participants.length} participant(s)`);
+    logger.debug(
+      `[MemoryRetriever] Fetching content for ${context.participants.length} participant(s)`
+    );
 
     // Fetch content for each participant
     for (const participant of context.participants) {

@@ -1,7 +1,7 @@
 ---
 name: tzurot-architecture
 description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Architecture
@@ -37,6 +37,7 @@ OpenRouter/Gemini API
 **Responsibility:** Handle ALL Discord interactions, manage webhooks
 
 **What it does:**
+
 - Listen to Discord events (messages, interactions, commands)
 - Register slash commands
 - Create and manage webhooks (unique avatar/name per personality)
@@ -46,12 +47,14 @@ OpenRouter/Gemini API
 - Cache webhook instances
 
 **What it does NOT do:**
+
 - ❌ Business logic (personality selection, memory retrieval)
 - ❌ AI API calls
 - ❌ Database writes (except via api-gateway)
 - ❌ Job queue operations (only triggers them)
 
 **Key files:**
+
 ```
 services/bot-client/src/
 ├── index.ts               # Discord client setup
@@ -64,6 +67,7 @@ services/bot-client/src/
 ```
 
 **Dependencies:**
+
 - Discord.js 14
 - Redis (for webhook message tracking)
 - HTTP client (for api-gateway calls)
@@ -73,6 +77,7 @@ services/bot-client/src/
 **Responsibility:** HTTP endpoints, job queue orchestration, request validation
 
 **What it does:**
+
 - Expose HTTP endpoints (`/ai/generate`, `/health`, `/metrics`)
 - Validate incoming requests
 - Create BullMQ jobs
@@ -83,11 +88,13 @@ services/bot-client/src/
 - Handle cache invalidation subscriptions
 
 **What it does NOT do:**
+
 - ❌ AI processing (that's ai-worker's job)
 - ❌ Discord interactions (that's bot-client's job)
 - ❌ Long-running AI calls directly (uses queue)
 
 **Key files:**
+
 ```
 services/api-gateway/src/
 ├── index.ts               # Express app
@@ -100,6 +107,7 @@ services/api-gateway/src/
 ```
 
 **Dependencies:**
+
 - Express
 - BullMQ (queue client)
 - Redis
@@ -111,6 +119,7 @@ services/api-gateway/src/
 **Responsibility:** Process AI jobs, manage vector memory, call AI APIs
 
 **What it does:**
+
 - Listen to BullMQ queue
 - Retrieve personality configurations
 - Search pgvector for relevant memories
@@ -122,11 +131,13 @@ services/api-gateway/src/
 - Job timeout and retry management
 
 **What it does NOT do:**
+
 - ❌ HTTP requests from external clients (queue-based only)
 - ❌ Discord interactions
 - ❌ Direct webhook replies (goes through api-gateway)
 
 **Key files:**
+
 ```
 services/ai-worker/src/
 ├── index.ts               # BullMQ worker setup
@@ -141,6 +152,7 @@ services/ai-worker/src/
 ```
 
 **Dependencies:**
+
 - BullMQ (worker)
 - Redis
 - Prisma (database + pgvector)
@@ -152,6 +164,7 @@ services/ai-worker/src/
 **Responsibility:** Types, interfaces, utilities, services used across multiple microservices
 
 **What belongs here:**
+
 ```
 packages/common-types/src/
 ├── types/                 # TypeScript interfaces
@@ -213,29 +226,34 @@ packages/common-types/src/
 ### Where to Put New Code
 
 **Discord-related code:**
+
 - Webhook management → bot-client
 - Message formatting → bot-client
 - Slash command handlers → bot-client
 - Discord type guards → common-types
 
 **HTTP/API code:**
+
 - New endpoints → api-gateway/routes/
 - Request validation → api-gateway
 - Job creation → api-gateway/queue.ts
 
 **AI/Memory code:**
+
 - AI provider clients → ai-worker/providers/
 - Memory retrieval → ai-worker/services/
 - Embedding generation → ai-worker/services/
 - Job processors → ai-worker/jobs/
 
 **Shared utilities:**
+
 - Retry logic → common-types/utils/
 - Type guards → common-types/types/
 - Error classes → common-types/errors/
 - Constants → common-types/constants/
 
 **Services used by multiple microservices:**
+
 - PersonalityService → common-types/services/
 - ConversationHistoryService → common-types/services/
 - Logger → common-types/utils/
@@ -282,6 +300,7 @@ class MyService {
 ### ❌ Don't Create These v2 Patterns:
 
 **1. Generic Repository Interfaces**
+
 ```typescript
 // ❌ v2 pattern - Too abstract
 interface IRepository<T> {
@@ -299,6 +318,7 @@ class PersonalityService {
 ```
 
 **2. Dependency Injection Containers**
+
 ```typescript
 // ❌ v2 pattern - Container hell
 container.bind('PersonalityService').to(PersonalityService);
@@ -309,6 +329,7 @@ const service = new PersonalityService(prisma);
 ```
 
 **3. Excessive Abstraction Layers**
+
 ```typescript
 // ❌ v2 pattern - Too many layers
 Controller → UseCase → Service → Repository → ORM
@@ -318,6 +339,7 @@ Route Handler → Service → Prisma
 ```
 
 **4. Complex Domain Events**
+
 ```typescript
 // ❌ v2 pattern - Event bus complexity
 eventBus.emit('personality.updated', { id });
@@ -327,13 +349,16 @@ cacheInvalidationService.invalidatePersonality(id);
 ```
 
 **5. Value Objects Everywhere**
+
 ```typescript
 // ❌ v2 pattern - Value object overhead
 class PersonalityName {
   constructor(private value: string) {
     if (!this.validate()) throw new Error('Invalid');
   }
-  validate() { /* complex validation */ }
+  validate() {
+    /* complex validation */
+  }
 }
 
 // ✅ v3 pattern - Simple validation
@@ -345,12 +370,14 @@ function validatePersonalityName(name: string): boolean {
 ## When to Extract a Service
 
 **Extract to a new service class when:**
+
 1. **Shared across multiple microservices** - Belongs in common-types
 2. **Complex business logic** - Deserves its own class
 3. **Stateful operations** - Needs to maintain state
 4. **Testability** - Easier to mock as a class
 
 **Keep inline when:**
+
 1. **Used in one place only** - Simple function is fine
 2. **Stateless utility** - Pure function, no dependencies
 3. **Very simple logic** - Extracting adds complexity
@@ -449,11 +476,13 @@ const timeout = 480000;
 ## Scaling Considerations
 
 **Current architecture supports:**
+
 - ✅ Horizontal scaling of ai-worker (multiple workers)
 - ✅ Horizontal scaling of api-gateway (load balancer)
 - ✅ Single bot-client instance (Discord.js limitation)
 
 **Future scaling paths:**
+
 - Add more ai-worker instances for faster job processing
 - Add more api-gateway instances behind load balancer
 - Shard bot-client if guild count exceeds Discord limits
@@ -486,7 +515,6 @@ services/ai-worker/src/
 - **tzurot-db-vector** - Database service responsibilities
 - **tzurot-shared-types** - Type definitions across services
 - **tzurot-gemini-collab** - Consult for major design decisions
-
 
 ## References
 

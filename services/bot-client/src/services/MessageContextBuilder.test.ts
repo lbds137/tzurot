@@ -5,7 +5,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import type { PrismaClient } from '@prisma/client';
-import type { Message, Collection, Attachment, Guild, GuildMember, TextChannel, User } from 'discord.js';
+import type {
+  Message,
+  Collection,
+  Attachment,
+  Guild,
+  GuildMember,
+  TextChannel,
+  User,
+} from 'discord.js';
 import { MessageRole, CONTENT_TYPES } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 
@@ -162,7 +170,10 @@ describe('MessageContextBuilder', () => {
         'testuser',
         'Test Display Name'
       );
-      expect(mockUserService.getPersonaForUser).toHaveBeenCalledWith('user-uuid-123', 'personality-123');
+      expect(mockUserService.getPersonaForUser).toHaveBeenCalledWith(
+        'user-uuid-123',
+        'personality-123'
+      );
       expect(mockUserService.getPersonaName).toHaveBeenCalledWith('persona-123');
 
       // Verify history retrieval
@@ -304,7 +315,10 @@ describe('MessageContextBuilder', () => {
 
       // Verify conversation history was retrieved
       expect(result.conversationHistory).toHaveLength(2);
-      expect(result.conversationHistory[0].discordMessageId).toEqual(['discord-msg-1', 'discord-msg-2']);
+      expect(result.conversationHistory[0].discordMessageId).toEqual([
+        'discord-msg-1',
+        'discord-msg-2',
+      ]);
       expect(result.conversationHistory[1].discordMessageId).toEqual(['discord-msg-3']);
     });
 

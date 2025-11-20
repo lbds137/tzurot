@@ -115,12 +115,10 @@ describe('AI Routes', () => {
     });
 
     it('should reject invalid request body', async () => {
-      const response = await request(app)
-        .post('/ai/generate')
-        .send({
-          // Missing required fields
-          message: 'Hello!',
-        });
+      const response = await request(app).post('/ai/generate').send({
+        // Missing required fields
+        message: 'Hello!',
+      });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
@@ -155,9 +153,7 @@ describe('AI Routes', () => {
     });
 
     it('should reject request without attachments', async () => {
-      const response = await request(app)
-        .post('/ai/transcribe')
-        .send({});
+      const response = await request(app).post('/ai/transcribe').send({});
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();

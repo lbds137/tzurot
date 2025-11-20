@@ -85,7 +85,11 @@ export const envSchema = z.object({
     .or(z.literal('').transform(() => undefined)), // For db-sync: production database URL
 
   // API Gateway Configuration
-  API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default(SERVICE_DEFAULTS.API_GATEWAY_PORT),
+  API_GATEWAY_PORT: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .default(SERVICE_DEFAULTS.API_GATEWAY_PORT),
   GATEWAY_URL: z
     .string()
     .url()

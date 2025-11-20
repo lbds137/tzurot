@@ -1,7 +1,7 @@
 ---
 name: tzurot-async-flow
 description: BullMQ and async patterns for Tzurot v3 - Job queue architecture, Discord interaction deferral, idempotency, retry strategies, and error handling. Use when working with jobs or async operations.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Async Flow & Job Queue
@@ -86,7 +86,7 @@ const worker = new Worker('ai-jobs', processLLMGeneration, {
   },
 });
 
-worker.on('completed', (job) => {
+worker.on('completed', job => {
   logger.info({ jobId: job.id }, 'Job completed');
 });
 
@@ -133,7 +133,7 @@ const jobId = `${JOB_PREFIXES.LLM_GENERATION}${requestId}`;
 
 ```typescript
 // bot-client/handlers/interactionCreate.ts
-client.on('interactionCreate', async (interaction) => {
+client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   // 1. IMMEDIATELY defer the reply (within 3 seconds)
@@ -153,7 +153,6 @@ client.on('interactionCreate', async (interaction) => {
     await interaction.editReply({
       content: result.content,
     });
-
   } catch (error) {
     // 4. Edit with error message
     await interaction.editReply({
@@ -287,16 +286,11 @@ async function handleAIRequest(req: Request, res: Response): Promise<void> {
   }
 
   // 3. Create main LLM job that depends on preprocessing
-  const llmJob = await aiQueue.add(
-    'llm-generation',
-    requestData,
-    {
-      jobId: `llm-${requestId}`,
-      parent: preprocessingJobs.length > 0
-        ? { id: preprocessingJobs[0], queue: 'ai-jobs' }
-        : undefined,
-    }
-  );
+  const llmJob = await aiQueue.add('llm-generation', requestData, {
+    jobId: `llm-${requestId}`,
+    parent:
+      preprocessingJobs.length > 0 ? { id: preprocessingJobs[0], queue: 'ai-jobs' } : undefined,
+  });
 
   // 4. Wait for LLM job completion
   await waitForJobCompletion(llmJob.id);
@@ -399,10 +393,7 @@ async function withRetry<T>(
       }
 
       const delay = initialDelay * Math.pow(2, attempt - 1);
-      logger.warn(
-        { attempt, maxAttempts, delayMs: delay },
-        'Retrying after error'
-      );
+      logger.warn({ attempt, maxAttempts, delayMs: delay }, 'Retrying after error');
 
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -436,11 +427,13 @@ function isRetryableError(error: unknown): boolean {
 ### Job Failure Categories
 
 **1. Retryable Errors** (transient issues)
+
 - Network timeouts
 - Rate limits (429)
 - Service unavailable (503)
 
 **2. Non-Retryable Errors** (permanent failures)
+
 - Invalid input (400)
 - Not found (404)
 - Authentication failed (401)
@@ -454,7 +447,6 @@ export async function processLLMGeneration(
   try {
     // Process job...
     return result;
-
   } catch (error) {
     logger.error({ jobId: job.id, err: error }, 'Job failed');
 
@@ -594,10 +586,7 @@ async function detectStuckJobs(): Promise<void> {
     const duration = now - startedAt;
 
     if (duration > TIMEOUTS.WORKER_LOCK_DURATION) {
-      logger.error(
-        { jobId: job.id, durationMs: duration },
-        'Stuck job detected'
-      );
+      logger.error({ jobId: job.id, durationMs: duration }, 'Stuck job detected');
 
       // Optional: Force fail the job
       await job.moveToFailed(new Error('Job exceeded lock duration'), true);
@@ -639,7 +628,6 @@ describe('processLLMGeneration', () => {
 - **tzurot-observability** - Job logging and correlation IDs
 - **tzurot-shared-types** - Job data type definitions
 - **tzurot-security** - Signed payloads for job verification
-
 
 ## References
 

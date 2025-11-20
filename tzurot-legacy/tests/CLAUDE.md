@@ -7,31 +7,37 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
 ### High-Value MCP Usage for Tests
 
 1. **Edge Case Discovery**
+
    ```javascript
-   mcp__gemini-collab__gemini_test_cases({
-     code_or_feature: "Message deduplication with race conditions",
-     test_type: "edge cases"
-   })
+   mcp__gemini -
+     collab__gemini_test_cases({
+       code_or_feature: 'Message deduplication with race conditions',
+       test_type: 'edge cases',
+     });
    ```
 
 2. **Test Coverage Gaps**
+
    ```javascript
-   mcp__gemini-collab__gemini_brainstorm({
-     topic: "Test scenarios for webhook rate limiting with concurrent requests",
-     constraints: "Must use fake timers, test observable behavior only"
-   })
+   mcp__gemini -
+     collab__gemini_brainstorm({
+       topic: 'Test scenarios for webhook rate limiting with concurrent requests',
+       constraints: 'Must use fake timers, test observable behavior only',
+     });
    ```
 
 3. **Mock Verification**
    ```javascript
-   mcp__gemini-collab__gemini_code_review({
-     code: testCode,
-     focus: "Mock usage and test isolation",
-     language: "javascript"
-   })
+   mcp__gemini -
+     collab__gemini_code_review({
+       code: testCode,
+       focus: 'Mock usage and test isolation',
+       language: 'javascript',
+     });
    ```
 
 ### When to Consult MCP for Tests
+
 - Complex async flows with multiple promises
 - Race condition testing strategies
 - Security-sensitive test scenarios
@@ -68,6 +74,7 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
 ## 🚨 Mock Pattern Enforcement (CRITICAL UPDATE)
 
 ### ⚠️ CURRENT STATE WARNING
+
 - Only ~5% of tests use the consolidated mock system
 - This led directly to the `getAllReleases` production bug
 - **NEW RULE**: All new tests MUST verify mocked methods exist
@@ -75,6 +82,7 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
 ### Required for All New Tests
 
 1. **Use Consolidated Mocks** (preferred):
+
    ```javascript
    const { presets } = require('../../__mocks__');
    const mockEnv = presets.commandTest();
@@ -82,6 +90,7 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
    ```
 
 2. **Migration Helper** (for updates):
+
    ```javascript
    const { createMigrationHelper } = require('../../../utils/testEnhancements');
    const migrationHelper = createMigrationHelper();
@@ -89,24 +98,27 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
    ```
 
 3. **NEVER Create Ad-hoc Mocks**:
+
    ```javascript
    // ❌ THIS CAUSED THE getAllReleases BUG!
    const mockClient = {
      getAllReleases: jest.fn(), // Method doesn't exist!
    };
-   
+
    // ✅ USE CONSOLIDATED MOCKS OR VERIFY METHODS
    const { modules } = require('../../__mocks__');
    const mockClient = modules.createGitHubClient(); // Safe!
    ```
 
 ### Patterns That Will FAIL Enforcement
+
 - ❌ `jest.doMock()` - Deprecated, use standard mocks
 - ❌ `helpers.createMockMessage()` - Use migration helper instead
 - ❌ `require('mockFactories')` - Use consolidated mocks
 - ❌ `jest.resetModules()` - Breaks imports, use `jest.clearAllMocks()`
 
 ### Enforcement Active In:
+
 - **Pre-commit hooks** - Blocks commits with violations
 - **npm run lint:test-mocks** - Manual check all files
 - **CI/CD pipeline** - Blocks PRs with violations
@@ -124,11 +136,12 @@ See `docs/testing/MOCK_SYSTEM_GUIDE.md` for complete rules.
 Why? We're at 5% migration. Without active improvement, we'll keep hitting bugs like `getAllReleases`.
 
 Example:
+
 ```javascript
 // While fixing a test, also migrate another one in the same file:
 // ❌ OLD TEST (unmigrated)
 const mockManager = {
-  someMethod: jest.fn()
+  someMethod: jest.fn(),
 };
 
 // ✅ MIGRATED TEST
@@ -153,10 +166,10 @@ describe('Component Name', () => {
     // ALWAYS reset mocks
     jest.clearAllMocks();
     jest.resetModules();
-    
+
     // ALWAYS use fake timers
     jest.useFakeTimers();
-    
+
     // ALWAYS mock console
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
@@ -171,21 +184,19 @@ describe('Component Name', () => {
       // Arrange - set up test data
       const input = { id: '123456789012345678', name: 'TestUser' };
       dependency.someMethod.mockResolvedValue({ success: true });
-      
+
       // Act - call the function
       const result = await functionToTest(input);
-      
+
       // Assert - test OUTCOMES not implementation
       expect(result).toEqual({ status: 'completed' });
-      expect(dependency.someMethod).toHaveBeenCalledWith(
-        expect.objectContaining({ id: input.id })
-      );
+      expect(dependency.someMethod).toHaveBeenCalledWith(expect.objectContaining({ id: input.id }));
     });
-    
+
     it('should handle errors gracefully', async () => {
       // Arrange
       dependency.someMethod.mockRejectedValue(new Error('API Error'));
-      
+
       // Act & Assert - test user-visible error
       await expect(functionToTest({})).rejects.toThrow('Something went wrong');
     });
@@ -202,19 +213,21 @@ IMPORTANT: Use the provided mocks when testing:
 3. Node-fetch mocks in `tests/__mocks__/node-fetch.js`
 
 Example mock usage:
+
 ```javascript
 const { createMockClient, createMockMessage } = require('../mocks/discord.js.mock.js');
 
 // Create a mock message
 const message = createMockMessage({
   content: '!tz command arg1 arg2',
-  author: { id: '123', tag: 'user#1234' }
+  author: { id: '123', tag: 'user#1234' },
 });
 ```
 
 ## Testing Async Code
 
 For testing asynchronous code:
+
 ```javascript
 it('should handle async operations', async () => {
   // Use async/await with Jest
@@ -226,6 +239,7 @@ it('should handle async operations', async () => {
 ## Testing Commands
 
 For testing commands, use the command test helpers:
+
 ```javascript
 const { setupCommandTest } = require('../utils/commandTestHelpers');
 
@@ -233,10 +247,10 @@ describe('Command: example', () => {
   it('should process valid arguments', async () => {
     // Setup the command test environment
     const { command, message, mockReply } = setupCommandTest('example', ['arg1']);
-    
+
     // Execute the command
     await command.execute(message, ['arg1']);
-    
+
     // Verify the response
     expect(mockReply).toHaveBeenCalledWith(expect.stringContaining('Success'));
   });
@@ -246,12 +260,14 @@ describe('Command: example', () => {
 ## Running Tests
 
 ### Running All Tests
+
 ```bash
 npm test                    # Run all tests with coverage
 npm run test:watch         # Run tests in watch mode during development
 ```
 
 ### Running Specific Tests
+
 ```bash
 npx jest tests/unit/bot.test.js                    # Run a specific test file
 npx jest tests/unit/commands/                       # Run all tests in a directory
@@ -264,6 +280,7 @@ npx jest --watch tests/unit/bot.test.js           # Watch a specific file
 ### Common Test Issues and Solutions
 
 1. **Mock Not Working**
+
    ```javascript
    // Problem: Mock not being called
    // Solution: Ensure mock is set up before importing the module
@@ -273,6 +290,7 @@ npx jest --watch tests/unit/bot.test.js           # Watch a specific file
    ```
 
 2. **Async Test Timeout**
+
    ```javascript
    // Problem: Test times out
    // Solution: Increase timeout for slow operations
@@ -282,6 +300,7 @@ npx jest --watch tests/unit/bot.test.js           # Watch a specific file
    ```
 
 3. **Test Interference**
+
    ```javascript
    // Problem: Tests pass individually but fail together
    // Solution: Reset all mocks and state between tests
@@ -300,6 +319,7 @@ npx jest --watch tests/unit/bot.test.js           # Watch a specific file
    ```
 
 ### Using Jest Debug Mode
+
 ```bash
 # Run Jest with Node debugger
 node --inspect-brk node_modules/.bin/jest --runInBand tests/unit/bot.test.js
@@ -310,18 +330,21 @@ node --inspect-brk node_modules/.bin/jest --runInBand tests/unit/bot.test.js
 ## Test Types
 
 ### Unit Tests
+
 - Test individual functions or components in isolation
 - Mock all external dependencies
 - Located in `tests/unit/`
 - Fast execution, focused on specific logic
 
 ### Integration Tests
+
 - Test multiple components working together
 - May use fewer mocks
 - Test real interactions between modules
 - Slower but more comprehensive
 
 ### When to Use Each Type
+
 - **Unit Tests**: For testing business logic, utilities, and individual functions
 - **Integration Tests**: For testing command flows, API interactions, and complex workflows
 
@@ -330,6 +353,7 @@ node --inspect-brk node_modules/.bin/jest --runInBand tests/unit/bot.test.js
 Our automated checks will REJECT your PR if you:
 
 ### 1. Use Real Timers
+
 ```javascript
 // ❌ NEVER DO THIS
 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -342,6 +366,7 @@ await act(async () => {
 ```
 
 ### 2. Test Implementation Details
+
 ```javascript
 // ❌ NEVER DO THIS
 expect(handler._privateMethod).toHaveBeenCalled();
@@ -352,6 +377,7 @@ expect(result.visibleOutcome).toBe('expected');
 ```
 
 ### 3. Import Without Mocking
+
 ```javascript
 // ❌ NEVER DO THIS
 const realModule = require('../../src/heavyModule');
@@ -362,6 +388,7 @@ const mockModule = require('../../src/heavyModule');
 ```
 
 ### 4. Skip or .only Tests
+
 ```javascript
 // ❌ NEVER DO THIS
 it.skip('broken test', () => {});
@@ -373,12 +400,14 @@ it.only('debugging', () => {});
 ## Quality Enforcement
 
 ### Pre-commit Checks
+
 - Timer pattern violations
 - Test anti-patterns
 - ESLint errors
 - Test failures in changed files
 
 ### Available Scripts
+
 ```bash
 # Check for test anti-patterns
 node scripts/check-test-antipatterns.js
@@ -406,22 +435,24 @@ npm run quality
 ## Discord.js Specific Testing
 
 ### Always Use Mock Factories
+
 ```javascript
 const { createMockClient, createMockMessage } = require('../__mocks__/discord.js');
 
 const mockMessage = createMockMessage({
   content: '!tz test',
   author: { id: '123456789012345678', username: 'TestUser' },
-  channel: { id: '987654321098765432' }
+  channel: { id: '987654321098765432' },
 });
 ```
 
 ### Mock Webhook Responses
+
 ```javascript
 const mockWebhook = {
   send: jest.fn().mockResolvedValue({ id: 'message-id' }),
   edit: jest.fn().mockResolvedValue({}),
-  delete: jest.fn().mockResolvedValue({})
+  delete: jest.fn().mockResolvedValue({}),
 };
 ```
 
@@ -446,6 +477,7 @@ node scripts/comprehensive-test-timing-analysis.js
 ## Final Checklist
 
 Before submitting your test:
+
 - [ ] Uses fake timers for ALL delays
 - [ ] Mocks ALL external dependencies
 - [ ] Tests behavior, not implementation

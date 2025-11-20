@@ -1362,9 +1362,7 @@ describe('MessageReferenceExtractor', () => {
       const references = await extractor.extractReferences(message);
 
       expect(references).toHaveLength(1);
-      expect(references[0].content).toBe(
-        `[Voice transcript]: ${transcript1}\n\n${transcript2}`
-      );
+      expect(references[0].content).toBe(`[Voice transcript]: ${transcript1}\n\n${transcript2}`);
     });
 
     it('should not retrieve transcripts for non-voice audio attachments', async () => {

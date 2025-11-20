@@ -87,15 +87,12 @@ export class LLMInvoker {
     );
 
     // Use retryService for consistent retry behavior
-    const result = await withRetry(
-      () => this.invokeSingleAttempt(model, messages, modelName),
-      {
-        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        globalTimeoutMs,
-        logger,
-        operationName: `LLM invocation (${modelName})`,
-      }
-    );
+    const result = await withRetry(() => this.invokeSingleAttempt(model, messages, modelName), {
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      globalTimeoutMs,
+      logger,
+      operationName: `LLM invocation (${modelName})`,
+    });
 
     logger.info(
       { modelName, attempts: result.attempts, totalTimeMs: result.totalTimeMs },

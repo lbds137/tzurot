@@ -52,16 +52,19 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 ```
 
 **Services:**
+
 - **bot-client**: Discord.js interface, webhook management, slash commands
 - **api-gateway**: HTTP API, request routing, job queue management
 - **ai-worker**: AI processing, memory retrieval, prompt building, response generation
 
 **Data Stores:**
+
 - **PostgreSQL**: User data, personalities, conversation history, personas
 - **Qdrant**: Vector embeddings for long-term memory retrieval
 - **Redis**: BullMQ job queue for async processing
 
 **External APIs:**
+
 - **OpenRouter**: 400+ AI models via unified API (primary provider)
 - **Gemini**: Direct Google AI integration (alternative provider)
 - **OpenAI**: Whisper (voice transcription) + text-embedding-3-small (vectors)

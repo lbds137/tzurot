@@ -7,15 +7,17 @@ jest.mock('openai', () => {
   const MockOpenAI = jest.fn().mockImplementation(() => ({
     baseURL: 'https://mock-api.example.com/v1',
     apiKey: 'mocked-key',
-    defaultHeaders: {}
+    defaultHeaders: {},
   }));
-  
+
   return {
-    OpenAI: MockOpenAI
+    OpenAI: MockOpenAI,
   };
 });
 
-const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
+const {
+  AuthenticationApplicationService,
+} = require('../../../../src/application/services/AuthenticationApplicationService');
 const { UserAuth, Token } = require('../../../../src/domain/authentication');
 const { UserId } = require('../../../../src/domain/personality');
 const { AuthContext } = require('../../../../src/domain/authentication/AuthContext');
@@ -40,7 +42,7 @@ describe('AuthenticationApplicationService', () => {
     jest.clearAllMocks();
     process.env.BOT_OWNER_ID = '987654321098765432';
     process.env.SERVICE_API_BASE_URL = 'https://mock-api.example.com';
-    
+
     // Mock repository
     mockAuthRepository = {
       save: jest.fn(),
@@ -125,7 +127,9 @@ describe('AuthenticationApplicationService', () => {
       const error = new Error('Service unavailable');
       mockTokenService.getAuthorizationUrl.mockRejectedValue(error);
 
-      await expect(authService.getAuthorizationUrl('abc123')).rejects.toThrow('Service unavailable');
+      await expect(authService.getAuthorizationUrl('abc123')).rejects.toThrow(
+        'Service unavailable'
+      );
     });
   });
 
@@ -159,9 +163,7 @@ describe('AuthenticationApplicationService', () => {
       );
 
       // Verify event was published
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserAuthenticated)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(UserAuthenticated));
     });
 
     it('should refresh token for existing user', async () => {
@@ -188,35 +190,31 @@ describe('AuthenticationApplicationService', () => {
       expect(mockAuthRepository.save).toHaveBeenCalled();
 
       // Verify refresh event was published
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserTokenRefreshed)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(UserTokenRefreshed));
     });
 
     it('should handle token exchange failure', async () => {
       mockAuthRepository.findByUserId.mockResolvedValue(null);
       mockTokenService.exchangeCode.mockResolvedValue({ token: null });
 
-      await expect(authService.exchangeCodeForToken(discordUserId, code))
-        .rejects.toThrow('Failed to exchange code for token');
+      await expect(authService.exchangeCodeForToken(discordUserId, code)).rejects.toThrow(
+        'Failed to exchange code for token'
+      );
 
       // Verify denial event was published
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(AuthenticationDenied)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(AuthenticationDenied));
     });
 
     it('should handle service errors', async () => {
       const error = new Error('OAuth service error');
       mockTokenService.exchangeCode.mockRejectedValue(error);
 
-      await expect(authService.exchangeCodeForToken(discordUserId, code))
-        .rejects.toThrow('OAuth service error');
+      await expect(authService.exchangeCodeForToken(discordUserId, code)).rejects.toThrow(
+        'OAuth service error'
+      );
 
       // Verify denial event was published
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(AuthenticationDenied)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(AuthenticationDenied));
     });
   });
 
@@ -285,16 +283,15 @@ describe('AuthenticationApplicationService', () => {
       expect(result.token).toBe('new_token');
       expect(result.user.token.value).toBe('new_token');
       expect(mockAuthRepository.save).toHaveBeenCalled();
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserTokenRefreshed)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(UserTokenRefreshed));
     });
 
     it('should handle non-existent user', async () => {
       mockAuthRepository.findByUserId.mockResolvedValue(null);
 
-      await expect(authService.refreshUserToken(discordUserId))
-        .rejects.toThrow('User not authenticated');
+      await expect(authService.refreshUserToken(discordUserId)).rejects.toThrow(
+        'User not authenticated'
+      );
     });
 
     it('should handle user without token', async () => {
@@ -306,8 +303,9 @@ describe('AuthenticationApplicationService', () => {
       user.expireToken();
       mockAuthRepository.findByUserId.mockResolvedValue(user);
 
-      await expect(authService.refreshUserToken(discordUserId))
-        .rejects.toThrow('No token to refresh');
+      await expect(authService.refreshUserToken(discordUserId)).rejects.toThrow(
+        'No token to refresh'
+      );
     });
 
     it('should handle refresh failure', async () => {
@@ -318,8 +316,9 @@ describe('AuthenticationApplicationService', () => {
       mockAuthRepository.findByUserId.mockResolvedValue(user);
       mockTokenService.refreshToken.mockResolvedValue({ token: null });
 
-      await expect(authService.refreshUserToken(discordUserId))
-        .rejects.toThrow('Failed to refresh token');
+      await expect(authService.refreshUserToken(discordUserId)).rejects.toThrow(
+        'Failed to refresh token'
+      );
     });
   });
 
@@ -338,9 +337,7 @@ describe('AuthenticationApplicationService', () => {
       expect(mockTokenService.revokeToken).toHaveBeenCalledWith('active_token');
       expect(mockAuthRepository.save).toHaveBeenCalled();
       expect(user.token).toBeNull();
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserTokenExpired)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(UserTokenExpired));
     });
 
     it('should handle already expired token', async () => {
@@ -379,16 +376,15 @@ describe('AuthenticationApplicationService', () => {
 
       expect(user.nsfwStatus.verified).toBe(true);
       expect(mockAuthRepository.save).toHaveBeenCalled();
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserNsfwVerified)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(UserNsfwVerified));
     });
 
     it('should reject NSFW verification for non-existent user', async () => {
       mockAuthRepository.findByUserId.mockResolvedValue(null);
 
-      await expect(authService.verifyNsfwAccess(discordUserId))
-        .rejects.toThrow('User must be authenticated to verify NSFW access');
+      await expect(authService.verifyNsfwAccess(discordUserId)).rejects.toThrow(
+        'User must be authenticated to verify NSFW access'
+      );
 
       expect(mockAuthRepository.save).not.toHaveBeenCalled();
     });
@@ -410,9 +406,7 @@ describe('AuthenticationApplicationService', () => {
       expect(result).toBe(true);
       expect(user.nsfwStatus.verified).toBe(false);
       expect(mockAuthRepository.save).toHaveBeenCalled();
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserNsfwVerificationCleared)
-      );
+      expect(mockEventBus.publish).toHaveBeenCalledWith(expect.any(UserNsfwVerificationCleared));
     });
 
     it('should return false for non-verified user', async () => {
@@ -452,7 +446,11 @@ describe('AuthenticationApplicationService', () => {
     });
 
     it('should allow owner access to any personality', async () => {
-      const result = await authService.checkPersonalityAccess('987654321098765432', personality, context);
+      const result = await authService.checkPersonalityAccess(
+        '987654321098765432',
+        personality,
+        context
+      );
 
       expect(result.allowed).toBe(true);
       expect(mockAuthRepository.findByUserId).not.toHaveBeenCalled();
@@ -462,7 +460,11 @@ describe('AuthenticationApplicationService', () => {
       const authPersonality = { ...personality, config: { requiresAuth: true } };
       mockAuthRepository.findByUserId.mockResolvedValue(null);
 
-      const result = await authService.checkPersonalityAccess(discordUserId, authPersonality, context);
+      const result = await authService.checkPersonalityAccess(
+        discordUserId,
+        authPersonality,
+        context
+      );
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('authentication');
@@ -485,12 +487,15 @@ describe('AuthenticationApplicationService', () => {
       // User is not NSFW verified
       mockAuthRepository.findByUserId.mockResolvedValue(user);
 
-      const result = await authService.checkPersonalityAccess(discordUserId, nsfwPersonality, dmContext);
+      const result = await authService.checkPersonalityAccess(
+        discordUserId,
+        nsfwPersonality,
+        dmContext
+      );
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('NSFW');
     });
-
 
     it('should allow access when all checks pass', async () => {
       const user = UserAuth.createAuthenticated(
@@ -578,7 +583,7 @@ describe('AuthenticationApplicationService', () => {
       mockAuthRepository.findByUserId.mockResolvedValue(user);
 
       const client = await authService.createAIClient('123456789012345678');
-      
+
       // Test that the client is configured correctly by checking its behavior
       expect(client).toBeDefined();
       expect(client.baseURL).toBe('https://mock-api.example.com/v1'); // Use mocked value
@@ -587,9 +592,9 @@ describe('AuthenticationApplicationService', () => {
     it('should require authenticated user', async () => {
       mockAuthRepository.findByUserId.mockResolvedValue(null);
 
-      await expect(authService.createAIClient('123456789012345678'))
-        .rejects.toThrow('User not authenticated');
+      await expect(authService.createAIClient('123456789012345678')).rejects.toThrow(
+        'User not authenticated'
+      );
     });
   });
-
 });

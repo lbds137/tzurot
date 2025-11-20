@@ -47,7 +47,9 @@ async function getAllPointIds(collectionName: string): Promise<Set<string>> {
     }
 
     offset = response.next_page_offset;
-    if (!offset) {break;}
+    if (!offset) {
+      break;
+    }
 
     if (ids.size % 500 === 0) {
       console.log(`  Fetched ${ids.size} IDs...`);

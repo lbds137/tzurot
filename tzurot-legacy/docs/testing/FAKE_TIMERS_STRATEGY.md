@@ -2,7 +2,7 @@
 
 ## Current Situation
 
-1. **No tests use fake timers** - 0 occurrences of `jest.useFakeTimers()` 
+1. **No tests use fake timers** - 0 occurrences of `jest.useFakeTimers()`
 2. **Tests are slow** - Average 2.1s per test file (should be < 0.5s)
 3. **Checks exist but miss the real issue** - We check for `setTimeout` in tests, but the real problem is unmocked heavy modules
 
@@ -15,6 +15,7 @@ Tests aren't slow because of direct timer usage. They're slow because:
 3. **Cascading imports** - One import loads dozens of other modules
 
 Example:
+
 ```javascript
 // This looks innocent but loads 2800+ lines of code
 const webhookManager = require('../../../src/webhookManager');
@@ -39,6 +40,7 @@ When we enabled `jest.useFakeTimers()` globally, 8 tests failed because:
 ### Phase 1: Mock Heavy Modules (Biggest Impact)
 
 Add to test files:
+
 ```javascript
 // Mock ALL src imports at the top
 jest.mock('../../../src/webhookManager');
@@ -54,16 +56,17 @@ This alone will cut test time by 50%+.
 ### Phase 2: Add Fake Timers Where Appropriate
 
 For tests that deal with timers:
+
 ```javascript
 describe('Component with timers', () => {
   beforeEach(() => {
     jest.useFakeTimers();
   });
-  
+
   afterEach(() => {
     jest.useRealTimers();
   });
-  
+
   it('should handle delays', () => {
     // Now delays are instant
     jest.advanceTimersByTime(5000);
@@ -83,12 +86,7 @@ beforeEach(() => {
     jest.useFakeTimers({
       // Use modern fake timers with better compatibility
       advanceTimers: true,
-      doNotFake: [
-        'nextTick',
-        'setImmediate',
-        'process.hrtime',
-        'process.nextTick'
-      ]
+      doNotFake: ['nextTick', 'setImmediate', 'process.hrtime', 'process.nextTick'],
     });
   }
 });
@@ -104,6 +102,7 @@ beforeAll(() => {
 ### 1. Enhanced Timer Pattern Checker
 
 Update `check-test-antipatterns.js` to catch:
+
 - Unmocked src imports
 - Module requires without jest.mock
 - Heavy module loading
@@ -115,7 +114,7 @@ Update `check-test-antipatterns.js` to catch:
 const webhookManager = require('../../../src/webhookManager');
 jest.mock('../../../src/webhookManager');
 
-// ✅ GOOD - Mock before import  
+// ✅ GOOD - Mock before import
 jest.mock('../../../src/webhookManager');
 const webhookManager = require('../../../src/webhookManager');
 ```
@@ -123,6 +122,7 @@ const webhookManager = require('../../../src/webhookManager');
 ### 3. Automated Mock Generation
 
 Create a script to auto-add mocks:
+
 ```bash
 node scripts/add-missing-mocks.js tests/unit/some.test.js
 ```
@@ -130,11 +130,13 @@ node scripts/add-missing-mocks.js tests/unit/some.test.js
 ## Why We Don't Catch This Currently
 
 Our checks look for:
+
 - Direct `setTimeout` usage ✓
 - Promise with setTimeout ✓
 - Long test timeouts ✓
 
 But miss:
+
 - Unmocked heavy imports ✗
 - Module initialization timers ✗
 - Cascading import chains ✗
@@ -149,6 +151,7 @@ But miss:
 ## Expected Results
 
 With proper mocking and selective fake timers:
+
 - Test suite: 40s → 15s
 - Individual tests: 2s → 0.2s
 - No breaking changes

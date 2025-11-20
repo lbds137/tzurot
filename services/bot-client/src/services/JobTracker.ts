@@ -111,10 +111,7 @@ export class JobTracker {
       context,
     });
 
-    logger.info(
-      { jobId, channelId: channel.id },
-      '[JobTracker] Started tracking job with context'
-    );
+    logger.info({ jobId, channelId: channel.id }, '[JobTracker] Started tracking job with context');
   }
 
   /**

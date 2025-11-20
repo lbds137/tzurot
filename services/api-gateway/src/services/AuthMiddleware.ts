@@ -25,7 +25,11 @@ export function extractOwnerId(req: Request): string | undefined {
   }
 
   // Check body (used by some endpoints like db-sync)
-  if (req.body !== null && req.body !== undefined && typeof (req.body as Record<string, unknown>).ownerId === 'string') {
+  if (
+    req.body !== null &&
+    req.body !== undefined &&
+    typeof (req.body as Record<string, unknown>).ownerId === 'string'
+  ) {
     return (req.body as Record<string, string>).ownerId;
   }
 
@@ -41,7 +45,12 @@ export function extractOwnerId(req: Request): string | undefined {
 export function isValidOwner(ownerId: string | undefined): boolean {
   const config = getConfig();
 
-  if (ownerId === undefined || ownerId.length === 0 || config.BOT_OWNER_ID === undefined || config.BOT_OWNER_ID.length === 0) {
+  if (
+    ownerId === undefined ||
+    ownerId.length === 0 ||
+    config.BOT_OWNER_ID === undefined ||
+    config.BOT_OWNER_ID.length === 0
+  ) {
     return false;
   }
 

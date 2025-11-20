@@ -18,7 +18,12 @@ const logger = createLogger('PersonalityService');
  */
 function coerceToNumber(val: unknown): number | undefined {
   // Handle Prisma Decimal type
-  if (val !== null && typeof val === 'object' && 'toNumber' in val && typeof val.toNumber === 'function') {
+  if (
+    val !== null &&
+    typeof val === 'object' &&
+    'toNumber' in val &&
+    typeof val.toNumber === 'function'
+  ) {
     return (val as Decimal).toNumber();
   }
   if (typeof val === 'number') {
@@ -47,19 +52,24 @@ function coerceToNumber(val: unknown): number | undefined {
  * - memoryLimit (1000): Prevents excessive DB queries and API latency from too many memories
  * - contextWindowTokens (2M): Future-proof for upcoming long-context models (Gemini 1.5 Pro supports 2M)
  */
-export const LlmConfigSchema = z.object({
-  model: z.string().nullable().optional(), // Nullable for extra safety despite DB constraint
-  visionModel: z.string().nullable().optional(),
-  temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
-  maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(1000000).optional()),
-  topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  topK: z.preprocess(coerceToNumber, z.number().int().min(1).max(1000).optional()),
-  frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
-  presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
-  memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
-  memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()),
-  contextWindowTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(2000000).optional()),
-}).nullish();
+export const LlmConfigSchema = z
+  .object({
+    model: z.string().nullable().optional(), // Nullable for extra safety despite DB constraint
+    visionModel: z.string().nullable().optional(),
+    temperature: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
+    maxTokens: z.preprocess(coerceToNumber, z.number().int().positive().max(1000000).optional()),
+    topP: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
+    topK: z.preprocess(coerceToNumber, z.number().int().min(1).max(1000).optional()),
+    frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
+    presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
+    memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
+    memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()),
+    contextWindowTokens: z.preprocess(
+      coerceToNumber,
+      z.number().int().positive().max(2000000).optional()
+    ),
+  })
+  .nullish();
 
 /**
  * Inferred TypeScript type from the Zod schema
@@ -159,9 +169,7 @@ export class PersonalityService {
    */
   async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
     // Check if nameOrId is a valid UUID
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      nameOrId
-    );
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
 
     // If it's a UUID, check cache by ID first
     if (isUUID) {
@@ -172,7 +180,6 @@ export class PersonalityService {
     }
 
     try {
-
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
           OR: [
@@ -232,8 +239,12 @@ export class PersonalityService {
           name: personality.name,
           model: personality.model,
           visionModel: personality.visionModel,
-          hasVisionModel: personality.visionModel !== undefined && personality.visionModel !== null && personality.visionModel.length > 0,
-          usedGlobalDefault: dbPersonality.defaultConfigLink === undefined && globalDefaultConfig !== null,
+          hasVisionModel:
+            personality.visionModel !== undefined &&
+            personality.visionModel !== null &&
+            personality.visionModel.length > 0,
+          usedGlobalDefault:
+            dbPersonality.defaultConfigLink === undefined && globalDefaultConfig !== null,
         },
         'Loaded personality with config'
       );
@@ -278,7 +289,10 @@ export class PersonalityService {
           {
             model: parsedConfig.model,
             visionModel: parsedConfig.visionModel,
-            hasVisionModel: parsedConfig.visionModel !== undefined && parsedConfig.visionModel !== null && parsedConfig.visionModel.length > 0,
+            hasVisionModel:
+              parsedConfig.visionModel !== undefined &&
+              parsedConfig.visionModel !== null &&
+              parsedConfig.visionModel.length > 0,
           },
           '[PersonalityService] Loaded global default LLM config'
         );
@@ -358,7 +372,9 @@ export class PersonalityService {
       });
 
       // Load global default config once for all personalities that need it
-      const needsGlobalDefault = dbPersonalities.some((db: DatabasePersonality) => !db.defaultConfigLink);
+      const needsGlobalDefault = dbPersonalities.some(
+        (db: DatabasePersonality) => !db.defaultConfigLink
+      );
       const globalDefaultConfig = needsGlobalDefault ? await this.loadGlobalDefaultConfig() : null;
 
       const personalities = dbPersonalities.map((db: DatabasePersonality) =>
@@ -382,8 +398,13 @@ export class PersonalityService {
    * Replace placeholders in text fields
    * Handles {user}, {{user}}, {assistant}, {shape}, {{char}}, {personality}
    */
-  private replacePlaceholders(text: string | null | undefined, personalityName: string): string | undefined {
-    if (text === null || text === undefined || text.length === 0) {return undefined;}
+  private replacePlaceholders(
+    text: string | null | undefined,
+    personalityName: string
+  ): string | undefined {
+    if (text === null || text === undefined || text.length === 0) {
+      return undefined;
+    }
 
     let result = text;
 
@@ -417,24 +438,33 @@ export class PersonalityService {
    * - User placeholders ({user}, {{user}}) are normalized to {user}
    * - Assistant placeholders ({assistant}, {shape}, {{char}}, {personality}) are replaced with the personality name
    */
-  private mapToPersonality(db: DatabasePersonality, globalDefaultConfig: LlmConfig = null): LoadedPersonality {
+  private mapToPersonality(
+    db: DatabasePersonality,
+    globalDefaultConfig: LlmConfig = null
+  ): LoadedPersonality {
     // Parse personality-specific config from database (handles Decimal conversion)
     const personalityConfig = parseLlmConfig(db.defaultConfigLink?.llmConfig);
 
     // Merge configs with proper precedence: Personality > Global > Hardcoded Defaults
-    const temperature = personalityConfig?.temperature ?? globalDefaultConfig?.temperature ?? AI_DEFAULTS.TEMPERATURE;
-    const maxTokens = personalityConfig?.maxTokens ?? globalDefaultConfig?.maxTokens ?? AI_DEFAULTS.MAX_TOKENS;
+    const temperature =
+      personalityConfig?.temperature ?? globalDefaultConfig?.temperature ?? AI_DEFAULTS.TEMPERATURE;
+    const maxTokens =
+      personalityConfig?.maxTokens ?? globalDefaultConfig?.maxTokens ?? AI_DEFAULTS.MAX_TOKENS;
     const topP = personalityConfig?.topP ?? globalDefaultConfig?.topP;
-    const frequencyPenalty = personalityConfig?.frequencyPenalty ?? globalDefaultConfig?.frequencyPenalty;
-    const presencePenalty = personalityConfig?.presencePenalty ?? globalDefaultConfig?.presencePenalty;
-    const memoryScoreThreshold = personalityConfig?.memoryScoreThreshold ?? globalDefaultConfig?.memoryScoreThreshold;
+    const frequencyPenalty =
+      personalityConfig?.frequencyPenalty ?? globalDefaultConfig?.frequencyPenalty;
+    const presencePenalty =
+      personalityConfig?.presencePenalty ?? globalDefaultConfig?.presencePenalty;
+    const memoryScoreThreshold =
+      personalityConfig?.memoryScoreThreshold ?? globalDefaultConfig?.memoryScoreThreshold;
     const memoryLimit = personalityConfig?.memoryLimit ?? globalDefaultConfig?.memoryLimit;
 
     // Replace placeholders in text fields
     // This normalizes legacy imports and ensures consistency
     const systemPrompt = this.replacePlaceholders(db.systemPrompt?.content, db.name) ?? '';
     const characterInfo = this.replacePlaceholders(db.characterInfo, db.name) ?? db.characterInfo;
-    const personalityTraits = this.replacePlaceholders(db.personalityTraits, db.name) ?? db.personalityTraits;
+    const personalityTraits =
+      this.replacePlaceholders(db.personalityTraits, db.name) ?? db.personalityTraits;
 
     return {
       id: db.id,
@@ -450,7 +480,10 @@ export class PersonalityService {
       topK: personalityConfig?.topK ?? globalDefaultConfig?.topK ?? undefined,
       frequencyPenalty,
       presencePenalty,
-      contextWindowTokens: personalityConfig?.contextWindowTokens ?? globalDefaultConfig?.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
+      contextWindowTokens:
+        personalityConfig?.contextWindowTokens ??
+        globalDefaultConfig?.contextWindowTokens ??
+        AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryScoreThreshold,
       memoryLimit,

@@ -33,6 +33,7 @@ Thank you for considering contributing to Tzurot! This is a personal project, an
 ### Submitting Code
 
 1. **Create a feature branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -43,6 +44,7 @@ Thank you for considering contributing to Tzurot! This is a personal project, an
    - Update documentation as needed
 
 3. **Run quality checks**
+
    ```bash
    npm run lint        # Check code style
    npm run lint:fix    # Fix style issues
@@ -111,6 +113,7 @@ npx jest path/to/test.js   # Run specific test
 - Test both success and error cases
 
 Example:
+
 ```javascript
 describe('personalityManager', () => {
   it('should add a personality successfully', async () => {
@@ -153,18 +156,22 @@ describe('personalityManager', () => {
 
 ```markdown
 ## Description
+
 Brief description of changes
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Documentation update
 - [ ] Performance improvement
 
 ## Testing
+
 How has this been tested?
 
 ## Related Issues
+
 Fixes #(issue number)
 ```
 
@@ -178,6 +185,7 @@ Fixes #(issue number)
 ## Questions?
 
 Feel free to:
+
 - Open an issue for clarification
 - Start a discussion
 - Ask in your PR
@@ -200,6 +208,7 @@ Feel free to:
 ## Recognition
 
 Contributors will be:
+
 - Credited in release notes
 - Added to the contributors list
 - Thanked publicly!

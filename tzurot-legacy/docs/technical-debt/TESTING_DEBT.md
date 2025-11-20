@@ -7,16 +7,19 @@ This document tracks testing-related technical debt discovered during developmen
 ## Critical Issues
 
 ### 1. Mock Interface Mismatches (Priority: HIGH)
+
 **Discovered**: June 2025 during DDD Phase 4  
 **Impact**: Tests pass with 100% coverage but code fails in production
 
 **Examples Found**:
+
 - `CommandContext` methods mocked but not implemented: `canEmbed()`, `respondWithEmbed()`, `getAuthorDisplayName()`, `getAuthorAvatarUrl()`
 - Repository method name mismatch: `findByOwnerId` (mock) vs `findByOwner` (actual)
 
 **Root Cause**: Ad-hoc mock creation without interface verification
 
 **Fix Required**:
+
 - Complete mock consolidation (currently ~5% done)
 - Add interface validation tests
 - Use real classes with selective mocking
@@ -24,27 +27,33 @@ This document tracks testing-related technical debt discovered during developmen
 **Tracking**: See [Mock Interface Mismatch Prevention Guide](../testing/MOCK_INTERFACE_MISMATCH_PREVENTION.md)
 
 ### 2. Lack of Integration Tests (Priority: HIGH)
+
 **Impact**: Interface mismatches between components not caught
 
 **Current State**:
+
 - Heavy reliance on unit tests with mocks
 - No end-to-end command execution tests
 - No tests that verify real components work together
 
 **Fix Required**:
+
 - Add integration test suite
 - Test critical user paths with real implementations
 - Mock only external services (API, database, Discord)
 
 ### 3. Mock Consolidation Incomplete (Priority: MEDIUM)
+
 **Current Progress**: ~5% of tests use consolidated mocks
 
-**Impact**: 
+**Impact**:
+
 - Inconsistent test patterns
 - Duplicate mock code
 - Higher chance of interface mismatches
 
 **Fix Required**:
+
 - Migrate remaining 95% of tests to consolidated mocks
 - Create mock factories for all domain objects
 - Enforce through pre-commit hooks
@@ -52,18 +61,21 @@ This document tracks testing-related technical debt discovered during developmen
 ## Debt Items by Component
 
 ### Command System
+
 - [ ] Add integration tests for all commands
 - [ ] Verify CommandContext interface in tests
 - [ ] Create CommandContext factory for tests
 - [ ] Remove all ad-hoc command mocks
 
 ### Repository Layer
+
 - [ ] Verify all repository method names in tests
 - [ ] Create repository mock factories
 - [ ] Add contract tests between services and repositories
 - [ ] Test with in-memory implementations
 
 ### Application Services
+
 - [ ] Integration tests for service layer
 - [ ] Mock only repository and external services
 - [ ] Verify service method signatures
@@ -72,16 +84,19 @@ This document tracks testing-related technical debt discovered during developmen
 ## Proposed Solutions
 
 ### Short-term (1-2 weeks)
+
 1. Add interface validation tests for critical contracts
 2. Create test factories for CommandContext and repositories
 3. Fix existing mock mismatches
 
 ### Medium-term (1-2 months)
+
 1. Complete mock consolidation to 100%
 2. Add integration test suite
 3. Implement mock verification utilities
 
 ### Long-term (3-6 months)
+
 1. Consider TypeScript migration for compile-time checking
 2. Implement contract testing framework
 3. Add property-based testing for complex logic
@@ -118,5 +133,5 @@ This document tracks testing-related technical debt discovered during developmen
 
 ---
 
-*Last Updated: June 2025*  
-*Next Review: After DDD Phase 4 completion (Q3 2025)*
+_Last Updated: June 2025_  
+_Next Review: After DDD Phase 4 completion (Q3 2025)_

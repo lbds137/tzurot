@@ -129,12 +129,8 @@ describe('DiscordResponseSender', () => {
         message: mockMessage,
       });
 
-      expect(mockMessage.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Test Bot:')
-      );
-      expect(mockMessage.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Hello in DM!')
-      );
+      expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Test Bot:'));
+      expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Hello in DM!'));
       expect(result.chunkMessageIds).toEqual(['reply-123']);
     });
 

@@ -5,7 +5,14 @@
  * Processes attachments (images, voice messages) in parallel for better performance.
  */
 
-import { createLogger, type ReferencedMessage, type LoadedPersonality, CONTENT_TYPES, TEXT_LIMITS, RETRY_CONFIG } from '@tzurot/common-types';
+import {
+  createLogger,
+  type ReferencedMessage,
+  type LoadedPersonality,
+  CONTENT_TYPES,
+  TEXT_LIMITS,
+  RETRY_CONFIG,
+} from '@tzurot/common-types';
 import { describeImage, transcribeAudio } from './MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
 
@@ -94,7 +101,9 @@ export class ReferencedMessageFormatter {
     if (formattedText.length > 0) {
       logger.info(
         {
-          preview: formattedText.substring(0, TEXT_LIMITS.REFERENCE_PREVIEW) + (formattedText.length > TEXT_LIMITS.REFERENCE_PREVIEW ? '...' : ''),
+          preview:
+            formattedText.substring(0, TEXT_LIMITS.REFERENCE_PREVIEW) +
+            (formattedText.length > TEXT_LIMITS.REFERENCE_PREVIEW ? '...' : ''),
           totalLength: formattedText.length,
         },
         '[ReferencedMessageFormatter] Reference formatting preview'
@@ -181,14 +190,11 @@ export class ReferencedMessageFormatter {
           '[ReferencedMessageFormatter] Transcribing voice message in referenced message'
         );
 
-        const result = await withRetry(
-          () => transcribeAudio(attachment, personality),
-          {
-            maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-            logger,
-            operationName: `Voice transcription (reference ${referenceNumber})`,
-          }
-        );
+        const result = await withRetry(() => transcribeAudio(attachment, personality), {
+          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          logger,
+          operationName: `Voice transcription (reference ${referenceNumber})`,
+        });
 
         return {
           index,
@@ -223,14 +229,11 @@ export class ReferencedMessageFormatter {
           '[ReferencedMessageFormatter] Processing image in referenced message through vision model'
         );
 
-        const result = await withRetry(
-          () => describeImage(attachment, personality),
-          {
-            maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-            logger,
-            operationName: `Image description (reference ${referenceNumber})`,
-          }
-        );
+        const result = await withRetry(() => describeImage(attachment, personality), {
+          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          logger,
+          operationName: `Image description (reference ${referenceNumber})`,
+        });
 
         return {
           index,

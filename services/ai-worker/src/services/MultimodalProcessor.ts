@@ -90,7 +90,7 @@ export async function processAttachments(
   // Use retryService for consistent retry behavior
   const results = await withParallelRetry(
     attachments,
-    (attachment) => processSingleAttachment(attachment, personality),
+    attachment => processSingleAttachment(attachment, personality),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
@@ -107,8 +107,7 @@ export async function processAttachments(
     }
 
     // Failed after all retries - provide fallback description
-    const isImage =
-      attachment?.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false;
+    const isImage = attachment?.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false;
     const fallbackDescription = isImage
       ? `Image processing failed after ${RETRY_CONFIG.MAX_ATTEMPTS} attempts`
       : `Audio transcription failed after ${RETRY_CONFIG.MAX_ATTEMPTS} attempts`;

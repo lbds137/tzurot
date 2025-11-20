@@ -159,7 +159,9 @@ describe('Bot Activated Personality Handling', () => {
 
       // Most importantly, verify that no attempt was made to process the personality
       // Since we removed PersonalityManager, we check that processing log wasn't called
-      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.stringContaining('Processing personality interaction')
+      );
     });
 
     it('should respond to non-command messages when a personality is activated', async () => {
@@ -173,7 +175,9 @@ describe('Bot Activated Personality Handling', () => {
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
       // Verify that personality processing was attempted - this means we attempted to respond
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction for test-personality'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Processing personality interaction for test-personality')
+      );
     });
 
     it(`should treat ${botPrefix} by itself as a command and ignore it`, async () => {
@@ -187,7 +191,9 @@ describe('Bot Activated Personality Handling', () => {
       // We can tell by the fact that personality processing should not happen
       // even though getActivatedPersonality should return a value
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
-      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.stringContaining('Processing personality interaction')
+      );
     });
 
     it('should only consider messages starting with the exact prefix as commands', async () => {
@@ -202,7 +208,9 @@ describe('Bot Activated Personality Handling', () => {
 
       // Verify that personality processing was attempted - this means we attempted to respond
       // because this is NOT recognized as a command
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction for test-personality'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Processing personality interaction for test-personality')
+      );
     });
 
     it('should ignore commands without a space after prefix (bug fix)', async () => {
@@ -221,7 +229,9 @@ describe('Bot Activated Personality Handling', () => {
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('ignoring command message'));
 
       // Verify that no attempt was made to process the personality for response
-      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.stringContaining('Processing personality interaction')
+      );
     });
   });
 
@@ -242,7 +252,9 @@ describe('Bot Activated Personality Handling', () => {
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
       // Verify that no attempt was made to process the message with the personality
-      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.stringContaining('Processing personality interaction')
+      );
     });
 
     it('should process normal user messages when a personality is activated', async () => {

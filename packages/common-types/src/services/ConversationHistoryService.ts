@@ -48,11 +48,12 @@ export class ConversationHistoryService {
   ): Promise<void> {
     try {
       // Normalize discordMessageId to array format
-      const messageIds = discordMessageId !== undefined
-        ? Array.isArray(discordMessageId)
-          ? discordMessageId
-          : [discordMessageId]
-        : [];
+      const messageIds =
+        discordMessageId !== undefined
+          ? Array.isArray(discordMessageId)
+            ? discordMessageId
+            : [discordMessageId]
+          : [];
 
       // Compute token count once and cache it
       // This prevents recomputing on every AI request (web Claude optimization)
@@ -387,10 +388,7 @@ export class ConversationHistoryService {
         discordMessageId: message.discordMessageId,
       };
     } catch (error) {
-      logger.error(
-        { err: error, discordMessageId },
-        `Failed to get message by Discord message ID`
-      );
+      logger.error({ err: error, discordMessageId }, `Failed to get message by Discord message ID`);
       return null;
     }
   }

@@ -74,16 +74,16 @@ const { detectMedia } = require('../utils/media');
 async function handleMessage(message) {
   const result = await detectMedia(message, message.content, {
     referencedAudioUrl: null,
-    referencedImageUrl: null
+    referencedImageUrl: null,
   });
-  
+
   // result contains:
   // - messageContent: Processed content (string or multimodal array)
   // - hasFoundAudio: Whether audio was found
   // - hasFoundImage: Whether an image was found
   // - audioUrl: URL of detected audio if any
   // - imageUrl: URL of detected image if any
-  
+
   // Use the processed content for AI requests
   await aiService.getResponse(result.messageContent);
 }
@@ -97,16 +97,15 @@ const { processMediaForWebhook, prepareAttachmentOptions } = require('../utils/m
 // Example: Process media for a webhook message
 async function sendWebhookMessage(webhookClient, content) {
   // Process media in the content
-  const { content: processedContent, attachments } = 
-    await processMediaForWebhook(content);
-  
+  const { content: processedContent, attachments } = await processMediaForWebhook(content);
+
   // Prepare attachment options for Discord.js
   const attachmentOptions = prepareAttachmentOptions(attachments);
-  
+
   // Send the webhook message with processed content and attachments
   await webhookClient.send({
     content: processedContent,
-    ...attachmentOptions
+    ...attachmentOptions,
   });
 }
 ```
@@ -132,6 +131,7 @@ async function sendWebhookMessage(webhookClient, content) {
 ### Priority System
 
 The system implements a priority mechanism:
+
 - Audio takes precedence over images (due to API limitations)
 - Explicit media indicators (`[Audio: url]`) take precedence over attachments
 - Attachments take precedence over embeds

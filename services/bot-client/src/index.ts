@@ -91,7 +91,7 @@ function createServices(): Services {
     throw new Error('REDIS_URL environment variable is required');
   }
   const cacheRedis = new Redis(envConfig.REDIS_URL);
-  cacheRedis.on('error', (err) => {
+  cacheRedis.on('error', err => {
     logger.error({ err }, '[Bot] Cache Redis connection error');
   });
   logger.info('[Bot] Redis client initialized for cache invalidation');
@@ -136,12 +136,7 @@ function createServices(): Services {
   ];
 
   // Create MessageHandler with full dependency injection
-  const messageHandler = new MessageHandler(
-    processors,
-    responseSender,
-    persistence,
-    jobTracker
-  );
+  const messageHandler = new MessageHandler(processors, responseSender, persistence, jobTracker);
 
   return {
     messageHandler,

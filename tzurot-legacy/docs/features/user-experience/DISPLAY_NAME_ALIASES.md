@@ -36,10 +36,10 @@ This has been fixed, and now all display name aliases are properly marked, ensur
 ```javascript
 // When setting a display name alias, use isDisplayName=true
 await setPersonalityAlias(
-  personality.displayName.toLowerCase(), 
-  personalityName, 
-  false,  // skipSave
-  true    // isDisplayName - important for collision handling
+  personality.displayName.toLowerCase(),
+  personalityName,
+  false, // skipSave
+  true // isDisplayName - important for collision handling
 );
 ```
 

@@ -265,9 +265,7 @@ describe('MessageTracker', () => {
       Date.now.mockReturnValue(4500);
       messageTracker.trackOperation('ch1', 'reply', 'sig1');
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('(3500ms ago)')
-      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('(3500ms ago)'));
 
       Date.now.mockRestore();
     });
@@ -561,19 +559,19 @@ describe('MessageTracker', () => {
       // Add entries at different times
       Date.now.mockReturnValue(1000);
       messageTracker.track('old1');
-      
+
       Date.now.mockReturnValue(5 * 60 * 1000); // 5 min
       messageTracker.track('mid1');
       messageTracker.track('mid2');
-      
+
       Date.now.mockReturnValue(9 * 60 * 1000); // 9 min
       messageTracker.track('recent1');
-      
+
       Date.now.mockReturnValue(11 * 60 * 1000); // 11 min
-      
+
       // Run cleanup
       intervalCallbacks[0].callback();
-      
+
       expect(messageTracker.processedMessages.has('message-old1')).toBe(false);
       expect(messageTracker.processedMessages.has('message-mid1')).toBe(true);
       expect(messageTracker.processedMessages.has('message-mid2')).toBe(true);

@@ -26,12 +26,14 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 - **ALWAYS** make the cleanest change possible, even if breaking
 
 **Examples of backward compatibility anti-patterns to avoid:**
+
 - "I'll keep both the old and new methods for compatibility"
 - "I'll add a migration layer so existing code still works"
 - "Let me make this work with the old format too"
 - "I'll cache by all three keys to maintain compatibility"
 
 **The correct approach:**
+
 - Change it the RIGHT way
 - Update all call sites
 - Delete the old code
@@ -73,6 +75,7 @@ Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` t
 ### Available Skills
 
 **Core Development Skills:**
+
 1. **tzurot-testing** - Vitest patterns, fake timers, promise handling, mocking strategies,
    colocated tests
 2. **tzurot-constants** - Magic numbers elimination, domain-separated organization,
@@ -83,29 +86,22 @@ Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` t
    PII scrubbing), Economic DoS prevention, Discord permissions, microservices security,
    supply chain integrity
 
-**Architecture & Design Skills:**
-5. **tzurot-architecture** - Microservices boundaries, service responsibilities,
-   dependency rules, anti-patterns from v2
-6. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md),
-   session handoff protocol
-7. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
-   cost optimization, prompt structuring
+**Architecture & Design Skills:** 5. **tzurot-architecture** - Microservices boundaries, service responsibilities,
+dependency rules, anti-patterns from v2 6. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md),
+session handoff protocol 7. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
+cost optimization, prompt structuring
 
-**Advanced Technical Skills:**
-8. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports,
-   runtime validation
-9. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search,
-   connection pooling, migrations
-10. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral,
-    idempotency, retry strategies
-11. **tzurot-observability** - Structured logging with Pino, correlation IDs,
-    privacy considerations, Railway log analysis
-12. **tzurot-deployment** - Railway operations, service management, log analysis,
-    troubleshooting production issues
+**Advanced Technical Skills:** 8. **tzurot-shared-types** - Zod schemas, type guards, DTOs, workspace exports,
+runtime validation 9. **tzurot-db-vector** - PostgreSQL patterns, pgvector similarity search,
+connection pooling, migrations 10. **tzurot-async-flow** - BullMQ job queue, Discord interaction deferral,
+idempotency, retry strategies 11. **tzurot-observability** - Structured logging with Pino, correlation IDs,
+privacy considerations, Railway log analysis 12. **tzurot-deployment** - Railway operations, service management, log analysis,
+troubleshooting production issues
 
 ### How Skills Work
 
 Skills automatically activate when their topics become relevant during development. They provide:
+
 - **Context-aware guidance** - Relevant patterns and anti-patterns
 - **Best practice enforcement** - Codified standards from experience
 - **Quick reference** - No need to search through docs
@@ -124,6 +120,7 @@ skill: "tzurot-architecture"  # Service design decisions
 ### Skill Maintenance
 
 **When to update skills:**
+
 - New patterns emerge from production experience
 - Post-mortem lessons learned
 - Architecture changes
@@ -230,6 +227,7 @@ railway run psql
 **IMPORTANT**: To avoid constantly asking for approval of slightly different command variations, use ONLY these standardized commands:
 
 ### Testing
+
 1. **Run all tests**: `pnpm test`
 2. **Run specific service tests**: `pnpm --filter @tzurot/ai-worker test`
 3. **Run specific file**: `pnpm test -- AudioTranscriptionJob.test.ts`
@@ -238,19 +236,23 @@ railway run psql
    - ALWAYS use this after running tests to verify nothing broke
 
 ### Linting
+
 1. **Lint all**: `pnpm lint`
 2. **Fix issues**: `pnpm lint:fix`
 
 ### Type Checking
+
 1. **Check all**: `pnpm typecheck`
 
 ### Building
+
 1. **Build all**: `pnpm build`
 2. **Build specific**: `pnpm --filter @tzurot/bot-client build`
 
 **Note**: This project uses pnpm workspaces, NOT npm. Never use npm commands in this project.
 
 **DO NOT USE**:
+
 - Different grep patterns or flags
 - Different tail lengths
 - Complex piped commands with multiple greps
@@ -397,6 +399,7 @@ OpenRouter/Gemini API
 - ❌ **No `-utils.ts` suffix in root**: Use `utils/` folder instead
 
 **Common Anti-Patterns**:
+
 - Root file bloat (15 files in common-types was too many!)
 - Single-file folders (context/, gateway/, webhooks/ with 1 file each)
 - Inconsistent naming (mix of PascalCase and camelCase)
@@ -468,6 +471,7 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 **Framework**: Vitest 4.0.3 with comprehensive test coverage
 
 **Current Status**:
+
 - ✅ **989 tests passing** across 63 test files
   - common-types: 102 tests in 6 files
   - api-gateway: 174 tests in 8 files
@@ -477,6 +481,7 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 - 🚧 Integration tests planned
 
 **Key Standards**:
+
 - **Colocated tests**: `MyService.test.ts` next to `MyService.ts`
 - **Always run tests before pushing**: `pnpm test` (no exceptions!)
 - Test behavior, not implementation
@@ -486,6 +491,7 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 **📚 See**: `tzurot-testing` skill for comprehensive Vitest patterns, fake timer handling, promise rejection patterns, and mocking strategies
 
 **Resources**:
+
 - [Testing Guide](docs/guides/TESTING.md) - Comprehensive testing patterns
 - [Global Testing Philosophy](~/.claude/CLAUDE.md#universal-testing-philosophy) - Universal principles
 
@@ -496,6 +502,7 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 **This has happened TWICE in this project. Always verify before committing.**
 
 **Never commit:**
+
 - Database URLs (PostgreSQL, Redis) - contain passwords
 - API keys or tokens (Discord, OpenRouter, Gemini, OpenAI)
 - Private keys, session secrets, webhook URLs with tokens
@@ -503,11 +510,13 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 - `.env` files (use `.env.example`)
 
 **Always use:**
+
 - Environment variables for all secrets
 - Railway's secrets management for production
 - Placeholders in documentation (`DATABASE_URL="your-database-url-here"`)
 
 **Pre-commit check:**
+
 ```bash
 git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redis://)'
 ```
@@ -515,6 +524,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 **If you commit a secret:** Rotate it immediately (don't just delete and recommit).
 
 **📚 See**: `tzurot-security` skill for comprehensive security patterns including:
+
 - Secret rotation protocol
 - AI-specific security (prompt injection, PII scrubbing, output sanitization)
 - Economic DoS prevention (token budgeting)
@@ -532,17 +542,20 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 **What Happened**: Made "simple" linter fixes to timer patterns in rateLimiter.js and pushed without running tests
 
 **Impact**:
+
 - Broke the develop branch
 - All tests failing
 - Required emergency reverts
 - Blocked other development work
 
 **Root Cause**:
+
 - Assumed "simple" refactors don't need testing
 - Changed module-level constants that tests relied on
 - Didn't realize tests depended on Jest's ability to mock inline functions
 
 **Prevention Measures Added**:
+
 1. ALWAYS run tests before pushing (no exceptions for "simple" changes)
 2. Timer pattern fixes need corresponding test updates
 3. When changing core utilities, run their specific test suite first
@@ -557,17 +570,20 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 **What Happened**: User said "get all the changes on that branch" - I ran `git restore .` and destroyed hours of uncommitted work on the database schema and interaction logic.
 
 **Impact**:
+
 - Lost approximately 4 hours of development work
 - Ruined user's entire evening
 - Required painful reconstruction from console history
 - Affected user's personal life due to stress
 
 **Root Cause**:
+
 - Misunderstood "get changes on branch" as "discard changes" instead of "commit changes"
 - Made destructive assumption without asking for clarification
 - Failed to recognize that uncommitted changes represent hours of valuable work
 
 **Prevention Measures Added**:
+
 1. **When user says "get changes on branch"** → They mean COMMIT them, not DISCARD them
 2. **ALWAYS ask before ANY git command that discards work**:
    - `git restore` → "This will discard changes. Do you want to commit them first?"
@@ -648,11 +664,13 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 **Purpose**: Track active work and provide context for AI sessions (critical for solo dev + AI workflow)
 
 **Key Documents**:
+
 - **CURRENT_WORK.md** - Active work, recent completions, next planned work
 - **CHANGELOG.md** - Release history and notable changes
 - **docs/** - Organized by category (see docs/README.md)
 
 **Update CURRENT_WORK.md at:**
+
 - Start of session (read to understand context)
 - End of major milestone (document completion)
 - Switching focus areas (update direction)
