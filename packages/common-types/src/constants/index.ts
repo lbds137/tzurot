@@ -42,7 +42,13 @@ export { TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS } from './discord.js';
 export { TransientErrorCode, ERROR_NAMES, ERROR_MESSAGES } from './error.js';
 
 // Media constants
-export { MEDIA_LIMITS, AVATAR_LIMITS, CONTENT_TYPES, EMBED_NAMING, AttachmentType } from './media.js';
+export {
+  MEDIA_LIMITS,
+  AVATAR_LIMITS,
+  CONTENT_TYPES,
+  EMBED_NAMING,
+  AttachmentType,
+} from './media.js';
 
 // Message constants
 export { MessageRole, PLACEHOLDERS } from './message.js';
