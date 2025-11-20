@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { createAIRouter } from './ai.js';
+import { createAIRouter } from './ai/index.js';
 import type { PrismaClient } from '@prisma/client';
 import type { Queue, QueueEvents, Job } from 'bullmq';
 import { JobStatus } from '@tzurot/common-types';
