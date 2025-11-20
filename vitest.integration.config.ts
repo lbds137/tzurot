@@ -1,4 +1,11 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
+
+// Set up test environment variables before anything else
+// This prevents config validation errors when importing services
+if (!process.env.PROD_DATABASE_URL) {
+  process.env.PROD_DATABASE_URL = process.env.DATABASE_URL || '';
+}
 
 /**
  * Vitest configuration for integration tests
@@ -10,6 +17,12 @@ import { defineConfig } from 'vitest/config';
  * - Global setup/teardown for environment initialization
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@tzurot/common-types': resolve(__dirname, './packages/common-types/src'),
+      '@tzurot/api-clients': resolve(__dirname, './packages/api-clients/src'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
