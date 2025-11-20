@@ -27,16 +27,12 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('db-sync')
-      .setDescription('Trigger database synchronization')
-      .addStringOption(option =>
+      .setDescription('Trigger bidirectional database synchronization')
+      .addBooleanOption(option =>
         option
-          .setName('direction')
-          .setDescription('Sync direction')
-          .setRequired(true)
-          .addChoices(
-            { name: 'dev → prod', value: 'dev-to-prod' },
-            { name: 'prod → dev', value: 'prod-to-dev' }
-          )
+          .setName('dry-run')
+          .setDescription('Preview changes without applying them')
+          .setRequired(false)
       )
   )
   .addSubcommand(subcommand =>
