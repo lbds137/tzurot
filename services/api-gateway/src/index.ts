@@ -27,7 +27,7 @@ import {
 } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { resolve } from 'path';
-import { createAIRouter } from './routes/ai.js';
+import { createAIRouter } from './routes/ai/index.js';
 import { createAdminRouter } from './routes/admin/index.js';
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { access, readdir, mkdir } from 'fs/promises';
