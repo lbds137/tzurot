@@ -7,6 +7,9 @@
 
 import type { ErrorResponse } from '../types.js';
 
+// Re-export ErrorResponse for use in other utilities
+export type { ErrorResponse };
+
 /**
  * Standard error codes used across the API
  */
