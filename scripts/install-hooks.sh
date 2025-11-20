@@ -18,4 +18,14 @@ else
     exit 1
 fi
 
+# Copy pre-push hook
+if [ -f "hooks/pre-push" ]; then
+    cp hooks/pre-push .git/hooks/pre-push
+    chmod +x .git/hooks/pre-push
+    echo "✅ Installed pre-push hook"
+else
+    echo "❌ hooks/pre-push not found"
+    exit 1
+fi
+
 echo "✅ All hooks installed successfully!"

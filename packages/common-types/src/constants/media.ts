@@ -17,6 +17,16 @@ export const MEDIA_LIMITS = {
 } as const;
 
 /**
+ * Avatar processing limits
+ */
+export const AVATAR_LIMITS = {
+  /** Target size for avatar images after optimization (200KB) */
+  TARGET_SIZE_KB: 200,
+  /** Maximum avatar dimension (512px) */
+  MAX_DIMENSION: 512,
+} as const;
+
+/**
  * Common content type strings
  */
 export const CONTENT_TYPES = {

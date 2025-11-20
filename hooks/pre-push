@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get the root directory of the git repository
+GIT_ROOT=$(git rev-parse --show-toplevel)
+cd "$GIT_ROOT"
+
+echo "🚀 Running pre-push checks..."
+
+# Ensure we aren't running in watch mode
+export CI=true
+
+# Check for v3 TypeScript files in the repository (not just staged)
+V3_TS_FILES=$(find packages services -name "*.ts" -o -name "*.tsx" 2>/dev/null || true)
+
+if [ -n "$V3_TS_FILES" ]; then
+    echo -e "\n🧪 Running full test suite (989 tests)..."
+
+    if pnpm test; then
+        echo -e "${GREEN}✅ All tests passed!${NC}"
+    else
+        echo -e "${RED}❌ Tests failed! Aborting push.${NC}"
+        echo -e "\n${YELLOW}To bypass this hook (not recommended): git push --no-verify${NC}"
+        exit 1
+    fi
+fi
+
+echo -e "\n${GREEN}✅ All pre-push checks passed! Pushing to remote...${NC}"

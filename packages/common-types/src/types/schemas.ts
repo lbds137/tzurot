@@ -92,6 +92,13 @@ export const referencedMessageSchema = z.object({
 });
 
 /**
+ * Custom Fields Schema
+ * Validates custom JSON fields for personality metadata
+ * Allows arbitrary key-value pairs for extensibility
+ */
+export const customFieldsSchema = z.record(z.string(), z.unknown()).nullable();
+
+/**
  * Loaded Personality Schema
  *
  * This is the SINGLE SOURCE OF TRUTH for the LoadedPersonality type.
@@ -214,6 +221,7 @@ export const llmGenerationResultSchema = generationPayloadSchema.extend({
 });
 
 // Infer TypeScript types from schemas
+export type CustomFields = z.infer<typeof customFieldsSchema>;
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;

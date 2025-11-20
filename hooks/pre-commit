@@ -42,7 +42,6 @@ if [ -n "$STAGED_V3_TS_FILES" ]; then
     run_check "Prettier formatting" "pnpm format"
     run_check "TypeScript build verification" "./scripts/verify-build.sh"
     run_check "ESLint (v3)" "pnpm lint"
-    run_check "Tests (v3)" "pnpm test"
 fi
 
 # Note: tzurot-legacy/ excluded from pre-commit checks
