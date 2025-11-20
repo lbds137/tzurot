@@ -104,10 +104,7 @@ describe('PersonalityLoader', () => {
       expect(result?.name).toBe('TestBot');
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
         where: {
-          OR: [
-            { name: { equals: 'testbot', mode: 'insensitive' } },
-            { slug: 'testbot' },
-          ],
+          OR: [{ name: { equals: 'testbot', mode: 'insensitive' } }, { slug: 'testbot' }],
         },
         include: expect.any(Object),
       });
