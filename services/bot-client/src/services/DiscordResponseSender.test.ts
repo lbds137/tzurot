@@ -9,7 +9,12 @@ import { TextChannel, ThreadChannel } from 'discord.js';
 
 // Mock dependencies
 vi.mock('../redis.js', () => ({
-  storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
+  redisService: {
+    storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
+    getWebhookPersonality: vi.fn(),
+    checkHealth: vi.fn(),
+    close: vi.fn(),
+  },
 }));
 
 vi.mock('@tzurot/common-types', async () => {

@@ -33,8 +33,8 @@ export async function transcribeAudio(
   // Check Redis cache first (if originalUrl is available)
   if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
     try {
-      const { getVoiceTranscript } = await import('../../redis.js');
-      const cachedTranscript = await getVoiceTranscript(attachment.originalUrl);
+      const { voiceTranscriptCache } = await import('../../redis.js');
+      const cachedTranscript = await voiceTranscriptCache.get(attachment.originalUrl);
 
       if (cachedTranscript !== null && cachedTranscript.length > 0) {
         logger.info(

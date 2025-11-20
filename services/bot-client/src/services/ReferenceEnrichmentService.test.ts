@@ -8,7 +8,12 @@ import type { ConversationMessage, ReferencedMessage } from '@tzurot/common-type
 
 // Mock dependencies
 vi.mock('../redis.js', () => ({
-  getWebhookPersonality: vi.fn(),
+  redisService: {
+    getWebhookPersonality: vi.fn(),
+    storeWebhookMessage: vi.fn(),
+    checkHealth: vi.fn(),
+    close: vi.fn(),
+  },
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -19,7 +24,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { getWebhookPersonality } from '../redis.js';
+import { redisService } from '../redis.js';
 
 describe('ReferenceEnrichmentService', () => {
   let service: ReferenceEnrichmentService;
@@ -72,7 +77,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
       mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
 
@@ -98,7 +103,7 @@ describe('ReferenceEnrichmentService', () => {
 
       const conversationHistory: ConversationMessage[] = []; // Empty history
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
       mockUserService.getPersonaForUser.mockResolvedValue('persona-456');
       mockUserService.getPersonaName.mockResolvedValue('Database Johnny');
@@ -123,7 +128,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue({
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue({
         personalityId: 'personality-bot',
       });
 
@@ -147,7 +152,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       await service.enrichWithPersonaNames(references, [], 'personality-123');
 
@@ -197,7 +202,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser
         .mockResolvedValueOnce('user-1')
         .mockResolvedValueOnce('user-2');
@@ -224,7 +229,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
       mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
       mockUserService.getPersonaName.mockResolvedValue(null);
@@ -248,7 +253,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockRejectedValue(new Error('Database error'));
 
       await service.enrichWithPersonaNames(references, [], 'personality-123');
@@ -271,7 +276,7 @@ describe('ReferenceEnrichmentService', () => {
       ];
 
       // Redis lookup fails, but webhookId detection should still work
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockRejectedValue(
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockRejectedValue(
         new Error('Redis down')
       );
 
@@ -295,7 +300,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
       mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
       mockUserService.getPersonaName.mockResolvedValue('Johnny');
@@ -342,7 +347,7 @@ describe('ReferenceEnrichmentService', () => {
         },
       ];
 
-      (getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
       mockUserService.getPersonaForUser.mockResolvedValue('persona-1');
 

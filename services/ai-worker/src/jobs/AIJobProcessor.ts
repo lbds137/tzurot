@@ -25,7 +25,7 @@ import {
   type LLMGenerationResult,
 } from '@tzurot/common-types';
 import type { PrismaClient, Prisma } from '@prisma/client';
-import { publishJobResult, storeJobResult } from '../redis.js';
+import { redisService } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
@@ -181,7 +181,7 @@ export class AIJobProcessor {
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
     const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
-    await storeJobResult(`${userId}:${jobId}`, result);
+    await redisService.storeJobResult(`${userId}:${jobId}`, result);
 
     // Publish to stream for async delivery
     await this.persistAndPublishResult(job, result);
@@ -200,7 +200,7 @@ export class AIJobProcessor {
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
     const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
-    await storeJobResult(`${userId}:${jobId}`, result);
+    await redisService.storeJobResult(`${userId}:${jobId}`, result);
 
     // Publish to stream for async delivery
     await this.persistAndPublishResult(job, result);
@@ -253,7 +253,7 @@ export class AIJobProcessor {
       logger.debug({ jobId }, '[AIJobProcessor] Stored result in database');
 
       // 2. Publish to Redis Stream for bot-client to consume
-      await publishJobResult(jobId, result.requestId, result);
+      await redisService.publishJobResult(jobId, result.requestId, result);
 
       logger.info({ jobId }, '[AIJobProcessor] Result persisted and published to Redis Stream');
 

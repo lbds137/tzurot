@@ -5,7 +5,7 @@
  */
 
 import { createLogger, ConversationHistoryService } from '@tzurot/common-types';
-import { getVoiceTranscript } from '../../redis.js';
+import { voiceTranscriptCache } from '../../redis.js';
 
 const logger = createLogger('TranscriptRetriever');
 
@@ -27,7 +27,7 @@ export class TranscriptRetriever {
   ): Promise<string | null> {
     try {
       // Tier 1: Check Redis cache (fast path for recent messages)
-      const cachedTranscript = await getVoiceTranscript(attachmentUrl);
+      const cachedTranscript = await voiceTranscriptCache.get(attachmentUrl);
       if (
         cachedTranscript !== undefined &&
         cachedTranscript !== null &&
