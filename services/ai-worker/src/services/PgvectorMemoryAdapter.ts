@@ -127,18 +127,10 @@ export class PgvectorMemoryAdapter {
   private openai: OpenAI;
   private embeddingModel: string;
 
-  constructor() {
-    this.prisma = new PrismaClient({
-      log: ['error', 'warn'],
-      // Set connection timeout to prevent hanging connections
-      datasources: {
-        db: {
-          url: process.env.DATABASE_URL,
-        },
-      },
-    });
+  constructor(prisma: PrismaClient, openaiApiKey: string) {
+    this.prisma = prisma;
     this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: openaiApiKey,
     });
     this.embeddingModel =
       process.env.EMBEDDING_MODEL !== undefined && process.env.EMBEDDING_MODEL.length > 0
@@ -407,12 +399,5 @@ export class PgvectorMemoryAdapter {
       logger.error({ err: error }, 'Pgvector health check failed');
       return false;
     }
-  }
-
-  /**
-   * Cleanup - close Prisma connection
-   */
-  async disconnect(): Promise<void> {
-    await this.prisma.$disconnect();
   }
 }
