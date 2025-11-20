@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../dist/tests",
+    "rootDir": ".",
+    "composite": true,
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["integration/**/*.ts"],
+  "references": [
+    { "path": "../packages/common-types" },
+    { "path": "../services/api-gateway" },
+    { "path": "../services/ai-worker" },
+    { "path": "../services/bot-client" }
+  ]
+}

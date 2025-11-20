@@ -10,10 +10,7 @@
 
 // Set up test environment variables before any imports
 // This prevents config validation errors when importing services
-if (!process.env.PROD_DATABASE_URL) {
-  // Use the same DATABASE_URL for PROD in tests
-  process.env.PROD_DATABASE_URL = process.env.DATABASE_URL || '';
-}
+process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 
 import { PrismaClient } from '@prisma/client';
 import type { RedisClientType } from 'redis';
@@ -37,11 +34,11 @@ export function isCI(): boolean {
  * Set up local test environment
  * Uses real Postgres from DATABASE_URL, mocked Redis
  */
-async function setupLocal(): Promise<TestEnvironment> {
+function setupLocal(): TestEnvironment {
   // Use the real DATABASE_URL (Railway dev database or local Postgres)
   // This simplifies setup - no need for PGlite complexity
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
+  const databaseUrl = process.env.DATABASE_URL ?? '';
+  if (databaseUrl.length === 0) {
     throw new Error(
       'DATABASE_URL is required for integration tests. Set it to your development database.'
     );
@@ -57,14 +54,17 @@ async function setupLocal(): Promise<TestEnvironment> {
 
   // Create a Redis mock instance for local development
   // This avoids needing Redis running locally
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const redis = createRedisClientMock();
 
   return {
     prisma,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
-      await redis.quit();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      redis.quit();
     },
   };
 }
@@ -74,8 +74,9 @@ async function setupLocal(): Promise<TestEnvironment> {
  */
 async function setupCI(): Promise<TestEnvironment> {
   // In CI, use environment variables pointing to service containers
-  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/tzurot_test';
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  const databaseUrl =
+    process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/tzurot_test';
+  const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
   const prisma = new PrismaClient({
     datasources: {

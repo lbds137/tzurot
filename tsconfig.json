@@ -24,11 +24,12 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": [],
+  "include": ["vitest.integration.config.ts"],
   "references": [
     { "path": "./services/bot-client" },
     { "path": "./services/api-gateway" },
     { "path": "./services/ai-worker" },
-    { "path": "./packages/common-types" }
+    { "path": "./packages/common-types" },
+    { "path": "./tests" }
   ]
 }

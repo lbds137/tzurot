@@ -34,4 +34,8 @@ export const ERROR_MESSAGES = {
   EMPTY_RESPONSE: 'LLM returned empty response',
   /** Substring to detect empty response errors */
   EMPTY_RESPONSE_INDICATOR: 'empty response',
+  /** Error message when LLM censors response (Gemini models via OpenRouter) */
+  CENSORED_RESPONSE: 'LLM censored response (returned "ext") - this may succeed on retry',
+  /** Response text that indicates censorship */
+  CENSORED_RESPONSE_TEXT: 'ext',
 } as const;

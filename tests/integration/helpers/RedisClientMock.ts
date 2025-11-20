@@ -13,7 +13,7 @@ export class RedisClientMock {
     // No-op for mock
   }
 
-  async disconnect(): Promise<void> {
+  disconnect(): void {
     // Clear all timers
     for (const timer of this.timers.values()) {
       clearTimeout(timer);
@@ -22,27 +22,27 @@ export class RedisClientMock {
     this.store.clear();
   }
 
-  async quit(): Promise<void> {
-    await this.disconnect();
+  quit(): void {
+    this.disconnect();
   }
 
-  async ping(): Promise<string> {
+  ping(): string {
     return 'PONG';
   }
 
-  async set(key: string, value: string): Promise<string | null> {
+  set(key: string, value: string): string | null {
     this.store.set(key, { value });
     return 'OK';
   }
 
-  async get(key: string): Promise<string | null> {
+  get(key: string): string | null {
     const entry = this.store.get(key);
     if (!entry) {
       return null;
     }
 
     // Check if expired
-    if (entry.expiresAt && Date.now() > entry.expiresAt) {
+    if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
       this.store.delete(key);
       return null;
     }
@@ -50,7 +50,7 @@ export class RedisClientMock {
     return entry.value;
   }
 
-  async setEx(key: string, seconds: number, value: string): Promise<string | null> {
+  setEx(key: string, seconds: number, value: string): string | null {
     const expiresAt = Date.now() + seconds * 1000;
     this.store.set(key, { value, expiresAt });
 
@@ -65,7 +65,7 @@ export class RedisClientMock {
     return 'OK';
   }
 
-  async del(key: string | string[]): Promise<number> {
+  del(key: string | string[]): number {
     const keys = Array.isArray(key) ? key : [key];
     let deleted = 0;
 

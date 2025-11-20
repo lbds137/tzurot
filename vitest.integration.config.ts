@@ -3,9 +3,7 @@ import { resolve } from 'path';
 
 // Set up test environment variables before anything else
 // This prevents config validation errors when importing services
-if (!process.env.PROD_DATABASE_URL) {
-  process.env.PROD_DATABASE_URL = process.env.DATABASE_URL || '';
-}
+process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 
 /**
  * Vitest configuration for integration tests
