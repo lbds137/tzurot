@@ -5,11 +5,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { randomUUID } from 'crypto';
-import {
-  createLogger,
-  generateRequestSchema,
-  JobStatus,
-} from '@tzurot/common-types';
+import { createLogger, generateRequestSchema, JobStatus } from '@tzurot/common-types';
 import { deduplicationCache } from '../../utils/deduplicationCache.js';
 import { createJobChain } from '../../utils/jobChainOrchestrator.js';
 import type { GenerateResponse } from '../../types.js';
