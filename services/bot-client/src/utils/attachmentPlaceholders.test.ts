@@ -207,9 +207,7 @@ describe('attachmentPlaceholders', () => {
 
       const result = generateAttachmentPlaceholders(attachments);
 
-      expect(result).toBe(
-        '\n\n[Voice message: 3.5s] [Image: attachment] [Voice message: 8.1s]'
-      );
+      expect(result).toBe('\n\n[Voice message: 3.5s] [Image: attachment] [Voice message: 8.1s]');
     });
 
     it('should format with newlines for appending to message', () => {

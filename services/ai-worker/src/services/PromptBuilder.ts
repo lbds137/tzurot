@@ -17,10 +17,7 @@ import {
   countTextTokens,
 } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
-import type {
-  MemoryDocument,
-  ConversationContext,
-} from './ConversationalRAGService.js';
+import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
@@ -50,7 +47,9 @@ export class PromptBuilder {
     // For voice-only messages (no text), use transcription as search query
     // For images or mixed content, combine with user message
     if (userMessage.trim() === 'Hello' && descriptions.length > 0) {
-      logger.info('[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback');
+      logger.info(
+        '[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback'
+      );
       return descriptions; // Voice message - use transcription
     }
 
@@ -104,10 +103,7 @@ export class PromptBuilder {
     }
 
     // Append referenced messages (with vision/transcription already processed)
-    if (
-      referencedMessagesDescriptions !== undefined &&
-      referencedMessagesDescriptions.length > 0
-    ) {
+    if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
       messageContent =
         messageContent.length > 0
           ? `${messageContent}\n\n${referencedMessagesDescriptions}`
@@ -179,7 +175,9 @@ export class PromptBuilder {
         : '';
 
     if (referencesContext.length > 0) {
-      logger.info(`[PromptBuilder] referencesContext length after formatting: ${referencesContext.length}`);
+      logger.info(
+        `[PromptBuilder] referencesContext length after formatting: ${referencesContext.length}`
+      );
     }
 
     // Conversation participants - ALL people involved
@@ -213,11 +211,10 @@ export class PromptBuilder {
           participantsContextLength: participantsContext.length,
           activePersonaName: context.activePersonaName,
           memoryCount: relevantMemories.length,
-          memoryIds: relevantMemories.map(
-            m =>
-              m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
-                ? m.metadata.id
-                : 'unknown'
+          memoryIds: relevantMemories.map(m =>
+            m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
+              ? m.metadata.id
+              : 'unknown'
           ),
           memoryTimestamps: relevantMemories.map(m =>
             m.metadata?.createdAt !== undefined && m.metadata.createdAt !== null
@@ -372,8 +369,7 @@ export class PromptBuilder {
         message.referencedMessage !== null
       ) {
         const ref = message.referencedMessage;
-        const author =
-          ref.author !== undefined && ref.author.length > 0 ? ref.author : 'someone';
+        const author = ref.author !== undefined && ref.author.length > 0 ? ref.author : 'someone';
         formatted = `[Replying to ${author}: "${ref.content}"]\n${formatted}`;
       }
 

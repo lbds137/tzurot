@@ -845,9 +845,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
 
     it('should return false on error', async () => {
-      mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(
-        new Error('Database error')
-      );
+      mockPrismaClient.conversationHistory.findFirst.mockRejectedValue(new Error('Database error'));
 
       const result = await service.updateLastAssistantMessageId(
         'channel-123',
@@ -887,9 +885,9 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const error = new Error('Database connection failed');
       mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
 
-      await expect(
-        service.clearHistory('channel-123', 'personality-456')
-      ).rejects.toThrow('Database connection failed');
+      await expect(service.clearHistory('channel-123', 'personality-456')).rejects.toThrow(
+        'Database connection failed'
+      );
     });
   });
 
@@ -985,9 +983,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const error = new Error('Database connection failed');
       mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
 
-      await expect(service.cleanupOldHistory(30)).rejects.toThrow(
-        'Database connection failed'
-      );
+      await expect(service.cleanupOldHistory(30)).rejects.toThrow('Database connection failed');
     });
   });
 
@@ -1027,9 +1023,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         content: 'original content',
       });
 
-      mockPrismaClient.conversationHistory.update.mockRejectedValue(
-        new Error('Update failed')
-      );
+      mockPrismaClient.conversationHistory.update.mockRejectedValue(new Error('Update failed'));
 
       const result = await service.updateLastUserMessage(
         'channel-123',

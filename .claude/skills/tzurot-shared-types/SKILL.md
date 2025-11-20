@@ -1,7 +1,7 @@
 ---
 name: tzurot-shared-types
 description: Type management for Tzurot v3 - Zod schemas, type guards, DTOs, workspace exports, and ensuring type safety across microservices. Use when creating types or working with data validation.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Shared Types & Validation
@@ -36,6 +36,7 @@ packages/common-types/src/
 ### When Types Belong in Common-Types
 
 **✅ Add to common-types when:**
+
 1. **Used by 2+ services** - Cross-service data contracts
 2. **Queue job data** - BullMQ job payloads
 3. **API request/response** - HTTP contract between bot-client and api-gateway
@@ -43,6 +44,7 @@ packages/common-types/src/
 5. **AI provider types** - OpenRouter/Gemini request/response shapes
 
 **❌ Keep local when:**
+
 1. **Service-specific** - Only used within one service
 2. **Implementation details** - Internal data structures
 3. **Temporary types** - Transitional refactoring types
@@ -76,9 +78,7 @@ export const PersonalityConfigSchema = z.object({
 export type PersonalityConfig = z.infer<typeof PersonalityConfigSchema>;
 
 // Validation function
-export function validatePersonalityConfig(
-  data: unknown
-): PersonalityConfig {
+export function validatePersonalityConfig(data: unknown): PersonalityConfig {
   return PersonalityConfigSchema.parse(data);
 }
 ```
@@ -158,7 +158,7 @@ export function hasVoiceMessage(message: Message): boolean {
 // bot-client/handlers/messageCreate.ts
 import { isTextChannel, hasAttachments } from '@tzurot/common-types';
 
-client.on('messageCreate', async (message) => {
+client.on('messageCreate', async message => {
   // Type narrowing with guard
   if (!isTextChannel(message.channel)) {
     return; // Only handle text channels
@@ -194,16 +194,22 @@ export const LLMGenerationJobDataSchema = z.object({
   guildId: z.string().optional(),
   userId: z.string(),
   userMessage: z.string(),
-  conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
-    content: z.string(),
-    timestamp: z.string().datetime(),
-  })),
-  attachments: z.array(z.object({
-    url: z.string().url(),
-    type: z.enum(['image', 'voice']),
-    description: z.string().optional(),
-  })).optional(),
+  conversationHistory: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant', 'system']),
+      content: z.string(),
+      timestamp: z.string().datetime(),
+    })
+  ),
+  attachments: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        type: z.enum(['image', 'voice']),
+        description: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 export type LLMGenerationJobData = z.infer<typeof LLMGenerationJobDataSchema>;
@@ -227,11 +233,15 @@ export const AIGenerationRequestSchema = z.object({
   userId: z.string(),
   username: z.string(),
   referencedMessageId: z.string().optional(),
-  attachments: z.array(z.object({
-    url: z.string().url(),
-    contentType: z.string(),
-    name: z.string(),
-  })).optional(),
+  attachments: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        contentType: z.string(),
+        name: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export type AIGenerationRequest = z.infer<typeof AIGenerationRequestSchema>;
@@ -244,11 +254,13 @@ export const AIGenerationResponseSchema = z.object({
   content: z.string(),
   model: z.string(),
   personalityName: z.string(),
-  usage: z.object({
-    promptTokens: z.number(),
-    completionTokens: z.number(),
-    totalTokens: z.number(),
-  }).optional(),
+  usage: z
+    .object({
+      promptTokens: z.number(),
+      completionTokens: z.number(),
+      totalTokens: z.number(),
+    })
+    .optional(),
 });
 
 export type AIGenerationResponse = z.infer<typeof AIGenerationResponseSchema>;
@@ -341,16 +353,15 @@ const UserMessageSchema = BaseMessageSchema.extend({
 const AssistantMessageSchema = BaseMessageSchema.extend({
   role: z.literal('assistant'),
   model: z.string(),
-  usage: z.object({
-    tokens: z.number(),
-  }).optional(),
+  usage: z
+    .object({
+      tokens: z.number(),
+    })
+    .optional(),
 });
 
 // Union type
-const ConversationMessageSchema = z.union([
-  UserMessageSchema,
-  AssistantMessageSchema,
-]);
+const ConversationMessageSchema = z.union([UserMessageSchema, AssistantMessageSchema]);
 
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 ```
@@ -366,7 +377,6 @@ function processJobData(data: unknown): void {
 
     // Type-safe processing
     console.log(`Processing request: ${validated.requestId}`);
-
   } catch (error) {
     if (error instanceof z.ZodError) {
       // Detailed validation errors
@@ -389,9 +399,7 @@ function processJobData(data: unknown): void {
 
 ```typescript
 // Job types with discriminator
-type JobResult =
-  | { status: 'success'; data: string }
-  | { status: 'error'; error: Error };
+type JobResult = { status: 'success'; data: string } | { status: 'error'; error: Error };
 
 function handleJobResult(result: JobResult): void {
   // TypeScript narrows type based on status
@@ -426,7 +434,7 @@ getPersonality(userId); // Error: UserId is not PersonalityId
 ```typescript
 // Infer literal types
 const ROLES = ['user', 'assistant', 'system'] as const;
-type Role = typeof ROLES[number]; // 'user' | 'assistant' | 'system'
+type Role = (typeof ROLES)[number]; // 'user' | 'assistant' | 'system'
 
 // Readonly object
 const CONFIG = {
@@ -487,6 +495,7 @@ describe('AIGenerationRequestSchema', () => {
 ## Anti-Patterns
 
 ### ❌ Don't Use `any`
+
 ```typescript
 // ❌ BAD - Loses type safety
 function processMessage(message: any): void {
@@ -500,6 +509,7 @@ function processMessage(message: Message): void {
 ```
 
 ### ❌ Don't Skip Runtime Validation at Boundaries
+
 ```typescript
 // ❌ BAD - Trusts external data
 app.post('/ai/generate', (req, res) => {
@@ -515,20 +525,28 @@ app.post('/ai/generate', (req, res) => {
 ```
 
 ### ❌ Don't Duplicate Type Definitions
+
 ```typescript
 // ❌ BAD - Duplication across services
 // bot-client/types.ts
-interface PersonalityConfig { /* ... */ }
+interface PersonalityConfig {
+  /* ... */
+}
 
 // ai-worker/types.ts
-interface PersonalityConfig { /* ... */ } // Same type!
+interface PersonalityConfig {
+  /* ... */
+} // Same type!
 
 // ✅ GOOD - Define once in common-types
 // packages/common-types/src/types/personality-types.ts
-export interface PersonalityConfig { /* ... */ }
+export interface PersonalityConfig {
+  /* ... */
+}
 ```
 
 ### ❌ Don't Use TypeScript Enums
+
 ```typescript
 // ❌ BAD - TypeScript enum (generates runtime code)
 enum MessageRole {
@@ -539,7 +557,7 @@ enum MessageRole {
 
 // ✅ GOOD - Zod enum or const assertion
 const ROLES = ['user', 'assistant', 'system'] as const;
-type MessageRole = typeof ROLES[number];
+type MessageRole = (typeof ROLES)[number];
 ```
 
 ## Related Skills
@@ -548,7 +566,6 @@ type MessageRole = typeof ROLES[number];
 - **tzurot-async-flow** - BullMQ job data types
 - **tzurot-testing** - Type-safe test fixtures
 - **tzurot-security** - Input validation with Zod
-
 
 ## References
 

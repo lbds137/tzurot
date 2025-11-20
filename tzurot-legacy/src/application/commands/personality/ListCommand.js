@@ -132,7 +132,6 @@ function createListCommand() {
             };
           });
 
-
           // Create the list embed
           const embedData = {
             title: `📋 Your Personalities`,

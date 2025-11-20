@@ -38,6 +38,7 @@ improvements/
 ### What's Active?
 
 See the `active/` directory for work in progress:
+
 - **TECHNICAL_DEBT_INVENTORY.md** - Tracks what needs fixing
 - **WORK_IN_PROGRESS.md** - Current incomplete work status
 - **SINGLETON_MIGRATION_GUIDE.md** - 14 singletons remain
@@ -45,6 +46,7 @@ See the `active/` directory for work in progress:
 ### What's Frozen?
 
 See the `post-ddd/` directory for future work:
+
 - **POST_DDD_ROADMAP.md** - Prioritized implementation plan
 - Database, Express, TypeScript migrations
 - Feature enhancements and scalability improvements
@@ -52,17 +54,20 @@ See the `post-ddd/` directory for future work:
 ## How to Use This Documentation
 
 ### If you're a developer:
+
 1. Read `DDD_IMPLEMENTATION_SUMMARY.md` for current status
 2. Review `DDD_PHASE_1_COMPLETION_REPORT.md` for what's been done
 3. Check `DOMAIN_DRIVEN_DESIGN_PLAN.md` for Phase 2 details
 4. Follow `DDD_MIGRATION_CHECKLIST.md` for next steps
 
 ### If you're a stakeholder:
-1. Read `DDD_IMPLEMENTATION_SUMMARY.md` 
+
+1. Read `DDD_IMPLEMENTATION_SUMMARY.md`
 2. Understand why `FEATURE_FREEZE_NOTICE.md` is critical
 3. Review timeline in `DOMAIN_DRIVEN_DESIGN_PLAN.md`
 
 ### If you're joining the project:
+
 1. Start with `TECHNICAL_DEBT_INVENTORY.md` to understand the problems
 2. Read `DOMAIN_DRIVEN_DESIGN_PLAN.md` for the solution
 3. Check current phase in `DDD_MIGRATION_CHECKLIST.md`

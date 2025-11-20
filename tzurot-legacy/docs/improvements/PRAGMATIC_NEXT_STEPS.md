@@ -27,12 +27,12 @@ class SqlitePersonalityRepository {
     this.db = new Database(dbPath); // using better-sqlite3
     this._initSchema();
   }
-  
+
   async findById(id) {
     const row = this.db.prepare('SELECT * FROM personalities WHERE id = ?').get(id);
     return row ? PersonalityMapper.toDomain(row) : null;
   }
-  
+
   async save(personality) {
     // Transactional save - no more corruption!
     return this.db.transaction(() => {
@@ -43,6 +43,7 @@ class SqlitePersonalityRepository {
 ```
 
 ### Benefits
+
 - **Solves concurrency issues** immediately
 - **Enables proper transactions**
 - **Allows indexed queries** (huge performance boost)
@@ -50,6 +51,7 @@ class SqlitePersonalityRepository {
 - **Backward compatible** with existing repository interfaces
 
 ### Implementation Steps
+
 1. Install `better-sqlite3`
 2. Create `SqlitePersonalityRepository` implementing existing interface
 3. Create migration script to import existing JSON data
@@ -71,17 +73,17 @@ class MessageRouter {
     this.ddd = dddHandlers;
     this.flags = featureFlags;
   }
-  
+
   async route(message) {
     // Start simple: route by message type or guild
     if (this.shouldUseDDD(message)) {
       return this.ddd.handle(message);
     }
-    
+
     // Fallback to legacy for everything else
     return this.legacy.handle(message);
   }
-  
+
   shouldUseDDD(message) {
     // Gradual rollout logic here
     // Could be by guild, user, message type, etc.
@@ -91,6 +93,7 @@ class MessageRouter {
 ```
 
 ### Benefits
+
 - **Clean separation point** for future migration
 - **Gradual rollout capability**
 - **Easy to add new routing rules**
@@ -109,21 +112,22 @@ class WebhookSender {
     this.cache = cache;
     this.limiter = rateLimiter;
   }
-  
+
   async send(channelId, message, personality) {
     const webhook = await this.cache.getOrCreate(channelId);
     await this.limiter.throttle();
-    
+
     return webhook.send({
       content: message.content,
       username: personality.name,
-      avatarURL: personality.avatar
+      avatarURL: personality.avatar,
     });
   }
 }
 ```
 
 ### Benefits
+
 - **Isolates webhook sending** from complex manager
 - **Easier to test** in isolation
 - **Can add features** (circuit breaker, retries) cleanly
@@ -140,15 +144,15 @@ Simple but powerful for debugging the hybrid system:
 class CorrelationMiddleware {
   async handle(message, next) {
     const correlationId = crypto.randomUUID();
-    const context = { 
-      correlationId, 
+    const context = {
+      correlationId,
       startTime: Date.now(),
-      messageId: message.id 
+      messageId: message.id,
     };
-    
+
     // Attach to all operations
     logger.info('Message received', context);
-    
+
     try {
       return await next(message, context);
     } finally {
@@ -160,6 +164,7 @@ class CorrelationMiddleware {
 ```
 
 ### Benefits
+
 - **Trace requests** through hybrid architecture
 - **Identify bottlenecks** easily
 - **Debug production issues** faster
@@ -206,6 +211,7 @@ But **only after** proving value with these pragmatic steps.
 ## Conclusion
 
 Perfect is the enemy of good. These improvements:
+
 - Are achievable in 5 weeks
 - Provide real, measurable benefits
 - Don't require massive refactoring

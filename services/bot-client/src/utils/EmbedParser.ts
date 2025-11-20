@@ -43,9 +43,7 @@ export class EmbedParser {
     // Add author
     if (embed.author !== undefined && embed.author !== null) {
       const authorText =
-        embed.author.url !== undefined &&
-        embed.author.url !== null &&
-        embed.author.url.length > 0
+        embed.author.url !== undefined && embed.author.url !== null && embed.author.url.length > 0
           ? `[${embed.author.name}](${embed.author.url})`
           : embed.author.name;
       parts.push(`Author: ${authorText}`);
@@ -69,11 +67,7 @@ export class EmbedParser {
     }
 
     // Add image
-    if (
-      embed.image?.url !== undefined &&
-      embed.image.url !== null &&
-      embed.image.url.length > 0
-    ) {
+    if (embed.image?.url !== undefined && embed.image.url !== null && embed.image.url.length > 0) {
       parts.push(``, `Image: ${embed.image.url}`);
     }
 
@@ -96,11 +90,7 @@ export class EmbedParser {
     }
 
     // Add timestamp
-    if (
-      embed.timestamp !== undefined &&
-      embed.timestamp !== null &&
-      embed.timestamp.length > 0
-    ) {
+    if (embed.timestamp !== undefined && embed.timestamp !== null && embed.timestamp.length > 0) {
       parts.push(`Timestamp: ${embed.timestamp}`);
     }
 
@@ -119,11 +109,7 @@ export class EmbedParser {
    * @returns Formatted embeds string, or empty string if no embeds
    */
   static parseMessageEmbeds(message: Message): string {
-    if (
-      message.embeds === undefined ||
-      message.embeds === null ||
-      message.embeds.length === 0
-    ) {
+    if (message.embeds === undefined || message.embeds === null || message.embeds.length === 0) {
       return '';
     }
 
@@ -141,10 +127,6 @@ export class EmbedParser {
    * @returns True if message has embeds
    */
   static hasEmbeds(message: Message): boolean {
-    return (
-      message.embeds !== undefined &&
-      message.embeds !== null &&
-      message.embeds.length > 0
-    );
+    return message.embeds !== undefined && message.embeds !== null && message.embeds.length > 0;
   }
 }

@@ -152,18 +152,42 @@ export async function handleImport(
 
     // Show what was imported
     const importedFields: string[] = [];
-    if (payload.characterInfo !== undefined && payload.characterInfo !== null) {importedFields.push('Character Info');}
-    if (payload.personalityTraits !== undefined && payload.personalityTraits !== null) {importedFields.push('Personality Traits');}
-    if (payload.displayName !== undefined && payload.displayName !== null) {importedFields.push('Display Name');}
-    if (payload.personalityTone !== undefined && payload.personalityTone !== null) {importedFields.push('Tone');}
-    if (payload.personalityAge !== undefined && payload.personalityAge !== null) {importedFields.push('Age');}
-    if (payload.personalityAppearance !== undefined && payload.personalityAppearance !== null) {importedFields.push('Appearance');}
-    if (payload.personalityLikes !== undefined && payload.personalityLikes !== null) {importedFields.push('Likes');}
-    if (payload.personalityDislikes !== undefined && payload.personalityDislikes !== null) {importedFields.push('Dislikes');}
-    if (payload.conversationalGoals !== undefined && payload.conversationalGoals !== null) {importedFields.push('Conversational Goals');}
-    if (payload.conversationalExamples !== undefined && payload.conversationalExamples !== null) {importedFields.push('Conversational Examples');}
-    if (payload.customFields !== undefined && payload.customFields !== null) {importedFields.push('Custom Fields');}
-    if (payload.avatarData !== undefined && payload.avatarData !== null) {importedFields.push('Avatar Data');}
+    if (payload.characterInfo !== undefined && payload.characterInfo !== null) {
+      importedFields.push('Character Info');
+    }
+    if (payload.personalityTraits !== undefined && payload.personalityTraits !== null) {
+      importedFields.push('Personality Traits');
+    }
+    if (payload.displayName !== undefined && payload.displayName !== null) {
+      importedFields.push('Display Name');
+    }
+    if (payload.personalityTone !== undefined && payload.personalityTone !== null) {
+      importedFields.push('Tone');
+    }
+    if (payload.personalityAge !== undefined && payload.personalityAge !== null) {
+      importedFields.push('Age');
+    }
+    if (payload.personalityAppearance !== undefined && payload.personalityAppearance !== null) {
+      importedFields.push('Appearance');
+    }
+    if (payload.personalityLikes !== undefined && payload.personalityLikes !== null) {
+      importedFields.push('Likes');
+    }
+    if (payload.personalityDislikes !== undefined && payload.personalityDislikes !== null) {
+      importedFields.push('Dislikes');
+    }
+    if (payload.conversationalGoals !== undefined && payload.conversationalGoals !== null) {
+      importedFields.push('Conversational Goals');
+    }
+    if (payload.conversationalExamples !== undefined && payload.conversationalExamples !== null) {
+      importedFields.push('Conversational Examples');
+    }
+    if (payload.customFields !== undefined && payload.customFields !== null) {
+      importedFields.push('Custom Fields');
+    }
+    if (payload.avatarData !== undefined && payload.avatarData !== null) {
+      importedFields.push('Avatar Data');
+    }
 
     embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
 

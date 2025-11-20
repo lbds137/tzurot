@@ -549,16 +549,16 @@ describe('BackupAPIClient', () => {
         { id: '123456789012345678', name: 'Personality1', username: 'user1' },
         { id: '223456789012345678', name: 'Personality2', username: 'user2' },
       ];
-      
+
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue(personalities),
       };
       mockFetch.mockResolvedValue(mockResponse);
-      
+
       const authData = { cookie: 'session=abc123' };
       const result = await client.fetchPersonalitiesByCategory('self', authData);
-      
+
       expect(result).toEqual(personalities);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/personalities?category=self',
@@ -572,51 +572,49 @@ describe('BackupAPIClient', () => {
       expect(logger.info).toHaveBeenCalledWith(
         '[BackupAPIClient] Fetching self personalities from: https://example.com/api/personalities?category=self'
       );
-      expect(logger.info).toHaveBeenCalledWith(
-        '[BackupAPIClient] Retrieved 2 self personalities'
-      );
+      expect(logger.info).toHaveBeenCalledWith('[BackupAPIClient] Retrieved 2 self personalities');
     });
-    
+
     it('should fetch recent personalities', async () => {
       const personalities = [
         { id: '323456789012345678', name: 'Personality3', username: 'user3' },
         { id: '423456789012345678', name: 'Personality4', username: 'user4' },
         { id: '523456789012345678', name: 'Personality5', username: 'user5' },
       ];
-      
+
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue(personalities),
       };
       mockFetch.mockResolvedValue(mockResponse);
-      
+
       const authData = { cookie: 'session=abc123' };
       const result = await client.fetchPersonalitiesByCategory('recent', authData);
-      
+
       expect(result).toEqual(personalities);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://example.com/api/personalities?category=recent',
         expect.any(Object)
       );
     });
-    
+
     it('should handle non-array response', async () => {
       const mockResponse = {
         ok: true,
         json: jest.fn().mockResolvedValue({ error: 'Invalid response' }),
       };
       mockFetch.mockResolvedValue(mockResponse);
-      
+
       const authData = { cookie: 'session=abc123' };
       const result = await client.fetchPersonalitiesByCategory('self', authData);
-      
+
       expect(result).toEqual([]);
       expect(logger.error).toHaveBeenCalledWith(
         '[BackupAPIClient] Expected array of personalities, got:',
         'object'
       );
     });
-    
+
     it('should propagate API errors', async () => {
       const mockResponse = {
         ok: false,
@@ -625,13 +623,13 @@ describe('BackupAPIClient', () => {
         json: jest.fn().mockResolvedValue({ error: 'Invalid session' }),
       };
       mockFetch.mockResolvedValue(mockResponse);
-      
+
       const authData = { cookie: 'session=abc123' };
-      
-      await expect(
-        client.fetchPersonalitiesByCategory('recent', authData)
-      ).rejects.toThrow('API error 401: Unauthorized');
-      
+
+      await expect(client.fetchPersonalitiesByCategory('recent', authData)).rejects.toThrow(
+        'API error 401: Unauthorized'
+      );
+
       expect(logger.error).toHaveBeenCalledWith(
         '[BackupAPIClient] Error fetching recent personalities:',
         'API error 401: Unauthorized'

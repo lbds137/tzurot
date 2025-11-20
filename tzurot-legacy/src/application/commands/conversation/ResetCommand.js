@@ -184,7 +184,6 @@ function createResetCommand() {
             timestamp: new Date().toISOString(),
           };
 
-
           return await context.respond({ embeds: [successEmbed] });
         } catch (error) {
           logger.error('[ResetCommand] Error resetting conversation:', error);

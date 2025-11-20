@@ -27,6 +27,7 @@
 The schema is already well-designed for this! We just need to wire it up properly:
 
 #### `LlmConfig` (lines 73-101 in schema.prisma)
+
 ```prisma
 model LlmConfig {
   id                   String    @id @default(uuid())
@@ -52,6 +53,7 @@ model LlmConfig {
 ```
 
 #### `PersonalityOwner` (lines 149-162)
+
 ```prisma
 model PersonalityOwner {
   personalityId String
@@ -63,6 +65,7 @@ model PersonalityOwner {
 ```
 
 #### `PersonalityDefaultConfig` (lines 103-112)
+
 ```prisma
 model PersonalityDefaultConfig {
   personalityId String  @id @unique
@@ -72,6 +75,7 @@ model PersonalityDefaultConfig {
 ```
 
 #### `UserPersonalityConfig` (lines 164-181)
+
 ```prisma
 model UserPersonalityConfig {
   id            String   @id @default(uuid())
@@ -84,6 +88,7 @@ model UserPersonalityConfig {
 ```
 
 #### `Persona` (lines 27-46)
+
 ```prisma
 model Persona {
   name          String
@@ -97,6 +102,7 @@ model Persona {
 ```
 
 #### `UserDefaultPersona` (lines 48-57)
+
 ```prisma
 model UserDefaultPersona {
   userId    String  @id @unique
@@ -139,6 +145,7 @@ model User {
 ### Phase 1: Database Setup (1 session)
 
 **Tasks:**
+
 1. Create migration for `Personality.isPublic` field
 2. Create migration for `User.isSuperuser` field
 3. Write data migration script:
@@ -150,6 +157,7 @@ model User {
      - Update `isPublic` field accordingly
 
 **Deliverables:**
+
 - `prisma/migrations/XXX_add_personality_visibility/migration.sql`
 - `prisma/migrations/XXX_add_superuser_role/migration.sql`
 - `scripts/setup-personality-ownership.ts` (one-time data migration)
@@ -159,6 +167,7 @@ model User {
 **Commands to implement:**
 
 #### User Commands (bot-client)
+
 ```
 /llm-config list
   → Shows user's saved configs + global configs
@@ -185,6 +194,7 @@ model User {
 ```
 
 #### Admin Commands (bot-client, superuser only)
+
 ```
 /admin llm-config create-global
   → Same interactive flow as /llm-config create
@@ -201,6 +211,7 @@ model User {
 ```
 
 **Implementation:**
+
 - Create `services/bot-client/src/commands/llm-config.ts`
 - Create `services/bot-client/src/commands/admin/llm-config.ts`
 - Add interactive prompt helpers (reusable utility)
@@ -211,6 +222,7 @@ model User {
 **Commands to implement:**
 
 #### User Commands
+
 ```
 /model set <personality>
   → Shows dropdown of available configs (user configs + global configs)
@@ -231,6 +243,7 @@ model User {
 ```
 
 #### Admin Commands
+
 ```
 /admin model set-personality-default <personality> <config-name>
   → Sets PersonalityDefaultConfig
@@ -248,6 +261,7 @@ model User {
 ```
 
 **Implementation:**
+
 - Create `services/bot-client/src/commands/model.ts`
 - Create `services/bot-client/src/commands/admin/personality.ts`
 - Add permission checks for admin commands
@@ -258,6 +272,7 @@ model User {
 **Commands to implement:**
 
 #### User Commands
+
 ```
 /persona list
   → Shows user's personas with description
@@ -321,24 +336,24 @@ model User {
 {
   name: string;
   description: string;
-  content: string;           // Main persona text for LLM
-  preferredName: string;      // How LLM should address user
-  pronouns: string;           // User's pronouns
-  ownerId: string;            // User who owns this persona
+  content: string; // Main persona text for LLM
+  preferredName: string; // How LLM should address user
+  pronouns: string; // User's pronouns
+  ownerId: string; // User who owns this persona
 }
 
 // UserDefaultPersona (already exists)
 {
   userId: string;
-  personaId: string;          // User's default persona
+  personaId: string; // User's default persona
 }
 
 // UserPersonalityConfig.personaId (already exists)
 {
   userId: string;
   personalityId: string;
-  personaId: string;          // Persona override for this personality
-  llmConfigId: string;        // LLM config override (from Phase 3)
+  personaId: string; // Persona override for this personality
+  llmConfigId: string; // LLM config override (from Phase 3)
 }
 ```
 
@@ -395,6 +410,7 @@ Bot: ✅ Persona 'Vampire RP' updated!
 ```
 
 **Implementation:**
+
 - Create `services/bot-client/src/commands/persona.ts`
 - Add interactive prompt helpers (reusable from Phase 2)
 - Add dropdown menus for persona selection
@@ -414,14 +430,11 @@ interface ResolvedLlmConfig {
   source: 'user-override' | 'personality-default' | 'global-default';
 }
 
-async function resolveLlmConfig(
-  userId: string,
-  personalityId: string
-): Promise<ResolvedLlmConfig> {
+async function resolveLlmConfig(userId: string, personalityId: string): Promise<ResolvedLlmConfig> {
   // 1. Check user's override for this personality
   const userOverride = await prisma.userPersonalityConfig.findUnique({
     where: {
-      userId_personalityId: { userId, personalityId }
+      userId_personalityId: { userId, personalityId },
     },
     include: { llmConfig: true },
   });
@@ -429,7 +442,7 @@ async function resolveLlmConfig(
   if (userOverride?.llmConfig) {
     return {
       llmConfig: userOverride.llmConfig,
-      source: 'user-override'
+      source: 'user-override',
     };
   }
 
@@ -442,7 +455,7 @@ async function resolveLlmConfig(
   if (personalityDefault?.llmConfig) {
     return {
       llmConfig: personalityDefault.llmConfig,
-      source: 'personality-default'
+      source: 'personality-default',
     };
   }
 
@@ -457,7 +470,7 @@ async function resolveLlmConfig(
 
   return {
     llmConfig: globalDefault,
-    source: 'global-default'
+    source: 'global-default',
   };
 }
 
@@ -466,14 +479,11 @@ interface ResolvedPersona {
   source: 'personality-override' | 'user-default';
 }
 
-async function resolvePersona(
-  userId: string,
-  personalityId: string
-): Promise<ResolvedPersona> {
+async function resolvePersona(userId: string, personalityId: string): Promise<ResolvedPersona> {
   // 1. Check user's override for this personality
   const userOverride = await prisma.userPersonalityConfig.findUnique({
     where: {
-      userId_personalityId: { userId, personalityId }
+      userId_personalityId: { userId, personalityId },
     },
     include: { persona: true },
   });
@@ -481,7 +491,7 @@ async function resolvePersona(
   if (userOverride?.persona) {
     return {
       persona: userOverride.persona,
-      source: 'personality-override'
+      source: 'personality-override',
     };
   }
 
@@ -497,12 +507,13 @@ async function resolvePersona(
 
   return {
     persona: defaultPersona.persona,
-    source: 'user-default'
+    source: 'user-default',
   };
 }
 ```
 
 **Update ConversationalRAGService:**
+
 - Replace hardcoded model selection with `resolveLlmConfig()`
 - Replace persona lookup with `resolvePersona()`
 - Log which config/persona sources were used (helps debugging)
@@ -512,6 +523,7 @@ async function resolvePersona(
 ### Phase 6: Testing & Refinement (1-2 sessions)
 
 **LLM Config Test Cases:**
+
 1. User creates LLM config → appears in `/llm-config list`
 2. User sets model override → personality uses it
 3. User resets override → reverts to personality default
@@ -521,6 +533,7 @@ async function resolvePersona(
 7. Interactive prompts handle invalid input gracefully
 
 **Persona Test Cases:**
+
 1. User creates persona → appears in `/persona list`
 2. User sets default persona → used for all conversations (unless overridden)
 3. User sets persona override for personality → that personality uses it
@@ -530,6 +543,7 @@ async function resolvePersona(
 7. Interactive editing flow works smoothly
 
 **Edge Cases:**
+
 - Deleting a config that's in use (prevent or warn)
 - User tries to delete global config (permission denied)
 - Non-owner tries to use private personality (access denied)
@@ -647,9 +661,7 @@ async function isSuperuser(discordUserId: string): Promise<boolean> {
   return user?.isSuperuser ?? false;
 }
 
-async function requireSuperuser(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
+async function requireSuperuser(interaction: ChatInputCommandInteraction): Promise<void> {
   const hasPermission = await isSuperuser(interaction.user.id);
 
   if (!hasPermission) {
@@ -665,10 +677,7 @@ async function requireSuperuser(
 ### Personality Ownership Check
 
 ```typescript
-async function canAccessPersonality(
-  userId: string,
-  personalityId: string
-): Promise<boolean> {
+async function canAccessPersonality(userId: string, personalityId: string): Promise<boolean> {
   const personality = await prisma.personality.findUnique({
     where: { id: personalityId },
     include: { owners: true },
@@ -740,9 +749,7 @@ const personalitiesWithoutOwners = await prisma.personality.findMany({
 console.log(`Found ${personalitiesWithoutOwners.length} personalities without owners`);
 
 // Interactive prompt: which should be public?
-const publicPersonalities = await promptForPublicPersonalities(
-  personalitiesWithoutOwners
-);
+const publicPersonalities = await promptForPublicPersonalities(personalitiesWithoutOwners);
 
 // Assign ownership and visibility
 for (const personality of personalitiesWithoutOwners) {
@@ -772,9 +779,7 @@ for (const personality of personalitiesWithoutOwners) {
 ### Step 3: Interactive Visibility Selection
 
 ```typescript
-async function promptForPublicPersonalities(
-  personalities: Personality[]
-): Promise<string[]> {
+async function promptForPublicPersonalities(personalities: Personality[]): Promise<string[]> {
   console.log('\nWhich personalities should be PUBLIC (visible to all users)?');
   console.log('You can change this later with /admin personality set-visibility\n');
 
@@ -795,16 +800,17 @@ async function promptForPublicPersonalities(
 
 **Total: 9-11 focused work sessions**
 
-| Phase | Sessions | Description |
-|-------|----------|-------------|
-| 1. Database Setup | 1 session | Migrations, data migration script |
-| 2. LLM Config Commands | 2 sessions | User and admin commands |
-| 3. Model Override Commands | 2 sessions | Personality-specific commands |
-| 4. Persona Management Commands | 2 sessions | Create, edit, delete, set defaults |
-| 5. Config & Persona Resolution | 1 session | Update ai-worker logic |
-| 6. Testing & Polish | 1-2 sessions | Test all flows, edge cases |
+| Phase                          | Sessions     | Description                        |
+| ------------------------------ | ------------ | ---------------------------------- |
+| 1. Database Setup              | 1 session    | Migrations, data migration script  |
+| 2. LLM Config Commands         | 2 sessions   | User and admin commands            |
+| 3. Model Override Commands     | 2 sessions   | Personality-specific commands      |
+| 4. Persona Management Commands | 2 sessions   | Create, edit, delete, set defaults |
+| 5. Config & Persona Resolution | 1 session    | Update ai-worker logic             |
+| 6. Testing & Polish            | 1-2 sessions | Test all flows, edge cases         |
 
 **Calendar time:**
+
 - 2-3 sessions/week: **4-5 weeks**
 - 3-4 sessions/week: **3 weeks**
 
@@ -813,6 +819,7 @@ async function promptForPublicPersonalities(
 **Phase completion means:**
 
 **LLM Config Management:**
+
 - ✅ Bot owner can create global LLM configs
 - ✅ Bot owner can set default model per personality
 - ✅ Bot owner can control personality visibility (public/private)
@@ -822,6 +829,7 @@ async function promptForPublicPersonalities(
 - ✅ No more manual model switching in production emergencies!
 
 **Persona Management:**
+
 - ✅ Users can create multiple personas (different "you" for different contexts)
 - ✅ Users can edit personas with interactive flow
 - ✅ Users can set default persona (used unless overridden)
@@ -830,6 +838,7 @@ async function promptForPublicPersonalities(
 - ✅ Persona content properly integrated into prompts (preferredName, pronouns)
 
 **Overall:**
+
 - ✅ Interactive slash commands provide great UX
 - ✅ All hierarchies clear and well-documented
 - ✅ Edge cases handled gracefully with helpful errors
@@ -837,6 +846,7 @@ async function promptForPublicPersonalities(
 ## After This Phase
 
 Once QoL improvements are complete, we can:
+
 1. Resume OpenMemory migration with better tooling
 2. Handle model refusals gracefully (auto-fallback to uncensored model)
 3. Users can experiment with different models without bothering bot owner

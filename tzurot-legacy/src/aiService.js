@@ -14,7 +14,6 @@ const {
 const { getPersonalityDataService } = require('./services/PersonalityDataService');
 const { createFeatureFlags } = require('./application/services/FeatureFlags');
 
-
 // Check if user is authenticated using DDD system
 async function isUserAuthenticated(userId) {
   if (!userId) return false;
@@ -78,7 +77,6 @@ const addToBlackoutList = aiRequestManager.addToBlackoutList;
 
 // Request ID creation is now handled by aiRequestManager module
 const createRequestId = aiRequestManager.createRequestId;
-
 
 /**
  * Gets a response from the AI service for the specified personality
@@ -283,7 +281,6 @@ async function getAiResponse(personalityName, message, context = {}) {
   return responsePromise;
 }
 
-
 // Message formatting function moved to utils/aiMessageFormatter.js
 
 async function handleNormalPersonality(personalityName, message, context, modelPath, headers) {
@@ -406,7 +403,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
     logger.error(`[AIService] Invalid response structure from ${personalityName}`);
     // Use personality error handler for empty/invalid responses
-    const errorMessage = await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
+    const errorMessage = await analyzeErrorAndGenerateMessage(
+      '',
+      personalityName,
+      context,
+      addToBlackoutList
+    );
     return { content: errorMessage, metadata: null };
   }
 
@@ -439,7 +441,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   if (content.length === 0) {
     logger.error(`[AIService] Empty content received from ${personalityName}`);
     // Use personality error handler for empty content
-    const errorMessage = await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
+    const errorMessage = await analyzeErrorAndGenerateMessage(
+      '',
+      personalityName,
+      context,
+      addToBlackoutList
+    );
     return { content: errorMessage, metadata: null };
   }
 
@@ -453,11 +460,11 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   logger.info(
     `[AIService] Successfully generated response for ${personalityName} (${content.length} chars)`
   );
-  
+
   // Return both content and metadata
   return {
     content: content,
-    metadata: metadata
+    metadata: metadata,
   };
 }
 

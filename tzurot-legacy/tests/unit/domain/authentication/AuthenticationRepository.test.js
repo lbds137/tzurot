@@ -138,9 +138,8 @@ describe('AuthenticationRepository', () => {
       }
 
       async countAuthenticated() {
-        return Array.from(this.users.values()).filter(
-          userAuth => userAuth.isAuthenticated()
-        ).length;
+        return Array.from(this.users.values()).filter(userAuth => userAuth.isAuthenticated())
+          .length;
       }
     }
 
@@ -175,10 +174,10 @@ describe('AuthenticationRepository', () => {
       const userId2 = new UserId('987654321098765432');
       const token2 = new Token('test-token-456', new Date(Date.now() + 3600000)); // Valid token
       const userAuth2 = UserAuth.createAuthenticated(userId2, token2);
-      
+
       // Save the user first
       await mockRepo.save(userAuth2);
-      
+
       // Now expire the token
       userAuth2.expireToken();
       await mockRepo.save(userAuth2);

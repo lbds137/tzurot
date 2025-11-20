@@ -141,9 +141,7 @@ describe('LinkExtractor', () => {
 
       expect(references).toHaveLength(1);
       expect(linkMap.size).toBe(1);
-      expect(linkMap.get('https://discord.com/channels/guild-123/channel-123/ref-msg-123')).toBe(
-        1
-      );
+      expect(linkMap.get('https://discord.com/channels/guild-123/channel-123/ref-msg-123')).toBe(1);
       expect(mockMessageFormatter.formatMessage).toHaveBeenCalledWith(mockReferencedMessage, 1);
     });
 
@@ -499,7 +497,10 @@ describe('LinkExtractor', () => {
         isTextBased: () => false,
       };
 
-      (mockGuild.channels.cache as Map<string, Channel>).set('voice-123', mockVoiceChannel as Channel);
+      (mockGuild.channels.cache as Map<string, Channel>).set(
+        'voice-123',
+        mockVoiceChannel as Channel
+      );
 
       vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
         {
@@ -753,7 +754,9 @@ describe('LinkExtractor', () => {
       vi.mocked(mockChannel.messages.fetch).mockResolvedValue(mockReferencedMessage as any);
 
       // Timestamp difference > 15s (outside tolerance)
-      const historyTimestamp = new Date(messageTime.getTime() + INTERVALS.MESSAGE_TIMESTAMP_TOLERANCE + 5000);
+      const historyTimestamp = new Date(
+        messageTime.getTime() + INTERVALS.MESSAGE_TIMESTAMP_TOLERANCE + 5000
+      );
 
       const [references, linkMap] = await linkExtractor.extractLinkReferences(
         mockMessage,

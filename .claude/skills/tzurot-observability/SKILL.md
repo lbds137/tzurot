@@ -1,7 +1,7 @@
 ---
 name: tzurot-observability
 description: Logging and observability for Tzurot v3 - Structured logging with Pino, correlation IDs, error tracking, privacy considerations, and Railway log analysis. Use when adding logging or debugging production issues.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Observability & Logging
@@ -36,7 +36,7 @@ export function createLogger(serviceName: string): pino.Logger {
     name: serviceName,
     level: process.env.LOG_LEVEL || 'info',
     formatters: {
-      level: (label) => {
+      level: label => {
         return { level: label };
       },
     },
@@ -79,8 +79,8 @@ logger.fatal({ err: error }, 'Failed to connect to database');
 
 ```typescript
 logger.info(
-  { contextObject },  // First param: structured data
-  'Human readable message'  // Second param: message
+  { contextObject }, // First param: structured data
+  'Human readable message' // Second param: message
 );
 ```
 
@@ -88,25 +88,13 @@ logger.info(
 
 ```typescript
 // ✅ GOOD - Context + message
-logger.info(
-  { personalityId, model: 'claude-sonnet-4.5' },
-  'Loaded personality with config'
-);
+logger.info({ personalityId, model: 'claude-sonnet-4.5' }, 'Loaded personality with config');
 
-logger.error(
-  { err: error, requestId, userId },
-  'Failed to process AI request'
-);
+logger.error({ err: error, requestId, userId }, 'Failed to process AI request');
 
-logger.warn(
-  { jobId, attempt: 2, maxAttempts: 3 },
-  'Retrying failed job'
-);
+logger.warn({ jobId, attempt: 2, maxAttempts: 3 }, 'Retrying failed job');
 
-logger.debug(
-  { channelId, messageCount: history.length },
-  'Retrieved conversation history'
-);
+logger.debug({ channelId, messageCount: history.length }, 'Retrieved conversation history');
 ```
 
 ### Bad Examples
@@ -131,10 +119,7 @@ logger.debug({ apiKey, token }, 'Making API call');
 
 ```typescript
 // ✅ CORRECT - Use 'err' key for errors
-logger.error(
-  { err: error, context: 'additional data' },
-  'Human readable error message'
-);
+logger.error({ err: error, context: 'additional data' }, 'Human readable error message');
 
 // ❌ WRONG - Don't use 'error' key
 logger.error(
@@ -144,6 +129,7 @@ logger.error(
 ```
 
 **Why `err`?** Pino has special handling for the `err` key:
+
 - Serializes stack traces properly
 - Includes error name and message
 - Formats consistently across services
@@ -158,9 +144,9 @@ try {
   logger.error(
     {
       err: error,
-      id,  // What we were processing
-      userId,  // Who triggered it
-      attempt,  // Which retry attempt
+      id, // What we were processing
+      userId, // Who triggered it
+      attempt, // Which retry attempt
     },
     'Failed to process item'
   );
@@ -190,13 +176,13 @@ await fetch(`${GATEWAY_URL}/ai/generate`, {
     'X-Request-ID': requestId,
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify({ requestId, /* ... */ }),
+  body: JSON.stringify({ requestId /* ... */ }),
 });
 
 // 3. Extract and use in api-gateway
 app.use((req, res, next) => {
   const requestId = req.headers['x-request-id'] || randomUUID();
-  req.requestId = requestId;  // Attach to request object
+  req.requestId = requestId; // Attach to request object
   next();
 });
 
@@ -240,6 +226,7 @@ railway logs --service bot-client | grep "requestId\":\"abc-123"
 ### NEVER Log These
 
 **Secrets:**
+
 - API keys (DISCORD_TOKEN, OPENROUTER_API_KEY, etc.)
 - Database passwords
 - Redis passwords
@@ -247,6 +234,7 @@ railway logs --service bot-client | grep "requestId\":\"abc-123"
 - Any credential or authentication token
 
 **PII (Personally Identifiable Information):**
+
 - Email addresses
 - IP addresses
 - Real names
@@ -254,6 +242,7 @@ railway logs --service bot-client | grep "requestId\":\"abc-123"
 - Addresses
 
 **Sensitive User Data:**
+
 - Message content (unless debugging specific issue)
 - DM conversations
 - Personality system prompts (contain character details)
@@ -261,24 +250,24 @@ railway logs --service bot-client | grep "requestId\":\"abc-123"
 ### Safe to Log
 
 **IDs (anonymized):**
+
 ```typescript
 // ✅ SAFE - IDs don't reveal personal info
 logger.info({ userId: 'discord-123456', channelId: 'channel-789' });
 ```
 
 **Aggregated Data:**
+
 ```typescript
 // ✅ SAFE - No individual identification
 logger.info({ messageCount: 42, avgLength: 156 });
 ```
 
 **Error Information:**
+
 ```typescript
 // ✅ SAFE - Error details without sensitive data
-logger.error(
-  { err: error, statusCode: 429, endpoint: '/ai/generate' },
-  'Rate limit exceeded'
-);
+logger.error({ err: error, statusCode: 429, endpoint: '/ai/generate' }, 'Rate limit exceeded');
 ```
 
 ### Redacting Sensitive Data
@@ -300,10 +289,7 @@ function redactSensitive(obj: any): any {
 }
 
 // Usage
-logger.debug(
-  redactSensitive({ apiKey: 'sk-123', model: 'gpt-4' }),
-  'Making API call'
-);
+logger.debug(redactSensitive({ apiKey: 'sk-123', model: 'gpt-4' }), 'Making API call');
 // Logs: { apiKey: '[REDACTED]', model: 'gpt-4' }
 ```
 
@@ -464,18 +450,12 @@ async function processRequest(data: RequestData): Promise<Response> {
     const result = await doWork(data);
 
     const durationMs = Date.now() - startTime;
-    logger.info(
-      { requestId, durationMs, status: 'success' },
-      'Request completed'
-    );
+    logger.info({ requestId, durationMs, status: 'success' }, 'Request completed');
 
     return result;
   } catch (error) {
     const durationMs = Date.now() - startTime;
-    logger.error(
-      { requestId, durationMs, err: error, status: 'failed' },
-      'Request failed'
-    );
+    logger.error({ requestId, durationMs, err: error, status: 'failed' }, 'Request failed');
     throw error;
   }
 }
@@ -494,10 +474,7 @@ async function queryDatabase(query: string): Promise<any> {
   const durationMs = Date.now() - startTime;
 
   if (durationMs > SLOW_THRESHOLD) {
-    logger.warn(
-      { durationMs, query: query.substring(0, 100) },
-      'Slow database query detected'
-    );
+    logger.warn({ durationMs, query: query.substring(0, 100) }, 'Slow database query detected');
   }
 
   return result;
@@ -622,7 +599,6 @@ LOG_LEVEL=trace railway logs --service ai-worker
 - **tzurot-async-flow** - Job correlation IDs
 - **tzurot-db-vector** - Database query logging
 - **tzurot-constants** - Log level constants
-
 
 ## References
 

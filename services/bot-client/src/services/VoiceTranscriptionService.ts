@@ -33,9 +33,7 @@ export class VoiceTranscriptionService {
    */
   hasVoiceAttachment(message: Message): boolean {
     return message.attachments.some(
-      a =>
-        (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
-        a.duration !== null
+      a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
     );
   }
 

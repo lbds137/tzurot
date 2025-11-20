@@ -172,8 +172,14 @@ describe('ZipArchiveService', () => {
       expect(mockJSZip).toHaveBeenCalledTimes(1);
       expect(mockFs.readdir).toHaveBeenCalledTimes(2);
       expect(mockZipInstance.file).toHaveBeenCalledTimes(2);
-      expect(mockZipInstance.file).toHaveBeenCalledWith('personality1/file1.json', Buffer.from('{"p1":true}'));
-      expect(mockZipInstance.file).toHaveBeenCalledWith('personality2/file2.json', Buffer.from('{"p2":true}'));
+      expect(mockZipInstance.file).toHaveBeenCalledWith(
+        'personality1/file1.json',
+        Buffer.from('{"p1":true}')
+      );
+      expect(mockZipInstance.file).toHaveBeenCalledWith(
+        'personality2/file2.json',
+        Buffer.from('{"p2":true}')
+      );
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('Created bulk ZIP archive with 2 personalities')
       );
@@ -196,7 +202,10 @@ describe('ZipArchiveService', () => {
         'Failed to create bulk ZIP archive: Bulk creation error'
       );
 
-      expect(logger.error).toHaveBeenCalledWith('[ZipArchiveService] Failed to create bulk archive:', error);
+      expect(logger.error).toHaveBeenCalledWith(
+        '[ZipArchiveService] Failed to create bulk archive:',
+        error
+      );
     });
 
     it('should handle partial failures in bulk archive', async () => {
@@ -285,7 +294,10 @@ describe('ZipArchiveService', () => {
       ).rejects.toThrow();
 
       expect(mockZipInstance.file).toHaveBeenCalledTimes(1);
-      expect(mockZipInstance.file).toHaveBeenCalledWith('test/readable.json', Buffer.from('{"readable":true}'));
+      expect(mockZipInstance.file).toHaveBeenCalledWith(
+        'test/readable.json',
+        Buffer.from('{"readable":true}')
+      );
     });
   });
 });

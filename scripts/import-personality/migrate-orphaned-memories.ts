@@ -111,7 +111,9 @@ async function migrateOrphanedMemories(dryRun: boolean): Promise<MigrationStats>
       with_vector: true,
     });
 
-    if (response.points.length === 0) {break;}
+    if (response.points.length === 0) {
+      break;
+    }
 
     batchCount++;
     console.log(`Processing batch ${batchCount} (${response.points.length} memories)...`);
@@ -191,7 +193,9 @@ async function migrateOrphanedMemories(dryRun: boolean): Promise<MigrationStats>
     }
 
     offset = response.next_page_offset;
-    if (!offset) {break;}
+    if (!offset) {
+      break;
+    }
 
     // Small delay between batches
     if (!dryRun) {

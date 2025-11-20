@@ -17,45 +17,47 @@ tests/__mocks__/
 ## Quick Start
 
 ### For Command Tests
+
 ```javascript
 const { presets } = require('../../__mocks__');
 
 describe('My Command', () => {
   let mockEnv;
-  
+
   beforeEach(() => {
     mockEnv = presets.commandTest({
       userPermissions: ['ADMINISTRATOR'],
-      discord: { nsfw: false }
+      discord: { nsfw: false },
     });
   });
-  
+
   it('should handle command', async () => {
     const message = mockEnv.discord.createMessage({
       content: '!tz test',
-      author: { id: 'user-123' }
+      author: { id: 'user-123' },
     });
-    
+
     // Your test logic here
   });
 });
 ```
 
 ### For Webhook/AI Tests
+
 ```javascript
 const { presets } = require('../../__mocks__');
 
 describe('AI Integration', () => {
   let mockEnv;
-  
+
   beforeEach(() => {
     mockEnv = presets.webhookTest({
       mockResponses: {
-        'test-personality': 'Mock AI response'
-      }
+        'test-personality': 'Mock AI response',
+      },
     });
   });
-  
+
   it('should send AI response via webhook', async () => {
     // Test AI integration
   });
@@ -63,21 +65,22 @@ describe('AI Integration', () => {
 ```
 
 ### Manual Setup
+
 ```javascript
 const mocks = require('../../__mocks__');
 
 describe('Custom Test', () => {
   let discord, api, modules;
-  
+
   beforeEach(() => {
     discord = mocks.discord.createDiscordEnvironment();
     api = mocks.api.createApiEnvironment();
     modules = mocks.modules.createModuleEnvironment();
   });
-  
+
   it('should work with custom setup', () => {
     const message = discord.createMessage();
-    const response = api.createResponse({ data: { test: true }});
+    const response = api.createResponse({ data: { test: true } });
     // etc.
   });
 });
@@ -86,6 +89,7 @@ describe('Custom Test', () => {
 ## Migration from Old Mocks
 
 ### Before (scattered mocks)
+
 ```javascript
 // Old way - multiple imports and inconsistent APIs
 const { createMockMessage } = require('../../utils/discordMocks');
@@ -96,17 +100,18 @@ jest.mock('../../../src/personalityManager', () => mockPersonalityManager);
 ```
 
 ### After (consolidated mocks)
+
 ```javascript
 // New way - single import with consistent API
 const { presets } = require('../../__mocks__');
 
 describe('Test', () => {
   let mockEnv;
-  
+
   beforeEach(() => {
     mockEnv = presets.commandTest();
   });
-  
+
   // Use mockEnv.discord, mockEnv.api, mockEnv.modules
 });
 ```
@@ -122,24 +127,26 @@ describe('Test', () => {
 ## Advanced Usage
 
 ### Custom API Responses
+
 ```javascript
 const { api } = require('../../__mocks__');
 
 beforeEach(() => {
   const apiEnv = api.createApiEnvironment();
-  
+
   // Set specific responses
   apiEnv.fetch.setResponse('/api/profiles/123', {
     ok: true,
-    data: { id: '123', name: 'Custom Profile' }
+    data: { id: '123', name: 'Custom Profile' },
   });
-  
+
   // Set errors
   apiEnv.fetch.setError('/api/error-endpoint', new Error('Test error'));
 });
 ```
 
 ### Custom Discord Objects
+
 ```javascript
 const { discord } = require('../../__mocks__');
 
@@ -148,11 +155,12 @@ const discordEnv = discord.createDiscordEnvironment();
 const customMessage = discordEnv.createMessage({
   content: 'Hello world',
   author: { id: 'user-123', username: 'testuser' },
-  channel: { id: 'channel-456', nsfw: true }
+  channel: { id: 'channel-456', nsfw: true },
 });
 ```
 
 ### Module Configuration
+
 ```javascript
 const { modules } = require('../../__mocks__');
 
@@ -160,12 +168,12 @@ const moduleEnv = modules.createModuleEnvironment({
   personalityManager: {
     defaultPersonality: {
       fullName: 'custom-personality',
-      displayName: 'Custom Bot'
-    }
+      displayName: 'Custom Bot',
+    },
   },
   auth: {
-    isAdmin: true
-  }
+    isAdmin: true,
+  },
 });
 ```
 

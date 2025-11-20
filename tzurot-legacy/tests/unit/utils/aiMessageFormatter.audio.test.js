@@ -44,12 +44,12 @@ describe('aiMessageFormatter - Audio Message Handling', () => {
 
       expect(result).toBeDefined();
       expect(result[0].role).toBe('user');
-      
+
       // Should include audio_url in content
       const audioElement = result[0].content.find(item => item.type === 'audio_url');
       expect(audioElement).toBeDefined();
       expect(audioElement.audio_url.url).toBe('https://example.com/audio.mp3');
-      
+
       // Should include text mentioning audio
       const textElement = result[0].content.find(item => item.type === 'text');
       expect(textElement.text).toContain('(with audio)');
@@ -72,12 +72,12 @@ describe('aiMessageFormatter - Audio Message Handling', () => {
 
       expect(result).toBeDefined();
       expect(result[0].role).toBe('user');
-      
+
       // Should extract and include audio URL
       const audioElement = result[0].content.find(item => item.type === 'audio_url');
       expect(audioElement).toBeDefined();
       expect(audioElement.audio_url.url).toBe('https://example.com/sound.mp3');
-      
+
       // Text should not include the [Audio: URL] markup
       const textElement = result[0].content.find(item => item.type === 'text');
       expect(textElement.text).not.toContain('[Audio:');
@@ -143,10 +143,10 @@ describe('aiMessageFormatter - Audio Message Handling', () => {
       // Should only include audio, not image
       const audioElement = result[0].content.find(item => item.type === 'audio_url');
       expect(audioElement).toBeDefined();
-      
+
       const imageElement = result[0].content.find(item => item.type === 'image_url');
       expect(imageElement).toBeUndefined();
-      
+
       const textElement = result[0].content.find(item => item.type === 'text');
       expect(textElement.text).toContain('(with audio)');
       expect(textElement.text).not.toContain('(with an image)');
@@ -154,7 +154,7 @@ describe('aiMessageFormatter - Audio Message Handling', () => {
 
     it('should handle audio reference from bot personality', async () => {
       resolvePersonality.mockResolvedValue({
-        profile: { displayName: 'Music Bot' }
+        profile: { displayName: 'Music Bot' },
       });
 
       const content = {
@@ -179,7 +179,7 @@ describe('aiMessageFormatter - Audio Message Handling', () => {
 
     it('should handle audio from same personality (second person)', async () => {
       resolvePersonality.mockResolvedValue({
-        profile: { displayName: 'Test Bot' }
+        profile: { displayName: 'Test Bot' },
       });
 
       const content = {

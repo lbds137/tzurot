@@ -826,7 +826,6 @@ describe('Bot Features', () => {
     });
   });
 
-
   describe('Embed Handling', () => {
     // Define a function that replicates the embed detection logic from bot.js
     const detectIncompleteEmbed = message => {

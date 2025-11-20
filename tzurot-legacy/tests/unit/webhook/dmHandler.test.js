@@ -53,7 +53,7 @@ describe('dmHandler', () => {
       }
       return chunks;
     });
-    
+
     // Mock chunkHelpers
     chunkHelpers.isFirstChunk = jest.fn(i => i === 0);
     chunkHelpers.isLastChunk = jest.fn((i, len) => i === len - 1);

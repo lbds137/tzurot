@@ -33,7 +33,7 @@ describe('AudioTranscriptionJob', () => {
     mockTranscribeAudio.mockResolvedValue('Mocked transcription text');
 
     // Default: withRetry calls the function and returns successful result
-    mockWithRetry.mockImplementation(async (fn) => {
+    mockWithRetry.mockImplementation(async fn => {
       const value = await fn();
       return {
         value,
@@ -122,7 +122,7 @@ describe('AudioTranscriptionJob', () => {
       } as Job<AudioTranscriptionJobData>;
 
       // Simulate retry succeeding on 2nd attempt
-      mockWithRetry.mockImplementation(async (fn) => {
+      mockWithRetry.mockImplementation(async fn => {
         const result = await fn();
         return {
           value: result,
@@ -279,7 +279,7 @@ describe('AudioTranscriptionJob', () => {
       } as Job<AudioTranscriptionJobData>;
 
       // Simulate 3 attempts with total time
-      mockWithRetry.mockImplementation(async (fn) => {
+      mockWithRetry.mockImplementation(async fn => {
         const result = await fn();
         return {
           value: result,

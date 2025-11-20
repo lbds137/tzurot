@@ -81,7 +81,11 @@ export async function storeWebhookMessage(
   ttlSeconds: number = INTERVALS.WEBHOOK_MESSAGE_TTL
 ): Promise<void> {
   try {
-    await redis.setEx(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`, ttlSeconds, personalityName);
+    await redis.setEx(
+      `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`,
+      ttlSeconds,
+      personalityName
+    );
     logger.debug(`[Redis] Stored webhook message: ${messageId} -> ${personalityName}`);
   } catch (error) {
     logger.error({ err: error }, `[Redis] Failed to store webhook message: ${messageId}`);
@@ -96,11 +100,7 @@ export async function storeWebhookMessage(
 export async function getWebhookPersonality(messageId: string): Promise<string | null> {
   try {
     const personalityName = await redis.get(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`);
-    if (
-      personalityName !== undefined &&
-      personalityName !== null &&
-      personalityName.length > 0
-    ) {
+    if (personalityName !== undefined && personalityName !== null && personalityName.length > 0) {
       logger.debug(`[Redis] Retrieved webhook message: ${messageId} -> ${personalityName}`);
     }
     return personalityName;
@@ -122,7 +122,11 @@ export async function storeVoiceTranscript(
   ttlSeconds: number = INTERVALS.VOICE_TRANSCRIPT_TTL
 ): Promise<void> {
   try {
-    await redis.setEx(`${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`, ttlSeconds, transcript);
+    await redis.setEx(
+      `${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`,
+      ttlSeconds,
+      transcript
+    );
     logger.debug(`[Redis] Stored voice transcript cache for: ${attachmentUrl.substring(0, 50)}...`);
   } catch (error) {
     logger.error({ err: error }, '[Redis] Failed to store voice transcript');
@@ -137,11 +141,7 @@ export async function storeVoiceTranscript(
 export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
   try {
     const transcript = await redis.get(`${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`);
-    if (
-      transcript !== undefined &&
-      transcript !== null &&
-      transcript.length > 0
-    ) {
+    if (transcript !== undefined && transcript !== null && transcript.length > 0) {
       logger.debug(
         `[Redis] Retrieved cached voice transcript for: ${attachmentUrl.substring(0, 50)}...`
       );

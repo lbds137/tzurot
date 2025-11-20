@@ -40,9 +40,7 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
     );
 
     // Load personality from database (PersonalityService has internal cache)
-    const personality = await this.personalityService.loadPersonality(
-      mentionMatch.personalityName
-    );
+    const personality = await this.personalityService.loadPersonality(mentionMatch.personalityName);
 
     if (!personality) {
       // Unknown personality - silently ignore (likely typo or non-bot mention)

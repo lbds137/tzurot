@@ -42,23 +42,18 @@ export async function processImageDescriptionJob(
     // Validate attachments
     for (const attachment of attachments) {
       if (!attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-        throw new Error(
-          `Invalid attachment type: ${attachment.contentType}. Expected image.`
-        );
+        throw new Error(`Invalid attachment type: ${attachment.contentType}. Expected image.`);
       }
     }
 
     // Process all images in parallel with graceful degradation (partial failures allowed)
     const descriptionPromises = attachments.map(async attachment => {
       try {
-        const result = await withRetry(
-          () => describeImage(attachment, personality),
-          {
-            maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-            logger,
-            operationName: `Image description (${attachment.name})`,
-          }
-        );
+        const result = await withRetry(() => describeImage(attachment, personality), {
+          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          logger,
+          operationName: `Image description (${attachment.name})`,
+        });
         return {
           url: attachment.url,
           description: result.value,

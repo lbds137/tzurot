@@ -72,7 +72,8 @@ export class MessageReferenceExtractor {
     //
     // Trade-off: Adds 2.5s latency to ALL personality responses
     // Benefit: Enables proper PluralKit integration (distinguishing proxy vs bot messages)
-    this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
+    this.embedProcessingDelayMs =
+      options.embedProcessingDelayMs ?? INTERVALS.EMBED_PROCESSING_DELAY;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds ?? []);
     this.conversationHistoryTimestamps = options.conversationHistoryTimestamps ?? [];
     this.conversationHistoryService = new ConversationHistoryService(options.prisma);
@@ -145,7 +146,11 @@ export class MessageReferenceExtractor {
           ) {
             let snapshotNumber = 1;
             for (const [, snapshot] of referencedMessage.messageSnapshots) {
-              const snapshotRef = this.snapshotFormatter.formatSnapshot(snapshot, snapshotNumber, referencedMessage);
+              const snapshotRef = this.snapshotFormatter.formatSnapshot(
+                snapshot,
+                snapshotNumber,
+                referencedMessage
+              );
               references.push(snapshotRef);
               logger.info(
                 {
@@ -276,7 +281,6 @@ export class MessageReferenceExtractor {
 
     return { references, updatedContent };
   }
-
 
   /**
    * Re-fetch a message to get updated embeds

@@ -54,6 +54,7 @@ With the `/import shapes` command:
 #### V2 Components (tzurot-legacy)
 
 **`scripts/backup-personalities-data.js` (498 lines)**
+
 - **Purpose**: Fetch personality data from shapes.inc API
 - **Authentication**: Uses shapes.inc session cookie (`appSession`)
 - **Data Fetched**:
@@ -70,6 +71,7 @@ With the `/import shapes` command:
 #### V3 Components (scripts/import-personality)
 
 **`import-personality.ts` (477 lines)**
+
 - **Purpose**: Main CLI orchestrator for single personality import
 - **Features**:
   - Loads shapes.inc JSON files
@@ -84,11 +86,13 @@ With the `/import shapes` command:
 - **Status**: Production-ready, actively used
 
 **`PersonalityMapper.ts` (212 lines)**
+
 - **Purpose**: Map shapes.inc config format to v3 schema
 - **Handles**: Field transformations, custom fields, validation
 - **Status**: Production-ready
 
 **`MemoryImporter.ts` (first 100 lines show batched import approach)**
+
 - **Purpose**: Import LTM memories from shapes.inc to Qdrant
 - **Features**:
   - UUID resolution (shapes.inc → Discord ID → v3 persona)
@@ -99,6 +103,7 @@ With the `/import shapes` command:
 - **Status**: Production-ready
 
 **`bulk-import.ts` (first 100 lines show batch orchestration)**
+
 - **Purpose**: Batch import multiple personalities
 - **Features**:
   - Duplicate name handling
@@ -108,17 +113,20 @@ With the `/import shapes` command:
 - **Status**: Production-ready
 
 **`migrate-legacy-persona.ts` (first 100 lines show migration flow)**
+
 - **Purpose**: Migrate memories from legacy collections to v3 personas
 - **Use Case**: When user links Discord account after import
 - **Status**: Production-ready
 
 **`AvatarDownloader.ts` (referenced but not read)**
+
 - **Purpose**: Download avatars from shapes.inc, store locally
 - **Status**: Unknown, likely exists
 
 #### Documentation
 
 **`docs/migration/SHAPES_INC_IMPORT_PLAN.md` (860 lines)**
+
 - **Purpose**: Comprehensive design doc for manual import process
 - **Coverage**:
   - Data structure mapping
@@ -133,6 +141,7 @@ With the `/import shapes` command:
 ### UUID Mappings System
 
 **`scripts/uuid-mappings.json` (referenced in code)**
+
 - **Purpose**: Map shapes.inc user UUIDs to Discord IDs
 - **Format**:
   ```json
@@ -152,17 +161,20 @@ With the `/import shapes` command:
 ### What Works Today
 
 ✅ **Full Manual Import Pipeline**:
+
 1. User runs v2 backup script → Gets JSON files
 2. User runs v3 import script → Personality in PostgreSQL, memories in Qdrant
 3. User manually updates UUID mappings if needed
 4. User runs migration scripts for cleanup
 
 ✅ **Production Validated**:
+
 - All scripts tested with real shapes.inc data
 - Multiple personalities successfully imported
 - Memory migration working
 
 ✅ **Safe and Reversible**:
+
 - Dry-run modes available
 - Backup procedures documented
 - Rollback scripts exist
@@ -170,21 +182,25 @@ With the `/import shapes` command:
 ### What Doesn't Work (Yet)
 
 ❌ **No User-Facing Integration**:
+
 - No slash command
 - No Discord UI
 - Requires technical knowledge
 
 ❌ **No Authentication Management**:
+
 - Session cookies manually provided
 - No secure storage
 - No refresh/renewal
 
 ❌ **No Asynchronous Processing**:
+
 - Scripts run synchronously
 - No progress updates
 - Long-running blocking operations
 
 ❌ **No Ownership Model**:
+
 - Imported personalities not linked to Discord user
 - No access control
 - No multi-user support
@@ -227,11 +243,13 @@ With the `/import shapes` command:
 #### Primary Command: `/import shapes <personality-slug>`
 
 **Parameters**:
+
 - `personality-slug` (required, string): The shapes.inc personality username (e.g., `cold-kerach-batuach`)
 
 **Permissions**: Available to all users
 
 **Example Usage**:
+
 ```
 /import shapes cold-kerach-batuach
 ```
@@ -244,39 +262,42 @@ With the `/import shapes` command:
    ```
 
 2a. **If No Credentials** (ephemeral):
-   ```
-   ❌ No shapes.inc credentials found!
 
-   To import from shapes.inc, you need to:
-   1. Visit shapes.inc and log in
-   2. Open Developer Tools (F12)
-   3. Go to Application → Cookies
-   4. Copy your appSession cookie value
-   5. Run: /import shapes-auth <cookie>
+```
+❌ No shapes.inc credentials found!
 
-   Need help? See our guide: [link]
-   ```
+To import from shapes.inc, you need to:
+1. Visit shapes.inc and log in
+2. Open Developer Tools (F12)
+3. Go to Application → Cookies
+4. Copy your appSession cookie value
+5. Run: /import shapes-auth <cookie>
+
+Need help? See our guide: [link]
+```
 
 2b. **If Credentials Found** (ephemeral):
-   ```
-   ✅ Credentials found!
 
-   📋 Import Details:
-     Personality: cold-kerach-batuach
-     Source: shapes.inc
-     Destination: Your account
+```
+✅ Credentials found!
 
-   ⚠️ This will:
-     - Import personality configuration
-     - Import all memories and chat history
-     - Import user personalization
-     - Download and store avatar
-     - Use ~XXX OpenAI API credits for embeddings
+📋 Import Details:
+  Personality: cold-kerach-batuach
+  Source: shapes.inc
+  Destination: Your account
 
-   [Confirm Import] [Cancel]
-   ```
+⚠️ This will:
+  - Import personality configuration
+  - Import all memories and chat history
+  - Import user personalization
+  - Download and store avatar
+  - Use ~XXX OpenAI API credits for embeddings
+
+[Confirm Import] [Cancel]
+```
 
 3. **On Confirmation** (public message):
+
    ```
    🚀 Import started for @cold-kerach-batuach!
 
@@ -284,6 +305,7 @@ With the `/import shapes` command:
    ```
 
 4. **DM Progress Updates**:
+
    ```
    📥 Importing cold-kerach-batuach...
    ✅ Downloaded personality config (385 lines)
@@ -294,6 +316,7 @@ With the `/import shapes` command:
    ```
 
 5. **DM Completion**:
+
    ```
    ✅ Import complete!
 
@@ -312,26 +335,30 @@ With the `/import shapes` command:
 #### Credential Management: `/import shapes-auth <session-cookie>`
 
 **Parameters**:
+
 - `session-cookie` (required, string): The shapes.inc appSession cookie value
 
 **Permissions**: Available to all users
 
 **Example Usage**:
+
 ```
 /import shapes-auth eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0...
 ```
 
 **Response** (ephemeral, then immediately deleted):
-   ```
-   ✅ Shapes.inc credentials saved!
 
-   Your session cookie has been securely stored.
-   You can now use /import shapes to import personalities.
+```
+✅ Shapes.inc credentials saved!
 
-   ⚠️ For security, this message will be deleted in 5 seconds.
-   ```
+Your session cookie has been securely stored.
+You can now use /import shapes to import personalities.
+
+⚠️ For security, this message will be deleted in 5 seconds.
+```
 
 **Security**:
+
 - Ephemeral message (only visible to user)
 - Auto-delete after 5 seconds
 - Encrypted storage in database
@@ -340,31 +367,33 @@ With the `/import shapes` command:
 #### Credential Removal: `/import shapes-logout`
 
 **Response** (ephemeral):
-   ```
-   ✅ Shapes.inc credentials removed!
 
-   Your session cookie has been deleted from our system.
-   To import again, you'll need to run /import shapes-auth first.
-   ```
+```
+✅ Shapes.inc credentials removed!
+
+Your session cookie has been deleted from our system.
+To import again, you'll need to run /import shapes-auth first.
+```
 
 #### Import History: `/import shapes-list`
 
 **Response** (ephemeral):
-   ```
-   📜 Your Imported Personalities:
 
-   1. @cold-kerach-batuach
-      Imported: 2025-11-15
-      Memories: 107
-      Status: ✅ Active
+```
+📜 Your Imported Personalities:
 
-   2. @lilith-sheda-khazra
-      Imported: 2025-11-14
-      Memories: 892
-      Status: ✅ Active
+1. @cold-kerach-batuach
+   Imported: 2025-11-15
+   Memories: 107
+   Status: ✅ Active
 
-   Total: 2 personalities
-   ```
+2. @lilith-sheda-khazra
+   Imported: 2025-11-14
+   Memories: 892
+   Status: ✅ Active
+
+Total: 2 personalities
+```
 
 ### User Flow Diagram
 
@@ -394,6 +423,7 @@ graph TD
 ### Error Scenarios
 
 #### 1. Invalid Credentials
+
 ```
 ❌ Import failed: Authentication error
 
@@ -402,6 +432,7 @@ Please run /import shapes-auth to update them.
 ```
 
 #### 2. Personality Not Found
+
 ```
 ❌ Import failed: Personality not found
 
@@ -411,6 +442,7 @@ Double-check the slug and try again.
 ```
 
 #### 3. Duplicate Import
+
 ```
 ⚠️ Import skipped: Personality already imported
 
@@ -421,6 +453,7 @@ To re-import (overwrites existing data):
 ```
 
 #### 4. Network Error
+
 ```
 ❌ Import failed: Network error
 
@@ -433,6 +466,7 @@ Please try again later.
 ```
 
 #### 5. Data Validation Error
+
 ```
 ❌ Import failed: Invalid data
 
@@ -505,6 +539,7 @@ This may indicate corrupted data. Please contact support.
 #### 1. Database Schema Additions
 
 **`user_credentials` table** (encrypted credential storage):
+
 ```sql
 CREATE TABLE user_credentials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -521,6 +556,7 @@ CREATE TABLE user_credentials (
 ```
 
 **`import_jobs` table** (import history and audit):
+
 ```sql
 CREATE TABLE import_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -548,6 +584,7 @@ CREATE TABLE import_jobs (
 ```
 
 **`personalities` table updates** (add ownership):
+
 ```sql
 ALTER TABLE personalities
 ADD COLUMN owner_id TEXT REFERENCES users(id),
@@ -558,6 +595,7 @@ ADD COLUMN source_imported_at TIMESTAMP;
 #### 2. New Service Classes
 
 **`services/ai-worker/src/jobs/ShapesImportJob.ts`**:
+
 ```typescript
 /**
  * BullMQ job processor for shapes.inc imports
@@ -578,6 +616,7 @@ export class ShapesImportJob {
 ```
 
 **`services/bot-client/src/commands/ImportShapesCommand.ts`**:
+
 ```typescript
 /**
  * Slash command handler for /import shapes
@@ -596,6 +635,7 @@ export class ImportShapesCommand implements SlashCommand {
 ```
 
 **`services/ai-worker/src/import/ShapesDataFetcher.ts`**:
+
 ```typescript
 /**
  * Fetches personality data from shapes.inc API
@@ -612,6 +652,7 @@ export class ShapesDataFetcher {
 ```
 
 **`packages/common-types/src/services/CredentialService.ts`**:
+
 ```typescript
 /**
  * Manages encrypted user credentials
@@ -625,28 +666,22 @@ export class CredentialService {
     value: string
   ): Promise<void>;
 
-  async getCredential(
-    userId: string,
-    service: string,
-    type: string
-  ): Promise<string | null>;
+  async getCredential(userId: string, service: string, type: string): Promise<string | null>;
 
-  async deleteCredential(
-    userId: string,
-    service: string,
-    type: string
-  ): Promise<void>;
+  async deleteCredential(userId: string, service: string, type: string): Promise<void>;
 }
 ```
 
 #### 3. Shared Utilities (Reuse from Manual Scripts)
 
 **Already Exists**:
+
 - `PersonalityMapper` - Maps shapes.inc config to v3 schema
 - `MemoryImporter` - Imports memories to Qdrant with UUID resolution
 - Validation logic - Config and memory validation
 
 **Needs Adaptation**:
+
 - Avatar handling - Change from local file storage to Discord webhook upload
 - Progress reporting - Change from console.log to Discord DM updates
 - Error handling - Change from throw to structured error messages
@@ -704,6 +739,7 @@ sequenceDiagram
 **Job Type**: `shapes-import`
 
 **Job Data**:
+
 ```typescript
 interface ShapesImportJobData {
   userId: string; // Discord user ID
@@ -718,6 +754,7 @@ interface ShapesImportJobData {
 ```
 
 **Job Options**:
+
 ```typescript
 {
   attempts: 3, // Retry up to 3 times
@@ -731,6 +768,7 @@ interface ShapesImportJobData {
 ```
 
 **Progress Updates**:
+
 ```typescript
 job.updateProgress({
   stage: 'fetching' | 'importing_config' | 'importing_memories' | 'complete',
@@ -746,24 +784,28 @@ job.updateProgress({
 ### Avatar Handling Change
 
 **Current (Manual Scripts)**:
+
 - Download avatar from shapes.inc
 - Save to Railway volume (`/data/avatars/`)
 - Serve via Express static route
 - Webhook references: `https://api-gateway.railway.app/avatars/cold.png`
 
 **Future (Slash Command)**:
+
 - Download avatar from shapes.inc
 - Upload directly to Discord webhook (using `webhook.edit()`)
 - Discord CDN hosts the avatar
 - Webhook references: `https://cdn.discordapp.com/avatars/...`
 
 **Advantages**:
+
 - No local storage needed
 - Discord handles CDN and caching
 - Avatar always available (no Railway downtime risk)
 - Simplifies deployment
 
 **Implementation**:
+
 ```typescript
 // After creating webhook in Discord:
 const avatarBuffer = await fetch(shapesAvatarUrl).then(r => r.buffer());
@@ -785,12 +827,14 @@ await webhook.edit({
 **Goal**: Set up database, job queue, and credential management
 
 **Tasks**:
+
 1. Add database tables (`user_credentials`, `import_jobs`, personality ownership)
 2. Implement `CredentialService` with AES-256 encryption
 3. Set up BullMQ queue for `shapes-import` jobs
 4. Create `ShapesImportJob` processor skeleton
 
 **Acceptance Criteria**:
+
 - [ ] Database migrations run successfully
 - [ ] Credentials can be stored and retrieved securely
 - [ ] Jobs can be queued and processed
@@ -801,6 +845,7 @@ await webhook.edit({
 **Goal**: Adapt v2 backup script for service use
 
 **Tasks**:
+
 1. Port `backup-personalities-data.js` to TypeScript
 2. Create `ShapesDataFetcher` service class
 3. Return structured data instead of writing files
@@ -808,6 +853,7 @@ await webhook.edit({
 5. Unit test with mocked HTTP responses
 
 **Acceptance Criteria**:
+
 - [ ] Can fetch personality config from shapes.inc API
 - [ ] Can fetch memories (paginated)
 - [ ] Can fetch chat history (paginated)
@@ -819,6 +865,7 @@ await webhook.edit({
 **Goal**: Adapt manual import scripts for automated use
 
 **Tasks**:
+
 1. Refactor `PersonalityMapper` for library use
 2. Refactor `MemoryImporter` for library use
 3. Implement avatar upload to Discord webhooks
@@ -827,6 +874,7 @@ await webhook.edit({
 6. Add transaction rollback on errors
 
 **Acceptance Criteria**:
+
 - [ ] Personality config imported to PostgreSQL
 - [ ] Memories imported to Qdrant
 - [ ] Avatar uploaded to Discord
@@ -839,6 +887,7 @@ await webhook.edit({
 **Goal**: Create user-facing Discord commands
 
 **Tasks**:
+
 1. Implement `/import shapes-auth` command
 2. Implement `/import shapes` command with confirmation dialog
 3. Implement `/import shapes-logout` command
@@ -847,6 +896,7 @@ await webhook.edit({
 6. Add user-friendly error messages
 
 **Acceptance Criteria**:
+
 - [ ] All commands registered in Discord
 - [ ] Ephemeral messages for sensitive data
 - [ ] Confirmation dialog works
@@ -858,6 +908,7 @@ await webhook.edit({
 **Goal**: Validate end-to-end flow and document
 
 **Tasks**:
+
 1. Integration tests with test shapes.inc account
 2. End-to-end test: auth → import → verify
 3. Error scenario testing
@@ -866,6 +917,7 @@ await webhook.edit({
 6. Migration guide from manual scripts
 
 **Acceptance Criteria**:
+
 - [ ] Integration tests pass
 - [ ] All error scenarios handled
 - [ ] User documentation complete
@@ -877,6 +929,7 @@ await webhook.edit({
 **Goal**: Allow users to provide their own OpenRouter API keys for embeddings
 
 **Tasks** (not prioritized):
+
 - Add OpenRouter key storage to `user_credentials`
 - Modify `MemoryImporter` to use user's key instead of bot owner's
 - Add cost estimation before import
@@ -895,6 +948,7 @@ await webhook.edit({
 **Access**: Only `CredentialService` can decrypt
 
 **Threat Model**:
+
 - ✅ Database breach: Credentials encrypted, useless without key
 - ✅ Log leakage: Credentials never logged
 - ✅ Memory dump: Credentials only decrypted in worker process, short-lived
@@ -902,6 +956,7 @@ await webhook.edit({
 - ⚠️ Worker process compromise: Decrypted credentials in memory
 
 **Mitigation**:
+
 - Rotate `CREDENTIAL_ENCRYPTION_KEY` periodically
 - Use Railway secrets for key storage
 - Audit all code that handles decrypted credentials
@@ -910,12 +965,14 @@ await webhook.edit({
 ### Session Cookie Handling
 
 **Shapes.inc `appSession` Cookie**:
+
 - **Type**: HTTP-only session cookie
 - **Lifespan**: Unknown (likely 24-48 hours)
 - **Scope**: shapes.inc domain only
 - **Reuse**: Safe to store and reuse until expiry
 
 **Security Rules**:
+
 1. **NEVER log session cookies** - Not even in debug mode
 2. **NEVER expose in API responses** - Even to the user who provided it
 3. **Delete from Discord after 5 seconds** - Auto-delete auth command messages
@@ -923,21 +980,25 @@ await webhook.edit({
 5. **Decrypt only in worker** - Not in API gateway or bot client
 
 **Refresh Strategy**:
+
 - If shapes.inc returns 401: Delete credential, DM user to re-auth
 - No automatic refresh (shapes.inc doesn't provide refresh tokens)
 
 ### Rate Limiting
 
 **Shapes.inc API**:
+
 - Unknown rate limits
 - Respectful delays: 1 second between requests (already implemented in v2 script)
 
 **BullMQ Concurrency**:
+
 - Max 2 import jobs running concurrently
 - Prevents overwhelming Qdrant and OpenAI
 - Prevents shapes.inc rate limiting
 
 **OpenAI Embeddings API**:
+
 - Rate limit: 3000 RPM (requests per minute)
 - Batch embeddings: 100 memories per request (MemoryImporter already batches)
 - Delay between batches: 200ms (already implemented)
@@ -945,12 +1006,14 @@ await webhook.edit({
 ### User Permissions
 
 **Who Can Import**:
+
 - Any Discord user can import personalities to their own account
 - Imported personalities are owned by the importer
 - Owners can delete their imported personalities
 - Owners can share personalities with others (future feature)
 
 **Abuse Prevention**:
+
 - Rate limit: 1 import per user per 5 minutes
 - Max imports per day: 10
 - Max total personalities per user: 50
@@ -965,6 +1028,7 @@ await webhook.edit({
 **Vision**: Support other personality services with similar APIs
 
 **Implementation**:
+
 - Generic `ServiceDataFetcher` interface
 - Service-specific adapters (shapes.inc, character.ai, etc.)
 - `/import service <service-name> <slug>` command
@@ -974,6 +1038,7 @@ await webhook.edit({
 **Vision**: Allow users to import only config, only memories, etc.
 
 **Implementation**:
+
 - `/import shapes <slug> --config-only`
 - `/import shapes <slug> --memories-only`
 - Checkbox UI in confirmation dialog
@@ -983,6 +1048,7 @@ await webhook.edit({
 **Vision**: Periodic re-import to keep memories in sync
 
 **Implementation**:
+
 - `/import shapes-schedule <slug> <frequency>`
 - Cron job to re-import on schedule
 - Notify user of updates
@@ -992,6 +1058,7 @@ await webhook.edit({
 **Vision**: Export v3 personalities to shapes.inc format
 
 **Implementation**:
+
 - `/export shapes <slug>` - Generate shapes.inc compatible JSON
 - Allow users to migrate back if needed
 - Support data portability
@@ -1001,6 +1068,7 @@ await webhook.edit({
 **Vision**: Import multiple personalities at once
 
 **Implementation**:
+
 - `/import shapes-batch` - Shows list of available personalities
 - Checkboxes to select multiple
 - Queue all imports at once
@@ -1010,6 +1078,7 @@ await webhook.edit({
 **Vision**: Pre-defined import configurations for common scenarios
 
 **Implementation**:
+
 - `/import template <template-name> <slug>`
 - Templates: "lightweight" (config only), "full" (everything), "memories-only"
 
@@ -1018,6 +1087,7 @@ await webhook.edit({
 **Vision**: Use user's OpenRouter API key instead of bot owner's
 
 **Implementation**:
+
 - Estimate embedding costs before import
 - Show user cost estimate
 - Use user's key for OpenAI embeddings
@@ -1030,6 +1100,7 @@ await webhook.edit({
 **Vision**: Share imported personalities with other users
 
 **Implementation**:
+
 - Mark personality as "public" or "private"
 - Public personalities appear in `/list` for all users
 - Private personalities only visible to owner
@@ -1039,6 +1110,7 @@ await webhook.edit({
 **Vision**: Edit imported personalities after import
 
 **Implementation**:
+
 - `/personality edit <slug>` - Opens modal with editable fields
 - Update system prompt, traits, tone, etc.
 - Re-generate embeddings if character info changes
@@ -1048,6 +1120,7 @@ await webhook.edit({
 **Vision**: Manage imported memories
 
 **Implementation**:
+
 - `/memory list <personality-slug>` - Show recent memories
 - `/memory delete <personality-slug> <memory-id>` - Delete specific memory
 - `/memory search <personality-slug> <query>` - Search memories
@@ -1080,13 +1153,13 @@ await webhook.edit({
 
 **Per Personality Import** (rough estimates):
 
-| **Component**        | **Cost**                             | **Notes**                    |
-| -------------------- | ------------------------------------ | ---------------------------- |
-| OpenAI Embeddings    | ~$0.05-0.50 (100-1000 memories)      | text-embedding-3-small       |
-| Qdrant Storage       | Free (self-hosted)                   | Railway volume costs apply   |
-| PostgreSQL Storage   | Negligible (<1 MB per personality)   | Included in Railway plan     |
-| Discord API          | Free                                 | Rate limits apply            |
-| Shapes.inc API       | Free (no longer operational)         | N/A for live imports         |
-| **Total**            | **~$0.05-0.50 per personality**      | Mostly OpenAI embeddings     |
+| **Component**      | **Cost**                           | **Notes**                  |
+| ------------------ | ---------------------------------- | -------------------------- |
+| OpenAI Embeddings  | ~$0.05-0.50 (100-1000 memories)    | text-embedding-3-small     |
+| Qdrant Storage     | Free (self-hosted)                 | Railway volume costs apply |
+| PostgreSQL Storage | Negligible (<1 MB per personality) | Included in Railway plan   |
+| Discord API        | Free                               | Rate limits apply          |
+| Shapes.inc API     | Free (no longer operational)       | N/A for live imports       |
+| **Total**          | **~$0.05-0.50 per personality**    | Mostly OpenAI embeddings   |
 
 **With BYOK**: User pays their own OpenAI costs, bot owner pays $0.

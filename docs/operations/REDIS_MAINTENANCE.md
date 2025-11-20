@@ -13,6 +13,7 @@ Tzurot uses Redis for BullMQ job queuing. Jobs contain full conversation history
 ## Current Configuration
 
 **Job Retention Limits** (as of v3.0.0-alpha.34):
+
 - Completed jobs: 10 (previously 100)
 - Failed jobs: 50 (previously 500)
 - Scheduled completed: 10
@@ -70,9 +71,11 @@ railway run --service ai-worker redis-cli TYPE "bull:ai-requests:completed"
 ⚠️ **Before running cleanup commands:**
 
 1. Check that no critical jobs are in progress:
+
    ```bash
    railway run --service ai-worker redis-cli LLEN "bull:ai-requests:active"
    ```
+
    Should return 0 or small number (≤ concurrency setting).
 
 2. Verify you're targeting the correct environment:
@@ -126,6 +129,7 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:scheduled-jobs:
 ```
 
 After nuclear option, restart all services:
+
 ```bash
 railway up --service ai-worker
 railway up --service api-gateway
@@ -156,6 +160,7 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" 
    - Each job = 50-100KB of conversation history
 
 2. **Job Cleanup**: BullMQ automatically removes old jobs via:
+
    ```typescript
    removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
    removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
@@ -180,11 +185,13 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" 
 **Symptoms**: Timeout errors in logs, slow job processing
 
 **Causes**:
+
 - Too many keys (thousands of old jobs)
 - Memory pressure (approaching Redis max memory)
 - Network latency (Railway shared Redis)
 
 **Solutions**:
+
 1. Run manual cleanup (see above)
 2. Check Redis memory: `railway run --service ai-worker redis-cli INFO memory`
 3. Consider reducing job retention limits further
@@ -195,12 +202,14 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" 
 **Symptoms**: DBSIZE keeps growing despite retention limits
 
 **Possible Issues**:
+
 1. **BullMQ not removing jobs**: Check that `removeOnComplete`/`removeOnFail` are configured
 2. **Old jobs from before limit change**: Run manual cleanup
 3. **Active jobs stuck**: Check active queue length
 4. **Multiple queue instances**: Ensure only one worker is running
 
 **Verification**:
+
 ```bash
 # Check if old jobs exist
 railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" | wc -l
@@ -214,6 +223,7 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" 
 **Symptoms**: `Command timed out` errors, connection refused
 
 **Solutions**:
+
 1. Check Railway service status: `railway status`
 2. Verify Redis is running: `railway ps`
 3. Check Redis config matches Railway requirements:
@@ -231,5 +241,6 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" 
 ---
 
 **Related Documentation:**
+
 - [Deployment Guide](../deployment/RAILWAY_DEPLOYMENT.md)
 - [Timeout Constants](../../packages/common-types/src/constants/timing.ts)

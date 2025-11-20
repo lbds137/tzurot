@@ -200,7 +200,10 @@ export class ConversationPersistence {
     const { message, personality, personaId, content, chunkMessageIds, userMessageTime } = options;
 
     if (chunkMessageIds.length === 0) {
-      logger.warn({}, '[ConversationPersistence] No chunk message IDs, skipping assistant message save');
+      logger.warn(
+        {},
+        '[ConversationPersistence] No chunk message IDs, skipping assistant message save'
+      );
       return;
     }
 

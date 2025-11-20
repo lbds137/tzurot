@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -27,6 +27,7 @@ lastUpdated: "2025-11-19"
 ### Railway/Serverless Considerations
 
 **Problem:** Railway containers restart frequently. Connection pools must handle:
+
 - Cold starts
 - Connection limits (Railway shared DB: 100 connections)
 - Reconnection after network issues
@@ -196,7 +197,7 @@ class MemoryService {
 interface SimilarMemory {
   id: string;
   content: string;
-  similarity: number;  // 1.0 = identical, 0.0 = opposite
+  similarity: number; // 1.0 = identical, 0.0 = opposite
   createdAt: Date;
 }
 
@@ -284,7 +285,7 @@ const memories = await prisma.$queryRaw<Memory[]>`
 
 ```typescript
 // Use transactions for multi-step operations
-await prisma.$transaction(async (tx) => {
+await prisma.$transaction(async tx => {
   // Create personality
   const personality = await tx.personality.create({
     data: {
@@ -324,6 +325,7 @@ npx prisma migrate deploy
 ```
 
 **Why this works:**
+
 - `--create-only` generates SQL but doesn't apply it
 - You can review/edit before applying
 - `migrate deploy` applies and updates checksums atomically
@@ -332,6 +334,7 @@ npx prisma migrate deploy
 ### Common Anti-Patterns (DON'T DO THESE)
 
 **❌ Running SQL manually then marking as applied**
+
 ```bash
 # This causes checksum mismatches!
 npx prisma db execute --file migration.sql
@@ -339,18 +342,21 @@ npx prisma migrate resolve --applied <migration_name>
 ```
 
 **❌ Editing migrations after applying**
+
 ```bash
 # Applied migration checksum won't match file!
 # Edit: prisma/migrations/20250101_initial/migration.sql
 ```
 
 **❌ Using `railway run prisma migrate dev`**
+
 ```bash
 # We're not running Prisma inside Railway containers
 # Always use local Prisma with DATABASE_URL from .env
 ```
 
 **✅ Instead, create a new migration**
+
 ```bash
 npx prisma migrate dev --create-only --name fix_previous_migration
 # Edit the new migration to correct the issue
@@ -362,6 +368,7 @@ npx prisma migrate deploy
 **1. Never modify applied migrations - create new ones**
 
 If you need to fix a migration that's already applied:
+
 - Create a new migration that corrects the issue
 - Use DROP/CREATE pattern for triggers/functions
 - Document why the fix was needed
@@ -387,6 +394,7 @@ CREATE INDEX idx_name ON table(column);
 **3. PostgreSQL triggers and functions**
 
 When creating triggers:
+
 - Always `DROP IF EXISTS` first
 - Use `CREATE OR REPLACE` for functions
 - CASCADE when dropping functions (drops dependent triggers)
@@ -429,16 +437,19 @@ npx prisma migrate deploy
 ### Checksum Issues
 
 **What causes them:**
+
 - Editing migration files after applying
 - Running SQL manually via `db execute` then marking as applied
 - File corruption or encoding issues
 
 **How to avoid them:**
+
 - Always use the workflow above
 - Never edit applied migrations
 - Never manually mark migrations as applied (except emergencies)
 
 **If you get checksum errors:**
+
 1. Check `prisma migrate status` to see which migrations are affected
 2. If the migration was applied correctly, use `migrate resolve`:
    ```bash
@@ -475,12 +486,14 @@ async function main(): Promise<void> {
 ### Railway-Specific Notes
 
 **We work directly against Railway database:**
+
 - `.env` contains `DATABASE_URL` for Railway dev database
 - No local PostgreSQL needed for development
 - All migrations run against Railway directly
 - `npx prisma migrate deploy` reads `DATABASE_URL` from `.env`
 
 **Deployment:**
+
 - Push migration files to git
 - Railway auto-deploys code
 - Migrations run on api-gateway startup (via Prisma in application code)
@@ -505,9 +518,7 @@ class ConversationHistoryService {
       },
     });
 
-    logger.info(
-      `Cleaned up ${result.count} old messages (older than ${daysOld} days)`
-    );
+    logger.info(`Cleaned up ${result.count} old messages (older than ${daysOld} days)`);
 
     return result.count;
   }
@@ -558,12 +569,14 @@ class MemoryService {
 ### What to Index
 
 **✅ Always index:**
+
 - Foreign keys
 - Frequently filtered columns (WHERE clauses)
 - Columns used in ORDER BY
 - Vector columns (ivfflat index)
 
 **❌ Don't index:**
+
 - Text/blob columns
 - Low cardinality columns (few unique values)
 - Rarely queried columns
@@ -595,10 +608,7 @@ model ConversationHistory {
 
 ```typescript
 class DatabaseService {
-  async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    maxRetries: number = 3
-  ): Promise<T> {
+  async executeWithRetry<T>(operation: () => Promise<T>, maxRetries: number = 3): Promise<T> {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await operation();
@@ -609,12 +619,10 @@ class DatabaseService {
         if (
           error instanceof Error &&
           (error.message.includes('ECONNREFUSED') ||
-           error.message.includes('ETIMEDOUT') ||
-           error.message.includes('Connection terminated'))
+            error.message.includes('ETIMEDOUT') ||
+            error.message.includes('Connection terminated'))
         ) {
-          logger.warn(
-            `Database connection error (attempt ${attempt}/${maxRetries}), retrying...`
-          );
+          logger.warn(`Database connection error (attempt ${attempt}/${maxRetries}), retrying...`);
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
           continue;
         }
@@ -754,7 +762,6 @@ describe('PersonalityService', () => {
 - **tzurot-observability** - Query logging and performance monitoring
 - **tzurot-architecture** - Database service placement
 - **tzurot-constants** - Connection pool limits and timeouts
-
 
 ## References
 

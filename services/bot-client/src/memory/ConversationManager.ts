@@ -87,10 +87,7 @@ export class ConversationManager {
   /**
    * Get conversation history for a channel + personality
    */
-  getHistory(
-    channelId: string,
-    personalityName: string
-  ): { role: MessageRole; content: string }[] {
+  getHistory(channelId: string, personalityName: string): { role: MessageRole; content: string }[] {
     const key = this.getKey(channelId, personalityName);
     const thread = this.conversations.get(key);
 

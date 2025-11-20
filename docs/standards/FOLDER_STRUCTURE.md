@@ -25,6 +25,7 @@ src/
 ```
 
 **Root Directory Rules:**
+
 - ✅ `index.ts` - Entry point / barrel export
 - ✅ Config files: `redis.ts`, `queue.ts`, `types.ts`
 - ❌ Everything else goes in a subdirectory
@@ -62,6 +63,7 @@ src/
 ```
 
 **Key Rules:**
+
 - **No functions in `config/constants.ts`** - only constant values
 - Utility functions go in `utils/`, not in root with `-utils.ts` suffix
 - Type definitions go in `types/`, not scattered in root
@@ -153,6 +155,7 @@ src/
 ```
 
 **Notes**:
+
 - `MessageReferenceExtractor.ts` moved from `context/` to `handlers/` (related to message handling)
 - `GatewayClient.ts` moved from `gateway/` to `utils/` (no single-file folders)
 - `WebhookManager.ts` moved from `webhooks/` to `utils/` (no single-file folders)
@@ -160,35 +163,43 @@ src/
 ## File Naming Conventions
 
 ### Classes and Services
+
 **Format**: PascalCase
 
 ✅ **Good Examples:**
+
 - `UserService.ts`
 - `LLMInvoker.ts`
 - `MessageHandler.ts`
 - `ConversationalRAGService.ts`
 
 ### Utilities and Helpers
+
 **Format**: camelCase
 
 ✅ **Good Examples:**
+
 - `errorHandling.ts`
 - `deployCommands.ts`
 - `promptPlaceholders.ts`
 - `imageProcessor.ts`
 
 ### Type Definitions
+
 **Format**: camelCase or descriptive
 
 ✅ **Good Examples:**
+
 - `api-types.ts`
 - `discord.ts`
 - `schemas.ts`
 
 ### Test Files
+
 **Format**: Co-located with source, `.test.ts` suffix
 
 ✅ **Good Examples:**
+
 - `UserService.test.ts` (next to `UserService.ts`)
 - `promptPlaceholders.test.ts` (next to `promptPlaceholders.ts`)
 - `timeout.test.ts` (next to `timeout.ts`)
@@ -196,9 +207,11 @@ src/
 ## Folder Naming Conventions
 
 ### Always Plural
+
 Use plural names for folders containing multiple items of the same type.
 
 ✅ **Good Examples:**
+
 - `services/`
 - `utils/`
 - `types/`
@@ -208,14 +221,17 @@ Use plural names for folders containing multiple items of the same type.
 - `handlers/`
 
 ❌ **Bad Examples:**
+
 - `service/`
 - `util/`
 - `type/`
 
 ### Domain-Specific Folders
+
 Create folders for clear functional domains.
 
 ✅ **Good Examples:**
+
 - `jobs/` - BullMQ job processors
 - `routes/` - HTTP route handlers
 - `commands/` - Discord commands
@@ -225,6 +241,7 @@ Create folders for clear functional domains.
 ## Common Anti-Patterns to Avoid
 
 ### ❌ Single-File Folders
+
 **Problem**: Creates unnecessary navigation depth
 
 ```
@@ -245,6 +262,7 @@ src/
 **Exception**: Folders expected to grow (e.g., `routes/` with 2 files that will become 10).
 
 ### ❌ Root File Bloat
+
 **Problem**: Too many files in root directory
 
 ```
@@ -289,6 +307,7 @@ src/
 ```
 
 ### ❌ Inconsistent -utils.ts Suffix
+
 **Problem**: Mix of approaches
 
 ```
@@ -317,6 +336,7 @@ services/ai-worker/src/
 ```
 
 ### ❌ Functions in Constants Files
+
 **Problem**: Constants files should only contain values
 
 ```
@@ -343,6 +363,7 @@ export function calculateTimeout(count: number) {
 ## Enforcement
 
 These standards are enforced through:
+
 1. **Code review** - All PRs checked for structure violations
 2. **Documentation** - This file referenced in `CLAUDE.md`
 3. **Linting** - Future: ESLint rules for imports and structure
@@ -361,6 +382,7 @@ When refactoring existing code to match these standards:
 ## Questions or Concerns?
 
 If you encounter edge cases or have questions about these standards:
+
 1. Check existing patterns in the codebase
 2. Ask for clarification in code review
 3. Update this document with the decision for future reference

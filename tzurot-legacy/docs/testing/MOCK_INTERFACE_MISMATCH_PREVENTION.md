@@ -3,6 +3,7 @@
 ## Problem Statement
 
 During the DDD migration, we discovered critical testing issues where:
+
 1. Tests mocked methods that didn't exist in real implementations (`canEmbed`, `respondWithEmbed`, `getAuthorDisplayName`, `getAuthorAvatarUrl`)
 2. Repository method names were mocked incorrectly (`findByOwnerId` vs `findByOwner`)
 3. Tests passed with 100% coverage but the code failed in production
@@ -12,24 +13,27 @@ This document outlines strategies to prevent these issues.
 ## Root Causes
 
 ### 1. Ad-hoc Mock Creation
+
 ```javascript
 // ❌ BAD: Creating mocks without verifying interface
 const mockContext = {
-  canEmbed: jest.fn(),  // Does this method exist?
-  respondWithEmbed: jest.fn(),  // Does this method exist?
+  canEmbed: jest.fn(), // Does this method exist?
+  respondWithEmbed: jest.fn(), // Does this method exist?
   // ... who knows what else is missing?
 };
 ```
 
 ### 2. No Interface Contract Verification
+
 ```javascript
 // ❌ BAD: Mocking repository methods that don't exist
 const mockRepository = {
-  findByOwnerId: jest.fn(),  // Real method is findByOwner!
+  findByOwnerId: jest.fn(), // Real method is findByOwner!
 };
 ```
 
 ### 3. Over-reliance on Unit Tests
+
 - Unit tests with mocks don't catch interface mismatches
 - No integration tests to verify real implementations work together
 - False confidence from high coverage numbers
@@ -58,7 +62,7 @@ const context = new CommandContext({
 // ✅ GOOD: Factory that creates valid instances
 function createTestCommandContext(overrides = {}) {
   const { CommandContext } = require('../../../../src/application/commands/CommandAbstraction');
-  
+
   return new CommandContext({
     platform: 'discord',
     isSlashCommand: false,
@@ -69,7 +73,7 @@ function createTestCommandContext(overrides = {}) {
     args: [],
     options: {},
     dependencies: {},
-    ...overrides
+    ...overrides,
   });
 }
 ```
@@ -81,7 +85,7 @@ function createTestCommandContext(overrides = {}) {
 describe('CommandContext Interface', () => {
   it('should have all required methods', () => {
     const context = createTestCommandContext();
-    
+
     // Verify methods exist
     expect(typeof context.canEmbed).toBe('function');
     expect(typeof context.respondWithEmbed).toBe('function');
@@ -104,21 +108,21 @@ describe('ListCommand Integration', () => {
     // Use real implementations, only mock external systems
     const personalityService = new PersonalityApplicationService({
       personalityRepository: new FilePersonalityRepository({ dataPath: './test-data' }),
-      aiService: mockAIService,  // Mock only external service
+      aiService: mockAIService, // Mock only external service
       authenticationRepository: mockAuthRepository,
-      eventBus: new DomainEventBus()
+      eventBus: new DomainEventBus(),
     });
-    
+
     const context = createTestCommandContext({
       dependencies: {
         personalityApplicationService: personalityService,
-        botPrefix: '!tz'
-      }
+        botPrefix: '!tz',
+      },
     });
-    
+
     const command = createListCommand();
     await command.execute(context);
-    
+
     // Verify it actually works end-to-end
   });
 });
@@ -130,19 +134,21 @@ describe('ListCommand Integration', () => {
 // ✅ GOOD: Utility to verify mocks match interfaces
 function verifyMockInterface(mock, realClass) {
   const realInstance = new realClass();
-  const realMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(realInstance))
-    .filter(name => typeof realInstance[name] === 'function' && name !== 'constructor');
-  
-  const mockMethods = Object.keys(mock)
-    .filter(key => typeof mock[key] === 'function' || jest.isMockFunction(mock[key]));
-  
+  const realMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(realInstance)).filter(
+    name => typeof realInstance[name] === 'function' && name !== 'constructor'
+  );
+
+  const mockMethods = Object.keys(mock).filter(
+    key => typeof mock[key] === 'function' || jest.isMockFunction(mock[key])
+  );
+
   const missing = realMethods.filter(method => !mockMethods.includes(method));
   const extra = mockMethods.filter(method => !realMethods.includes(method));
-  
+
   if (missing.length > 0) {
     throw new Error(`Mock is missing methods: ${missing.join(', ')}`);
   }
-  
+
   if (extra.length > 0) {
     throw new Error(`Mock has extra methods that don't exist: ${extra.join(', ')}`);
   }
@@ -155,16 +161,19 @@ verifyMockInterface(mockRepository, FilePersonalityRepository);
 ## Implementation Plan
 
 ### Phase 1: Immediate Actions (Post-DDD)
+
 1. **Audit all existing tests** for ad-hoc mocks
 2. **Create interface validation tests** for all major contracts
 3. **Add integration tests** for critical user paths
 
 ### Phase 2: Systematic Improvements
+
 1. **Complete mock consolidation** (currently at ~5%)
 2. **Create test factories** for all domain objects
 3. **Add mock verification** to test setup
 
 ### Phase 3: Long-term Solutions
+
 1. **Consider TypeScript migration** for compile-time interface checking
 2. **Implement contract testing** between services
 3. **Add integration test requirements** to PR checklist
@@ -182,10 +191,11 @@ Before merging any PR, ensure:
 ## Examples of What to Fix
 
 ### Repository Mocks
+
 ```javascript
 // ❌ BEFORE: Ad-hoc mock with wrong method name
 const mockRepo = {
-  findByOwnerId: jest.fn()  // Wrong name!
+  findByOwnerId: jest.fn(), // Wrong name!
 };
 
 // ✅ AFTER: Use real class or verified mock
@@ -195,11 +205,12 @@ const mockRepo = createMockPersonalityRepository();
 ```
 
 ### Command Context Mocks
+
 ```javascript
 // ❌ BEFORE: Ad-hoc mock with made-up methods
 const mockContext = {
   canEmbed: jest.fn(),
-  someMethod: jest.fn()  // Does this exist?
+  someMethod: jest.fn(), // Does this exist?
 };
 
 // ✅ AFTER: Use real CommandContext
@@ -225,5 +236,5 @@ jest.spyOn(context, 'canEmbed');
 
 ---
 
-*Last Updated: June 2025*
-*Issue Discovery: DDD Phase 3 List Command Implementation*
+_Last Updated: June 2025_
+_Issue Discovery: DDD Phase 3 List Command Implementation_

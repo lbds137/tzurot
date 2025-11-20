@@ -9,13 +9,13 @@
  * Create a Collection with entries
  */
 function createMockCollection(entries = []) {
-  const collection = new Map();  // Use Map directly for testing
+  const collection = new Map(); // Use Map directly for testing
   entries.forEach(([key, value]) => {
     collection.set(key, value);
   });
   // Add Collection-like methods if needed
   if (!collection.find) {
-    collection.find = function(fn) {
+    collection.find = function (fn) {
       for (const [key, value] of this.entries()) {
         if (fn(value, key)) return value;
       }
@@ -23,7 +23,7 @@ function createMockCollection(entries = []) {
     };
   }
   if (!collection.first) {
-    collection.first = function() {
+    collection.first = function () {
       return this.values().next().value;
     };
   }
@@ -41,10 +41,14 @@ function createMockUser(overrides = {}) {
     avatar: overrides.avatar || 'avatar_hash',
     bot: overrides.bot || false,
     system: overrides.system || false,
-    avatarURL: jest.fn(() => overrides.avatarURL || 'https://cdn.discordapp.com/avatars/123/avatar.png'),
-    displayAvatarURL: jest.fn(() => overrides.avatarURL || 'https://cdn.discordapp.com/avatars/123/avatar.png'),
+    avatarURL: jest.fn(
+      () => overrides.avatarURL || 'https://cdn.discordapp.com/avatars/123/avatar.png'
+    ),
+    displayAvatarURL: jest.fn(
+      () => overrides.avatarURL || 'https://cdn.discordapp.com/avatars/123/avatar.png'
+    ),
     tag: overrides.tag || 'TestUser#0001',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -61,13 +65,13 @@ function createMockMember(overrides = {}) {
     roles: overrides.roles || createMockCollection(),
     permissions: overrides.permissions || {
       has: jest.fn(() => false),
-      toArray: jest.fn(() => [])
+      toArray: jest.fn(() => []),
     },
     guild: overrides.guild || createMockGuild(),
     joinedAt: overrides.joinedAt || new Date('2024-01-15T12:00:00Z'),
     kick: jest.fn(),
     ban: jest.fn(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -83,7 +87,7 @@ function createMockGuild(overrides = {}) {
     channels: overrides.channels || createMockCollection(),
     roles: overrides.roles || createMockCollection(),
     available: overrides.available !== undefined ? overrides.available : true,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -103,11 +107,11 @@ function createMockTextChannel(overrides = {}) {
     send: jest.fn().mockResolvedValue({ id: '999999999999999999' }),
     messages: {
       fetch: jest.fn().mockResolvedValue(createMockCollection()),
-      cache: createMockCollection()
+      cache: createMockCollection(),
     },
     isTextBased: jest.fn(() => true),
     isThread: jest.fn(() => false),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -122,12 +126,12 @@ function createMockDMChannel(overrides = {}) {
     send: jest.fn().mockResolvedValue({ id: '888888888888888888' }),
     messages: {
       fetch: jest.fn().mockResolvedValue(createMockCollection()),
-      cache: createMockCollection()
+      cache: createMockCollection(),
     },
     isTextBased: jest.fn(() => true),
     isDMBased: jest.fn(() => true),
     guild: null,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -147,11 +151,11 @@ function createMockThreadChannel(overrides = {}) {
     send: jest.fn().mockResolvedValue({ id: '444444444444444444' }),
     messages: {
       fetch: jest.fn().mockResolvedValue(createMockCollection()),
-      cache: createMockCollection()
+      cache: createMockCollection(),
     },
     isTextBased: jest.fn(() => true),
     isThread: jest.fn(() => true),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -168,7 +172,7 @@ function createMockAttachment(overrides = {}) {
     size: overrides.size || 1024,
     height: overrides.height || 500,
     width: overrides.width || 500,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -187,7 +191,7 @@ function createMockEmbed(overrides = {}) {
     author: overrides.author || null,
     footer: overrides.footer || null,
     timestamp: overrides.timestamp || null,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -201,7 +205,7 @@ function createMockWebhookClient(overrides = {}) {
     send: jest.fn().mockResolvedValue({ id: '111111111111111111' }),
     edit: jest.fn().mockResolvedValue(true),
     delete: jest.fn().mockResolvedValue(true),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -215,5 +219,5 @@ module.exports = {
   createMockAttachment,
   createMockEmbed,
   createMockWebhookClient,
-  createMockCollection
+  createMockCollection,
 };

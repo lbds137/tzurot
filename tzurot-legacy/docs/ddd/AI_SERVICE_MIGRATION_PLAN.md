@@ -7,6 +7,7 @@ This document outlines the complete migration plan for moving AI service functio
 ## Current State
 
 ### Legacy Components
+
 - **`src/aiService.js`** - Monolithic service handling all AI interactions
   - Request generation and formatting
   - API calls via node-fetch
@@ -16,6 +17,7 @@ This document outlines the complete migration plan for moving AI service functio
   - Creates AI client using legacy auth methods
 
 ### Existing DDD Components (Unused)
+
 - **`src/domain/ai/`** - Domain models ready but not integrated
   - AIRequest value object
   - AIResponse value object
@@ -25,13 +27,16 @@ This document outlines the complete migration plan for moving AI service functio
   - AIServiceAdapterFactory
 
 ### Already Integrated DDD Components
+
 - **Authentication** - Already being used in message flow!
   - `personalityHandler.js` uses `authService.checkPersonalityAccess()`
   - `dmHandler.js` uses `authService.getAuthenticationStatus()`
   - This proves DDD services can integrate with legacy flow
 
 ### Integration Points
+
 The AI service is called from:
+
 1. **`personalityHandler.js`** - Main integration point
 2. **`referenceHandler.js`** - For building reference context
 3. **`dmHandler.js`** - Direct message handling
@@ -48,10 +53,11 @@ The AI service is called from:
    - Port logic from `aiService.js` methods
 
 2. **Key Methods to Port**:
+
    ```javascript
    // From aiService.js
    generateAIRequest() → buildRequest()
-   callAIService() → sendRequest() 
+   callAIService() → sendRequest()
    handleAPIError() → handleError()
    createAIClient() → (use authService)
    ```
@@ -84,10 +90,11 @@ The AI service is called from:
 **Goal**: Switch personalityHandler to use DDD service
 
 1. **Modify `personalityHandler.js`**:
+
    ```javascript
    // Before
    const response = await aiService.generateAIRequest(messages, personalityData, ...)
-   
+
    // After
    const aiAppService = applicationBootstrap.getServices().aiApplicationService;
    const response = await aiAppService.generateResponse({
@@ -128,17 +135,21 @@ The AI service is called from:
 ## Testing Strategy
 
 ### Unit Tests
+
 1. **Port existing aiService tests** to AIApplicationService
 2. **Maintain 100% behavior compatibility** - same inputs → same outputs
 3. **Add integration tests** between application service and adapter
 
 ### Integration Tests
+
 1. **Side-by-side testing** - Run both services, compare outputs
 2. **Discord integration tests** - Ensure messages still flow correctly
 3. **Error scenario testing** - Verify all error paths work
 
 ### Rollback Plan
+
 Since we're not using feature flags:
+
 1. Keep aiService.js fully functional
 2. Single switch point in personalityHandler.js
 3. Can revert with one-line change
@@ -146,6 +157,7 @@ Since we're not using feature flags:
 ## Success Criteria
 
 ### Functional Requirements
+
 - [ ] All AI requests work identically to before
 - [ ] Error messages display correctly via webhooks
 - [ ] Model indicators appear in messages
@@ -153,6 +165,7 @@ Since we're not using feature flags:
 - [ ] Media handling unchanged
 
 ### Technical Requirements
+
 - [ ] No performance degradation
 - [ ] Clean separation of concerns
 - [ ] All tests passing
@@ -160,6 +173,7 @@ Since we're not using feature flags:
 - [ ] Event bus integration working
 
 ### Migration Checkpoints
+
 - [ ] Week 1: Application service created and tested
 - [ ] Week 2: Core logic ported, personalityHandler updated
 - [ ] Week 3: All callers migrated, legacy deprecated
@@ -167,20 +181,25 @@ Since we're not using feature flags:
 ## Risks and Mitigations
 
 ### Risk 1: Breaking Message Flow
+
 **Mitigation**: Extensive integration testing, gradual rollout
 
 ### Risk 2: Losing Error Context
+
 **Mitigation**: Port all error handling logic exactly, test error scenarios
 
 ### Risk 3: Performance Issues
+
 **Mitigation**: Benchmark before/after, profile if needed
 
 ### Risk 4: Circular Dependencies
+
 **Mitigation**: Use dependency injection, no bootstrap imports
 
 ## Future Enhancements (Post-Migration)
 
 Once migration is stable:
+
 1. **Improve request building** - Use domain models fully
 2. **Add caching layer** - Reduce API calls
 3. **Enhance error handling** - Better retry strategies
@@ -190,12 +209,14 @@ Once migration is stable:
 ## Decision Log
 
 ### Why No Feature Flags?
+
 - User experience: Flags created more problems than they solved
 - Simpler migration: One switch point in personalityHandler
 - Easier testing: No combinatorial explosion
 - Clean cutover: Either legacy or DDD, not both
 
 ### Why AI Service First?
+
 - Clear boundaries: Well-defined inputs/outputs
 - High impact: Core to every interaction
 - Existing scaffolding: Domain models ready

@@ -263,7 +263,10 @@ describe('Message Processors', () => {
         handleMessage: vi.fn().mockResolvedValue(undefined),
       };
 
-      processor = new ReplyMessageProcessor(mockReplyResolver as any, mockPersonalityHandler as any);
+      processor = new ReplyMessageProcessor(
+        mockReplyResolver as any,
+        mockPersonalityHandler as any
+      );
     });
 
     it('should continue when message is not a reply', async () => {

@@ -65,7 +65,9 @@ export class ResultsListener {
    * Start listening for job results
    * @param onResult Callback to handle completed results
    */
-  async start(onResult: (jobId: string, result: LLMGenerationResult) => Promise<void>): Promise<void> {
+  async start(
+    onResult: (jobId: string, result: LLMGenerationResult) => Promise<void>
+  ): Promise<void> {
     this.onResult = onResult;
 
     try {

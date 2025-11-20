@@ -36,7 +36,8 @@ function calculateTimeoutWithRetries(
   // (No delay after last attempt)
   let totalDelays = 0;
   for (let attempt = 1; attempt < maxAttempts; attempt++) {
-    const baseDelay = RETRY_CONFIG.INITIAL_DELAY_MS * Math.pow(RETRY_CONFIG.BACKOFF_MULTIPLIER, attempt - 1);
+    const baseDelay =
+      RETRY_CONFIG.INITIAL_DELAY_MS * Math.pow(RETRY_CONFIG.BACKOFF_MULTIPLIER, attempt - 1);
     const delay = Math.min(baseDelay, RETRY_CONFIG.MAX_DELAY_MS);
     totalDelays += delay;
   }
@@ -85,14 +86,12 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
 
   // Attachment processing time WITH RETRIES (components run in parallel, use slowest)
   // Images: 90s per attempt × 3 attempts + backoff delays (1s + 2s) = 273s
-  const imageProcessingTime = imageCount > 0
-    ? calculateTimeoutWithRetries(TIMEOUTS.VISION_MODEL)
-    : 0;
+  const imageProcessingTime =
+    imageCount > 0 ? calculateTimeoutWithRetries(TIMEOUTS.VISION_MODEL) : 0;
 
   // Audio: (30s fetch + 180s whisper) per attempt × 3 attempts + backoff delays = 633s
-  const audioProcessingTime = audioCount > 0
-    ? calculateTimeoutWithRetries(TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API)
-    : 0;
+  const audioProcessingTime =
+    audioCount > 0 ? calculateTimeoutWithRetries(TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API) : 0;
 
   const attachmentTime = Math.max(imageProcessingTime, audioProcessingTime);
 
@@ -103,4 +102,3 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
   // Cap at worker lock duration (20 minutes - safety net)
   return Math.min(timeout, TIMEOUTS.WORKER_LOCK_DURATION);
 }
-

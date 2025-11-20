@@ -176,8 +176,8 @@ describe('Webhook Manager - Media Handling', () => {
     const promise = webhookManager.sendWebhookMessage(mockChannel, 'Message with embed', {
       fullName: 'test-personality',
       profile: {
-          displayName: 'Test Personality',
-        },
+        displayName: 'Test Personality',
+      },
     });
 
     // Advance timers to resolve any pending timers

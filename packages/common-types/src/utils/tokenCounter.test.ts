@@ -24,7 +24,8 @@ describe('tokenCounter', () => {
     });
 
     it('should handle longer text', () => {
-      const longText = 'This is a longer piece of text that should result in more tokens being counted.';
+      const longText =
+        'This is a longer piece of text that should result in more tokens being counted.';
       const tokens = countTextTokens(longText);
 
       // Rough estimate: ~80 chars / 4 = ~20 tokens
@@ -175,22 +176,14 @@ describe('tokenCounter', () => {
 
   describe('calculateMessagesFitInBudget', () => {
     it('should fit all messages under budget', () => {
-      const messages = [
-        { tokenCount: 100 },
-        { tokenCount: 200 },
-        { tokenCount: 300 },
-      ];
+      const messages = [{ tokenCount: 100 }, { tokenCount: 200 }, { tokenCount: 300 }];
 
       const count = calculateMessagesFitInBudget(messages, 1000);
       expect(count).toBe(3); // All 3 messages fit (total: 600 tokens)
     });
 
     it('should limit messages when budget exceeded', () => {
-      const messages = [
-        { tokenCount: 100 },
-        { tokenCount: 200 },
-        { tokenCount: 300 },
-      ];
+      const messages = [{ tokenCount: 100 }, { tokenCount: 200 }, { tokenCount: 300 }];
 
       const count = calculateMessagesFitInBudget(messages, 400);
       expect(count).toBe(1); // Only newest message fits (300 tokens), adding 200 would exceed
@@ -208,9 +201,7 @@ describe('tokenCounter', () => {
     });
 
     it('should return 0 if first message exceeds budget', () => {
-      const messages = [
-        { tokenCount: 1000 },
-      ];
+      const messages = [{ tokenCount: 1000 }];
 
       const count = calculateMessagesFitInBudget(messages, 500);
       expect(count).toBe(0);
@@ -222,11 +213,7 @@ describe('tokenCounter', () => {
     });
 
     it('should handle exact budget match', () => {
-      const messages = [
-        { tokenCount: 100 },
-        { tokenCount: 200 },
-        { tokenCount: 300 },
-      ];
+      const messages = [{ tokenCount: 100 }, { tokenCount: 200 }, { tokenCount: 300 }];
 
       const count = calculateMessagesFitInBudget(messages, 600);
       expect(count).toBe(3); // Exactly fits
@@ -243,10 +230,10 @@ describe('tokenCounter', () => {
 
     it('should handle multimedia heavy messages', () => {
       const messages = [
-        { tokenCount: 500 },    // Text message
-        { tokenCount: 16000 },  // Heavy multimedia (voice + images + refs)
-        { tokenCount: 500 },    // Text message
-        { tokenCount: 16000 },  // Heavy multimedia
+        { tokenCount: 500 }, // Text message
+        { tokenCount: 16000 }, // Heavy multimedia (voice + images + refs)
+        { tokenCount: 500 }, // Text message
+        { tokenCount: 16000 }, // Heavy multimedia
       ];
 
       // With 128k budget, should fit all 4 (33,000 tokens total)

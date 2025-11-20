@@ -13,7 +13,6 @@ jest.mock('../../../src/utils/aliasResolver', () => ({
   resolvePersonality: jest.fn(),
 }));
 
-
 jest.mock('../../../src/utils/contextMetadataFormatter', () => ({
   formatContextMetadata: jest.fn(() => '[Test Server | #test-channel | 2025-01-01T00:00:00.000Z]'),
 }));

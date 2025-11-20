@@ -221,12 +221,12 @@ services:
     environment:
       - NODE_ENV=production
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
     healthcheck:
-      test: ["CMD", "node", "healthCheck.js"]
+      test: ['CMD', 'node', 'healthCheck.js']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -256,11 +256,13 @@ docker-compose down
 #### Railway.app Deployment
 
 1. **Install Railway CLI**:
+
    ```bash
    npm install -g @railway/cli
    ```
 
 2. **Deploy**:
+
    ```bash
    railway login
    railway init
@@ -268,6 +270,7 @@ docker-compose down
    ```
 
 3. **Set Environment Variables**:
+
    ```bash
    railway variables set DISCORD_TOKEN=your_token
    railway variables set SERVICE_API_KEY=your_key
@@ -275,9 +278,9 @@ docker-compose down
    ```
 
 4. **Configure Persistent Volume** (Critical for data persistence):
-   
+
    The bot uses a persistent volume to maintain data across deployments. This is configured in `railway.json`:
-   
+
    ```json
    {
      "$schema": "https://railway.app/railway.schema.json",
@@ -297,23 +300,25 @@ docker-compose down
      ]
    }
    ```
-   
+
    This ensures:
    - User authentication tokens persist across deployments
    - Personality registrations are retained
    - Aliases are preserved
    - No data loss during deployments
-   
+
    The volume is automatically created when you deploy with this configuration.
 
 #### Heroku Deployment
 
 1. **Create Procfile**:
+
    ```
    worker: node index.js
    ```
 
 2. **Deploy**:
+
    ```bash
    heroku create tzurot-bot
    git push heroku main
@@ -329,6 +334,7 @@ docker-compose down
 #### Render.com Deployment
 
 1. **Create render.yaml**:
+
    ```yaml
    services:
      - type: worker
@@ -414,21 +420,23 @@ server.listen(3000);
 ```javascript
 // ecosystem.config.js
 module.exports = {
-  apps: [{
-    name: 'tzurot',
-    script: './index.js',
-    instances: 1,
-    autorestart: true,
-    watch: false,
-    max_memory_restart: '500M',
-    error_file: './logs/pm2-error.log',
-    out_file: './logs/pm2-out.log',
-    log_file: './logs/pm2-combined.log',
-    time: true,
-    env: {
-      NODE_ENV: 'production'
-    }
-  }]
+  apps: [
+    {
+      name: 'tzurot',
+      script: './index.js',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      error_file: './logs/pm2-error.log',
+      out_file: './logs/pm2-out.log',
+      log_file: './logs/pm2-combined.log',
+      time: true,
+      env: {
+        NODE_ENV: 'production',
+      },
+    },
+  ],
 };
 ```
 
@@ -458,6 +466,7 @@ module.exports = {
 #### 2. External Logging Services
 
 **Papertrail**:
+
 ```bash
 # Install remote_syslog2
 wget https://github.com/papertrail/remote_syslog2/releases/download/v0.20/remote_syslog_linux_amd64.tar.gz
@@ -525,6 +534,7 @@ sudo iptables -A OUTPUT -m owner --uid-owner tzurot -j ACCEPT
 ### 3. Secrets Management
 
 **Using Environment Variables**:
+
 ```bash
 # Store secrets in /etc/environment (system-wide)
 sudo echo "DISCORD_TOKEN=your_token" >> /etc/environment
@@ -534,6 +544,7 @@ echo "export DISCORD_TOKEN=your_token" >> ~/.bashrc
 ```
 
 **Using Secret Files**:
+
 ```bash
 # Create secrets directory
 mkdir -p /opt/tzurot/secrets
@@ -608,10 +619,11 @@ pm2 start tzurot
 Currently limited due to Discord bot constraints, but consider:
 
 1. **Sharding** (for 2500+ guilds):
+
    ```javascript
    const { ShardingManager } = require('discord.js');
    const manager = new ShardingManager('./index.js', {
-     token: process.env.DISCORD_TOKEN
+     token: process.env.DISCORD_TOKEN,
    });
    manager.spawn();
    ```
@@ -628,12 +640,14 @@ Currently limited due to Discord bot constraints, but consider:
 #### Bot Won't Start
 
 1. **Check logs**:
+
    ```bash
    pm2 logs tzurot --lines 100
    journalctl -u tzurot -n 100
    ```
 
 2. **Verify environment**:
+
    ```bash
    node --version  # Should be 16+
    npm list        # Check dependencies
@@ -659,12 +673,14 @@ Currently limited due to Discord bot constraints, but consider:
 #### Memory Issues
 
 1. **Monitor usage**:
+
    ```bash
    pm2 monit
    htop -F node
    ```
 
 2. **Analyze heap**:
+
    ```bash
    node --inspect index.js
    # Use Chrome DevTools for heap snapshot
@@ -742,6 +758,7 @@ client.user.setPresence({
 ### Documentation
 
 Maintain deployment documentation:
+
 - Server access credentials (secure storage)
 - Deployment procedures
 - Rollback procedures

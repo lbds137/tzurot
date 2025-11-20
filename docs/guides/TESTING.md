@@ -379,6 +379,7 @@ describe('with fake timers', () => {
 ```
 
 **What Happens:**
+
 1. `setTimeout` schedules the abort for 30,000ms (fake time)
 2. `fetch` returns a resolved promise (mocked)
 3. `await` yields control to the event loop
@@ -423,6 +424,7 @@ it('should fetch successfully', async () => {
 ```
 
 **When to Use Each Solution:**
+
 - **Solution 1:** When testing timeout logic is important
 - **Solution 2:** When you only care about the happy path (recommended for simplicity)
 

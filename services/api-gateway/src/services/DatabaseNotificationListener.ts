@@ -12,11 +12,7 @@
  */
 
 import { Client } from 'pg';
-import {
-  createLogger,
-  isValidInvalidationEvent,
-  DATABASE_RECONNECT,
-} from '@tzurot/common-types';
+import { createLogger, isValidInvalidationEvent, DATABASE_RECONNECT } from '@tzurot/common-types';
 import type { CacheInvalidationService } from '@tzurot/common-types';
 
 const logger = createLogger('DatabaseNotificationListener');
@@ -60,13 +56,13 @@ export class DatabaseNotificationListener {
     });
 
     // Handle connection errors
-    this.client.on('error', (err) => {
+    this.client.on('error', err => {
       logger.error({ err }, 'Database notification connection error');
       this.scheduleReconnect();
     });
 
     // Handle notifications
-    this.client.on('notification', (msg) => {
+    this.client.on('notification', msg => {
       if (
         msg.channel === 'cache_invalidation' &&
         msg.payload !== null &&
@@ -100,7 +96,7 @@ export class DatabaseNotificationListener {
       logger.debug({ event: parsed }, 'Received database notification');
 
       // Forward to Redis pub/sub (which all services subscribe to)
-      this.cacheInvalidationService.publish(parsed).catch((error) => {
+      this.cacheInvalidationService.publish(parsed).catch(error => {
         logger.error({ err: error, event: parsed }, 'Failed to forward cache invalidation event');
       });
     } catch (error) {
@@ -141,7 +137,8 @@ export class DatabaseNotificationListener {
 
     // Calculate delay with exponential backoff
     const delay = Math.min(
-      DATABASE_RECONNECT.INITIAL_DELAY * Math.pow(DATABASE_RECONNECT.BACKOFF_MULTIPLIER, this.reconnectAttempts),
+      DATABASE_RECONNECT.INITIAL_DELAY *
+        Math.pow(DATABASE_RECONNECT.BACKOFF_MULTIPLIER, this.reconnectAttempts),
       DATABASE_RECONNECT.MAX_DELAY
     );
 
@@ -159,7 +156,7 @@ export class DatabaseNotificationListener {
           this.reconnectAttempts = 0;
           logger.info('Successfully reconnected to database notifications');
         })
-        .catch((error) => {
+        .catch(error => {
           logger.error({ err: error }, 'Reconnection attempt failed');
           this.scheduleReconnect();
         });

@@ -9,6 +9,7 @@
 ## Problem Statement
 
 Current message storage has critical race conditions:
+
 1. **User messages** saved incomplete, then enriched 5-60s later (data loss on crash)
 2. **Assistant messages** created before Discord send (orphaned records on failure)
 
@@ -26,6 +27,7 @@ Current message storage has critical race conditions:
 ```
 
 **Why it matters**:
+
 - AI worker creates assistant message during `storeInteraction()` (line 816)
 - Uses PostgreSQL `createdAt` default (current timestamp)
 - If user message saved AFTER AI completes, assistant timestamp < user timestamp
@@ -38,12 +40,14 @@ Current message storage has critical race conditions:
 ### Constraint #2: Attachment Processing Location
 
 **Current flow**:
+
 1. Bot-client sends attachments to AI worker as metadata
 2. AI worker processes attachments (vision/transcription) for prompt assembly
 3. AI worker returns descriptions for user message enrichment
 4. Bot-client updates user message with descriptions
 
 **Why it matters**:
+
 - Attachment processing (5-15s per image) happens during AI generation
 - Processing is expensive (OpenAI vision API, Whisper API)
 - Cannot duplicate processing (wasteful, expensive)
@@ -60,16 +64,19 @@ Current message storage has critical race conditions:
 **Idea**: Save user message with explicit timestamp before AI processing
 
 **Steps**:
+
 1. Capture timestamp: `const userMessageTime = new Date()`
 2. Call AI worker (processes attachments, creates assistant message)
 3. Get descriptions back
 4. Save/update user message with enriched content + explicit timestamp
 
 **Pros**:
+
 - Maintains chronological ordering
 - Single attachment processing
 
 **Cons**:
+
 - Requires schema change (createdAt override)
 - Still has race condition window
 - Prisma doesn't easily support timestamp override on create
@@ -83,6 +90,7 @@ Current message storage has critical race conditions:
 **Idea**: Process attachments in bot-client before calling AI worker
 
 **Steps**:
+
 1. Bot-client processes attachments (vision/transcription)
 2. Build complete user message content
 3. Save user message (complete, atomic)
@@ -90,10 +98,12 @@ Current message storage has critical race conditions:
 5. AI worker uses descriptions for prompt (doesn't re-process)
 
 **Pros**:
+
 - Atomic user message storage
 - No race condition for user message
 
 **Cons**:
+
 - Moves expensive processing to bot-client (architecture smell)
 - AI worker needs refactoring to accept pre-processed descriptions
 - Bot-client becomes more complex
@@ -108,6 +118,7 @@ Current message storage has critical race conditions:
 **Idea**: Separate attachment processing from response generation
 
 **Steps**:
+
 1. Bot-client calls AI worker: "process attachments only"
 2. AI worker processes attachments, returns descriptions (no LLM call)
 3. Bot-client saves user message with complete content
@@ -115,11 +126,13 @@ Current message storage has critical race conditions:
 5. AI worker generates response using provided descriptions
 
 **Pros**:
+
 - Atomic user message storage
 - Processing stays in AI worker (correct layer)
 - Maintains chronological ordering
 
 **Cons**:
+
 - Two API calls instead of one
 - More complex AI worker interface
 - Increased latency (network round-trips)
@@ -134,6 +147,7 @@ Current message storage has critical race conditions:
 **Idea**: AI worker returns response WITHOUT creating DB record, bot-client creates both messages
 
 **Steps**:
+
 1. Save user message (incomplete) with current timestamp
 2. Call AI worker
 3. AI worker processes attachments, generates response, returns data (NO DB save)
@@ -142,11 +156,13 @@ Current message storage has critical race conditions:
 6. Bot-client creates assistant message with timestamp = userMessageTime + 1ms
 
 **Pros**:
+
 - Fixes Critical #2 (no orphaned assistant messages)
 - Maintains chronological ordering via explicit timestamp
 - Assistant message created with Discord IDs from the start
 
 **Cons**:
+
 - Still has race condition for user message enrichment
 - Requires timestamp parameter for assistant message creation
 - Doesn't fully fix Critical #1
@@ -160,6 +176,7 @@ Current message storage has critical race conditions:
 **Idea**: Keep current architecture, add safeguards and documentation
 
 **Steps**:
+
 1. Document the race condition window in code
 2. Add database constraint to prevent orphaned records
 3. Add retry logic for enrichment failures
@@ -167,11 +184,13 @@ Current message storage has critical race conditions:
 5. Accept that user messages might be incomplete on crash
 
 **Pros**:
+
 - Minimal code changes
 - Works with existing architecture
 - Fast to implement
 
 **Cons**:
+
 - Doesn't fix the fundamental issue
 - Data loss still possible
 - Technical debt remains
@@ -194,6 +213,7 @@ Current message storage has critical race conditions:
 #### Phase 1: Defer Assistant Message Creation (This PR)
 
 **Changes to AI worker**:
+
 - `ConversationalRAGService.generateResponse()`:
   - Remove `storeInteraction()` call
   - Return `RAGResponse` with all data (content, descriptions, metadata)
@@ -201,6 +221,7 @@ Current message storage has critical race conditions:
   - Do NOT create LTM record
 
 **Changes to bot-client**:
+
 - `MessageHandler.handlePersonalityMessage()`:
   - After Discord send succeeds:
     - Create assistant message with Discord chunk IDs
@@ -208,17 +229,20 @@ Current message storage has critical race conditions:
   - Use timestamp injection: `userMessageTime + 1ms`
 
 **Schema changes**:
+
 - `ConversationHistoryService.addMessage()`:
   - Add optional `timestamp?: Date` parameter
   - Use provided timestamp if given, otherwise default
 
 **Benefits**:
+
 - ✅ Fixes Critical #2 (orphaned assistant messages)
 - ✅ Maintains chronological ordering
 - ✅ Assistant messages have Discord IDs from the start
 - ✅ LTM gets complete metadata
 
 **Trade-offs**:
+
 - ⚠️ User message enrichment still has race condition (will fix in Phase 2)
 
 ---
@@ -226,21 +250,25 @@ Current message storage has critical race conditions:
 #### Phase 2: Two-Phase Processing (Future PR)
 
 **Add to AI worker**:
+
 - New endpoint: `processAttachments()`
   - Takes attachments/references
   - Returns descriptions only
   - No LLM call, no DB save
 
 **Changes to bot-client**:
+
 - Call `processAttachments()` first
 - Save user message with complete content
 - Call `generate()` with pre-processed descriptions
 
 **Benefits**:
+
 - ✅ Fixes Critical #1 (atomic user message)
 - ✅ No data loss on crash
 
 **Trade-offs**:
+
 - ⚠️ Two API calls (adds latency)
 - ⚠️ More complex interface
 
@@ -306,6 +334,7 @@ Current message storage has critical race conditions:
 ## Rollback Plan
 
 If issues found:
+
 1. Revert PR
 2. Restore previous behavior
 3. Investigate failures
@@ -316,6 +345,7 @@ If issues found:
 ## Future Work (Phase 2)
 
 After Phase 1 is stable and deployed:
+
 1. Design two-phase processing API
 2. Implement `processAttachments()` endpoint
 3. Refactor bot-client to call sequentially

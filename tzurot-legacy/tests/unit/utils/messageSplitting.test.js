@@ -254,9 +254,9 @@ And some more text after the code block.
     it('should split message without model indicator', () => {
       const content = 'Test message';
       const options = {};
-      
+
       const result = prepareAndSplitMessage(content, options, 'Test');
-      
+
       expect(result).toEqual(['Test message']);
       expect(mockLogger.info).toHaveBeenCalledWith('[Test] Split message into 1 chunks');
     });
@@ -264,9 +264,9 @@ And some more text after the code block.
     it('should append model indicator before splitting', () => {
       const content = 'A'.repeat(1995);
       const options = { modelIndicator: ' (AI)' };
-      
+
       const result = prepareAndSplitMessage(content, options, 'Test');
-      
+
       // With indicator, total is 2000 chars - should still be one chunk
       expect(result).toHaveLength(1);
       expect(result[0].endsWith(' (AI)')).toBe(true);
@@ -276,9 +276,9 @@ And some more text after the code block.
     it('should split when content + indicator exceeds limit', () => {
       const content = 'B'.repeat(1996);
       const options = { modelIndicator: ' (AI)' };
-      
+
       const result = prepareAndSplitMessage(content, options, 'Test');
-      
+
       // With indicator, total exceeds 2000 - should split
       expect(result.length).toBeGreaterThan(1);
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Split message into'));
@@ -286,9 +286,9 @@ And some more text after the code block.
 
     it('should handle null options gracefully', () => {
       const content = 'Test message';
-      
+
       const result = prepareAndSplitMessage(content, null, 'Test');
-      
+
       expect(result).toEqual(['Test message']);
     });
   });

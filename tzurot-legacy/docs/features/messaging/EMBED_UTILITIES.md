@@ -29,7 +29,10 @@ Located at `/src/utils/embedBuilders.js`, this module contains functions for cre
 const embedBuilders = require('./utils/embedBuilders');
 
 // Create a personality list embed
-const { embed, totalPages, currentPage } = embedBuilders.createPersonalityListEmbed(userId, pageNumber);
+const { embed, totalPages, currentPage } = embedBuilders.createPersonalityListEmbed(
+  userId,
+  pageNumber
+);
 
 // Send the embed
 message.channel.send({ embeds: [embed] });
@@ -54,7 +57,9 @@ const embedUtils = require('./utils/embedUtils');
 const embedText = embedUtils.parseEmbedsToText(message.embeds, 'referenced message');
 
 // Extract media URLs from embeds
-const { audioUrl, imageUrl, hasAudio, hasImage } = embedUtils.extractMediaFromEmbeds(message.embeds);
+const { audioUrl, imageUrl, hasAudio, hasImage } = embedUtils.extractMediaFromEmbeds(
+  message.embeds
+);
 ```
 
 ## Best Practices

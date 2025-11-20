@@ -7,11 +7,13 @@ This guide outlines the strategy and implementation details for migrating from S
 ## Migration Strategy
 
 ### Current State
+
 - **Public API Access**: Limited to profile data only
 - **Private API Access**: One-time backup via session cookies
 - **Bot Dependency**: Currently relies on shapes.inc for AI responses
 
 ### Target State
+
 - **Local Data Storage**: All personality data stored locally
 - **Custom Implementation**: Self-hosted AI, voice, and memory systems
 - **BYOK Architecture**: Users provide their own API keys
@@ -20,6 +22,7 @@ This guide outlines the strategy and implementation details for migrating from S
 ## Phase 1: Domain Model Extension
 
 ### Extended Personality Profile
+
 ```javascript
 class ExtendedPersonalityProfile extends PersonalityProfile {
   // Existing fields plus:
@@ -42,6 +45,7 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
 ```
 
 ### Storage Architecture
+
 ```
 data/
 ├── ddd_personalities.json          # Core configs
@@ -55,12 +59,13 @@ data/
 ## Phase 2: Memory Systems Implementation
 
 ### Short-term Memory (Redis)
+
 ```javascript
 // Session context management
 const contextCache = new LRU({
   max: 1000,
   ttl: 1000 * 60 * 30, // 30 minutes
-  updateAgeOnGet: true
+  updateAgeOnGet: true,
 });
 
 // Redis for distributed caching
@@ -72,6 +77,7 @@ async function storeContext(userId, channelId, context) {
 ```
 
 ### Short-Term Memory (STM) Implementation
+
 Based on shapes.inc's rolling context window approach:
 
 ```javascript
@@ -82,25 +88,25 @@ const STM_LIMIT = 50; // Maximum messages in context window
 const messageSchema = {
   id: 'uuid',
   reply: 'AI response or null',
-  message: 'User message or null', 
+  message: 'User message or null',
   ts: Date.now() / 1000,
   voice_reply_url: 'URL or null',
   attachment_url: 'URL or null',
   attachment_type: 'MIME type or null',
   regenerated_replies: [],
-  fallback_model_used: false
+  fallback_model_used: false,
 };
 
 // Maintain rolling window in Redis for active conversations
 async function addToSTM(personalityId, userId, message) {
   const key = `stm:${personalityId}:${userId}`;
-  
+
   // Add to list
   await redis.lpush(key, JSON.stringify(message));
-  
+
   // Trim to maintain window size
   await redis.ltrim(key, 0, STM_LIMIT - 1);
-  
+
   // Set expiry for inactive conversations
   await redis.expire(key, 3600); // 1 hour
 }
@@ -108,18 +114,21 @@ async function addToSTM(personalityId, userId, message) {
 // Retrieve current context window
 async function getSTM(personalityId, userId, limit = 50, beforeTimestamp = null) {
   const key = `stm:${personalityId}:${userId}`;
-  
+
   if (beforeTimestamp) {
     // For historical access, query from PostgreSQL archive
-    const result = await db.query(`
+    const result = await db.query(
+      `
       SELECT * FROM message_archive
       WHERE personality_id = $1 
         AND user_id = $2
         AND ts < $3
       ORDER BY ts DESC
       LIMIT $4
-    `, [personalityId, userId, beforeTimestamp, limit]);
-    
+    `,
+      [personalityId, userId, beforeTimestamp, limit]
+    );
+
     return result.rows;
   } else {
     // For active conversations, use Redis
@@ -130,28 +139,32 @@ async function getSTM(personalityId, userId, limit = 50, beforeTimestamp = null)
 
 // For long-term storage, save to PostgreSQL separately
 async function archiveMessage(personalityId, userId, message) {
-  await db.query(`
+  await db.query(
+    `
     INSERT INTO message_archive 
     (id, personality_id, user_id, message, reply, ts, metadata)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
-  `, [
-    message.id,
-    personalityId,
-    userId,
-    message.message,
-    message.reply,
-    message.ts,
-    JSON.stringify({
-      voice_reply_url: message.voice_reply_url,
-      attachment_url: message.attachment_url,
-      attachment_type: message.attachment_type,
-      regenerated_replies: message.regenerated_replies
-    })
-  ]);
+  `,
+    [
+      message.id,
+      personalityId,
+      userId,
+      message.message,
+      message.reply,
+      message.ts,
+      JSON.stringify({
+        voice_reply_url: message.voice_reply_url,
+        attachment_url: message.attachment_url,
+        attachment_type: message.attachment_type,
+        regenerated_replies: message.regenerated_replies,
+      }),
+    ]
+  );
 }
 ```
 
 ### Long-term Memory (Vector Store)
+
 ```javascript
 // Redis Vector Search configuration
 await client.ft.create('knowledge-idx', {
@@ -161,15 +174,16 @@ await client.ft.create('knowledge-idx', {
     attributes: {
       TYPE: 'FLOAT32',
       DIM: 1536, // OpenAI embeddings
-      DISTANCE_METRIC: 'COSINE'
-    }
+      DISTANCE_METRIC: 'COSINE',
+    },
   },
   '$.content': SchemaFieldTypes.TEXT,
-  '$.metadata': SchemaFieldTypes.TAG
+  '$.metadata': SchemaFieldTypes.TAG,
 });
 ```
 
 ### Memory Retrieval Pipeline
+
 1. Check LRU cache for recent context
 2. Query Redis for session data
 3. Vector search for relevant memories
@@ -179,30 +193,35 @@ await client.ft.create('knowledge-idx', {
 ## Phase 3: Voice Synthesis Integration
 
 ### ElevenLabs WebSocket Implementation
+
 ```javascript
 function streamTTS(text, voiceId) {
   const ws = new WebSocket(
     `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_turbo_v2`,
     { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY } }
   );
-  
+
   ws.on('open', () => {
-    ws.send(JSON.stringify({
-      text: " ",
-      voice_settings: { 
-        stability: 0.8, 
-        similarity_boost: 0.8 
-      }
-    }));
-    
-    ws.send(JSON.stringify({
-      text: text + " ",
-      flush: true
-    }));
+    ws.send(
+      JSON.stringify({
+        text: ' ',
+        voice_settings: {
+          stability: 0.8,
+          similarity_boost: 0.8,
+        },
+      })
+    );
+
+    ws.send(
+      JSON.stringify({
+        text: text + ' ',
+        flush: true,
+      })
+    );
   });
-  
+
   // Handle audio chunks for Discord
-  ws.on('message', (data) => {
+  ws.on('message', data => {
     const response = JSON.parse(data);
     if (response.audio) {
       const audioChunk = Buffer.from(response.audio, 'base64');
@@ -213,67 +232,63 @@ function streamTTS(text, voiceId) {
 ```
 
 ### Voice Activity Detection
+
 ```javascript
 const receiver = connection.receiver;
 const audioStream = receiver.subscribe(userId, {
-  end: { 
-    behavior: EndBehaviorType.AfterSilence, 
-    duration: 1000 
-  }
+  end: {
+    behavior: EndBehaviorType.AfterSilence,
+    duration: 1000,
+  },
 });
 
 // Process audio for STT
-audioStream
-  .pipe(opusDecoder)
-  .pipe(pcmConverter)
-  .pipe(whisperSTT);
+audioStream.pipe(opusDecoder).pipe(pcmConverter).pipe(whisperSTT);
 ```
 
 ## Phase 4: Knowledge & RAG System
 
 ### Knowledge Ingestion
+
 ```javascript
 async function ingestKnowledge(personalityId, documents) {
   for (const doc of documents) {
     // Generate embeddings
     const embedding = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: doc.content
+      model: 'text-embedding-3-small',
+      input: doc.content,
     });
-    
+
     // Store in vector database
-    await redis.json.set(
-      `knowledge:${personalityId}:${doc.id}`,
-      '$',
-      {
-        content: doc.content,
-        embedding: embedding.data[0].embedding,
-        metadata: doc.metadata
-      }
-    );
+    await redis.json.set(`knowledge:${personalityId}:${doc.id}`, '$', {
+      content: doc.content,
+      embedding: embedding.data[0].embedding,
+      metadata: doc.metadata,
+    });
   }
 }
 ```
 
 ### Semantic Search
+
 ```javascript
 async function searchKnowledge(personalityId, query, limit = 5) {
   // Generate query embedding
   const queryEmbedding = await generateEmbedding(query);
-  
+
   // Vector similarity search
   const results = await redis.ft.search(
     'knowledge-idx',
     `*=>[KNN ${limit} @embedding $vec AS score]`,
     {
       PARAMS: {
-        vec: Buffer.from(queryEmbedding)
+        vec: Buffer.from(queryEmbedding),
       },
       SORTBY: 'score',
-      DIALECT: 2
+      DIALECT: 2,
     }
   );
-  
+
   return results.documents;
 }
 ```
@@ -281,6 +296,7 @@ async function searchKnowledge(personalityId, query, limit = 5) {
 ## Phase 5: BYOK Architecture
 
 ### Provider Abstraction
+
 ```javascript
 interface IPersonalityProvider {
   generateResponse(prompt, context);
@@ -293,7 +309,7 @@ class OpenAIProvider implements IPersonalityProvider {
   constructor(apiKey) {
     this.client = new OpenAI({ apiKey });
   }
-  
+
   async generateResponse(prompt, context) {
     return await this.client.chat.completions.create({
       model: "gpt-4",
@@ -307,16 +323,17 @@ class OpenAIProvider implements IPersonalityProvider {
 ```
 
 ### Configuration Management
+
 ```javascript
 class PersonalityConfiguration {
   constructor(personality) {
     this.providers = {
       text: this.getTextProvider(personality),
       voice: this.getVoiceProvider(personality),
-      image: this.getImageProvider(personality)
+      image: this.getImageProvider(personality),
     };
   }
-  
+
   getTextProvider(personality) {
     if (personality.useLocalModel) {
       return new OllamaProvider();
@@ -329,18 +346,19 @@ class PersonalityConfiguration {
 ## Infrastructure & Deployment
 
 ### Railway-Optimized Stack
+
 ```yaml
 services:
   bot:
     environment:
       - REDIS_URL=${{Redis.REDIS_URL}}
       - DATABASE_URL=${{Postgres.DATABASE_URL}}
-    
+
   redis:
     image: redis/redis-stack
     volumes:
       - redis_data:/data
-    
+
   postgres:
     image: postgres:15
     volumes:
@@ -350,6 +368,7 @@ services:
 ### Performance Optimizations
 
 #### Connection Pooling
+
 ```javascript
 const pgPool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -366,11 +385,13 @@ const redisPool = createPool({
 ```
 
 #### Caching Strategy
+
 1. **L1 Cache**: In-memory LRU (ultra-fast)
 2. **L2 Cache**: Redis (distributed)
 3. **L3 Cache**: PostgreSQL (persistent)
 
 #### Cost Optimization
+
 - Semantic caching reduces LLM calls by 30-40%
 - Batch operations for embeddings
 - Progressive enhancement (basic → premium features)
@@ -379,21 +400,25 @@ const redisPool = createPool({
 ## Migration Timeline
 
 ### Week 1: Data Migration
+
 - Import personality backups
 - Extend domain models
 - Create data repositories
 
 ### Week 2: Core Features
+
 - Implement text generation
 - Basic memory system
 - Session management
 
 ### Week 3: Advanced Features
+
 - Voice synthesis integration
 - Knowledge/RAG system
 - Image generation
 
 ### Week 4: Production Ready
+
 - Performance optimization
 - Monitoring and logging
 - Documentation and testing
@@ -406,14 +431,14 @@ class FeatureAnalytics {
   async trackUsage(feature, userId, metadata) {
     await redis.hincrby(`analytics:${feature}`, 'total', 1);
     await redis.hincrby(`analytics:${feature}`, userId, 1);
-    
+
     // Store detailed event
     await redis.lpush(
       `events:${feature}`,
       JSON.stringify({
         userId,
         timestamp: Date.now(),
-        ...metadata
+        ...metadata,
       })
     );
   }
@@ -427,6 +452,7 @@ The system now includes automatic personality data migration that loads backup d
 ### When to Enable
 
 Enable the `features.enhanced-context` flag when:
+
 1. Switching to a non-shapes.inc AI service (OpenAI, Claude, etc.)
 2. Testing the migration locally
 3. Running in a staging environment
@@ -443,6 +469,7 @@ flags.enable('features.enhanced-context');
 ```
 
 Or via environment variable:
+
 ```bash
 FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=true npm start
 ```
@@ -450,6 +477,7 @@ FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=true npm start
 ### What It Does
 
 When enabled, the AI service will:
+
 1. Automatically detect and load backup data from `data/personalities/`
 2. Include recent chat history (up to 10 messages) in the context
 3. Add relevant memories and knowledge to the system prompt

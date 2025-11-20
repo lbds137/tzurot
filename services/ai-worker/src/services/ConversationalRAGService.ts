@@ -221,13 +221,12 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions
       );
 
-      const { message: currentMessage, contentForStorage } =
-        this.promptBuilder.buildHumanMessage(
-          userMessage,
-          processedAttachments,
-          context.activePersonaName,
-          referencedMessagesDescriptions
-        );
+      const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
+        userMessage,
+        processedAttachments,
+        context.activePersonaName,
+        referencedMessagesDescriptions
+      );
 
       // Use ContextWindowManager to calculate budget and select history
       const promptContext = this.contextWindowManager.buildContext({
@@ -256,15 +255,11 @@ export class ConversationalRAGService {
       // Calculate attachment counts for dynamic timeout calculation
       const imageCount =
         context.attachments?.filter(
-          att =>
-            att.contentType.startsWith('image/') &&
-            att.isVoiceMessage !== true
+          att => att.contentType.startsWith('image/') && att.isVoiceMessage !== true
         ).length ?? 0;
       const audioCount =
         context.attachments?.filter(
-          att =>
-            att.contentType.startsWith('audio/') ||
-            att.isVoiceMessage === true
+          att => att.contentType.startsWith('audio/') || att.isVoiceMessage === true
         ).length ?? 0;
 
       // Invoke the model with timeout and retry logic
@@ -321,10 +316,7 @@ export class ConversationalRAGService {
           personaId
         );
       } else {
-        logger.warn(
-          {},
-          `[RAG] No persona found for user ${context.userId}, skipping LTM storage`
-        );
+        logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
       }
 
       // Extract attachment descriptions for history storage with context

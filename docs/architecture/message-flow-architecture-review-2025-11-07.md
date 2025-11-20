@@ -147,6 +147,7 @@ TIME: 0ms - Discord Message Received
 **Location**: `MessageHandler.handlePersonalityMessage()` (lines 420-491)
 
 **Problem**:
+
 ```typescript
 // Line 423: User message saved WITHOUT attachments
 await this.conversationHistory.addMessage(
@@ -171,6 +172,7 @@ if (response.attachmentDescriptions || ...) {
 **Race Condition Window**: 5-60 seconds between initial save and enrichment
 
 **Impact**:
+
 - ❌ If bot crashes between save and update, user message has `[voice message: 5s]` placeholder instead of transcript
 - ❌ If next user message arrives before enrichment completes, conversation history is incomplete
 - ❌ Database queries during this window get partial data
@@ -187,6 +189,7 @@ if (response.attachmentDescriptions || ...) {
 **Location**: `ConversationalRAGService.storeInteraction()` (lines 782-913)
 
 **Problem**:
+
 ```typescript
 // Line 816: Assistant message saved during AI processing
 const conversationRecord = await prisma.conversationHistory.create({
@@ -194,7 +197,7 @@ const conversationRecord = await prisma.conversationHistory.create({
     role: 'assistant',
     content: aiResponse,
     // NO discordMessageId yet - message not sent!
-  }
+  },
 });
 
 // MessageHandler sends response LATER (lines 509-544)
@@ -204,6 +207,7 @@ const conversationRecord = await prisma.conversationHistory.create({
 **Race Condition Window**: 10-30 seconds between DB save and Discord send
 
 **Impact**:
+
 - ❌ Assistant message exists in DB without Discord ID
 - ❌ Deduplication relies on timestamp fallback (±15s tolerance)
 - ❌ If Discord send fails, orphaned assistant message in DB
@@ -222,6 +226,7 @@ const conversationRecord = await prisma.conversationHistory.create({
 **Location**: `MessageReferenceExtractor.shouldIncludeReference()` (lines 571-637)
 
 **Problem**:
+
 ```typescript
 // Line 589-606: Fallback to timestamp matching
 if (message.webhookId || message.author.bot) {
@@ -236,6 +241,7 @@ if (message.webhookId || message.author.bot) {
 ```
 
 **Impact**:
+
 - Two messages within 15s could be falsely deduplicated
 - Clock skew between services affects matching
 - Relies on conversation history being up-to-date (but user enrichment is delayed!)
@@ -251,12 +257,14 @@ if (message.webhookId || message.author.bot) {
 **Location**: `MessageReferenceExtractor.extractReferencesWithReplacement()` (line 89)
 
 **Problem**:
+
 ```typescript
 // Wait for Discord to process embeds
 await this.delay(this.embedProcessingDelayMs); // 2500ms hardcoded
 ```
 
 **Impact**:
+
 - Every message waits 2.5s even if embeds aren't needed
 - Adds latency to all responses (not just those with links)
 
@@ -285,6 +293,7 @@ await this.delay(this.embedProcessingDelayMs); // 2500ms hardcoded
 ### Decision #1: Keep 2.5s Embed Delay
 
 **Reasoning**: Required for future PluralKit proxy detection
+
 - PluralKit sends messages via webhooks with original author info in embeds
 - Embeds take time to populate after message send
 - Need to re-fetch message after delay to get embed metadata
@@ -298,6 +307,7 @@ await this.delay(this.embedProcessingDelayMs); // 2500ms hardcoded
 ### Decision #2: Keep Attachments in Critical Path
 
 **Reasoning**: AI must see attachment content before generating response
+
 - Vision model descriptions are crucial for understanding images
 - Voice transcripts change meaning of entire message
 - Processing async would make AI blind to visual/audio context
@@ -315,6 +325,7 @@ await this.delay(this.embedProcessingDelayMs); // 2500ms hardcoded
 **Goal**: Process attachments BEFORE saving user message (one atomic save)
 
 **Before**:
+
 ```typescript
 // Save incomplete user message
 await conversationHistory.addMessage(content);
@@ -327,15 +338,13 @@ await conversationHistory.updateLastUserMessage(enrichedContent);
 ```
 
 **After**:
+
 ```typescript
 // Process attachments FIRST (before any DB save)
 const attachmentDescriptions = await processAttachments(context.attachments);
 
 // Build complete message content
-const completeContent = buildCompleteMessage(
-  messageContent,
-  attachmentDescriptions
-);
+const completeContent = buildCompleteMessage(messageContent, attachmentDescriptions);
 
 // Save ONCE with complete data
 await conversationHistory.addMessage(completeContent);
@@ -344,6 +353,7 @@ await conversationHistory.addMessage(completeContent);
 ```
 
 **Benefits**:
+
 - ✅ No partial data in database
 - ✅ No race condition window
 - ✅ Simpler code (one save, no update)
@@ -358,6 +368,7 @@ await conversationHistory.addMessage(completeContent);
 **Goal**: Create assistant message AFTER Discord send succeeds
 
 **Before**:
+
 ```typescript
 // In ConversationalRAGService.storeInteraction():
 const conversationRecord = await prisma.conversationHistory.create({
@@ -365,7 +376,7 @@ const conversationRecord = await prisma.conversationHistory.create({
     role: 'assistant',
     content: aiResponse,
     // No Discord ID yet!
-  }
+  },
 });
 
 // In MessageHandler (later):
@@ -374,6 +385,7 @@ await conversationHistory.updateLastAssistantMessageId(chunkIds);
 ```
 
 **After**:
+
 ```typescript
 // In ConversationalRAGService.generateResponse():
 // Just return the AI response, don't store yet
@@ -397,11 +409,12 @@ await conversationHistory.addMessage(
 // Store to LTM with complete metadata
 await memoryManager.addMemory({
   text: interactionText,
-  metadata: { discordMessageIds: chunkIds }
+  metadata: { discordMessageIds: chunkIds },
 });
 ```
 
 **Benefits**:
+
 - ✅ No orphaned records
 - ✅ No backfilling needed
 - ✅ LTM has complete metadata from the start

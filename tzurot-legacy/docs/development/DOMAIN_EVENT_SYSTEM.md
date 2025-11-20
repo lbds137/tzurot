@@ -19,16 +19,15 @@ When domain operations occur, the aggregate roots create events:
 
 ```javascript
 // In Personality.js
-personality.applyEvent(new PersonalityCreated(
-  personalityId.toString(),
-  {
+personality.applyEvent(
+  new PersonalityCreated(personalityId.toString(), {
     personalityId: personalityId.toString(),
     ownerId: ownerId.toString(),
     profile: profile.toJSON(),
     model: model.toJSON(),
     createdAt: new Date().toISOString(),
-  }
-));
+  })
+);
 ```
 
 ### 2. Application Service Publishes Events
@@ -39,11 +38,11 @@ After successful operations, the application service publishes uncommitted event
 // In PersonalityApplicationService.js
 async _publishEvents(personality) {
   const events = personality.getUncommittedEvents();
-  
+
   for (const event of events) {
     await this.eventBus.publish(event);
   }
-  
+
   personality.markEventsAsCommitted();
 }
 ```
@@ -65,6 +64,7 @@ async handlePersonalityProfileUpdated(event) {
 ## Available Domain Events
 
 ### Personality Events
+
 - **PersonalityCreated**: When a new personality is registered
 - **PersonalityProfileUpdated**: When personality profile changes
 - **PersonalityRemoved**: When a personality is deleted
@@ -94,25 +94,29 @@ class MyEventHandler {
 // In EventHandlerRegistry.js
 const myHandler = new MyEventHandler(dependencies);
 
-this.eventBus.subscribe('PersonalityCreated', 
-  event => myHandler.handlePersonalityCreated(event));
+this.eventBus.subscribe('PersonalityCreated', event => myHandler.handlePersonalityCreated(event));
 ```
 
 ## Example Use Cases
 
 ### Cache Invalidation
+
 When personality data changes, clear relevant caches to ensure fresh data.
 
 ### Notification System
+
 When a personality is created, notify followers or interested users.
 
 ### Analytics
+
 Track personality creation/deletion for usage metrics.
 
 ### Search Index Updates
+
 When personality profiles change, update search indexes.
 
 ### Cascade Operations
+
 When a personality is removed, clean up related data (conversations, preferences, etc.).
 
 ## Wiring Event Handlers
@@ -125,13 +129,14 @@ To activate event handlers in production:
 4. Ensure eventBus is shared with application services
 
 Example bootstrap code:
+
 ```javascript
 // In application startup
 const eventBus = new DomainEventBus();
 const eventHandlerRegistry = new EventHandlerRegistry({
   eventBus,
   profileInfoCache,
-  messageTracker
+  messageTracker,
 });
 
 eventHandlerRegistry.registerHandlers();
@@ -141,7 +146,7 @@ const personalityService = new PersonalityApplicationService({
   personalityRepository,
   aiService,
   authenticationRepository,
-  eventBus // Same instance!
+  eventBus, // Same instance!
 });
 ```
 

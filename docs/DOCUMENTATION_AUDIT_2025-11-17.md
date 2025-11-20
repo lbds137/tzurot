@@ -3,6 +3,7 @@
 ## Executive Summary
 
 Comprehensive review of project documentation to identify:
+
 - Completed docs to archive
 - Stale docs needing updates
 - Redundant/duplicate content
@@ -13,6 +14,7 @@ Comprehensive review of project documentation to identify:
 ### 1. Archive These Docs (Completed Work)
 
 **docs/DOC_REORGANIZATION_PLAN.md**
+
 - Date: 2025-10-28
 - Status: COMPLETED - current structure matches proposed structure
 - Action: Delete if obsolete (git history preserves it)
@@ -20,6 +22,7 @@ Comprehensive review of project documentation to identify:
 ### 2. Update These Docs (Stale Content)
 
 **CURRENT_WORK.md**
+
 - Last Updated: 2025-11-06 (11 days ago)
 - Status: STALE - doesn't reflect recent work
 - Missing: Voice transcription bug fix (alpha.39 release on 2025-11-16)
@@ -28,6 +31,7 @@ Comprehensive review of project documentation to identify:
 - Action: Update to reflect current state
 
 **docs/planning/V2_FEATURE_TRACKING.md**
+
 - Last Updated: 2025-10-02 (46 days ago!)
 - Status: VERY STALE - needs comprehensive refresh
 - Action: Review all v2 features, update status for what's been implemented
@@ -35,10 +39,12 @@ Comprehensive review of project documentation to identify:
 ### 3. Top-Level Docs Review Needed
 
 **README.md**
+
 - Need to verify: Current deployment status, feature list, quick start
 - Check: Does it accurately reflect v3 alpha.39 state?
 
 **CHANGELOG.md**
+
 - Status: **VERY STALE** - Last entry is alpha.33 (2025-11-08)
 - Missing: alpha.34, 35, 36, 37, 38, **39** (6 releases!)
 - Action: Add changelog entries for all missing releases
@@ -66,11 +72,13 @@ docs/
 ### Potential Archives (Needs Review)
 
 **architecture/** - Check for completed/obsolete design docs
+
 - `atomic-message-storage-implementation-plan.md` - Is this implemented?
 - `message-flow-architecture-review-2025-11-07.md` - One-time review, should archive?
 - `SHAPES_INC_MIGRATION_STRATEGY.md` - Is Shapes.inc migration complete?
 
 **planning/** - Check for completed plans
+
 - `ASYNC_JOB_DELIVERY.md` - IMPLEMENTED ✅ (ResultsListener, JobTracker exist with tests)
 - `message-reference-extractor-refactor-plan.md` - Status?
 - `MESSAGE_REFERENCE_IMPLEMENTATION_PLAN.md` - IMPLEMENTED ✅ (deleted after completion)
@@ -80,6 +88,7 @@ docs/
 ### Current State
 
 **docs/improvements/** contains:
+
 1. `TECHNICAL_DEBT.md` - Recently updated (2025-11-16)
 2. `MEMORY_INGESTION_IMPROVEMENTS.md`
 3. `message-reference-follow-ups.md`
@@ -97,6 +106,7 @@ docs/
 ## V2 Feature Parity Analysis Needed
 
 Need to compare V2_FEATURE_TRACKING.md against:
+
 1. Current v3 codebase (what's actually implemented)
 2. Recent releases (alpha.38, alpha.39)
 3. Unit test coverage (what's been tested = what works)
@@ -104,6 +114,7 @@ Need to compare V2_FEATURE_TRACKING.md against:
 ### Known v3 Features (from CURRENT_WORK.md)
 
 **Working:**
+
 - @personality mentions
 - Reply detection
 - Webhook management
@@ -117,6 +128,7 @@ Need to compare V2_FEATURE_TRACKING.md against:
 - Basic slash commands
 
 **Not Yet Ported:**
+
 - Auto-response channels
 - Full slash command system
 - Rate limiting
@@ -124,12 +136,14 @@ Need to compare V2_FEATURE_TRACKING.md against:
 - Request deduplication
 
 **Need to verify against v2:**
+
 - What other features existed in v2?
 - What features are intentionally NOT porting?
 
 ## CI/CD Analysis - CRITICAL ISSUES FOUND
 
 ### Current Setup
+
 - ✅ Pre-commit hooks exist (working well)
 - ✅ Unit tests exist (497 tests passing)
 - ✅ TypeScript build verification in pre-commit
@@ -139,18 +153,21 @@ Need to compare V2_FEATURE_TRACKING.md against:
 ### CRITICAL ISSUES
 
 **1. ci.yml is DISABLED**
+
 - File: `.github/workflows/ci.yml.disabled`
 - Last working config uses **npm** (should be **pnpm**)
 - No test exclusions for v2 code!
 - Action: Either fix and re-enable OR remove if not needed
 
 **2. ESLint configs in v2 codebase**
+
 - `tzurot-legacy/.eslintrc.*` files exist (4 configs)
 - `tzurot-legacy/eslint.config.js` exists
 - v2 code should be **completely excluded** from linting
 - Action: Add `tzurot-legacy/` to `.eslintignore` OR remove v2 eslint configs
 
 **3. No CI Test Run**
+
 - Tests only run locally and in pre-commit hooks
 - No automated test run on PR/push (CI disabled)
 - Risk: Could merge code that breaks in clean environment
@@ -159,6 +176,7 @@ Need to compare V2_FEATURE_TRACKING.md against:
 ### Package Manager Inconsistency
 
 **ci.yml.disabled** uses:
+
 ```yaml
 cache: 'npm'
 run: npm ci
@@ -167,6 +185,7 @@ run: npm test
 ```
 
 **Project uses:**
+
 - pnpm workspaces
 - pnpm-lock.yaml
 - All docs reference pnpm
@@ -195,6 +214,7 @@ run: npm test
 ## Claude Code Workflow Research
 
 ### Current Tools in Use
+
 - Read, Write, Edit (file operations)
 - Bash (command execution)
 - Grep, Glob (search)
@@ -203,12 +223,14 @@ run: npm test
 - Git operations
 
 ### Research Topics
+
 1. **Subagents** - Can we delegate complex tasks?
 2. **Skills** - Custom workflows for common operations?
 3. **Tool optimization** - Better patterns for multi-file operations?
 4. **MCP servers** - Additional integrations?
 
 ### Questions
+
 - Are there common workflows that could be automated?
 - Documentation reading patterns that could be streamlined?
 - Multi-file refactoring patterns?

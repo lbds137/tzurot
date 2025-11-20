@@ -1,11 +1,13 @@
 # TypeScript Migration Plan (Post-DDD)
 
 ## Overview
+
 This document outlines the plan to migrate Tzurot to TypeScript AFTER the DDD migration is complete. By establishing clean domain boundaries first, we'll make the TypeScript conversion much smoother.
 
 ## Why TypeScript (Eventually)
 
 ### Type Safety Benefits for Our Domain Model
+
 1. **Aggregate Invariants**: Compile-time enforcement of business rules
 2. **Value Objects**: Branded types prevent primitive obsession
 3. **Repository Contracts**: Explicit interfaces with proper return types
@@ -13,6 +15,7 @@ This document outlines the plan to migrate Tzurot to TypeScript AFTER the DDD mi
 5. **Error Handling**: Result types instead of exceptions
 
 ### DDD-Specific Benefits
+
 ```typescript
 // Example: PersonalityId as branded type
 type PersonalityId = string & { readonly brand: unique symbol };
@@ -24,7 +27,7 @@ interface PersonalityRepository {
 }
 
 // Example: Discriminated union for events
-type PersonalityEvent = 
+type PersonalityEvent =
   | { type: 'PersonalityCreated'; payload: CreatePayload }
   | { type: 'PersonalityRemoved'; payload: RemovePayload };
 ```
@@ -32,17 +35,20 @@ type PersonalityEvent =
 ## Prerequisites (What We're Doing Now)
 
 ### 1. Clean Architecture
+
 - ✅ Domain layer with no external dependencies
 - ✅ Clear boundaries between contexts
 - ✅ Repository interfaces
 - ✅ Event-driven communication
 
 ### 2. JSDoc Everything
+
 - ✅ Type annotations in comments
 - ✅ Interface documentation
 - ✅ Parameter and return types documented
 
 ### 3. Strict Patterns
+
 - ✅ Constructor validation
 - ✅ Immutable value objects
 - ✅ Factory methods
@@ -51,31 +57,39 @@ type PersonalityEvent =
 ## Migration Timeline
 
 ### Phase 1: After DDD Phase 4 Complete (Week 12)
+
 **Setup & Configuration**
+
 - Initialize TypeScript configuration
 - Set up build pipeline
 - Configure strict mode from start
 - Add necessary @types packages
 
 ### Phase 2: Domain Layer First (Week 13)
+
 **Convert Core Domain**
+
 ```bash
 src/domain/
 ├── shared/         # Convert first (base classes)
 ├── personality/    # Then aggregates
-├── conversation/   
+├── conversation/
 ├── authentication/
 └── ai/
 ```
 
 ### Phase 3: Adapters & Infrastructure (Week 14)
+
 **Convert Adapters**
+
 - Persistence adapters
 - Discord adapters
 - AI service adapters
 
 ### Phase 4: Application Layer (Week 15)
+
 **Convert Commands & Handlers**
+
 - Command handlers
 - Event handlers
 - Application services
@@ -83,6 +97,7 @@ src/domain/
 ## Conversion Strategy
 
 ### 1. File-by-File Approach
+
 ```bash
 # Rename .js to .ts one at a time
 mv src/domain/personality/PersonalityId.js src/domain/personality/PersonalityId.ts
@@ -92,21 +107,23 @@ mv src/domain/personality/PersonalityId.js src/domain/personality/PersonalityId.
 ```
 
 ### 2. Maintain Compatibility
+
 ```json
 // tsconfig.json
 {
   "compilerOptions": {
-    "allowJs": true,          // Mix JS and TS during migration
-    "checkJs": false,         // Don't check JS files
+    "allowJs": true, // Mix JS and TS during migration
+    "checkJs": false, // Don't check JS files
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,           // Start strict
+    "strict": true, // Start strict
     "esModuleInterop": true
   }
 }
 ```
 
 ### 3. Type Definition Strategy
+
 ```typescript
 // Start with interfaces in .d.ts files
 // src/types/domain.d.ts
@@ -122,16 +139,19 @@ declare module '@domain/personality' {
 ## Expected Benefits Post-Migration
 
 ### 1. Compile-Time Safety
+
 - Catch type errors before runtime
 - Prevent invalid state transitions
 - Enforce repository contracts
 
 ### 2. Better Refactoring
+
 - IDE can safely rename across codebase
 - Find all usages reliably
 - Extract interfaces automatically
 
 ### 3. Self-Documenting Code
+
 ```typescript
 // Before (JS with JSDoc)
 /**
@@ -146,6 +166,7 @@ static create(id: PersonalityId, ownerId: UserId): Personality { }
 ```
 
 ### 4. Advanced Patterns
+
 - Branded types for IDs
 - Exhaustive switch with discriminated unions
 - Generic repositories
@@ -185,8 +206,9 @@ static create(id: PersonalityId, ownerId: UserId): Personality { }
 ## Conclusion
 
 By completing DDD first, we'll have:
+
 - Clean boundaries perfect for TypeScript modules
-- Well-defined interfaces ready for type contracts  
+- Well-defined interfaces ready for type contracts
 - Pure domain logic easy to type
 - No legacy code to work around
 

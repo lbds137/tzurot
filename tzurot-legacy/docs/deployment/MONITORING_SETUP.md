@@ -11,6 +11,7 @@ Discord Bot → CommandIntegrationAdapter → [Metrics Collection] → [Aggregat
 ```
 
 ### Components
+
 1. **Metrics Collection**: In-app instrumentation
 2. **Aggregation**: Local metrics store or external service
 3. **Dashboards**: Real-time monitoring views
@@ -74,10 +75,10 @@ class MetricsCollector {
     if (!this.metrics.has(type)) {
       this.metrics.set(type, []);
     }
-    
+
     const metrics = this.metrics.get(type);
     metrics.push(data);
-    
+
     // Keep only last 1000 entries per type
     if (metrics.length > 1000) {
       metrics.shift();
@@ -87,7 +88,7 @@ class MetricsCollector {
   getMetrics(type, since = null) {
     const metrics = this.metrics.get(type) || [];
     if (!since) return metrics;
-    
+
     const sinceTime = new Date(since).getTime();
     return metrics.filter(m => new Date(m.timestamp).getTime() >= sinceTime);
   }
@@ -95,10 +96,10 @@ class MetricsCollector {
   // Get summary statistics
   getSummary(timeWindow = '1h') {
     const since = new Date(Date.now() - this.parseTimeWindow(timeWindow)).toISOString();
-    
+
     const executions = this.getMetrics('command_execution', since);
     const resources = this.getMetrics('resource_usage', since);
-    
+
     return {
       command_executions: {
         total: executions.length,
@@ -162,28 +163,26 @@ async function processCommand(message, commandName, args) {
 
   try {
     // ... existing logic ...
-    
+
     const useNewSystem = this.shouldUseNewSystem(commandName, hasNewCommand);
     system = useNewSystem ? 'ddd' : 'legacy';
-    
+
     // Record feature flag check
     metricsCollector.recordFeatureFlagCheck('ddd.commands.enabled', useNewSystem, commandName);
-    
+
     let result;
     if (useNewSystem) {
       result = await this.processNewCommand(message, commandName, args);
     } else {
       result = await this.processLegacyCommand(message, commandName, args);
     }
-    
+
     success = true;
     return result;
-    
   } catch (err) {
     error = err;
     success = false;
     throw err;
-    
   } finally {
     const duration = Date.now() - startTime;
     metricsCollector.recordCommandExecution(commandName, system, duration, success, error);
@@ -210,21 +209,21 @@ app.get('/health', (req, res) => {
 app.get('/health/features', (req, res) => {
   const featureFlags = getFeatureFlags();
   const flags = {};
-  
+
   // Get all DDD-related flags
   const dddFlags = [
     'ddd.commands.enabled',
-    'ddd.commands.integration', 
+    'ddd.commands.integration',
     'ddd.commands.personality',
     'ddd.commands.conversation',
     'ddd.commands.authentication',
     'ddd.commands.utility',
   ];
-  
+
   dddFlags.forEach(flag => {
     flags[flag] = featureFlags.isEnabled(flag);
   });
-  
+
   res.json(flags);
 });
 
@@ -232,7 +231,7 @@ app.get('/health/features', (req, res) => {
 app.get('/health/commands', (req, res) => {
   const timeWindow = req.query.window || '1h';
   const summary = metricsCollector.getSummary(timeWindow);
-  
+
   res.json({
     ...summary,
     commands_migrated: 18,
@@ -245,7 +244,7 @@ app.get('/health/metrics/:type', (req, res) => {
   const { type } = req.params;
   const since = req.query.since;
   const metrics = metricsCollector.getMetrics(type, since);
-  
+
   res.json({
     type,
     count: metrics.length,
@@ -262,126 +261,138 @@ app.get('/health/metrics/:type', (req, res) => {
 <!-- public/monitoring-dashboard.html -->
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>DDD Command System Monitoring</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .metric-card { 
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            padding: 15px; 
-            margin: 10px; 
-            display: inline-block; 
-            min-width: 200px;
-        }
-        .metric-value { font-size: 2em; font-weight: bold; }
-        .metric-label { color: #666; }
-        .error { color: #e74c3c; }
-        .success { color: #27ae60; }
-        .warning { color: #f39c12; }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .metric-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px;
+        display: inline-block;
+        min-width: 200px;
+      }
+      .metric-value {
+        font-size: 2em;
+        font-weight: bold;
+      }
+      .metric-label {
+        color: #666;
+      }
+      .error {
+        color: #e74c3c;
+      }
+      .success {
+        color: #27ae60;
+      }
+      .warning {
+        color: #f39c12;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>🚀 DDD Command System Monitoring</h1>
-    
+
     <div id="status-cards"></div>
-    
+
     <div id="command-chart" style="width:100%;height:400px;"></div>
     <div id="performance-chart" style="width:100%;height:400px;"></div>
     <div id="error-rate-chart" style="width:100%;height:400px;"></div>
 
     <script>
-        // Real-time dashboard updates
-        async function fetchMetrics() {
-            const response = await fetch('/health/commands?window=1h');
-            return await response.json();
-        }
+      // Real-time dashboard updates
+      async function fetchMetrics() {
+        const response = await fetch('/health/commands?window=1h');
+        return await response.json();
+      }
 
-        async function fetchFeatureFlags() {
-            const response = await fetch('/health/features');
-            return await response.json();
-        }
+      async function fetchFeatureFlags() {
+        const response = await fetch('/health/features');
+        return await response.json();
+      }
 
-        function createStatusCards(data) {
-            const container = document.getElementById('status-cards');
-            
-            const cards = [
-                {
-                    label: 'Total Commands (1h)',
-                    value: data.command_executions.total,
-                    status: 'success'
-                },
-                {
-                    label: 'Avg Response Time',
-                    value: `${Math.round(data.command_executions.avg_duration)}ms`,
-                    status: data.command_executions.avg_duration > 1000 ? 'warning' : 'success'
-                },
-                {
-                    label: 'Error Rate',
-                    value: `${(data.command_executions.error_rate * 100).toFixed(2)}%`,
-                    status: data.command_executions.error_rate > 0.01 ? 'error' : 'success'
-                },
-                {
-                    label: 'Memory Usage',
-                    value: `${data.resource_usage.current_memory_mb}MB`,
-                    status: data.resource_usage.current_memory_mb > 1000 ? 'warning' : 'success'
-                }
-            ];
-            
-            container.innerHTML = cards.map(card => `
+      function createStatusCards(data) {
+        const container = document.getElementById('status-cards');
+
+        const cards = [
+          {
+            label: 'Total Commands (1h)',
+            value: data.command_executions.total,
+            status: 'success',
+          },
+          {
+            label: 'Avg Response Time',
+            value: `${Math.round(data.command_executions.avg_duration)}ms`,
+            status: data.command_executions.avg_duration > 1000 ? 'warning' : 'success',
+          },
+          {
+            label: 'Error Rate',
+            value: `${(data.command_executions.error_rate * 100).toFixed(2)}%`,
+            status: data.command_executions.error_rate > 0.01 ? 'error' : 'success',
+          },
+          {
+            label: 'Memory Usage',
+            value: `${data.resource_usage.current_memory_mb}MB`,
+            status: data.resource_usage.current_memory_mb > 1000 ? 'warning' : 'success',
+          },
+        ];
+
+        container.innerHTML = cards
+          .map(
+            card => `
                 <div class="metric-card">
                     <div class="metric-value ${card.status}">${card.value}</div>
                     <div class="metric-label">${card.label}</div>
                 </div>
-            `).join('');
-        }
+            `
+          )
+          .join('');
+      }
 
-        function createCommandChart(data) {
-            const systems = Object.entries(data.command_executions.by_system);
-            
-            const trace = {
-                x: systems.map(([system]) => system.toUpperCase()),
-                y: systems.map(([, count]) => count),
-                type: 'bar',
-                marker: {
-                    color: systems.map(([system]) => 
-                        system === 'ddd' ? '#3498db' : '#95a5a6'
-                    )
-                }
-            };
-            
-            Plotly.newPlot('command-chart', [trace], {
-                title: 'Commands by System (Last Hour)',
-                yaxis: { title: 'Number of Commands' }
-            });
-        }
+      function createCommandChart(data) {
+        const systems = Object.entries(data.command_executions.by_system);
 
-        async function updateDashboard() {
-            try {
-                const [metrics, features] = await Promise.all([
-                    fetchMetrics(),
-                    fetchFeatureFlags()
-                ]);
-                
-                createStatusCards(metrics);
-                createCommandChart(metrics);
-                
-                // Update feature flags status
-                console.log('Feature Flags:', features);
-                
-            } catch (error) {
-                console.error('Failed to update dashboard:', error);
-            }
-        }
+        const trace = {
+          x: systems.map(([system]) => system.toUpperCase()),
+          y: systems.map(([, count]) => count),
+          type: 'bar',
+          marker: {
+            color: systems.map(([system]) => (system === 'ddd' ? '#3498db' : '#95a5a6')),
+          },
+        };
 
-        // Update dashboard every 30 seconds
-        setInterval(updateDashboard, 30000);
-        
-        // Initial load
-        updateDashboard();
+        Plotly.newPlot('command-chart', [trace], {
+          title: 'Commands by System (Last Hour)',
+          yaxis: { title: 'Number of Commands' },
+        });
+      }
+
+      async function updateDashboard() {
+        try {
+          const [metrics, features] = await Promise.all([fetchMetrics(), fetchFeatureFlags()]);
+
+          createStatusCards(metrics);
+          createCommandChart(metrics);
+
+          // Update feature flags status
+          console.log('Feature Flags:', features);
+        } catch (error) {
+          console.error('Failed to update dashboard:', error);
+        }
+      }
+
+      // Update dashboard every 30 seconds
+      setInterval(updateDashboard, 30000);
+
+      // Initial load
+      updateDashboard();
     </script>
-</body>
+  </body>
 </html>
 ```
 
@@ -398,7 +409,7 @@ class AlertManager {
       response_time: 1000, // 1 second
       memory_mb: 1000, // 1GB
     };
-    
+
     this.alertHistory = [];
   }
 
@@ -441,14 +452,14 @@ class AlertManager {
 
     // Process new alerts
     alerts.forEach(alert => this.processAlert(alert));
-    
+
     return alerts;
   }
 
   processAlert(alert) {
     const alertKey = `${alert.type}_${alert.severity}`;
     const lastAlert = this.alertHistory.find(a => a.key === alertKey);
-    
+
     // Avoid alert spam - only send if last alert was >5 minutes ago
     if (lastAlert && Date.now() - lastAlert.timestamp < 300000) {
       return;
@@ -460,7 +471,7 @@ class AlertManager {
       timestamp: Date.now(),
       alert,
     });
-    
+
     // Keep only last 100 alerts
     if (this.alertHistory.length > 100) {
       this.alertHistory.shift();
@@ -470,20 +481,20 @@ class AlertManager {
   sendAlert(alert) {
     // Log to console/file
     console.error(`🚨 ALERT [${alert.severity.toUpperCase()}]: ${alert.message}`);
-    
+
     // In production, integrate with:
     // - Discord webhook notifications
     // - Email alerts
     // - Slack notifications
     // - PagerDuty/incident management
-    
+
     // For now, write to alert log file
     const fs = require('fs');
     const alertLog = {
       timestamp: new Date().toISOString(),
       ...alert,
     };
-    
+
     fs.appendFileSync('alerts.log', JSON.stringify(alertLog) + '\n');
   }
 }
@@ -578,6 +589,6 @@ curl -s http://localhost:3001/health/features | jq
 
 ---
 
-*Monitoring Setup Guide v1.0*
-*Created: June 14, 2025*
-*Ready for Phase 4 Stage 1 implementation*
+_Monitoring Setup Guide v1.0_
+_Created: June 14, 2025_
+_Ready for Phase 4 Stage 1 implementation_

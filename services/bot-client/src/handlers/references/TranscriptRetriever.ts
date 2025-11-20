@@ -21,7 +21,10 @@ export class TranscriptRetriever {
    * @param attachmentUrl - URL of the voice attachment
    * @returns Transcript text or null if not found
    */
-  async retrieveTranscript(discordMessageId: string, attachmentUrl: string): Promise<string | null> {
+  async retrieveTranscript(
+    discordMessageId: string,
+    attachmentUrl: string
+  ): Promise<string | null> {
     try {
       // Tier 1: Check Redis cache (fast path for recent messages)
       const cachedTranscript = await getVoiceTranscript(attachmentUrl);
@@ -44,9 +47,8 @@ export class TranscriptRetriever {
 
       // Tier 2: Check database (permanent storage)
       // Voice transcripts are stored as the message content in conversation history
-      const dbMessage = await this.conversationHistoryService.getMessageByDiscordId(
-        discordMessageId
-      );
+      const dbMessage =
+        await this.conversationHistoryService.getMessageByDiscordId(discordMessageId);
 
       if (
         dbMessage?.content !== undefined &&

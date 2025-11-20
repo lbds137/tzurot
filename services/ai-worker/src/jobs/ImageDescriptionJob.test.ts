@@ -44,7 +44,7 @@ describe('ImageDescriptionJob', () => {
     mockDescribeImage.mockResolvedValue('Mocked image description');
 
     // Default: withRetry calls the function and returns successful result
-    mockWithRetry.mockImplementation(async (fn) => {
+    mockWithRetry.mockImplementation(async fn => {
       const value = await fn();
       return {
         value,
@@ -156,7 +156,7 @@ describe('ImageDescriptionJob', () => {
 
       // Return different descriptions for each image
       let callCount = 0;
-      mockWithRetry.mockImplementation(async (fn) => {
+      mockWithRetry.mockImplementation(async fn => {
         const result = await fn();
         callCount++;
         return {
@@ -166,7 +166,7 @@ describe('ImageDescriptionJob', () => {
         };
       });
 
-      mockDescribeImage.mockImplementation(async (attachment) => {
+      mockDescribeImage.mockImplementation(async attachment => {
         if (attachment.name === 'image1.png') return 'Description 1';
         if (attachment.name === 'image2.jpg') return 'Description 2';
         if (attachment.name === 'image3.webp') return 'Description 3';
@@ -215,7 +215,7 @@ describe('ImageDescriptionJob', () => {
       } as Job<ImageDescriptionJobData>;
 
       // Simulate retry succeeding on 2nd attempt
-      mockWithRetry.mockImplementation(async (fn) => {
+      mockWithRetry.mockImplementation(async fn => {
         const result = await fn();
         return {
           value: result,
@@ -394,7 +394,7 @@ describe('ImageDescriptionJob', () => {
 
       // First image succeeds, second fails
       let callCount = 0;
-      mockWithRetry.mockImplementation(async (fn) => {
+      mockWithRetry.mockImplementation(async fn => {
         callCount++;
         if (callCount === 1) {
           const result = await fn();

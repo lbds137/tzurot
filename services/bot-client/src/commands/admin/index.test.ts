@@ -51,9 +51,7 @@ describe('admin command', () => {
 
     it('should have db-sync subcommand', () => {
       const options = data.options ?? [];
-      const dbSyncSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'db-sync'
-      );
+      const dbSyncSubcommand = options.find(opt => 'name' in opt && opt.name === 'db-sync');
 
       expect(dbSyncSubcommand).toBeDefined();
       if (dbSyncSubcommand && 'name' in dbSyncSubcommand && 'description' in dbSyncSubcommand) {
@@ -64,9 +62,7 @@ describe('admin command', () => {
 
     it('should have servers subcommand', () => {
       const options = data.options ?? [];
-      const serversSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'servers'
-      );
+      const serversSubcommand = options.find(opt => 'name' in opt && opt.name === 'servers');
 
       expect(serversSubcommand).toBeDefined();
       if (serversSubcommand && 'name' in serversSubcommand && 'description' in serversSubcommand) {
@@ -77,9 +73,7 @@ describe('admin command', () => {
 
     it('should have kick subcommand', () => {
       const options = data.options ?? [];
-      const kickSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'kick'
-      );
+      const kickSubcommand = options.find(opt => 'name' in opt && opt.name === 'kick');
 
       expect(kickSubcommand).toBeDefined();
       if (kickSubcommand && 'name' in kickSubcommand && 'description' in kickSubcommand) {
@@ -90,9 +84,7 @@ describe('admin command', () => {
 
     it('should have usage subcommand', () => {
       const options = data.options ?? [];
-      const usageSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'usage'
-      );
+      const usageSubcommand = options.find(opt => 'name' in opt && opt.name === 'usage');
 
       expect(usageSubcommand).toBeDefined();
       if (usageSubcommand && 'name' in usageSubcommand && 'description' in usageSubcommand) {

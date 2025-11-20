@@ -62,7 +62,6 @@ describe('Authentication Domain Index', () => {
       expect(authDomain.UserNsfwVerificationCleared).toBeDefined();
       expect(typeof authDomain.UserNsfwVerificationCleared).toBe('function');
 
-
       expect(authDomain.AuthenticationDenied).toBeDefined();
       expect(typeof authDomain.AuthenticationDenied).toBe('function');
 

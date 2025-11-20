@@ -12,7 +12,7 @@
  * This file is retained for future integration tests of the RAG service orchestration.
  */
 
-import { describe, it, expect} from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe('ConversationalRAGService', () => {
   it.todo('Add integration tests for RAG service orchestration');

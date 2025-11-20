@@ -5,11 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  parseRedisUrl,
-  createRedisSocketConfig,
-  createBullMQRedisConfig,
-} from './redis.js';
+import { parseRedisUrl, createRedisSocketConfig, createBullMQRedisConfig } from './redis.js';
 import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
 describe('parseRedisUrl', () => {
@@ -67,7 +63,9 @@ describe('parseRedisUrl', () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-    expect(() => parseRedisUrl('not-a-valid-url')).toThrow('Failed to parse REDIS_URL in production');
+    expect(() => parseRedisUrl('not-a-valid-url')).toThrow(
+      'Failed to parse REDIS_URL in production'
+    );
 
     process.env.NODE_ENV = originalEnv;
   });

@@ -56,17 +56,22 @@ export class MessageHandler {
       }
 
       // No processor handled the message
-      logger.debug({ messageId: message.id }, '[MessageHandler] Message not handled by any processor');
+      logger.debug(
+        { messageId: message.id },
+        '[MessageHandler] Message not handled by any processor'
+      );
     } catch (error) {
       logger.error({ err: error }, '[MessageHandler] Error processing message');
 
       // Try to send error message to user
-      await message.reply('Sorry, I encountered an error processing your message.').catch(replyError => {
-        logger.warn(
-          { err: replyError, messageId: message.id },
-          '[MessageHandler] Failed to send error message to user'
-        );
-      });
+      await message
+        .reply('Sorry, I encountered an error processing your message.')
+        .catch(replyError => {
+          logger.warn(
+            { err: replyError, messageId: message.id },
+            '[MessageHandler] Failed to send error message to user'
+          );
+        });
     }
   }
 

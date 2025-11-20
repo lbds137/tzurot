@@ -6,7 +6,10 @@
 
 import type { Message } from 'discord.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
-import { extractDiscordEnvironment, formatEnvironmentForPrompt } from '../../utils/discordContext.js';
+import {
+  extractDiscordEnvironment,
+  formatEnvironmentForPrompt,
+} from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
@@ -60,11 +63,7 @@ export class MessageFormatter {
             message.id,
             attachment.url
           );
-          if (
-            transcript !== undefined &&
-            transcript !== null &&
-            transcript.length > 0
-          ) {
+          if (transcript !== undefined && transcript !== null && transcript.length > 0) {
             transcripts.push(transcript);
           }
         }

@@ -22,7 +22,6 @@ interface SyncOptions {
   dryRun: boolean;
 }
 
-
 export class DatabaseSyncService {
   constructor(
     private devClient: PrismaClient,
@@ -77,7 +76,6 @@ export class DatabaseSyncService {
       await this.prodClient.$disconnect();
     }
   }
-
 
   /**
    * Sync a single table using last-write-wins strategy

@@ -7,9 +7,7 @@
  */
 
 import { Job } from 'bullmq';
-import {
-  ConversationalRAGService,
-} from '../services/ConversationalRAGService.js';
+import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import {
   createLogger,
@@ -237,10 +235,7 @@ export class AIJobProcessor {
    * Persist job result to database and publish to Redis Stream
    * This enables async delivery pattern - results are stored until confirmed delivered
    */
-  private async persistAndPublishResult(
-    job: Job<AnyJobData>,
-    result: AnyJobResult
-  ): Promise<void> {
+  private async persistAndPublishResult(job: Job<AnyJobData>, result: AnyJobResult): Promise<void> {
     const jobId = job.id ?? job.data.requestId;
 
     try {

@@ -141,9 +141,7 @@ describe('handleKick', () => {
     await handleKick(mockInteraction);
 
     expect(mockGuild.leave).toHaveBeenCalled();
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining(serverName)
-    );
+    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining(serverName));
   });
 
   it('should defer reply before checking for server', async () => {

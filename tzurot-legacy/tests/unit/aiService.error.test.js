@@ -54,10 +54,10 @@ const mockPersonalityApplicationService = {
 const mockDDDAuthService = {
   getAuthenticationStatus: jest.fn().mockResolvedValue({
     isAuthenticated: true,
-    user: { 
+    user: {
       nsfwStatus: { verified: true },
-      token: { value: 'test-token' } // Add token for getAiClientForUser
-    }
+      token: { value: 'test-token' }, // Add token for getAiClientForUser
+    },
   }),
   createAIClient: jest.fn(),
 };
@@ -88,8 +88,8 @@ describe('aiService Error Handling', () => {
     // Add webhook context to bypass authentication checks in tests
     message: {
       webhookId: 'test-webhook-id',
-      author: { username: 'TestWebhook' }
-    }
+      author: { username: 'TestWebhook' },
+    },
   };
 
   // Set up mocks before tests
@@ -144,16 +144,15 @@ describe('aiService Error Handling', () => {
 
     // Import the module under test after mocking
     aiService = require('../../src/aiService');
-    
+
     // Mock getAiClientForUser to always return the mock OpenAI client
     // This bypasses authentication checks in tests
     // Use Object.defineProperty to ensure the mock persists
     Object.defineProperty(aiService, 'getAiClientForUser', {
       value: jest.fn().mockResolvedValue(mockOpenAI),
       writable: true,
-      configurable: true
+      configurable: true,
     });
-    
   });
 
   describe('Initialization and environment', () => {
@@ -171,7 +170,7 @@ describe('aiService Error Handling', () => {
       // Test that the module can be required without throwing
       const testModule = require('../../src/aiService');
       expect(testModule).toBeDefined();
-      
+
       // Re-apply the mock for getAiClientForUser
       testModule.getAiClientForUser = jest.fn().mockResolvedValue(mockOpenAI);
 
@@ -197,7 +196,7 @@ describe('aiService Error Handling', () => {
       // Test that the module can be required without throwing
       const testModule = require('../../src/aiService');
       expect(testModule).toBeDefined();
-      
+
       // Re-apply the mock for getAiClientForUser
       testModule.getAiClientForUser = jest.fn().mockResolvedValue(mockOpenAI);
     });
@@ -389,7 +388,7 @@ describe('aiService Error Handling', () => {
       mockOpenAI.chat.completions.create.mockResolvedValue({
         choices: [{ message: { content: 'Test response' } }],
       });
-      
+
       // Test with missing personalityName
       const responseWithoutPersonality = await aiService.getAiResponse(undefined, message, context);
       expect(responseWithoutPersonality).toBe(
@@ -420,7 +419,9 @@ describe('aiService Error Handling', () => {
       const responseWithoutContext = await aiService.getAiResponse(personalityName, message);
       expect(typeof responseWithoutContext).toBe('string');
       // Without context, there's no webhook bypass, so we get auth error
-      expect(responseWithoutContext).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.');
+      expect(responseWithoutContext).toBe(
+        'BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.'
+      );
     });
 
     test('getAiResponse should track errors but not skip API calls', async () => {
@@ -457,7 +458,9 @@ describe('aiService Error Handling', () => {
       // Should handle error and return user-friendly error message
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata', null);
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
 
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -475,7 +478,9 @@ describe('aiService Error Handling', () => {
       // Should return an error message with reference ID (personality has error message configured)
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(response.metadata).toBeNull();
     });
 
@@ -523,7 +528,9 @@ describe('aiService Error Handling', () => {
       // Should return an error message with reference ID (personality has error message configured)
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(response.metadata).toBeNull();
     });
 
@@ -545,7 +552,9 @@ describe('aiService Error Handling', () => {
       // Should return an error message with reference ID (personality has error message configured)
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(response.metadata).toBeNull();
 
       // Should track error for monitoring (but not block future requests)
@@ -562,7 +571,9 @@ describe('aiService Error Handling', () => {
       // Should return an error message with reference ID (personality has error message configured)
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(response.metadata).toBeNull();
     });
 
@@ -576,7 +587,9 @@ describe('aiService Error Handling', () => {
       // Should handle error and return user-friendly error message
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata', null);
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
 
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -594,7 +607,9 @@ describe('aiService Error Handling', () => {
       // Should return an error message with reference ID (personality has error message configured)
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(response.metadata).toBeNull();
     });
 
@@ -616,7 +631,9 @@ describe('aiService Error Handling', () => {
       // Should return an error message with reference ID (personality has error message configured)
       expect(response).toHaveProperty('content');
       expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.content).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(response.metadata).toBeNull();
 
       // Should track for monitoring (empty_response is now tracked but doesn't block)
@@ -676,11 +693,10 @@ describe('aiService Error Handling', () => {
 
       // Wait for both promises
       const [result1, result2] = await Promise.all([promise1, promise2]);
-      
-      
+
       // Both promises should resolve to the same value due to deduplication
       expect(result1).toBe(result2);
-      
+
       // The deduplication system should work regardless of the response type
       // API should be called at most once (could be 0 if auth error prevents call)
       expect(mockOpenAI.chat.completions.create.mock.calls.length).toBeLessThanOrEqual(1);
@@ -701,5 +717,4 @@ describe('aiService Error Handling', () => {
       expect(aiService.pendingRequests.has(requestId)).toBe(false);
     });
   });
-
 });

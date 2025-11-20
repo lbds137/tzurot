@@ -60,7 +60,9 @@ async function getAllPointIds(collectionName: string): Promise<Set<string>> {
     }
 
     offset = response.next_page_offset;
-    if (!offset) {break;}
+    if (!offset) {
+      break;
+    }
 
     // Progress indicator
     if (ids.size % 500 === 0) {
@@ -94,7 +96,9 @@ async function getOrphanedMemories(collectionName: string): Promise<MemoryPoint[
     }
 
     offset = response.next_page_offset;
-    if (!offset) {break;}
+    if (!offset) {
+      break;
+    }
   }
 
   console.log(`✅ Found ${orphaned.length} memories\n`);
@@ -181,7 +185,9 @@ async function main() {
       }
 
       offset = response.next_page_offset;
-      if (!offset) {break;}
+      if (!offset) {
+        break;
+      }
     }
 
     await analyzeUserDistribution(orphanedMemories);
@@ -197,7 +203,7 @@ async function main() {
       console.log(`   User ID: ${memory.payload.userId || 'N/A'}`);
       console.log(`   Personality ID: ${memory.payload.personalityId || 'N/A'}`);
       console.log(`   Created: ${memory.payload.createdAt || memory.payload.timestamp || 'N/A'}`);
-      const content = (memory.payload.content || '');
+      const content = memory.payload.content || '';
       const preview = content.substring(0, 100).replace(/\n/g, ' ');
       console.log(`   Content: ${preview}${content.length > 100 ? '...' : ''}`);
       console.log('');

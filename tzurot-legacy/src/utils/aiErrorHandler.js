@@ -246,7 +246,7 @@ async function analyzeErrorAndGenerateMessage(
       // If it's a raw Personality aggregate, it might need to be serialized
       const personalityData = personality.toJSON ? personality.toJSON() : personality;
       errorMessage = personalityData?.profile?.errorMessage;
-      
+
       if (!errorMessage && personality.profile) {
         // Try direct access on the profile object
         errorMessage = personality.profile.errorMessage;
@@ -258,27 +258,41 @@ async function analyzeErrorAndGenerateMessage(
       logger.warn(
         `[AIErrorHandler] No errorMessage found in PersonalityApplicationService response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
       );
-      
+
       // Log profile details if it exists
       if (personality.profile) {
         logger.warn(`[AIErrorHandler] Profile exists but errorMessage is missing.`);
         logger.warn(`[AIErrorHandler] Profile type: ${personality.profile.constructor.name}`);
         logger.warn(`[AIErrorHandler] Profile mode: ${personality.profile.mode}`);
-        logger.warn(`[AIErrorHandler] Profile has errorMessage property: ${'errorMessage' in personality.profile}`);
-        logger.warn(`[AIErrorHandler] Profile.errorMessage value: ${personality.profile.errorMessage}`);
-        
+        logger.warn(
+          `[AIErrorHandler] Profile has errorMessage property: ${'errorMessage' in personality.profile}`
+        );
+        logger.warn(
+          `[AIErrorHandler] Profile.errorMessage value: ${personality.profile.errorMessage}`
+        );
+
         // Check if profile is a plain object or PersonalityProfile instance
-        logger.warn(`[AIErrorHandler] Profile is plain object: ${personality.profile.constructor === Object}`);
-        logger.warn(`[AIErrorHandler] Profile keys: ${Object.keys(personality.profile).join(', ')}`);
-        
+        logger.warn(
+          `[AIErrorHandler] Profile is plain object: ${personality.profile.constructor === Object}`
+        );
+        logger.warn(
+          `[AIErrorHandler] Profile keys: ${Object.keys(personality.profile).join(', ')}`
+        );
+
         // Try direct property access
-        logger.warn(`[AIErrorHandler] Direct errorMessage access: ${personality.profile['errorMessage']}`);
-        
+        logger.warn(
+          `[AIErrorHandler] Direct errorMessage access: ${personality.profile['errorMessage']}`
+        );
+
         // Check if it's a PersonalityProfile object
         if (personality.profile.toJSON) {
           const profileJSON = personality.profile.toJSON();
-          logger.warn(`[AIErrorHandler] Profile.toJSON() errorMessage: ${profileJSON.errorMessage}`);
-          logger.warn(`[AIErrorHandler] Profile.toJSON() keys: ${Object.keys(profileJSON).join(', ')}`);
+          logger.warn(
+            `[AIErrorHandler] Profile.toJSON() errorMessage: ${profileJSON.errorMessage}`
+          );
+          logger.warn(
+            `[AIErrorHandler] Profile.toJSON() keys: ${Object.keys(profileJSON).join(', ')}`
+          );
         }
       }
     }
@@ -361,20 +375,20 @@ async function handleApiError(apiError, personalityName, context) {
   if (apiError.status === 404) {
     return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ I couldn't find the personality "${personalityName}". The personality might not be available on the server.`;
   }
-  
+
   // For other API errors, try to get personality-specific error message
   const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-  
+
   try {
     // Try to get personality data for custom error message
     const bootstrap = getApplicationBootstrap();
     const personalityService = bootstrap.getPersonalityApplicationService();
     const personality = await personalityService.getPersonality(personalityName);
-    
+
     if (personality) {
       const personalityData = personality.toJSON ? personality.toJSON() : personality;
       const errorMessage = personalityData?.profile?.errorMessage;
-      
+
       if (errorMessage) {
         logger.info(`[AIErrorHandler] Using personality-specific error for API error`);
         // Add error reference to the message
@@ -391,7 +405,7 @@ async function handleApiError(apiError, personalityName, context) {
   } catch (err) {
     logger.debug(`[AIErrorHandler] Could not fetch personality for API error: ${err.message}`);
   }
-  
+
   // Fall back to generic error messages based on API error type
   let message = '';
   if (apiError.status === 429) {
@@ -403,7 +417,7 @@ async function handleApiError(apiError, personalityName, context) {
   } else {
     message = `I encountered an issue while processing your request. Please try again.`;
   }
-  
+
   return message + ` ||*(Error ID: ${errorId})*||`;
 }
 

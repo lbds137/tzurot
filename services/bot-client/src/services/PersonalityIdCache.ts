@@ -13,7 +13,12 @@
  * TTL prevents stale mappings if personalities are renamed (e.g., "lilith" → "Lilith v2").
  */
 
-import { createLogger, PersonalityService, LoadedPersonality, TIMEOUTS } from '@tzurot/common-types';
+import {
+  createLogger,
+  PersonalityService,
+  LoadedPersonality,
+  TIMEOUTS,
+} from '@tzurot/common-types';
 
 const logger = createLogger('PersonalityIdCache');
 
@@ -34,9 +39,7 @@ export class PersonalityIdCache {
    */
   async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
     // Check if it's a UUID - if so, load directly
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      nameOrId
-    );
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
 
     if (isUUID) {
       return this.personalityService.loadPersonality(nameOrId);

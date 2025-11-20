@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
-lastUpdated: "2025-11-19"
+lastUpdated: '2025-11-19'
 ---
 
 # Tzurot v3 Git Workflow
@@ -13,6 +13,7 @@ lastUpdated: "2025-11-19"
 **THIS PROJECT USES REBASE-ONLY. NO SQUASH. NO MERGE. ONLY REBASE.**
 
 GitHub repository settings enforce this:
+
 - ✅ **Rebase and merge** - ONLY option enabled
 - ❌ **Squash and merge** - DISABLED
 - ❌ **Create a merge commit** - DISABLED
@@ -37,11 +38,14 @@ gh pr create --base main --title "feat: your feature"
 ## Branch Strategy
 
 ### Main Branches
+
 - `main` - Production releases only (v3 not ready yet)
 - `develop` - Active development branch (current v3 work)
 
 ### Feature Branches
+
 Create from `develop`, use these prefixes:
+
 - `feat/` - New features (e.g., `feat/smart-cache-invalidation`)
 - `fix/` - Bug fixes (e.g., `fix/memory-leak-redis`)
 - `docs/` - Documentation updates (e.g., `docs/update-testing-guide`)
@@ -52,6 +56,7 @@ Create from `develop`, use these prefixes:
 ## Standard Workflow
 
 ### 1. Create Feature Branch
+
 ```bash
 # Start from latest develop
 git checkout develop
@@ -64,6 +69,7 @@ git checkout -b feat/your-feature-name
 ### 2. Make Changes and Test
 
 **CRITICAL: Test before committing!**
+
 ```bash
 # Run all tests
 pnpm test
@@ -81,6 +87,7 @@ pnpm lint
 ### 3. Commit Changes
 
 **Commit Message Format:**
+
 ```
 <type>(<scope>): <description>
 
@@ -92,6 +99,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 **Types:**
+
 - `feat` - New feature
 - `fix` - Bug fix
 - `docs` - Documentation only
@@ -102,6 +110,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - `perf` - Performance improvement
 
 **Scopes:** (optional but recommended)
+
 - `ai-worker` - AI worker service
 - `api-gateway` - API gateway service
 - `bot-client` - Bot client service
@@ -110,6 +119,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - `deps` - Dependency updates
 
 **Examples:**
+
 ```bash
 git commit -m "$(cat <<'EOF'
 feat(ai-worker): add pgvector memory retrieval
@@ -149,21 +159,26 @@ gh pr create --base develop --title "feat: your feature description"
 ```
 
 **PR Description Format:**
+
 ```markdown
 ## Summary
+
 Brief description of what this PR does
 
 ## Changes
+
 - Added X functionality
 - Fixed Y issue
 - Refactored Z component
 
 ## Testing
+
 - [ ] All tests passing
 - [ ] Manual testing completed
 - [ ] No breaking changes
 
 ## Notes
+
 Any additional context or considerations
 ```
 
@@ -228,6 +243,7 @@ git push --force-with-lease origin feat/your-feature
 ### 🚨 NEVER Run These Without Explicit Permission:
 
 **Destructive Commands:**
+
 - `git restore` → Discards changes (hours of work!)
 - `git reset --hard` → Undoes commits permanently
 - `git clean -fd` → Deletes untracked files
@@ -235,6 +251,7 @@ git push --force-with-lease origin feat/your-feature
 - `git branch -D` → Force deletes branch
 
 **ALWAYS ASK BEFORE:**
+
 ```bash
 # User says: "get all the changes on that branch"
 # DO NOT run: git restore .
@@ -248,11 +265,13 @@ git push --force-with-lease origin feat/your-feature
 ### Golden Rules:
 
 **1. Uncommitted changes = HOURS OF WORK**
+
 - Treat them as sacred
 - Never discard without explicit confirmation
 - When in doubt, commit them first
 
 **2. Always confirm destructive operations:**
+
 ```bash
 # Before running git restore:
 "This will discard your changes. Do you want to commit them first?"
@@ -265,6 +284,7 @@ git push --force-with-lease origin feat/your-feature
 ```
 
 **3. Use safe alternatives:**
+
 ```bash
 # Instead of: git push --force
 # Use: git push --force-with-lease
@@ -279,11 +299,13 @@ git push --force-with-lease origin feat/your-feature
 ## Pre-Commit Checks
 
 The project has automated pre-commit hooks that run:
+
 1. **TypeScript build** - All services must compile
 2. **ESLint** - Code style and quality checks
 3. **Tests** - All tests must pass
 
 If pre-commit checks fail:
+
 ```bash
 # Review the error
 # Fix the issue
@@ -295,6 +317,7 @@ git commit -m "your message"
 ```
 
 **NEVER skip hooks:**
+
 ```bash
 # ❌ BAD - Skips quality checks
 git commit --no-verify
@@ -311,6 +334,7 @@ git commit -m "fix: resolve linting issues"
 Tzurot v3 auto-deploys from GitHub to Railway:
 
 ### Deployment Trigger
+
 ```bash
 # Push to develop triggers deployment
 git push origin develop
@@ -325,6 +349,7 @@ railway logs --service bot-client
 ```
 
 ### Health Checks After Deployment
+
 ```bash
 # Check API gateway health
 curl https://api-gateway-development-83e8.up.railway.app/health
@@ -348,6 +373,7 @@ git commit -m "feat(ai-worker): add memory feature"  # Too broad
 ```
 
 **Each commit should:**
+
 - Be atomic (one logical change)
 - Have a clear purpose
 - Pass all tests independently (if possible)
@@ -378,6 +404,7 @@ git push --force-with-lease origin feat/your-feature
 ```
 
 **Conflict Resolution Tips:**
+
 - Keep both changes if they're independent
 - Preserve functionality over style
 - Test after resolving each conflict
@@ -438,10 +465,12 @@ git cherry-pick -n <commit-hash>
 ## Amending Commits
 
 **ONLY amend when:**
+
 1. User explicitly requested amend, OR
 2. Adding edits from pre-commit hook
 
 **Before amending, ALWAYS check:**
+
 ```bash
 # Check authorship
 git log -1 --format='%an %ae'
@@ -467,6 +496,7 @@ git push --force-with-lease origin <branch>
 ## Anti-Patterns
 
 ### ❌ Don't Create PRs to main
+
 ```bash
 # ❌ WRONG
 gh pr create --base main --title "feat: my feature"
@@ -476,6 +506,7 @@ gh pr create --base develop --title "feat: my feature"
 ```
 
 ### ❌ Don't Push Without Testing
+
 ```bash
 # ❌ WRONG
 git push origin feat/my-feature  # No tests run!
@@ -485,6 +516,7 @@ pnpm test && git push origin feat/my-feature
 ```
 
 ### ❌ Don't Use Vague Commit Messages
+
 ```bash
 # ❌ WRONG
 git commit -m "fix stuff"
@@ -496,6 +528,7 @@ git commit -m "fix(bot-client): prevent duplicate webhook messages"
 ```
 
 ### ❌ Don't Skip Pre-Commit Hooks
+
 ```bash
 # ❌ WRONG
 git commit --no-verify -m "quick fix"
@@ -505,6 +538,7 @@ pnpm lint:fix && git commit -m "fix: resolve linting issues"
 ```
 
 ### ❌ Don't Force Push to main or develop
+
 ```bash
 # ❌ WRONG - Breaks history for everyone
 git push --force origin main
@@ -522,6 +556,7 @@ git push --force-with-lease origin feat/my-feature
 **Process:**
 
 1. **Check current version**
+
    ```bash
    # Check version in package.json
    cat package.json | grep '"version"' | head -1
@@ -529,6 +564,7 @@ git push --force-with-lease origin feat/my-feature
    ```
 
 2. **Bump version in all packages**
+
    ```bash
    # Root package.json
    # services/ai-worker/package.json
@@ -541,6 +577,7 @@ git push --force-with-lease origin feat/my-feature
    ```
 
 3. **Commit and push version bump**
+
    ```bash
    git add package.json services/*/package.json packages/*/package.json
    git commit -m "chore: bump version to 3.0.0-alpha.44"
@@ -548,6 +585,7 @@ git push --force-with-lease origin feat/my-feature
    ```
 
 4. **Create release PR to main**
+
    ```bash
    # IMPORTANT: Target main, not develop!
    gh pr create --base main --head develop \
@@ -603,6 +641,7 @@ git push --force-with-lease origin feat/my-feature
 - `4.0.0` - Major version (breaking changes)
 
 **When to increment:**
+
 - **Alpha**: Each release to main during alpha testing (increment X)
 - **Beta**: Transition from alpha when core features complete
 - **RC**: When ready for production, final testing phase
@@ -612,6 +651,7 @@ git push --force-with-lease origin feat/my-feature
 - **Major**: Breaking changes, API changes
 
 **Release checklist:**
+
 - [ ] Version bumped in all package.json files
 - [ ] CHANGELOG.md updated with release notes
 - [ ] All tests passing
@@ -624,7 +664,6 @@ git push --force-with-lease origin feat/my-feature
 - **tzurot-docs** - Session handoff and CURRENT_WORK.md updates
 - **tzurot-testing** - Always run tests before committing
 - **tzurot-security** - Pre-commit security checks
-
 
 ## References
 

@@ -73,12 +73,18 @@ jest.mock('path', () => ({
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
     getPersonalityApplicationService: jest.fn().mockReturnValue({
-      getPersonality: jest.fn().mockImplementation(async (nameOrAlias) => {
+      getPersonality: jest.fn().mockImplementation(async nameOrAlias => {
         const normalizedName = nameOrAlias.toLowerCase();
-        if (normalizedName === 'test personality one' || normalizedName === 'test-personality-one') {
+        if (
+          normalizedName === 'test personality one' ||
+          normalizedName === 'test-personality-one'
+        ) {
           return { fullName: 'test-personality-one' };
         }
-        if (normalizedName === 'test personality two' || normalizedName === 'test-personality-two') {
+        if (
+          normalizedName === 'test personality two' ||
+          normalizedName === 'test-personality-two'
+        ) {
           return { fullName: 'test-personality-two' };
         }
         return null;
@@ -653,7 +659,7 @@ describe('Conversation Manager', () => {
     it('should handle router returning null gracefully', async () => {
       // Re-require modules to get fresh state
       jest.resetModules();
-      
+
       // Mock ApplicationBootstrap to return null from router
       jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
         getApplicationBootstrap: jest.fn().mockReturnValue({
@@ -677,7 +683,7 @@ describe('Conversation Manager', () => {
     it('should handle errors from ApplicationBootstrap gracefully', async () => {
       // Re-require modules to get fresh state
       jest.resetModules();
-      
+
       // Mock ApplicationBootstrap to throw error
       jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
         getApplicationBootstrap: jest.fn().mockImplementation(() => {

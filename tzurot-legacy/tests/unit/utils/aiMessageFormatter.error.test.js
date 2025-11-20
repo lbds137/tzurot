@@ -121,12 +121,19 @@ describe('aiMessageFormatter - Error Handling', () => {
       const content = 'Test message';
       const message = { guild: { name: 'Test' } };
 
-      const result = await formatApiMessages(content, 'test-personality', 'TestUser', false, message, false);
+      const result = await formatApiMessages(
+        content,
+        'test-personality',
+        'TestUser',
+        false,
+        message,
+        false
+      );
 
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
       expect(result[0].content).toBe('Test message'); // No context prefix
-      
+
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Error formatting context metadata')
       );
@@ -149,7 +156,14 @@ describe('aiMessageFormatter - Error Handling', () => {
       };
       const message = { guild: { name: 'Test' } };
 
-      const result = await formatApiMessages(content, 'test-personality', 'TestUser', false, message, false);
+      const result = await formatApiMessages(
+        content,
+        'test-personality',
+        'TestUser',
+        false,
+        message,
+        false
+      );
 
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
@@ -169,7 +183,14 @@ describe('aiMessageFormatter - Error Handling', () => {
       ];
       const message = { guild: { name: 'Test' } };
 
-      const result = await formatApiMessages(content, 'test-personality', 'TestUser', false, message, false);
+      const result = await formatApiMessages(
+        content,
+        'test-personality',
+        'TestUser',
+        false,
+        message,
+        false
+      );
 
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
@@ -297,7 +318,7 @@ describe('aiMessageFormatter - Error Handling', () => {
     it('should log full error stack traces', async () => {
       const testError = new Error('Test error with stack');
       testError.stack = 'Error: Test error with stack\n    at testFunction (test.js:123)';
-      
+
       resolvePersonality.mockRejectedValue(testError);
 
       const content = {

@@ -56,27 +56,21 @@ describe('personality command', () => {
 
     it('should have create subcommand', () => {
       const options = data.options ?? [];
-      const createSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'create'
-      );
+      const createSubcommand = options.find(opt => 'name' in opt && opt.name === 'create');
 
       expect(createSubcommand).toBeDefined();
     });
 
     it('should have edit subcommand', () => {
       const options = data.options ?? [];
-      const editSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'edit'
-      );
+      const editSubcommand = options.find(opt => 'name' in opt && opt.name === 'edit');
 
       expect(editSubcommand).toBeDefined();
     });
 
     it('should have import subcommand', () => {
       const options = data.options ?? [];
-      const importSubcommand = options.find(
-        opt => 'name' in opt && opt.name === 'import'
-      );
+      const importSubcommand = options.find(opt => 'name' in opt && opt.name === 'import');
 
       expect(importSubcommand).toBeDefined();
     });

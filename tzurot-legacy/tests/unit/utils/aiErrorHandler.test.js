@@ -8,7 +8,7 @@ jest.mock('../../../src/utils/errorTracker', () => ({
   trackError: jest.fn(),
 }));
 jest.mock('../../../src/application/bootstrap/ApplicationBootstrap', () => ({
-  getApplicationBootstrap: jest.fn()
+  getApplicationBootstrap: jest.fn(),
 }));
 
 // Then require modules
@@ -19,8 +19,9 @@ const {
 } = require('../../../src/utils/aiErrorHandler');
 const logger = require('../../../src/logger');
 const { MARKERS } = require('../../../src/constants');
-const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
-
+const {
+  getApplicationBootstrap,
+} = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('AI Error Handler', () => {
   beforeEach(() => {
@@ -306,17 +307,17 @@ describe('AI Error Handler', () => {
       const mockPersonality = {
         toJSON: () => ({
           profile: {
-            errorMessage: 'Error occurred ||*(an error has occurred)*||'
-          }
-        })
+            errorMessage: 'Error occurred ||*(an error has occurred)*||',
+          },
+        }),
       };
-      
+
       const mockBootstrap = {
         getPersonalityApplicationService: jest.fn().mockReturnValue({
-          getPersonality: jest.fn().mockResolvedValue(mockPersonality)
-        })
+          getPersonality: jest.fn().mockResolvedValue(mockPersonality),
+        }),
       };
-      
+
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
     });
 
@@ -334,7 +335,9 @@ describe('AI Error Handler', () => {
       const result = await handleApiError(error, 'test-personality', {});
 
       // Should return personality-specific error message
-      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
     });
 
     it('should handle 500 server errors with personality error message', async () => {
@@ -342,7 +345,9 @@ describe('AI Error Handler', () => {
       const result = await handleApiError(error, 'test-personality', {});
 
       // Should return personality-specific error message
-      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
     });
 
     it('should handle 502 bad gateway errors with personality error message', async () => {
@@ -350,7 +355,9 @@ describe('AI Error Handler', () => {
       const result = await handleApiError(error, 'test-personality', {});
 
       // Should return personality-specific error message
-      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
     });
 
     it('should handle 503 service unavailable errors with personality error message', async () => {
@@ -358,7 +365,9 @@ describe('AI Error Handler', () => {
       const result = await handleApiError(error, 'test-personality', {});
 
       // Should return personality-specific error message
-      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
     });
 
     it('should handle generic errors with personality error message', async () => {
@@ -366,39 +375,45 @@ describe('AI Error Handler', () => {
       const result = await handleApiError(error, 'test-personality', {});
 
       // Should return personality-specific error message
-      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/
+      );
     });
 
     it('should fall back to generic message when personality not found', async () => {
       // Mock personality not found
       const mockBootstrap = {
         getPersonalityApplicationService: jest.fn().mockReturnValue({
-          getPersonality: jest.fn().mockResolvedValue(null)
-        })
+          getPersonality: jest.fn().mockResolvedValue(null),
+        }),
       };
-      
+
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
       const error = { status: 502 };
       const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toMatch(/The AI service seems to be having issues right now.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /The AI service seems to be having issues right now.*\|\|\*\(Error ID: \w+\)\*\|\|$/
+      );
     });
 
     it('should handle timeout errors with appropriate message', async () => {
       // Mock personality not found for clearer test
       const mockBootstrap = {
         getPersonalityApplicationService: jest.fn().mockReturnValue({
-          getPersonality: jest.fn().mockResolvedValue(null)
-        })
+          getPersonality: jest.fn().mockResolvedValue(null),
+        }),
       };
-      
+
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
       const error = { timeout: true };
       const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toMatch(/My response took too long to generate.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
+      expect(result).toMatch(
+        /My response took too long to generate.*\|\|\*\(Error ID: \w+\)\*\|\|$/
+      );
     });
   });
 });

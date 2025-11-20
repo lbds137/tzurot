@@ -6,7 +6,10 @@
 
 import type { Message, APIEmbed, MessageSnapshot } from 'discord.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
-import { extractDiscordEnvironment, formatEnvironmentForPrompt } from '../../utils/discordContext.js';
+import {
+  extractDiscordEnvironment,
+  formatEnvironmentForPrompt,
+} from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
@@ -41,16 +44,11 @@ export class SnapshotFormatter {
     const embedImages = extractEmbedImages(snapshot.embeds);
 
     // Combine both types of attachments
-    const allAttachments = [
-      ...(regularAttachments ?? []),
-      ...(embedImages ?? []),
-    ];
+    const allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
 
     // Process embeds from snapshot
     const embedString =
-      snapshot.embeds !== undefined &&
-      snapshot.embeds !== null &&
-      snapshot.embeds.length > 0
+      snapshot.embeds !== undefined && snapshot.embeds !== null && snapshot.embeds.length > 0
         ? snapshot.embeds
             .map((embed: APIEmbed | { toJSON(): APIEmbed }, index: number) => {
               const embedNumber = snapshot.embeds.length > 1 ? ` ${index + 1}` : '';

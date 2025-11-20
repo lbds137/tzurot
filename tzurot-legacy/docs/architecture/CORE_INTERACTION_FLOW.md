@@ -1,6 +1,7 @@
 # Core Interaction Flow
 
 ## Overview
+
 Tzurot is a Discord bot that acts as a proxy between Discord users and an AI service. It uses webhooks to represent different AI personalities with unique display names and avatars.
 
 ## Core Flow
@@ -43,21 +44,25 @@ User → Discord Bot → AI Service → Discord Webhook
 ## Key Domain Concepts
 
 ### Personality
+
 - **What it is**: A name that maps to AI profile data
 - **What it's NOT**: A complex entity with prompts, models, or configurations
-- **Stored data**: 
+- **Stored data**:
   - fullName (the personality identifier)
   - addedBy (Discord user ID who added it)
   - aliases (alternative names)
 
 ### Profile Data (From API)
+
 - **displayName**: The name shown in Discord
 - **avatarUrl**: The avatar image URL
 - **errorMessage**: Error from AI service (if any)
 - **Retrieved via**: API calls using personality name
 
 ### Critical API Methods
+
 These MUST be called to get profile data:
+
 - `getProfileDisplayName(personalityName)`
 - `getProfileAvatarUrl(personalityName)`
 - `getProfileErrorMessage(personalityName)`
@@ -86,6 +91,7 @@ These MUST be called to get profile data:
    - Minimize API calls
 
 ## What We're NOT Building
+
 - Complex domain models
 - Event sourcing systems
 - Repository patterns with hydration

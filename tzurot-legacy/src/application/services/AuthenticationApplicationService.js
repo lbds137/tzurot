@@ -547,7 +547,6 @@ class AuthenticationApplicationService {
         }
       }
 
-
       return { allowed: true };
     } catch (error) {
       logger.error(

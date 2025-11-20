@@ -95,7 +95,11 @@ export async function handleModalSubmit(
       .setTitle('✅ Personality Created Successfully')
       .setDescription(`Created personality: **${name}** (\`${slug}\`)`)
       .addFields(
-        { name: 'Character Info', value: `${characterInfo.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW)}...`, inline: false },
+        {
+          name: 'Character Info',
+          value: `${characterInfo.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW)}...`,
+          inline: false,
+        },
         {
           name: 'Personality Traits',
           value: `${personalityTraits.substring(0, TEXT_LIMITS.PERSONALITY_PREVIEW)}...`,

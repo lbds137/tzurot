@@ -108,6 +108,7 @@ WEBHOOK_PORT=3001  # Optional, defaults to 3001
 **Benefits**: 5,000 requests/hour vs 60/hour without authentication
 
 **Setup**:
+
 1. Go to GitHub Settings → Developer settings → Personal access tokens
 2. Click "Generate new token (classic)"
 3. Give it a descriptive name (e.g., "Tzurot Release Fetcher")
@@ -119,6 +120,7 @@ WEBHOOK_PORT=3001  # Optional, defaults to 3001
 #### 2. Webhook Configuration (Immediate Notifications)
 
 **Generate webhook secret**:
+
 ```bash
 # Using OpenSSL
 openssl rand -hex 32
@@ -128,6 +130,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 **Configure GitHub webhook**:
+
 1. Go to repository Settings → Webhooks → Add webhook
 2. Configure:
    - **Payload URL**: `https://your-bot-domain.railway.app/webhook/github`
@@ -151,16 +154,16 @@ GITHUB_WEBHOOK_SECRET=your_webhook_secret
 ```javascript
 // Customizable options when initializing
 const manager = new ReleaseNotificationManager({
-  maxDMsPerBatch: 10,        // Users to notify per batch
-  dmDelay: 1000,             // Delay between batches (ms)
+  maxDMsPerBatch: 10, // Users to notify per batch
+  dmDelay: 1000, // Delay between batches (ms)
   versionTracker: {
-    staleDuration: 3600000,  // How long before refreshing (ms)
+    staleDuration: 3600000, // How long before refreshing (ms)
   },
   githubClient: {
-    owner: 'lbds137',        // GitHub repo owner
-    repo: 'tzurot',          // GitHub repo name
-    githubToken: 'token',    // Optional: GitHub token
-    cacheTTL: 3600000,       // Cache duration (ms)
+    owner: 'lbds137', // GitHub repo owner
+    repo: 'tzurot', // GitHub repo name
+    githubToken: 'token', // Optional: GitHub token
+    cacheTTL: 3600000, // Cache duration (ms)
   },
 });
 ```
@@ -194,11 +197,11 @@ const manager = new ReleaseNotificationManager({
 ### User Preference Handling
 
 | Preference Level | Major (1.0.0) | Minor (1.1.0) | Patch (1.0.1) |
-|------------------|----------------|----------------|----------------|
-| `major`          | ✅ Notify      | ❌ Skip        | ❌ Skip        |
-| `minor`          | ✅ Notify      | ✅ Notify      | ❌ Skip        |
-| `patch`          | ✅ Notify      | ✅ Notify      | ✅ Notify      |
-| `off`            | ❌ Skip        | ❌ Skip        | ❌ Skip        |
+| ---------------- | ------------- | ------------- | ------------- |
+| `major`          | ✅ Notify     | ❌ Skip       | ❌ Skip       |
+| `minor`          | ✅ Notify     | ✅ Notify     | ❌ Skip       |
+| `patch`          | ✅ Notify     | ✅ Notify     | ✅ Notify     |
+| `off`            | ❌ Skip       | ❌ Skip       | ❌ Skip       |
 
 ## Webhook Integration
 
@@ -229,6 +232,7 @@ GitHub sends payloads like this for release events:
 ```
 
 The bot processes this by:
+
 1. Verifying the webhook signature
 2. Extracting release information
 3. Triggering the notification system
@@ -294,6 +298,7 @@ logger.info('[UserPreferences] User X changed notification level to Y');
    - Confirm "Releases" event is selected
 
 2. **Check bot logs**:
+
    ```bash
    # Look for webhook reception logs
    grep "Received GitHub release webhook" logs

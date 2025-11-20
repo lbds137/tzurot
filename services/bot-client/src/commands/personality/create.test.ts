@@ -208,9 +208,7 @@ describe('handleCreate', () => {
       return null;
     });
     vi.mocked(mockInteraction.options.getAttachment).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('Internal Server Error', { status: 500 })
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
     await handleCreate(mockInteraction, mockConfig);
 

@@ -98,7 +98,7 @@ describe('threadHandler', () => {
       }
       return chunks;
     });
-    
+
     // Mock chunkHelpers
     chunkHelpers.isFirstChunk = jest.fn(i => i === 0);
     chunkHelpers.isLastChunk = jest.fn((i, len) => i === len - 1);
@@ -156,12 +156,12 @@ describe('threadHandler', () => {
       await sendDirectThreadMessage(
         mockChannel,
         'Test content',
-        { 
-          displayName: 'TestPersonality', 
+        {
+          displayName: 'TestPersonality',
           fullName: 'test-personality',
-          profile: { 
-            avatarUrl: 'https://example.com/avatar.png' 
-          }
+          profile: {
+            avatarUrl: 'https://example.com/avatar.png',
+          },
         },
         {},
         mockGetStandardizedUsername,
@@ -189,7 +189,7 @@ describe('threadHandler', () => {
         expect.objectContaining({
           content: 'Test content',
           username: 'TestPersonality',
-          thread_id: 'thread-123'
+          thread_id: 'thread-123',
         })
       );
       expect(result.messageIds).toEqual(['message-123']);
@@ -302,12 +302,12 @@ describe('threadHandler', () => {
       await sendDirectThreadMessage(
         mockChannel,
         'Test content',
-        { 
-          displayName: 'TestPersonality', 
+        {
+          displayName: 'TestPersonality',
           fullName: 'test-personality',
-          profile: { 
-            avatarUrl: 'https://example.com/avatar.png' 
-          }
+          profile: {
+            avatarUrl: 'https://example.com/avatar.png',
+          },
         },
         {},
         mockGetStandardizedUsername,
@@ -326,7 +326,6 @@ describe('threadHandler', () => {
     });
 
     it('should fallback to webhook.thread() method if thread_id fails', async () => {
-
       // First attempt with thread_id fails
       mockWebhookClient.send.mockRejectedValueOnce(new Error('Invalid thread_id'));
 
@@ -354,7 +353,6 @@ describe('threadHandler', () => {
     });
 
     it('should fallback to channel.send() if all webhook methods fail', async () => {
-
       // Both webhook attempts fail
       mockWebhookClient.send.mockRejectedValue(new Error('Webhook failed'));
       mockWebhookClient.thread.mockImplementation(() => {
@@ -404,7 +402,6 @@ describe('threadHandler', () => {
     });
 
     it('should skip duplicate messages', async () => {
-
       // Mock isDuplicateMessage to return true
       isDuplicateMessage.mockReturnValue(true);
 
@@ -430,7 +427,9 @@ describe('threadHandler', () => {
       };
 
       // Mock webhookCache to fail for orphan thread
-      webhookCache.getOrCreateWebhook.mockRejectedValue(new Error('Cannot find parent channel for thread orphan-thread'));
+      webhookCache.getOrCreateWebhook.mockRejectedValue(
+        new Error('Cannot find parent channel for thread orphan-thread')
+      );
 
       await expect(
         sendDirectThreadMessage(
@@ -463,7 +462,6 @@ describe('threadHandler', () => {
     });
 
     it('should propagate error if first chunk fails after all fallbacks', async () => {
-
       // All methods fail
       mockWebhookClient.send.mockRejectedValue(new Error('Webhook failed'));
       mockWebhookClient.thread = undefined; // No thread method
@@ -483,7 +481,6 @@ describe('threadHandler', () => {
     });
 
     it('should continue with remaining chunks if non-first chunk fails', async () => {
-
       // First chunk succeeds, second fails, third succeeds
       mockWebhookClient.send
         .mockResolvedValueOnce({ id: 'message-1' })
