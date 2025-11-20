@@ -79,8 +79,19 @@ export class AttachmentStorageService {
       }
 
       // Hostname must be from allowed Discord CDN hosts
+      // Normalize: strip trailing dots and ensure lowercase (URL API already lowercases)
+      const normalizedHostname = url.hostname.replace(/\.+$/, '');
+
+      // Reject IP addresses (IPv4 and IPv6)
+      const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+      const ipv6Pattern = /^\[?[0-9a-f:]+\]?$/i;
+      if (ipv4Pattern.test(normalizedHostname) || ipv6Pattern.test(normalizedHostname)) {
+        throw new Error('Invalid attachment URL: IP addresses not allowed');
+      }
+
+      // Validate against allowed Discord CDN hosts
       const allowedHosts = ['cdn.discordapp.com', 'media.discordapp.net'];
-      if (!allowedHosts.includes(url.hostname)) {
+      if (!allowedHosts.includes(normalizedHostname)) {
         throw new Error(
           `Invalid attachment URL: must be from Discord CDN (${allowedHosts.join(', ')})`
         );
