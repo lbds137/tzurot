@@ -56,7 +56,7 @@ describe('admin command', () => {
       expect(dbSyncSubcommand).toBeDefined();
       if (dbSyncSubcommand && 'name' in dbSyncSubcommand && 'description' in dbSyncSubcommand) {
         expect(dbSyncSubcommand.name).toBe('db-sync');
-        expect(dbSyncSubcommand.description).toBe('Trigger database synchronization');
+        expect(dbSyncSubcommand.description).toBe('Trigger bidirectional database synchronization');
       }
     });
 
