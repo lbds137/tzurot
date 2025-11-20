@@ -445,6 +445,22 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 
 **📚 See**: `tzurot-git-workflow` skill for complete PR workflow, rebase conflict handling, commit format details, and git safety protocol
 
+### Git Hooks
+
+**🚨 CRITICAL: Pre-commit hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
+
+- **Source-controlled location**: `./hooks/pre-commit` (tracked in git)
+- **Installed location**: `.git/hooks/pre-commit` (NOT tracked in git)
+- **ALWAYS update**: `./hooks/pre-commit` (the source-controlled version)
+- **NEVER edit**: `.git/hooks/pre-commit` directly (will not persist in repository)
+
+When modifying pre-commit checks:
+1. Edit `./hooks/pre-commit` (source-controlled)
+2. Copy to `.git/hooks/pre-commit` if needed for local testing
+3. Commit and push `./hooks/pre-commit` changes
+
+The hook gets installed from `./hooks/` to `.git/hooks/` during repository setup.
+
 ## Environment Variables
 
 ### Required for bot-client
