@@ -21,6 +21,21 @@ describe('PersonalityService Integration', () => {
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
 
+    // Seed test system prompts
+    const systemPrompt1 = await testEnv.prisma.systemPrompt.create({
+      data: {
+        name: 'test-system-prompt-1',
+        content: 'You are a helpful test personality for integration testing.',
+      },
+    });
+
+    const systemPrompt2 = await testEnv.prisma.systemPrompt.create({
+      data: {
+        name: 'test-system-prompt-2',
+        content: 'You are a professional test personality for integration testing.',
+      },
+    });
+
     // Seed test personalities
     await testEnv.prisma.personality.createMany({
       data: [
@@ -28,17 +43,17 @@ describe('PersonalityService Integration', () => {
           name: 'test-personality-1',
           slug: 'test-personality-1',
           displayName: 'Test Personality 1',
+          systemPromptId: systemPrompt1.id,
           characterInfo: 'A test character for integration testing',
           personalityTraits: 'Helpful, friendly, and responsive',
-          systemPrompt: 'You are a test personality',
         },
         {
           name: 'test-personality-2',
           slug: 'test-personality-2',
           displayName: 'Test Personality 2',
+          systemPromptId: systemPrompt2.id,
           characterInfo: 'Another test character for integration testing',
           personalityTraits: 'Professional, knowledgeable, and concise',
-          systemPrompt: 'You are another test personality',
         },
       ],
       skipDuplicates: true,
@@ -59,15 +74,27 @@ describe('PersonalityService Integration', () => {
   });
 
   afterAll(async () => {
-    // Cleanup test data
-    await testEnv.prisma.personality.deleteMany({
-      where: {
-        name: {
-          in: ['test-personality-1', 'test-personality-2'],
+    try {
+      // Cleanup test data (personalities first due to foreign key constraints)
+      await testEnv.prisma.personality.deleteMany({
+        where: {
+          name: {
+            in: ['test-personality-1', 'test-personality-2'],
+          },
         },
-      },
-    });
-    await testEnv.cleanup();
+      });
+
+      // Cleanup system prompts
+      await testEnv.prisma.systemPrompt.deleteMany({
+        where: {
+          name: {
+            in: ['test-system-prompt-1', 'test-system-prompt-2'],
+          },
+        },
+      });
+    } finally {
+      await testEnv.cleanup();
+    }
   });
 
   beforeEach(() => {
