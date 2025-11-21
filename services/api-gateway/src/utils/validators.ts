@@ -14,11 +14,21 @@ export type ValidationResult = { valid: true } | { valid: false; error: ErrorRes
 /**
  * Validates a personality slug format
  * Slug must contain only lowercase letters, numbers, and hyphens
+ * Maximum length is 64 characters to prevent DoS attacks
  *
  * @param slug - The slug to validate
  * @returns Validation result with error if invalid
  */
 export function validateSlug(slug: string): ValidationResult {
+  // Check length (prevent DoS via extremely long slugs)
+  if (slug.length === 0 || slug.length > 64) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug must be between 1 and 64 characters'),
+    };
+  }
+
+  // Check format (lowercase letters, numbers, hyphens only)
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return {
       valid: false,
@@ -27,6 +37,7 @@ export function validateSlug(slug: string): ValidationResult {
       ),
     };
   }
+
   return { valid: true };
 }
 
