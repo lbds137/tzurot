@@ -20,9 +20,47 @@ describe('PersonalityService Integration', () => {
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+
+    // Seed test personalities
+    await testEnv.prisma.personality.createMany({
+      data: [
+        {
+          name: 'test-personality-1',
+          displayName: 'Test Personality 1',
+          systemPrompt: 'You are a test personality',
+        },
+        {
+          name: 'test-personality-2',
+          displayName: 'Test Personality 2',
+          systemPrompt: 'You are another test personality',
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    // Seed global default LLM config
+    await testEnv.prisma.llmConfig.upsert({
+      where: { id: 'global-default' },
+      create: {
+        id: 'global-default',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: 'anthropic/claude-sonnet-4',
+        temperature: 0.7,
+        maxTokens: 4000,
+      },
+      update: {},
+    });
   });
 
   afterAll(async () => {
+    // Cleanup test data
+    await testEnv.prisma.personality.deleteMany({
+      where: {
+        name: {
+          in: ['test-personality-1', 'test-personality-2'],
+        },
+      },
+    });
     await testEnv.cleanup();
   });
 

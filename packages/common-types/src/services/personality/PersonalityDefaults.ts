@@ -27,14 +27,16 @@ export function replacePlaceholders(
   // (actual user name will be injected at prompt-building time)
   for (const placeholder of PLACEHOLDERS.USER) {
     if (placeholder !== '{user}') {
-      const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+      // Escape all special regex characters including backslashes
+      const escapedPlaceholder = placeholder.replace(/[\\{}[\]().*+?^$|]/g, '\\$&');
       result = result.replace(new RegExp(escapedPlaceholder, 'g'), '{user}');
     }
   }
 
   // Replace assistant placeholders with personality name
   for (const placeholder of PLACEHOLDERS.ASSISTANT) {
-    const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+    // Escape all special regex characters including backslashes
+    const escapedPlaceholder = placeholder.replace(/[\\{}[\]().*+?^$|]/g, '\\$&');
     result = result.replace(new RegExp(escapedPlaceholder, 'g'), personalityName);
   }
 
