@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
+import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 
 // Set up test environment variables before anything else
 // This prevents config validation errors when importing services
@@ -30,8 +31,8 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
 
     // Integration tests need longer timeouts
-    testTimeout: 30000, // 30 seconds
-    hookTimeout: 30000,
+    testTimeout: TEST_TIMEOUTS.INTEGRATION_TEST,
+    hookTimeout: TEST_TIMEOUTS.INTEGRATION_HOOK,
 
     // Use REAL timers for integration tests (not fake timers)
     // Integration tests verify real behavior including timing
