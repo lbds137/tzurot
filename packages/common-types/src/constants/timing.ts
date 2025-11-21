@@ -137,3 +137,13 @@ export const CACHE_CONTROL = {
   /** Cache duration for avatar images (7 days in seconds) */
   AVATAR_MAX_AGE: 604800,
 } as const;
+
+/**
+ * Test configuration timeouts
+ */
+export const TEST_TIMEOUTS = {
+  /** Integration test timeout (30 seconds - allows for database/Redis operations) */
+  INTEGRATION_TEST: 30000,
+  /** Integration test hook timeout (30 seconds - matches test timeout) */
+  INTEGRATION_HOOK: 30000,
+} as const;
