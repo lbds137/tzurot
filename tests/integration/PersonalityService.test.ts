@@ -61,9 +61,9 @@ describe('PersonalityService Integration', () => {
 
     // Seed global default LLM config
     await testEnv.prisma.llmConfig.upsert({
-      where: { id: 'global-default' },
+      where: { id: '00000000-0000-0000-0000-000000000000' },
       create: {
-        id: 'global-default',
+        id: '00000000-0000-0000-0000-000000000000',
         name: 'Global Default',
         model: 'anthropic/claude-sonnet-4',
         visionModel: 'anthropic/claude-sonnet-4',
