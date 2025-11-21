@@ -22,12 +22,13 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "exclude": ["**/dist", "**/node_modules"],
+  "files": [],
   "references": [
     { "path": "./services/bot-client" },
     { "path": "./services/api-gateway" },
     { "path": "./services/ai-worker" },
     { "path": "./packages/common-types" },
-    { "path": "./tests" }
+    { "path": "./tests" },
+    { "path": "./tsconfig.configs.json" }
   ]
 }
