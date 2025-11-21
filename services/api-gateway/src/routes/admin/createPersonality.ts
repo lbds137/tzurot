@@ -76,15 +76,22 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
         return sendError(res, traitsValidation.error);
       }
 
-      // After validation, we know these values are defined
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const validatedName = name!;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const validatedSlug = slug!;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const validatedCharacterInfo = characterInfo!;
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const validatedTraits = personalityTraits!;
+      // After validation, assert these values are defined
+      // This should never fail since validation passed above
+      if (
+        name === undefined ||
+        slug === undefined ||
+        characterInfo === undefined ||
+        personalityTraits === undefined
+      ) {
+        throw new Error('Validation passed but required fields are missing');
+      }
+
+      // TypeScript now knows these are all strings (not string | undefined)
+      const validatedName = name;
+      const validatedSlug = slug;
+      const validatedCharacterInfo = characterInfo;
+      const validatedTraits = personalityTraits;
 
       // Validate slug format
       const slugFormatValidation = validateSlug(validatedSlug);
