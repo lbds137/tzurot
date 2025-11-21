@@ -24,7 +24,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["vitest.integration.config.ts"],
   "references": [
     { "path": "./services/bot-client" },
     { "path": "./services/api-gateway" },
