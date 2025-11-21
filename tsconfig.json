@@ -22,6 +22,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
+  "exclude": ["**/dist", "**/node_modules"],
   "references": [
     { "path": "./services/bot-client" },
     { "path": "./services/api-gateway" },
