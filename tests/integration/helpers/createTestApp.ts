@@ -35,18 +35,17 @@ export async function createTestApp(deps: TestAppDependencies): Promise<Express>
   // Create routers with dependencies
   // Note: Some routes may require additional dependencies (queue, redis, etc.)
   // For now, we'll test what we can with minimal setup
-   
+
   const aiRouter = createAIRouter({
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     personalityService: deps.personalityService,
-     
+
     queue: null as unknown as Queue, // Mock or skip queue-dependent tests
-     
+
     deduplicationCache: null as unknown as RequestDeduplicationCache,
     prisma: deps.prisma,
   });
 
-   
   const adminRouter = createAdminRouter({
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     personalityService: deps.personalityService,

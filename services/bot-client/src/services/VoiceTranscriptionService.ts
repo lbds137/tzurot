@@ -42,9 +42,17 @@ export class VoiceTranscriptionService {
     }
 
     // Check forwarded message snapshots
-    if (message.messageSnapshots && message.messageSnapshots.size > 0) {
+    if (
+      message.messageSnapshots !== null &&
+      message.messageSnapshots !== undefined &&
+      message.messageSnapshots.size > 0
+    ) {
       for (const snapshot of message.messageSnapshots.values()) {
-        if (snapshot.attachments && snapshot.attachments.size > 0) {
+        if (
+          snapshot.attachments !== null &&
+          snapshot.attachments !== undefined &&
+          snapshot.attachments.size > 0
+        ) {
           const hasSnapshotAudio = snapshot.attachments.some(
             a =>
               (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
@@ -96,9 +104,18 @@ export class VoiceTranscriptionService {
       }));
 
       // If no direct audio attachments, check forwarded message snapshots
-      if (attachments.length === 0 && message.messageSnapshots && message.messageSnapshots.size > 0) {
+      if (
+        attachments.length === 0 &&
+        message.messageSnapshots !== null &&
+        message.messageSnapshots !== undefined &&
+        message.messageSnapshots.size > 0
+      ) {
         for (const snapshot of message.messageSnapshots.values()) {
-          if (snapshot.attachments && snapshot.attachments.size > 0) {
+          if (
+            snapshot.attachments !== null &&
+            snapshot.attachments !== undefined &&
+            snapshot.attachments.size > 0
+          ) {
             const snapshotAttachments = Array.from(snapshot.attachments.values())
               .filter(
                 a =>
@@ -122,9 +139,7 @@ export class VoiceTranscriptionService {
 
             if (snapshotAttachments.length > 0) {
               attachments = snapshotAttachments;
-              logger.debug(
-                '[VoiceTranscriptionService] Found audio in forwarded message snapshot'
-              );
+              logger.debug('[VoiceTranscriptionService] Found audio in forwarded message snapshot');
               break; // Use first snapshot with audio
             }
           }

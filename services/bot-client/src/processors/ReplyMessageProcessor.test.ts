@@ -20,10 +20,7 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
 
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 
-function createMockMessage(options?: {
-  content?: string;
-  hasReference?: boolean;
-}): Message {
+function createMockMessage(options?: { content?: string; hasReference?: boolean }): Message {
   return {
     id: '123456789',
     content: options?.content ?? 'Reply message',
