@@ -64,6 +64,7 @@ describe('PersonalityService Integration', () => {
       where: { id: 'global-default' },
       create: {
         id: 'global-default',
+        name: 'Global Default',
         model: 'anthropic/claude-sonnet-4',
         visionModel: 'anthropic/claude-sonnet-4',
         temperature: 0.7,
