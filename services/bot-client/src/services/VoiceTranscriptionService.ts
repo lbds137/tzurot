@@ -160,13 +160,8 @@ export class VoiceTranscriptionService {
         `[VoiceTranscriptionService] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`
       );
 
-      // Send each chunk as a reply (these will appear BEFORE personality webhook response)
-      // Don't ping the user - they already know they sent a voice message
-      for (const chunk of chunks) {
-        await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
-      }
-
-      // Cache transcript in Redis to avoid re-transcribing if this voice message also targets a personality
+      // Cache transcript in Redis BEFORE sending Discord replies to prevent race condition
+      // If personality processing starts before cache storage completes, it might re-transcribe
       // Key by attachment URL with 5 min TTL (long enough for personality processing)
       const voiceAttachment = attachments[0]; // We know there's at least one
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
@@ -174,6 +169,12 @@ export class VoiceTranscriptionService {
         logger.debug(
           `[VoiceTranscriptionService] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
         );
+      }
+
+      // Send each chunk as a reply (these will appear BEFORE personality webhook response)
+      // Don't ping the user - they already know they sent a voice message
+      for (const chunk of chunks) {
+        await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
       }
 
       // Determine if we should continue to personality handler

@@ -46,7 +46,7 @@ export default tseslint.config(
         ...globals.es2022,
       },
       parserOptions: {
-        project: true, // Automatically find the nearest tsconfig.json
+        projectService: true, // Automatically discover all TypeScript projects (v8+)
         tsconfigRootDir: __dirname, // Use the resolved root directory
       },
     },

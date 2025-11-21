@@ -5,7 +5,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, AVATAR_LIMITS } from '@tzurot/common-types';
+import { createLogger, AVATAR_LIMITS, assertDefined } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@prisma/client';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
@@ -78,23 +78,14 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
 
       // After validation, assert these values are defined
       // This should never fail since validation passed above
-      if (
-        name === undefined ||
-        slug === undefined ||
-        characterInfo === undefined ||
-        personalityTraits === undefined
-      ) {
-        throw new Error('Validation passed but required fields are missing');
-      }
-
+      assertDefined(name, 'name');
+      assertDefined(slug, 'slug');
+      assertDefined(characterInfo, 'characterInfo');
+      assertDefined(personalityTraits, 'personalityTraits');
       // TypeScript now knows these are all strings (not string | undefined)
-      const validatedName = name;
-      const validatedSlug = slug;
-      const validatedCharacterInfo = characterInfo;
-      const validatedTraits = personalityTraits;
 
       // Validate slug format
-      const slugFormatValidation = validateSlug(validatedSlug);
+      const slugFormatValidation = validateSlug(slug);
       if (!slugFormatValidation.valid) {
         return sendError(res, slugFormatValidation.error);
       }
@@ -107,13 +98,13 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
 
       // Check if personality already exists
       const existing = await prisma.personality.findUnique({
-        where: { slug: validatedSlug },
+        where: { slug: slug },
       });
 
       if (existing !== null) {
         return sendError(
           res,
-          ErrorResponses.conflict(`A personality with slug '${validatedSlug}' already exists`)
+          ErrorResponses.conflict(`A personality with slug '${slug}' already exists`)
         );
       }
 
@@ -121,7 +112,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
       let processedAvatarData: Buffer | undefined;
       if (avatarData !== undefined && avatarData.length > 0) {
         try {
-          logger.info(`[Admin] Processing avatar for personality: ${validatedSlug}`);
+          logger.info(`[Admin] Processing avatar for personality: ${slug}`);
 
           const result = await optimizeAvatar(avatarData);
 
@@ -151,11 +142,11 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
       // Create personality in database
       const personality = await prisma.personality.create({
         data: {
-          name: validatedName,
-          slug: validatedSlug,
+          name: name,
+          slug: slug,
           displayName: displayName ?? null,
-          characterInfo: validatedCharacterInfo,
-          personalityTraits: validatedTraits,
+          characterInfo: characterInfo,
+          personalityTraits: personalityTraits,
           personalityTone: personalityTone ?? null,
           personalityAge: personalityAge ?? null,
           personalityAppearance: personalityAppearance ?? null,
@@ -173,7 +164,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
         },
       });
 
-      logger.info(`[Admin] Created personality: ${validatedSlug} (${personality.id})`);
+      logger.info(`[Admin] Created personality: ${slug} (${personality.id})`);
 
       // Set default LLM config (find global default config)
       try {
@@ -191,9 +182,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
               llmConfigId: defaultLlmConfig.id,
             },
           });
-          logger.info(
-            `[Admin] Set default LLM config for ${validatedSlug}: ${defaultLlmConfig.name}`
-          );
+          logger.info(`[Admin] Set default LLM config for ${slug}: ${defaultLlmConfig.name}`);
         } else {
           logger.warn(
             {},

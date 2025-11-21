@@ -34,6 +34,7 @@ export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export { requireBotOwner } from './utils/ownerMiddleware.js';
 export { PersonalityCache, type PersonalityCacheOptions } from './utils/PersonalityCache.js';
+export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
 
 // Export services
 export * from './services/prisma.js';
