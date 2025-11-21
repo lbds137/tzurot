@@ -20,12 +20,22 @@ export CI=true
 V3_TS_FILES=$(find packages services -name "*.ts" -o -name "*.tsx" 2>/dev/null || true)
 
 if [ -n "$V3_TS_FILES" ]; then
-    echo -e "\n🧪 Running full test suite (989 tests)..."
+    echo -e "\n🧪 Running unit test suite..."
 
     if pnpm test; then
-        echo -e "${GREEN}✅ All tests passed!${NC}"
+        echo -e "${GREEN}✅ Unit tests passed!${NC}"
     else
-        echo -e "${RED}❌ Tests failed! Aborting push.${NC}"
+        echo -e "${RED}❌ Unit tests failed! Aborting push.${NC}"
+        echo -e "\n${YELLOW}To bypass this hook (not recommended): git push --no-verify${NC}"
+        exit 1
+    fi
+
+    echo -e "\n🔧 Running integration tests..."
+
+    if pnpm test:integration; then
+        echo -e "${GREEN}✅ Integration tests passed!${NC}"
+    else
+        echo -e "${RED}❌ Integration tests failed! Aborting push.${NC}"
         echo -e "\n${YELLOW}To bypass this hook (not recommended): git push --no-verify${NC}"
         exit 1
     fi
