@@ -26,11 +26,13 @@ describe('PersonalityService Integration', () => {
       data: [
         {
           name: 'test-personality-1',
+          slug: 'test-personality-1',
           displayName: 'Test Personality 1',
           systemPrompt: 'You are a test personality',
         },
         {
           name: 'test-personality-2',
+          slug: 'test-personality-2',
           displayName: 'Test Personality 2',
           systemPrompt: 'You are another test personality',
         },
