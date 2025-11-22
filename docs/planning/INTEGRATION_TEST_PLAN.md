@@ -31,6 +31,7 @@
 ## Executive Summary
 
 **Current State**:
+
 - 989 unit tests ✅
 - 80 component tests ✅
 - 0 live dependency tests ❌
@@ -43,15 +44,15 @@
 
 ### ✅ Well-Covered (Component Level)
 
-| Test File | Coverage | Test Count | Notes |
-|---|---|---|---|
-| database.test.ts | Database connection | ~5 | Basic connectivity |
-| RedisService.test.ts | Redis connection | ~10 | Connection pooling |
-| PersonalityService.test.ts | Personality loading | ~20 | Full CRUD operations |
-| AdminRoutes.test.ts | Admin API endpoints | ~15 | HTTP route testing |
-| PgvectorMemoryAdapter.test.ts | Memory adapter | ~10 | **Doesn't create memories** (avoids polluting dev DB) |
-| VoiceTranscriptCache.test.ts | Voice caching | ~10 | Caching only, not transcription |
-| AIRoutes.test.ts | AI API routes | ~10 | **MOCKS BullMQ queue** (not end-to-end) |
+| Test File                     | Coverage            | Test Count | Notes                                                 |
+| ----------------------------- | ------------------- | ---------- | ----------------------------------------------------- |
+| database.test.ts              | Database connection | ~5         | Basic connectivity                                    |
+| RedisService.test.ts          | Redis connection    | ~10        | Connection pooling                                    |
+| PersonalityService.test.ts    | Personality loading | ~20        | Full CRUD operations                                  |
+| AdminRoutes.test.ts           | Admin API endpoints | ~15        | HTTP route testing                                    |
+| PgvectorMemoryAdapter.test.ts | Memory adapter      | ~10        | **Doesn't create memories** (avoids polluting dev DB) |
+| VoiceTranscriptCache.test.ts  | Voice caching       | ~10        | Caching only, not transcription                       |
+| AIRoutes.test.ts              | AI API routes       | ~10        | **MOCKS BullMQ queue** (not end-to-end)               |
 
 **Total**: 80 tests
 
@@ -60,11 +61,13 @@
 #### Reality Check: What's Realistic for Phase 0?
 
 **Live Dependency Tests** (multi-service orchestration):
+
 - ❌ NOT realistic without sophisticated CI/CD
 - ❌ Requires: Service startup/shutdown orchestration, timing coordination, test data cleanup across services
 - 🧊 **Deferred**: Future improvement when we have better CI/CD infrastructure
 
 **Component Tests** (single service, real DB/Redis):
+
 - ✅ Realistic for Phase 0
 - ✅ We already have infrastructure (tests/integration/setup.ts)
 - ✅ Focus: Add coverage for critical components with gaps
@@ -76,6 +79,7 @@
 **Scope**: Test ai-worker's `AIJobProcessor` class in isolation
 
 **Test Flow**:
+
 ```
 Test creates mock BullMQ job
     ↓
@@ -106,6 +110,7 @@ Test verifies response structure
 **Current Coverage**: None - always mocked in tests
 
 **Gap**:
+
 - Worker actually picks up job from Redis
 - Job processing completes successfully
 - Result is returned to caller via delivery confirmation
@@ -121,6 +126,7 @@ Test verifies response structure
 **Current Coverage**: None
 
 **Gap**:
+
 - Webhook creation for personality
 - Avatar and name customization per personality
 - Webhook message delivery
@@ -136,6 +142,7 @@ Test verifies response structure
 **Current Coverage**: None
 
 **Gap**:
+
 - Discord API message fetching
 - Content extraction (text, embeds, attachments)
 - Context inclusion in AI prompt
@@ -151,6 +158,7 @@ Test verifies response structure
 **Current Coverage**: None
 
 **Gap**:
+
 - History retrieval from database
 - Ordering and limiting
 - Context formatting
@@ -166,6 +174,7 @@ Test verifies response structure
 **Current Coverage**: PgvectorMemoryAdapter.test.ts tests adapter but **doesn't create memories**
 
 **Gap**:
+
 - Memory creation with real embeddings (requires OpenAI API key)
 - Vector similarity search with real data
 - Memory formatting in AI context
@@ -183,6 +192,7 @@ Test verifies response structure
 **Current Coverage**: VoiceTranscriptCache.test.ts tests caching only
 
 **Gap**:
+
 - Whisper API integration (requires OpenAI API key)
 - Audio file handling
 - Transcription result caching
@@ -200,6 +210,7 @@ Test verifies response structure
 **Current Coverage**: PersonalityService tests personality loading
 
 **Gap**:
+
 - LLM config resolution (user override vs global)
 - AI provider invocation with config
 - Response handling
@@ -211,6 +222,7 @@ Test verifies response structure
 ## Prioritization for Phase 0 (REVISED)
 
 Based on:
+
 - **Realistic**: What can we actually achieve without sophisticated CI/CD?
 - **Risk**: What's most likely to break during schema changes?
 - **Value**: What gives us the best safety net for Phase 1?
@@ -218,6 +230,7 @@ Based on:
 ### Priority 1: Must Have (Phase 0) - Contract Tests
 
 **Why Contract Tests First**:
+
 - ✅ Lightweight (no service orchestration needed)
 - ✅ Catches breaking changes at service boundaries (critical for schema migration!)
 - ✅ We already use Zod - can leverage existing schemas
@@ -283,12 +296,14 @@ Based on:
 **File**: `tests/integration/MessageFlow.test.ts`
 
 **Setup**:
+
 - Spin up api-gateway Express server
 - Spin up Redis (use existing test Redis)
 - Spin up ai-worker job processor
 - Mock: Discord.js client, AI provider (OpenRouter/Gemini)
 
 **Test Cases**:
+
 1. POST `/ai/generate` → job created in BullMQ
 2. Worker picks up job from Redis
 3. Worker processes job (with mocked AI response)
@@ -305,10 +320,12 @@ Based on:
 **File**: `tests/integration/ConversationHistory.test.ts`
 
 **Setup**:
+
 - Prisma test database
 - Create test conversation history records
 
 **Test Cases**:
+
 1. Insert multiple messages for user + personality
 2. Retrieve conversation history (verify ordering)
 3. Verify limit enforcement (maxConversationHistory)
@@ -344,12 +361,14 @@ Based on:
 ### What to Mock vs What to Test
 
 **Always Mock** (to avoid costs and external dependencies):
+
 - ✅ AI Providers (OpenRouter, Gemini, OpenAI) - Use fixture responses
 - ✅ Discord API - Use mock Discord.js client
 - ✅ OpenAI Whisper API - Mock transcription responses
 - ✅ OpenAI Embeddings API - Mock embedding vectors
 
 **Always Test Real** (critical integration points):
+
 - ✅ PostgreSQL database
 - ✅ Redis connection
 - ✅ BullMQ job queue
@@ -369,12 +388,14 @@ Based on:
 ### Potential Architecture with Railway
 
 **Test Environment** (Railway makes this easy):
+
 - Create `test` environment (alongside `development` and `production`)
 - Deploy all 3 services: bot-client, api-gateway, ai-worker
 - Isolated Redis and PostgreSQL instances
 - **Cost**: Usage-based (Pro plan $20/month) - only costs when running, can spin up/down as needed
 
 **CI/CD Integration** (This is the hard part):
+
 ```yaml
 # .github/workflows/live-dependency-tests.yml (future)
 - Deploy to Railway test environment
@@ -385,6 +406,7 @@ Based on:
 ```
 
 **Challenges** (mostly CI/CD integration, not cost):
+
 - Railway API integration in GitHub Actions
 - Service startup timing coordination
 - Flaky tests from race conditions

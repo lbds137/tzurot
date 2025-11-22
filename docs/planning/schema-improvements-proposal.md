@@ -15,10 +15,12 @@ This proposal addresses missing fields from shapes.inc migration, implements BYO
 Based on shapes.inc data analysis and user feedback:
 
 ### Critical Priority (Production Blockers)
+
 1. **BYOK (Bring Your Own Key)** - User-provided API keys to prevent bot owner paying all costs - **BLOCKS PUBLIC LAUNCH**
 2. **API Usage Tracking** - Token usage monitoring to prevent infrastructure abuse
 
 ### High Priority
+
 3. **Custom Error Messages** - Replace generic "no job result" error with personality-specific messages
 4. **Aliases** - Store as array with uniqueness constraints to prevent overlap
 5. **Voice Settings** - Detailed voice configuration (ElevenLabs only for now)
@@ -28,10 +30,12 @@ Based on shapes.inc data analysis and user feedback:
 9. **Birthday** - Add flavor/character depth to personalities
 
 ### Medium Priority
+
 10. **Advanced LLM Hyperparameters** - Support reasoning models (Claude 3.7, OpenAI o1/o3) and advanced sampling
 11. **User Config Commands** - Slash commands for users to control their own LLM configs (not just admin)
 
 ### Explicitly Rejected
+
 - Soft delete / deleted flags
 - Sensitivity flags
 - Custom HTML/CSS
@@ -94,6 +98,7 @@ model User {
 **Migration**: Default to `"UTC"` for existing users.
 
 **Application Changes Needed**:
+
 - Add `/timezone` slash command (set, get)
 - Update personality context to include user timezone
 - Validate timezone strings against IANA database
@@ -119,6 +124,7 @@ model PersonalityAlias {
 ```
 
 **Changes to Personality Table**:
+
 ```prisma
 model Personality {
   // ... existing fields ...
@@ -129,11 +135,13 @@ model Personality {
 ```
 
 **Migration**:
+
 1. Extract aliases from existing `Personality.customFields` JSON (if any)
 2. Create `PersonalityAlias` records
 3. Enforce uniqueness constraint (fail if duplicates exist)
 
 **Application Changes Needed**:
+
 - Update personality creation to check alias uniqueness
 - Update personality deletion to cascade delete aliases
 - Update mention detection to query `PersonalityAlias` table
@@ -168,6 +176,7 @@ model VoiceConfig {
 ```
 
 **Changes to Personality Table**:
+
 ```prisma
 model Personality {
   // ... existing fields ...
@@ -181,11 +190,13 @@ model Personality {
 ```
 
 **Migration**:
+
 1. Extract voice settings from shapes.inc backup data
 2. Create `VoiceConfig` records for personalities with `voiceEnabled = true`
 3. Validate stability/similarity/style/frequency are in range [0.0, 1.0]
 
 **Application Changes Needed**:
+
 - Update voice synthesis to query `VoiceConfig` table
 - Add validation for voice parameter ranges
 - Update personality creation/update to handle voice config
@@ -195,6 +206,7 @@ model Personality {
 **Rationale**: Current table has 18+ columns and will balloon to 50+ if we add provider-specific advanced parameters. Gemini recommends hybrid schema: universal columns + JSONB for provider-specific params.
 
 **Current Issues**:
+
 - Wide table problem (sparse matrix of NULLs)
 - Can't easily add new provider-specific parameters
 - Some columns only used by specific providers (topK, repetitionPenalty)
@@ -293,6 +305,7 @@ model LlmConfig {
    - `maxReferencedMessages` (int, default 10)
 
 2. **Migrate existing data to JSONB**:
+
    ```sql
    -- Pseudocode migration
    UPDATE llm_configs SET advancedParameters = jsonb_build_object(
@@ -328,6 +341,7 @@ model LlmConfig {
    - Implement business logic constraints (e.g., Claude 3.7 thinking requires temperature=1.0)
 
 **Benefits**:
+
 - ✅ No more NULL-heavy columns
 - ✅ Easy to add new provider-specific parameters (no migration needed)
 - ✅ Flexible schema that adapts as AI providers release new features
@@ -359,20 +373,35 @@ const OpenAIAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
 
 const AnthropicAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
   topK: z.number().int().min(1).max(500).optional(),
-  thinking: z.object({
-    type: z.enum(['enabled', 'disabled']),
-    budgetTokens: z.number().int().min(1024).max(10000),
-  }).optional(),
+  thinking: z
+    .object({
+      type: z.enum(['enabled', 'disabled']),
+      budgetTokens: z.number().int().min(1024).max(10000),
+    })
+    .optional(),
   cacheControl: z.boolean().optional(),
 });
 
 const GeminiAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
   topK: z.number().int().min(1).max(100).optional(),
-  safetySettings: z.array(z.object({
-    category: z.enum(['HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH',
-                      'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT']),
-    threshold: z.enum(['BLOCK_NONE', 'BLOCK_ONLY_HIGH', 'BLOCK_MEDIUM_AND_ABOVE', 'BLOCK_LOW_AND_ABOVE']),
-  })).optional(),
+  safetySettings: z
+    .array(
+      z.object({
+        category: z.enum([
+          'HARM_CATEGORY_HARASSMENT',
+          'HARM_CATEGORY_HATE_SPEECH',
+          'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          'HARM_CATEGORY_DANGEROUS_CONTENT',
+        ]),
+        threshold: z.enum([
+          'BLOCK_NONE',
+          'BLOCK_ONLY_HIGH',
+          'BLOCK_MEDIUM_AND_ABOVE',
+          'BLOCK_LOW_AND_ABOVE',
+        ]),
+      })
+    )
+    .optional(),
 });
 
 const OpenRouterAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
@@ -436,6 +465,7 @@ model UserApiKey {
 ```
 
 **Changes to User Table**:
+
 ```prisma
 model User {
   // ... existing fields ...
@@ -448,6 +478,7 @@ model User {
 **Security Implementation**:
 
 1. **Encryption Utility** (`packages/common-types/src/utils/encryption.ts`):
+
    ```typescript
    import crypto from 'crypto';
 
@@ -464,11 +495,11 @@ model User {
      return {
        iv: iv.toString('hex'),
        content: encrypted,
-       tag: authTag
+       tag: authTag,
      };
    };
 
-   export const decryptApiKey = (encrypted: { iv: string, content: string, tag: string }) => {
+   export const decryptApiKey = (encrypted: { iv: string; content: string; tag: string }) => {
      const decipher = crypto.createDecipheriv(
        ALGORITHM,
        ENCRYPTION_KEY,
@@ -503,11 +534,13 @@ model User {
    - Sanitize logs: Regex match `sk-...`, `sk_...`, `AIza...` and replace with `[REDACTED]`
 
 **Migration**:
+
 1. Generate `APP_MASTER_KEY` (32 bytes) and add to Railway environment variables
 2. Create `UserApiKey` table
 3. No data migration (new feature - users will add keys via commands)
 
 **Application Changes Needed**:
+
 - Add `/wallet` command group (set, list, remove, test)
 - Update `ai-worker` to accept encrypted API key in job payload
 - Add key validation service
@@ -549,6 +582,7 @@ model UsageLog {
 ```
 
 **Changes to User Table**:
+
 ```prisma
 model User {
   // ... existing fields ...
@@ -559,12 +593,14 @@ model User {
 ```
 
 **Usage Tracking Strategy**:
+
 - Log every AI request (text generation, voice synthesis, image generation)
 - For image generation: Use approximate token equivalent (e.g., 1 image = 1000 tokens)
 - Implement rate limiting based on token usage (not dollars)
 - Provide `/usage` command for users to view their stats
 
 **Application Changes Needed**:
+
 - Add usage logging to ai-worker after each request
 - Add `/usage` command (daily/weekly/monthly stats)
 - Add rate limiting middleware based on usage logs
@@ -627,6 +663,7 @@ model ImageConfig {
 ```
 
 **Changes to Personality Table**:
+
 ```prisma
 model Personality {
   // ... existing fields ...
@@ -637,6 +674,7 @@ model Personality {
 ```
 
 **Image Generation Flow**:
+
 1. User sends command (e.g., `/imagine a sunset over the ocean`)
 2. **Immediate defer**: Discord interaction tokens expire in 3 seconds - use `interaction.defer()`
 3. API Gateway creates image generation job in BullMQ
@@ -651,17 +689,20 @@ model Personality {
 7. `interaction.followup.send()` with image attachment
 
 **Cost Considerations**:
+
 - **DALL-E 3**: $0.040 (standard) / $0.080 (HD) per image - **expensive**
 - **Flux Schnell**: ~$0.003 per image - **cheapest, recommended default**
 - **Flux Pro**: ~$0.055 per image - **premium quality**
 - **SDXL**: ~$0.006 per image - **good balance**
 
 **Migration**:
+
 1. Create `ImageConfig` table
 2. No data migration (new feature)
 3. Default all personalities to `enabled: false` (opt-in feature)
 
 **Application Changes Needed**:
+
 - Add `/imagine` command (or integrate into personality mention)
 - Add image generation job handler in ai-worker
 - Add provider-specific image generation clients (OpenAI, OpenRouter, Gemini)
@@ -725,6 +766,7 @@ export function validateImageParams(provider: string, params: unknown) {
 ### Database Migrations
 
 **Personality Table Updates:**
+
 - [ ] Add `Personality.errorMessage` (String?, Text)
 - [ ] Add `Personality.birthday` (DateTime?, Date)
 - [ ] Add `Personality.aliases` relationship
@@ -733,11 +775,13 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Remove `Personality.voiceSettings` JSON column
 
 **User Table Updates:**
+
 - [ ] Add `User.timezone` (String, default "UTC")
 - [ ] Add `User.apiKeys` relationship
 - [ ] Add `User.usageLogs` relationship
 
 **New Tables:**
+
 - [ ] Create `PersonalityAlias` table with unique constraint on `alias`
 - [ ] Create `VoiceConfig` table (ElevenLabs parameters)
 - [ ] Create `UserApiKey` table (BYOK - encrypted API keys)
@@ -745,6 +789,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Create `ImageConfig` table (image synthesis parameters)
 
 **LlmConfig Table Refactor:**
+
 - [ ] Add `LlmConfig.provider` (String, default "openrouter")
 - [ ] Add `LlmConfig.advancedParameters` (Json, default "{}")
 - [ ] Add `LlmConfig.maxReferencedMessages` (Int, default 10)
@@ -754,6 +799,7 @@ export function validateImageParams(provider: string, params: unknown) {
 ### Data Migration Scripts
 
 **Shapes.inc Data Extraction:**
+
 - [ ] Extract aliases from 66 personalities → PersonalityAlias table
 - [ ] Extract voice settings from personalities → VoiceConfig table
 - [ ] Extract error messages → Personality.errorMessage
@@ -761,16 +807,19 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Validate all migrated data (no data loss, 66 personalities)
 
 **LlmConfig Migration:**
+
 - [ ] Migrate existing LlmConfig columns to advancedParameters JSONB
 - [ ] Verify no data loss in migration
 
 **BYOK Setup:**
+
 - [ ] Generate APP_MASTER_KEY (32 bytes) for Railway environment
 - [ ] Document key rotation procedure
 
 ### Application Code Changes
 
 **Core Infrastructure (BYOK):**
+
 - [ ] Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
 - [ ] Add log sanitization middleware (regex for API keys)
 - [ ] Update ai-worker to accept encrypted API key in job payload
@@ -778,28 +827,33 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Add key validation service (dry run API calls)
 
 **Zod Validation Schemas:**
+
 - [ ] Create LLM advancedParameters schemas (per provider)
 - [ ] Create Image advancedParameters schemas (per provider)
 - [ ] Add business logic constraints (Claude 3.7 thinking+temperature, etc.)
 
 **Discord Commands - Wallet Management:**
+
 - [ ] Add `/wallet set <provider>` command (Modal input, ephemeral)
 - [ ] Add `/wallet list` command (show configured providers, ephemeral)
 - [ ] Add `/wallet remove <provider>` command
 - [ ] Add `/wallet test <provider>` command (validate key still works)
 
 **Discord Commands - Config Management:**
+
 - [ ] Add `/config` command group for users to manage LLM settings
 - [ ] Add `/timezone set` command (dropdown of common timezones)
 - [ ] Add `/timezone get` command
 - [ ] Add `/usage` command (daily/weekly/monthly token stats)
 
 **Discord Commands - Image Generation:**
+
 - [ ] Add `/imagine <prompt>` command
 - [ ] Add interaction defer (3 second timeout handling)
 - [ ] Add base64 → Buffer → Discord File upload
 
 **Personality System Updates:**
+
 - [ ] Update personality creation to handle aliases (uniqueness check)
 - [ ] Update personality deletion to cascade (aliases, voice config, image config)
 - [ ] Update mention detection to query PersonalityAlias table
@@ -807,6 +861,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Update personality context to include user timezone
 
 **AI Service Updates:**
+
 - [ ] Update AI service to read LLM advancedParameters from JSONB
 - [ ] Add support for reasoning parameters (Claude 3.7, OpenAI o1/o3)
 - [ ] Update voice synthesis to query VoiceConfig table
@@ -814,6 +869,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Add provider-specific image generation clients (OpenAI, OpenRouter, Gemini)
 
 **Usage Tracking & Rate Limiting:**
+
 - [ ] Add usage logging to ai-worker (text, voice, image)
 - [ ] Add rate limiting middleware based on usage logs
 - [ ] Add admin command to view global usage stats
@@ -821,6 +877,7 @@ export function validateImageParams(provider: string, params: unknown) {
 ### Testing
 
 **Unit Tests:**
+
 - [ ] Test encryption/decryption utilities
 - [ ] Test log sanitization (API keys redacted)
 - [ ] Test alias uniqueness constraint enforcement
@@ -831,6 +888,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Test reasoning parameter constraints (Claude 3.7 thinking+temperature)
 
 **Integration Tests:**
+
 - [ ] Test BYOK flow: set key → validate → encrypt → store → use → decrypt
 - [ ] Test key validation failures (invalid key, quota exceeded)
 - [ ] Test hierarchical inheritance (user wallet → persona override)
@@ -840,6 +898,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Test rate limiting enforcement
 
 **Migration Tests:**
+
 - [ ] Test migration scripts with 66 shapes.inc personalities
 - [ ] Verify no data loss (aliases, voice settings, error messages, birthdays)
 - [ ] Test rollback procedure
@@ -847,12 +906,14 @@ export function validateImageParams(provider: string, params: unknown) {
 ### Documentation
 
 **User-Facing Documentation:**
+
 - [ ] Create user guide for `/wallet` commands (how to get API keys from providers)
 - [ ] Create user guide for `/timezone` command
 - [ ] Create user guide for `/imagine` command
 - [ ] Document provider costs (OpenRouter, OpenAI, Gemini) for transparency
 
 **Developer Documentation:**
+
 - [ ] Update API documentation for new endpoints
 - [ ] Document advancedParameters JSONB structure (LLM & image, per provider)
 - [ ] Document encryption key rotation procedure
@@ -861,6 +922,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Update CURRENT_WORK.md with BYOK implementation status
 
 **Security Documentation:**
+
 - [ ] Document API key storage security (AES-256-GCM)
 - [ ] Document log sanitization patterns
 - [ ] Document Discord security best practices (ephemeral, modals)

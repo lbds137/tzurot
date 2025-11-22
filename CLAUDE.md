@@ -5,6 +5,7 @@
 > **🎯 MASTER ROADMAP - THE SOURCE OF TRUTH**: Read [ROADMAP.md](ROADMAP.md) at the start of EVERY session to understand the current sprint, active tasks, and overall strategy. This is the ONLY planning document you need to reference - all other planning docs are supporting details.
 
 > **📍 SESSION STARTUP PROTOCOL**:
+>
 > 1. Read [CURRENT_WORK.md](CURRENT_WORK.md) - Understand what was last worked on
 > 2. Read [ROADMAP.md](ROADMAP.md) - Find the current sprint and active tasks
 > 3. Start working on the next unchecked task in the current sprint
@@ -13,6 +14,7 @@
 > **🚂 RAILWAY CLI REFERENCE**: Before running ANY `railway` command, consult [docs/reference/RAILWAY_CLI_REFERENCE.md](docs/reference/RAILWAY_CLI_REFERENCE.md) to avoid errors from outdated AI training data. This reference has accurate, tested commands for Railway CLI 4.5.3.
 
 > **⚠️ PRODUCTION STATUS**: v3 is deployed on Railway in TWO environments:
+>
 > - **Development**: For testing new features before stable release
 > - **Production**: Stable alpha version for bot owner + alpha users
 >
@@ -54,6 +56,7 @@ If a change breaks something, that's fine - you'll fix it in the next commit. Cl
 ## Development Strategy: "Launch, Stabilize, Evolve"
 
 **THE CRITICAL INSIGHT** (from Gemini consultation, 2025-11-22):
+
 > "You are blocking yourself from success by thinking about the Brain (OpenMemory) before you have built the Wallet (BYOK). Build the Wallet. Launch. Then build the Brain."
 
 ### The Three-Phase Roadmap
@@ -85,6 +88,7 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 **Solution**: ROADMAP.md is the single source of truth. All other planning docs (PHASED_IMPLEMENTATION_PLAN.md, QOL_MODEL_MANAGEMENT.md, OPENMEMORY_MIGRATION_PLAN.md, V2_FEATURE_TRACKING.md) are supporting details referenced by specific sprints.
 
 **If User Has a New Idea**:
+
 1. Add it to the Icebox section of ROADMAP.md
 2. Ask: "Does this help launch the public beta?" → If no, leave in Icebox
 3. Ask: "Does this prevent a production fire?" → If no, leave in Icebox
@@ -93,6 +97,7 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 ### AI Session Workflow
 
 **Start of Every Session**:
+
 ```
 1. Read CURRENT_WORK.md ("Last worked on: Sprint X, Task Y")
 2. Open ROADMAP.md
@@ -102,16 +107,19 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 ```
 
 **During Session**:
+
 - Stay focused on ONE task at a time
 - Don't jump ahead to "interesting" tasks in later sprints
 - If blocked, mark task with issue and move to next task in SAME sprint
 
 **End of Session**:
+
 - Update CURRENT_WORK.md with "Last worked on: Sprint X, Task Y"
 - Mark completed tasks with [x] in ROADMAP.md
 - Commit and push changes
 
 **Resist Shiny Objects**:
+
 - If your brain says "Let's design the cognitive architecture"
 - Check ROADMAP.md: Is Phase 1 complete? Is Phase 2 complete?
 - If no → Write the idea in Icebox, close the thought, resume current sprint
@@ -119,28 +127,33 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 ### Why This Order Matters
 
 **Phase 1 MUST come first**:
+
 - Without BYOK, can't invite public users (bankruptcy risk)
 - Without encrypted API keys, no revenue model
 - Without usage tracking, can't prevent infrastructure abuse
 - This is THE blocker for public launch
 
 **Phase 2 builds on Phase 1**:
+
 - Voice features expensive → Users need their own API keys first
 - V2 feature parity → Retention requires stable billing model
 - Polish features → Need production usage data to know what to polish
 
 **Phase 3 requires real data**:
+
 - OpenMemory is a massive rewrite → Test against real user conversations
 - Agentic features → Need to understand actual usage patterns first
 - Advanced features → Build when you have users asking for them
 
 **DON'T**:
+
 - ❌ Start OpenMemory before BYOK is done
 - ❌ Design sophisticated architectures before basic features work
 - ❌ Optimize before you have users
 - ❌ Build "nice to have" features while public launch is blocked
 
 **DO**:
+
 - ✅ Follow the roadmap order strictly
 - ✅ Complete Phase 1 before thinking about Phase 2
 - ✅ Ship early, iterate based on user feedback
