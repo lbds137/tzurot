@@ -273,7 +273,9 @@ describe('Contract: BullMQ Job Consumer (ai-worker)', () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.issues.length).toBeGreaterThan(0);
-        expect(result.error.issues[0].message).toContain('At least one image attachment is required');
+        expect(result.error.issues[0].message).toContain(
+          'At least one image attachment is required'
+        );
       }
     });
   });
