@@ -14,6 +14,7 @@ import {
   audioTranscriptionJobDataSchema,
   imageDescriptionJobDataSchema,
   JobType,
+  JobStatus,
   type LLMGenerationJobData,
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
@@ -106,7 +107,7 @@ describe('Contract: BullMQ Job Consumer (ai-worker)', () => {
           {
             jobId: 'dep-job-123',
             type: JobType.AudioTranscription,
-            status: 'completed' as any,
+            status: JobStatus.Completed,
             resultKey: 'result:key',
           },
         ],
@@ -269,9 +270,11 @@ describe('Contract: BullMQ Job Consumer (ai-worker)', () => {
       };
 
       const result = imageDescriptionJobDataSchema.safeParse(invalidPayload);
-      // Note: Current schema doesn't enforce min length, but this test documents expected behavior
-      // If we add `.min(1)` to attachments array in schema, this will catch regressions
-      expect(invalidPayload.attachments.length).toBe(0);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.length).toBeGreaterThan(0);
+        expect(result.error.issues[0].message).toContain('At least one image attachment is required');
+      }
     });
   });
 
@@ -309,6 +312,38 @@ describe('Contract: BullMQ Job Consumer (ai-worker)', () => {
       if (result.success) {
         expect(result.data.version).toBe(1);
       }
+    });
+
+    it('should default to version 1 when version field is missing', () => {
+      const payloadWithoutVersion = {
+        requestId: 'version-test-124',
+        jobType: JobType.LLMGeneration,
+        // version field intentionally omitted
+        personality: {
+          id: 'test-id',
+          name: 'Test',
+          displayName: 'Test',
+          slug: 'test',
+          systemPrompt: 'Test',
+          model: 'test-model',
+          temperature: 0.7,
+          maxTokens: 1000,
+          contextWindowTokens: 100000,
+          characterInfo: 'Test',
+          personalityTraits: 'Test',
+        },
+        message: 'Test',
+        context: {
+          userId: 'user-123',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-123',
+        },
+      };
+
+      const result = llmGenerationJobDataSchema.parse(payloadWithoutVersion);
+      expect(result.version).toBe(1);
     });
 
     // Future: When we add version 2, test backward compatibility here
