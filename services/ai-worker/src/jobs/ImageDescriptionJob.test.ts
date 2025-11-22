@@ -29,12 +29,16 @@ describe('ImageDescriptionJob', () => {
   const mockPersonality: LoadedPersonality = {
     id: 'test-personality',
     name: 'Test',
+    displayName: 'Test Personality',
     slug: 'test',
     systemPrompt: 'Test prompt',
     model: 'gpt-4-vision-preview',
     visionModel: 'gpt-4-vision-preview',
     temperature: 0.7,
     maxTokens: 1000,
+    contextWindowTokens: 100000,
+    characterInfo: 'Test character',
+    personalityTraits: 'Helpful',
   };
 
   beforeEach(() => {

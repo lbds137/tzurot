@@ -13,6 +13,7 @@ import {
   RETRY_CONFIG,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
+  imageDescriptionJobDataSchema,
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
@@ -26,6 +27,20 @@ export async function processImageDescriptionJob(
   job: Job<ImageDescriptionJobData>
 ): Promise<ImageDescriptionResult> {
   const startTime = Date.now();
+
+  // Validate job payload against schema (contract testing)
+  const validation = imageDescriptionJobDataSchema.safeParse(job.data);
+  if (!validation.success) {
+    logger.error(
+      {
+        jobId: job.id,
+        errors: validation.error.format(),
+      },
+      '[ImageDescriptionJob] Job validation failed'
+    );
+    throw new Error(`Image description job validation failed: ${validation.error.message}`);
+  }
+
   const { requestId, attachments, personality } = job.data;
 
   logger.info(
