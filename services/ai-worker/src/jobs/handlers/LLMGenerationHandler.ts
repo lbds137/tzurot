@@ -17,6 +17,7 @@ import {
   type LLMGenerationResult,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
+  llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
 
@@ -33,6 +34,19 @@ export class LLMGenerationHandler {
    * Process LLM generation job (may depend on preprocessing jobs)
    */
   async processJob(job: Job<LLMGenerationJobData>): Promise<LLMGenerationResult> {
+    // Validate job payload against schema (contract testing)
+    const validation = llmGenerationJobDataSchema.safeParse(job.data);
+    if (!validation.success) {
+      logger.error(
+        {
+          jobId: job.id,
+          errors: validation.error.format(),
+        },
+        '[LLMGenerationHandler] Job validation failed'
+      );
+      throw new Error(`LLM generation job validation failed: ${validation.error.message}`);
+    }
+
     const { dependencies } = job.data;
 
     // If there are dependencies, fetch their results and merge into context
