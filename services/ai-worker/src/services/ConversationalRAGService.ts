@@ -177,20 +177,51 @@ export class ConversationalRAGService {
       // Format the user's message (now with transcriptions available)
       const userMessage = this.promptBuilder.formatUserMessage(message, context);
 
-      // Extract referenced message content for memory search (before formatting)
-      // This ensures LTM retrieval can find relevant memories based on what's being referenced
+      // Format referenced messages (with vision/transcription) BEFORE memory retrieval
+      // This processes attachments once and uses the result for both LTM search and the prompt
+      const referencedMessagesDescriptions =
+        context.referencedMessages && context.referencedMessages.length > 0
+          ? await this.referencedMessageFormatter.formatReferencedMessages(
+              context.referencedMessages,
+              personality
+            )
+          : undefined;
+
+      // Extract plain text from formatted references for memory search
+      // Strip markdown formatting but keep the actual content (text, transcriptions, image descriptions)
       let referencedMessagesTextForSearch: string | undefined = undefined;
-      if (context.referencedMessages && context.referencedMessages.length > 0) {
-        const contentParts = context.referencedMessages
-          .map(ref => ref.content)
-          .filter(c => c !== undefined && c !== null && c.length > 0);
-        if (contentParts.length > 0) {
-          referencedMessagesTextForSearch = contentParts.join('\n\n');
+      if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
+        // Extract just the content parts (message text, attachment descriptions)
+        // Skip the headers like "## Referenced Messages", "[Reference 1]", "From:", etc.
+        const lines = referencedMessagesDescriptions.split('\n');
+        const contentLines: string[] = [];
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          // Skip markdown headers, reference labels, metadata
+          if (
+            trimmed.startsWith('##') ||
+            trimmed.startsWith('[Reference') ||
+            trimmed.startsWith('From:') ||
+            trimmed.startsWith('Location:') ||
+            trimmed.startsWith('Time:') ||
+            trimmed.startsWith('Message Text:') ||
+            trimmed.startsWith('Message Embeds') ||
+            trimmed.startsWith('Attachments:') ||
+            trimmed.length === 0
+          ) {
+            continue;
+          }
+          contentLines.push(trimmed);
+        }
+
+        if (contentLines.length > 0) {
+          referencedMessagesTextForSearch = contentLines.join('\n');
         }
       }
 
       // Build the actual message text for memory search
-      // Includes: user message, voice transcriptions, image descriptions, AND referenced message content
+      // Includes: user message, voice transcriptions, image descriptions, AND referenced content
       const searchQuery = this.promptBuilder.buildSearchQuery(
         userMessage,
         processedAttachments,
@@ -216,16 +247,6 @@ export class ConversationalRAGService {
         searchQuery,
         context
       );
-
-      // Format referenced messages (with vision/transcription) for prompt
-      // Now using extracted ReferencedMessageFormatter for parallel attachment processing
-      const referencedMessagesDescriptions =
-        context.referencedMessages && context.referencedMessages.length > 0
-          ? await this.referencedMessageFormatter.formatReferencedMessages(
-              context.referencedMessages,
-              personality
-            )
-          : undefined;
 
       // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
       // Build system prompt and current message first
