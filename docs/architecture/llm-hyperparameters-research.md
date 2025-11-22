@@ -15,16 +15,19 @@ Modern LLM APIs (especially reasoning models like OpenAI o1/o3 and Claude 3.7 Ex
 ### 1. Extended Thinking & Reasoning (New Frontier)
 
 **OpenAI (o1/o3-mini)**:
+
 - `reasoning_effort`: Enum (`low`, `medium`, `high`) - Controls how hard the model thinks
 - `max_completion_tokens`: **Critical** - Replaces `max_tokens` for reasoning models (includes both reasoning tokens and output tokens)
 
 **Anthropic (Claude 3.7 Sonnet Extended Thinking)**:
+
 - `thinking`: Complex object (not a scalar)
   - `type`: "enabled" or "disabled"
   - `budget_tokens`: Integer (1024 to 10000+) - Limits the "inner monologue"
 - **Constraint**: When `thinking` is enabled, `temperature` **must** be `1.0` - Application logic must enforce this override
 
 **Google (Gemini 2.0/3.0 Pro - Experimental)**:
+
 - `thinking_level`: Controls depth of reasoning (similar to OpenAI's `reasoning_effort`)
   - Values likely: `low`, `medium`, `high` (or numeric scale)
   - **Note**: Cutting-edge feature - check Google's latest API docs for exact parameter structure and availability
@@ -32,6 +35,7 @@ Modern LLM APIs (especially reasoning models like OpenAI o1/o3 and Claude 3.7 Ex
 ### 2. Advanced Sampling (OpenRouter / Open Source)
 
 Beyond standard `temperature` and `top_p`:
+
 - **`min_p`**: **Highly recommended** - Removes tokens less likely than a percentage of the most likely token (superior to `top_p` for creativity without going "off the rails")
 - `top_a`: Similar to `min_p`, removes tokens depending on probability of highest token
 - `top_k`: Already in our schema - OpenAI ignores it, Anthropic/Gemini rely on it heavily
@@ -40,45 +44,51 @@ Beyond standard `temperature` and `top_p`:
 ### 3. Structured Outputs & Schemas
 
 **For Discord bot actions** (e.g., `/roll`, `/search`):
+
 - `json_schema` (OpenAI/OpenRouter): Within `response_format`, pass strict JSON schema to force valid JSON output
 - `tool_choice`: `auto`, `none`, or `required` - Control when personalities use tools (like searching conversation history)
 
 ### 4. Safety & Content Filtering
 
 **Google Gemini**:
+
 - `safety_settings`: Array of objects mapping categories to thresholds
   - Categories: `HARASSMENT`, `HATE_SPEECH`, `SEXUALLY_EXPLICIT`, `DANGEROUS_CONTENT`
   - Thresholds: `BLOCK_NONE`, `BLOCK_ONLY_HIGH`, etc.
 
 **OpenAI**:
+
 - `modalities`: For GPT-4o-Audio, specify `["text", "audio"]`
 
 ### 5. Context & Caching (Cost & Speed)
 
 **Anthropic Prompt Caching**:
+
 - Not a distinct parameter, but implemented via `breakpoints` in message array
 - Potential config flag: `use_cache` (boolean) - If true, inject cache control headers to save 90% on input costs for long histories
 
 ## Parameter Comparison by Provider
 
-| Parameter Category | OpenAI (GPT-4o/o1) | Anthropic (Claude) | Google (Gemini) | OpenRouter (Llama/Mistral) |
-|:-------------------|:-------------------|:-------------------|:----------------|:---------------------------|
-| **Thinking** | `reasoning_effort` (enum) | `budget_tokens` (int) | `thinking_level` (enum/int, experimental) | Varies (DeepSeek R1 uses generic params) |
-| **Token Limits** | `max_completion_tokens` | `max_tokens` | `max_output_tokens` | `max_tokens` |
-| **Sampling** | `temperature`, `top_p` | `temperature`, `top_p`, `top_k` | `top_p`, `top_k` | **`min_p`**, `top_a`, `typical_p` |
-| **Safety** | Server-side (mostly) | Server-side | **`safety_settings`** (granular) | Varies |
-| **Structure** | `json_schema`, `strict` | `tool_choice` | `response_mime_type` | `transforms` (OpenRouter specific) |
-| **Latency** | `prediction` (speculative decoding) | N/A | N/A | N/A |
+| Parameter Category | OpenAI (GPT-4o/o1)                  | Anthropic (Claude)              | Google (Gemini)                           | OpenRouter (Llama/Mistral)               |
+| :----------------- | :---------------------------------- | :------------------------------ | :---------------------------------------- | :--------------------------------------- |
+| **Thinking**       | `reasoning_effort` (enum)           | `budget_tokens` (int)           | `thinking_level` (enum/int, experimental) | Varies (DeepSeek R1 uses generic params) |
+| **Token Limits**   | `max_completion_tokens`             | `max_tokens`                    | `max_output_tokens`                       | `max_tokens`                             |
+| **Sampling**       | `temperature`, `top_p`              | `temperature`, `top_p`, `top_k` | `top_p`, `top_k`                          | **`min_p`**, `top_a`, `typical_p`        |
+| **Safety**         | Server-side (mostly)                | Server-side                     | **`safety_settings`** (granular)          | Varies                                   |
+| **Structure**      | `json_schema`, `strict`             | `tool_choice`                   | `response_mime_type`                      | `transforms` (OpenRouter specific)       |
+| **Latency**        | `prediction` (speculative decoding) | N/A                             | N/A                                       | N/A                                      |
 
 ## The Sparse Matrix Problem
 
 **Problem**: If we add columns for `min_p`, `thinking_budget`, `safety_threshold_harassment`, etc., we'll have a massive table full of `NULL` values because:
+
 - Gemini doesn't use `min_p`
 - OpenAI doesn't use `safety_settings`
 - Only reasoning models use `thinking` parameters
 - Open-source models have unique parameters like `typical_p`
 
 **Example of what NOT to do**:
+
 ```sql
 ALTER TABLE LlmConfig ADD COLUMN min_p DECIMAL;           -- Only used by OpenRouter
 ALTER TABLE LlmConfig ADD COLUMN reasoning_effort TEXT;  -- Only used by OpenAI o1/o3
@@ -92,6 +102,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ### Keep Universal Columns
 
 **Standard columns** (for indexing and easy querying):
+
 - `id` (PK)
 - `personalityId` (FK)
 - `provider` (enum: openai, anthropic, google, openrouter)
@@ -104,6 +115,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ### Add JSONB Column for Advanced Parameters
 
 **New column**:
+
 - `advancedParameters` (JSONB) - Provider-specific and advanced settings
 
 ### Why This Works
@@ -116,6 +128,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ### Example JSONB Payloads
 
 **Claude 3.7 Extended Thinking**:
+
 ```json
 {
   "topK": 40,
@@ -128,6 +141,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ```
 
 **OpenRouter Llama 3**:
+
 ```json
 {
   "minP": 0.05,
@@ -137,6 +151,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ```
 
 **OpenAI o1**:
+
 ```json
 {
   "reasoningEffort": "high",
@@ -145,6 +160,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ```
 
 **Google Gemini**:
+
 ```json
 {
   "topK": 40,
@@ -160,6 +176,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 ## Migration Path
 
 ### Current LlmConfig Columns (to keep)
+
 - `model`
 - `visionModel`
 - `temperature`
@@ -170,6 +187,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 - `maxConversationHistory`
 
 ### Current LlmConfig Columns (to move to JSONB)
+
 - `topK` → `advancedParameters.topK`
 - `frequencyPenalty` → `advancedParameters.frequencyPenalty`
 - `presencePenalty` → `advancedParameters.presencePenalty`
@@ -182,6 +200,7 @@ ALTER TABLE LlmConfig ADD COLUMN safety_harassment TEXT; -- Only used by Gemini
 - `systemFingerprint` → `advancedParameters.systemFingerprint`
 
 ### New Parameters (add to JSONB)
+
 - `advancedParameters.reasoningEffort` (OpenAI o1/o3)
 - `advancedParameters.maxCompletionTokens` (OpenAI reasoning models)
 - `advancedParameters.thinking.type` (Claude 3.7)
@@ -210,10 +229,12 @@ const OpenAIAdvancedParamsSchema = z.object({
 
 const AnthropicAdvancedParamsSchema = z.object({
   topK: z.number().int().positive().optional(),
-  thinking: z.object({
-    type: z.enum(['enabled', 'disabled']),
-    budgetTokens: z.number().int().min(1024).max(10000),
-  }).optional(),
+  thinking: z
+    .object({
+      type: z.enum(['enabled', 'disabled']),
+      budgetTokens: z.number().int().min(1024).max(10000),
+    })
+    .optional(),
   cacheControl: z.boolean().optional(),
   // ...
 });
@@ -222,6 +243,7 @@ const AnthropicAdvancedParamsSchema = z.object({
 ### Business Logic Constraints
 
 Some parameters have interdependencies:
+
 - **Claude 3.7 Extended Thinking**: If `thinking.type === "enabled"`, then `temperature` **must** be `1.0`
 - **OpenAI Reasoning Models**: Use `maxCompletionTokens` instead of `maxTokens`
 

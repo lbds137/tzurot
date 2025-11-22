@@ -16,6 +16,7 @@
 **Gemini's Hard Truth**: You must put sophisticated cognitive architecture (OpenMemory) in a box until you have a sustainable billing model. Build the **Wallet** (BYOK) first, then build the **Brain** (OpenMemory).
 
 **Prioritization Order**:
+
 1. **Business Value** (unblock launch)
 2. **Risk Mitigation** (prevent production fires)
 3. **Innovation** (advanced features)
@@ -35,6 +36,7 @@
 ### Sprint 0: ~~Dependency Updates &~~ Integration Test Coverage (2-3 sessions)
 
 **Dependabot PRs** ~~to Review & Merge~~ **DEFERRED TO PHASE 1** (6 PRs from Nov 19-21):
+
 - [x] ~~**Task 0.1**: Review PR #262~~ - **BLOCKED**: Contains Prisma 7.0 (requires schema migration)
 - [x] ~~**Task 0.2**: Review PR #261~~ - **BLOCKED**: Contains Prisma 7.0
 - [x] ~~**Task 0.3**: Review PR #255~~ - **BLOCKED**: Contains Prisma 7.0 + uuid 11→13
@@ -45,12 +47,14 @@
 **Decision**: Integrate Prisma 7.0 into Phase 1 Sprint 2 (already doing schema changes). Dependency updates will happen AFTER Prisma migration.
 
 **Integration Test Coverage** (Safety Net):
+
 - [x] **Task 0.7**: Inventory critical paths lacking integration tests ✅
   - Created: docs/planning/INTEGRATION_TEST_PLAN.md
   - Finding: 80 component tests exist, 0 contract tests, 0 live dependency tests
   - **Revised Strategy**: Focus on contract tests (realistic), defer live dependency tests
 
 **Contract Tests** (Priority 1 - catches breaking changes at service boundaries):
+
 - [ ] **Task 0.8**: BullMQ Job Contract Test 🚨 CRITICAL
   - Verify: api-gateway job creation matches ai-worker consumption
   - Verify: Shared Zod schema for job payload
@@ -62,6 +66,7 @@
   - Estimated: 0.5 session
 
 **Component Tests** (Priority 2 - single service with real DB/Redis):
+
 - [ ] **Task 0.10**: AIJobProcessor Component Test
   - Test job processing logic with mocked AI provider
   - Real: Prisma DB, conversation history
@@ -71,6 +76,7 @@
   - Build succeeds for all services
 
 **🎉 MILESTONE 0: Stable Foundation**
+
 - ~~All dependencies up to date~~ **DEFERRED** (Prisma 7.0 in Phase 1)
 - Contract tests catch breaking changes at service boundaries ✅
 - Component tests cover critical job processing logic ✅
@@ -100,6 +106,7 @@
 **Why This Order**: Schema changes are risky - tests catch regressions. Prisma 7.0 first to unblock Dependabot PRs.
 
 **Prisma 7.0 Migration** (DO FIRST - 2-3 sessions):
+
 - [ ] **Task 2.0.1**: Upgrade Prisma 6.x → 7.0.0 in all package.json files
 - [ ] **Task 2.0.2**: Update `schema.prisma`:
   - Change `provider = "prisma-client-js"` → `"prisma-client"`
@@ -114,6 +121,7 @@
   - PR #262, #261, #255, #254, #252, #251 (or new ones if they've been updated)
 
 **Database Changes**:
+
 - [ ] **Task 2.1**: Create `UserApiKey` table (AES-256-GCM encrypted storage)
   - Fields: iv, content, tag, provider, isActive
   - Unique constraint: (userId, provider)
@@ -141,12 +149,14 @@
   - Drop old columns after migration
 
 **Data Migration**:
+
 - [ ] **Task 2.7**: Move `custom_fields.errorMessage` → `Personality.errorMessage` (66 personalities)
 - [ ] **Task 2.8**: Extract aliases from shapes.inc backups → PersonalityAlias table (66 personalities)
 - [ ] **Task 2.9**: Extract birthdays from shapes.inc backups → Personality.birthday (66 personalities)
 - [ ] **Task 2.10**: Assign ownership (set all existing personalities to bot owner as superuser)
 
 **Application Code**:
+
 - [ ] **Task 2.11**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
   - `encryptApiKey()`, `decryptApiKey()` using AES-256-GCM
   - Master key from Railway environment (`APP_MASTER_KEY`)
@@ -186,6 +196,7 @@
 **Integration**: Ownership model (isSuperuser, ownerId) from QOL_MODEL_MANAGEMENT.md integrated here.
 
 **🎉 MILESTONE 1: Public Beta Launch**
+
 - Users can add their own API keys
 - Bot owner no longer pays for all API costs
 - Can invite users without bankruptcy risk
@@ -204,6 +215,7 @@
 **Why Now**: Users are paying for their own keys, they'll want expensive features (Voice Cloning).
 
 **Database Changes**:
+
 - [ ] **Task 4.1**: Create `VoiceConfig` table (ElevenLabs settings per personality)
   - Fields: voiceId, voiceModel, stability, similarity, style, frequency
   - 1:1 relationship with Personality
@@ -214,16 +226,19 @@
   - Fields: userId, voiceEnabled (Boolean?) - null = use personality default
 
 **Data Migration**:
+
 - [ ] **Task 4.4**: Extract voice settings from shapes.inc backups → VoiceConfig table (66 personalities)
   - voice_id, voice_model, voice_stability, voice_similarity, voice_style, voice_frequency
 
 **Application Code**:
+
 - [ ] **Task 4.5**: Update voice synthesis service to query VoiceConfig table
 - [ ] **Task 4.6**: Add voice sample upload endpoint (validate size ≤10MB, format MP3/WAV)
 - [ ] **Task 4.7**: Add ElevenLabs Instant Voice Cloning integration
 - [ ] **Task 4.8**: Implement user preference override logic
 
 **Slash Commands**:
+
 - [ ] **Task 4.9**: `/voice enable` - Enable voice for current user (override)
 - [ ] **Task 4.10**: `/voice disable` - Disable voice for current user (override)
 - [ ] **Task 4.11**: `/voice reset` - Remove user override (use personality default)
@@ -267,6 +282,7 @@
   - Prevent access to NSFW personalities without verification
 
 **🎉 MILESTONE 2: Feature Parity**
+
 - All critical v2 features ported
 - Voice synthesis fully configurable
 - Users can customize their experience
@@ -287,6 +303,7 @@
 **Reference**: [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)
 
 **Database Changes** (PostgreSQL + pgvector):
+
 - [ ] **Task 7.1**: Design waypoint graph schema
   - `waypoints` table (nodes in memory graph)
   - `waypoint_connections` table (edges with weights)
@@ -295,12 +312,14 @@
 - [ ] **Task 7.3**: Add decay system (daily REM sleep simulation)
 
 **Application Code**:
+
 - [ ] **Task 7.4**: Build waypoint graph system with associative learning
 - [ ] **Task 7.5**: Implement hybrid scoring (60% similarity + 20% overlap + 15% waypoints + 5% recency)
 - [ ] **Task 7.6**: Add adaptive query expansion
 - [ ] **Task 7.7**: Implement deterministic reflection (no LLM censorship concerns)
 
 **Migration**:
+
 - [ ] **Task 7.8**: Migrate existing pgvector memories to OpenMemory structure
 - [ ] **Task 7.9**: Run parallel systems (old + new) for validation
 - [ ] **Task 7.10**: Cut over to OpenMemory, deprecate old system
@@ -342,6 +361,7 @@
   - Port from v2
 
 **🎉 MILESTONE 3: AGI-lite**
+
 - Sophisticated cognitive architecture operational
 - Personalities have autonomy and memory graphs
 - Advanced features for power users
@@ -384,7 +404,7 @@
 
 1. **Start Every Session**: Read the **current sprint** section
 2. **Context Injection**: Paste the active tasks into your AI prompt
-   - *Example*: "We are working on Sprint 2, Task 2.11 (encryption utilities). Here is the context..."
+   - _Example_: "We are working on Sprint 2, Task 2.11 (encryption utilities). Here is the context..."
 3. **Resist Shiny Objects**: If your brain says "Let's design the cognitive architecture," look at the Roadmap. Is Phase 1 done? If no, write it down in the Icebox and go back to work.
 
 ### For Planning Sessions:
@@ -403,11 +423,13 @@
 ## 📊 Progress Tracking
 
 ### Phase 0: "Foundation" 🚧 CURRENT PRIORITY
+
 - **Sprint 0**: Dependency Updates & Test Coverage → 📋 Not Started
 - **Estimated Completion**: 1-2 weeks
 - **Risk Mitigation**: Stable dependencies + integration tests before schema changes ✅
 
 ### Phase 1: "Gatekeeper" 📋 PLANNED (after Phase 0)
+
 - **Sprint 1**: Testing Baseline → 📋 Blocked on Phase 0
 - **Sprint 2**: Prisma 7.0 + BYOK Schema Migration → 📋 Blocked on Phase 0
 - **Sprint 3**: Slash Commands → 📋 Blocked on Phase 0
@@ -416,6 +438,7 @@
 - **Dependency Updates**: Unblocked after Prisma 7.0 migration in Sprint 2
 
 ### Phase 2: "Refinement" 📋 PLANNED
+
 - **Sprint 4**: Voice Enhancements → 📋 Not Started
 - **Sprint 5**: Quick Wins → 📋 Not Started
 - **Sprint 6**: V2 Feature Parity → 📋 Not Started
@@ -423,6 +446,7 @@
 - **Value**: Feature parity + retention
 
 ### Phase 3: "Evolution" 🧊 ICEBOX
+
 - **Sprint 7**: OpenMemory Foundation → 🧊 Blocked on Phase 1 & 2
 - **Sprint 8**: Agentic Features → 🧊 Blocked on Sprint 7
 - **Sprint 9**: Advanced Features → 🧊 Blocked on infrastructure
@@ -434,6 +458,7 @@
 ## 🚨 Emergency Procedures
 
 ### If Production is On Fire:
+
 1. Stop everything
 2. Fix the fire
 3. Write a test that would have caught it
@@ -441,12 +466,14 @@
 5. Resume current sprint
 
 ### If Feeling Overwhelmed:
+
 1. Close all docs except ROADMAP.md and CURRENT_WORK.md
 2. Look at current sprint - what's the next checkbox?
 3. Do that one task
 4. Don't think about anything else
 
 ### If Scope Creep Detected:
+
 1. Write the idea in Icebox
 2. Ask: "Does this help launch the public beta?" If no → Icebox
 3. Ask: "Does this prevent a production fire?" If no → Icebox
@@ -457,6 +484,7 @@
 ## 📚 Related Documentation
 
 ### Planning Docs
+
 - [docs/planning/PHASED_IMPLEMENTATION_PLAN.md](docs/planning/PHASED_IMPLEMENTATION_PLAN.md) - BYOK Phase 1-3 details
 - [docs/planning/schema-improvements-proposal.md](docs/planning/schema-improvements-proposal.md) - Detailed schema changes
 - [docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md) - LLM config management details (integrated into Sprint 2-3)
@@ -464,6 +492,7 @@
 - [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - v2 feature parity tracking (Sprint 6)
 
 ### Architecture
+
 - [docs/architecture/llm-hyperparameters-research.md](docs/architecture/llm-hyperparameters-research.md) - Advanced LLM parameters (validated)
 - [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
 
@@ -472,4 +501,3 @@
 **Remember**: You are currently blocking yourself from success by thinking about the **Brain** (OpenMemory) before you have built the **Wallet** (BYOK). Build the Wallet. Launch. Then build the Brain.
 
 **The One Document Rule**: If you have an idea, it goes into the Icebox section of this document. Close all other tabs/docs. Focus on the current sprint.
-

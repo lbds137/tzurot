@@ -13,10 +13,12 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ## Current Production Status (Before Migration)
 
 **Database**: 67 personalities in production
+
 - 66 from shapes.inc migration (all have `errorMessage` in `custom_fields`)
 - 1 created on new platform (no shapes.inc-specific data)
 
 **Current Schema Limitations**:
+
 - ❌ No BYOK - bot owner pays all API costs (blocks public launch)
 - ❌ No usage tracking - can't prevent infrastructure abuse
 - ❌ No aliases - personalities can't have multiple mention triggers
@@ -32,6 +34,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 **Goal**: Unblock public launch by implementing BYOK and migrating critical shapes.inc data
 
 ### Why This Phase First
+
 - **BYOK blocks public launch** - without it, random users can rack up expensive API bills
 - Migrates existing production data (66 personalities)
 - Enables modern AI features (reasoning models)
@@ -41,6 +44,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Database Changes
 
 **Prisma 7.0 Migration** (PREREQUISITE - Do First):
+
 - Upgrade Prisma from 6.x → 7.0.0
 - Change `schema.prisma` provider: `prisma-client-js` → `prisma-client`
 - Add `output` path for generated client (move out of node_modules)
@@ -49,6 +53,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - Estimated: 2-3 sessions for migration + testing
 
 **New Tables**:
+
 1. **UserApiKey** - Encrypted API key storage (AES-256-GCM)
    - One key per provider per user
    - Encrypted at rest (iv, content, tag columns)
@@ -65,11 +70,11 @@ This document outlines a phased approach to implementing major v3 improvements, 
    - Unique constraint on alias
    - Enables multiple mention triggers per personality
 
-**Table Updates**:
-4. **Personality** - Add dedicated columns
-   - `errorMessage` (String?, Text) - Move from `custom_fields.errorMessage` (66 personalities)
-   - `birthday` (DateTime?, Date) - Extract from shapes.inc backups
-   - Relationships: `aliases`, `voiceConfig` (future)
+**Table Updates**: 4. **Personality** - Add dedicated columns
+
+- `errorMessage` (String?, Text) - Move from `custom_fields.errorMessage` (66 personalities)
+- `birthday` (DateTime?, Date) - Extract from shapes.inc backups
+- Relationships: `aliases`, `voiceConfig` (future)
 
 5. **User** - Add user preferences
    - `timezone` (String, default "UTC") - For time-aware personality responses
@@ -86,20 +91,24 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Data Migration
 
 **From Current Production DB**:
+
 - Move `custom_fields.errorMessage` → `Personality.errorMessage` (66 personalities)
 
 **From shapes.inc Backups** (`tzurot-legacy/data/`):
+
 - Extract aliases → PersonalityAlias table (66 personalities)
 - Extract birthdays → Personality.birthday (66 personalities)
 - Extract any missing errorMessages (1 new personality)
 
 **LlmConfig Migration**:
+
 - Migrate existing provider-specific params to `advancedParameters` JSONB
 - Preserve all existing data (zero data loss)
 
 ### Application Code Changes
 
 **Core Infrastructure**:
+
 - [ ] Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
   - AES-256-GCM encrypt/decrypt functions
   - Master key from Railway environment (`APP_MASTER_KEY`)
@@ -111,6 +120,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Add key validation service (dry run API calls before storage)
 
 **Zod Validation Schemas**:
+
 - [ ] Create LLM `advancedParameters` schemas (per provider)
   - OpenAI: reasoningEffort, maxCompletionTokens, frequencyPenalty, etc.
   - Anthropic: topK, thinking.budgetTokens, cacheControl, etc.
@@ -119,6 +129,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Add business logic constraints (e.g., Claude 3.7 thinking requires temperature=1.0)
 
 **Discord Commands**:
+
 - [ ] `/wallet set <provider>` - Modal input (ephemeral, secure)
 - [ ] `/wallet list` - Show configured providers (ephemeral)
 - [ ] `/wallet remove <provider>` - Delete API key
@@ -128,6 +139,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] `/usage` - Daily/weekly/monthly token stats
 
 **Personality System**:
+
 - [ ] Update personality creation to handle aliases (uniqueness check)
 - [ ] Update personality deletion to cascade (aliases)
 - [ ] Update mention detection to query PersonalityAlias table
@@ -135,11 +147,13 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Update personality context to include user timezone
 
 **AI Service**:
+
 - [ ] Update AI service to read `advancedParameters` from JSONB
 - [ ] Add support for reasoning parameters (Claude 3.7, OpenAI o1/o3, Gemini 3.0 Pro)
 - [ ] Implement parameter validation per provider
 
 **Usage Tracking & Rate Limiting**:
+
 - [ ] Add usage logging to ai-worker (text requests)
 - [ ] Add rate limiting middleware based on usage logs
 - [ ] Add admin command to view global usage stats
@@ -147,6 +161,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Testing
 
 **Unit Tests**:
+
 - [ ] Test encryption/decryption utilities (AES-256-GCM)
 - [ ] Test log sanitization (API keys redacted)
 - [ ] Test alias uniqueness constraint enforcement
@@ -155,6 +170,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Test reasoning parameter constraints (Claude 3.7 thinking+temperature)
 
 **Integration Tests**:
+
 - [ ] Test BYOK flow: set key → validate → encrypt → store → use → decrypt
 - [ ] Test key validation failures (invalid key, quota exceeded)
 - [ ] Test hierarchical inheritance (user wallet → persona override)
@@ -163,6 +179,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Test rate limiting enforcement
 
 **Migration Tests**:
+
 - [ ] Test migration scripts with 66 shapes.inc personalities
 - [ ] Verify no data loss (aliases, errorMessages, birthdays)
 - [ ] Test rollback procedure
@@ -170,11 +187,13 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Documentation
 
 **User-Facing**:
+
 - [ ] User guide for `/wallet` commands (how to get API keys)
 - [ ] User guide for `/timezone` command
 - [ ] Document provider costs (OpenRouter, OpenAI, Gemini) for transparency
 
 **Developer**:
+
 - [ ] Document `advancedParameters` JSONB structure (per provider)
 - [ ] Document encryption key rotation procedure
 - [ ] Document migration process and rollback procedures
@@ -182,6 +201,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Update CURRENT_WORK.md with Phase 1 completion
 
 **Security**:
+
 - [ ] Document API key storage security (AES-256-GCM)
 - [ ] Document log sanitization patterns
 - [ ] Document Discord security best practices (ephemeral, modals)
@@ -217,6 +237,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 **Goal**: Enhance existing voice synthesis with user controls and voice cloning
 
 ### Why This Phase Second
+
 - Builds on existing voice feature (already partially implemented)
 - User-requested functionality (voice overrides)
 - Manageable scope
@@ -225,6 +246,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Database Changes
 
 **New Tables**:
+
 1. **VoiceConfig** - ElevenLabs voice settings (personality-level)
    - `voiceId` (String) - ElevenLabs voice ID
    - `voiceModel` (String, default "eleven_flash_v2_5")
@@ -246,14 +268,15 @@ This document outlines a phased approach to implementing major v3 improvements, 
    - `voiceEnabled` (Boolean?) - User override for voice (null = use personality default)
    - Future: other user preferences (imageEnabled, etc.)
 
-**Table Updates**:
-4. **Personality** - Update relationships
-   - `voiceConfig` (1:1 relationship to VoiceConfig)
-   - Remove `voiceSettings` JSON column (replace with VoiceConfig table)
+**Table Updates**: 4. **Personality** - Update relationships
+
+- `voiceConfig` (1:1 relationship to VoiceConfig)
+- Remove `voiceSettings` JSON column (replace with VoiceConfig table)
 
 ### Data Migration
 
 **From shapes.inc Backups**:
+
 - Extract voice settings → VoiceConfig table (66 personalities with voice data)
   - `voice_id`, `voice_model`, `voice_stability`, `voice_similarity`, `voice_style`, `voice_frequency`
 - Validate all parameter ranges (0.0-1.0)
@@ -263,18 +286,21 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Application Code Changes
 
 **Voice Synthesis**:
+
 - [ ] Update voice synthesis service to query VoiceConfig table
 - [ ] Add voice sample upload endpoint (validate size ≤10MB, format MP3/WAV)
 - [ ] Add ElevenLabs Instant Voice Cloning integration
 - [ ] Implement user preference override logic (UserPreferences.voiceEnabled → Personality.voiceEnabled)
 
 **Discord Commands**:
+
 - [ ] `/voice enable` - Enable voice for current user (override)
 - [ ] `/voice disable` - Disable voice for current user (override)
 - [ ] `/voice reset` - Remove user override (use personality default)
 - [ ] (Admin) `/personality voice-sample upload <personality> <file>` - Upload voice sample
 
 **Validation**:
+
 - [ ] Add Zod schema for VoiceConfig parameter ranges (0.0-1.0)
 - [ ] Add file size validation (10MB max)
 - [ ] Add file format validation (MP3 192kbps+, WAV)
@@ -282,12 +308,14 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Testing
 
 **Unit Tests**:
+
 - [ ] Test voice config parameter validation (0.0-1.0 ranges)
 - [ ] Test file size validation (10MB limit)
 - [ ] Test file format validation (MP3/WAV)
 - [ ] Test user override hierarchy (user → personality)
 
 **Integration Tests**:
+
 - [ ] Test voice synthesis with VoiceConfig table
 - [ ] Test voice sample upload end-to-end
 - [ ] Test user preference overrides (enable/disable/reset)
@@ -296,10 +324,12 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Documentation
 
 **User-Facing**:
+
 - [ ] User guide for `/voice` commands
 - [ ] Document voice sample requirements (10MB, MP3/WAV, 2-3 minutes optimal)
 
 **Developer**:
+
 - [ ] Document VoiceConfig schema and ElevenLabs integration
 - [ ] Update CHANGELOG.md
 - [ ] Update CURRENT_WORK.md
@@ -322,6 +352,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 **Goal**: Add image generation capabilities using tool calls
 
 ### Why This Phase Later
+
 - **Requires agentic infrastructure** (tool calls, multi-step reasoning)
 - Limited provider support (OpenRouter only has Gemini image models, not DALL-E/Flux/SD)
 - Better to wait and do it right with tool calls rather than rush
@@ -337,6 +368,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Research Completed
 
 **Validated via WebSearch**:
+
 - [OpenRouter Image Generation Docs](https://openrouter.ai/docs/features/multimodal/image-generation)
 - OpenRouter supports: Gemini 2.5/3.0 Flash/Pro Image, GPT-5 Image
 - OpenRouter does NOT support: DALL-E 3, Flux, Stable Diffusion
@@ -344,6 +376,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 ### Potential Future Approach
 
 When ready to implement:
+
 1. Build tool calling infrastructure (function calling, multi-step reasoning)
 2. Start with Gemini image models (available on OpenRouter)
 3. Add `/imagine` command that uses tool calls
@@ -357,18 +390,22 @@ When ready to implement:
 ## Implementation Timeline
 
 ### Phase 1 (PRODUCTION BLOCKER)
+
 **Weeks 1-4**: Database migrations + encryption infrastructure
+
 - Prisma migrations (UserApiKey, UsageLog, PersonalityAlias, schema updates)
 - Data migration scripts (66 personalities)
 - Encryption utilities + log sanitization
 
 **Weeks 5-7**: Discord commands + BYOK flow
+
 - `/wallet` command group (set, list, remove, test)
 - `/timezone` command (set, get)
 - `/usage` command (stats)
 - Key validation service
 
 **Week 8**: Testing + deployment
+
 - Unit + integration + migration tests
 - Railway deployment
 - Smoke testing in development
@@ -377,7 +414,9 @@ When ready to implement:
 **Total**: ~12-15 sessions
 
 ### Phase 2 (ENHANCEMENT)
+
 **Weeks 9-11**: Voice enhancements
+
 - VoiceConfig + VoiceConfigSample + UserPreferences tables
 - Voice settings migration (66 personalities)
 - Voice sample upload endpoint
@@ -387,6 +426,7 @@ When ready to implement:
 **Total**: ~5-7 sessions
 
 ### Phase 3 (FUTURE)
+
 **Timeline**: TBD - blocked on agentic infrastructure
 
 ---
@@ -394,16 +434,19 @@ When ready to implement:
 ## Risk Mitigation
 
 ### Phase 1 Risks
+
 - **Data Loss**: Mitigate with full DB backup + rollback plan
 - **Encryption Key Loss**: Document key rotation procedure, backup master key
 - **Migration Failures**: Test with production dump, verify all 66 personalities
 - **API Key Leakage**: Log sanitization + ephemeral Discord responses
 
 ### Phase 2 Risks
+
 - **File Upload Exploits**: Validate file size, format, magic bytes
 - **Voice Sample Quality**: Document requirements (2-3 minutes, clear audio)
 
 ### Phase 3 Risks
+
 - **Tool Call Complexity**: Defer until infrastructure ready
 
 ---
@@ -411,16 +454,19 @@ When ready to implement:
 ## Success Metrics
 
 ### Phase 1
+
 - [ ] Public launch unblocked (BYOK operational)
 - [ ] Users providing their own API keys (bot owner not paying)
 - [ ] Usage tracking operational (can monitor infrastructure abuse)
 - [ ] Modern AI models supported (Claude 3.7, Gemini 3.0 Pro thinking_level)
 
 ### Phase 2
+
 - [ ] Voice synthesis configurable (66 personalities with settings)
 - [ ] Users can override voice preferences
 
 ### Phase 3
+
 - [ ] Defer - revisit when agentic infrastructure ready
 
 ---
