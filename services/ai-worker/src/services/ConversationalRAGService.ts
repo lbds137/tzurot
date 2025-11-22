@@ -188,37 +188,10 @@ export class ConversationalRAGService {
           : undefined;
 
       // Extract plain text from formatted references for memory search
-      // Strip markdown formatting but keep the actual content (text, transcriptions, image descriptions)
-      let referencedMessagesTextForSearch: string | undefined = undefined;
-      if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
-        // Extract just the content parts (message text, attachment descriptions)
-        // Skip the headers like "## Referenced Messages", "[Reference 1]", "From:", etc.
-        const lines = referencedMessagesDescriptions.split('\n');
-        const contentLines: string[] = [];
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          // Skip markdown headers, reference labels, metadata
-          if (
-            trimmed.startsWith('##') ||
-            trimmed.startsWith('[Reference') ||
-            trimmed.startsWith('From:') ||
-            trimmed.startsWith('Location:') ||
-            trimmed.startsWith('Time:') ||
-            trimmed.startsWith('Message Text:') ||
-            trimmed.startsWith('Message Embeds') ||
-            trimmed.startsWith('Attachments:') ||
-            trimmed.length === 0
-          ) {
-            continue;
-          }
-          contentLines.push(trimmed);
-        }
-
-        if (contentLines.length > 0) {
-          referencedMessagesTextForSearch = contentLines.join('\n');
-        }
-      }
+      const referencedMessagesTextForSearch =
+        referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0
+          ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
+          : undefined;
 
       // Build the actual message text for memory search
       // Includes: user message, voice transcriptions, image descriptions, AND referenced content
