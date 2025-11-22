@@ -262,7 +262,7 @@ export const audioTranscriptionJobDataSchema = baseJobDataSchema.extend({
  */
 export const imageDescriptionJobDataSchema = baseJobDataSchema.extend({
   jobType: z.literal(JobType.ImageDescription),
-  attachments: z.array(attachmentMetadataSchema),
+  attachments: z.array(attachmentMetadataSchema).min(1, 'At least one image attachment is required'),
   personality: loadedPersonalitySchema,
   context: jobContextSchema.pick({ userId: true, channelId: true }),
 });
