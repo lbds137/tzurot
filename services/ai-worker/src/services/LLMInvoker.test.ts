@@ -499,5 +499,67 @@ describe('LLMInvoker', () => {
 
       vi.useRealTimers();
     });
+
+    it('should retry on censored response ("ext" from Gemini safety filters)', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi
+          .fn()
+          .mockResolvedValueOnce({ content: 'ext' }) // Censored response
+          .mockResolvedValueOnce({ content: 'Success after retry' }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      await vi.runAllTimersAsync();
+
+      const result = await promise;
+
+      expect(result.content).toBe('Success after retry');
+      expect(mockModel.invoke).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should throw after max retries on persistent censored responses', async () => {
+      vi.useFakeTimers();
+
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue({ content: 'ext' }), // Always censored
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      // Attach rejection handler BEFORE advancing timers
+      // The retry service wraps errors in RetryError after exhausting attempts
+      const rejectionPromise = expect(promise).rejects.toThrow(/failed after 3 attempts/);
+
+      await vi.runAllTimersAsync();
+
+      await rejectionPromise;
+
+      // Should retry max attempts (3)
+      expect(mockModel.invoke).toHaveBeenCalledTimes(3);
+
+      vi.useRealTimers();
+    });
+
+    it('should not retry on "ext" as part of valid response content', async () => {
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue({ content: 'The file has a .ext extension' }),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      const result = await invoker.invokeWithRetry(mockModel, messages, 'test-model');
+
+      expect(result.content).toBe('The file has a .ext extension');
+      expect(mockModel.invoke).toHaveBeenCalledTimes(1); // No retry needed
+    });
   });
 });

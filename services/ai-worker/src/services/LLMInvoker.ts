@@ -108,7 +108,7 @@ export class LLMInvoker {
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
    * @param modelName - Model name for logging
-   * @throws Error on timeout, network errors, or empty responses
+   * @throws Error on timeout, network errors, empty responses, or censored responses
    * @private
    */
   private async invokeSingleAttempt(
@@ -142,6 +142,21 @@ export class LLMInvoker {
         '[LLMInvoker] Empty response detected, treating as retryable error'
       );
       throw emptyResponseError;
+    }
+
+    // Guard against censored responses (Gemini models sometimes return just "ext")
+    // Treat this as a retryable error - it may succeed on retry
+    if (content === ERROR_MESSAGES.CENSORED_RESPONSE_TEXT) {
+      const censoredResponseError = new Error(ERROR_MESSAGES.CENSORED_RESPONSE);
+      logger.warn(
+        {
+          err: censoredResponseError,
+          modelName,
+          responseContent: content,
+        },
+        '[LLMInvoker] LLM censored response detected, treating as retryable error'
+      );
+      throw censoredResponseError;
     }
 
     return response;
