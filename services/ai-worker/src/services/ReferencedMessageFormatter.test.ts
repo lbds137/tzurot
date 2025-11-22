@@ -733,5 +733,63 @@ Line three`;
       expect(result).toContain('Line two');
       expect(result).toContain('Line three');
     });
+
+    it('should maintain contract between formatReferencedMessages and extractTextForSearch', async () => {
+      // Contract test: Verify that formatReferencedMessages output is compatible with extractTextForSearch
+      // This test protects against format changes that would break the text extraction
+
+      const { describeImage } = await import('./MultimodalProcessor.js');
+      const { transcribeAudio } = await import('./MultimodalProcessor.js');
+      vi.mocked(describeImage).mockResolvedValue('A cat sitting on a windowsill');
+      vi.mocked(transcribeAudio).mockResolvedValue('This is a test transcription');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Check out this image and voice message!',
+          embeds: 'Some embed content',
+          timestamp: '2025-11-21T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/image.png',
+              filename: 'photo.png',
+              contentType: 'image/png',
+            },
+            {
+              url: 'https://example.com/voice.ogg',
+              filename: 'voice.ogg',
+              contentType: 'audio/ogg',
+              duration: 5,
+              isVoiceMessage: true,
+            },
+          ],
+        },
+      ];
+
+      // Format the references (real implementation)
+      const formatted = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Extract text for search (real implementation)
+      const extracted = formatter.extractTextForSearch(formatted);
+
+      // Verify contract: actual content is preserved
+      expect(extracted).toContain('Check out this image and voice message!');
+      expect(extracted).toContain('Some embed content');
+      expect(extracted).toContain('A cat sitting on a windowsill');
+      expect(extracted).toContain('This is a test transcription');
+
+      // Verify contract: headers and metadata are stripped
+      expect(extracted).not.toContain('## Referenced Messages');
+      expect(extracted).not.toContain('[Reference 1]');
+      expect(extracted).not.toContain('From:');
+      expect(extracted).not.toContain('Location:');
+      expect(extracted).not.toContain('Time:');
+      expect(extracted).not.toContain('Attachments:');
+    });
   });
 });

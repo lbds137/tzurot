@@ -148,10 +148,13 @@ export class LLMInvoker {
     // Treat this as a retryable error - it may succeed on retry
     if (content === ERROR_MESSAGES.CENSORED_RESPONSE_TEXT) {
       const censoredResponseError = new Error(ERROR_MESSAGES.CENSORED_RESPONSE);
+      // Extract provider from modelName (format: "provider/model-name")
+      const provider = modelName.includes('/') ? modelName.split('/')[0] : 'unknown';
       logger.warn(
         {
           err: censoredResponseError,
           modelName,
+          provider,
           responseContent: content,
         },
         '[LLMInvoker] LLM censored response detected, treating as retryable error'
