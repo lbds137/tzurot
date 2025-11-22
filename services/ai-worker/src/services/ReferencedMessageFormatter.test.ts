@@ -610,4 +610,128 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('[Author unavailable - this message was forwarded]');
     });
   });
+
+  describe('extractTextForSearch', () => {
+    it('should extract plain text content from formatted references', () => {
+      const formatted = `## Referenced Messages
+
+The user is referencing the following messages:
+
+[Reference 1]
+From: Test User (@testuser)
+Location: Test Guild > #general
+Time: 2025-11-04 00:00:00 UTC
+
+Message Text:
+Hello world! This is the actual content.
+
+**Embeds**:
+Some embed content here.`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      // Should include actual content
+      expect(result).toContain('Hello world! This is the actual content.');
+      expect(result).toContain('Some embed content here.');
+
+      // Should NOT include headers and metadata
+      expect(result).not.toContain('## Referenced Messages');
+      expect(result).not.toContain('[Reference 1]');
+      expect(result).not.toContain('From:');
+      expect(result).not.toContain('Location:');
+      expect(result).not.toContain('Time:');
+      expect(result).not.toContain('Message Text:');
+    });
+
+    it('should extract image descriptions', () => {
+      const formatted = `## Referenced Messages
+
+[Reference 1]
+From: User (@user)
+
+Attachments:
+- Image: A beautiful sunset over the ocean with vibrant orange and pink colors`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      expect(result).toContain(
+        'A beautiful sunset over the ocean with vibrant orange and pink colors'
+      );
+      expect(result).not.toContain('Attachments:');
+    });
+
+    it('should extract voice transcriptions', () => {
+      const formatted = `## Referenced Messages
+
+[Reference 1]
+From: User (@user)
+
+Attachments:
+- Voice message (00:15): "Hey, this is a test voice message transcription."`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      expect(result).toContain('Hey, this is a test voice message transcription.');
+    });
+
+    it('should handle multiple references', () => {
+      const formatted = `## Referenced Messages
+
+[Reference 1]
+From: Alice (@alice)
+
+Message Text:
+First message content
+
+[Reference 2]
+From: Bob (@bob)
+
+Message Text:
+Second message content`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      expect(result).toContain('First message content');
+      expect(result).toContain('Second message content');
+    });
+
+    it('should handle empty formatted string', () => {
+      const result = formatter.extractTextForSearch('');
+      expect(result).toBe('');
+    });
+
+    it('should handle formatted string with only headers', () => {
+      const formatted = `## Referenced Messages
+
+The user is referencing the following messages:
+
+[Reference 1]
+From: User (@user)
+Location: Guild > #channel
+Time: 2025-11-04 00:00:00 UTC`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      // Should be empty since there's no actual content
+      expect(result).toBe('');
+    });
+
+    it('should preserve multi-line content', () => {
+      const formatted = `## Referenced Messages
+
+[Reference 1]
+From: User (@user)
+
+Message Text:
+Line one
+Line two
+Line three`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      expect(result).toContain('Line one');
+      expect(result).toContain('Line two');
+      expect(result).toContain('Line three');
+    });
+  });
 });

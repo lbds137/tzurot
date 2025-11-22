@@ -35,6 +35,42 @@ interface ProcessedAttachmentResult {
  */
 export class ReferencedMessageFormatter {
   /**
+   * Extract plain text content from formatted referenced messages
+   *
+   * Strips markdown headers and metadata, keeping only the actual message content,
+   * transcriptions, and image descriptions for semantic search.
+   *
+   * @param formattedReferences - Formatted reference string from formatReferencedMessages
+   * @returns Plain text content suitable for LTM search query
+   */
+  extractTextForSearch(formattedReferences: string): string {
+    const lines = formattedReferences.split('\n');
+    const contentLines: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // Skip markdown headers, reference labels, metadata, and introductory text
+      if (
+        trimmed.startsWith('##') ||
+        trimmed.startsWith('[Reference') ||
+        trimmed.startsWith('From:') ||
+        trimmed.startsWith('Location:') ||
+        trimmed.startsWith('Time:') ||
+        trimmed.startsWith('Message Text:') ||
+        trimmed.startsWith('Message Embeds') ||
+        trimmed.startsWith('Attachments:') ||
+        trimmed === 'The user is referencing the following messages:' ||
+        trimmed.length === 0
+      ) {
+        continue;
+      }
+      contentLines.push(trimmed);
+    }
+
+    return contentLines.join('\n');
+  }
+
+  /**
    * Format referenced messages for inclusion in prompt
    *
    * Processes all attachments (images, voice messages) in parallel for better performance.
