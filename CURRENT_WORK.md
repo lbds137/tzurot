@@ -7,6 +7,7 @@
 **Current Phase**: Phase 0 - ~~Dependency Updates~~ + Integration Tests (BEFORE schema changes)
 
 **CRITICAL FINDING (2025-11-22)**: All 6 Dependabot PRs blocked by Prisma 7.0 migration
+
 - Prisma 7.0 is a MAJOR migration (schema changes, 20+ file updates)
 - NOT appropriate for "dependency updates" phase
 - **Decision**: Defer to Phase 1 Sprint 2 (consolidate with schema migration work)
@@ -55,6 +56,7 @@
 **CRITICAL FINDING**: All 6 Dependabot PRs blocked by Prisma 7.0 migration → **Deferred to Phase 1 Sprint 2**
 
 **Why First**: Cannot safely refactor database schema without:
+
 - ~~✅ Up-to-date dependencies (avoid compounding breaking changes)~~ **DEFERRED**
 - ✅ Integration tests covering critical paths (safety net for regressions)
 - ✅ Stable CI/CD pipeline (catch issues before production)
@@ -62,6 +64,7 @@
 #### Phase 0: ~~Dependency Updates +~~ Integration Tests (2-3 sessions, reduced from 3-5)
 
 **Immediate Tasks**:
+
 - ~~Review & merge 6 Dependabot PRs~~ **DEFERRED TO PHASE 1**:
   - All 6 PRs blocked by Prisma 7.0 migration (requires schema changes)
   - Prisma 7.0 integrated into Phase 1 Sprint 2 (Task 2.0.1-2.0.7)
@@ -91,22 +94,26 @@
 **Goal**: Unblock public launch by implementing BYOK and migrating critical production data
 
 **New Tables**:
+
 - **UserApiKey** - AES-256-GCM encrypted API key storage
 - **UsageLog** - Token usage tracking (prevent infrastructure abuse)
 - **PersonalityAlias** - Unique aliases across personalities
 
 **Table Updates**:
+
 - **Personality** - Add `errorMessage`, `birthday` columns (migrate from `custom_fields`)
 - **User** - Add `timezone` column, relationships to `apiKeys`/`usageLogs`
 - **LlmConfig** - Hybrid schema refactor (JSONB for provider-specific params)
   - Supports reasoning models (Claude 3.7, OpenAI o1/o3, Gemini 3.0 Pro `thinking_level`)
 
 **Data Migration**:
+
 - 67 personalities in production (66 from shapes.inc + 1 new)
 - Move `custom_fields.errorMessage` → `Personality.errorMessage` (66 personalities)
 - Extract aliases, birthdays from shapes.inc backups
 
 **Features**:
+
 - `/wallet` commands (set, list, remove, test API keys)
 - `/timezone` commands (set, get)
 - `/usage` command (token stats)
@@ -121,11 +128,13 @@
 **Goal**: Enhance existing voice synthesis with user controls and voice cloning
 
 **New Tables**:
+
 - **VoiceConfig** - ElevenLabs settings per personality (stability, similarity, style, frequency)
 - **VoiceConfigSample** - Voice cloning samples (10MB limit, binary storage)
 - **UserPreferences** - User-level voice overrides
 
 **Features**:
+
 - Voice settings migration from shapes.inc (66 personalities)
 - Voice sample upload (Instant Voice Cloning, 10MB max)
 - User voice overrides (`/voice enable`, `disable`, `reset`)
@@ -456,9 +465,11 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ## Quick Links
 
 ### 🎯 Master Roadmap
+
 - **[ROADMAP.md](ROADMAP.md)** - **THE SOURCE OF TRUTH**: Consolidated backlog, priorities, timeline
 
 ### Planning Docs (Details)
+
 - [docs/planning/PHASED_IMPLEMENTATION_PLAN.md](docs/planning/PHASED_IMPLEMENTATION_PLAN.md) - BYOK Phase 1-3 details
 - [docs/planning/schema-improvements-proposal.md](docs/planning/schema-improvements-proposal.md) - Detailed schema changes for Phase 1
 - [docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md) - LLM config management (integrated into ROADMAP.md Sprint 2-3)
