@@ -18,4 +18,7 @@ describe('ConversationalRAGService', () => {
   it.todo('Add integration tests for RAG service orchestration');
   it.todo('Add tests for memory retrieval integration');
   it.todo('Add tests for LTM storage integration');
+  it.todo('Add tests for referenced messages included in LTM search query');
+  it.todo('Add tests for media content (images/audio) included in LTM search query');
+  it.todo('Add tests for censored response retry behavior in full RAG flow');
 });

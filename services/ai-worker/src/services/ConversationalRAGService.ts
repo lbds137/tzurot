@@ -21,7 +21,6 @@ import {
   AI_DEFAULTS,
   TEXT_LIMITS,
   AttachmentType,
-  ERROR_MESSAGES,
   type LoadedPersonality,
   type AttachmentMetadata,
   type ReferencedMessage,
@@ -178,9 +177,25 @@ export class ConversationalRAGService {
       // Format the user's message (now with transcriptions available)
       const userMessage = this.promptBuilder.formatUserMessage(message, context);
 
+      // Extract referenced message content for memory search (before formatting)
+      // This ensures LTM retrieval can find relevant memories based on what's being referenced
+      let referencedMessagesTextForSearch: string | undefined = undefined;
+      if (context.referencedMessages && context.referencedMessages.length > 0) {
+        const contentParts = context.referencedMessages
+          .map(ref => ref.content)
+          .filter(c => c !== undefined && c !== null && c.length > 0);
+        if (contentParts.length > 0) {
+          referencedMessagesTextForSearch = contentParts.join('\n\n');
+        }
+      }
+
       // Build the actual message text for memory search
-      // For voice messages, use transcription instead of "Hello" fallback
-      const searchQuery = this.promptBuilder.buildSearchQuery(userMessage, processedAttachments);
+      // Includes: user message, voice transcriptions, image descriptions, AND referenced message content
+      const searchQuery = this.promptBuilder.buildSearchQuery(
+        userMessage,
+        processedAttachments,
+        referencedMessagesTextForSearch
+      );
 
       // Fetch ALL participant personas from conversation history
       const participantPersonas = await this.memoryRetriever.getAllParticipantPersonas(context);
@@ -202,7 +217,7 @@ export class ConversationalRAGService {
         context
       );
 
-      // Format referenced messages (with vision/transcription) for both prompt AND database
+      // Format referenced messages (with vision/transcription) for prompt
       // Now using extracted ReferencedMessageFormatter for parallel attachment processing
       const referencedMessagesDescriptions =
         context.referencedMessages && context.referencedMessages.length > 0
@@ -264,6 +279,7 @@ export class ConversationalRAGService {
         ).length ?? 0;
 
       // Invoke the model with timeout and retry logic
+      // LLMInvoker handles censored responses automatically with retry
       const response = await this.llmInvoker.invokeWithRetry(
         model,
         messages,
@@ -273,16 +289,6 @@ export class ConversationalRAGService {
       );
 
       const rawContent = response.content as string;
-
-      // Check for censored response (Gemini models sometimes return just "ext")
-      // Treat this as a retryable error - it may succeed on retry
-      if (rawContent.trim() === ERROR_MESSAGES.CENSORED_RESPONSE_TEXT) {
-        logger.warn(
-          { model: modelName, personality: personality.name },
-          '[RAG] LLM censored response - throwing retryable error'
-        );
-        throw new Error(ERROR_MESSAGES.CENSORED_RESPONSE);
-      }
 
       // Strip personality prefix if model ignored prompt instructions
       // This ensures both Discord display AND storage are clean

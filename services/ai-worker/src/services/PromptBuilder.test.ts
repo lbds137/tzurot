@@ -131,6 +131,60 @@ describe('PromptBuilder', () => {
       const result = promptBuilder.buildSearchQuery('Check these out', attachments);
       expect(result).toBe('Check these out\n\nFirst image\n\nSecond image');
     });
+
+    it('should include referenced message text in search query', () => {
+      const referencedText = 'This is a message being referenced';
+      const result = promptBuilder.buildSearchQuery('My reply', [], referencedText);
+      expect(result).toBe('My reply\n\nThis is a message being referenced');
+    });
+
+    it('should combine user message, attachments, and referenced messages', () => {
+      const attachments: ProcessedAttachment[] = [
+        {
+          type: 'image',
+          description: 'An image description',
+          url: 'https://example.com/image.jpg',
+        },
+      ];
+      const referencedText = 'Referenced message content';
+
+      const result = promptBuilder.buildSearchQuery('Look at this', attachments, referencedText);
+      expect(result).toBe('Look at this\n\nAn image description\n\nReferenced message content');
+    });
+
+    it('should use referenced messages even without user message or attachments', () => {
+      const referencedText = 'Just the referenced content';
+      const result = promptBuilder.buildSearchQuery('', [], referencedText);
+      expect(result).toBe('Just the referenced content');
+    });
+
+    it('should skip "Hello" fallback when other content is available', () => {
+      const referencedText = 'Referenced content';
+      const result = promptBuilder.buildSearchQuery('Hello', [], referencedText);
+      expect(result).toBe('Referenced content');
+    });
+
+    it('should handle voice transcription with referenced messages', () => {
+      const attachments: ProcessedAttachment[] = [
+        {
+          type: 'audio',
+          description: 'Voice transcription',
+          url: 'https://example.com/audio.mp3',
+        },
+      ];
+      const referencedText = 'Referenced message';
+
+      const result = promptBuilder.buildSearchQuery('Hello', attachments, referencedText);
+      expect(result).toBe('Voice transcription\n\nReferenced message');
+    });
+
+    it('should handle empty/undefined referenced messages gracefully', () => {
+      const result1 = promptBuilder.buildSearchQuery('Test', [], undefined);
+      expect(result1).toBe('Test');
+
+      const result2 = promptBuilder.buildSearchQuery('Test', [], '');
+      expect(result2).toBe('Test');
+    });
   });
 
   describe('buildHumanMessage', () => {
