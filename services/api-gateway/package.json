@@ -13,17 +13,17 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
+    "@prisma/client": "^7.0.0",
     "@tzurot/common-types": "workspace:*",
-    "bullmq": "^5.1.0",
+    "bullmq": "^5.64.1",
     "express": "^5.1.0",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.8.2",
     "pg": "^8.16.3",
     "pino": "^10.1.0",
     "pino-http": "^11.0.0",
-    "redis": "^5.9.0",
-    "sharp": "^0.34.4",
+    "redis": "^5.10.0",
+    "sharp": "^0.34.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {
