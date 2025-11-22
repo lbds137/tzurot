@@ -31,31 +31,51 @@ export class PromptBuilder {
    * Build search query for memory retrieval
    *
    * Uses actual transcription/description for voice messages and images,
-   * not the "Hello" fallback.
+   * and includes referenced message content for better memory recall.
    */
-  buildSearchQuery(userMessage: string, processedAttachments: ProcessedAttachment[]): string {
-    if (processedAttachments.length === 0) {
-      return userMessage;
+  buildSearchQuery(
+    userMessage: string,
+    processedAttachments: ProcessedAttachment[],
+    referencedMessagesText?: string
+  ): string {
+    const parts: string[] = [];
+
+    // Add user message (if not just the "Hello" fallback)
+    if (userMessage.trim().length > 0 && userMessage.trim() !== 'Hello') {
+      parts.push(userMessage);
     }
 
-    // Get text descriptions for all attachments
-    const descriptions = processedAttachments
-      .map(a => a.description)
-      .filter(d => d.length > 0 && !d.startsWith('['))
-      .join('\n\n');
+    // Add attachment descriptions (voice transcriptions, image descriptions)
+    if (processedAttachments.length > 0) {
+      const descriptions = processedAttachments
+        .map(a => a.description)
+        .filter(d => d.length > 0 && !d.startsWith('['))
+        .join('\n\n');
 
-    // For voice-only messages (no text), use transcription as search query
-    // For images or mixed content, combine with user message
-    if (userMessage.trim() === 'Hello' && descriptions.length > 0) {
-      logger.info(
-        '[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback'
-      );
-      return descriptions; // Voice message - use transcription
+      if (descriptions.length > 0) {
+        parts.push(descriptions);
+
+        // Log when using voice transcription instead of "Hello"
+        if (userMessage.trim() === 'Hello') {
+          logger.info(
+            '[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback'
+          );
+        }
+      }
     }
 
-    return userMessage.trim().length > 0
-      ? `${userMessage}\n\n${descriptions}` // Text + attachments
-      : descriptions; // Attachments only
+    // Add referenced message content for semantic search
+    if (referencedMessagesText !== undefined && referencedMessagesText.length > 0) {
+      parts.push(referencedMessagesText);
+      logger.info('[PromptBuilder] Including referenced message content in memory search query');
+    }
+
+    // If we have nothing, fall back to "Hello"
+    if (parts.length === 0) {
+      return userMessage.trim().length > 0 ? userMessage : 'Hello';
+    }
+
+    return parts.join('\n\n');
   }
 
   /**
