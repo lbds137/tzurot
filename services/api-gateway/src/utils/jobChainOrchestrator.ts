@@ -21,6 +21,9 @@ import {
   type JobContext,
   type ResponseDestination,
   JobStatus,
+  audioTranscriptionJobDataSchema,
+  imageDescriptionJobDataSchema,
+  llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
 import { flowProducer } from '../queue.js';
 import type { FlowJob } from 'bullmq';
@@ -111,6 +114,21 @@ export async function createJobChain(params: {
         responseDestination,
       };
 
+      // Validate job payload against schema (contract testing)
+      const validation = audioTranscriptionJobDataSchema.safeParse(jobData);
+      if (!validation.success) {
+        logger.error(
+          {
+            requestId: audioRequestId,
+            errors: validation.error.format(),
+          },
+          '[JobChain] Audio transcription job validation failed'
+        );
+        throw new Error(
+          `Audio transcription job validation failed: ${validation.error.message}`
+        );
+      }
+
       children.push({
         name: JobType.AudioTranscription,
         data: jobData,
@@ -156,6 +174,21 @@ export async function createJobChain(params: {
         },
         responseDestination,
       };
+
+      // Validate job payload against schema (contract testing)
+      const validation = imageDescriptionJobDataSchema.safeParse(jobData);
+      if (!validation.success) {
+        logger.error(
+          {
+            requestId: imageRequestId,
+            errors: validation.error.format(),
+          },
+          '[JobChain] Image description job validation failed'
+        );
+        throw new Error(
+          `Image description job validation failed: ${validation.error.message}`
+        );
+      }
 
       children.push({
         name: JobType.ImageDescription,
@@ -209,6 +242,19 @@ export async function createJobChain(params: {
     userApiKey,
     dependencies: dependencies.length > 0 ? dependencies : undefined,
   };
+
+  // Validate job payload against schema (contract testing)
+  const validation = llmGenerationJobDataSchema.safeParse(llmJobData);
+  if (!validation.success) {
+    logger.error(
+      {
+        requestId,
+        errors: validation.error.format(),
+      },
+      '[JobChain] LLM generation job validation failed'
+    );
+    throw new Error(`LLM generation job validation failed: ${validation.error.message}`);
+  }
 
   // Create flow with LLM as parent, preprocessing as children
   // FlowProducer automatically:

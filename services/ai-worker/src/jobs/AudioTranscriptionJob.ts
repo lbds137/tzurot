@@ -13,6 +13,7 @@ import {
   RETRY_CONFIG,
   type AudioTranscriptionJobData,
   type AudioTranscriptionResult,
+  audioTranscriptionJobDataSchema,
 } from '@tzurot/common-types';
 import { transcribeAudio } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
@@ -26,6 +27,20 @@ export async function processAudioTranscriptionJob(
   job: Job<AudioTranscriptionJobData>
 ): Promise<AudioTranscriptionResult> {
   const startTime = Date.now();
+
+  // Validate job payload against schema (contract testing)
+  const validation = audioTranscriptionJobDataSchema.safeParse(job.data);
+  if (!validation.success) {
+    logger.error(
+      {
+        jobId: job.id,
+        errors: validation.error.format(),
+      },
+      '[AudioTranscriptionJob] Job validation failed'
+    );
+    throw new Error(`Audio transcription job validation failed: ${validation.error.message}`);
+  }
+
   const { requestId, attachment } = job.data;
 
   logger.info(
