@@ -124,9 +124,7 @@ export async function createJobChain(params: {
           },
           '[JobChain] Audio transcription job validation failed'
         );
-        throw new Error(
-          `Audio transcription job validation failed: ${validation.error.message}`
-        );
+        throw new Error(`Audio transcription job validation failed: ${validation.error.message}`);
       }
 
       children.push({
@@ -185,9 +183,7 @@ export async function createJobChain(params: {
           },
           '[JobChain] Image description job validation failed'
         );
-        throw new Error(
-          `Image description job validation failed: ${validation.error.message}`
-        );
+        throw new Error(`Image description job validation failed: ${validation.error.message}`);
       }
 
       children.push({
