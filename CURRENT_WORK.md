@@ -1,40 +1,148 @@
 # 🎯 Current Work
 
-> Last updated: 2025-11-17
+> Last updated: 2025-11-22
 
-## Status: Documentation Cleanup & Maintenance 🎯
+## Status: Foundation Stabilization 🛠️ INTEGRATION TESTS ONLY
 
-**Current Phase**: Documentation Audit & Updates
+**Current Phase**: Phase 0 - ~~Dependency Updates~~ + Integration Tests (BEFORE schema changes)
+
+**CRITICAL FINDING (2025-11-22)**: All 6 Dependabot PRs blocked by Prisma 7.0 migration
+- Prisma 7.0 is a MAJOR migration (schema changes, 20+ file updates)
+- NOT appropriate for "dependency updates" phase
+- **Decision**: Defer to Phase 1 Sprint 2 (consolidate with schema migration work)
+- Phase 0 now focuses on integration tests ONLY
 
 **Recent Completion**:
 
+- ✅ **v3.0.0-alpha.47 Release** (2025-11-22) - Critical bug fixes
+  - Fixed Gemini censorship retry mechanism (moved check into retry loop)
+  - Fixed referenced message LTM lookup (include actual content, not placeholders)
+  - Added referenced message attachments to LTM search
+  - Refactored text parsing to ReferencedMessageFormatter (SRP)
 - ✅ **v3.0.0-alpha.40 Release** (2025-11-17) - Massive linter cleanup
   - Crushed 500+ linter errors across all services
   - Enhanced pre-commit hooks (build → lint → test)
   - LLM config parsing fixes (coerceToNumber for all numeric fields)
-- ✅ **v3.0.0-alpha.39 Release** (2025-11-16) - Critical voice transcription fix
-  - Fixed AudioTranscriptionResult field mismatch (`transcript` → `content`)
-  - Voice messages now working correctly in production
-- ✅ **CI/CD Pipeline** - Re-enabled with pnpm and v2 exclusions
-  - Automated tests, linting, type checking, builds
-  - Proper isolation of legacy v2 codebase
-- ✅ **CLAUDE.md Rebalancing** - Major reorganization (Gemini consultation)
-  - Separated universal principles from project-specific context
-  - Added CURRENT_WORK.md update guidance
-  - Added session handoff procedures
 
 ## Active Work
 
-**Current Session**: Documentation cleanup
+**Current Session**: Foundation stabilization and risk mitigation
 
-- ✅ Created comprehensive Shapes.inc slash command design doc
-- 🔄 Updating stale documentation (CURRENT_WORK, V2_FEATURE_TRACKING)
-- 🔄 Archiving completed planning docs
-- 📋 Next: Delete obsolete docs, update README if needed
+- ✅ Analyzed current production data (67 personalities)
+- ✅ Researched and validated BYOK architecture (AES-256-GCM)
+- ✅ Created comprehensive phased implementation plan (ROADMAP.md)
+- ✅ Consolidated all planning docs into single source of truth
+- ✅ Identified 6 Dependabot PRs requiring review
+- ✅ Added Phase 0: Foundation (dependency updates + integration tests)
+- ✅ **Analyzed all 6 Dependabot PRs** - Found Prisma 7.0 blocking ALL updates
+- ✅ **Deferred Prisma 7.0 to Phase 1** - Consolidate with schema migration work
+- ✅ **Updated roadmap** - Phase 0 now integration tests only, Phase 1 includes Prisma 7.0
+- ✅ **Inventoried integration test coverage (Task 0.7)** - 80 component tests, 0 contract tests, 0 live dependency tests
+- ✅ **Created integration test plan** - docs/planning/INTEGRATION_TEST_PLAN.md
+- ✅ **Revised strategy** - Focus on contract tests (realistic), defer live dependency tests (need CI/CD)
+- 📋 Next: Write BullMQ job contract test (Task 0.8 - catches breaking changes at service boundaries)
 
 ## Planned Features (Priority Order)
 
-### 1. LLM Model & Personality Management 🎯 **[PLANNED]**
+### 🛠️ 0. Foundation Stabilization **[CURRENT PRIORITY]**
+
+**Priority**: **CRITICAL** - **PREREQUISITE FOR ALL OTHER WORK**
+**Status**: Active - ~~clearing Dependabot PRs and~~ adding integration tests
+**Documentation**: [ROADMAP.md](ROADMAP.md) - Phase 0
+
+**Overview**: ~~Update dependencies and~~ establish integration test coverage BEFORE major schema changes. Risk mitigation before risk-taking.
+
+**CRITICAL FINDING**: All 6 Dependabot PRs blocked by Prisma 7.0 migration → **Deferred to Phase 1 Sprint 2**
+
+**Why First**: Cannot safely refactor database schema without:
+- ~~✅ Up-to-date dependencies (avoid compounding breaking changes)~~ **DEFERRED**
+- ✅ Integration tests covering critical paths (safety net for regressions)
+- ✅ Stable CI/CD pipeline (catch issues before production)
+
+#### Phase 0: ~~Dependency Updates +~~ Integration Tests (2-3 sessions, reduced from 3-5)
+
+**Immediate Tasks**:
+- ~~Review & merge 6 Dependabot PRs~~ **DEFERRED TO PHASE 1**:
+  - All 6 PRs blocked by Prisma 7.0 migration (requires schema changes)
+  - Prisma 7.0 integrated into Phase 1 Sprint 2 (Task 2.0.1-2.0.7)
+  - Dependency updates will happen AFTER Prisma migration
+- Write integration tests for critical paths:
+  - End-to-end message flow (user → bot → AI → response)
+  - Memory retrieval flow (LTM search → context)
+  - Job processing (BullMQ queue → worker → result)
+- Verify CI/CD catches regressions
+
+**Milestone**: Integration test coverage ready for Phase 1 schema changes ✅
+
+---
+
+### 🚨 1. Schema Migration & BYOK Implementation **[PLANNED]**
+
+**Priority**: **CRITICAL** - **BLOCKS PUBLIC LAUNCH**
+**Status**: Planning complete, blocked on Phase 0
+**Documentation**: [ROADMAP.md](ROADMAP.md) - Phase 1
+
+**Overview**: Three-phased approach to implement BYOK, migrate shapes.inc data, modernize LlmConfig, and enhance voice synthesis.
+
+**Prerequisites**: Phase 0 complete (dependencies updated, integration tests in place)
+
+#### Phase 1: BYOK + Critical Schema Migration (12-15 sessions) 🚨
+
+**Goal**: Unblock public launch by implementing BYOK and migrating critical production data
+
+**New Tables**:
+- **UserApiKey** - AES-256-GCM encrypted API key storage
+- **UsageLog** - Token usage tracking (prevent infrastructure abuse)
+- **PersonalityAlias** - Unique aliases across personalities
+
+**Table Updates**:
+- **Personality** - Add `errorMessage`, `birthday` columns (migrate from `custom_fields`)
+- **User** - Add `timezone` column, relationships to `apiKeys`/`usageLogs`
+- **LlmConfig** - Hybrid schema refactor (JSONB for provider-specific params)
+  - Supports reasoning models (Claude 3.7, OpenAI o1/o3, Gemini 3.0 Pro `thinking_level`)
+
+**Data Migration**:
+- 67 personalities in production (66 from shapes.inc + 1 new)
+- Move `custom_fields.errorMessage` → `Personality.errorMessage` (66 personalities)
+- Extract aliases, birthdays from shapes.inc backups
+
+**Features**:
+- `/wallet` commands (set, list, remove, test API keys)
+- `/timezone` commands (set, get)
+- `/usage` command (token stats)
+- Hierarchical API key inheritance (user wallet → persona override)
+- Log sanitization (API keys never visible)
+- Encrypted at rest, ephemeral Discord responses
+
+**Why First**: Unblocks public launch - without BYOK, random users can rack up expensive API bills on bot owner's account.
+
+#### Phase 2: Voice Enhancements (5-7 sessions)
+
+**Goal**: Enhance existing voice synthesis with user controls and voice cloning
+
+**New Tables**:
+- **VoiceConfig** - ElevenLabs settings per personality (stability, similarity, style, frequency)
+- **VoiceConfigSample** - Voice cloning samples (10MB limit, binary storage)
+- **UserPreferences** - User-level voice overrides
+
+**Features**:
+- Voice settings migration from shapes.inc (66 personalities)
+- Voice sample upload (Instant Voice Cloning, 10MB max)
+- User voice overrides (`/voice enable`, `disable`, `reset`)
+- Hierarchical voice control (user override → personality setting)
+
+**Why Second**: Builds on existing feature, manageable scope, not a production blocker.
+
+#### Phase 3: Image Generation (FUTURE - ON HOLD)
+
+**Status**: Deferred - requires agentic infrastructure (tool calls)
+**Blocker**: OpenRouter only supports Gemini image models (no DALL-E/Flux/SD)
+
+**Decision**: Wait until tool calling framework is ready, then implement image generation properly with natural language → tool selection flow.
+
+---
+
+### 1. LLM Model & Personality Management 🎯 **[DEFERRED]**
 
 **Priority**: **CRITICAL** - Blocking production issues
 **Status**: Planning complete, ready to implement when resumed
@@ -336,24 +444,30 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 
 ### 🚧 Blockers for Public Launch
 
+**See**: [Phase 1 - BYOK + Critical Schema Migration](#-0-schema-migration--byok-implementation-active-planning)
+
 **Critical**:
 
-- **BYOK (Bring Your Own Key)**: Users provide own API keys
-- **Admin Commands**: Server management for bot owner
+- **BYOK (Bring Your Own Key)**: Users provide own API keys → **Phase 1 addresses this**
+- ~~**Admin Commands**: Server management for bot owner~~ → **Slash commands already exist** (alpha.40+)
 
 ---
 
 ## Quick Links
 
-### Planning Docs
+### 🎯 Master Roadmap
+- **[ROADMAP.md](ROADMAP.md)** - **THE SOURCE OF TRUTH**: Consolidated backlog, priorities, timeline
 
-- **[docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md)** - **ACTIVE**: LLM config & personality management
-- **[docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)** - OpenMemory migration plan (deferred)
-- [docs/planning/V3_REFINEMENT_ROADMAP.md](docs/planning/V3_REFINEMENT_ROADMAP.md) - Comprehensive improvement roadmap
-- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - Feature parity tracking
+### Planning Docs (Details)
+- [docs/planning/PHASED_IMPLEMENTATION_PLAN.md](docs/planning/PHASED_IMPLEMENTATION_PLAN.md) - BYOK Phase 1-3 details
+- [docs/planning/schema-improvements-proposal.md](docs/planning/schema-improvements-proposal.md) - Detailed schema changes for Phase 1
+- [docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md) - LLM config management (integrated into ROADMAP.md Sprint 2-3)
+- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - OpenMemory details (ROADMAP.md Sprint 7-8)
+- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - V2 feature parity (ROADMAP.md Sprint 6)
 
 ### Architecture
 
+- [docs/architecture/llm-hyperparameters-research.md](docs/architecture/llm-hyperparameters-research.md) - Advanced LLM parameters research (validated)
 - [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
 - [docs/deployment/RAILWAY_DEPLOYMENT.md](docs/deployment/RAILWAY_DEPLOYMENT.md) - Railway deployment guide
 
