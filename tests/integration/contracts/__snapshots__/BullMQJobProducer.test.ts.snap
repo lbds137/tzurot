@@ -1,0 +1,118 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Contract: BullMQ Job Producer (api-gateway) > Audio Transcription Job > should produce a payload that matches the shared contract > audio-transcription-job-payload 1`] = `
+{
+  "attachment": {
+    "contentType": "audio/mpeg",
+    "duration": 30,
+    "isVoiceMessage": true,
+    "name": "recording.mp3",
+    "size": 1024000,
+    "url": "https://example.com/audio.mp3",
+  },
+  "context": {
+    "channelId": "test-channel-456",
+    "userId": "test-user-123",
+  },
+  "jobType": "audio-transcription",
+  "requestId": "test-audio-123",
+  "responseDestination": {
+    "channelId": "test-channel-456",
+    "type": "discord",
+  },
+}
+`;
+
+exports[`Contract: BullMQ Job Producer (api-gateway) > Image Description Job > should produce a payload that matches the shared contract > image-description-job-payload 1`] = `
+{
+  "attachments": [
+    {
+      "contentType": "image/jpeg",
+      "name": "photo.jpg",
+      "size": 2048000,
+      "url": "https://example.com/image1.jpg",
+    },
+    {
+      "contentType": "image/png",
+      "name": "screenshot.png",
+      "size": 1536000,
+      "url": "https://example.com/image2.png",
+    },
+  ],
+  "context": {
+    "channelId": "test-channel-456",
+    "userId": "test-user-123",
+  },
+  "jobType": "image-description",
+  "personality": {
+    "characterInfo": "A helpful test assistant",
+    "contextWindowTokens": 200000,
+    "conversationalExamples": "User: Hello
+Assistant: Hi there!",
+    "conversationalGoals": "Be helpful and clear",
+    "displayName": "Test Personality",
+    "id": "test-personality-id",
+    "maxTokens": 4000,
+    "model": "anthropic/claude-3-5-sonnet",
+    "name": "TestPersonality",
+    "personalityAge": "Ageless",
+    "personalityAppearance": "Digital entity",
+    "personalityDislikes": "Confusion",
+    "personalityLikes": "Helping users",
+    "personalityTone": "Professional",
+    "personalityTraits": "Friendly, helpful, concise",
+    "slug": "test-personality",
+    "systemPrompt": "You are a test AI assistant.",
+    "temperature": 0.7,
+    "visionModel": "anthropic/claude-3-5-sonnet",
+  },
+  "requestId": "test-image-123",
+  "responseDestination": {
+    "channelId": "test-channel-456",
+    "type": "discord",
+  },
+}
+`;
+
+exports[`Contract: BullMQ Job Producer (api-gateway) > LLM Generation Job > should produce a payload that matches the shared contract > llm-generation-job-payload 1`] = `
+{
+  "context": {
+    "channelId": "test-channel-456",
+    "serverId": "test-server-789",
+    "sessionId": "test-session-abc",
+    "userId": "test-user-123",
+    "userName": "TestUser",
+  },
+  "dependencies": undefined,
+  "jobType": "llm-generation",
+  "message": "Hello, AI!",
+  "personality": {
+    "characterInfo": "A helpful test assistant",
+    "contextWindowTokens": 200000,
+    "conversationalExamples": "User: Hello
+Assistant: Hi there!",
+    "conversationalGoals": "Be helpful and clear",
+    "displayName": "Test Personality",
+    "id": "test-personality-id",
+    "maxTokens": 4000,
+    "model": "anthropic/claude-3-5-sonnet",
+    "name": "TestPersonality",
+    "personalityAge": "Ageless",
+    "personalityAppearance": "Digital entity",
+    "personalityDislikes": "Confusion",
+    "personalityLikes": "Helping users",
+    "personalityTone": "Professional",
+    "personalityTraits": "Friendly, helpful, concise",
+    "slug": "test-personality",
+    "systemPrompt": "You are a test AI assistant.",
+    "temperature": 0.7,
+    "visionModel": "anthropic/claude-3-5-sonnet",
+  },
+  "requestId": "test-request-123",
+  "responseDestination": {
+    "channelId": "test-channel-456",
+    "type": "discord",
+  },
+  "userApiKey": undefined,
+}
+`;

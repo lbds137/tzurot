@@ -2,8 +2,13 @@
  * Job Types and Dependencies
  *
  * Defines BullMQ job structures, dependencies, and results for the job chain architecture.
+ *
+ * IMPORTANT: This file contains both Zod schemas (runtime validation) and TypeScript
+ * interfaces (compile-time types). The schemas are the SINGLE SOURCE OF TRUTH for
+ * contract testing between api-gateway (producer) and ai-worker (consumer).
  */
 
+import { z } from 'zod';
 import type {
   LoadedPersonality,
   ReferencedMessage,
@@ -11,8 +16,15 @@ import type {
   DiscordEnvironment,
   LLMGenerationResult,
 } from './schemas.js';
+import {
+  loadedPersonalitySchema,
+  attachmentMetadataSchema,
+  apiConversationMessageSchema,
+  referencedMessageSchema,
+  discordEnvironmentSchema,
+} from './schemas.js';
 import { JobType, JobStatus } from '../constants/queue.js';
-import type { MessageRole } from '../constants/message.js';
+import { MessageRole } from '../constants/message.js';
 
 /**
  * Job dependency - represents a preprocessing job that must complete first
@@ -175,3 +187,119 @@ export interface ImageDescriptionResult {
  * Union type for all job results
  */
 export type AnyJobResult = AudioTranscriptionResult | ImageDescriptionResult | LLMGenerationResult;
+
+// ============================================================================
+// ZOD SCHEMAS FOR CONTRACT TESTING
+// ============================================================================
+
+/**
+ * Response Destination Schema
+ * Where to send job results
+ */
+export const responseDestinationSchema = z.object({
+  type: z.enum(['discord', 'webhook', 'api']),
+  channelId: z.string().optional(),
+  webhookUrl: z.string().optional(),
+  callbackUrl: z.string().optional(),
+});
+
+/**
+ * Job Dependency Schema
+ * Represents a preprocessing job that must complete first
+ */
+export const jobDependencySchema = z.object({
+  jobId: z.string(),
+  type: z.nativeEnum(JobType),
+  status: z.nativeEnum(JobStatus),
+  resultKey: z.string().optional(),
+});
+
+/**
+ * Job Context Schema
+ * Shared context across all job types
+ */
+export const jobContextSchema = z.object({
+  userId: z.string(),
+  userName: z.string().optional(),
+  channelId: z.string().optional(),
+  serverId: z.string().optional(),
+  sessionId: z.string().optional(),
+  isProxyMessage: z.boolean().optional(),
+  activePersonaId: z.string().optional(),
+  activePersonaName: z.string().optional(),
+  conversationHistory: z.array(apiConversationMessageSchema).optional(),
+  attachments: z.array(attachmentMetadataSchema).optional(),
+  environment: discordEnvironmentSchema.optional(),
+  referencedMessages: z.array(referencedMessageSchema).optional(),
+});
+
+/**
+ * Base Job Data Schema
+ * Common fields for all job types
+ */
+const baseJobDataSchema = z.object({
+  requestId: z.string(),
+  jobType: z.nativeEnum(JobType),
+  responseDestination: responseDestinationSchema,
+  userApiKey: z.string().optional(),
+  /** Schema version for backward compatibility (Phase 1 migrations) */
+  version: z.literal(1).default(1),
+});
+
+/**
+ * Audio Transcription Job Data Schema
+ * SINGLE SOURCE OF TRUTH for audio transcription job payloads
+ */
+export const audioTranscriptionJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.AudioTranscription),
+  attachment: attachmentMetadataSchema,
+  context: jobContextSchema.pick({ userId: true, channelId: true }),
+});
+
+/**
+ * Image Description Job Data Schema
+ * SINGLE SOURCE OF TRUTH for image description job payloads
+ */
+export const imageDescriptionJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.ImageDescription),
+  attachments: z.array(attachmentMetadataSchema),
+  personality: loadedPersonalitySchema,
+  context: jobContextSchema.pick({ userId: true, channelId: true }),
+});
+
+/**
+ * LLM Generation Job Data Schema
+ * SINGLE SOURCE OF TRUTH for LLM generation job payloads
+ */
+export const llmGenerationJobDataSchema = baseJobDataSchema.extend({
+  jobType: z.literal(JobType.LLMGeneration),
+  personality: loadedPersonalitySchema,
+  message: z.union([z.string(), z.object({}).passthrough()]),
+  context: jobContextSchema,
+  dependencies: z.array(jobDependencySchema).optional(),
+  /**
+   * Preprocessed attachments from dependency jobs
+   * Populated by AIJobProcessor after fetching audio transcriptions and image descriptions
+   * @internal
+   */
+  __preprocessedAttachments: z.string().optional(),
+});
+
+/**
+ * Union schema for all job data types
+ * Used for generic job validation
+ */
+export const anyJobDataSchema = z.discriminatedUnion('jobType', [
+  audioTranscriptionJobDataSchema,
+  imageDescriptionJobDataSchema,
+  llmGenerationJobDataSchema,
+]);
+
+// Type inference from schemas (ensures types stay in sync with schemas)
+export type ResponseDestinationFromSchema = z.infer<typeof responseDestinationSchema>;
+export type JobDependencyFromSchema = z.infer<typeof jobDependencySchema>;
+export type JobContextFromSchema = z.infer<typeof jobContextSchema>;
+export type AudioTranscriptionJobDataFromSchema = z.infer<typeof audioTranscriptionJobDataSchema>;
+export type ImageDescriptionJobDataFromSchema = z.infer<typeof imageDescriptionJobDataSchema>;
+export type LLMGenerationJobDataFromSchema = z.infer<typeof llmGenerationJobDataSchema>;
+export type AnyJobDataFromSchema = z.infer<typeof anyJobDataSchema>;
