@@ -91,7 +91,11 @@ export class ReferenceFormatter {
           references.push(snapshotReference);
 
           // Track Discord link for replacement
-          if (metadata.discordUrl !== undefined && metadata.discordUrl !== null && metadata.discordUrl.length > 0) {
+          if (
+            metadata.discordUrl !== undefined &&
+            metadata.discordUrl !== null &&
+            metadata.discordUrl.length > 0
+          ) {
             linkMap.set(metadata.discordUrl, currentNumber);
           }
 
@@ -112,7 +116,11 @@ export class ReferenceFormatter {
         references.push(formattedMessage);
 
         // Track Discord link for replacement
-        if (metadata.discordUrl !== undefined && metadata.discordUrl !== null && metadata.discordUrl.length > 0) {
+        if (
+          metadata.discordUrl !== undefined &&
+          metadata.discordUrl !== null &&
+          metadata.discordUrl.length > 0
+        ) {
           linkMap.set(metadata.discordUrl, currentNumber);
         }
 
