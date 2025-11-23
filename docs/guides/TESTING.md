@@ -108,13 +108,16 @@ services/bot-client/
 Tzurot uses a **hybrid naming strategy** combining suffixes and directories:
 
 **Colocated Tests (suffixes distinguish type):**
+
 - **Unit Tests:** `*.test.ts` - All dependencies mocked
 - **Component Tests:** `*.component.test.ts` - Real in-memory DB (PGlite), mocked external services
 
 **Integration Tests (directory-based):**
+
 - **Integration Tests:** `tests/integration/*.test.ts` - Real DB, Redis, external services
 
 **Examples:**
+
 ```
 services/ai-worker/src/
 ├── jobs/
@@ -131,6 +134,7 @@ tests/integration/
 ```
 
 **Why This Matters:**
+
 - File name immediately signals what's mocked vs real
 - Enables CI/CD optimization (run unit → component → integration)
 - Reduces cognitive load when reading tests
