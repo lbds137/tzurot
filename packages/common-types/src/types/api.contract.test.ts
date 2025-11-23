@@ -47,9 +47,6 @@ describe('API Endpoint Contract Tests', () => {
       };
 
       const result = generateRequestSchema.safeParse(validRequest);
-      if (!result.success) {
-        console.error('Validation errors:', JSON.stringify(result.error.format(), null, 2));
-      }
       expect(result.success).toBe(true);
     });
 
@@ -380,9 +377,6 @@ describe('API Endpoint Contract Tests', () => {
       };
 
       const result = requestContextSchema.safeParse(validContext);
-      if (!result.success) {
-        console.error('Validation errors:', JSON.stringify(result.error.format(), null, 2));
-      }
       expect(result.success).toBe(true);
     });
   });

@@ -80,15 +80,19 @@
 
 **Contract Tests** (Priority 1 - catches breaking changes at service boundaries):
 
-- [ ] **Task 0.9**: BullMQ Job Contract Test 🚨 CRITICAL
+- [x] **Task 0.9**: BullMQ Job Contract Test ✅
   - Verify: api-gateway job creation matches ai-worker consumption
   - Verify: Shared Zod schema for job payload
   - **Catches**: Breaking changes during Phase 1 schema refactor
-  - Estimated: 0.5 session
-- [ ] **Task 0.10**: API Endpoint Contract Tests
+  - All 15 tests passing (AudioTranscriptionJobData, ImageDescriptionJobData, LLMGenerationJobData, discriminated union, version field)
+  - Test file: `packages/common-types/src/types/jobs.contract.test.ts`
+  - Completed: 2025-11-23
+- [x] **Task 0.10**: API Endpoint Contract Tests ✅
   - Verify: `/ai/generate`, `/ai/confirmDelivery`, `/ai/jobStatus` schemas
   - **Catches**: Breaking changes in API contracts
-  - Estimated: 0.5 session
+  - All 18 tests passing (request validation, response documentation, shared schema components, producer-consumer contract)
+  - Test file: `packages/common-types/src/types/api.contract.test.ts`
+  - Completed: 2025-11-23
 
 **Component Tests** (Priority 2 - single service with real DB/Redis):
 
@@ -96,6 +100,7 @@
   - Test job processing logic with mocked AI provider
   - Uses PGlite (in-memory Postgres) for database operations
   - All 6 tests passing (job routing, processing, error handling, persistence)
+  - Test file: `services/ai-worker/src/jobs/AIJobProcessor.component.test.ts`
   - Completed: 2025-11-23
 - [x] **Task 0.12**: Verify CI/CD pipeline catches regressions ✅
   - Fixed integration test CI detection (pre-push hook compatibility)
