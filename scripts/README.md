@@ -19,9 +19,9 @@ All scripts are now organized by purpose into categorized subdirectories:
 
 ### Archive
 
-- **[_archive/](_archive/)** - Historical and obsolete scripts
-  - **[_archive/qdrant/](_archive/qdrant/)** - Old Qdrant vector DB scripts (v2, obsolete for v3)
-  - **[_archive/v2-migration/](_archive/v2-migration/)** - One-time v2→v3 migration scripts
+- **[\_archive/](_archive/)** - Historical and obsolete scripts
+  - **[\_archive/qdrant/](_archive/qdrant/)** - Old Qdrant vector DB scripts (v2, obsolete for v3)
+  - **[\_archive/v2-migration/](_archive/v2-migration/)** - One-time v2→v3 migration scripts
 
 ## 🚀 Quick Start
 
@@ -47,6 +47,7 @@ node scripts/testing/check-test-antipatterns.js
 ## 📚 Documentation
 
 Each subdirectory contains its own README.md with:
+
 - Purpose and scope of scripts in that directory
 - Usage examples
 - Related skills or documentation references
@@ -56,6 +57,7 @@ Each subdirectory contains its own README.md with:
 ## 🔍 Finding the Right Script
 
 **Need to...**
+
 - **Setup git hooks?** → `git/`
 - **Deploy to Railway?** → `deployment/`
 - **Run a database migration?** → `migrations/`
