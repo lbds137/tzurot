@@ -14,7 +14,7 @@
 
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { OpenAIEmbeddings } from '@langchain/openai';
-import { getPrismaClient } from '../packages/common-types/src/services/prisma.ts';
+import { getPrismaClient } from '../../packages/common-types/src/services/prisma.ts';
 import pino from 'pino';
 
 const logger = pino({

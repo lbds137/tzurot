@@ -15,7 +15,7 @@ import { PrismaClient } from '@prisma/client';
 import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
-import { createLogger } from '../packages/common-types/src/logger.js';
+import { createLogger } from '../../packages/common-types/src/logger.js';
 
 const logger = createLogger('MemoryRebuild');
 const prisma = new PrismaClient();

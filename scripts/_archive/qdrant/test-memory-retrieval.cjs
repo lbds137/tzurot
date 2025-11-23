@@ -1,7 +1,7 @@
 require('dotenv').config();
 const {
   QdrantMemoryService,
-} = require('../packages/common-types/dist/services/QdrantMemoryService.js');
+} = require('../../packages/common-types/dist/services/QdrantMemoryService.js');
 
 async function test() {
   console.log('🧪 Testing Memory Retrieval with Persona-Scoped Collections\n');

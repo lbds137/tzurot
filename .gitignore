@@ -40,9 +40,9 @@ temp/
 ci-log.txt
 
 # Private data (user data, private personalities)
-data/
-backups/
-scripts/uuid-mappings.json
+/data/
+/backups/
+scripts/utils/uuid-mappings.json
 
 # v2 Legacy Codebase
 # Note: tzurot-legacy/ is kept for reference only (not actively maintained)

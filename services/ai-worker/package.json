@@ -10,7 +10,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest",
-    "lint": "eslint src"
+    "test:watch": "vitest --watch",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@langchain/core": "^1.0.6",

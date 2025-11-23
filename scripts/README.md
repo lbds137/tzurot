@@ -1,222 +1,151 @@
-# Deployment Scripts
+# Scripts Directory
 
-Helper scripts for deploying Tzurot v3 to Railway.
+Utility scripts for Tzurot v3 development, deployment, and maintenance.
 
-## ⚠️ Obsolete Scripts
+## 📁 Directory Structure
 
-The following scripts were used for the Qdrant → pgvector migration and are now **obsolete** (migration completed):
+All scripts are now organized by purpose into categorized subdirectories:
 
-**Qdrant-related scripts** (19 files):
+### Active Scripts
 
-- `scripts/*-migration.cjs` - One-time Qdrant data migration scripts
-- `scripts/check-memory*.ts` - Qdrant memory inspection tools
-- `scripts/import-personality/*` - Used `@qdrant/js-client-rest` for Shapes.inc imports
+- **[git/](git/)** - Git hooks, SSH setup, branch synchronization
+- **[deployment/](deployment/)** - Railway deployment, environment setup, releases
+- **[migrations/](migrations/)** - Database schema migrations (Prisma)
+- **[data/](data/)** - Data import/export, backups, memory operations
+- **[debug/](debug/)** - Database and system debugging tools
+- **[testing/](testing/)** - Test analysis and quality utilities
+- **[analysis/](analysis/)** - Code quality and pattern analysis
+- **[utils/](utils/)** - General-purpose utilities
 
-These scripts **will not work** as `@qdrant/js-client-rest` has been removed from dependencies. They are kept for historical reference only.
+### Archive
 
-If you need to reference database operations, see:
+- **[_archive/](_archive/)** - Historical and obsolete scripts
+  - **[_archive/qdrant/](_archive/qdrant/)** - Old Qdrant vector DB scripts (v2, obsolete for v3)
+  - **[_archive/v2-migration/](_archive/v2-migration/)** - One-time v2→v3 migration scripts
 
-- `docs/deployment/RAILWAY_DEPLOYMENT.md` (deployment guide)
-- `docs/operations/PRISMA_PGVECTOR_REFERENCE.md` (Prisma + pgvector operations)
+## 🚀 Quick Start
 
-## Prerequisites
-
-1. **Railway CLI installed:**
-
-   ```bash
-   npm install -g @railway/cli
-   ```
-
-2. **Logged into Railway:**
-
-   ```bash
-   railway login
-   ```
-
-3. **Environment file configured:**
-   - Copy `.env.example` to `.env`
-   - Fill in your actual API keys and tokens
-
-## Scripts
-
-### `deploy-railway-dev.sh`
-
-Main deployment script that sets up all environment variables for the development environment on Railway.
-
-**What it does:**
-
-- Links to your Railway project
-- Sets environment variables for all three services:
-  - `api-gateway`: Port, logging
-  - `ai-worker`: AI provider config, Gemini API key
-  - `bot-client`: Discord token, Gateway URL
-- Provides next steps for deployment
-
-**Usage:**
+**Most common operations:**
 
 ```bash
-cd /home/deck/WebstormProjects/tzurot/tzurot-v3
+# Install git hooks
+./scripts/git/install-hooks.sh
+
+# Deploy to Railway dev
+./scripts/deployment/deploy-railway-dev.sh
+
+# Run database migration
+./scripts/migrations/migration-helper.sh production
+
+# Backup personality data
+node scripts/data/backup-personalities-data.js
+
+# Check for test anti-patterns
+node scripts/testing/check-test-antipatterns.js
+```
+
+## 📚 Documentation
+
+Each subdirectory contains its own README.md with:
+- Purpose and scope of scripts in that directory
+- Usage examples
+- Related skills or documentation references
+
+**Start by exploring the subdirectory READMEs for detailed information.**
+
+## 🔍 Finding the Right Script
+
+**Need to...**
+- **Setup git hooks?** → `git/`
+- **Deploy to Railway?** → `deployment/`
+- **Run a database migration?** → `migrations/`
+- **Backup or import data?** → `data/`
+- **Debug database issues?** → `debug/`
+- **Analyze test quality?** → `testing/`
+- **Check code patterns?** → `analysis/`
+- **Update dependencies?** → `utils/`
+- **Find old Qdrant scripts?** → `_archive/qdrant/`
+- **Review v2 migration?** → `_archive/v2-migration/`
+
+## ⚠️ Important Notes
+
+### Running Scripts
+
+Most scripts should be run from the **project root**, not from the scripts directory:
+
+```bash
+# ✅ Correct (from project root)
+./scripts/deployment/deploy-railway-dev.sh
+
+# ❌ Wrong (from scripts directory)
+cd scripts && ./deployment/deploy-railway-dev.sh
+```
+
+### Archived Scripts
+
+Scripts in `_archive/` are **not maintained** and may not work with current v3 architecture. They are kept for historical reference only.
+
+- **qdrant/** - v2 used Qdrant, v3 uses pgvector
+- **v2-migration/** - One-time migrations already complete
+
+### TypeScript Scripts
+
+TypeScript scripts (.ts) require `tsx` to run:
+
+```bash
+npx tsx scripts/data/rebuild-memories-from-history.ts
+```
+
+### Railway CLI
+
+Deployment scripts require Railway CLI to be installed and authenticated:
+
+```bash
+npm install -g @railway/cli
+railway login
+```
+
+**See:** `docs/reference/RAILWAY_CLI_REFERENCE.md` for accurate Railway CLI 4.5.3 commands
+
+## 📖 Related Documentation
+
+- **[docs/deployment/RAILWAY_DEPLOYMENT.md](../docs/deployment/RAILWAY_DEPLOYMENT.md)** - Complete Railway deployment guide
+- **[docs/guides/DEVELOPMENT.md](../docs/guides/DEVELOPMENT.md)** - Local development setup
+- **[docs/operations/PRISMA_PGVECTOR_REFERENCE.md](../docs/operations/PRISMA_PGVECTOR_REFERENCE.md)** - Database operations
+
+## 🎯 Claude Code Skills
+
+Several scripts relate to project skills:
+
+- **tzurot-deployment** - Railway operations and troubleshooting
+- **tzurot-db-vector** - Database migrations and pgvector operations
+- **tzurot-testing** - Testing patterns and best practices
+- **tzurot-git-workflow** - Git operations and PR workflow
+
+Invoke skills using: `skill: "tzurot-deployment"`
+
+## 📝 Contributing
+
+When adding new scripts:
+
+1. **Place in the correct category directory**
+2. **Update that directory's README.md** with the new script
+3. **Use descriptive names** (e.g., `backup-personalities-data.js` not `backup.js`)
+4. **Add usage examples** in comments or README
+5. **Make scripts executable** if they're shell scripts: `chmod +x script.sh`
+
+## 🔄 Migration from Flat Structure
+
+This directory was recently reorganized (2025-11-22) from a flat 60+ file structure into categorized subdirectories.
+
+If you have old references to scripts at the root level, update them:
+
+```bash
+# Old path
 ./scripts/deploy-railway-dev.sh
+
+# New path
+./scripts/deployment/deploy-railway-dev.sh
 ```
 
-**First-time setup:**
-
-1. Create Railway project (if you haven't already)
-2. Add Redis service via Railway dashboard
-3. Create three services: `api-gateway`, `ai-worker`, `bot-client`
-4. Run this script
-5. Deploy each service (see below)
-
-### `update-gateway-url.sh`
-
-Quick helper to update the bot-client's Gateway URL after API Gateway is deployed.
-
-**Usage:**
-
-```bash
-./scripts/update-gateway-url.sh https://your-gateway.railway.app
-```
-
-## Full Deployment Flow
-
-### 1. Initial Setup (One-time)
-
-```bash
-# Navigate to v3 directory
-cd /home/deck/WebstormProjects/tzurot/tzurot-v3
-
-# Ensure .env is configured with your keys
-cat .env  # Verify it has your Discord token and Gemini API key
-
-# Run deployment script
-./scripts/deploy-railway-dev.sh
-```
-
-### 2. Deploy Services (In Order)
-
-Railway will auto-deploy from your GitHub repo. Make sure code is pushed first:
-
-```bash
-# Ensure all code is committed and pushed
-git status
-git push origin feat/v3-architecture-rewrite
-```
-
-Then deploy in this order:
-
-```bash
-# 1. Deploy API Gateway (needs to be first)
-railway up --service api-gateway
-
-# Wait for it to deploy, then get the URL
-railway status --service api-gateway
-
-# 2. Update bot-client with the Gateway URL
-./scripts/update-gateway-url.sh https://your-actual-gateway-url.railway.app
-
-# 3. Deploy AI Worker
-railway up --service ai-worker
-
-# 4. Deploy Bot Client
-railway up --service bot-client
-```
-
-### 3. Verify Deployment
-
-```bash
-# Check API Gateway health
-curl https://your-gateway-url.railway.app/health
-
-# View logs
-railway logs --service api-gateway
-railway logs --service ai-worker
-railway logs --service bot-client
-
-# Check Railway dashboard
-railway open
-```
-
-## Environment Variables Reference
-
-### Shared (All Services)
-
-- `NODE_ENV`: development
-- `LOG_LEVEL`: debug
-- `REDIS_URL`: Auto-set by Railway when Redis service is added
-
-### api-gateway
-
-- `PORT`: 3000
-
-### ai-worker
-
-- `AI_PROVIDER`: gemini
-- `GEMINI_API_KEY`: Your Google Gemini API key
-- `DEFAULT_AI_MODEL`: gemini-2.5-pro
-- `QDRANT_URL`: Qdrant cloud URL (memory automatically enabled if configured)
-- `QDRANT_API_KEY`: Qdrant API key
-
-### bot-client
-
-- `DISCORD_TOKEN`: Your Discord bot token
-- `GATEWAY_URL`: URL of deployed api-gateway
-- `PERSONALITIES_DIR`: /app/personalities
-
-## Troubleshooting
-
-**Problem:** Bot not responding to messages
-
-- Check `GATEWAY_URL` is correct: `railway variables --service bot-client`
-- Verify API Gateway is running: `railway logs --service api-gateway`
-- Check Discord token is valid
-
-**Problem:** AI responses failing
-
-- Verify `GEMINI_API_KEY` is set: `railway variables --service ai-worker`
-- Check ai-worker logs: `railway logs --service ai-worker`
-- Test Gemini API key is valid
-
-**Problem:** Services can't connect to Redis
-
-- Ensure Redis service is added in Railway dashboard
-- Verify `REDIS_URL` is set: `railway variables --service api-gateway`
-- Redis URL should be auto-injected: `${{Redis.REDIS_URL}}`
-
-**Problem:** "Service not found"
-
-- Make sure services are named exactly: `api-gateway`, `ai-worker`, `bot-client`
-- Check Railway dashboard to verify service names
-- Link to correct project: `railway link`
-
-## Updating Variables
-
-To update a single variable:
-
-```bash
-railway variables set KEY=value --service service-name
-```
-
-To view all variables for a service:
-
-```bash
-railway variables --service service-name
-```
-
-To delete a variable:
-
-```bash
-railway variables --delete KEY --service service-name
-```
-
-## Production Deployment
-
-For production, you'll want to:
-
-1. Create a separate `.env.production` file
-2. Use a different Railway environment
-3. Set `NODE_ENV=production`
-4. Set `LOG_LEVEL=info` (less verbose)
-5. Use production Discord bot token
-6. Consider adding vector database (Qdrant/Pinecone)
-
-Production deployment script coming soon!
+All script moves used `git mv` to preserve history.
