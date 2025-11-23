@@ -41,7 +41,8 @@ ci-log.txt
 
 # Private data (user data, private personalities)
 /data/
-/backups/
+/tzurot-legacy/data/
+backups/
 scripts/utils/uuid-mappings.json
 
 # v2 Legacy Codebase
