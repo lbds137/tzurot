@@ -133,6 +133,11 @@
 - [ ] **Task 1.2**: Write tests for `Personality` loading and mention detection
 - [ ] **Task 1.3**: Write tests for `ConversationManager` (158 lines - next target)
 - [ ] **Task 1.4**: Write tests for `CommandHandler` (149 lines - slash command routing)
+- [ ] **Task 1.5**: Add component test for `ConversationHistoryService`
+  - Currently only has unit test (mocked Prisma)
+  - Add component test with PGlite for real DB operations
+  - Test conversation history CRUD, pagination, cleanup
+  - **Why**: From PR review feedback - critical service for Phase 1 schema changes
 
 ### Sprint 2: BYOK Schema Migration (9-13 sessions, increased from 7-10)
 
