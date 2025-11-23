@@ -32,15 +32,63 @@ src/
     └── helper.test.ts
 ```
 
-**Exception:** Integration tests that span multiple modules can live in `src/test/` directories.
+**Exception:** Integration tests that span multiple modules live in `tests/integration/` directory.
+
+### Test File Naming Conventions
+
+Tzurot uses a **hybrid naming strategy** combining suffixes and directories:
+
+**Colocated Tests (suffixes distinguish type):**
+- **Unit Tests:** `*.test.ts`
+  - All dependencies mocked (Prisma, Redis, Discord, AI providers)
+  - Example: `PersonalityService.test.ts` with `createMockPrisma()`
+
+- **Component Tests:** `*.component.test.ts`
+  - Real in-memory database (PGlite) but mocked external services
+  - Example: `AIJobProcessor.component.test.ts` with real PGlite + mocked OpenRouter
+
+**Integration Tests (directory-based):**
+- **Integration Tests:** `tests/integration/*.test.ts`
+  - Real database, Redis, and external services (or mocked in CI)
+  - Example: `tests/integration/AIRoutes.test.ts`
+
+**Why This Matters:**
+- **File name clarity:** `*.component.test.ts` immediately signals "real DB setup required"
+- **CI/CD optimization:** Can run different test types at different pipeline stages
+- **Cognitive load:** Developers know what's mocked vs real from the filename alone
+
+**Example:**
+```typescript
+// Unit test - All mocked
+// MyService.test.ts
+const mockPrisma = createMockPrisma();
+const service = new MyService(mockPrisma);
+
+// Component test - Real DB, mocked external services
+// MyService.component.test.ts
+const pglite = new PGlite();
+const prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) });
+const service = new MyService(prisma); // Real DB!
+const mockAI = createMockAIProvider(); // But AI is mocked
+
+// Integration test - All real (or real in CI)
+// tests/integration/MyService.test.ts
+// Uses real Postgres, Redis from environment
+```
 
 ### Build Configuration
 
-Ensure `tsconfig.json` excludes test files:
+Ensure `tsconfig.json` excludes all test files:
 
 ```json
 {
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.component.test.ts",
+    "**/*.integration.test.ts",
+    "**/*.spec.ts"
+  ]
 }
 ```
 

@@ -264,9 +264,6 @@ describe('BullMQ Job Contract Tests', () => {
       };
 
       const result = llmGenerationJobDataSchema.safeParse(validJob);
-      if (!result.success) {
-        console.error('Validation errors:', JSON.stringify(result.error.format(), null, 2));
-      }
       expect(result.success).toBe(true);
     });
 
