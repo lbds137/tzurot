@@ -51,6 +51,8 @@ describe('AIJobProcessor Component Test', () => {
 
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM)
+    // Note: PGlite initialization is CPU-intensive and may be slow when running
+    // in parallel with other tests, hence the extended timeout
     pglite = new PGlite();
 
     // Create Prisma adapter for PGlite
@@ -167,7 +169,7 @@ describe('AIJobProcessor Component Test', () => {
         maxTokens: 4000,
       },
     });
-  });
+  }, 30000); // 30 second timeout for PGlite WASM initialization under parallel load
 
   beforeEach(() => {
     // Create mock RAG service with deterministic responses
@@ -189,7 +191,7 @@ describe('AIJobProcessor Component Test', () => {
     // No need to delete data - PGlite is in-memory and will be discarded
     await prisma.$disconnect();
     await pglite.close();
-  });
+  }, 30000); // 30 second timeout for cleanup under parallel load
 
   describe('LLM Generation Job Processing', () => {
     it('should process LLM generation job and persist result to database', async () => {
