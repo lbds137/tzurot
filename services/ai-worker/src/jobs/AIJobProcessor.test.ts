@@ -17,7 +17,10 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { AIJobProcessor } from './AIJobProcessor.js';
-import type { ConversationalRAGService, RAGResponse } from '../services/ConversationalRAGService.js';
+import type {
+  ConversationalRAGService,
+  RAGResponse,
+} from '../services/ConversationalRAGService.js';
 import { JobType, MessageRole, type LLMGenerationJobData } from '@tzurot/common-types';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
