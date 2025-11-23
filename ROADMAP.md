@@ -92,21 +92,24 @@
 
 **Component Tests** (Priority 2 - single service with real DB/Redis):
 
-- [ ] **Task 0.11**: AIJobProcessor Component Test
+- [x] **Task 0.11**: AIJobProcessor Component Test ✅
   - Test job processing logic with mocked AI provider
-  - Real: Prisma DB, conversation history
-  - Estimated: 1 session
-- [ ] **Task 0.12**: Verify CI/CD pipeline catches regressions
-  - All tests must pass before merge
-  - Build succeeds for all services
+  - Uses PGlite (in-memory Postgres) for database operations
+  - All 6 tests passing (job routing, processing, error handling, persistence)
+  - Completed: 2025-11-23
+- [x] **Task 0.12**: Verify CI/CD pipeline catches regressions ✅
+  - Fixed integration test CI detection (pre-push hook compatibility)
+  - All 95 integration tests passing (0 skipped)
+  - Pre-push hook runs both unit and integration tests
+  - Completed: 2025-11-23
 
-**🎉 MILESTONE 0: Stable Foundation**
+**🎉 MILESTONE 0: Stable Foundation** ✅
 
 - ~~All dependencies up to date~~ **DEFERRED** (Prisma 7.0 in Phase 1)
 - Contract tests catch breaking changes at service boundaries ✅
 - Component tests cover critical job processing logic ✅
 - CI/CD catches regressions ✅
-- Safe to proceed with Phase 1 schema changes
+- Safe to proceed with Phase 1 schema changes ✅
 
 ---
 
