@@ -31,7 +31,12 @@ export class ReplyReferenceStrategy implements IReferenceStrategy {
     const guildId = message.guildId;
     const channelId = message.channelId;
 
-    if (guildId === null || guildId === undefined || channelId === null || channelId === undefined) {
+    if (
+      guildId === null ||
+      guildId === undefined ||
+      channelId === null ||
+      channelId === undefined
+    ) {
       logger.debug(
         {
           messageId: message.id,
