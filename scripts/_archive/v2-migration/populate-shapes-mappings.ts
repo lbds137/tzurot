@@ -12,7 +12,7 @@
 import { PrismaClient } from '@prisma/client';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { createLogger } from '../packages/common-types/src/logger.js';
+import { createLogger } from '../../packages/common-types/src/logger.js';
 
 const logger = createLogger('PopulateShapesMappings');
 const prisma = new PrismaClient();
