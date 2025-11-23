@@ -68,7 +68,7 @@ With the `/import shapes` command:
 - **Status**: Standalone, no dependencies, production-ready
 - **Reusability**: High - generic service backup script
 
-#### V3 Components (scripts/import-personality)
+#### V3 Components (scripts/data/import-personality)
 
 **`import-personality.ts` (477 lines)**
 
@@ -1131,7 +1131,7 @@ await webhook.edit({
 
 - **[Shapes.inc Import Plan](../migration/SHAPES_INC_IMPORT_PLAN.md)** - Manual import process design
 - **V2 Backup Script**: `tzurot-legacy/scripts/backup-personalities-data.js`
-- **V3 Import Scripts**: `scripts/import-personality/`
+- **V3 Import Scripts**: `scripts/data/import-personality/`
 
 ### Related Issues
 

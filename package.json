@@ -16,14 +16,14 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "update-deps": "tsx scripts/update-deps.ts",
-    "import-personality": "tsx scripts/import-personality/import-personality.ts",
-    "bulk-import": "tsx scripts/import-personality/bulk-import.ts",
-    "bulk-import:dry-run": "tsx scripts/import-personality/bulk-import.ts --dry-run",
-    "bulk-import:skip-memories": "tsx scripts/import-personality/bulk-import.ts --skip-memories",
-    "migrate-legacy-persona": "tsx scripts/import-personality/migrate-legacy-persona.ts",
-    "migrate-memory-format": "tsx scripts/migrate-memory-format.ts",
-    "migrate-memory-format:dry-run": "tsx scripts/migrate-memory-format.ts --dry-run"
+    "update-deps": "tsx scripts/utils/update-deps.ts",
+    "import-personality": "tsx scripts/data/import-personality/import-personality.ts",
+    "bulk-import": "tsx scripts/data/import-personality/bulk-import.ts",
+    "bulk-import:dry-run": "tsx scripts/data/import-personality/bulk-import.ts --dry-run",
+    "bulk-import:skip-memories": "tsx scripts/data/import-personality/bulk-import.ts --skip-memories",
+    "migrate-legacy-persona": "tsx scripts/data/import-personality/migrate-legacy-persona.ts",
+    "migrate-memory-format": "tsx scripts/_archive/qdrant/migrate-memory-format.ts",
+    "migrate-memory-format:dry-run": "tsx scripts/_archive/qdrant/migrate-memory-format.ts --dry-run"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
