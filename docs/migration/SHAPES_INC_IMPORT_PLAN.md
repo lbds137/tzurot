@@ -653,7 +653,7 @@ app.use(
 #### 2. Add Avatar Downloader to Import Tool
 
 ```typescript
-// scripts/import-personality/AvatarDownloader.ts
+// scripts/data/import-personality/AvatarDownloader.ts
 import fetch from 'node-fetch';
 import fs from 'fs/promises';
 import path from 'path';

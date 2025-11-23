@@ -40,7 +40,7 @@ STAGED_V3_TS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '
 if [ -n "$STAGED_V3_TS_FILES" ]; then
     echo -e "\n📦 V3 TypeScript changes detected"
     run_check "Prettier formatting" "pnpm format"
-    run_check "TypeScript build verification" "./scripts/verify-build.sh"
+    run_check "TypeScript build verification" "./scripts/deployment/verify-build.sh"
     run_check "ESLint (v3)" "pnpm lint"
 fi
 
