@@ -24,28 +24,19 @@ import {
 } from './api-types.js';
 import { JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
+import {
+  TEST_PERSONALITY,
+  MINIMAL_CONTEXT,
+  FULL_CONTEXT,
+} from './test/fixtures.js';
 
 describe('API Endpoint Contract Tests', () => {
   describe('POST /ai/generate - Request Schema', () => {
     it('should validate a valid minimal generate request', () => {
       const validRequest: GenerateRequest = {
-        personality: {
-          id: 'personality-123',
-          name: 'TestPersonality',
-          displayName: 'Test Personality',
-          slug: 'test',
-          systemPrompt: 'You are a helpful assistant',
-          model: 'anthropic/claude-sonnet-4.5',
-          temperature: 0.7,
-          maxTokens: 2000,
-          contextWindowTokens: 8192,
-          characterInfo: 'A helpful test personality',
-          personalityTraits: 'Helpful, friendly',
-        },
+        personality: TEST_PERSONALITY,
         message: 'Hello, world!',
-        context: {
-          userId: 'user-123',
-        },
+        context: MINIMAL_CONTEXT,
       };
 
       const result = generateRequestSchema.safeParse(validRequest);
@@ -54,69 +45,9 @@ describe('API Endpoint Contract Tests', () => {
 
     it('should validate a generate request with full context', () => {
       const validRequest: GenerateRequest = {
-        personality: {
-          id: 'personality-123',
-          name: 'TestPersonality',
-          displayName: 'Test Personality',
-          slug: 'test',
-          systemPrompt: 'You are a helpful assistant',
-          model: 'anthropic/claude-sonnet-4.5',
-          temperature: 0.7,
-          maxTokens: 2000,
-          contextWindowTokens: 8192,
-          characterInfo: 'A helpful test personality',
-          personalityTraits: 'Helpful, friendly',
-        },
+        personality: TEST_PERSONALITY,
         message: 'Hello, world!',
-        context: {
-          userId: 'user-123',
-          userName: 'TestUser',
-          channelId: 'channel-123',
-          serverId: 'server-123',
-          sessionId: 'session-123',
-          activePersonaId: 'persona-123',
-          activePersonaName: 'TestPersona',
-          conversationHistory: [
-            {
-              role: MessageRole.User,
-              content: 'Previous message',
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          attachments: [
-            {
-              url: 'https://example.com/file.pdf',
-              contentType: 'application/pdf',
-              name: 'file.pdf',
-              size: 1024,
-            },
-          ],
-          environment: {
-            type: 'guild',
-            guild: {
-              id: 'guild-123',
-              name: 'Test Guild',
-            },
-            channel: {
-              id: 'channel-123',
-              name: 'test-channel',
-              type: 'GUILD_TEXT',
-            },
-          },
-          referencedMessages: [
-            {
-              referenceNumber: 1,
-              discordMessageId: 'msg-123',
-              discordUserId: 'user-456',
-              authorUsername: 'testuser',
-              authorDisplayName: 'Test User',
-              content: 'Referenced content',
-              embeds: '',
-              timestamp: new Date().toISOString(),
-              locationContext: 'Test Server / #general',
-            },
-          ],
-        },
+        context: FULL_CONTEXT,
       };
 
       const result = generateRequestSchema.safeParse(validRequest);

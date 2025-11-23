@@ -24,29 +24,22 @@ import {
 } from './jobs.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
+import {
+  MINIMAL_CONTEXT,
+  AUDIO_ATTACHMENT,
+  DISCORD_DESTINATION,
+  REQUEST_IDS,
+} from './test/fixtures.js';
 
 describe('BullMQ Job Contract Tests', () => {
   describe('Schema Validation - Audio Transcription Job', () => {
     it('should validate a valid audio transcription job', () => {
       const validJob: AudioTranscriptionJobData = {
-        requestId: 'req-test-123',
+        requestId: REQUEST_IDS.audioTranscription,
         jobType: JobType.AudioTranscription,
-        responseDestination: {
-          type: 'discord',
-          channelId: 'channel-123',
-        },
-        attachment: {
-          url: 'https://example.com/audio.mp3',
-          contentType: 'audio/mpeg',
-          name: 'audio.mp3',
-          size: 1024,
-          isVoiceMessage: true,
-          duration: 10,
-        },
-        context: {
-          userId: 'user-123',
-          channelId: 'channel-123',
-        },
+        responseDestination: DISCORD_DESTINATION,
+        attachment: AUDIO_ATTACHMENT,
+        context: { ...MINIMAL_CONTEXT, channelId: 'channel-123' },
       };
 
       const result = audioTranscriptionJobDataSchema.safeParse(validJob);
