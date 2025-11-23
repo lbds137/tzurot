@@ -24,11 +24,7 @@ import {
 } from './api-types.js';
 import { JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
-import {
-  TEST_PERSONALITY,
-  MINIMAL_CONTEXT,
-  FULL_CONTEXT,
-} from './test/fixtures.js';
+import { TEST_PERSONALITY, MINIMAL_CONTEXT, FULL_CONTEXT } from './test/fixtures.js';
 
 describe('API Endpoint Contract Tests', () => {
   describe('POST /ai/generate - Request Schema', () => {
