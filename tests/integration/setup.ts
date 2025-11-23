@@ -25,9 +25,10 @@ export interface TestEnvironment {
 
 /**
  * Detect if we're running in CI (GitHub Actions)
+ * NOTE: Pre-push hook sets CI=true, but we only want real Redis/Postgres in actual CI
  */
 export function isCI(): boolean {
-  return process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+  return process.env.GITHUB_ACTIONS === 'true';
 }
 
 /**

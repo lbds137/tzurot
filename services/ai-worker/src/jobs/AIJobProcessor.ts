@@ -143,9 +143,11 @@ export class AIJobProcessor {
 
   constructor(
     private prisma: PrismaClient,
-    memoryManager?: PgvectorMemoryAdapter
+    memoryManager?: PgvectorMemoryAdapter,
+    ragService?: ConversationalRAGService
   ) {
-    this.ragService = new ConversationalRAGService(memoryManager);
+    // Use provided RAGService (for testing) or create new one (for production)
+    this.ragService = ragService ?? new ConversationalRAGService(memoryManager);
     this.llmGenerationHandler = new LLMGenerationHandler(this.ragService);
   }
 
