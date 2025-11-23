@@ -11,6 +11,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { addValidatedJob } from '../../utils/validatedQueue.js';
 
 const logger = createLogger('AIRouter');
 
@@ -83,7 +84,9 @@ export function createTranscribeRoute(
         },
       };
 
-      const job = await aiQueue.add(JobType.AudioTranscription, jobData, {
+      // Add job to queue with automatic validation
+      // Throws error if validation fails (caught by asyncHandler)
+      const job = await addValidatedJob(aiQueue, JobType.AudioTranscription, jobData, {
         jobId: `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${requestId}`,
       });
 

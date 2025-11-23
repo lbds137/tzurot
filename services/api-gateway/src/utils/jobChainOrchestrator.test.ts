@@ -273,4 +273,236 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       expect(flowCall.data.dependencies[0]).toHaveProperty('resultKey');
     });
   });
+
+  describe('Runtime Validation', () => {
+    describe('LLM Generation Job Validation', () => {
+      it('should reject job with missing displayName in personality', async () => {
+        const inmockPersonality = {
+          ...mockPersonality,
+          displayName: undefined, // Missing required field
+        };
+
+        await expect(
+          createJobChain({
+            requestId: 'test-123',
+            personality: inmockPersonality as any,
+            message: 'Test message',
+            context: {
+              userId: 'user-123',
+              userName: 'User',
+              channelId: 'channel-123',
+            },
+            responseDestination: {
+              type: 'discord',
+              channelId: 'channel-123',
+            },
+          })
+        ).rejects.toThrow(/validation failed/i);
+      });
+
+      it('should reject job with missing contextWindowTokens', async () => {
+        const inmockPersonality = {
+          ...mockPersonality,
+          contextWindowTokens: undefined, // Missing required field
+        };
+
+        await expect(
+          createJobChain({
+            requestId: 'test-123',
+            personality: inmockPersonality as any,
+            message: 'Test message',
+            context: {
+              userId: 'user-123',
+              channelId: 'channel-123',
+            },
+            responseDestination: {
+              type: 'discord',
+              channelId: 'channel-123',
+            },
+          })
+        ).rejects.toThrow(/validation failed/i);
+      });
+
+      it('should reject job with missing characterInfo', async () => {
+        const inmockPersonality = {
+          ...mockPersonality,
+          characterInfo: undefined, // Missing required field
+        };
+
+        await expect(
+          createJobChain({
+            requestId: 'test-123',
+            personality: inmockPersonality as any,
+            message: 'Test message',
+            context: {
+              userId: 'user-123',
+              channelId: 'channel-123',
+            },
+            responseDestination: {
+              type: 'discord',
+              channelId: 'channel-123',
+            },
+          })
+        ).rejects.toThrow(/validation failed/i);
+      });
+
+      it('should reject job with missing personalityTraits', async () => {
+        const inmockPersonality = {
+          ...mockPersonality,
+          personalityTraits: undefined, // Missing required field
+        };
+
+        await expect(
+          createJobChain({
+            requestId: 'test-123',
+            personality: inmockPersonality as any,
+            message: 'Test message',
+            context: {
+              userId: 'user-123',
+              channelId: 'channel-123',
+            },
+            responseDestination: {
+              type: 'discord',
+              channelId: 'channel-123',
+            },
+          })
+        ).rejects.toThrow(/validation failed/i);
+      });
+
+      it('should accept valid LLM generation job', async () => {
+        const jobId = await createJobChain({
+          requestId: 'test-123',
+          personality: mockPersonality,
+          message: 'Test message',
+          context: {
+            userId: 'user-123',
+            userName: 'User',
+            channelId: 'channel-123',
+          },
+          responseDestination: {
+            type: 'discord',
+            channelId: 'channel-123',
+          },
+        });
+
+        // Should return job ID without throwing
+        expect(jobId).toBe('llm-job-123');
+      });
+    });
+
+    describe('Image Description Job Validation', () => {
+      it('should NOT create image job with empty attachments array', async () => {
+        await createJobChain({
+          requestId: 'test-123',
+          personality: mockPersonality,
+          message: 'Test',
+          context: {
+            userId: 'user-123',
+            channelId: 'channel-123',
+            attachments: [], // Empty - no image job should be created
+          },
+          responseDestination: {
+            type: 'discord',
+            channelId: 'channel-123',
+          },
+        });
+
+        // Verify flowProducer was called without image children
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeUndefined();
+      });
+
+      it('should create image job with valid attachments', async () => {
+        await createJobChain({
+          requestId: 'test-123',
+          personality: mockPersonality,
+          message: 'Test',
+          context: {
+            userId: 'user-123',
+            channelId: 'channel-123',
+            attachments: [
+              {
+                url: 'https://example.com/image.png',
+                contentType: 'image/png',
+                name: 'image.png',
+                size: 1024,
+              },
+            ],
+          },
+          responseDestination: {
+            type: 'discord',
+            channelId: 'channel-123',
+          },
+        });
+
+        // Verify image job was created as child
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeDefined();
+        expect(flowCall.children.length).toBeGreaterThan(0);
+        const imageJob = flowCall.children.find(
+          (child: any) => child.name === JobType.ImageDescription
+        );
+        expect(imageJob).toBeDefined();
+        expect(imageJob.data.attachments).toHaveLength(1);
+      });
+    });
+
+    describe('Audio Transcription Job Validation', () => {
+      it('should NOT create audio job with empty attachments array', async () => {
+        await createJobChain({
+          requestId: 'test-123',
+          personality: mockPersonality,
+          message: 'Test',
+          context: {
+            userId: 'user-123',
+            channelId: 'channel-123',
+            attachments: [], // Empty - no audio job should be created
+          },
+          responseDestination: {
+            type: 'discord',
+            channelId: 'channel-123',
+          },
+        });
+
+        // Verify flowProducer was called without audio children
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeUndefined();
+      });
+
+      it('should create audio job with valid voice attachment', async () => {
+        await createJobChain({
+          requestId: 'test-123',
+          personality: mockPersonality,
+          message: 'Test',
+          context: {
+            userId: 'user-123',
+            channelId: 'channel-123',
+            attachments: [
+              {
+                url: 'https://example.com/audio.ogg',
+                contentType: 'audio/ogg',
+                name: 'audio.ogg',
+                size: 2048,
+                isVoiceMessage: true,
+              },
+            ],
+          },
+          responseDestination: {
+            type: 'discord',
+            channelId: 'channel-123',
+          },
+        });
+
+        // Verify audio job was created as child
+        const flowCall = (flowProducer.add as any).mock.calls[0][0];
+        expect(flowCall.children).toBeDefined();
+        expect(flowCall.children.length).toBeGreaterThan(0);
+        const audioJob = flowCall.children.find(
+          (child: any) => child.name === JobType.AudioTranscription
+        );
+        expect(audioJob).toBeDefined();
+        expect(audioJob.data.attachment.isVoiceMessage).toBe(true);
+      });
+    });
+  });
 });
