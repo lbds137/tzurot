@@ -248,12 +248,19 @@ export function createMockGuildMember(overrides: Partial<GuildMember> = {}): Gui
 export function createMockMessage(overrides: Partial<Message> = {}): Message {
   const id = overrides.id ?? '999999999999999999';
 
+  // Create default channel and guild first so we can reference their IDs
+  const defaultChannel = overrides.channel ?? createMockTextChannel();
+  const defaultGuild = overrides.guild ?? createMockGuild();
+
   const defaults: Partial<Message> = {
     id,
     content: 'Test message',
     author: createMockUser(),
-    channel: createMockTextChannel(),
-    guild: createMockGuild(),
+    channel: defaultChannel,
+    guild: defaultGuild,
+    // Add convenience getters that Discord.js Messages have
+    guildId: defaultGuild?.id ?? null,
+    channelId: defaultChannel.id,
     member: createMockGuildMember(),
     createdTimestamp: Date.now(),
     createdAt: new Date(),

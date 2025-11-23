@@ -1,0 +1,358 @@
+/**
+ * Tests for ReferenceFormatter
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ReferenceFormatter } from './ReferenceFormatter.js';
+import type { ReferenceMetadata } from './types.js';
+import { createMockMessage } from '../../test/mocks/Discord.mock.js';
+import type { MessageFormatter } from './MessageFormatter.js';
+import type { SnapshotFormatter } from './SnapshotFormatter.js';
+import type { Message } from 'discord.js';
+
+describe('ReferenceFormatter', () => {
+  let formatter: ReferenceFormatter;
+  let mockMessageFormatter: MessageFormatter;
+  let mockSnapshotFormatter: SnapshotFormatter;
+
+  beforeEach(() => {
+    // Mock MessageFormatter
+    mockMessageFormatter = {
+      formatMessage: vi.fn().mockImplementation(async (message: Message, refNum: number) => ({
+        referenceNumber: refNum,
+        messageId: message.id,
+        authorUsername: message.author.username,
+        content: message.content,
+        timestamp: message.createdAt,
+        guildId: null,
+        channelId: null,
+        channelName: null,
+        embeds: [],
+        imageUrls: [],
+        voiceTranscript: null,
+      })),
+    } as any;
+
+    // Mock SnapshotFormatter
+    mockSnapshotFormatter = {} as any;
+
+    formatter = new ReferenceFormatter(mockMessageFormatter, mockSnapshotFormatter);
+  });
+
+  describe('Sorting', () => {
+    it('should sort by depth first (BFS order)', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'depth-2',
+          {
+            message: createMockMessage({
+              id: 'depth-2',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'depth-2',
+              depth: 2,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+        [
+          'depth-1',
+          {
+            message: createMockMessage({
+              id: 'depth-1',
+              createdAt: new Date('2025-01-01T12:01:00Z'),
+            }),
+            metadata: {
+              messageId: 'depth-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:01:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      // Depth 1 should come before depth 2
+      expect(result.references).toHaveLength(2);
+      expect(result.references[0].messageId).toBe('depth-1');
+      expect(result.references[0].referenceNumber).toBe(1);
+      expect(result.references[1].messageId).toBe('depth-2');
+      expect(result.references[1].referenceNumber).toBe(2);
+    });
+
+    it('should sort chronologically within same depth level', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'newer',
+          {
+            message: createMockMessage({
+              id: 'newer',
+              createdAt: new Date('2025-01-01T12:02:00Z'),
+            }),
+            metadata: {
+              messageId: 'newer',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:02:00Z'),
+            },
+          },
+        ],
+        [
+          'older',
+          {
+            message: createMockMessage({
+              id: 'older',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'older',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      // Older message should come first within same depth
+      expect(result.references).toHaveLength(2);
+      expect(result.references[0].messageId).toBe('older');
+      expect(result.references[1].messageId).toBe('newer');
+    });
+
+    it('should combine depth and chronological sorting', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'depth1-newer',
+          {
+            message: createMockMessage({
+              id: 'depth1-newer',
+              createdAt: new Date('2025-01-01T12:02:00Z'),
+            }),
+            metadata: {
+              messageId: 'depth1-newer',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:02:00Z'),
+            },
+          },
+        ],
+        [
+          'depth2-older',
+          {
+            message: createMockMessage({
+              id: 'depth2-older',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'depth2-older',
+              depth: 2,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+        [
+          'depth1-older',
+          {
+            message: createMockMessage({
+              id: 'depth1-older',
+              createdAt: new Date('2025-01-01T12:01:00Z'),
+            }),
+            metadata: {
+              messageId: 'depth1-older',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:01:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      // Expected order: depth 1 (older), depth 1 (newer), depth 2 (older)
+      expect(result.references).toHaveLength(3);
+      expect(result.references[0].messageId).toBe('depth1-older');
+      expect(result.references[1].messageId).toBe('depth1-newer');
+      expect(result.references[2].messageId).toBe('depth2-older');
+    });
+  });
+
+  describe('Reference Numbering', () => {
+    it('should assign sequential reference numbers starting from 1', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'ref-1',
+          {
+            message: createMockMessage({
+              id: 'ref-1',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+            },
+          },
+        ],
+        [
+          'ref-2',
+          {
+            message: createMockMessage({
+              id: 'ref-2',
+              createdAt: new Date('2025-01-01T12:01:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-2',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:01:00Z'),
+            },
+          },
+        ],
+        [
+          'ref-3',
+          {
+            message: createMockMessage({
+              id: 'ref-3',
+              createdAt: new Date('2025-01-01T12:02:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-3',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:02:00Z'),
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      expect(result.references[0].referenceNumber).toBe(1);
+      expect(result.references[1].referenceNumber).toBe(2);
+      expect(result.references[2].referenceNumber).toBe(3);
+    });
+  });
+
+  describe('Link Replacement', () => {
+    it('should replace Discord links with [Reference N] placeholders', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'ref-1',
+          {
+            message: createMockMessage({
+              id: 'ref-1',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              discordUrl: 'https://discord.com/channels/123/456/789',
+            },
+          },
+        ],
+      ]);
+
+      const originalContent = 'Check this https://discord.com/channels/123/456/789';
+
+      const result = await formatter.format(originalContent, crawledMessages, 10);
+
+      expect(result.updatedContent).toBe('Check this [Reference 1]');
+    });
+
+    it('should replace multiple links with correct reference numbers', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'ref-1',
+          {
+            message: createMockMessage({
+              id: 'ref-1',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              discordUrl: 'https://discord.com/channels/111/222/333',
+            },
+          },
+        ],
+        [
+          'ref-2',
+          {
+            message: createMockMessage({
+              id: 'ref-2',
+              createdAt: new Date('2025-01-01T12:01:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-2',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:01:00Z'),
+              discordUrl: 'https://discord.com/channels/444/555/666',
+            },
+          },
+        ],
+      ]);
+
+      const originalContent =
+        'See https://discord.com/channels/111/222/333 and https://discord.com/channels/444/555/666';
+
+      const result = await formatter.format(originalContent, crawledMessages, 10);
+
+      expect(result.updatedContent).toBe('See [Reference 1] and [Reference 2]');
+    });
+
+    it('should not replace links for references without discordUrl', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'ref-1',
+          {
+            message: createMockMessage({
+              id: 'ref-1',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'ref-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              // No discordUrl (e.g., reply reference)
+            },
+          },
+        ],
+      ]);
+
+      const originalContent = 'This is a reply reference';
+
+      const result = await formatter.format(originalContent, crawledMessages, 10);
+
+      // Content should remain unchanged
+      expect(result.updatedContent).toBe('This is a reply reference');
+    });
+  });
+
+  describe('Limit Enforcement', () => {
+    it('should apply maxReferences limit', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>();
+
+      // Add 15 messages
+      for (let i = 0; i < 15; i++) {
+        crawledMessages.set(`ref-${i}`, {
+          message: createMockMessage({
+            id: `ref-${i}`,
+            createdAt: new Date(`2025-01-01T12:${String(i).padStart(2, '0')}:00Z`),
+          }),
+          metadata: {
+            messageId: `ref-${i}`,
+            depth: 1,
+            timestamp: new Date(`2025-01-01T12:${String(i).padStart(2, '0')}:00Z`),
+          },
+        });
+      }
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      // Should limit to 10
+      expect(result.references).toHaveLength(10);
+    });
+  });
+});

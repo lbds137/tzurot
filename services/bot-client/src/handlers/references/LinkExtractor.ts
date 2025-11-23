@@ -118,7 +118,7 @@ export class LinkExtractor {
    * @param sourceMessage - Original message (for guild access)
    * @returns Discord message or null if not accessible
    */
-  private async fetchMessageFromLink(
+  async fetchMessageFromLink(
     link: ParsedMessageLink,
     sourceMessage: Message
   ): Promise<Message | null> {
