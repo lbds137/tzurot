@@ -53,25 +53,50 @@
   - Finding: 80 component tests exist, 0 contract tests, 0 live dependency tests
   - **Revised Strategy**: Focus on contract tests (realistic), defer live dependency tests
 
+**Message Reference Handling** (Foundation Work):
+
+- [x] **Task 0.8.1**: Implement nested reference extraction with BFS ✅
+  - Refactored flat reference extraction to BFS traversal (depth-based ordering)
+  - Implemented Strategy Pattern for extensible reference types (Reply, Link)
+  - Added deduplication against conversation history (exact ID + time-based fallback)
+  - Fixed all ESLint strict mode violations (nullish coalescing, explicit null checks)
+  - **Files Modified**: ReferenceCrawler.ts, ReferenceFormatter.ts, 2 strategy implementations
+  - **Result**: 422 tests passing in bot-client (including new reference tests)
+  - Completed: 2025-11-23
+
+- [x] **Task 0.8.2**: Standardize development tooling ✅
+  - Added missing package.json scripts across all packages/services
+  - Scripts: `lint:fix`, `format`, `typecheck`, `test:watch`
+  - **Result**: Consistent development interface across monorepo
+  - Completed: 2025-11-23
+
+- [x] **Task 0.8.3**: Organize scripts directory ✅
+  - Reorganized 60+ flat scripts into 8 categorized subdirectories
+  - Archived 16 obsolete Qdrant scripts, 2 v2 migration scripts
+  - Created comprehensive README.md in each subdirectory
+  - Fixed .gitignore to prevent accidental data commits
+  - **Result**: Maintainable script organization with documentation
+  - Completed: 2025-11-23
+
 **Contract Tests** (Priority 1 - catches breaking changes at service boundaries):
 
-- [ ] **Task 0.8**: BullMQ Job Contract Test 🚨 CRITICAL
+- [ ] **Task 0.9**: BullMQ Job Contract Test 🚨 CRITICAL
   - Verify: api-gateway job creation matches ai-worker consumption
   - Verify: Shared Zod schema for job payload
   - **Catches**: Breaking changes during Phase 1 schema refactor
   - Estimated: 0.5 session
-- [ ] **Task 0.9**: API Endpoint Contract Tests
+- [ ] **Task 0.10**: API Endpoint Contract Tests
   - Verify: `/ai/generate`, `/ai/confirmDelivery`, `/ai/jobStatus` schemas
   - **Catches**: Breaking changes in API contracts
   - Estimated: 0.5 session
 
 **Component Tests** (Priority 2 - single service with real DB/Redis):
 
-- [ ] **Task 0.10**: AIJobProcessor Component Test
+- [ ] **Task 0.11**: AIJobProcessor Component Test
   - Test job processing logic with mocked AI provider
   - Real: Prisma DB, conversation history
   - Estimated: 1 session
-- [ ] **Task 0.11**: Verify CI/CD pipeline catches regressions
+- [ ] **Task 0.12**: Verify CI/CD pipeline catches regressions
   - All tests must pass before merge
   - Build succeeds for all services
 
