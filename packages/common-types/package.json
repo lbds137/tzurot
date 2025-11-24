@@ -10,6 +10,7 @@
     "build": "tsc",
     "test": "vitest",
     "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
