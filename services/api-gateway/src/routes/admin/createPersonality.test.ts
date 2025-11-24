@@ -146,4 +146,250 @@ describe('POST /admin/personality', () => {
     expect(response.status).toBe(409);
     expect(response.body.error).toBeDefined();
   });
+
+  it('should create personality with optional fields', async () => {
+    prisma.personality.findUnique.mockResolvedValue(null);
+    prisma.personality.create.mockResolvedValue({
+      id: 'personality-456',
+      name: 'Test Bot',
+      slug: 'test-bot',
+      displayName: 'My Test Bot',
+      characterInfo: 'A helpful assistant',
+      personalityTraits: 'Friendly',
+      personalityTone: 'casual',
+      personalityAge: '25',
+      personalityAppearance: 'Tall and friendly',
+      personalityLikes: 'Coding',
+      personalityDislikes: 'Bugs',
+      conversationalGoals: 'Help users',
+      conversationalExamples: 'Hello!',
+      customFields: { theme: 'dark' },
+      avatarData: null,
+      voiceEnabled: false,
+      imageEnabled: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+    const response = await request(app).post('/admin/personality').send({
+      name: 'Test Bot',
+      slug: 'test-bot',
+      characterInfo: 'A helpful assistant',
+      personalityTraits: 'Friendly',
+      displayName: 'My Test Bot',
+      personalityTone: 'casual',
+      personalityAge: '25',
+      personalityAppearance: 'Tall and friendly',
+      personalityLikes: 'Coding',
+      personalityDislikes: 'Bugs',
+      conversationalGoals: 'Help users',
+      conversationalExamples: 'Hello!',
+      customFields: { theme: 'dark' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.success).toBe(true);
+    expect(prisma.personality.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        displayName: 'My Test Bot',
+        personalityTone: 'casual',
+        customFields: { theme: 'dark' },
+      }),
+    });
+  });
+
+  it('should reject invalid customFields (not an object)', async () => {
+    prisma.personality.findUnique.mockResolvedValue(null);
+
+    const response = await request(app).post('/admin/personality').send({
+      name: 'Test Bot',
+      slug: 'test-bot',
+      characterInfo: 'A helpful assistant',
+      personalityTraits: 'Friendly',
+      customFields: 'not-an-object',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBeDefined();
+  });
+
+  it('should reject customFields as array', async () => {
+    prisma.personality.findUnique.mockResolvedValue(null);
+
+    const response = await request(app).post('/admin/personality').send({
+      name: 'Test Bot',
+      slug: 'test-bot',
+      characterInfo: 'A helpful assistant',
+      personalityTraits: 'Friendly',
+      customFields: ['array', 'not', 'allowed'],
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBeDefined();
+  });
+
+  describe('avatar processing', () => {
+    it('should process and store avatar data', async () => {
+      // Import the already-mocked function
+      const { optimizeAvatar } = await import('../../utils/imageProcessor.js');
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-789',
+        name: 'Test Bot',
+        slug: 'test-bot-avatar',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: new Uint8Array([1, 2, 3]),
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-avatar',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        avatarData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.personality.hasAvatar).toBe(true);
+      expect(optimizeAvatar).toHaveBeenCalled();
+    });
+
+    it('should handle avatar processing errors', async () => {
+      const { optimizeAvatar } = await import('../../utils/imageProcessor.js');
+      prisma.personality.findUnique.mockResolvedValue(null);
+      vi.mocked(optimizeAvatar).mockRejectedValueOnce(new Error('Invalid image format'));
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-bad-avatar',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        avatarData: 'invalid-base64-data',
+      });
+
+      // PROCESSING_ERROR returns 500 (server-side processing failure)
+      expect(response.status).toBe(500);
+      expect(response.body.message).toContain('Failed to process avatar');
+    });
+  });
+
+  describe('default LLM config', () => {
+    it('should assign default LLM config when available', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-llm-123',
+        name: 'Test Bot',
+        slug: 'test-bot-llm',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue({
+        id: 'llm-config-123',
+        name: 'Default Model',
+        isGlobal: true,
+        isDefault: true,
+      });
+      prisma.personalityDefaultConfig.create.mockResolvedValue({
+        id: 'default-config-123',
+        personalityId: 'personality-llm-123',
+        llmConfigId: 'llm-config-123',
+      });
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-llm',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
+        where: {
+          isGlobal: true,
+          isDefault: true,
+        },
+      });
+      expect(prisma.personalityDefaultConfig.create).toHaveBeenCalledWith({
+        data: {
+          personalityId: 'personality-llm-123',
+          llmConfigId: 'llm-config-123',
+        },
+      });
+    });
+
+    it('should succeed even when LLM config assignment fails', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-llm-fail',
+        name: 'Test Bot',
+        slug: 'test-bot-llm-fail',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue({
+        id: 'llm-config-123',
+        name: 'Default Model',
+        isGlobal: true,
+        isDefault: true,
+      });
+      prisma.personalityDefaultConfig.create.mockRejectedValue(
+        new Error('Database constraint violation')
+      );
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-llm-fail',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
+
+      // Should still succeed - LLM config error is non-critical
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+    });
+  });
 });
