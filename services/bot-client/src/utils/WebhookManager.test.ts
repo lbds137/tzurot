@@ -155,7 +155,7 @@ describe('WebhookManager', () => {
       const channel = createMockTextChannel('channel-123', 'bot-123');
 
       // We can test the suffix by checking what username is passed to webhook.send
-      manager.getWebhook(channel).then((webhook) => {
+      manager.getWebhook(channel).then(webhook => {
         manager.sendAsPersonality(channel, personality, 'Test');
       });
     });
