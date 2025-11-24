@@ -617,15 +617,7 @@ New developers should run `./scripts/git/install-hooks.sh` after cloning the rep
 
 **Framework**: Vitest 4.0.3 with comprehensive test coverage
 
-**Current Status**:
-
-- ✅ **989 tests passing** across 63 test files
-  - common-types: 102 tests in 6 files
-  - api-gateway: 174 tests in 8 files
-  - ai-worker: 291 tests in 15 files
-  - bot-client: 422 tests in 34 files
-- 🚧 Service layer coverage expanding
-- 🚧 Integration tests planned
+**Current Status**: Run `pnpm test` to see current test counts.
 
 **Key Standards**:
 
@@ -634,6 +626,32 @@ New developers should run `./scripts/git/install-hooks.sh` after cloning the rep
 - Test behavior, not implementation
 - Mock all external dependencies
 - Use fake timers for time-based code
+
+### Coverage
+
+**Provider**: v8 (via `@vitest/coverage-v8`)
+
+**Coverage files are NOT committed** - `coverage/` is in `.gitignore`. Each service generates its own coverage report in `<service>/coverage/`.
+
+**Commands** (run from project root):
+
+| Command | Description |
+|---------|-------------|
+| `pnpm test:coverage` | Run coverage for ALL services/packages |
+| `pnpm --filter @tzurot/api-gateway test:coverage` | Coverage for specific service |
+| `pnpm --filter @tzurot/bot-client test:coverage` | Coverage for bot-client |
+| `pnpm --filter @tzurot/ai-worker test:coverage` | Coverage for ai-worker |
+| `pnpm --filter @tzurot/common-types test:coverage` | Coverage for common-types |
+
+**Reading coverage output**:
+- **Console**: Text summary with % Stmts, % Branch, % Funcs, % Lines columns
+- **HTML**: Open `<service>/coverage/index.html` in browser for detailed view
+- **JSON**: `<service>/coverage/coverage-final.json` for programmatic access
+
+**Important notes**:
+- Running `pnpm test:coverage` generates **separate** reports per service (not a unified report)
+- Coverage runs are slower than regular tests
+- Look for files with <70% statement coverage as priority for improvement
 
 **📚 See**: `tzurot-testing` skill for comprehensive Vitest patterns, fake timer handling, promise rejection patterns, and mocking strategies
 
