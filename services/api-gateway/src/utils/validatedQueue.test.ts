@@ -113,19 +113,14 @@ describe('validatedQueue', () => {
   describe('addValidatedJob', () => {
     describe('LLM Generation Jobs', () => {
       it('should add valid LLM job to queue', async () => {
-        const job = await addValidatedJob(
-          mockQueue,
-          JobType.LLMGeneration,
-          validLLMJobData,
-          { jobId: 'llm-job-123' }
-        );
+        const job = await addValidatedJob(mockQueue, JobType.LLMGeneration, validLLMJobData, {
+          jobId: 'llm-job-123',
+        });
 
         expect(mockQueue.add).toHaveBeenCalledTimes(1);
-        expect(mockQueue.add).toHaveBeenCalledWith(
-          JobType.LLMGeneration,
-          validLLMJobData,
-          { jobId: 'llm-job-123' }
-        );
+        expect(mockQueue.add).toHaveBeenCalledWith(JobType.LLMGeneration, validLLMJobData, {
+          jobId: 'llm-job-123',
+        });
         expect(job).toEqual({ id: 'mock-job-id' });
       });
 
@@ -198,11 +193,9 @@ describe('validatedQueue', () => {
         );
 
         expect(mockQueue.add).toHaveBeenCalledTimes(1);
-        expect(mockQueue.add).toHaveBeenCalledWith(
-          JobType.AudioTranscription,
-          validAudioJobData,
-          { jobId: 'audio-job-456' }
-        );
+        expect(mockQueue.add).toHaveBeenCalledWith(JobType.AudioTranscription, validAudioJobData, {
+          jobId: 'audio-job-456',
+        });
         expect(job).toEqual({ id: 'mock-job-id' });
       });
 
@@ -238,19 +231,14 @@ describe('validatedQueue', () => {
 
     describe('Image Description Jobs', () => {
       it('should add valid image job to queue', async () => {
-        const job = await addValidatedJob(
-          mockQueue,
-          JobType.ImageDescription,
-          validImageJobData,
-          { jobId: 'image-job-789' }
-        );
+        const job = await addValidatedJob(mockQueue, JobType.ImageDescription, validImageJobData, {
+          jobId: 'image-job-789',
+        });
 
         expect(mockQueue.add).toHaveBeenCalledTimes(1);
-        expect(mockQueue.add).toHaveBeenCalledWith(
-          JobType.ImageDescription,
-          validImageJobData,
-          { jobId: 'image-job-789' }
-        );
+        expect(mockQueue.add).toHaveBeenCalledWith(JobType.ImageDescription, validImageJobData, {
+          jobId: 'image-job-789',
+        });
         expect(job).toEqual({ id: 'mock-job-id' });
       });
 
@@ -291,11 +279,7 @@ describe('validatedQueue', () => {
 
         await addValidatedJob(mockQueue, JobType.LLMGeneration, validLLMJobData, opts);
 
-        expect(mockQueue.add).toHaveBeenCalledWith(
-          JobType.LLMGeneration,
-          validLLMJobData,
-          opts
-        );
+        expect(mockQueue.add).toHaveBeenCalledWith(JobType.LLMGeneration, validLLMJobData, opts);
       });
 
       it('should work without job options', async () => {
@@ -313,8 +297,16 @@ describe('validatedQueue', () => {
   describe('addValidatedJobs', () => {
     it('should add multiple valid jobs to queue', async () => {
       const jobs = [
-        { jobType: JobType.AudioTranscription, jobData: validAudioJobData, opts: { jobId: 'audio-1' } },
-        { jobType: JobType.ImageDescription, jobData: validImageJobData, opts: { jobId: 'image-1' } },
+        {
+          jobType: JobType.AudioTranscription,
+          jobData: validAudioJobData,
+          opts: { jobId: 'audio-1' },
+        },
+        {
+          jobType: JobType.ImageDescription,
+          jobData: validImageJobData,
+          opts: { jobId: 'image-1' },
+        },
       ];
 
       const result = await addValidatedJobs(mockQueue, jobs);
@@ -326,7 +318,10 @@ describe('validatedQueue', () => {
     it('should reject batch if any job is invalid (atomic operation)', async () => {
       const jobs = [
         { jobType: JobType.AudioTranscription, jobData: validAudioJobData },
-        { jobType: JobType.ImageDescription, jobData: { ...validImageJobData, attachments: undefined } }, // Invalid
+        {
+          jobType: JobType.ImageDescription,
+          jobData: { ...validImageJobData, attachments: undefined },
+        }, // Invalid
       ];
 
       await expect(addValidatedJobs(mockQueue, jobs)).rejects.toThrow(/Invalid.*job data/i);
@@ -345,7 +340,10 @@ describe('validatedQueue', () => {
     it('should validate all jobs before adding any', async () => {
       // First job is invalid, second is valid
       const jobs = [
-        { jobType: JobType.AudioTranscription, jobData: { ...validAudioJobData, attachment: undefined } },
+        {
+          jobType: JobType.AudioTranscription,
+          jobData: { ...validAudioJobData, attachment: undefined },
+        },
         { jobType: JobType.LLMGeneration, jobData: validLLMJobData },
       ];
 
