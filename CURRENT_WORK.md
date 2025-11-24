@@ -65,7 +65,16 @@
 
 **Phase 1, Sprint 2**: BYOK Schema Migration (9-13 sessions)
 
-**Prisma 7.0 Migration** (DO FIRST - 2-3 sessions):
+**Test Coverage Audit** (DO FIRST - 1 session):
+
+- [ ] **Task 1.6**: Audit test coverage gaps across all services
+  - Generate coverage report for each service
+  - Identify files with <70% coverage
+  - Prioritize gaps in critical paths (job processing, message handling)
+  - Create remediation plan (which gaps to fix before vs after Prisma migration)
+  - **Why**: Codecov flagged 50 lines missing in alpha.48 release - need full picture before schema changes
+
+**Prisma 7.0 Migration** (after coverage audit - 2-3 sessions):
 
 - [ ] **Task 2.0.1**: Review Prisma 7.0 changelog (breaking changes)
 - [ ] **Task 2.0.2**: Update `@prisma/client` and `prisma` to 7.x
