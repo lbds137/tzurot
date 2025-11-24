@@ -1,6 +1,6 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-11-22
+> **Last Updated**: 2025-11-24
 > **Philosophy**: Launch, Stabilize, Evolve
 > **Context**: Solo dev + AI, must avoid decision fatigue and context switching
 
@@ -210,6 +210,11 @@
   - Anthropic: topK, thinking.budgetTokens, cacheControl, etc.
   - Gemini: topK, safetySettings, thinking_level (Gemini 3.0 Pro), etc.
   - OpenRouter: minP, topA, typicalP, repetitionPenalty, etc.
+- [ ] **Task 2.16**: Implement thinking/reasoning model runtime handling in `LLMInvoker`
+  - When thinking enabled: add minimum token buffer (1024+)
+  - When thinking enabled: disable temperature/top_p/top_k (APIs reject mixed params)
+  - Strip `<thinking>` tags from final output (or route to stealth handling)
+  - Reference: SillyTavern's `chat-completions.js` thinking parameter handling
 
 ### Sprint 3: Slash Commands for BYOK (3-4 sessions)
 
@@ -296,6 +301,19 @@
 - [ ] **Task 5.3**: Birthday awareness (use Personality.birthday)
   - Personalities can reference their birthday in responses
   - Time-aware responses using User.timezone
+- [ ] **Task 5.4**: Author's Note / Depth Prompting
+  - Inject style reminders at variable depth (2-4 messages from bottom) not just top
+  - Combats "Lost in the Middle" syndrome in long conversations
+  - Simple `PromptBuilder` change (~20 lines)
+- [ ] **Task 5.5**: Define `SkillDefinition` interface and `SkillRegistry` (groundwork)
+  - Create `services/ai-worker/src/skills/interfaces.ts`
+  - Define: name, description, parameters, isStealth, autoMemorize
+  - No runtime cost - just architectural foundation for Sprint 8
+- [ ] **Task 5.6**: Expand response cleanup to configurable regex pipeline
+  - Current: `responseCleanup.ts` → `stripPersonalityPrefix()` removes `Character: [timestamp]`
+  - Add: Configurable regex rules (per personality or global)
+  - Add: `<thinking>` tag removal integrated with Task 2.16
+  - Reference: SillyTavern's `regex/engine.js`
 
 ### Sprint 6: V2 Feature Parity - Core Systems (4-6 sessions)
 
@@ -362,22 +380,50 @@
 - [ ] **Task 7.9**: Run parallel systems (old + new) for validation
 - [ ] **Task 7.10**: Cut over to OpenMemory, deprecate old system
 
-### Sprint 8: Agentic Features (5-8 sessions)
+### Sprint 8: Agentic Features (8-12 sessions, expanded)
 
-**Why**: Natural extension of sophisticated memory - let personalities be more autonomous.
+**Why**: Natural extension of sophisticated memory - let personalities be more autonomous. Builds on Skill groundwork from Sprint 5.
 
-- [ ] **Task 8.1**: Toolbox system (personalities can use tools)
-  - Search memory
-  - Create waypoints
-  - Reflect on conversations
-- [ ] **Task 8.2**: "Free Will" loop (unsolicited personality actions)
+**Reference**: SillyTavern's `tool-calling.js`, `scrapers.js` patterns
+
+**Skill System Implementation** (builds on Task 5.5 groundwork):
+
+- [ ] **Task 8.1**: Implement `SkillRegistry` for loading/retrieving skills
+  - Register skills at startup
+  - Retrieve by name for execution
+  - Folder: `services/ai-worker/src/skills/`
+- [ ] **Task 8.2**: Implement agentic loop in `ConversationalRAGService`
+  - Handle `finish_reason === 'tool_calls'` with recursion
+  - Execute skill → append result to context → call LLM again
+  - MAX_STEPS limit (3-5) to prevent infinite loops
+- [ ] **Task 8.3**: Stealth reasoning support
+  - Tool calls visible to LLM context but NOT saved to `conversation_history`
+  - Keeps user-facing chat clean while AI reasons behind the scenes
+  - `isStealth` flag on SkillDefinition
+
+**Skills Implementation**:
+
+- [ ] **Task 8.4**: Web Research skill (the "learning" implementation)
+  - Search via DuckDuckGo (`duck-duck-scrape`) or similar
+  - `autoMemorize: true` → results written to LongTermMemory with `LORE_RESEARCH` tag
+  - Enables characters to research post-cutoff info (e.g., Hazbin Hotel S2)
+- [ ] **Task 8.5**: URL Scraper skill
+  - User pastes link → AI fetches, reads, and summarizes content
+  - Optional memory storage for future reference
+- [ ] **Task 8.6**: Memory Search skill (internal tool for AI)
+  - AI can explicitly search its own memories
+  - Different from automatic RAG retrieval
+
+**Autonomy & Commands**:
+
+- [ ] **Task 8.7**: "Free Will" loop (unsolicited personality actions)
   - Check-in messages
   - Spontaneous reflections
-  - Memory consolidation
-- [ ] **Task 8.3**: Memory management commands
-  - `/memory search <query>`
-  - `/memory prune <threshold>`
-  - `/memory stats`
+  - Memory consolidation triggers
+- [ ] **Task 8.8**: Memory management slash commands
+  - `/memory search <query>` - User searches personality's memories
+  - `/memory prune <threshold>` - Clean low-relevance memories
+  - `/memory stats` - Show memory counts and health
 
 ### Sprint 9: Advanced Features (Variable - as desired)
 
@@ -390,11 +436,18 @@
 - [ ] **Task 9.2**: Multi-Personality Response
   - `@Lilith @Sarcastic hey both of you` → Both respond
   - Complex conversation history tracking
-- [ ] **Task 9.3**: PluralKit Proxy Support
+- [ ] **Task 9.3**: Natural Order Group Orchestration (for group chats)
+  - Deterministic speaker selection WITHOUT expensive LLM router calls
+  - **Heuristics** (from SillyTavern's `group-chats.js`):
+    - Direct mention detection: "Hey Alastor" → Alastor responds
+    - Talkativeness RNG: Each personality has `talkativeness` score (0-1)
+    - Anti-repetition: Deprioritize last speaker
+  - Enables organic multi-personality conversations at low cost
+- [ ] **Task 9.4**: PluralKit Proxy Support
   - Detect PluralKit proxies
   - Link system members to Discord users
   - Simplified vs v2's elaborate system
-- [ ] **Task 9.4**: Release Notifications
+- [ ] **Task 9.5**: Release Notifications
   - Notify about bot updates
   - Port from v2
 
@@ -410,6 +463,17 @@
 
 **Rule**: If you have an idea, it goes here. Close all other tabs/docs. Resist the shiny object.
 
+**From SillyTavern Analysis (2025-11-24)**:
+- Character Card Import (V2/V3 PNG community format) - read personality data from PNG metadata
+- Local Embeddings (`@xenova/transformers`) - eliminate OpenAI embedding costs
+- OpenRouter Embeddings - simplify setup by using OpenRouter for embeddings too
+- Robust Chat Templates - better local model support (Llama, Mistral via Ollama)
+- Slash Command Piping - output of one command feeds another (`/search | /summarize`)
+- Lorebooks / Sticky Context - deterministic keyword-triggered lore (complements OpenMemory)
+  - Logic gates: AND_ANY, NOT_ALL for precise context injection
+  - Timed effects: "Sticky" (stays X turns), "Cooldown" (can't retrigger for Y turns)
+
+**Original Ideas**:
 - Streaming responses (real-time message updates)
 - Metrics & monitoring (Prometheus)
 - Advanced caching strategies
@@ -533,6 +597,7 @@
 
 - [docs/architecture/llm-hyperparameters-research.md](docs/architecture/llm-hyperparameters-research.md) - Advanced LLM parameters (validated)
 - [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
+- [docs/architecture/sillytavern-patterns.md](docs/architecture/sillytavern-patterns.md) - Implementation patterns from SillyTavern (Sprint 5, 8, 9)
 
 ---
 
