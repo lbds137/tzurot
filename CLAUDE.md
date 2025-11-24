@@ -635,20 +635,22 @@ New developers should run `./scripts/git/install-hooks.sh` after cloning the rep
 
 **Commands** (run from project root):
 
-| Command | Description |
-|---------|-------------|
-| `pnpm test:coverage` | Run coverage for ALL services/packages |
-| `pnpm --filter @tzurot/api-gateway test:coverage` | Coverage for specific service |
-| `pnpm --filter @tzurot/bot-client test:coverage` | Coverage for bot-client |
-| `pnpm --filter @tzurot/ai-worker test:coverage` | Coverage for ai-worker |
-| `pnpm --filter @tzurot/common-types test:coverage` | Coverage for common-types |
+| Command                                            | Description                            |
+| -------------------------------------------------- | -------------------------------------- |
+| `pnpm test:coverage`                               | Run coverage for ALL services/packages |
+| `pnpm --filter @tzurot/api-gateway test:coverage`  | Coverage for specific service          |
+| `pnpm --filter @tzurot/bot-client test:coverage`   | Coverage for bot-client                |
+| `pnpm --filter @tzurot/ai-worker test:coverage`    | Coverage for ai-worker                 |
+| `pnpm --filter @tzurot/common-types test:coverage` | Coverage for common-types              |
 
 **Reading coverage output**:
+
 - **Console**: Text summary with % Stmts, % Branch, % Funcs, % Lines columns
 - **HTML**: Open `<service>/coverage/index.html` in browser for detailed view
 - **JSON**: `<service>/coverage/coverage-final.json` for programmatic access
 
 **Important notes**:
+
 - Running `pnpm test:coverage` generates **separate** reports per service (not a unified report)
 - Coverage runs are slower than regular tests
 - Look for files with <70% statement coverage as priority for improvement

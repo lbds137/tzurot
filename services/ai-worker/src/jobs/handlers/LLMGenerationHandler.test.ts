@@ -131,7 +131,9 @@ describe('LLMGenerationHandler', () => {
         } as any;
         const job = { id: 'job-invalid', data: invalidJobData } as Job<LLMGenerationJobData>;
 
-        await expect(handler.processJob(job)).rejects.toThrow('LLM generation job validation failed');
+        await expect(handler.processJob(job)).rejects.toThrow(
+          'LLM generation job validation failed'
+        );
       });
 
       it('should reject job with invalid personality structure', async () => {
@@ -141,9 +143,14 @@ describe('LLMGenerationHandler', () => {
             // Missing required fields like id, systemPrompt, model, etc.
           } as any,
         });
-        const job = { id: 'job-invalid-personality', data: invalidJobData } as Job<LLMGenerationJobData>;
+        const job = {
+          id: 'job-invalid-personality',
+          data: invalidJobData,
+        } as Job<LLMGenerationJobData>;
 
-        await expect(handler.processJob(job)).rejects.toThrow('LLM generation job validation failed');
+        await expect(handler.processJob(job)).rejects.toThrow(
+          'LLM generation job validation failed'
+        );
       });
     });
 
@@ -197,7 +204,9 @@ describe('LLMGenerationHandler', () => {
         expect(result.success).toBe(true);
         expect(mockGetJobResult).toHaveBeenCalledWith('audio-001');
         expect(job.data.__preprocessedAttachments).toContain('Audio Transcriptions');
-        expect(job.data.__preprocessedAttachments).toContain('This is the transcribed audio content.');
+        expect(job.data.__preprocessedAttachments).toContain(
+          'This is the transcribed audio content.'
+        );
       });
 
       it('should process image description dependencies', async () => {
@@ -348,7 +357,11 @@ describe('LLMGenerationHandler', () => {
             serverId: 'server-012',
             sessionId: 'session-xyz',
             conversationHistory: [
-              { role: 'user' as any, content: 'Previous message', createdAt: '2025-01-01T12:00:00Z' },
+              {
+                role: 'user' as any,
+                content: 'Previous message',
+                createdAt: '2025-01-01T12:00:00Z',
+              },
             ],
           },
         });
@@ -447,7 +460,7 @@ describe('LLMGenerationHandler', () => {
         expect(mockExtractParticipants).toHaveBeenCalledWith(
           jobData.context.conversationHistory,
           undefined, // activePersonaId
-          undefined  // activePersonaName
+          undefined // activePersonaName
         );
       });
 
@@ -457,9 +470,7 @@ describe('LLMGenerationHandler', () => {
             userId: 'user-456',
             userName: 'TestUser',
             channelId: 'channel-789',
-            conversationHistory: [
-              { role: 'user' as any, content: 'Test message' },
-            ],
+            conversationHistory: [{ role: 'user' as any, content: 'Test message' }],
           },
         });
         const job = { id: 'job-convert', data: jobData } as Job<LLMGenerationJobData>;
