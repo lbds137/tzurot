@@ -256,7 +256,7 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getRecentHistory', () => {
     it('should return messages in chronological order (oldest first)', async () => {
-      // Add messages with small delays to ensure ordering
+      // Sequential awaits ensure created_at timestamps preserve insertion order
       await service.addMessage(
         testChannelId,
         testPersonalityId,
