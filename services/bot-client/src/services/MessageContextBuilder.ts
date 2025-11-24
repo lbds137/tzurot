@@ -23,6 +23,7 @@ import type {
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
+import { extractEmbedImages } from '../utils/embedImageExtractor.js';
 import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 
 const logger = createLogger('MessageContextBuilder');
@@ -179,8 +180,15 @@ export class MessageContextBuilder {
       personaName: msg.personaName,
     }));
 
-    // Extract attachments (images, audio, etc)
-    const attachments = extractAttachments(message.attachments);
+    // Extract attachments (images, audio, etc) from direct attachments
+    const regularAttachments = extractAttachments(message.attachments);
+
+    // Extract images from embeds (e.g., Reddit links with images)
+    const embedImages = extractEmbedImages(message.embeds);
+
+    // Combine both types of attachments
+    const allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
+    const attachments = allAttachments.length > 0 ? allAttachments : undefined;
 
     // Extract Discord environment context
     const environment = extractDiscordEnvironment(message);
