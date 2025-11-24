@@ -172,21 +172,23 @@ describe('POST /admin/personality', () => {
     });
     prisma.llmConfig.findFirst.mockResolvedValue(null);
 
-    const response = await request(app).post('/admin/personality').send({
-      name: 'Test Bot',
-      slug: 'test-bot',
-      characterInfo: 'A helpful assistant',
-      personalityTraits: 'Friendly',
-      displayName: 'My Test Bot',
-      personalityTone: 'casual',
-      personalityAge: '25',
-      personalityAppearance: 'Tall and friendly',
-      personalityLikes: 'Coding',
-      personalityDislikes: 'Bugs',
-      conversationalGoals: 'Help users',
-      conversationalExamples: 'Hello!',
-      customFields: { theme: 'dark' },
-    });
+    const response = await request(app)
+      .post('/admin/personality')
+      .send({
+        name: 'Test Bot',
+        slug: 'test-bot',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        displayName: 'My Test Bot',
+        personalityTone: 'casual',
+        personalityAge: '25',
+        personalityAppearance: 'Tall and friendly',
+        personalityLikes: 'Coding',
+        personalityDislikes: 'Bugs',
+        conversationalGoals: 'Help users',
+        conversationalExamples: 'Hello!',
+        customFields: { theme: 'dark' },
+      });
 
     expect(response.status).toBe(201);
     expect(response.body.success).toBe(true);
@@ -217,13 +219,15 @@ describe('POST /admin/personality', () => {
   it('should reject customFields as array', async () => {
     prisma.personality.findUnique.mockResolvedValue(null);
 
-    const response = await request(app).post('/admin/personality').send({
-      name: 'Test Bot',
-      slug: 'test-bot',
-      characterInfo: 'A helpful assistant',
-      personalityTraits: 'Friendly',
-      customFields: ['array', 'not', 'allowed'],
-    });
+    const response = await request(app)
+      .post('/admin/personality')
+      .send({
+        name: 'Test Bot',
+        slug: 'test-bot',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        customFields: ['array', 'not', 'allowed'],
+      });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBeDefined();
@@ -262,7 +266,8 @@ describe('POST /admin/personality', () => {
         slug: 'test-bot-avatar',
         characterInfo: 'A helpful assistant',
         personalityTraits: 'Friendly',
-        avatarData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        avatarData:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
       });
 
       expect(response.status).toBe(201);
