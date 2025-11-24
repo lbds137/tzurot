@@ -1,0 +1,231 @@
+/**
+ * Tests for Validation Utilities
+ */
+
+import { describe, it, expect } from 'vitest';
+import {
+  validateSlug,
+  validateCustomFields,
+  validateRequired,
+  validateStringLength,
+} from './validators.js';
+
+describe('validators', () => {
+  describe('validateSlug', () => {
+    it('should accept valid lowercase slug', () => {
+      const result = validateSlug('my-personality');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept slug with numbers', () => {
+      const result = validateSlug('bot-v2');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept single character slug', () => {
+      const result = validateSlug('a');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept slug at max length (64 chars)', () => {
+      const result = validateSlug('a'.repeat(64));
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject empty slug', () => {
+      const result = validateSlug('');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('between 1 and 64');
+      }
+    });
+
+    it('should reject slug exceeding 64 characters', () => {
+      const result = validateSlug('a'.repeat(65));
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('between 1 and 64');
+      }
+    });
+
+    it('should reject uppercase letters', () => {
+      const result = validateSlug('MyPersonality');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('lowercase');
+      }
+    });
+
+    it('should reject spaces', () => {
+      const result = validateSlug('my personality');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('lowercase');
+      }
+    });
+
+    it('should reject underscores', () => {
+      const result = validateSlug('my_personality');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('lowercase');
+      }
+    });
+
+    it('should reject special characters', () => {
+      const result = validateSlug('my@personality!');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('lowercase');
+      }
+    });
+  });
+
+  describe('validateCustomFields', () => {
+    it('should accept undefined', () => {
+      const result = validateCustomFields(undefined);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept null', () => {
+      const result = validateCustomFields(null);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept empty object', () => {
+      const result = validateCustomFields({});
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept object with string values', () => {
+      const result = validateCustomFields({ key: 'value', another: 'test' });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept object with mixed value types', () => {
+      const result = validateCustomFields({
+        string: 'value',
+        number: 42,
+        bool: true,
+        nested: { a: 1 },
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject non-object values (string)', () => {
+      const result = validateCustomFields('not an object');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('Invalid customFields');
+      }
+    });
+
+    it('should reject non-object values (number)', () => {
+      const result = validateCustomFields(42);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('Invalid customFields');
+      }
+    });
+
+    it('should reject non-object values (array)', () => {
+      const result = validateCustomFields(['a', 'b']);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('Invalid customFields');
+      }
+    });
+  });
+
+  describe('validateRequired', () => {
+    it('should accept non-empty string', () => {
+      const result = validateRequired('value', 'fieldName');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept number zero', () => {
+      const result = validateRequired(0, 'fieldName');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept false boolean', () => {
+      const result = validateRequired(false, 'fieldName');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept object', () => {
+      const result = validateRequired({ key: 'value' }, 'fieldName');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject undefined', () => {
+      const result = validateRequired(undefined, 'myField');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('myField is required');
+      }
+    });
+
+    it('should reject null', () => {
+      const result = validateRequired(null, 'myField');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('myField is required');
+      }
+    });
+
+    it('should reject empty string', () => {
+      const result = validateRequired('', 'myField');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('myField is required');
+      }
+    });
+  });
+
+  describe('validateStringLength', () => {
+    it('should accept string within bounds', () => {
+      const result = validateStringLength('hello', 'name', 1, 10);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept string at minimum length', () => {
+      const result = validateStringLength('a', 'name', 1, 10);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept string at maximum length', () => {
+      const result = validateStringLength('a'.repeat(10), 'name', 1, 10);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject string below minimum', () => {
+      const result = validateStringLength('', 'name', 1, 10);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('between 1 and 10');
+      }
+    });
+
+    it('should reject string above maximum', () => {
+      const result = validateStringLength('a'.repeat(11), 'name', 1, 10);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('between 1 and 10');
+      }
+    });
+
+    it('should include field name in error message', () => {
+      const result = validateStringLength('', 'displayName', 1, 100);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('displayName');
+      }
+    });
+
+    it('should handle zero minimum', () => {
+      const result = validateStringLength('', 'optional', 0, 100);
+      expect(result.valid).toBe(true);
+    });
+  });
+});

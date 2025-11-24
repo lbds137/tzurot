@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
-description: Comprehensive testing patterns for Tzurot v3 - Vitest configuration, fake timers, promise handling, mocking strategies, and test organization. Use this when writing or modifying tests.
-lastUpdated: '2025-11-19'
+description: Comprehensive testing patterns for Tzurot v3 - Vitest configuration, fake timers, promise handling, mocking strategies, test organization, and coverage commands. Use this when writing or modifying tests.
+lastUpdated: '2025-11-24'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -465,6 +465,78 @@ pnpm test 2>&1 | grep -E "(Test Files|Tests)" | sed 's/\x1b\[[0-9;]*m//g'
 # 3. If all green, safe to push
 git push origin <branch-name>
 ```
+
+## Test Coverage
+
+### Coverage Commands
+
+```bash
+# Run coverage for ALL services/packages
+pnpm test:coverage
+
+# Run coverage for a specific service
+pnpm --filter @tzurot/api-gateway test:coverage
+pnpm --filter @tzurot/bot-client test:coverage
+pnpm --filter @tzurot/ai-worker test:coverage
+pnpm --filter @tzurot/common-types test:coverage
+```
+
+### Coverage Configuration
+
+- **Provider:** v8 (via `@vitest/coverage-v8`)
+- **Config:** Root `vitest.config.ts` defines coverage settings
+- **Reporters:** text (console), json, html, lcov
+- **All mode:** `all: true` includes files even without tests
+
+### Coverage Output
+
+Each service generates its own coverage report in `<service>/coverage/`:
+
+```
+services/api-gateway/coverage/
+├── coverage-final.json    # Programmatic access (used by CI)
+├── index.html             # HTML report (open in browser)
+├── lcov.info              # LCOV format (for CI tools like Codecov)
+└── src/                   # Per-file HTML reports
+```
+
+**Important:** Coverage files are NOT committed (`.gitignore` excludes `coverage/`).
+
+### Reading the Console Output
+
+```
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   84.84 |    78.12 |   89.47 |   84.84 |
+ src/services      |   91.60 |    81.57 |   94.59 |   91.47 |
+  MyService.ts     |   95.65 |    80.76 |     100 |   95.49 | 42,249-250,277
+-------------------|---------|----------|---------|---------|-------------------
+```
+
+- **% Stmts:** Statement coverage (primary metric)
+- **% Branch:** Branch coverage (if/else paths)
+- **% Funcs:** Function coverage
+- **% Lines:** Line coverage
+- **Uncovered Line #s:** Specific lines without coverage
+
+### Coverage Targets
+
+| File Type | Target | Priority |
+|-----------|--------|----------|
+| Services | >80% | High |
+| Utils | >90% | High (pure functions) |
+| Routes | >70% | Medium |
+| Types/Interfaces | N/A | None needed |
+
+### Finding Coverage Gaps
+
+```bash
+# Run coverage and look for files < 70%
+pnpm --filter @tzurot/api-gateway test:coverage 2>&1 | grep -E "^\s+\S+\.ts\s+\|\s+[0-6][0-9]\."
+```
+
+Files with <70% statement coverage should be prioritized for improvement.
 
 ## Anti-Patterns to Avoid
 
