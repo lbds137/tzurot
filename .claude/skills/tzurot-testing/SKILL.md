@@ -522,12 +522,12 @@ All files          |   84.84 |    78.12 |   89.47 |   84.84 |
 
 ### Coverage Targets
 
-| File Type | Target | Priority |
-|-----------|--------|----------|
-| Services | >80% | High |
-| Utils | >90% | High (pure functions) |
-| Routes | >70% | Medium |
-| Types/Interfaces | N/A | None needed |
+| File Type        | Target | Priority              |
+| ---------------- | ------ | --------------------- |
+| Services         | >80%   | High                  |
+| Utils            | >90%   | High (pure functions) |
+| Routes           | >70%   | Medium                |
+| Types/Interfaces | N/A    | None needed           |
 
 ### Finding Coverage Gaps
 
