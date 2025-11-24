@@ -99,8 +99,8 @@ const tools = this.skillRegistry.getDefinitions().map(s => ({
   function: {
     name: s.name,
     description: s.description,
-    parameters: s.parameters
-  }
+    parameters: s.parameters,
+  },
 }));
 
 // 2. Initial LLM call
@@ -120,17 +120,21 @@ while (response.tool_calls?.length > 0 && steps < MAX_STEPS) {
     const skill = this.skillRegistry.getImplementation(toolCall.name);
 
     if (skill) {
-      const result = await skill.execute(
-        JSON.parse(toolCall.args),
-        { userId, personalityId, memoryService, logger }
-      );
+      const result = await skill.execute(JSON.parse(toolCall.args), {
+        userId,
+        personalityId,
+        memoryService,
+        logger,
+      });
 
       // Add tool result to history
-      messages.push(new ToolMessage({
-        tool_call_id: toolCall.id,
-        content: result,
-        name: toolCall.name
-      }));
+      messages.push(
+        new ToolMessage({
+          tool_call_id: toolCall.id,
+          content: result,
+          name: toolCall.name,
+        })
+      );
     }
   }
 
@@ -145,6 +149,7 @@ return response.content;
 ### Stealth Handling
 
 For `isStealth: true` skills:
+
 - Tool calls ARE included in `messages` array (LLM context)
 - Tool calls are NOT saved to `conversation_history` table
 - User only sees the final response
@@ -166,7 +171,8 @@ import { search } from 'duck-duck-scrape'; // pnpm add duck-duck-scrape
 export const WebResearchSkill: SkillImplementation = {
   definition: {
     name: 'web_research',
-    description: 'Search the internet for current information about media, lore, or events after your training cutoff.',
+    description:
+      'Search the internet for current information about media, lore, or events after your training cutoff.',
     isStealth: true,
     autoMemorize: true,
     parameters: {
@@ -176,11 +182,11 @@ export const WebResearchSkill: SkillImplementation = {
         focus: {
           type: 'string',
           enum: ['general', 'news', 'wiki'],
-          description: 'Content type to prioritize'
-        }
+          description: 'Content type to prioritize',
+        },
       },
-      required: ['query']
-    }
+      required: ['query'],
+    },
   },
 
   execute: async ({ query, focus }, context) => {
@@ -193,10 +199,11 @@ export const WebResearchSkill: SkillImplementation = {
     const topResults = results.results.slice(0, 5).map(r => ({
       title: r.title,
       description: r.description,
-      url: r.url
+      url: r.url,
     }));
 
-    const summary = `Search Results for "${query}":\n` +
+    const summary =
+      `Search Results for "${query}":\n` +
       topResults.map(r => `- [${r.title}](${r.url}): ${r.description}`).join('\n');
 
     // Auto-memorize (the "learning" step)
@@ -211,13 +218,14 @@ export const WebResearchSkill: SkillImplementation = {
     }
 
     return summary;
-  }
+  },
 };
 ```
 
 ### Use Case
 
 User asks Alastor about Hazbin Hotel Season 2:
+
 1. LLM realizes it doesn't know → calls `web_research`
 2. Backend searches, summarizes results
 3. `autoMemorize: true` → embedded into vector DB
@@ -245,7 +253,7 @@ if (useThinking && Number.isInteger(budgetTokens)) {
 
   requestBody.thinking = {
     type: 'enabled',
-    budget_tokens: budgetTokens
+    budget_tokens: budgetTokens,
   };
 
   // CRITICAL: Remove sampling parameters (API rejects them with thinking)
@@ -263,8 +271,8 @@ if (isGeminiThinkingModel(modelName)) {
   requestBody.generationConfig = {
     ...requestBody.generationConfig,
     thinkingConfig: {
-      thinkingBudget: budgetTokens
-    }
+      thinkingBudget: budgetTokens,
+    },
   };
 }
 ```
@@ -315,7 +323,7 @@ insertAuthorsNote(
 
 ```typescript
 // Example: Ensure Alastor maintains radio host style
-const authorsNote = "Remember: Alastor speaks in 1930s radio host style with theatrical flair.";
+const authorsNote = 'Remember: Alastor speaks in 1930s radio host style with theatrical flair.';
 messages = this.insertAuthorsNote(messages, authorsNote, 3);
 ```
 
@@ -348,29 +356,25 @@ const defaultRules: RegexRule[] = [
     pattern: /^[\w\s]+:\s*\[.*?\]\s*/,
     replacement: '',
     enabled: true,
-    scope: 'global'
+    scope: 'global',
   },
   {
     name: 'strip_thinking_tags',
     pattern: /<thinking>[\s\S]*?<\/thinking>/gi,
     replacement: '',
     enabled: true,
-    scope: 'global'
+    scope: 'global',
   },
   {
     name: 'italicize_actions',
     pattern: /\*([^*]+)\*/g,
     replacement: '_$1_', // Discord italic format
     enabled: false,
-    scope: 'global'
-  }
+    scope: 'global',
+  },
 ];
 
-function applyRegexPipeline(
-  content: string,
-  rules: RegexRule[],
-  personalityId?: string
-): string {
+function applyRegexPipeline(content: string, rules: RegexRule[], personalityId?: string): string {
   for (const rule of rules) {
     if (!rule.enabled) continue;
     if (rule.scope !== 'global' && !rule.scope.includes(personalityId)) continue;
@@ -457,13 +461,13 @@ Use lorebooks for critical facts that MUST be present.
 ```typescript
 interface LoreEntry {
   id: string;
-  keywords: string[];           // Primary triggers
+  keywords: string[]; // Primary triggers
   secondaryKeywords?: string[]; // Filter keywords
   selectiveLogic?: 'AND_ANY' | 'NOT_ANY' | 'AND_ALL' | 'NOT_ALL';
   content: string;
-  sticky?: number;    // Stay active for N turns after trigger
-  cooldown?: number;  // Can't retrigger for N turns
-  priority: number;   // Insertion order
+  sticky?: number; // Stay active for N turns after trigger
+  cooldown?: number; // Can't retrigger for N turns
+  priority: number; // Insertion order
 }
 
 interface TimedEffect {
@@ -487,28 +491,25 @@ function shouldActivate(
   }
 
   // Primary keyword check
-  const hasPrimary = entry.keywords.some(k =>
-    inputWords.includes(k.toLowerCase())
-  );
+  const hasPrimary = entry.keywords.some(k => inputWords.includes(k.toLowerCase()));
   if (!hasPrimary) return false;
 
   // Secondary keyword logic
   if (!entry.secondaryKeywords?.length) return true;
 
-  const hasSecondary = entry.secondaryKeywords.some(k =>
-    inputWords.includes(k.toLowerCase())
-  );
+  const hasSecondary = entry.secondaryKeywords.some(k => inputWords.includes(k.toLowerCase()));
 
   switch (entry.selectiveLogic) {
-    case 'AND_ANY': return hasSecondary;
-    case 'NOT_ANY': return !hasSecondary;
-    case 'AND_ALL': return entry.secondaryKeywords.every(k =>
-      inputWords.includes(k.toLowerCase())
-    );
-    case 'NOT_ALL': return !entry.secondaryKeywords.every(k =>
-      inputWords.includes(k.toLowerCase())
-    );
-    default: return true;
+    case 'AND_ANY':
+      return hasSecondary;
+    case 'NOT_ANY':
+      return !hasSecondary;
+    case 'AND_ALL':
+      return entry.secondaryKeywords.every(k => inputWords.includes(k.toLowerCase()));
+    case 'NOT_ALL':
+      return !entry.secondaryKeywords.every(k => inputWords.includes(k.toLowerCase()));
+    default:
+      return true;
   }
 }
 ```
@@ -516,6 +517,7 @@ function shouldActivate(
 ### Use Case
 
 Entry: "Evil King" (keywords: ["king"], secondaryKeywords: ["throne room"], logic: AND_ANY)
+
 - User says "Tell me about the king" in throne room → Entry activates
 - User says "Tell me about the king" elsewhere → Entry doesn't activate
 
@@ -559,6 +561,7 @@ export function parseCharacterCard(imageBuffer: Buffer): CharacterData {
 ### Character Data Mapping
 
 Map V2/V3 fields to Tzurot Personality schema:
+
 - `name` → `Personality.name`
 - `description` → `Personality.systemPrompt` (partial)
 - `personality` → `Personality.systemPrompt` (partial)
@@ -624,9 +627,9 @@ SillyTavern hashes the model's `chat_template` to identify format:
 
 ```typescript
 const TEMPLATE_HASHES: Record<string, string> = {
-  'llama3': 'abc123...',
+  llama3: 'abc123...',
   'mistral-v3': 'def456...',
-  'chatml': 'ghi789...',
+  chatml: 'ghi789...',
   // etc.
 };
 
@@ -642,8 +645,8 @@ function detectTemplate(chatTemplateString: string): string {
 interface InstructPreset {
   name: string;
   system_sequence: string;
-  input_sequence: string;   // User prefix
-  output_sequence: string;  // Assistant prefix
+  input_sequence: string; // User prefix
+  output_sequence: string; // Assistant prefix
   separator: string;
   stop_sequence: string[];
 }
@@ -654,7 +657,7 @@ const LLAMA3_PRESET: InstructPreset = {
   input_sequence: '<|start_header_id|>user<|end_header_id|>\n\n',
   output_sequence: '<|start_header_id|>assistant<|end_header_id|>\n\n',
   separator: '<|eot_id|>',
-  stop_sequence: ['<|eot_id|>', '<|end_of_text|>']
+  stop_sequence: ['<|eot_id|>', '<|end_of_text|>'],
 };
 ```
 
@@ -676,10 +679,7 @@ Chain commands with pipe operator:
 ### Implementation Sketch
 
 ```typescript
-async function executeCommandPipeline(
-  input: string,
-  context: CommandContext
-): Promise<string> {
+async function executeCommandPipeline(input: string, context: CommandContext): Promise<string> {
   const commands = input.split('|').map(c => c.trim());
   let result = '';
 
@@ -703,20 +703,20 @@ async function executeCommandPipeline(
 
 ## Quick Reference: What Goes Where
 
-| Feature | Sprint | Task | Priority |
-|---------|--------|------|----------|
-| Skill Interface | 5 | 5.5 | Foundation |
-| Regex Pipeline | 5 | 5.6 | Foundation |
-| Author's Note | 5 | 5.4 | Quick Win |
-| Thinking Models | 2 | 2.16 | BYOK Support |
-| Skill Registry | 8 | 8.1 | Agentic Core |
-| Agentic Loop | 8 | 8.2 | Agentic Core |
-| Stealth Reasoning | 8 | 8.3 | Agentic Core |
-| Web Research | 8 | 8.4 | Key Feature |
-| URL Scraper | 8 | 8.5 | Key Feature |
-| Natural Order | 9 | 9.3 | Group Chats |
-| Lorebooks | Icebox | - | OpenMemory+ |
-| Character Cards | Icebox | - | Community |
-| Local Embeddings | Icebox | - | Cost Savings |
-| Chat Templates | Icebox | - | Local Models |
-| Command Piping | Icebox | - | Power Users |
+| Feature           | Sprint | Task | Priority     |
+| ----------------- | ------ | ---- | ------------ |
+| Skill Interface   | 5      | 5.5  | Foundation   |
+| Regex Pipeline    | 5      | 5.6  | Foundation   |
+| Author's Note     | 5      | 5.4  | Quick Win    |
+| Thinking Models   | 2      | 2.16 | BYOK Support |
+| Skill Registry    | 8      | 8.1  | Agentic Core |
+| Agentic Loop      | 8      | 8.2  | Agentic Core |
+| Stealth Reasoning | 8      | 8.3  | Agentic Core |
+| Web Research      | 8      | 8.4  | Key Feature  |
+| URL Scraper       | 8      | 8.5  | Key Feature  |
+| Natural Order     | 9      | 9.3  | Group Chats  |
+| Lorebooks         | Icebox | -    | OpenMemory+  |
+| Character Cards   | Icebox | -    | Community    |
+| Local Embeddings  | Icebox | -    | Cost Savings |
+| Chat Templates    | Icebox | -    | Local Models |
+| Command Piping    | Icebox | -    | Power Users  |
