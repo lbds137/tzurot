@@ -129,15 +129,18 @@
 
 **Why Testing First**: Cannot safely refactor schema without tests. This is the safety net.
 
-- [ ] **Task 1.1**: Write tests for `LlmConfig` parsing and retrieval
-- [ ] **Task 1.2**: Write tests for `Personality` loading and mention detection
-- [ ] **Task 1.3**: Write tests for `ConversationManager` (158 lines - next target)
-- [ ] **Task 1.4**: Write tests for `CommandHandler` (149 lines - slash command routing)
-- [ ] **Task 1.5**: Add component test for `ConversationHistoryService`
-  - Currently only has unit test (mocked Prisma)
-  - Add component test with PGlite for real DB operations
-  - Test conversation history CRUD, pagination, cleanup
-  - **Why**: From PR review feedback - critical service for Phase 1 schema changes
+- [x] **Task 1.1**: Write tests for `LlmConfig` parsing and retrieval
+  - ✅ Already covered: 25 tests in `PersonalityValidator.test.ts` (LlmConfigSchema)
+- [x] **Task 1.2**: Write tests for `Personality` loading and mention detection
+  - ✅ Already covered: 35+ tests across `PersonalityLoader.test.ts`, `personalityMentionParser.test.ts`, `PersonalityMentionProcessor.test.ts`, `PersonalityService.test.ts`
+- [x] **Task 1.3**: Write tests for `ConversationManager` (158 lines - next target)
+  - ✅ Created: `ConversationManager.test.ts` (23 tests)
+- [x] **Task 1.4**: Write tests for `CommandHandler` (149 lines - slash command routing)
+  - ✅ Already covered: 14 tests in `CommandHandler.test.ts`
+- [x] **Task 1.5**: Add component test for `ConversationHistoryService`
+  - ✅ Created: `ConversationHistoryService.component.test.ts` (25 tests)
+  - Uses PGlite for real PostgreSQL testing
+  - Tests: addMessage, getRecentHistory, pagination, updateLastUserMessage, updateLastAssistantMessageId, getMessageByDiscordId, clearHistory, cleanupOldHistory
 
 ### Sprint 2: BYOK Schema Migration (9-13 sessions, increased from 7-10)
 
@@ -464,6 +467,7 @@
 **Rule**: If you have an idea, it goes here. Close all other tabs/docs. Resist the shiny object.
 
 **From SillyTavern Analysis (2025-11-24)**:
+
 - Character Card Import (V2/V3 PNG community format) - read personality data from PNG metadata
 - Local Embeddings (`@xenova/transformers`) - eliminate OpenAI embedding costs
 - OpenRouter Embeddings - simplify setup by using OpenRouter for embeddings too
@@ -474,6 +478,7 @@
   - Timed effects: "Sticky" (stays X turns), "Cooldown" (can't retrigger for Y turns)
 
 **Original Ideas**:
+
 - Streaming responses (real-time message updates)
 - Metrics & monitoring (Prometheus)
 - Advanced caching strategies
