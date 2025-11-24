@@ -26,8 +26,7 @@ function createMockAttachment(
     id,
     url: overrides?.url ?? `https://cdn.discord.com/attachments/123/${id}/file.txt`,
     // Use 'contentType' in overrides check to allow explicit null
-    contentType:
-      overrides && 'contentType' in overrides ? overrides.contentType : 'text/plain',
+    contentType: overrides && 'contentType' in overrides ? overrides.contentType : 'text/plain',
     name: overrides?.name ?? 'file.txt',
     size: overrides?.size ?? 1024,
     duration: overrides?.duration ?? null,
@@ -36,9 +35,7 @@ function createMockAttachment(
 }
 
 // Helper to create collection of attachments
-function createAttachmentCollection(
-  attachments: Attachment[]
-): Collection<Snowflake, Attachment> {
+function createAttachmentCollection(attachments: Attachment[]): Collection<Snowflake, Attachment> {
   const collection = new Collection<Snowflake, Attachment>();
   for (const attachment of attachments) {
     collection.set(attachment.id, attachment);
