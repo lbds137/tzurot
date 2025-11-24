@@ -1,0 +1,540 @@
+/**
+ * Tests for LLM Generation Handler
+ *
+ * Tests the LLM generation job processing including:
+ * - Job validation
+ * - Dependency processing (audio transcriptions, image descriptions)
+ * - Response generation via RAG service
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Job } from 'bullmq';
+import {
+  JobType,
+  JobStatus,
+  type LLMGenerationJobData,
+  type LoadedPersonality,
+  REDIS_KEY_PREFIXES,
+} from '@tzurot/common-types';
+import { LLMGenerationHandler } from './LLMGenerationHandler.js';
+
+// Mock the redis module (dynamic import)
+vi.mock('../../redis.js', () => ({
+  redisService: {
+    getJobResult: vi.fn(),
+  },
+}));
+
+// Mock conversationUtils
+vi.mock('../utils/conversationUtils.js', () => ({
+  extractParticipants: vi.fn(),
+  convertConversationHistory: vi.fn(),
+}));
+
+// Import mocked modules
+import { redisService } from '../../redis.js';
+import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
+
+// Get mocked functions
+const mockGetJobResult = vi.mocked(redisService.getJobResult);
+const mockExtractParticipants = vi.mocked(extractParticipants);
+const mockConvertConversationHistory = vi.mocked(convertConversationHistory);
+
+// Mock RAG service
+function createMockRAGService() {
+  return {
+    generateResponse: vi.fn(),
+  };
+}
+
+/**
+ * Test personality with all required fields per loadedPersonalitySchema
+ */
+const TEST_PERSONALITY: LoadedPersonality = {
+  id: 'personality-123',
+  name: 'TestBot',
+  displayName: 'Test Bot',
+  slug: 'testbot',
+  systemPrompt: 'You are a helpful assistant.',
+  model: 'anthropic/claude-sonnet-4',
+  temperature: 0.7,
+  maxTokens: 2000,
+  contextWindowTokens: 8192,
+  characterInfo: 'A helpful test personality',
+  personalityTraits: 'Helpful, friendly',
+};
+
+// Create minimal valid job data
+function createValidJobData(overrides?: Partial<LLMGenerationJobData>): LLMGenerationJobData {
+  return {
+    requestId: 'test-req-001',
+    jobType: JobType.LLMGeneration,
+    personality: TEST_PERSONALITY,
+    message: 'Hello, how are you?',
+    context: {
+      userId: 'user-456',
+      userName: 'TestUser',
+      channelId: 'channel-789',
+      serverId: 'server-012',
+      sessionId: 'session-xyz',
+    },
+    responseDestination: {
+      type: 'discord',
+      channelId: 'channel-789',
+    },
+    ...overrides,
+  };
+}
+
+describe('LLMGenerationHandler', () => {
+  let handler: LLMGenerationHandler;
+  let mockRAGService: ReturnType<typeof createMockRAGService>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockRAGService = createMockRAGService();
+    handler = new LLMGenerationHandler(mockRAGService as any);
+
+    // Default mock implementations
+    mockExtractParticipants.mockReturnValue([]);
+    mockConvertConversationHistory.mockReturnValue([]);
+    mockRAGService.generateResponse.mockResolvedValue({
+      content: 'Hello! I am doing well, thank you for asking.',
+      retrievedMemories: 0,
+      tokensUsed: 150,
+      modelUsed: 'anthropic/claude-sonnet-4',
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('processJob', () => {
+    describe('job validation', () => {
+      it('should process valid job data successfully', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-001', data: jobData } as Job<LLMGenerationJobData>;
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+        expect(result.requestId).toBe('test-req-001');
+        expect(result.content).toBe('Hello! I am doing well, thank you for asking.');
+      });
+
+      it('should reject job with missing required fields', async () => {
+        const invalidJobData = {
+          requestId: 'test-req-invalid',
+          // Missing jobType, personality, message, context, etc.
+        } as any;
+        const job = { id: 'job-invalid', data: invalidJobData } as Job<LLMGenerationJobData>;
+
+        await expect(handler.processJob(job)).rejects.toThrow('LLM generation job validation failed');
+      });
+
+      it('should reject job with invalid personality structure', async () => {
+        const invalidJobData = createValidJobData({
+          personality: {
+            name: 'Test',
+            // Missing required fields like id, systemPrompt, model, etc.
+          } as any,
+        });
+        const job = { id: 'job-invalid-personality', data: invalidJobData } as Job<LLMGenerationJobData>;
+
+        await expect(handler.processJob(job)).rejects.toThrow('LLM generation job validation failed');
+      });
+    });
+
+    describe('without dependencies', () => {
+      it('should generate response without processing dependencies', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-no-deps', data: jobData } as Job<LLMGenerationJobData>;
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+        expect(mockGetJobResult).not.toHaveBeenCalled();
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+
+      it('should include metadata in successful response', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-metadata', data: jobData } as Job<LLMGenerationJobData>;
+
+        const result = await handler.processJob(job);
+
+        expect(result.metadata).toBeDefined();
+        expect(result.metadata?.retrievedMemories).toBe(0);
+        expect(result.metadata?.tokensUsed).toBe(150);
+        expect(result.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
+        expect(result.metadata?.processingTimeMs).toBeGreaterThanOrEqual(0);
+      });
+    });
+
+    describe('with dependencies', () => {
+      it('should process audio transcription dependencies', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'audio-job-001',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-001`,
+            },
+          ],
+        });
+        const job = { id: 'job-audio-dep', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValue({
+          success: true,
+          content: 'This is the transcribed audio content.',
+        });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+        expect(mockGetJobResult).toHaveBeenCalledWith('audio-001');
+        expect(job.data.__preprocessedAttachments).toContain('Audio Transcriptions');
+        expect(job.data.__preprocessedAttachments).toContain('This is the transcribed audio content.');
+      });
+
+      it('should process image description dependencies', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'image-job-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-001`,
+            },
+          ],
+        });
+        const job = { id: 'job-image-dep', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValue({
+          success: true,
+          descriptions: [
+            { url: 'https://example.com/img1.png', description: 'A scenic mountain landscape.' },
+          ],
+        });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+        expect(mockGetJobResult).toHaveBeenCalledWith('image-001');
+        expect(job.data.__preprocessedAttachments).toContain('Image Descriptions');
+        expect(job.data.__preprocessedAttachments).toContain('A scenic mountain landscape.');
+      });
+
+      it('should handle multiple dependencies', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'audio-job-001',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-001`,
+            },
+            {
+              jobId: 'image-job-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-001`,
+            },
+          ],
+        });
+        const job = { id: 'job-multi-dep', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult
+          .mockResolvedValueOnce({
+            success: true,
+            content: 'Audio transcript here.',
+          })
+          .mockResolvedValueOnce({
+            success: true,
+            descriptions: [
+              { url: 'https://example.com/img.png', description: 'Image description here.' },
+            ],
+          });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+        expect(mockGetJobResult).toHaveBeenCalledTimes(2);
+        expect(job.data.__preprocessedAttachments).toContain('Audio Transcriptions');
+        expect(job.data.__preprocessedAttachments).toContain('Image Descriptions');
+      });
+
+      it('should handle failed dependency gracefully', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'audio-job-failed',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Failed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-failed`,
+            },
+          ],
+        });
+        const job = { id: 'job-failed-dep', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValue({
+          success: false,
+          error: 'Transcription failed',
+        });
+
+        const result = await handler.processJob(job);
+
+        // Should still succeed, just without the transcription
+        expect(result.success).toBe(true);
+        expect(job.data.__preprocessedAttachments).toBeUndefined();
+      });
+
+      it('should handle Redis fetch error gracefully', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'audio-job-redis-error',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-error`,
+            },
+          ],
+        });
+        const job = { id: 'job-redis-error', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockRejectedValue(new Error('Redis connection failed'));
+
+        const result = await handler.processJob(job);
+
+        // Should still succeed, just without the transcription
+        expect(result.success).toBe(true);
+        expect(job.data.__preprocessedAttachments).toBeUndefined();
+      });
+
+      it('should use jobId as key when resultKey is missing', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'audio-job-no-resultkey',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              // No resultKey provided
+            },
+          ],
+        });
+        const job = { id: 'job-no-resultkey', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValue({
+          success: true,
+          content: 'Transcribed content.',
+        });
+
+        await handler.processJob(job);
+
+        expect(mockGetJobResult).toHaveBeenCalledWith('audio-job-no-resultkey');
+      });
+    });
+
+    describe('RAG service integration', () => {
+      it('should pass correct parameters to RAG service', async () => {
+        const jobData = createValidJobData({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            serverId: 'server-012',
+            sessionId: 'session-xyz',
+            conversationHistory: [
+              { role: 'user' as any, content: 'Previous message', createdAt: '2025-01-01T12:00:00Z' },
+            ],
+          },
+        });
+        const job = { id: 'job-rag', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockExtractParticipants.mockReturnValue([
+          { personaId: 'user-456', personaName: 'TestUser', isActive: true },
+        ]);
+
+        await handler.processJob(job);
+
+        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
+          jobData.personality,
+          jobData.message,
+          expect.objectContaining({
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            serverId: 'server-012',
+            sessionId: 'session-xyz',
+          }),
+          undefined // userApiKey
+        );
+      });
+
+      it('should pass userApiKey when provided', async () => {
+        const jobData = createValidJobData({
+          userApiKey: 'user-openrouter-key-xxx',
+        });
+        const job = { id: 'job-user-key', data: jobData } as Job<LLMGenerationJobData>;
+
+        await handler.processJob(job);
+
+        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(String),
+          expect.any(Object),
+          'user-openrouter-key-xxx'
+        );
+      });
+    });
+
+    describe('error handling', () => {
+      it('should return failure result when RAG service throws', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-rag-error', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockRAGService.generateResponse.mockRejectedValue(new Error('AI provider rate limited'));
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('AI provider rate limited');
+        expect(result.requestId).toBe('test-req-001');
+        expect(result.metadata?.processingTimeMs).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should handle unknown error type', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-unknown-error', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockRAGService.generateResponse.mockRejectedValue('Some string error');
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Unknown error');
+      });
+    });
+
+    describe('conversation history processing', () => {
+      it('should extract participants from conversation history', async () => {
+        const jobData = createValidJobData({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            conversationHistory: [
+              {
+                role: 'user' as any,
+                content: 'Hello',
+                personaId: 'persona-1',
+                personaName: 'Alice',
+              },
+              {
+                role: 'assistant' as any,
+                content: 'Hi there',
+              },
+            ],
+          },
+        });
+        const job = { id: 'job-participants', data: jobData } as Job<LLMGenerationJobData>;
+
+        await handler.processJob(job);
+
+        expect(mockExtractParticipants).toHaveBeenCalledWith(
+          jobData.context.conversationHistory,
+          undefined, // activePersonaId
+          undefined  // activePersonaName
+        );
+      });
+
+      it('should convert conversation history to BaseMessage format', async () => {
+        const jobData = createValidJobData({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            conversationHistory: [
+              { role: 'user' as any, content: 'Test message' },
+            ],
+          },
+        });
+        const job = { id: 'job-convert', data: jobData } as Job<LLMGenerationJobData>;
+
+        await handler.processJob(job);
+
+        expect(mockConvertConversationHistory).toHaveBeenCalledWith(
+          jobData.context.conversationHistory,
+          'TestBot' // personality name
+        );
+      });
+
+      it('should calculate oldest history timestamp for LTM deduplication', async () => {
+        const jobData = createValidJobData({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            conversationHistory: [
+              { role: 'user' as any, content: 'First', createdAt: '2025-01-01T10:00:00Z' },
+              { role: 'assistant' as any, content: 'Response', createdAt: '2025-01-01T10:01:00Z' },
+              { role: 'user' as any, content: 'Second', createdAt: '2025-01-01T10:02:00Z' },
+            ],
+          },
+        });
+        const job = { id: 'job-timestamp', data: jobData } as Job<LLMGenerationJobData>;
+
+        await handler.processJob(job);
+
+        // Should pass oldestHistoryTimestamp to RAG service
+        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(String),
+          expect.objectContaining({
+            oldestHistoryTimestamp: new Date('2025-01-01T10:00:00Z').getTime(),
+          }),
+          undefined
+        );
+      });
+    });
+
+    describe('response structure', () => {
+      it('should include attachment descriptions in response', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-attachments', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockRAGService.generateResponse.mockResolvedValue({
+          content: 'Response text',
+          attachmentDescriptions: 'Image shows a sunset.',
+          retrievedMemories: 2,
+          tokensUsed: 200,
+          modelUsed: 'test-model',
+        });
+
+        const result = await handler.processJob(job);
+
+        expect(result.attachmentDescriptions).toBe('Image shows a sunset.');
+      });
+
+      it('should include referenced messages descriptions in response', async () => {
+        const jobData = createValidJobData();
+        const job = { id: 'job-refs', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockRAGService.generateResponse.mockResolvedValue({
+          content: 'Response about referenced messages',
+          referencedMessagesDescriptions: 'User replied to: "Original message"',
+          retrievedMemories: 1,
+          tokensUsed: 180,
+          modelUsed: 'test-model',
+        });
+
+        const result = await handler.processJob(job);
+
+        expect(result.referencedMessagesDescriptions).toBe('User replied to: "Original message"');
+      });
+    });
+  });
+});
