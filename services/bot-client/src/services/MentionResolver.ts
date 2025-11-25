@@ -396,7 +396,10 @@ export class MentionResolver {
         );
         // Replace with a generic placeholder to avoid raw IDs in prompt
         const mentionTag = `<#${channelId}>`;
-        processedContent = processedContent.replaceAll(mentionTag, '#unknown-channel');
+        processedContent = processedContent.replaceAll(
+          mentionTag,
+          DISCORD_MENTIONS.UNKNOWN_CHANNEL_PLACEHOLDER
+        );
       }
     }
 
@@ -485,7 +488,10 @@ export class MentionResolver {
         );
         // Replace with a generic placeholder
         const mentionTag = `<@&${roleId}>`;
-        processedContent = processedContent.replaceAll(mentionTag, '@unknown-role');
+        processedContent = processedContent.replaceAll(
+          mentionTag,
+          DISCORD_MENTIONS.UNKNOWN_ROLE_PLACEHOLDER
+        );
       }
     }
 

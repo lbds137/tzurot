@@ -82,6 +82,10 @@ export const DISCORD_MENTIONS = {
   MAX_CHANNELS_PER_MESSAGE: 5,
   /** Maximum role mentions to process per message (DoS prevention) */
   MAX_ROLES_PER_MESSAGE: 5,
+  /** Placeholder text for unresolvable channel mentions */
+  UNKNOWN_CHANNEL_PLACEHOLDER: '#unknown-channel',
+  /** Placeholder text for unresolvable role mentions */
+  UNKNOWN_ROLE_PLACEHOLDER: '@unknown-role',
 } as const;
 
 /**
