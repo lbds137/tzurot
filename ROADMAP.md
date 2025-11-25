@@ -142,82 +142,82 @@
   - Uses PGlite for real PostgreSQL testing
   - Tests: addMessage, getRecentHistory, pagination, updateLastUserMessage, updateLastAssistantMessageId, getMessageByDiscordId, clearHistory, cleanupOldHistory
 
-### Sprint 2: BYOK Schema Migration (9-13 sessions, increased from 7-10)
+### Sprint 2: BYOK Schema Migration (7-10 sessions remaining)
 
-**Why This Order**: Schema changes are risky - tests catch regressions. Prisma 7.0 first to unblock Dependabot PRs.
+**Why This Order**: Schema changes are risky - tests catch regressions. Code preparation before migrations.
 
-**Prisma 7.0 Migration** (DO FIRST - 2-3 sessions):
+**Reference**: [SPRINT_2_IMPLEMENTATION_GUIDE.md](docs/planning/SPRINT_2_IMPLEMENTATION_GUIDE.md) - Detailed implementation guide
 
-- [ ] **Task 2.0.1**: Upgrade Prisma 6.x → 7.0.0 in all package.json files
-- [ ] **Task 2.0.2**: Update `schema.prisma`:
-  - Change `provider = "prisma-client-js"` → `"prisma-client"`
-  - Add `output = "../src/generated/prisma"` (or similar path per service)
-- [ ] **Task 2.0.3**: Update 20+ files to import from new generated path
-  - Change: `import { PrismaClient } from '@prisma/client'`
-  - To: `import { PrismaClient } from '../generated/prisma/client'`
-- [ ] **Task 2.0.4**: Run `prisma generate` and verify generated client
-- [ ] **Task 2.0.5**: Run full test suite (989 tests must pass)
-- [ ] **Task 2.0.6**: Deploy to development environment, smoke test
-- [ ] **Task 2.0.7**: Merge Dependabot PRs (now unblocked)
-  - PR #262, #261, #255, #254, #252, #251 (or new ones if they've been updated)
+**Prisma 7.0 Migration** ✅ COMPLETE (2025-11-24):
 
-**Database Changes**:
+- [x] **Task 2.0.1**: Upgrade Prisma 6.x → 7.0.0 in all package.json files
+- [x] **Task 2.0.2**: Update driver adapter pattern (`PrismaPg`, `PrismaPGlite`)
+- [x] **Task 2.0.3**: Update 20+ files to use new adapter imports
+- [x] **Task 2.0.4**: Run `prisma generate` and verify generated client
+- [x] **Task 2.0.5**: Run full test suite (1715+ tests passing)
+- [x] **Task 2.0.6**: Deploy to development environment, smoke test
+- [x] **Task 2.0.7**: Dependabot PRs auto-closed (develop had latest versions)
 
-- [ ] **Task 2.1**: Create `UserApiKey` table (AES-256-GCM encrypted storage)
-  - Fields: iv, content, tag, provider, isActive
-  - Unique constraint: (userId, provider)
-- [ ] **Task 2.2**: Create `UsageLog` table (token usage tracking)
-  - Fields: userId, provider, model, tokensIn, tokensOut, requestType, timestamp
-  - Prevent infrastructure abuse even with BYOK
-- [ ] **Task 2.3**: Create `PersonalityAlias` table (unique aliases)
-  - Fields: alias, personalityId
-  - Unique constraint on alias (prevent overlap)
-- [ ] **Task 2.4**: Update `Personality` table
-  - Add `errorMessage` (String?, Text) - migrate from `custom_fields.errorMessage`
-  - Add `birthday` (DateTime?, Date) - extract from shapes.inc backups
-  - Add `ownerId` (String) - user who created personality
-  - Add `isPublic` (Boolean, default true) - visibility control
-- [ ] **Task 2.5**: Update `User` table
-  - Add `timezone` (String, default "UTC")
-  - Add `isSuperuser` (Boolean, default false) - bot owner flag
-  - Relationships: apiKeys, usageLogs
-- [ ] **Task 2.6**: Refactor `LlmConfig` table (hybrid schema)
-  - Add `provider` (String, default "openrouter")
-  - Add `advancedParameters` (JSONB, default "{}")
-  - Add `maxReferencedMessages` (Int, default 10)
-  - Add `ownerId` (String?) - null = global, set = user override
-  - Migrate existing columns → JSONB: topK, frequencyPenalty, presencePenalty, etc.
-  - Drop old columns after migration
+**Preparation** (Code First - per Gemini consultation 2025-11-25):
 
-**Data Migration**:
-
-- [ ] **Task 2.7**: Move `custom_fields.errorMessage` → `Personality.errorMessage` (66 personalities)
-- [ ] **Task 2.8**: Extract aliases from shapes.inc backups → PersonalityAlias table (66 personalities)
-- [ ] **Task 2.9**: Extract birthdays from shapes.inc backups → Personality.birthday (66 personalities)
-- [ ] **Task 2.10**: Assign ownership (set all existing personalities to bot owner as superuser)
-
-**Application Code**:
-
-- [ ] **Task 2.11**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
+- [ ] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
   - `encryptApiKey()`, `decryptApiKey()` using AES-256-GCM
   - Master key from Railway environment (`APP_MASTER_KEY`)
-- [ ] **Task 2.12**: Add log sanitization middleware
-  - Regex: `sk-...`, `sk_...`, `AIza...` → `[REDACTED]`
-  - Apply to all services (bot-client, api-gateway, ai-worker)
-- [ ] **Task 2.13**: Update ai-worker to use decrypted user API keys
-  - Check for user config first, fallback to system config
-  - Implement hierarchical inheritance (user → global)
-- [ ] **Task 2.14**: Add key validation service (dry run API calls before storage)
-- [ ] **Task 2.15**: Create Zod schemas for `advancedParameters` validation (per provider)
+  - **Why first**: Need to know storage format (3 columns: iv, content, tag) before migration
+- [ ] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation (per provider)
   - OpenAI: reasoningEffort, maxCompletionTokens, frequencyPenalty, etc.
   - Anthropic: topK, thinking.budgetTokens, cacheControl, etc.
-  - Gemini: topK, safetySettings, thinking_level (Gemini 3.0 Pro), etc.
+  - Gemini: topK, safetySettings, thinkingConfig, etc.
   - OpenRouter: minP, topA, typicalP, repetitionPenalty, etc.
-- [ ] **Task 2.16**: Implement thinking/reasoning model runtime handling in `LLMInvoker`
-  - When thinking enabled: add minimum token buffer (1024+)
-  - When thinking enabled: disable temperature/top_p/top_k (APIs reject mixed params)
-  - Strip `<thinking>` tags from final output (or route to stealth handling)
-  - Reference: SillyTavern's `chat-completions.js` thinking parameter handling
+
+**Database Migrations** (Dependency Order - per Gemini consultation):
+
+- [ ] **Task 2.1**: Update `User` table (ROOT DEPENDENCY - do first)
+  - Add `timezone` (String, default "UTC")
+  - Add `isSuperuser` (Boolean, default false) - bot owner flag
+  - Relationships: apiKeys, usageLogs, ownedPersonalities
+- [ ] **Task 2.2**: Create `UserApiKey` table (depends on User)
+  - Fields: iv, content, tag, provider, isActive
+  - Unique constraint: (userId, provider)
+- [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
+  - Add `errorMessage` (String?, Text) - migrate from `custom_fields.errorMessage`
+  - Add `birthday` (DateTime?, Date) - extract from shapes.inc backups
+  - Add `ownerId` (String?) - nullable initially, user who created personality
+  - Add `isPublic` (Boolean, default true) - visibility control
+- [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema, 2-step process)
+  - Step A: Add `provider`, `advancedParameters` (JSONB), `maxReferencedMessages`
+  - Step B: Run data migration script (columns → JSONB)
+  - Step C: Drop old columns in separate migration after verification
+- [ ] **Task 2.5**: Create `PersonalityAlias` table (leaf node)
+  - Fields: alias, personalityId
+  - Unique constraint on alias (prevent overlap)
+- [ ] **Task 2.6**: Create `UsageLog` table (leaf node)
+  - Fields: userId, provider, model, tokensIn, tokensOut, requestType, timestamp
+  - Prevent infrastructure abuse even with BYOK
+
+**Data Migration** (After Schema):
+
+- [ ] **Task 2.7**: Move `custom_fields.errorMessage` → `Personality.errorMessage` (67 personalities)
+- [ ] **Task 2.8**: Extract aliases from shapes.inc backups → PersonalityAlias table
+- [ ] **Task 2.9**: Extract birthdays from shapes.inc backups → Personality.birthday
+- [ ] **Task 2.10**: Assign ownership (set all existing personalities to bot owner as superuser)
+
+**Application Code** (After Data Migration):
+
+- [ ] **Task 2.11**: Add log sanitization middleware
+  - Regex: `sk-...`, `sk_...`, `AIza...` → `[REDACTED]`
+  - Apply to all services (bot-client, api-gateway, ai-worker)
+- [ ] **Task 2.12**: Update ai-worker to use decrypted user API keys
+  - **CRITICAL**: Only pass userId in BullMQ job, NOT decrypted key (Redis stores plaintext)
+  - Fetch and decrypt key inside worker processor
+  - Implement hierarchical inheritance (user → system fallback)
+- [ ] **Task 2.13**: Add key validation service (dry run API calls before storage)
+  - Custom error classes: InvalidApiKeyError, QuotaExceededError
+- [ ] **Task 2.14**: Implement thinking/reasoning model runtime handling in `LLMInvoker`
+  - OpenAI o1/o3: No system role, use `max_completion_tokens`
+  - Claude 3.7: When thinking enabled, temperature must be 1.0
+  - Gemini 2.0: Uses `thinkingConfig.thinkingBudget`
+  - Strip `<thinking>` tags from final output
 
 ### Sprint 3: Slash Commands for BYOK (3-4 sessions)
 
