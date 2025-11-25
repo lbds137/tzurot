@@ -17,7 +17,8 @@ vi.mock('../../services/DatabaseSyncService.js', () => ({
 
 // Mock PrismaClient and getConfig
 vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+  const actual =
+    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
   return {
     ...actual,
     PrismaClient: class MockPrismaClient {
