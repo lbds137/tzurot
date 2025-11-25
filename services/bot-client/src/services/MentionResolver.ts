@@ -216,10 +216,7 @@ export class MentionResolver {
         personaName: personaName ?? user.username,
       };
     } catch (error) {
-      logger.error(
-        { err: error, discordId },
-        '[MentionResolver] Failed to look up existing user'
-      );
+      logger.error({ err: error, discordId }, '[MentionResolver] Failed to look up existing user');
       return null;
     }
   }
