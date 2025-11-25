@@ -90,15 +90,26 @@ describe('Integration Test Infrastructure', () => {
 
   describe('Environment Detection', () => {
     it('should correctly identify the test environment', () => {
-      const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
-      console.log(`Running in ${isCI ? 'CI' : 'local'} environment`);
+      const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+      const hasDatabaseUrl = !!process.env.DATABASE_URL;
 
-      // Just verify the environment variables are set correctly
-      if (isCI) {
-        expect(process.env.CI).toBe('true');
+      // Determine which mode we're running in
+      let mode: string;
+      if (isGitHubActions) {
+        mode = 'CI (GitHub Actions)';
+      } else if (hasDatabaseUrl) {
+        mode = 'Local with real database';
       } else {
-        expect(process.env.DATABASE_URL).toBeDefined();
+        mode = 'Local with PGlite (in-memory)';
       }
+
+      console.log(`Running in ${mode} environment`);
+
+      // Verify the test environment was set up successfully
+      // (if we got this far, the environment is working)
+      expect(testEnv).toBeDefined();
+      expect(testEnv.prisma).toBeDefined();
+      expect(testEnv.redis).toBeDefined();
     });
   });
 });
