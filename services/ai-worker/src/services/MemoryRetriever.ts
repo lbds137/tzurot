@@ -75,10 +75,28 @@ export class MemoryRetriever {
       excludeNewerThan,
     };
 
+    // Add channel IDs for scoped retrieval if user referenced channels
+    if (context.referencedChannels && context.referencedChannels.length > 0) {
+      memoryQueryOptions.channelIds = context.referencedChannels.map(c => c.channelId);
+      logger.debug(
+        {
+          channelCount: memoryQueryOptions.channelIds.length,
+          channelIds: memoryQueryOptions.channelIds,
+        },
+        '[MemoryRetriever] Using channel-scoped memory retrieval'
+      );
+    }
+
     // Query memories only if memory manager is available
+    // Use waterfall method when channels are specified for additive retrieval
     const relevantMemories =
       this.memoryManager !== undefined
-        ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
+        ? memoryQueryOptions.channelIds !== undefined && memoryQueryOptions.channelIds.length > 0
+          ? await this.memoryManager.queryMemoriesWithChannelScoping(
+              userMessage,
+              memoryQueryOptions
+            )
+          : await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
         : [];
 
     if (relevantMemories.length > 0) {

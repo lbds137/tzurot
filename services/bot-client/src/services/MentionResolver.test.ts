@@ -12,7 +12,11 @@ vi.mock('@tzurot/common-types', () => ({
   // Constants must be provided synchronously
   DISCORD_MENTIONS: {
     USER_PATTERN: '<@!?(\\d+)>',
+    CHANNEL_PATTERN: '<#(\\d+)>',
+    ROLE_PATTERN: '<@&(\\d+)>',
     MAX_PER_MESSAGE: 10,
+    MAX_CHANNELS_PER_MESSAGE: 5,
+    MAX_ROLES_PER_MESSAGE: 5,
   },
   UserService: class {
     getOrCreateUser = vi.fn();
@@ -376,6 +380,246 @@ describe('MentionResolver', () => {
       expect(result.mentionedUsers.length).toBeLessThanOrEqual(10);
       // User service should only be called up to 10 times
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledTimes(10);
+    });
+  });
+
+  describe('resolveChannelMentions', () => {
+    /**
+     * Helper to create a mock Guild with channels
+     */
+    function createMockGuild(channels: Map<string, { name: string; topic?: string }>) {
+      return {
+        id: 'guild-123',
+        channels: {
+          cache: {
+            get: (id: string) => {
+              const channel = channels.get(id);
+              if (!channel) return undefined;
+              return {
+                name: channel.name,
+                topic: channel.topic,
+              };
+            },
+          },
+        },
+      } as any;
+    }
+
+    it('should return unchanged content when no channel mentions present', () => {
+      const result = resolver.resolveChannelMentions('Hello, this is a message', null);
+
+      expect(result.processedContent).toBe('Hello, this is a message');
+      expect(result.mentionedChannels).toEqual([]);
+    });
+
+    it('should resolve a single channel mention', () => {
+      const mockChannels = new Map([['123456', { name: 'general', topic: 'General discussion' }]]);
+      const mockGuild = createMockGuild(mockChannels);
+
+      const result = resolver.resolveChannelMentions(
+        'Check out <#123456> for more info',
+        mockGuild
+      );
+
+      expect(result.processedContent).toBe('Check out #general for more info');
+      expect(result.mentionedChannels).toHaveLength(1);
+      expect(result.mentionedChannels[0]).toEqual({
+        channelId: '123456',
+        channelName: 'general',
+        topic: 'General discussion',
+        guildId: 'guild-123',
+      });
+    });
+
+    it('should resolve multiple channel mentions', () => {
+      const mockChannels = new Map([
+        ['111111', { name: 'announcements' }],
+        ['222222', { name: 'gaming', topic: 'Game talk' }],
+      ]);
+      const mockGuild = createMockGuild(mockChannels);
+
+      const result = resolver.resolveChannelMentions('See <#111111> and <#222222>', mockGuild);
+
+      expect(result.processedContent).toBe('See #announcements and #gaming');
+      expect(result.mentionedChannels).toHaveLength(2);
+    });
+
+    it('should handle unknown channel with placeholder', () => {
+      const mockGuild = createMockGuild(new Map());
+
+      const result = resolver.resolveChannelMentions('Check out <#999999>', mockGuild);
+
+      expect(result.processedContent).toBe('Check out #unknown-channel');
+      expect(result.mentionedChannels).toEqual([]);
+    });
+
+    it('should handle null guild gracefully', () => {
+      const result = resolver.resolveChannelMentions('Check out <#123456>', null);
+
+      expect(result.processedContent).toBe('Check out #unknown-channel');
+      expect(result.mentionedChannels).toEqual([]);
+    });
+
+    it('should deduplicate repeated channel mentions', () => {
+      const mockChannels = new Map([['123456', { name: 'general' }]]);
+      const mockGuild = createMockGuild(mockChannels);
+
+      const result = resolver.resolveChannelMentions(
+        '<#123456> is great! Come to <#123456>!',
+        mockGuild
+      );
+
+      expect(result.processedContent).toBe('#general is great! Come to #general!');
+      expect(result.mentionedChannels).toHaveLength(1);
+    });
+  });
+
+  describe('resolveRoleMentions', () => {
+    /**
+     * Helper to create a mock Guild with roles
+     */
+    function createMockGuild(roles: Map<string, { name: string; mentionable: boolean }>) {
+      return {
+        id: 'guild-123',
+        roles: {
+          cache: {
+            get: (id: string) => roles.get(id),
+          },
+        },
+      } as any;
+    }
+
+    it('should return unchanged content when no role mentions present', () => {
+      const result = resolver.resolveRoleMentions('Hello everyone', null);
+
+      expect(result.processedContent).toBe('Hello everyone');
+      expect(result.mentionedRoles).toEqual([]);
+    });
+
+    it('should resolve a single role mention', () => {
+      const mockRoles = new Map([['123456', { name: 'Moderators', mentionable: true }]]);
+      const mockGuild = createMockGuild(mockRoles);
+
+      const result = resolver.resolveRoleMentions('Hey <@&123456>, we need help!', mockGuild);
+
+      expect(result.processedContent).toBe('Hey @Moderators, we need help!');
+      expect(result.mentionedRoles).toHaveLength(1);
+      expect(result.mentionedRoles[0]).toEqual({
+        roleId: '123456',
+        roleName: 'Moderators',
+        mentionable: true,
+      });
+    });
+
+    it('should resolve multiple role mentions', () => {
+      const mockRoles = new Map([
+        ['111111', { name: 'Admin', mentionable: false }],
+        ['222222', { name: 'Developer', mentionable: true }],
+      ]);
+      const mockGuild = createMockGuild(mockRoles);
+
+      const result = resolver.resolveRoleMentions(
+        '<@&111111> and <@&222222> please review',
+        mockGuild
+      );
+
+      expect(result.processedContent).toBe('@Admin and @Developer please review');
+      expect(result.mentionedRoles).toHaveLength(2);
+    });
+
+    it('should handle unknown role with placeholder', () => {
+      const mockGuild = createMockGuild(new Map());
+
+      const result = resolver.resolveRoleMentions('Hey <@&999999>!', mockGuild);
+
+      expect(result.processedContent).toBe('Hey @unknown-role!');
+      expect(result.mentionedRoles).toEqual([]);
+    });
+
+    it('should handle null guild gracefully', () => {
+      const result = resolver.resolveRoleMentions('Hey <@&123456>!', null);
+
+      expect(result.processedContent).toBe('Hey @unknown-role!');
+      expect(result.mentionedRoles).toEqual([]);
+    });
+  });
+
+  describe('resolveAllMentions', () => {
+    /**
+     * Helper to create a mock Message with all mention types
+     */
+    function createMockMessage(
+      content: string,
+      users: Map<string, User>,
+      channels: Map<string, { name: string; topic?: string }>,
+      roles: Map<string, { name: string; mentionable: boolean }>
+    ) {
+      return {
+        mentions: {
+          users: users as Collection<string, User>,
+        },
+        guild: {
+          id: 'guild-123',
+          channels: {
+            cache: {
+              get: (id: string) => {
+                const channel = channels.get(id);
+                if (!channel) return undefined;
+                return { name: channel.name, topic: channel.topic };
+              },
+            },
+          },
+          roles: {
+            cache: {
+              get: (id: string) => roles.get(id),
+            },
+          },
+        },
+      } as any;
+    }
+
+    it('should resolve all mention types in a single message', async () => {
+      const mockUser = createMockUser('111111', 'alice', 'Alice');
+      const mockUsers = new Map([['111111', mockUser]]);
+      const mockChannels = new Map([['222222', { name: 'general' }]]);
+      const mockRoles = new Map([['333333', { name: 'Mods', mentionable: true }]]);
+
+      const mockMessage = createMockMessage(
+        'Hey <@111111>! Check <#222222> or ask <@&333333>',
+        mockUsers,
+        mockChannels,
+        mockRoles
+      );
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('alice-persona');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('AlicePersona');
+
+      const result = await resolver.resolveAllMentions(
+        'Hey <@111111>! Check <#222222> or ask <@&333333>',
+        mockMessage,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hey @AlicePersona! Check #general or ask @Mods');
+      expect(result.mentionedUsers).toHaveLength(1);
+      expect(result.mentionedChannels).toHaveLength(1);
+      expect(result.mentionedRoles).toHaveLength(1);
+    });
+
+    it('should handle message with no mentions', async () => {
+      const mockMessage = createMockMessage('Hello world', new Map(), new Map(), new Map());
+
+      const result = await resolver.resolveAllMentions(
+        'Hello world',
+        mockMessage,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hello world');
+      expect(result.mentionedUsers).toEqual([]);
+      expect(result.mentionedChannels).toEqual([]);
+      expect(result.mentionedRoles).toEqual([]);
     });
   });
 });

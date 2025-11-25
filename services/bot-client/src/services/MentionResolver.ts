@@ -1,15 +1,19 @@
 /**
  * MentionResolver
  *
- * Resolves Discord user mentions in message content.
+ * Resolves Discord mentions (users, channels, roles) in message content.
  * For each mentioned user:
  * - Looks up or creates their default persona
  * - Replaces <@userId> with the persona's display name
  * - Returns info about mentioned users for inclusion in conversation context
+ * For channels and roles:
+ * - Replaces <#channelId> with #channel-name
+ * - Replaces <@&roleId> with @RoleName
+ * - Returns info for LTM scoping and context
  */
 
 import type { PrismaClient } from '@tzurot/common-types';
-import type { Collection, User } from 'discord.js';
+import type { Collection, User, Guild, Message } from 'discord.js';
 import { UserService, createLogger, DISCORD_MENTIONS } from '@tzurot/common-types';
 
 const logger = createLogger('MentionResolver');
@@ -29,13 +33,49 @@ export interface MentionedUserInfo {
 }
 
 /**
- * Result of resolving mentions in a message
+ * Information about a mentioned channel
+ */
+export interface ResolvedChannel {
+  /** Discord channel ID */
+  channelId: string;
+  /** Channel name (without #) */
+  channelName: string;
+  /** Channel topic/description (for context injection) */
+  topic?: string;
+  /** Guild ID this channel belongs to */
+  guildId?: string;
+}
+
+/**
+ * Information about a mentioned role
+ */
+export interface ResolvedRole {
+  /** Discord role ID */
+  roleId: string;
+  /** Role name (without @) */
+  roleName: string;
+  /** Whether the role is mentionable */
+  mentionable: boolean;
+}
+
+/**
+ * Result of resolving user mentions in a message
  */
 export interface MentionResolutionResult {
   /** Message content with mentions replaced by names */
   processedContent: string;
   /** Information about mentioned users */
   mentionedUsers: MentionedUserInfo[];
+}
+
+/**
+ * Result of resolving all mention types in a message
+ */
+export interface FullMentionResolutionResult extends MentionResolutionResult {
+  /** Information about mentioned channels (for LTM scoping) */
+  mentionedChannels: ResolvedChannel[];
+  /** Information about mentioned roles */
+  mentionedRoles: ResolvedRole[];
 }
 
 /**
@@ -232,5 +272,229 @@ export class MentionResolver {
       logger.error({ err: error, discordId }, '[MentionResolver] Failed to look up existing user');
       return null;
     }
+  }
+
+  /**
+   * Resolve all mention types in a message (users, channels, roles)
+   *
+   * @param content - Message content containing mentions
+   * @param message - Discord message object (for guild/channel access)
+   * @param personalityId - The personality ID for persona lookup
+   * @returns Processed content and info about all mentioned entities
+   */
+  async resolveAllMentions(
+    content: string,
+    message: Message,
+    personalityId: string
+  ): Promise<FullMentionResolutionResult> {
+    // Start with user mentions (existing logic)
+    const userResult = await this.resolveMentions(content, message.mentions.users, personalityId);
+
+    let processedContent = userResult.processedContent;
+
+    // Resolve channel mentions
+    const channelResult = this.resolveChannelMentions(processedContent, message.guild);
+    processedContent = channelResult.processedContent;
+
+    // Resolve role mentions
+    const roleResult = this.resolveRoleMentions(processedContent, message.guild);
+    processedContent = roleResult.processedContent;
+
+    return {
+      processedContent,
+      mentionedUsers: userResult.mentionedUsers,
+      mentionedChannels: channelResult.mentionedChannels,
+      mentionedRoles: roleResult.mentionedRoles,
+    };
+  }
+
+  /**
+   * Resolve channel mentions in message content
+   * Replaces <#channelId> with #channel-name
+   *
+   * @param content - Message content containing channel mentions
+   * @param guild - Discord guild object (for channel lookup)
+   * @returns Processed content and info about mentioned channels
+   */
+  resolveChannelMentions(
+    content: string,
+    guild: Guild | null
+  ): { processedContent: string; mentionedChannels: ResolvedChannel[] } {
+    const channelRegex = new RegExp(DISCORD_MENTIONS.CHANNEL_PATTERN, 'g');
+    const matches = [...content.matchAll(channelRegex)];
+
+    if (matches.length === 0) {
+      return {
+        processedContent: content,
+        mentionedChannels: [],
+      };
+    }
+
+    logger.debug(
+      { mentionCount: matches.length },
+      '[MentionResolver] Found channel mentions to resolve'
+    );
+
+    // Extract unique channel IDs
+    const allUniqueIds = [...new Set(matches.map(m => m[1]))];
+
+    // Limit for DoS prevention
+    const uniqueIds =
+      allUniqueIds.length > DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE
+        ? allUniqueIds.slice(0, DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE)
+        : allUniqueIds;
+
+    if (allUniqueIds.length > DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE) {
+      logger.warn(
+        {
+          uniqueChannels: allUniqueIds.length,
+          limit: DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE,
+        },
+        '[MentionResolver] Unique channel mentions exceed limit, processing only first batch'
+      );
+    }
+
+    const mentionedChannels: ResolvedChannel[] = [];
+    let processedContent = content;
+
+    for (const channelId of uniqueIds) {
+      // Try to get channel from guild cache
+      const channel = guild?.channels.cache.get(channelId);
+
+      if (channel && 'name' in channel) {
+        const resolved: ResolvedChannel = {
+          channelId,
+          channelName: channel.name,
+          guildId: guild?.id,
+        };
+
+        // Add topic if available (text channels have topics)
+        if (
+          'topic' in channel &&
+          channel.topic !== undefined &&
+          channel.topic !== null &&
+          channel.topic.length > 0
+        ) {
+          resolved.topic = channel.topic;
+        }
+
+        mentionedChannels.push(resolved);
+
+        // Replace mention with readable name
+        const mentionTag = `<#${channelId}>`;
+        processedContent = processedContent.replaceAll(mentionTag, `#${channel.name}`);
+      } else {
+        // Channel not found - leave as-is or use placeholder
+        logger.debug(
+          { channelId },
+          '[MentionResolver] Could not resolve channel - not in cache or external'
+        );
+        // Replace with a generic placeholder to avoid raw IDs in prompt
+        const mentionTag = `<#${channelId}>`;
+        processedContent = processedContent.replaceAll(mentionTag, '#unknown-channel');
+      }
+    }
+
+    logger.debug(
+      {
+        resolvedCount: mentionedChannels.length,
+        totalMentions: uniqueIds.length,
+      },
+      '[MentionResolver] Channel mention resolution complete'
+    );
+
+    return {
+      processedContent,
+      mentionedChannels,
+    };
+  }
+
+  /**
+   * Resolve role mentions in message content
+   * Replaces <@&roleId> with @RoleName
+   *
+   * @param content - Message content containing role mentions
+   * @param guild - Discord guild object (for role lookup)
+   * @returns Processed content and info about mentioned roles
+   */
+  resolveRoleMentions(
+    content: string,
+    guild: Guild | null
+  ): { processedContent: string; mentionedRoles: ResolvedRole[] } {
+    const roleRegex = new RegExp(DISCORD_MENTIONS.ROLE_PATTERN, 'g');
+    const matches = [...content.matchAll(roleRegex)];
+
+    if (matches.length === 0) {
+      return {
+        processedContent: content,
+        mentionedRoles: [],
+      };
+    }
+
+    logger.debug(
+      { mentionCount: matches.length },
+      '[MentionResolver] Found role mentions to resolve'
+    );
+
+    // Extract unique role IDs
+    const allUniqueIds = [...new Set(matches.map(m => m[1]))];
+
+    // Limit for DoS prevention
+    const uniqueIds =
+      allUniqueIds.length > DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE
+        ? allUniqueIds.slice(0, DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE)
+        : allUniqueIds;
+
+    if (allUniqueIds.length > DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE) {
+      logger.warn(
+        {
+          uniqueRoles: allUniqueIds.length,
+          limit: DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE,
+        },
+        '[MentionResolver] Unique role mentions exceed limit, processing only first batch'
+      );
+    }
+
+    const mentionedRoles: ResolvedRole[] = [];
+    let processedContent = content;
+
+    for (const roleId of uniqueIds) {
+      // Try to get role from guild cache
+      const role = guild?.roles.cache.get(roleId);
+
+      if (role) {
+        mentionedRoles.push({
+          roleId,
+          roleName: role.name,
+          mentionable: role.mentionable,
+        });
+
+        // Replace mention with readable name
+        const mentionTag = `<@&${roleId}>`;
+        processedContent = processedContent.replaceAll(mentionTag, `@${role.name}`);
+      } else {
+        // Role not found - leave as-is or use placeholder
+        logger.debug(
+          { roleId },
+          '[MentionResolver] Could not resolve role - not in cache or external'
+        );
+        // Replace with a generic placeholder
+        const mentionTag = `<@&${roleId}>`;
+        processedContent = processedContent.replaceAll(mentionTag, '@unknown-role');
+      }
+    }
+
+    logger.debug(
+      {
+        resolvedCount: mentionedRoles.length,
+        totalMentions: uniqueIds.length,
+      },
+      '[MentionResolver] Role mention resolution complete'
+    );
+
+    return {
+      processedContent,
+      mentionedRoles,
+    };
   }
 }

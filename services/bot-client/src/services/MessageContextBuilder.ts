@@ -18,6 +18,7 @@ import {
 import type {
   LoadedPersonality,
   MentionedPersona,
+  ReferencedChannel,
   ReferencedMessage,
   ConversationMessage,
 } from '@tzurot/common-types';
@@ -174,26 +175,46 @@ export class MessageContextBuilder {
     // Use updatedContent (with Discord links replaced by [Reference N])
     let messageContent = updatedContent ?? content ?? '[no text content]';
 
-    // Resolve user mentions (replace <@123456> with @PersonaName)
+    // Resolve all mentions (users, channels, roles)
     let mentionedPersonas: MentionedPersona[] | undefined;
-    if (message.mentions.users.size > 0) {
-      const mentionResult = await this.mentionResolver.resolveMentions(
-        messageContent,
-        message.mentions.users,
-        personality.id
+    let referencedChannels: ReferencedChannel[] | undefined;
+
+    // Use resolveAllMentions to handle users, channels, and roles in one pass
+    const mentionResult = await this.mentionResolver.resolveAllMentions(
+      messageContent,
+      message,
+      personality.id
+    );
+    messageContent = mentionResult.processedContent;
+
+    // Extract mentioned users as personas
+    if (mentionResult.mentionedUsers.length > 0) {
+      mentionedPersonas = mentionResult.mentionedUsers.map(u => ({
+        personaId: u.personaId,
+        personaName: u.personaName,
+      }));
+      logger.debug(
+        { mentionedCount: mentionedPersonas.length },
+        '[MessageContextBuilder] Resolved user mentions'
       );
-      messageContent = mentionResult.processedContent;
-      if (mentionResult.mentionedUsers.length > 0) {
-        mentionedPersonas = mentionResult.mentionedUsers.map(u => ({
-          personaId: u.personaId,
-          personaName: u.personaName,
-        }));
-        logger.debug(
-          { mentionedCount: mentionedPersonas.length },
-          '[MessageContextBuilder] Resolved user mentions'
-        );
-      }
     }
+
+    // Extract referenced channels (for LTM scoping)
+    if (mentionResult.mentionedChannels.length > 0) {
+      referencedChannels = mentionResult.mentionedChannels.map(c => ({
+        channelId: c.channelId,
+        channelName: c.channelName,
+        topic: c.topic,
+        guildId: c.guildId,
+      }));
+      logger.debug(
+        { channelCount: referencedChannels.length },
+        '[MessageContextBuilder] Resolved channel mentions for LTM scoping'
+      );
+    }
+
+    // Note: Role mentions are resolved in processedContent but not tracked separately
+    // (they don't affect LTM scoping or context in the same way as channels)
 
     // Convert conversation history to API format
     const conversationHistory = history.map(msg => ({
@@ -232,6 +253,7 @@ export class MessageContextBuilder {
       environment,
       referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined,
       mentionedPersonas,
+      referencedChannels,
     };
 
     logger.debug(

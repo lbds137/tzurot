@@ -264,6 +264,7 @@ export class LLMGenerationHandler {
           attachments: context.attachments,
           environment: context.environment,
           referencedMessages: context.referencedMessages,
+          referencedChannels: context.referencedChannels,
         },
         userApiKey
       );
