@@ -25,6 +25,8 @@ vi.mock('@tzurot/common-types', () => ({
     MAX_PER_MESSAGE: 10,
     MAX_CHANNELS_PER_MESSAGE: 5,
     MAX_ROLES_PER_MESSAGE: 5,
+    UNKNOWN_CHANNEL_PLACEHOLDER: '#unknown-channel',
+    UNKNOWN_ROLE_PLACEHOLDER: '@unknown-role',
   },
   UserService: class {
     getOrCreateUser = vi.fn();
