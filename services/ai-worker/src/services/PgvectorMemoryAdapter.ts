@@ -441,8 +441,9 @@ export class PgvectorMemoryAdapter {
     options: MemoryQueryOptions
   ): Promise<MemoryDocument[]> {
     const totalLimit = options.limit ?? 10;
-    const channelBudgetRatio =
-      options.channelBudgetRatio ?? AI_DEFAULTS.CHANNEL_MEMORY_BUDGET_RATIO;
+    // Clamp channelBudgetRatio to valid 0-1 range to prevent invalid budget calculations
+    const rawRatio = options.channelBudgetRatio ?? AI_DEFAULTS.CHANNEL_MEMORY_BUDGET_RATIO;
+    const channelBudgetRatio = Math.max(0, Math.min(1, rawRatio));
 
     // If no channels specified, just do a normal query
     if (!options.channelIds || options.channelIds.length === 0) {
