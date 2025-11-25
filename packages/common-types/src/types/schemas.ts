@@ -156,6 +156,18 @@ export const mentionedPersonaSchema = z.object({
 });
 
 /**
+ * Referenced channel schema
+ * Information about a channel mentioned in the message via #channel
+ * Used for LTM scoping (retrieving memories from specific channels)
+ */
+export const referencedChannelSchema = z.object({
+  channelId: z.string(),
+  channelName: z.string(),
+  topic: z.string().optional(),
+  guildId: z.string().optional(),
+});
+
+/**
  * Request context schema
  * Includes all contextual information about a message
  */
@@ -179,6 +191,8 @@ export const requestContextSchema = z.object({
   referencedMessages: z.array(referencedMessageSchema).optional(),
   // Mentioned users (from @mentions in message content)
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
+  // Referenced channels (from #channel mentions - used for LTM scoping)
+  referencedChannels: z.array(referencedChannelSchema).optional(),
 });
 
 /**
@@ -238,6 +252,7 @@ export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
+export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
