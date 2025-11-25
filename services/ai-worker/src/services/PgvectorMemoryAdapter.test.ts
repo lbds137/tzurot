@@ -363,5 +363,94 @@ describe('PgvectorMemoryAdapter', () => {
       // No global backfill since channel filled the entire budget
       expect(mockQueryMemories).toHaveBeenCalledTimes(1);
     });
+
+    it('should clamp channelBudgetRatio to 0-1 range for invalid values', async () => {
+      mockQueryMemories.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      // Test with ratio > 1 (should clamp to 1.0)
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        limit: 10,
+        channelBudgetRatio: 1.5, // Invalid: > 1
+      };
+      await adapter.queryMemoriesWithChannelScoping('test query', options);
+
+      // With clamped ratio of 1.0, channel budget should be 10 (100% of limit)
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        limit: 10, // Math.max(1, floor(10 * 1.0)) = 10
+        channelBudgetRatio: 1.5, // Original value passed through
+      });
+    });
+
+    it('should clamp negative channelBudgetRatio to 0', async () => {
+      mockQueryMemories.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        limit: 10,
+        channelBudgetRatio: -0.5, // Invalid: negative
+      };
+      await adapter.queryMemoriesWithChannelScoping('test query', options);
+
+      // With clamped ratio of 0, Math.max(1, floor(0)) = 1 (minimum budget)
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        limit: 1, // Minimum budget enforced
+        channelBudgetRatio: -0.5,
+      });
+    });
+
+    it('should return channel results even when global query fails', async () => {
+      const channelResults: MemoryDocument[] = [
+        { pageContent: 'channel memory 1', metadata: { id: 'ch-1' } },
+        { pageContent: 'channel memory 2', metadata: { id: 'ch-2' } },
+      ];
+
+      mockQueryMemories
+        .mockResolvedValueOnce(channelResults) // Channel query succeeds
+        .mockRejectedValueOnce(new Error('Global query failed')); // Global query fails
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+      };
+      const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
+
+      // Should return channel results despite global failure
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(channelResults);
+      expect(mockQueryMemories).toHaveBeenCalledTimes(2);
+    });
+
+    it('should filter invalid channel IDs and proceed with valid ones in waterfall', async () => {
+      const channelResults: MemoryDocument[] = [
+        { pageContent: 'channel memory', metadata: { id: 'ch-1' } },
+      ];
+      const globalResults: MemoryDocument[] = [
+        { pageContent: 'global memory', metadata: { id: 'gl-1' } },
+      ];
+
+      mockQueryMemories.mockResolvedValueOnce(channelResults).mockResolvedValueOnce(globalResults);
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1, 'invalid-id', '123'], // Mix of valid and invalid
+      };
+      const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
+
+      expect(result).toHaveLength(2);
+
+      // Should only include valid channel ID in the query
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1], // Only valid ID
+        limit: 5,
+      });
+    });
   });
 });
