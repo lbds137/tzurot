@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-slim AS builder
+FROM node:24-slim AS builder
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -28,7 +28,7 @@ RUN pnpm --filter @tzurot/common-types build
 RUN pnpm --filter bot-client build
 
 # Production stage
-FROM node:22-slim
+FROM node:24-slim
 
 # Install pnpm
 RUN npm install -g pnpm

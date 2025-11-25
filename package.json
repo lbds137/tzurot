@@ -5,7 +5,7 @@
   "description": "Next-generation Discord AI bot with customizable personalities",
   "type": "module",
   "scripts": {
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate || true",
     "dev": "pnpm --parallel --filter './services/*' dev",
     "build": "pnpm -r build",
     "start:bot": "pnpm --filter @tzurot/bot-client start",
