@@ -75,8 +75,8 @@
 - [x] **Task 2.0.4**: Update adapter imports for PGlite tests
 - [x] **Task 2.0.5**: Fix any generated client API changes
 - [x] **Task 2.0.6**: Verify all existing tests pass with Prisma 7.0
-- [ ] **Task 2.0.7**: Merge blocked Dependabot PRs after Prisma migration
-  - PR open: `feat/dependency-upgrades-prisma-7` → `develop`
+- [x] **Task 2.0.7**: Merge blocked Dependabot PRs after Prisma migration
+  - ✅ Dependabot auto-closed its PRs when it detected develop had the latest versions
 
 **Test Coverage Audit** ✅ (Superseded by codecov integration):
 
