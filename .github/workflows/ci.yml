@@ -6,9 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
-# Cancel in-progress runs for the same workflow and branch
+# Cancel in-progress runs for the same branch
+# Uses head_ref (PR source branch) or ref_name (push branch) to ensure
+# push events and PR events for the same branch share a concurrency group
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 # Minimal permissions for security
