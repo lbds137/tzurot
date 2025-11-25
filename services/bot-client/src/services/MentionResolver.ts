@@ -106,30 +106,35 @@ export class MentionResolver {
     }
 
     // Build a map of discordId -> userInfo
+    // Process all users in parallel for better performance
     const userInfoMap = new Map<string, MentionedUserInfo>();
 
-    for (const discordId of uniqueIds) {
-      // Try to get Discord user info from the mentions collection
-      const discordUser = mentionedUsers.get(discordId);
+    const resolutionResults = await Promise.all(
+      uniqueIds.map(async (discordId): Promise<[string, MentionedUserInfo | null]> => {
+        const discordUser = mentionedUsers.get(discordId);
 
-      if (discordUser) {
-        // User is available - get or create their persona
-        const userInfo = await this.resolveKnownUser(discordUser, personalityId);
-        if (userInfo) {
-          userInfoMap.set(discordId, userInfo);
-        }
-      } else {
-        // User not in mentions collection - try to look up from our database
-        const existingInfo = await this.lookupExistingUser(discordId, personalityId);
-        if (existingInfo) {
-          userInfoMap.set(discordId, existingInfo);
+        if (discordUser) {
+          // User is available - get or create their persona
+          const userInfo = await this.resolveKnownUser(discordUser, personalityId);
+          return [discordId, userInfo];
         } else {
-          // Unknown user - leave the mention as-is
-          logger.debug(
-            { discordId },
-            '[MentionResolver] Could not resolve mention - user not in shared server or database'
-          );
+          // User not in mentions collection - try to look up from our database
+          const existingInfo = await this.lookupExistingUser(discordId, personalityId);
+          if (!existingInfo) {
+            logger.debug(
+              { discordId },
+              '[MentionResolver] Could not resolve mention - user not in shared server or database'
+            );
+          }
+          return [discordId, existingInfo];
         }
+      })
+    );
+
+    // Populate the map with successful resolutions
+    for (const [discordId, userInfo] of resolutionResults) {
+      if (userInfo) {
+        userInfoMap.set(discordId, userInfo);
       }
     }
 
