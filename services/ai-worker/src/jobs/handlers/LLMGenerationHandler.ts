@@ -216,6 +216,23 @@ export class LLMGenerationHandler {
         context.activePersonaName
       );
 
+      // Add mentioned personas to participants (if not already present)
+      if (context.mentionedPersonas && context.mentionedPersonas.length > 0) {
+        const existingIds = new Set(participants.map(p => p.personaId));
+        for (const mentioned of context.mentionedPersonas) {
+          if (!existingIds.has(mentioned.personaId)) {
+            participants.push({
+              personaId: mentioned.personaId,
+              personaName: mentioned.personaName,
+              isActive: false,
+            });
+            logger.debug(
+              `[LLMGenerationHandler] Added mentioned persona to participants: ${mentioned.personaName}`
+            );
+          }
+        }
+      }
+
       // Convert conversation history to BaseMessage format
       const conversationHistory = convertConversationHistory(
         context.conversationHistory ?? [],

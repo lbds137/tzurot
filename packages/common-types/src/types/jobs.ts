@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type {
   LoadedPersonality,
+  MentionedPersona,
   ReferencedMessage,
   AttachmentMetadata,
   DiscordEnvironment,
@@ -18,6 +19,7 @@ import type {
 } from './schemas.js';
 import {
   loadedPersonalitySchema,
+  mentionedPersonaSchema,
   attachmentMetadataSchema,
   apiConversationMessageSchema,
   referencedMessageSchema,
@@ -64,6 +66,7 @@ export interface JobContext {
   attachments?: AttachmentMetadata[];
   environment?: DiscordEnvironment;
   referencedMessages?: ReferencedMessage[];
+  mentionedPersonas?: MentionedPersona[];
 }
 
 /**
@@ -231,6 +234,7 @@ export const jobContextSchema = z.object({
   attachments: z.array(attachmentMetadataSchema).optional(),
   environment: discordEnvironmentSchema.optional(),
   referencedMessages: z.array(referencedMessageSchema).optional(),
+  mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
 });
 
 /**

@@ -17,6 +17,7 @@ import {
 } from '@tzurot/common-types';
 import type {
   LoadedPersonality,
+  MentionedPersona,
   ReferencedMessage,
   ConversationMessage,
 } from '@tzurot/common-types';
@@ -25,6 +26,7 @@ import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../utils/embedImageExtractor.js';
 import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
+import { MentionResolver } from './MentionResolver.js';
 
 const logger = createLogger('MessageContextBuilder');
 
@@ -54,10 +56,12 @@ export interface ContextBuildResult {
 export class MessageContextBuilder {
   private conversationHistory: ConversationHistoryService;
   private userService: UserService;
+  private mentionResolver: MentionResolver;
 
   constructor(private prisma: PrismaClient) {
     this.conversationHistory = new ConversationHistoryService(prisma);
     this.userService = new UserService(prisma);
+    this.mentionResolver = new MentionResolver(prisma);
   }
 
   /**
@@ -168,7 +172,28 @@ export class MessageContextBuilder {
     }
 
     // Use updatedContent (with Discord links replaced by [Reference N])
-    const messageContent = updatedContent ?? content ?? '[no text content]';
+    let messageContent = updatedContent ?? content ?? '[no text content]';
+
+    // Resolve user mentions (replace <@123456> with @PersonaName)
+    let mentionedPersonas: MentionedPersona[] | undefined;
+    if (message.mentions.users.size > 0) {
+      const mentionResult = await this.mentionResolver.resolveMentions(
+        messageContent,
+        message.mentions.users,
+        personality.id
+      );
+      messageContent = mentionResult.processedContent;
+      if (mentionResult.mentionedUsers.length > 0) {
+        mentionedPersonas = mentionResult.mentionedUsers.map(u => ({
+          personaId: u.personaId,
+          personaName: u.personaName,
+        }));
+        logger.debug(
+          { mentionedCount: mentionedPersonas.length },
+          '[MessageContextBuilder] Resolved user mentions'
+        );
+      }
+    }
 
     // Convert conversation history to API format
     const conversationHistory = history.map(msg => ({
@@ -206,6 +231,7 @@ export class MessageContextBuilder {
       attachments,
       environment,
       referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined,
+      mentionedPersonas,
     };
 
     logger.debug(
