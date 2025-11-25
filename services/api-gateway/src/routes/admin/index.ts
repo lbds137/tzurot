@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { type PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@tzurot/common-types';
 import { type CacheInvalidationService } from '@tzurot/common-types';
 import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';

@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createCreatePersonalityRoute } from './createPersonality.js';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({

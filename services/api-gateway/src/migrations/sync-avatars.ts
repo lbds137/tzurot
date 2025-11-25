@@ -9,11 +9,10 @@
  */
 
 import { writeFile, access } from 'fs/promises';
-import { PrismaClient } from '@prisma/client';
-import { createLogger } from '@tzurot/common-types';
+import { getPrismaClient, createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('avatar-sync');
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 export async function syncAvatars(): Promise<void> {
   logger.info('[Avatar Sync] Starting avatar sync from database...');

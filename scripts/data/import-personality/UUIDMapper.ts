@@ -9,7 +9,7 @@
  * Strategy: Use Discord IDs as the linking key
  */
 
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { UUIDMapping } from './types.js';
 
 export interface UserResolutionResult {

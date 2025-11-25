@@ -12,10 +12,11 @@
 // This prevents config validation errors when importing services
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@tzurot/common-types';
+import { PrismaPg } from '@prisma/adapter-pg';
 import type { RedisClientType } from 'redis';
 import { createClient } from 'redis';
-import { createRedisClientMock } from './helpers/RedisClientMock';
+import { createRedisClientMock } from './helpers/RedisClientMock.js';
 
 export interface TestEnvironment {
   prisma: PrismaClient;
@@ -45,27 +46,20 @@ function setupLocal(): TestEnvironment {
     );
   }
 
-  const prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-  });
+  // Use driver adapter pattern for Prisma 7
+  const adapter = new PrismaPg({ connectionString: databaseUrl });
+  const prisma = new PrismaClient({ adapter });
 
   // Create a Redis mock instance for local development
   // This avoids needing Redis running locally
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-  const redis = createRedisClientMock();
+  const redis = createRedisClientMock() as unknown as RedisClientType;
 
   return {
     prisma,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      redis.quit();
+      await redis.quit();
     },
   };
 }
@@ -79,13 +73,9 @@ async function setupCI(): Promise<TestEnvironment> {
     process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/tzurot_test';
   const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
-  const prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-  });
+  // Use driver adapter pattern for Prisma 7
+  const adapter = new PrismaPg({ connectionString: databaseUrl });
+  const prisma = new PrismaClient({ adapter });
 
   // Create Redis client
   const redis = createClient({ url: redisUrl });

@@ -9,13 +9,13 @@
  * - Updates existing memories with NULL persona_id to link them to the persona
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { createLogger } from '../../packages/common-types/src/logger.js';
 
 const logger = createLogger('PopulateShapesMappings');
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 interface UUIDMapping {
   newUserId: string;

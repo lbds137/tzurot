@@ -32,7 +32,33 @@ export default tseslint.config(
       'tzurot-legacy/**',
       'scripts/**',
       '**/scripts/**',
+      'prisma/**',
+      // Un-ignore generated Prisma files so ESLint can parse them for type resolution
+      // (negation brings them back into scope for the parser)
+      '!packages/common-types/src/generated/**',
     ],
+  },
+
+  // Disable linting rules for generated Prisma files (but allow parsing for type info)
+  {
+    files: ['packages/common-types/src/generated/**/*.ts'],
+    rules: {
+      // Disable all rules for auto-generated code
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/strict-boolean-expressions': 'off',
+      '@typescript-eslint/prefer-nullish-coalescing': 'off',
+    },
   },
 
   // Configuration for TypeScript files

@@ -32,9 +32,9 @@ export function sendSuccess<T>(res: Response, data: T, statusCode = StatusCodes.
  * @param response - Custom response object
  * @param statusCode - HTTP status code (default: 200 OK)
  */
-export function sendCustomSuccess(
+export function sendCustomSuccess<T extends object>(
   res: Response,
-  response: Record<string, unknown> | object,
+  response: T,
   statusCode = StatusCodes.OK
 ): void {
   res.status(statusCode).json(response);

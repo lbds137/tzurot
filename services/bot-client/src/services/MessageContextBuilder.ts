@@ -5,7 +5,7 @@
  * Handles attachments, references, environment, and conversation history.
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,

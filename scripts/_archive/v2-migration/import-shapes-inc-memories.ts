@@ -10,7 +10,7 @@
  * - Inserts with deterministic UUIDs for deduplication
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
@@ -19,7 +19,7 @@ import path from 'path';
 import { createLogger } from '../../packages/common-types/src/logger.js';
 
 const logger = createLogger('ShapesIncImport');
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 // Namespace UUID for memories
 const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
