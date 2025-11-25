@@ -217,17 +217,22 @@ export class LLMGenerationHandler {
       );
 
       // Add mentioned personas to participants (if not already present)
+      let allParticipants = participants;
       if (context.mentionedPersonas && context.mentionedPersonas.length > 0) {
         const existingIds = new Set(participants.map(p => p.personaId));
-        for (const mentioned of context.mentionedPersonas) {
-          if (!existingIds.has(mentioned.personaId)) {
-            participants.push({
-              personaId: mentioned.personaId,
-              personaName: mentioned.personaName,
-              isActive: false,
-            });
+        const mentionedParticipants = context.mentionedPersonas
+          .filter(mentioned => !existingIds.has(mentioned.personaId))
+          .map(mentioned => ({
+            personaId: mentioned.personaId,
+            personaName: mentioned.personaName,
+            isActive: false,
+          }));
+
+        if (mentionedParticipants.length > 0) {
+          allParticipants = [...participants, ...mentionedParticipants];
+          for (const p of mentionedParticipants) {
             logger.debug(
-              `[LLMGenerationHandler] Added mentioned persona to participants: ${mentioned.personaName}`
+              `[LLMGenerationHandler] Added mentioned persona to participants: ${p.personaName}`
             );
           }
         }
@@ -255,7 +260,7 @@ export class LLMGenerationHandler {
           conversationHistory,
           rawConversationHistory: context.conversationHistory,
           oldestHistoryTimestamp,
-          participants,
+          participants: allParticipants,
           attachments: context.attachments,
           environment: context.environment,
           referencedMessages: context.referencedMessages,

@@ -52,10 +52,17 @@ vi.mock('../utils/attachmentExtractor.js', () => ({
 
 // Create mock instance before mocking the module
 const mockExtractReferencesWithReplacement = vi.fn();
+const mockResolveMentions = vi.fn();
 
 vi.mock('../handlers/MessageReferenceExtractor.js', () => ({
   MessageReferenceExtractor: class {
     extractReferencesWithReplacement = mockExtractReferencesWithReplacement;
+  },
+}));
+
+vi.mock('./MentionResolver.js', () => ({
+  MentionResolver: class {
+    resolveMentions = mockResolveMentions;
   },
 }));
 
@@ -458,6 +465,81 @@ describe('MessageContextBuilder', () => {
 
       expect(result.context.referencedMessages).toBeUndefined();
       expect(result.referencedMessages).toEqual([]);
+    });
+
+    it('should resolve user mentions and include mentionedPersonas in context', async () => {
+      // Add mentioned users to the mock message
+      const mockMentionedUser = {
+        id: '123456',
+        username: 'mentioneduser',
+        globalName: 'Mentioned User',
+      } as User;
+      (mockMessage.mentions.users as Map<string, User>).set('123456', mockMentionedUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hey <@123456>, how are you?',
+      });
+      mockResolveMentions.mockResolvedValue({
+        processedContent: 'Hey @MentionedPersona, how are you?',
+        mentionedUsers: [
+          {
+            discordId: '123456',
+            userId: 'mentioned-user-uuid',
+            personaId: 'mentioned-persona-uuid',
+            personaName: 'MentionedPersona',
+          },
+        ],
+      });
+
+      const result = await builder.buildContext(
+        mockMessage,
+        mockPersonality,
+        'Hey <@123456>, how are you?'
+      );
+
+      // Verify mention resolution was called
+      expect(mockResolveMentions).toHaveBeenCalledWith(
+        'Hey <@123456>, how are you?',
+        mockMessage.mentions.users,
+        'personality-123'
+      );
+
+      // Verify processed content
+      expect(result.messageContent).toBe('Hey @MentionedPersona, how are you?');
+      expect(result.context.messageContent).toBe('Hey @MentionedPersona, how are you?');
+
+      // Verify mentionedPersonas is included in context
+      expect(result.context.mentionedPersonas).toEqual([
+        {
+          personaId: 'mentioned-persona-uuid',
+          personaName: 'MentionedPersona',
+        },
+      ]);
+    });
+
+    it('should not include mentionedPersonas when no mentions resolved', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello world',
+      });
+      // No mentions in message (mockMentionedUsers is empty)
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello world');
+
+      // Verify mention resolution was NOT called (no mentions.users)
+      expect(mockResolveMentions).not.toHaveBeenCalled();
+
+      // Verify mentionedPersonas is undefined
+      expect(result.context.mentionedPersonas).toBeUndefined();
     });
   });
 });
