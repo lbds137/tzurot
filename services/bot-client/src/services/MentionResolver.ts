@@ -14,7 +14,12 @@
 
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Collection, User, Guild, Message } from 'discord.js';
-import { UserService, createLogger, DISCORD_MENTIONS } from '@tzurot/common-types';
+import {
+  UserService,
+  createLogger,
+  DISCORD_MENTIONS,
+  isValidDiscordId,
+} from '@tzurot/common-types';
 
 const logger = createLogger('MentionResolver');
 
@@ -335,8 +340,8 @@ export class MentionResolver {
       '[MentionResolver] Found channel mentions to resolve'
     );
 
-    // Extract unique channel IDs
-    const allUniqueIds = [...new Set(matches.map(m => m[1]))];
+    // Extract unique channel IDs and validate (Discord snowflakes are 17-19 digit strings)
+    const allUniqueIds = [...new Set(matches.map(m => m[1]))].filter(isValidDiscordId);
 
     // Limit for DoS prevention
     const uniqueIds =
@@ -436,8 +441,8 @@ export class MentionResolver {
       '[MentionResolver] Found role mentions to resolve'
     );
 
-    // Extract unique role IDs
-    const allUniqueIds = [...new Set(matches.map(m => m[1]))];
+    // Extract unique role IDs and validate (Discord snowflakes are 17-19 digit strings)
+    const allUniqueIds = [...new Set(matches.map(m => m[1]))].filter(isValidDiscordId);
 
     // Limit for DoS prevention
     const uniqueIds =
