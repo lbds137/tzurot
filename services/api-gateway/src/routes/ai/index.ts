@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import type { Queue, QueueEvents } from 'bullmq';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { createGenerateRoute } from './generate.js';
 import { createTranscribeRoute } from './transcribe.js';

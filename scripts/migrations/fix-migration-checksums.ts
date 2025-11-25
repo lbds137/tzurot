@@ -8,7 +8,7 @@
 import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 
 const migrations = [
   '20251107130153_convert_discord_message_id_to_array',
@@ -16,7 +16,7 @@ const migrations = [
 ];
 
 async function fixChecksums() {
-  const prisma = new PrismaClient();
+  const prisma = getPrismaClient();
 
   for (const migrationName of migrations) {
     const migrationPath = join(

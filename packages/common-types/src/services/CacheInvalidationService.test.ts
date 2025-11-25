@@ -8,7 +8,7 @@ import { CacheInvalidationService } from './CacheInvalidationService.js';
 import { PersonalityService } from './PersonalityService.js';
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from './prisma.js';
 
 describe('CacheInvalidationService', () => {
   let mockRedis: Redis;

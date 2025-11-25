@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityLoader } from './PersonalityLoader.js';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../prisma.js';
 
 describe('PersonalityLoader', () => {
   let mockPrisma: PrismaClient;

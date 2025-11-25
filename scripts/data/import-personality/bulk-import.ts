@@ -10,7 +10,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient, type PrismaClient } from '@tzurot/common-types';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { OpenAI } from 'openai';
 import { PersonalityMapper } from './PersonalityMapper.js';
@@ -91,7 +91,7 @@ class BulkPersonalityImporter {
   private uuidMappings: Map<string, UUIDMappingData>;
 
   constructor() {
-    this.prisma = new PrismaClient();
+    this.prisma = getPrismaClient();
     this.qdrant = new QdrantClient({
       url: config.QDRANT_URL,
       apiKey: config.QDRANT_API_KEY,

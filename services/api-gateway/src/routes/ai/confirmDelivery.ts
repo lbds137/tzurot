@@ -5,7 +5,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { createLogger } from '@tzurot/common-types';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';

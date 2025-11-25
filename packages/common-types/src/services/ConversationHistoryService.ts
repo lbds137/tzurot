@@ -3,7 +3,7 @@
  * Manages short-term conversation history in PostgreSQL
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';

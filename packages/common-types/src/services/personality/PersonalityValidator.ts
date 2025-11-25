@@ -4,8 +4,11 @@
  */
 
 import { z } from 'zod';
-import type { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
+
+// Re-export Decimal type for convenience
+type Decimal = Prisma.Decimal;
 
 const logger = createLogger('PersonalityValidator');
 

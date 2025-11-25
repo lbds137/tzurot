@@ -3,7 +3,7 @@
  * PostgreSQL + pgvector adapter for memory retrieval and storage
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';

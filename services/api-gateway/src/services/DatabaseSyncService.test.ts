@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock Prisma clients
 const createMockPrismaClient = () => ({

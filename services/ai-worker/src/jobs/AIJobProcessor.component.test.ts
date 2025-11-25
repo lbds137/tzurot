@@ -23,7 +23,7 @@ import type {
 } from '../services/ConversationalRAGService.js';
 import { JobType, MessageRole, type LLMGenerationJobData } from '@tzurot/common-types';
 import type { Job } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { readFileSync } from 'fs';

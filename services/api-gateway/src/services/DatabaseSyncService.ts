@@ -4,7 +4,7 @@
  * using last-write-wins strategy based on timestamps
  */
 
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import { SYNC_CONFIG } from './sync/config/syncTables.js';
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';

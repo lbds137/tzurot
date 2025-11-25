@@ -4,10 +4,10 @@
  * Usage: tsx scripts/set-default-llm-config.ts <name-or-id>
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 import { Redis } from 'ioredis';
 
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
 async function setDefaultConfig(nameOrId: string) {

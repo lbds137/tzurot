@@ -5,7 +5,7 @@
  * Handles atomic storage with placeholders and rich description upgrades.
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import { ConversationHistoryService, createLogger, MessageRole } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';

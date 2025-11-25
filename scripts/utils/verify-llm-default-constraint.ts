@@ -4,9 +4,9 @@
  * This should only allow one row with isDefault = true
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 async function verifyConstraint() {
   console.log('🔍 Checking LLM configs...\n');

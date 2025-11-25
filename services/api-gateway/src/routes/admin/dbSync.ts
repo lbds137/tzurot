@@ -5,7 +5,8 @@
 
 import { Router, type Request, type Response } from 'express';
 import { createLogger, getConfig } from '@tzurot/common-types';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@tzurot/common-types';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { DatabaseSyncService } from '../../services/DatabaseSyncService.js';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -41,18 +42,12 @@ export function createDbSyncRoute(): Router {
 
       logger.info({ dryRun }, '[Admin] Starting database sync');
 
-      // Create Prisma clients for dev and prod databases
-      const devClient = new PrismaClient({
-        datasources: {
-          db: { url: config.DEV_DATABASE_URL },
-        },
-      });
+      // Create Prisma clients for dev and prod databases using driver adapters
+      const devAdapter = new PrismaPg({ connectionString: config.DEV_DATABASE_URL });
+      const devClient = new PrismaClient({ adapter: devAdapter });
 
-      const prodClient = new PrismaClient({
-        datasources: {
-          db: { url: config.PROD_DATABASE_URL },
-        },
-      });
+      const prodAdapter = new PrismaPg({ connectionString: config.PROD_DATABASE_URL });
+      const prodClient = new PrismaClient({ adapter: prodAdapter });
 
       try {
         // Execute sync

@@ -4,11 +4,15 @@
  */
 
 import express, { type Express } from 'express';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, CacheInvalidationService } from '@tzurot/common-types';
 import type { Queue } from 'bullmq';
 import { PersonalityService } from '@tzurot/common-types';
-import type { RequestDeduplicationCache } from '../../../services/api-gateway/src/utils/RequestDeduplicationCache.js';
-import type { CacheInvalidationService } from '../../../services/api-gateway/src/services/CacheInvalidationService.js';
+
+// Type-only imports for null mocks - these are internal api-gateway types
+// Used only for type annotations, actual value is always null in tests
+interface RequestDeduplicationCache {
+  checkDuplicate: (request: unknown) => unknown;
+}
 
 export interface TestAppDependencies {
   prisma: PrismaClient;
@@ -37,20 +41,15 @@ export async function createTestApp(deps: TestAppDependencies): Promise<Express>
   // For now, we'll test what we can with minimal setup
 
   const aiRouter = createAIRouter({
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     personalityService: deps.personalityService,
-
     queue: null as unknown as Queue, // Mock or skip queue-dependent tests
-
     deduplicationCache: null as unknown as RequestDeduplicationCache,
     prisma: deps.prisma,
   });
 
   const adminRouter = createAdminRouter({
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     personalityService: deps.personalityService,
     prisma: deps.prisma,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     cacheInvalidationService: null as unknown as CacheInvalidationService, // Will skip cache-dependent tests
   });
 
