@@ -127,6 +127,9 @@ describe('MessageContextBuilder', () => {
       return false;
     };
 
+    // Create mock mentions.users Collection (empty by default)
+    const mockMentionedUsers = new Map() as Collection<string, User>;
+
     mockMessage = {
       id: 'message-123',
       author: mockAuthor,
@@ -135,6 +138,9 @@ describe('MessageContextBuilder', () => {
       channel: mockChannel,
       content: 'Hello world',
       attachments: mockAttachments,
+      mentions: {
+        users: mockMentionedUsers,
+      },
       reference: null,
     } as Message;
   });

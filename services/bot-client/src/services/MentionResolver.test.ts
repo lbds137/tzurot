@@ -1,0 +1,321 @@
+/**
+ * Tests for MentionResolver
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MentionResolver } from './MentionResolver.js';
+import type { PrismaClient } from '@tzurot/common-types';
+import type { Collection, User } from 'discord.js';
+
+// Mock dependencies
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    UserService: class {
+      getOrCreateUser = vi.fn();
+      getPersonaForUser = vi.fn();
+      getPersonaName = vi.fn();
+    },
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+// Import after mocks
+import { UserService } from '@tzurot/common-types';
+
+describe('MentionResolver', () => {
+  let resolver: MentionResolver;
+  let mockPrisma: PrismaClient;
+  let mockUserService: UserService;
+  let mockMentionedUsers: Map<string, User>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Create mock Prisma client
+    mockPrisma = {
+      user: {
+        findUnique: vi.fn(),
+      },
+    } as unknown as PrismaClient;
+
+    // Create resolver instance
+    resolver = new MentionResolver(mockPrisma);
+
+    // Get service instance to access mocks
+    mockUserService = (resolver as any).userService;
+
+    // Create mock mentioned users Collection
+    mockMentionedUsers = new Map();
+  });
+
+  /**
+   * Helper to create a mock Discord User
+   */
+  function createMockUser(id: string, username: string, globalName: string | null = null): User {
+    return {
+      id,
+      username,
+      globalName,
+    } as User;
+  }
+
+  describe('resolveMentions', () => {
+    it('should return unchanged content when no mentions present', async () => {
+      const result = await resolver.resolveMentions(
+        'Hello, this is a message without mentions',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hello, this is a message without mentions');
+      expect(result.mentionedUsers).toEqual([]);
+    });
+
+    it('should resolve a single mention when Discord user is available', async () => {
+      const mockUser = createMockUser('123456', 'testuser', 'Test User');
+      mockMentionedUsers.set('123456', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>, how are you?',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hey @TestPersona, how are you?');
+      expect(result.mentionedUsers).toHaveLength(1);
+      expect(result.mentionedUsers[0]).toEqual({
+        discordId: '123456',
+        userId: 'user-uuid-123',
+        personaId: 'persona-uuid-123',
+        personaName: 'TestPersona',
+      });
+
+      expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
+        '123456',
+        'testuser',
+        'Test User'
+      );
+      expect(mockUserService.getPersonaForUser).toHaveBeenCalledWith(
+        'user-uuid-123',
+        'personality-123'
+      );
+    });
+
+    it('should handle nickname mention format with exclamation mark', async () => {
+      const mockUser = createMockUser('123456', 'testuser', 'Test User');
+      mockMentionedUsers.set('123456', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+
+      const result = await resolver.resolveMentions(
+        'Hey <@!123456>, how are you?',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hey @TestPersona, how are you?');
+      expect(result.mentionedUsers).toHaveLength(1);
+    });
+
+    it('should deduplicate multiple mentions of the same user', async () => {
+      const mockUser = createMockUser('123456', 'testuser', 'Test User');
+      mockMentionedUsers.set('123456', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>! I was just talking to <@123456> about you, <@123456>',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe(
+        'Hey @TestPersona! I was just talking to @TestPersona about you, @TestPersona'
+      );
+      expect(result.mentionedUsers).toHaveLength(1); // Only one entry
+
+      // Service should only be called once per unique user
+      expect(mockUserService.getOrCreateUser).toHaveBeenCalledTimes(1);
+    });
+
+    it('should resolve multiple different users', async () => {
+      const mockUser1 = createMockUser('111111', 'alice', 'Alice');
+      const mockUser2 = createMockUser('222222', 'bob', 'Bob');
+      mockMentionedUsers.set('111111', mockUser1);
+      mockMentionedUsers.set('222222', mockUser2);
+
+      vi.mocked(mockUserService.getOrCreateUser)
+        .mockResolvedValueOnce('alice-uuid')
+        .mockResolvedValueOnce('bob-uuid');
+      vi.mocked(mockUserService.getPersonaForUser)
+        .mockResolvedValueOnce('alice-persona')
+        .mockResolvedValueOnce('bob-persona');
+      vi.mocked(mockUserService.getPersonaName)
+        .mockResolvedValueOnce('AlicePersona')
+        .mockResolvedValueOnce('BobPersona');
+
+      const result = await resolver.resolveMentions(
+        'Hey <@111111> and <@222222>, lets chat!',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hey @AlicePersona and @BobPersona, lets chat!');
+      expect(result.mentionedUsers).toHaveLength(2);
+      expect(result.mentionedUsers[0].personaName).toBe('AlicePersona');
+      expect(result.mentionedUsers[1].personaName).toBe('BobPersona');
+    });
+
+    it('should fall back to database lookup when user not in mentions collection', async () => {
+      // User not in Discord mentions, but exists in our database
+      const mockDbUser = { id: 'db-user-uuid', username: 'existinguser' };
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(mockDbUser as any);
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('db-persona-uuid');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('ExistingPersona');
+
+      const result = await resolver.resolveMentions(
+        'Talking about <@999999> who is not online',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Talking about @ExistingPersona who is not online');
+      expect(result.mentionedUsers).toHaveLength(1);
+      expect(result.mentionedUsers[0]).toEqual({
+        discordId: '999999',
+        userId: 'db-user-uuid',
+        personaId: 'db-persona-uuid',
+        personaName: 'ExistingPersona',
+      });
+
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { discordId: '999999' },
+        select: { id: true, username: true },
+      });
+    });
+
+    it('should leave mention as-is when user cannot be resolved', async () => {
+      // User not in Discord mentions AND not in database
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
+
+      const result = await resolver.resolveMentions(
+        'Talking about <@999999> who is unknown',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Talking about <@999999> who is unknown');
+      expect(result.mentionedUsers).toEqual([]);
+    });
+
+    it('should use username as fallback when globalName is null', async () => {
+      const mockUser = createMockUser('123456', 'testuser', null);
+      mockMentionedUsers.set('123456', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue(null);
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>!',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      // Should fall back to the display name (username in this case)
+      expect(result.processedContent).toBe('Hey @testuser!');
+      expect(result.mentionedUsers[0].personaName).toBe('testuser');
+
+      expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
+        '123456',
+        'testuser',
+        'testuser' // Falls back to username
+      );
+    });
+
+    it('should handle error in user service gracefully', async () => {
+      const mockUser = createMockUser('123456', 'testuser', 'Test User');
+      mockMentionedUsers.set('123456', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockRejectedValue(new Error('Database error'));
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>!',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      // Should leave mention as-is on error
+      expect(result.processedContent).toBe('Hey <@123456>!');
+      expect(result.mentionedUsers).toEqual([]);
+    });
+
+    it('should handle error in database lookup gracefully', async () => {
+      vi.mocked(mockPrisma.user.findUnique).mockRejectedValue(new Error('Database error'));
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>!',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      // Should leave mention as-is on error
+      expect(result.processedContent).toBe('Hey <@123456>!');
+      expect(result.mentionedUsers).toEqual([]);
+    });
+
+    it('should handle mixed resolved and unresolved mentions', async () => {
+      const mockUser = createMockUser('111111', 'alice', 'Alice');
+      mockMentionedUsers.set('111111', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('alice-persona');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('AlicePersona');
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
+
+      const result = await resolver.resolveMentions(
+        'Hey <@111111> and <@999999>, lets chat!',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      // Alice resolved, unknown user left as-is
+      expect(result.processedContent).toBe('Hey @AlicePersona and <@999999>, lets chat!');
+      expect(result.mentionedUsers).toHaveLength(1);
+      expect(result.mentionedUsers[0].personaName).toBe('AlicePersona');
+    });
+
+    it('should use database username as fallback when persona name is null', async () => {
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({
+        id: 'db-user-uuid',
+        username: 'dbusername',
+      } as any);
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue(null);
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>!',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      expect(result.processedContent).toBe('Hey @dbusername!');
+      expect(result.mentionedUsers[0].personaName).toBe('dbusername');
+    });
+  });
+});
