@@ -10,7 +10,7 @@
 
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Collection, User } from 'discord.js';
-import { UserService, createLogger } from '@tzurot/common-types';
+import { UserService, createLogger, DISCORD_MENTIONS } from '@tzurot/common-types';
 
 const logger = createLogger('MentionResolver');
 
@@ -61,10 +61,8 @@ export class MentionResolver {
     mentionedUsers: Collection<string, User>,
     personalityId: string
   ): Promise<MentionResolutionResult> {
-    const mentionedUserInfos: MentionedUserInfo[] = [];
-
-    // Regex for Discord user mentions: <@123456> or <@!123456> (with nickname indicator)
-    const mentionRegex = /<@!?(\d+)>/g;
+    // Create regex for Discord user mentions (both <@123> and <@!123> formats)
+    const mentionRegex = new RegExp(DISCORD_MENTIONS.USER_PATTERN, 'g');
 
     // Find all mentions
     const matches = [...content.matchAll(mentionRegex)];
@@ -81,73 +79,80 @@ export class MentionResolver {
       '[MentionResolver] Found user mentions to resolve'
     );
 
-    let processedContent = content;
+    // Extract unique Discord IDs from matches (limit to MAX_PER_MESSAGE for DoS prevention)
+    const uniqueIds = [...new Set(matches.map(m => m[1]))].slice(
+      0,
+      DISCORD_MENTIONS.MAX_PER_MESSAGE
+    );
 
-    // Process each unique mention
-    const processedIds = new Set<string>();
+    if (uniqueIds.length < matches.length) {
+      logger.debug(
+        { totalMentions: matches.length, uniqueIds: uniqueIds.length },
+        '[MentionResolver] Deduplicated mention IDs'
+      );
+    }
 
-    for (const match of matches) {
-      const fullTag = match[0]; // e.g., "<@123456>" or "<@!123456>"
-      const discordId = match[1]; // e.g., "123456"
+    if (matches.length > DISCORD_MENTIONS.MAX_PER_MESSAGE) {
+      logger.warn(
+        {
+          mentionCount: matches.length,
+          limit: DISCORD_MENTIONS.MAX_PER_MESSAGE,
+        },
+        '[MentionResolver] Mention count exceeds limit, processing only first batch'
+      );
+    }
 
-      // Skip if we've already processed this user
-      if (processedIds.has(discordId)) {
-        continue;
-      }
-      processedIds.add(discordId);
+    // Build a map of discordId -> userInfo
+    const userInfoMap = new Map<string, MentionedUserInfo>();
 
+    for (const discordId of uniqueIds) {
       // Try to get Discord user info from the mentions collection
       const discordUser = mentionedUsers.get(discordId);
 
       if (discordUser) {
         // User is available - get or create their persona
         const userInfo = await this.resolveKnownUser(discordUser, personalityId);
-
         if (userInfo) {
-          mentionedUserInfos.push(userInfo);
-          // Replace all occurrences of this mention with the persona name
-          processedContent = processedContent.split(fullTag).join(`@${userInfo.personaName}`);
-
-          // Also handle the alternate format (with !)
-          const altTag = fullTag.includes('!')
-            ? fullTag.replace('!', '')
-            : fullTag.replace('@', '@!');
-          processedContent = processedContent.split(altTag).join(`@${userInfo.personaName}`);
+          userInfoMap.set(discordId, userInfo);
         }
       } else {
         // User not in mentions collection - try to look up from our database
         const existingInfo = await this.lookupExistingUser(discordId, personalityId);
-
         if (existingInfo) {
-          mentionedUserInfos.push(existingInfo);
-          processedContent = processedContent.split(fullTag).join(`@${existingInfo.personaName}`);
-
-          const altTag = fullTag.includes('!')
-            ? fullTag.replace('!', '')
-            : fullTag.replace('@', '@!');
-          processedContent = processedContent.split(altTag).join(`@${existingInfo.personaName}`);
+          userInfoMap.set(discordId, existingInfo);
         } else {
-          // Unknown user - leave the mention as-is or use placeholder
+          // Unknown user - leave the mention as-is
           logger.debug(
             { discordId },
             '[MentionResolver] Could not resolve mention - user not in shared server or database'
           );
-          // Leave as-is: the AI will see <@123456> which is fine
         }
       }
     }
 
+    // Now do all replacements - replace BOTH formats for each user
+    let processedContent = content;
+    for (const [discordId, userInfo] of userInfoMap) {
+      const normalTag = `<@${discordId}>`;
+      const nickTag = `<@!${discordId}>`;
+      const replacement = `@${userInfo.personaName}`;
+
+      // Replace both mention formats for this user
+      processedContent = processedContent.replaceAll(normalTag, replacement);
+      processedContent = processedContent.replaceAll(nickTag, replacement);
+    }
+
     logger.debug(
       {
-        resolvedCount: mentionedUserInfos.length,
-        totalMentions: processedIds.size,
+        resolvedCount: userInfoMap.size,
+        totalMentions: uniqueIds.length,
       },
       '[MentionResolver] Mention resolution complete'
     );
 
     return {
       processedContent,
-      mentionedUsers: mentionedUserInfos,
+      mentionedUsers: Array.from(userInfoMap.values()),
     };
   }
 
