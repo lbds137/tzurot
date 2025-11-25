@@ -470,7 +470,9 @@ export class PgvectorMemoryAdapter {
       );
     }
 
-    const channelBudget = Math.floor(totalLimit * channelBudgetRatio);
+    // Ensure at least 1 channel-scoped memory when channels are specified
+    // (prevents edge case where totalLimit=1, ratio=0.5 → channelBudget=0)
+    const channelBudget = Math.max(1, Math.floor(totalLimit * channelBudgetRatio));
 
     logger.debug(
       {

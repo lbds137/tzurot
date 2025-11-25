@@ -308,5 +308,60 @@ describe('PgvectorMemoryAdapter', () => {
         excludeIds: undefined,
       });
     });
+
+    it('should preserve scoreThreshold in both channel and global queries', async () => {
+      mockQueryMemories.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        scoreThreshold: 0.85,
+      };
+      await adapter.queryMemoriesWithChannelScoping('test query', options);
+
+      // Verify both calls received scoreThreshold
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(
+        1,
+        'test query',
+        expect.objectContaining({ scoreThreshold: 0.85 })
+      );
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(
+        2,
+        'test query',
+        expect.objectContaining({ scoreThreshold: 0.85 })
+      );
+    });
+
+    it('should ensure minimum channel budget of 1 even with small limit', async () => {
+      // Edge case: totalLimit=1, ratio=0.5 → should still get channelBudget=1, not 0
+      const channelResults: MemoryDocument[] = [
+        { pageContent: 'channel memory', metadata: { id: 'ch-1' } },
+      ];
+
+      mockQueryMemories.mockResolvedValueOnce(channelResults);
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        limit: 1,
+        channelBudgetRatio: 0.5, // Would normally give 0 with floor()
+      };
+      const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
+
+      // Should get the channel result even though 50% of 1 = 0.5 → floors to 0
+      expect(result).toHaveLength(1);
+      expect(result).toEqual(channelResults);
+
+      // Channel-scoped query should have limit: 1 (not 0)
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+        limit: 1, // Math.max(1, floor(1 * 0.5)) = Math.max(1, 0) = 1
+        channelBudgetRatio: 0.5,
+      });
+
+      // No global backfill since channel filled the entire budget
+      expect(mockQueryMemories).toHaveBeenCalledTimes(1);
+    });
   });
 });
