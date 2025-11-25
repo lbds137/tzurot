@@ -78,14 +78,13 @@
 - [ ] **Task 2.0.7**: Merge blocked Dependabot PRs after Prisma migration
   - PR open: `feat/dependency-upgrades-prisma-7` → `develop`
 
-**Test Coverage Audit** (1 session):
+**Test Coverage Audit** ✅ (Superseded by codecov integration):
 
-- [ ] **Task 1.6**: Audit test coverage gaps across all services
-  - Generate coverage report for each service
-  - Identify files with <70% coverage
-  - Prioritize gaps in critical paths (job processing, message handling)
-  - Create remediation plan for remaining gaps
-  - **Why**: Codecov flagged 50 lines missing in alpha.48 release - need full picture before schema changes
+- [x] **Task 1.6**: ~~Formal audit~~ → Codecov now tracks per-service coverage automatically
+  - Codecov integration configured (2025-11-19)
+  - Per-service flags for granular tracking
+  - Regressions caught automatically in PRs
+  - **Decision**: Skip formal audit - codecov provides continuous coverage visibility
 
 **BYOK Schema** (5-7 sessions):
 

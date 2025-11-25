@@ -381,7 +381,7 @@ async function setupCI(): Promise<TestEnvironment> {
 export async function setupTestEnvironment(): Promise<TestEnvironment> {
   if (isCI()) {
     return setupCI();
-  } else if (process.env.DATABASE_URL) {
+  } else if (process.env.DATABASE_URL !== undefined && process.env.DATABASE_URL.length > 0) {
     // If DATABASE_URL is set locally, use real database
     return setupWithRealDatabase();
   } else {
