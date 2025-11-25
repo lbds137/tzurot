@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from './prisma.js';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '../constants/index.js';
 import * as tokenCounter from '../utils/tokenCounter.js';

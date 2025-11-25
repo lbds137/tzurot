@@ -21,10 +21,9 @@
  *   pnpm migrate-legacy-persona 98a94b95-cbd0-430b-8be2-602e1c75d8b0 278863839632818186 --keep-legacy
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient, type PrismaClient, getConfig } from '@tzurot/common-types';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { OpenAI } from 'openai';
-import { getConfig } from '@tzurot/common-types';
 
 const config = getConfig();
 
@@ -48,7 +47,7 @@ class LegacyPersonaMigration {
   private qdrant: QdrantClient;
 
   constructor() {
-    this.prisma = new PrismaClient();
+    this.prisma = getPrismaClient();
     this.qdrant = new QdrantClient({
       url: config.QDRANT_URL,
       apiKey: config.QDRANT_API_KEY,

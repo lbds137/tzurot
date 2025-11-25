@@ -9,7 +9,7 @@
  * - PersonalityCache: In-memory caching with TTL
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { TIMEOUTS } from '../../constants/index.js';
 import type { LoadedPersonality } from '../../types/schemas.js';

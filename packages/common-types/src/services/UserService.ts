@@ -3,8 +3,8 @@
  * Manages User records - creates users on first interaction
  */
 
-import type { PrismaClient } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import type { PrismaClient } from './prisma.js';
+import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 

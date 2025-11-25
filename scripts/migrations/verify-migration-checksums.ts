@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 import { createHash } from 'crypto';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 async function verifyChecksums() {
   console.log('Checking migration checksums...\n');

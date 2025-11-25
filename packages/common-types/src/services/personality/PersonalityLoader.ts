@@ -3,7 +3,7 @@
  * Database query logic for loading personalities from PostgreSQL
  */
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import type { DatabasePersonality, LlmConfig } from './PersonalityValidator.js';
 import { parseLlmConfig } from './PersonalityValidator.js';

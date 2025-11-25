@@ -12,11 +12,10 @@
  */
 
 import { Client, GatewayIntentBits } from 'discord.js';
-import { PrismaClient } from '@prisma/client';
-import { createLogger } from '@tzurot/common-types';
+import { getPrismaClient, createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('BackfillGuildIdsFromDiscord');
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;

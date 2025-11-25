@@ -12,13 +12,13 @@
  * 4. Deletes the misclassified legacy collection
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { config as loadEnv } from 'dotenv';
 
 loadEnv();
 
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL!,
   apiKey: process.env.QDRANT_API_KEY!,

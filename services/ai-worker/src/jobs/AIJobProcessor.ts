@@ -24,7 +24,7 @@ import {
   type ImageDescriptionResult,
   type LLMGenerationResult,
 } from '@tzurot/common-types';
-import type { PrismaClient, Prisma } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@tzurot/common-types';
 import { redisService } from '../redis.js';
 import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';

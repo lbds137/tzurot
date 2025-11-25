@@ -6,7 +6,7 @@
  */
 
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
+import { MessageFlags } from 'discord-api-types/v10';
 import { getConfig } from '../config/index.js';
 
 /**

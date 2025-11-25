@@ -4,7 +4,7 @@
  * Validates database sync configuration and schema versions.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import type { SyncTableName, TableSyncConfig } from '../config/syncTables.js';
 

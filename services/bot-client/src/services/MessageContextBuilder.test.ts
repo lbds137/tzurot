@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import type {
   Message,
   Collection,

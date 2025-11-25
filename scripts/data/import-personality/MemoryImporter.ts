@@ -12,7 +12,7 @@
 
 import type { QdrantClient } from '@qdrant/js-client-rest';
 import type { OpenAI } from 'openai';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { ShapesIncMemory, V3MemoryMetadata, MemoryImportResult } from './types.js';
 import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 

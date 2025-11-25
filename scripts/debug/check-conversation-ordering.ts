@@ -3,9 +3,9 @@
  * Check for ordering issues in conversation_history
  */
 
-import { PrismaClient } from '@prisma/client';
+import { getPrismaClient } from '@tzurot/common-types';
 
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 async function main() {
   console.log('Checking conversation history ordering...\n');

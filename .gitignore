@@ -53,4 +53,6 @@ scripts/utils/uuid-mappings.json
 # Allow example personalities at root for deployment
 # (private personalities are in tzurot-legacy/data/)
 !personalities/
-/src/generated/prisma
+
+# Prisma generated client (regenerated via postinstall)
+packages/common-types/src/generated/prisma/

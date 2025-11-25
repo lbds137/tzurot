@@ -6,7 +6,7 @@
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger, AVATAR_LIMITS, assertDefined } from '@tzurot/common-types';
-import { type PrismaClient, Prisma } from '@prisma/client';
+import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';

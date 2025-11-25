@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { LlmConfigSchema, parseLlmConfig } from './PersonalityValidator.js';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal } from '@prisma/client/runtime/client';
 
 describe('PersonalityValidator', () => {
   describe('LlmConfigSchema', () => {
