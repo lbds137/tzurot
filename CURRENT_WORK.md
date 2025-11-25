@@ -1,6 +1,6 @@
 # 🎯 Current Work
 
-> Last updated: 2025-11-24
+> Last updated: 2025-11-25
 
 ## Status: 🚀 **Prisma 7.0 Migration COMPLETE** - Ready for BYOK Schema
 
@@ -16,6 +16,13 @@
 - Dependabot PRs can now be merged after this PR
 
 **Recent Completion**:
+
+- ✅ **Channel/Role Mention Resolution** (2025-11-25) - PR #285
+  - Added channel mention resolution (`<#channelId>` → `#channel-name`)
+  - Added role mention resolution (`<@&roleId>` → `@RoleName`)
+  - Implemented waterfall LTM retrieval (channel-scoped first, then global backfill)
+  - Added `resolveAllMentions()` for combined user/channel/role handling
+  - All 1,660 tests passing
 
 - ✅ **v3.0.0-alpha.47 Release** (2025-11-22) - Critical bug fixes
   - Fixed Gemini censorship retry mechanism (moved check into retry loop)
