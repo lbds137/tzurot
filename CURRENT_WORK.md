@@ -72,32 +72,29 @@
 
 ## Next Steps
 
-**Phase 1, Sprint 2**: BYOK Schema Migration (5-7 sessions remaining)
+**Phase 1, Sprint 2**: BYOK Schema Migration (7-10 sessions remaining)
 
-**Prisma 7.0 Migration** ✅ COMPLETE (2025-11-24):
+**Reference**: [SPRINT_2_IMPLEMENTATION_GUIDE.md](docs/planning/SPRINT_2_IMPLEMENTATION_GUIDE.md) - Consolidated implementation guide
 
-- [x] **Task 2.0.1**: Review Prisma 7.0 changelog (breaking changes)
-- [x] **Task 2.0.2**: Update `@prisma/client` and `prisma` to 7.x
-- [x] **Task 2.0.3**: Resolve any schema validation errors
-- [x] **Task 2.0.4**: Update adapter imports for PGlite tests
-- [x] **Task 2.0.5**: Fix any generated client API changes
-- [x] **Task 2.0.6**: Verify all existing tests pass with Prisma 7.0
-- [x] **Task 2.0.7**: Merge blocked Dependabot PRs after Prisma migration
-  - ✅ Dependabot auto-closed its PRs when it detected develop had the latest versions
+**Prisma 7.0 Migration** ✅ COMPLETE (2025-11-24)
 
-**Test Coverage Audit** ✅ (Superseded by codecov integration):
+**Documentation Updates** ✅ COMPLETE (2025-11-25):
 
-- [x] **Task 1.6**: ~~Formal audit~~ → Codecov now tracks per-service coverage automatically
-  - Codecov integration configured (2025-11-19)
-  - Per-service flags for granular tracking
-  - Regressions caught automatically in PRs
-  - **Decision**: Skip formal audit - codecov provides continuous coverage visibility
+- [x] Created Sprint 2 Implementation Guide (consolidated from 4 docs + Gemini consultation)
+- [x] Updated ROADMAP.md with proper task ordering (per Gemini dependency analysis)
+- [x] Marked Prisma 7.0 complete in PHASED_IMPLEMENTATION_PLAN.md
+- [x] Reconciled QOL_MODEL_MANAGEMENT.md with ROADMAP.md sprints
 
-**BYOK Schema** (5-7 sessions):
+**Next Task**: Sprint 2 Preparation (Code First)
 
-- [ ] **Task 2.1**: Add `UserApiKey` table for encrypted API key storage
-- [ ] **Task 2.2**: Add `UsageLog` table for token usage tracking
-- [ ] **Task 2.3**: Add `PersonalityAlias` table for unique aliases
+- [ ] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
+- [ ] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation
+
+**Then**: Database Migrations (Dependency Order)
+
+- [ ] **Task 2.1**: Update `User` table (root dependency)
+- [ ] **Task 2.2**: Create `UserApiKey` table (depends on User)
+- [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
 - [ ] **Task 2.4**: Update `Personality` table (add `errorMessage`, `birthday`)
 - [ ] **Task 2.5**: Update `User` table (add `timezone`, relationships)
 

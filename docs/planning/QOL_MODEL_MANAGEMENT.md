@@ -1,9 +1,26 @@
 # Quality of Life: Model & Personality Management
 
-> **Status:** Planning
+> **Status:** Integrated into ROADMAP.md Sprint 2-3
 > **Created:** 2025-11-06
+> **Updated:** 2025-11-25
 > **Priority:** High - Blocking production issues
-> **Branch:** `feat/qol-model-management` (off `develop`)
+
+## Integration Notice (2025-11-25)
+
+**This document's phases have been integrated into the master ROADMAP.md:**
+
+- **Database setup** (Phase 1 here) → ROADMAP.md Sprint 2 Tasks 2.1, 2.3
+- **LLM config commands** (Phase 2 here) → ROADMAP.md Sprint 3 Tasks 3.5-3.7
+- **Model override commands** (Phase 3 here) → ROADMAP.md Sprint 3 Tasks 3.8-3.9
+- **Persona management** (Phase 4 here) → Deferred to Phase 2 Sprint 5
+- **Config resolution logic** (Phase 5 here) → ROADMAP.md Sprint 2 Task 2.12
+
+**For current task list**: See [ROADMAP.md](../../ROADMAP.md) Sprint 2-3
+**For implementation details**: See [SPRINT_2_IMPLEMENTATION_GUIDE.md](SPRINT_2_IMPLEMENTATION_GUIDE.md)
+
+This document remains as a detailed reference for slash command UX design and interactive flow patterns.
+
+---
 
 ## Context
 
