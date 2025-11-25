@@ -15,6 +15,10 @@ import {
   type MemoryQueryOptions,
 } from './PgvectorMemoryAdapter.js';
 
+// Valid Discord snowflake IDs for testing (17-19 digit numeric strings)
+const VALID_CHANNEL_ID_1 = '123456789012345678';
+const VALID_CHANNEL_ID_2 = '234567890123456789';
+
 // Mock dependencies
 vi.mock('@tzurot/common-types', () => ({
   createLogger: () => ({
@@ -26,6 +30,10 @@ vi.mock('@tzurot/common-types', () => ({
   MODEL_DEFAULTS: {
     EMBEDDING: 'text-embedding-3-small',
   },
+  AI_DEFAULTS: {
+    CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
+  },
+  filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
 }));
 
 vi.mock('../utils/promptPlaceholders.js', () => ({
@@ -107,7 +115,7 @@ describe('PgvectorMemoryAdapter', () => {
 
       const options = {
         ...baseOptions,
-        channelIds: ['channel-abc', 'channel-def'],
+        channelIds: [VALID_CHANNEL_ID_1, VALID_CHANNEL_ID_2],
       };
       const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
 
@@ -121,7 +129,7 @@ describe('PgvectorMemoryAdapter', () => {
       // First call: channel-scoped with 50% limit (floor(10 * 0.5) = 5)
       expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
         ...baseOptions,
-        channelIds: ['channel-abc', 'channel-def'],
+        channelIds: [VALID_CHANNEL_ID_1, VALID_CHANNEL_ID_2],
         limit: 5, // 50% of 10
       });
 
@@ -146,7 +154,7 @@ describe('PgvectorMemoryAdapter', () => {
 
       const options = {
         ...baseOptions,
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
         channelBudgetRatio: 0.3, // 30% for channel-scoped
       };
       const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
@@ -156,7 +164,7 @@ describe('PgvectorMemoryAdapter', () => {
       // First call: 30% of 10 = 3
       expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
         ...baseOptions,
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
         channelBudgetRatio: 0.3,
         limit: 3, // floor(10 * 0.3) = 3
       });
@@ -183,7 +191,7 @@ describe('PgvectorMemoryAdapter', () => {
       const options = {
         ...baseOptions,
         limit: 10,
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
         channelBudgetRatio: 1.0, // 100% for channel-scoped
       };
       const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
@@ -207,7 +215,7 @@ describe('PgvectorMemoryAdapter', () => {
 
       const options = {
         ...baseOptions,
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
       };
       const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
 
@@ -237,7 +245,7 @@ describe('PgvectorMemoryAdapter', () => {
 
       const options = {
         ...baseOptions,
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
       };
       const result = await adapter.queryMemoriesWithChannelScoping('test query', options);
 
@@ -260,7 +268,7 @@ describe('PgvectorMemoryAdapter', () => {
 
       const options = {
         personaId: 'persona-123',
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
         // No limit specified
       };
       await adapter.queryMemoriesWithChannelScoping('test query', options);
@@ -268,7 +276,7 @@ describe('PgvectorMemoryAdapter', () => {
       // Should use default limit of 10
       expect(mockQueryMemories).toHaveBeenNthCalledWith(1, 'test query', {
         personaId: 'persona-123',
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
         limit: 5, // 50% of default 10
       });
     });
@@ -282,7 +290,7 @@ describe('PgvectorMemoryAdapter', () => {
         sessionId: 'session-789',
         scoreThreshold: 0.7,
         excludeNewerThan: 1700000000000,
-        channelIds: ['channel-abc'],
+        channelIds: [VALID_CHANNEL_ID_1],
         limit: 20,
       };
       await adapter.queryMemoriesWithChannelScoping('test query', options);

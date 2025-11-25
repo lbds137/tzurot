@@ -83,3 +83,46 @@ export const DISCORD_MENTIONS = {
   /** Maximum role mentions to process per message (DoS prevention) */
   MAX_ROLES_PER_MESSAGE: 5,
 } as const;
+
+/**
+ * Discord Snowflake ID validation
+ *
+ * Discord IDs (snowflakes) are 64-bit integers represented as strings.
+ * They are 17-19 digits long (growing over time as timestamps increase).
+ * Examples: "123456789012345678", "1234567890123456789"
+ */
+export const DISCORD_SNOWFLAKE = {
+  /**
+   * Regex pattern for validating Discord snowflake IDs
+   * Matches 17-19 digit numeric strings
+   */
+  PATTERN: /^\d{17,19}$/,
+
+  /**
+   * Minimum length of a Discord snowflake ID
+   */
+  MIN_LENGTH: 17,
+
+  /**
+   * Maximum length of a Discord snowflake ID
+   */
+  MAX_LENGTH: 19,
+} as const;
+
+/**
+ * Validate a Discord snowflake ID
+ * @param id - The ID to validate
+ * @returns true if valid Discord snowflake format
+ */
+export function isValidDiscordId(id: string): boolean {
+  return DISCORD_SNOWFLAKE.PATTERN.test(id);
+}
+
+/**
+ * Filter array to only valid Discord IDs
+ * @param ids - Array of potential IDs
+ * @returns Array of valid Discord snowflake IDs
+ */
+export function filterValidDiscordIds(ids: string[]): string[] {
+  return ids.filter(isValidDiscordId);
+}

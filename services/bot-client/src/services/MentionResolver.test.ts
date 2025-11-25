@@ -7,6 +7,14 @@ import { MentionResolver } from './MentionResolver.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Collection, User } from 'discord.js';
 
+// Valid Discord snowflake IDs for testing (17-19 digit numeric strings)
+const VALID_CHANNEL_ID = '123456789012345678';
+const VALID_CHANNEL_ID_2 = '234567890123456789';
+const VALID_ROLE_ID = '345678901234567890';
+const VALID_ROLE_ID_2 = '456789012345678901';
+const VALID_USER_ID = '567890123456789012';
+const VALID_USER_ID_2 = '678901234567890123';
+
 // Mock dependencies - use synchronous mock to ensure DISCORD_MENTIONS is available at module load
 vi.mock('@tzurot/common-types', () => ({
   // Constants must be provided synchronously
@@ -29,6 +37,8 @@ vi.mock('@tzurot/common-types', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
+  // Validation helper that filters to 17-19 digit numeric strings
+  isValidDiscordId: (id: string) => /^\d{17,19}$/.test(id),
 }));
 
 // Import after mocks
@@ -413,18 +423,20 @@ describe('MentionResolver', () => {
     });
 
     it('should resolve a single channel mention', () => {
-      const mockChannels = new Map([['123456', { name: 'general', topic: 'General discussion' }]]);
+      const mockChannels = new Map([
+        [VALID_CHANNEL_ID, { name: 'general', topic: 'General discussion' }],
+      ]);
       const mockGuild = createMockGuild(mockChannels);
 
       const result = resolver.resolveChannelMentions(
-        'Check out <#123456> for more info',
+        `Check out <#${VALID_CHANNEL_ID}> for more info`,
         mockGuild
       );
 
       expect(result.processedContent).toBe('Check out #general for more info');
       expect(result.mentionedChannels).toHaveLength(1);
       expect(result.mentionedChannels[0]).toEqual({
-        channelId: '123456',
+        channelId: VALID_CHANNEL_ID,
         channelName: 'general',
         topic: 'General discussion',
         guildId: 'guild-123',
@@ -433,12 +445,15 @@ describe('MentionResolver', () => {
 
     it('should resolve multiple channel mentions', () => {
       const mockChannels = new Map([
-        ['111111', { name: 'announcements' }],
-        ['222222', { name: 'gaming', topic: 'Game talk' }],
+        [VALID_CHANNEL_ID, { name: 'announcements' }],
+        [VALID_CHANNEL_ID_2, { name: 'gaming', topic: 'Game talk' }],
       ]);
       const mockGuild = createMockGuild(mockChannels);
 
-      const result = resolver.resolveChannelMentions('See <#111111> and <#222222>', mockGuild);
+      const result = resolver.resolveChannelMentions(
+        `See <#${VALID_CHANNEL_ID}> and <#${VALID_CHANNEL_ID_2}>`,
+        mockGuild
+      );
 
       expect(result.processedContent).toBe('See #announcements and #gaming');
       expect(result.mentionedChannels).toHaveLength(2);
@@ -446,26 +461,28 @@ describe('MentionResolver', () => {
 
     it('should handle unknown channel with placeholder', () => {
       const mockGuild = createMockGuild(new Map());
+      // Use a valid snowflake ID that's not in the cache
+      const unknownChannelId = '999888777666555444';
 
-      const result = resolver.resolveChannelMentions('Check out <#999999>', mockGuild);
+      const result = resolver.resolveChannelMentions(`Check out <#${unknownChannelId}>`, mockGuild);
 
       expect(result.processedContent).toBe('Check out #unknown-channel');
       expect(result.mentionedChannels).toEqual([]);
     });
 
     it('should handle null guild gracefully', () => {
-      const result = resolver.resolveChannelMentions('Check out <#123456>', null);
+      const result = resolver.resolveChannelMentions(`Check out <#${VALID_CHANNEL_ID}>`, null);
 
       expect(result.processedContent).toBe('Check out #unknown-channel');
       expect(result.mentionedChannels).toEqual([]);
     });
 
     it('should deduplicate repeated channel mentions', () => {
-      const mockChannels = new Map([['123456', { name: 'general' }]]);
+      const mockChannels = new Map([[VALID_CHANNEL_ID, { name: 'general' }]]);
       const mockGuild = createMockGuild(mockChannels);
 
       const result = resolver.resolveChannelMentions(
-        '<#123456> is great! Come to <#123456>!',
+        `<#${VALID_CHANNEL_ID}> is great! Come to <#${VALID_CHANNEL_ID}>!`,
         mockGuild
       );
 
@@ -497,15 +514,18 @@ describe('MentionResolver', () => {
     });
 
     it('should resolve a single role mention', () => {
-      const mockRoles = new Map([['123456', { name: 'Moderators', mentionable: true }]]);
+      const mockRoles = new Map([[VALID_ROLE_ID, { name: 'Moderators', mentionable: true }]]);
       const mockGuild = createMockGuild(mockRoles);
 
-      const result = resolver.resolveRoleMentions('Hey <@&123456>, we need help!', mockGuild);
+      const result = resolver.resolveRoleMentions(
+        `Hey <@&${VALID_ROLE_ID}>, we need help!`,
+        mockGuild
+      );
 
       expect(result.processedContent).toBe('Hey @Moderators, we need help!');
       expect(result.mentionedRoles).toHaveLength(1);
       expect(result.mentionedRoles[0]).toEqual({
-        roleId: '123456',
+        roleId: VALID_ROLE_ID,
         roleName: 'Moderators',
         mentionable: true,
       });
@@ -513,13 +533,13 @@ describe('MentionResolver', () => {
 
     it('should resolve multiple role mentions', () => {
       const mockRoles = new Map([
-        ['111111', { name: 'Admin', mentionable: false }],
-        ['222222', { name: 'Developer', mentionable: true }],
+        [VALID_ROLE_ID, { name: 'Admin', mentionable: false }],
+        [VALID_ROLE_ID_2, { name: 'Developer', mentionable: true }],
       ]);
       const mockGuild = createMockGuild(mockRoles);
 
       const result = resolver.resolveRoleMentions(
-        '<@&111111> and <@&222222> please review',
+        `<@&${VALID_ROLE_ID}> and <@&${VALID_ROLE_ID_2}> please review`,
         mockGuild
       );
 
@@ -529,15 +549,17 @@ describe('MentionResolver', () => {
 
     it('should handle unknown role with placeholder', () => {
       const mockGuild = createMockGuild(new Map());
+      // Use a valid snowflake ID that's not in the cache
+      const unknownRoleId = '888777666555444333';
 
-      const result = resolver.resolveRoleMentions('Hey <@&999999>!', mockGuild);
+      const result = resolver.resolveRoleMentions(`Hey <@&${unknownRoleId}>!`, mockGuild);
 
       expect(result.processedContent).toBe('Hey @unknown-role!');
       expect(result.mentionedRoles).toEqual([]);
     });
 
     it('should handle null guild gracefully', () => {
-      const result = resolver.resolveRoleMentions('Hey <@&123456>!', null);
+      const result = resolver.resolveRoleMentions(`Hey <@&${VALID_ROLE_ID}>!`, null);
 
       expect(result.processedContent).toBe('Hey @unknown-role!');
       expect(result.mentionedRoles).toEqual([]);
@@ -579,13 +601,13 @@ describe('MentionResolver', () => {
     }
 
     it('should resolve all mention types in a single message', async () => {
-      const mockUser = createMockUser('111111', 'alice', 'Alice');
-      const mockUsers = new Map([['111111', mockUser]]);
-      const mockChannels = new Map([['222222', { name: 'general' }]]);
-      const mockRoles = new Map([['333333', { name: 'Mods', mentionable: true }]]);
+      const mockUser = createMockUser(VALID_USER_ID, 'alice', 'Alice');
+      const mockUsers = new Map([[VALID_USER_ID, mockUser]]);
+      const mockChannels = new Map([[VALID_CHANNEL_ID, { name: 'general' }]]);
+      const mockRoles = new Map([[VALID_ROLE_ID, { name: 'Mods', mentionable: true }]]);
 
       const mockMessage = createMockMessage(
-        'Hey <@111111>! Check <#222222> or ask <@&333333>',
+        `Hey <@${VALID_USER_ID}>! Check <#${VALID_CHANNEL_ID}> or ask <@&${VALID_ROLE_ID}>`,
         mockUsers,
         mockChannels,
         mockRoles
@@ -596,7 +618,7 @@ describe('MentionResolver', () => {
       vi.mocked(mockUserService.getPersonaName).mockResolvedValue('AlicePersona');
 
       const result = await resolver.resolveAllMentions(
-        'Hey <@111111>! Check <#222222> or ask <@&333333>',
+        `Hey <@${VALID_USER_ID}>! Check <#${VALID_CHANNEL_ID}> or ask <@&${VALID_ROLE_ID}>`,
         mockMessage,
         'personality-123'
       );
