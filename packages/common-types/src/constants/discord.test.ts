@@ -3,11 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  DISCORD_SNOWFLAKE,
-  isValidDiscordId,
-  filterValidDiscordIds,
-} from './discord.js';
+import { DISCORD_SNOWFLAKE, isValidDiscordId, filterValidDiscordIds } from './discord.js';
 
 describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
