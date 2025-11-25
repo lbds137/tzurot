@@ -15,7 +15,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
 import type { ConversationContext, MemoryDocument } from './ConversationalRAGService.js';
-import type { LoadedPersonality, AttachmentMetadata, ReferencedMessage } from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  AttachmentMetadata,
+  ReferencedMessage,
+} from '@tzurot/common-types';
 import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types';
 
 // Instance trackers for mock classes (populated when ConversationalRAGService is instantiated)
@@ -211,7 +215,10 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test message', context);
 
-      expect(mockPromptBuilderInstance.formatUserMessage).toHaveBeenCalledWith('Test message', context);
+      expect(mockPromptBuilderInstance.formatUserMessage).toHaveBeenCalledWith(
+        'Test message',
+        context
+      );
     });
 
     it('should retrieve relevant memories via MemoryRetriever', async () => {
@@ -286,7 +293,9 @@ describe('ConversationalRAGService', () => {
       const participantMap = new Map([
         ['user-123', { personaId: 'persona-1', personaName: 'Alice', isActive: true }],
       ]);
-      mockMemoryRetrieverInstance.getAllParticipantPersonas = vi.fn().mockResolvedValue(participantMap);
+      mockMemoryRetrieverInstance.getAllParticipantPersonas = vi
+        .fn()
+        .mockResolvedValue(participantMap);
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -317,7 +326,9 @@ describe('ConversationalRAGService', () => {
 
   describe('LTM storage integration', () => {
     it('should store interaction to LTM when persona exists', async () => {
-      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi.fn().mockResolvedValue('persona-123');
+      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi
+        .fn()
+        .mockResolvedValue('persona-123');
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -463,7 +474,9 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(mockReferencedMessageFormatterInstance.formatReferencedMessages).not.toHaveBeenCalled();
+      expect(
+        mockReferencedMessageFormatterInstance.formatReferencedMessages
+      ).not.toHaveBeenCalled();
     });
 
     it('should not format references when array is empty', async () => {
@@ -472,7 +485,9 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(mockReferencedMessageFormatterInstance.formatReferencedMessages).not.toHaveBeenCalled();
+      expect(
+        mockReferencedMessageFormatterInstance.formatReferencedMessages
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -644,7 +659,11 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context);
 
-      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith('claude-3-sonnet', undefined, 0.9);
+      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
+        'claude-3-sonnet',
+        undefined,
+        0.9
+      );
     });
 
     it('should pass user API key when provided', async () => {
