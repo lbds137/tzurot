@@ -477,6 +477,12 @@
   - Logic gates: AND_ANY, NOT_ALL for precise context injection
   - Timed effects: "Sticky" (stays X turns), "Cooldown" (can't retrigger for Y turns)
 
+**From Channel/Role Mention PR Review (2025-11-25)**:
+
+- Database-configurable limits for mention resolution (per-personality or per-guild)
+  - Currently hardcoded: MAX_CHANNELS_PER_MESSAGE (5), MAX_ROLES_PER_MESSAGE (5), CHANNEL_MEMORY_BUDGET_RATIO (0.5)
+  - Allows tuning for different use cases without code changes
+
 **Original Ideas**:
 
 - Streaming responses (real-time message updates)
