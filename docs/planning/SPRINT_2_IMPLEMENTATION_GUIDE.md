@@ -164,6 +164,64 @@ railway variables set APP_MASTER_KEY=<generated-key> --service ai-worker
 
 **Key Discovery (2025-11-25)**: OpenRouter has a **unified `reasoning` object** that works across all reasoning models (o1/o3, Claude thinking, Gemini thinking, DeepSeek R1). No need for model-family specific schemas!
 
+### SDK Decision: REST API via LangChain (Not @openrouter/sdk)
+
+**Research Conclusion (2025-11-25)**: After evaluating `@openrouter/sdk` (official TypeScript SDK, in beta) vs direct REST API, we chose to **keep our current approach**:
+
+**Current Implementation** (`services/ai-worker/src/services/ModelFactory.ts`):
+```typescript
+// We use LangChain's ChatOpenAI with custom baseURL pointing to OpenRouter
+new ChatOpenAI({
+  modelName,
+  apiKey,
+  temperature,
+  configuration: {
+    baseURL: 'https://openrouter.ai/api/v1',
+  },
+})
+```
+
+**Why NOT switch to @openrouter/sdk**:
+
+1. **Beta Status**: The SDK "may have breaking changes between versions without a major version update" - risky for production
+2. **Type Blocking**: Strict TypeScript types can block new parameters (like `reasoning`) before SDK updates
+3. **Debugging Complexity**: BYOK errors are easier to debug with raw HTTP responses vs SDK-wrapped errors
+4. **No Real Benefit**: We already have type safety via Zod schemas, streaming via LangChain, and the SDK is just a wrapper around fetch anyway
+
+**What we gain by staying with current approach**:
+
+1. **Stability**: LangChain's OpenAI SDK is battle-tested
+2. **Flexibility**: Can add new parameters immediately without waiting for SDK updates
+3. **BYOK Debugging**: Raw 401/402/429 errors are clear for user-facing error messages
+4. **Reasoning Support**: Can pass `reasoning` object directly via LangChain's extra params
+
+**For reasoning/advanced parameters**, LangChain's ChatOpenAI passes unsupported params directly to the underlying API:
+
+```typescript
+// Method 1: At instantiation (for static config from LlmConfig)
+const model = new ChatOpenAI({
+  modelName,
+  apiKey,
+  temperature,
+  // Extra params passed directly to OpenRouter
+  frequencyPenalty: 0.5,
+  configuration: { baseURL: 'https://openrouter.ai/api/v1' },
+});
+
+// Method 2: At invoke time using .bind() (for dynamic config)
+const modelWithReasoning = model.bind({
+  reasoning: { effort: 'high' },
+});
+await modelWithReasoning.invoke(messages);
+```
+
+**Implementation Plan**: Store advanced params in `LlmConfig.advancedParameters` (JSONB), then spread them into the ChatOpenAI constructor or use `.bind()` at invoke time.
+
+**Sources**:
+- [OpenRouter SDKs Documentation](https://openrouter.ai/docs/sdks)
+- [OpenRouter TypeScript SDK GitHub](https://github.com/OpenRouterTeam/typescript-sdk)
+- Gemini consultation (2025-11-25)
+
 **References**:
 - https://openrouter.ai/docs/api/reference/parameters
 - https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
@@ -183,23 +241,23 @@ import { z } from 'zod';
 
 // ============================================
 // SAMPLING PARAMETERS
-// OpenRouter normalizes these across models.
-// Unsupported params are silently dropped.
+// OpenRouter REST API uses snake_case. LangChain passes unknown params as-is.
+// We store in snake_case to match what gets sent to the API.
 // ============================================
 const SamplingParamsSchema = z.object({
   // Standard (widely supported)
   temperature: z.number().min(0).max(2).optional(),
-  topP: z.number().min(0).max(1).optional(),
-  topK: z.number().int().min(0).optional(),
+  top_p: z.number().min(0).max(1).optional(),
+  top_k: z.number().int().min(0).optional(),
 
   // Penalties
-  frequencyPenalty: z.number().min(-2).max(2).optional(),
-  presencePenalty: z.number().min(-2).max(2).optional(),
-  repetitionPenalty: z.number().min(0).max(2).optional(),
+  frequency_penalty: z.number().min(-2).max(2).optional(),
+  presence_penalty: z.number().min(-2).max(2).optional(),
+  repetition_penalty: z.number().min(0).max(2).optional(),
 
   // Advanced sampling (open-source models)
-  minP: z.number().min(0).max(1).optional(),
-  topA: z.number().min(0).max(1).optional(),
+  min_p: z.number().min(0).max(1).optional(),
+  top_a: z.number().min(0).max(1).optional(),
 
   // Determinism
   seed: z.number().int().optional(),
@@ -208,6 +266,7 @@ const SamplingParamsSchema = z.object({
 // ============================================
 // REASONING PARAMETERS (Unified by OpenRouter)
 // Works across: OpenAI o1/o3, Claude, Gemini, DeepSeek R1
+// Note: OpenRouter may use camelCase here - verify against latest docs
 // ============================================
 const ReasoningParamsSchema = z.object({
   reasoning: z.object({
@@ -217,7 +276,7 @@ const ReasoningParamsSchema = z.object({
 
     // Direct token budget (Anthropic, Gemini, Alibaba Qwen)
     // Constraints: min 1024, max 32000, must be < max_tokens
-    maxTokens: z.number().int().min(1024).max(32000).optional(),
+    max_tokens: z.number().int().min(1024).max(32000).optional(),
 
     // Whether to include reasoning in response (default: true)
     exclude: z.boolean().optional(),
@@ -231,12 +290,12 @@ const ReasoningParamsSchema = z.object({
 // OUTPUT CONTROL PARAMETERS
 // ============================================
 const OutputParamsSchema = z.object({
-  maxTokens: z.number().int().positive().optional(),
+  max_tokens: z.number().int().positive().optional(),
   stop: z.array(z.string()).optional(),
-  logitBias: z.record(z.string(), z.number().min(-100).max(100)).optional(),
+  logit_bias: z.record(z.string(), z.number().min(-100).max(100)).optional(),
 
   // Response format
-  responseFormat: z.object({
+  response_format: z.object({
     type: z.enum(['text', 'json_object']),
   }).optional(),
 });
@@ -283,18 +342,18 @@ export function safeValidateAdvancedParams(params: unknown): AdvancedParams | nu
 
 /**
  * Check if reasoning is enabled for these params.
- * Used to apply constraints (e.g., max_tokens > reasoning.maxTokens).
+ * Used to apply constraints (e.g., max_tokens > reasoning.max_tokens).
  */
 export function hasReasoningEnabled(params: AdvancedParams): boolean {
   if (!params.reasoning) return false;
   if (params.reasoning.enabled === false) return false;
   if (params.reasoning.effort === 'none') return false;
-  return params.reasoning.effort !== undefined || params.reasoning.maxTokens !== undefined;
+  return params.reasoning.effort !== undefined || params.reasoning.max_tokens !== undefined;
 }
 ```
 
 **Key Constraints** (enforced at runtime, not in schema):
-1. When `reasoning.maxTokens` is set, `maxTokens` must be greater (leave room for response)
+1. When `reasoning.max_tokens` is set, `max_tokens` must be greater (leave room for response)
 2. Reasoning models may ignore/error on `temperature` if reasoning is enabled
 3. Minimum reasoning budget: 1,024 tokens
 4. Maximum reasoning budget: 32,000 tokens
@@ -911,20 +970,20 @@ export function supportsReasoning(model: string): boolean {
  * Must be called before sending to OpenRouter.
  */
 export function validateReasoningBudget(
-  maxTokens: number | undefined,
-  reasoningMaxTokens: number | undefined
+  max_tokens: number | undefined,
+  reasoning_max_tokens: number | undefined
 ): void {
-  if (reasoningMaxTokens === undefined) return;
+  if (reasoning_max_tokens === undefined) return;
 
-  if (reasoningMaxTokens < 1024) {
+  if (reasoning_max_tokens < 1024) {
     throw new Error('Reasoning budget must be at least 1,024 tokens');
   }
-  if (reasoningMaxTokens > 32000) {
+  if (reasoning_max_tokens > 32000) {
     throw new Error('Reasoning budget cannot exceed 32,000 tokens');
   }
-  if (maxTokens !== undefined && maxTokens <= reasoningMaxTokens) {
+  if (max_tokens !== undefined && max_tokens <= reasoning_max_tokens) {
     throw new Error(
-      `maxTokens (${maxTokens}) must be greater than reasoning.maxTokens (${reasoningMaxTokens}) ` +
+      `max_tokens (${max_tokens}) must be greater than reasoning.max_tokens (${reasoning_max_tokens}) ` +
       'to leave room for the final response'
     );
   }
@@ -966,10 +1025,10 @@ async invoke(params: InvokeParams): Promise<InvokeResult> {
   const { model, messages, advancedParams } = params;
 
   // Validate reasoning budget if set
-  if (advancedParams?.reasoning?.maxTokens) {
+  if (advancedParams?.reasoning?.max_tokens) {
     validateReasoningBudget(
-      advancedParams.maxTokens,
-      advancedParams.reasoning.maxTokens
+      advancedParams.max_tokens,
+      advancedParams.reasoning.max_tokens
     );
   }
 
@@ -1071,4 +1130,5 @@ railway run pg_dump -Fc > backup_pre_sprint2_$(date +%Y%m%d).dump
 
 ## Changelog
 
+- **2025-11-25**: Added SDK decision section based on research + Gemini consultation
 - **2025-11-25**: Created consolidated guide from multiple docs + Gemini consultation
