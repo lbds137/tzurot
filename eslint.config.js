@@ -29,6 +29,7 @@ export default tseslint.config(
       '.pnpm-store/**',
       '**/vitest.config.ts',
       'vitest.workspace.ts',
+      'prisma.config.ts',
       'tzurot-legacy/**',
       'scripts/**',
       '**/scripts/**',
