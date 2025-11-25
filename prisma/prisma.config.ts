@@ -5,19 +5,14 @@
  * The PrismaClient uses driver adapters configured in common-types/src/services/prisma.ts
  */
 
-import path from 'node:path';
-import type { PrismaConfig } from 'prisma';
+import { defineConfig, env } from 'prisma/config';
 
-const config: PrismaConfig = {
+export default defineConfig({
   earlyAccess: true,
-  schema: path.join(__dirname, 'schema.prisma'),
+  schema: 'prisma/schema.prisma',
 
-  // Migrate configuration - provides database URL for migrations
-  migrate: {
-    async url() {
-      return process.env.DATABASE_URL ?? '';
-    },
+  // Datasource configuration for migrations
+  datasource: {
+    url: env('DATABASE_URL'),
   },
-};
-
-export default config;
+});
