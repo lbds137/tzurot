@@ -79,26 +79,29 @@ export class MentionResolver {
       '[MentionResolver] Found user mentions to resolve'
     );
 
-    // Extract unique Discord IDs from matches (limit to MAX_PER_MESSAGE for DoS prevention)
-    const uniqueIds = [...new Set(matches.map(m => m[1]))].slice(
-      0,
-      DISCORD_MENTIONS.MAX_PER_MESSAGE
-    );
+    // Extract unique Discord IDs from matches
+    const allUniqueIds = [...new Set(matches.map(m => m[1]))];
 
-    if (uniqueIds.length < matches.length) {
+    if (allUniqueIds.length < matches.length) {
       logger.debug(
-        { totalMentions: matches.length, uniqueIds: uniqueIds.length },
+        { totalMentions: matches.length, uniqueUsers: allUniqueIds.length },
         '[MentionResolver] Deduplicated mention IDs'
       );
     }
 
-    if (matches.length > DISCORD_MENTIONS.MAX_PER_MESSAGE) {
+    // Limit to MAX_PER_MESSAGE for DoS prevention
+    const uniqueIds =
+      allUniqueIds.length > DISCORD_MENTIONS.MAX_PER_MESSAGE
+        ? allUniqueIds.slice(0, DISCORD_MENTIONS.MAX_PER_MESSAGE)
+        : allUniqueIds;
+
+    if (allUniqueIds.length > DISCORD_MENTIONS.MAX_PER_MESSAGE) {
       logger.warn(
         {
-          mentionCount: matches.length,
+          uniqueMentions: allUniqueIds.length,
           limit: DISCORD_MENTIONS.MAX_PER_MESSAGE,
         },
-        '[MentionResolver] Mention count exceeds limit, processing only first batch'
+        '[MentionResolver] Unique mentions exceed limit, processing only first batch'
       );
     }
 
