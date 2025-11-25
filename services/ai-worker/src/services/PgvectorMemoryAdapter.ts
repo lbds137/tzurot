@@ -525,10 +525,7 @@ export class PgvectorMemoryAdapter {
           '[PgvectorMemoryAdapter] Global backfill query complete'
         );
       } catch (error) {
-        logger.error(
-          { err: error },
-          '[PgvectorMemoryAdapter] Global backfill query failed'
-        );
+        logger.error({ err: error }, '[PgvectorMemoryAdapter] Global backfill query failed');
         // Return channel results only if global fails
       }
     }
