@@ -53,3 +53,17 @@ export const DISCORD_COLORS = {
   /** Error (red) */
   ERROR: 0xff0000,
 } as const;
+
+/**
+ * Discord mention patterns and limits
+ */
+export const DISCORD_MENTIONS = {
+  /**
+   * Regex pattern string for Discord user mentions
+   * Matches both <@123456> and <@!123456> (nickname indicator) formats
+   * Use with 'g' flag for global matching: new RegExp(DISCORD_MENTIONS.USER_PATTERN, 'g')
+   */
+  USER_PATTERN: '<@!?(\\d+)>',
+  /** Maximum mentions to process per message (DoS prevention) */
+  MAX_PER_MESSAGE: 10,
+} as const;

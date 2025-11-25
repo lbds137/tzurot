@@ -36,7 +36,7 @@ export {
 } from './queue.js';
 
 // Discord constants
-export { TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS } from './discord.js';
+export { TEXT_LIMITS, DISCORD_LIMITS, DISCORD_COLORS, DISCORD_MENTIONS } from './discord.js';
 
 // Error constants
 export { TransientErrorCode, ERROR_NAMES, ERROR_MESSAGES } from './error.js';

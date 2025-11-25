@@ -7,24 +7,25 @@ import { MentionResolver } from './MentionResolver.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Collection, User } from 'discord.js';
 
-// Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  return {
-    ...actual,
-    UserService: class {
-      getOrCreateUser = vi.fn();
-      getPersonaForUser = vi.fn();
-      getPersonaName = vi.fn();
-    },
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  };
-});
+// Mock dependencies - use synchronous mock to ensure DISCORD_MENTIONS is available at module load
+vi.mock('@tzurot/common-types', () => ({
+  // Constants must be provided synchronously
+  DISCORD_MENTIONS: {
+    USER_PATTERN: '<@!?(\\d+)>',
+    MAX_PER_MESSAGE: 10,
+  },
+  UserService: class {
+    getOrCreateUser = vi.fn();
+    getPersonaForUser = vi.fn();
+    getPersonaName = vi.fn();
+  },
+  createLogger: () => ({
+    info: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
 
 // Import after mocks
 import { UserService } from '@tzurot/common-types';
@@ -316,6 +317,65 @@ describe('MentionResolver', () => {
 
       expect(result.processedContent).toBe('Hey @dbusername!');
       expect(result.mentionedUsers[0].personaName).toBe('dbusername');
+    });
+
+    it('should handle both mention formats in the same message', async () => {
+      // Tests that both <@123456> and <@!123456> are replaced for the same user
+      const mockUser = createMockUser('123456', 'testuser', 'Test User');
+      mockMentionedUsers.set('123456', mockUser);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
+      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+
+      const result = await resolver.resolveMentions(
+        'Hey <@123456>! I was talking to <@!123456> about you, <@123456>',
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      // All mention formats should be replaced
+      expect(result.processedContent).toBe(
+        'Hey @TestPersona! I was talking to @TestPersona about you, @TestPersona'
+      );
+      // Only one user entry (deduplicated)
+      expect(result.mentionedUsers).toHaveLength(1);
+      expect(result.mentionedUsers[0].personaName).toBe('TestPersona');
+
+      // Service should only be called once (deduplication)
+      expect(mockUserService.getOrCreateUser).toHaveBeenCalledTimes(1);
+    });
+
+    it('should respect max mentions limit for DoS prevention', async () => {
+      // Create 15 different users (more than the limit of 10)
+      for (let i = 1; i <= 15; i++) {
+        const mockUser = createMockUser(`${i}`, `user${i}`, `User ${i}`);
+        mockMentionedUsers.set(`${i}`, mockUser);
+      }
+
+      vi.mocked(mockUserService.getOrCreateUser).mockImplementation(async discordId => {
+        return `uuid-${discordId}`;
+      });
+      vi.mocked(mockUserService.getPersonaForUser).mockImplementation(async userId => {
+        return `persona-${userId}`;
+      });
+      vi.mocked(mockUserService.getPersonaName).mockImplementation(async personaId => {
+        const match = personaId.match(/persona-uuid-(\d+)/);
+        return match ? `Persona${match[1]}` : 'Unknown';
+      });
+
+      // Build a message with 15 mentions
+      const mentions = Array.from({ length: 15 }, (_, i) => `<@${i + 1}>`).join(' ');
+      const result = await resolver.resolveMentions(
+        `Hello ${mentions}`,
+        mockMentionedUsers as Collection<string, User>,
+        'personality-123'
+      );
+
+      // Should only process MAX_PER_MESSAGE (10) users
+      expect(result.mentionedUsers.length).toBeLessThanOrEqual(10);
+      // User service should only be called up to 10 times
+      expect(mockUserService.getOrCreateUser).toHaveBeenCalledTimes(10);
     });
   });
 });
