@@ -30,6 +30,13 @@ export const AI_DEFAULTS = {
    * 10 seconds = 10000ms
    */
   STM_LTM_BUFFER_MS: 10000,
+  /**
+   * Channel-scoped memory budget ratio for waterfall LTM retrieval
+   * When user references channels, this fraction of the memory limit is allocated
+   * to channel-scoped memories, with the remainder going to global semantic search.
+   * 0.5 = 50% channel-scoped, 50% global backfill
+   */
+  CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
 } as const;
 
 /**

@@ -8,7 +8,12 @@ import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { createLogger, MODEL_DEFAULTS } from '@tzurot/common-types';
+import {
+  createLogger,
+  MODEL_DEFAULTS,
+  AI_DEFAULTS,
+  filterValidDiscordIds,
+} from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
 const logger = createLogger('PgvectorMemoryAdapter');
@@ -436,18 +441,40 @@ export class PgvectorMemoryAdapter {
     options: MemoryQueryOptions
   ): Promise<MemoryDocument[]> {
     const totalLimit = options.limit ?? 10;
-    const channelBudgetRatio = options.channelBudgetRatio ?? 0.5;
+    const channelBudgetRatio =
+      options.channelBudgetRatio ?? AI_DEFAULTS.CHANNEL_MEMORY_BUDGET_RATIO;
 
     // If no channels specified, just do a normal query
     if (!options.channelIds || options.channelIds.length === 0) {
       return this.queryMemories(query, options);
     }
 
+    // Validate channel IDs to prevent SQL injection (Discord snowflakes are 17-19 digit strings)
+    const validChannelIds = filterValidDiscordIds(options.channelIds);
+    if (validChannelIds.length === 0) {
+      logger.warn(
+        { originalChannelIds: options.channelIds },
+        '[PgvectorMemoryAdapter] No valid Discord channel IDs provided, falling back to global query'
+      );
+      return this.queryMemories(query, { ...options, channelIds: undefined });
+    }
+
+    if (validChannelIds.length < options.channelIds.length) {
+      logger.warn(
+        {
+          original: options.channelIds.length,
+          valid: validChannelIds.length,
+          filtered: options.channelIds.filter(id => !validChannelIds.includes(id)),
+        },
+        '[PgvectorMemoryAdapter] Some channel IDs filtered out as invalid'
+      );
+    }
+
     const channelBudget = Math.floor(totalLimit * channelBudgetRatio);
 
     logger.debug(
       {
-        channelIds: options.channelIds,
+        channelIds: validChannelIds,
         totalLimit,
         channelBudget,
         channelBudgetRatio,
@@ -456,16 +483,25 @@ export class PgvectorMemoryAdapter {
     );
 
     // Step 1: Query channel-scoped memories first
-    const channelResults = await this.queryMemories(query, {
-      ...options,
-      channelIds: options.channelIds,
-      limit: channelBudget,
-    });
+    let channelResults: MemoryDocument[] = [];
+    try {
+      channelResults = await this.queryMemories(query, {
+        ...options,
+        channelIds: validChannelIds,
+        limit: channelBudget,
+      });
 
-    logger.debug(
-      { channelResultCount: channelResults.length, channelBudget },
-      '[PgvectorMemoryAdapter] Channel-scoped query complete'
-    );
+      logger.debug(
+        { channelResultCount: channelResults.length, channelBudget },
+        '[PgvectorMemoryAdapter] Channel-scoped query complete'
+      );
+    } catch (error) {
+      logger.error(
+        { err: error, channelIds: validChannelIds },
+        '[PgvectorMemoryAdapter] Channel-scoped query failed, continuing with global only'
+      );
+      // Continue to global query - better to return some results than none
+    }
 
     // Step 2: Calculate remaining budget and get IDs to exclude
     const remainingBudget = totalLimit - channelResults.length;
@@ -476,17 +512,25 @@ export class PgvectorMemoryAdapter {
     // Step 3: Global semantic query with exclusion (no channel filter)
     let globalResults: MemoryDocument[] = [];
     if (remainingBudget > 0) {
-      globalResults = await this.queryMemories(query, {
-        ...options,
-        channelIds: undefined, // Remove channel filter for global search
-        limit: remainingBudget,
-        excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
-      });
+      try {
+        globalResults = await this.queryMemories(query, {
+          ...options,
+          channelIds: undefined, // Remove channel filter for global search
+          limit: remainingBudget,
+          excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
+        });
 
-      logger.debug(
-        { globalResultCount: globalResults.length, remainingBudget },
-        '[PgvectorMemoryAdapter] Global backfill query complete'
-      );
+        logger.debug(
+          { globalResultCount: globalResults.length, remainingBudget },
+          '[PgvectorMemoryAdapter] Global backfill query complete'
+        );
+      } catch (error) {
+        logger.error(
+          { err: error },
+          '[PgvectorMemoryAdapter] Global backfill query failed'
+        );
+        // Return channel results only if global fails
+      }
     }
 
     // Step 4: Combine results (channel-scoped first for prominence)
@@ -497,7 +541,7 @@ export class PgvectorMemoryAdapter {
         totalResults: combinedResults.length,
         channelScoped: channelResults.length,
         globalBackfill: globalResults.length,
-        channelIds: options.channelIds,
+        channelIds: validChannelIds,
       },
       '[PgvectorMemoryAdapter] Waterfall query complete'
     );
