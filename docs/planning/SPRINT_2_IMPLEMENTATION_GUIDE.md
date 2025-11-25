@@ -160,101 +160,153 @@ railway variables set APP_MASTER_KEY=<generated-key> --service ai-worker
 
 **Why**: Validate JSONB structure at application layer before database storage.
 
+**Provider Strategy**: Tzurot uses **OpenRouter as the single LLM provider**. OpenRouter provides a **unified API** that normalizes parameters across underlying models (OpenAI, Anthropic, Google, open-source).
+
+**Key Discovery (2025-11-25)**: OpenRouter has a **unified `reasoning` object** that works across all reasoning models (o1/o3, Claude thinking, Gemini thinking, DeepSeek R1). No need for model-family specific schemas!
+
+**References**:
+- https://openrouter.ai/docs/api/reference/parameters
+- https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
+
 ```typescript
 // packages/common-types/src/schemas/llmAdvancedParams.ts
 import { z } from 'zod';
 
-// Base schema - common across all providers
-const BaseAdvancedParamsSchema = z.object({
-  stop: z.array(z.string()).optional(),
-  streamResponse: z.boolean().optional(),
-});
+/**
+ * Advanced parameters for LLM requests via OpenRouter.
+ *
+ * OpenRouter normalizes these parameters across all underlying models.
+ * Unsupported params are silently dropped (sampling) or cause errors (conflicts).
+ *
+ * See: https://openrouter.ai/docs/api/reference/parameters
+ */
 
-// OpenAI-specific parameters
-export const OpenAIAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
+// ============================================
+// SAMPLING PARAMETERS
+// OpenRouter normalizes these across models.
+// Unsupported params are silently dropped.
+// ============================================
+const SamplingParamsSchema = z.object({
+  // Standard (widely supported)
+  temperature: z.number().min(0).max(2).optional(),
+  topP: z.number().min(0).max(1).optional(),
+  topK: z.number().int().min(0).optional(),
+
+  // Penalties
   frequencyPenalty: z.number().min(-2).max(2).optional(),
   presencePenalty: z.number().min(-2).max(2).optional(),
-  seed: z.number().int().optional(),
-  logitBias: z.record(z.number()).optional(),
-  // Reasoning models (o1, o3)
-  reasoningEffort: z.enum(['low', 'medium', 'high']).optional(),
-  maxCompletionTokens: z.number().int().positive().optional(),
-  // Note: o1 doesn't support system role - handled in LLMInvoker
-});
+  repetitionPenalty: z.number().min(0).max(2).optional(),
 
-// Anthropic-specific parameters
-export const AnthropicAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
-  topK: z.number().int().min(1).max(500).optional(),
-  // Claude 3.7 thinking/extended thinking
-  thinking: z.object({
-    type: z.enum(['enabled', 'disabled']),
-    budgetTokens: z.number().int().min(1024).max(32000),
-  }).optional(),
-  cacheControl: z.boolean().optional(),
-});
-
-// Gemini-specific parameters
-export const GeminiAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
-  topK: z.number().int().min(1).max(100).optional(),
-  // Gemini 2.0 thinking
-  thinkingConfig: z.object({
-    thinkingBudget: z.number().int().min(0).max(24576).optional(),
-  }).optional(),
-  safetySettings: z.array(z.object({
-    category: z.enum([
-      'HARM_CATEGORY_HARASSMENT',
-      'HARM_CATEGORY_HATE_SPEECH',
-      'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-      'HARM_CATEGORY_DANGEROUS_CONTENT',
-    ]),
-    threshold: z.enum([
-      'BLOCK_NONE',
-      'BLOCK_ONLY_HIGH',
-      'BLOCK_MEDIUM_AND_ABOVE',
-      'BLOCK_LOW_AND_ABOVE',
-    ]),
-  })).optional(),
-});
-
-// OpenRouter-specific parameters
-export const OpenRouterAdvancedParamsSchema = BaseAdvancedParamsSchema.extend({
+  // Advanced sampling (open-source models)
   minP: z.number().min(0).max(1).optional(),
   topA: z.number().min(0).max(1).optional(),
-  typicalP: z.number().min(0).max(1).optional(),
-  repetitionPenalty: z.number().min(0.1).max(2).optional(),
-  transforms: z.array(z.string()).optional(),
+
+  // Determinism
+  seed: z.number().int().optional(),
 });
 
-// Provider type
-export type LlmProvider = 'openai' | 'anthropic' | 'google' | 'openrouter';
+// ============================================
+// REASONING PARAMETERS (Unified by OpenRouter)
+// Works across: OpenAI o1/o3, Claude, Gemini, DeepSeek R1
+// ============================================
+const ReasoningParamsSchema = z.object({
+  reasoning: z.object({
+    // Effort level (OpenAI o1/o3, Grok, DeepSeek R1)
+    // Maps to ~80%/50%/20%/10%/0% of max_tokens for reasoning
+    effort: z.enum(['high', 'medium', 'low', 'minimal', 'none']).optional(),
 
-// Union schema for validation
-export function validateAdvancedParams(provider: LlmProvider, params: unknown) {
-  switch (provider) {
-    case 'openai':
-      return OpenAIAdvancedParamsSchema.parse(params);
-    case 'anthropic':
-      return AnthropicAdvancedParamsSchema.parse(params);
-    case 'google':
-      return GeminiAdvancedParamsSchema.parse(params);
-    case 'openrouter':
-      return OpenRouterAdvancedParamsSchema.parse(params);
-    default:
-      return BaseAdvancedParamsSchema.parse(params);
-  }
+    // Direct token budget (Anthropic, Gemini, Alibaba Qwen)
+    // Constraints: min 1024, max 32000, must be < max_tokens
+    maxTokens: z.number().int().min(1024).max(32000).optional(),
+
+    // Whether to include reasoning in response (default: true)
+    exclude: z.boolean().optional(),
+
+    // Enable/disable reasoning (default: true for reasoning models)
+    enabled: z.boolean().optional(),
+  }).optional(),
+});
+
+// ============================================
+// OUTPUT CONTROL PARAMETERS
+// ============================================
+const OutputParamsSchema = z.object({
+  maxTokens: z.number().int().positive().optional(),
+  stop: z.array(z.string()).optional(),
+  logitBias: z.record(z.string(), z.number().min(-100).max(100)).optional(),
+
+  // Response format
+  responseFormat: z.object({
+    type: z.enum(['text', 'json_object']),
+  }).optional(),
+});
+
+// ============================================
+// OPENROUTER-SPECIFIC PARAMETERS
+// ============================================
+const OpenRouterParamsSchema = z.object({
+  // Prompt transforms (e.g., middle-out for long contexts)
+  transforms: z.array(z.string()).optional(),
+
+  // Provider routing preferences
+  route: z.enum(['fallback']).optional(),
+
+  // Response verbosity
+  verbosity: z.enum(['low', 'medium', 'high']).optional(),
+});
+
+// ============================================
+// COMBINED SCHEMA
+// ============================================
+export const AdvancedParamsSchema = SamplingParamsSchema
+  .merge(ReasoningParamsSchema)
+  .merge(OutputParamsSchema)
+  .merge(OpenRouterParamsSchema);
+
+export type AdvancedParams = z.infer<typeof AdvancedParamsSchema>;
+
+/**
+ * Validate advancedParameters from database/user input.
+ * Returns validated params or throws ZodError.
+ */
+export function validateAdvancedParams(params: unknown): AdvancedParams {
+  return AdvancedParamsSchema.parse(params);
 }
 
-// Type exports
-export type OpenAIAdvancedParams = z.infer<typeof OpenAIAdvancedParamsSchema>;
-export type AnthropicAdvancedParams = z.infer<typeof AnthropicAdvancedParamsSchema>;
-export type GeminiAdvancedParams = z.infer<typeof GeminiAdvancedParamsSchema>;
-export type OpenRouterAdvancedParams = z.infer<typeof OpenRouterAdvancedParamsSchema>;
+/**
+ * Safely validate advancedParameters, returning null on failure.
+ */
+export function safeValidateAdvancedParams(params: unknown): AdvancedParams | null {
+  const result = AdvancedParamsSchema.safeParse(params);
+  return result.success ? result.data : null;
+}
+
+/**
+ * Check if reasoning is enabled for these params.
+ * Used to apply constraints (e.g., max_tokens > reasoning.maxTokens).
+ */
+export function hasReasoningEnabled(params: AdvancedParams): boolean {
+  if (!params.reasoning) return false;
+  if (params.reasoning.enabled === false) return false;
+  if (params.reasoning.effort === 'none') return false;
+  return params.reasoning.effort !== undefined || params.reasoning.maxTokens !== undefined;
+}
 ```
 
+**Key Constraints** (enforced at runtime, not in schema):
+1. When `reasoning.maxTokens` is set, `maxTokens` must be greater (leave room for response)
+2. Reasoning models may ignore/error on `temperature` if reasoning is enabled
+3. Minimum reasoning budget: 1,024 tokens
+4. Maximum reasoning budget: 32,000 tokens
+
 **Tests**: `packages/common-types/src/schemas/llmAdvancedParams.test.ts`
-- Test each provider schema validates correctly
-- Test invalid values are rejected
-- Test unknown provider falls back to base schema
+- Test sampling params with valid/invalid ranges
+- Test reasoning object validation (effort levels, token budgets)
+- Test output params (maxTokens, stop sequences)
+- Test OpenRouter-specific params
+- Test `hasReasoningEnabled()` helper
+- Test combined schema validates correctly
+- Test invalid values are rejected with clear errors
 
 ---
 
@@ -310,16 +362,17 @@ ALTER TABLE "users" ADD COLUMN "isSuperuser" BOOLEAN NOT NULL DEFAULT false;
 
 ### Migration 2: Create UserApiKey Table
 
-**Task 2.1 from ROADMAP.md**
+**Task 2.2 from ROADMAP.md**
+
+**Provider Strategy**: Currently only stores OpenRouter keys. The `provider` field exists for future extensibility (e.g., if we add direct embedding provider support), but for now all keys will be `provider: "openrouter"`.
 
 ```prisma
 model UserApiKey {
   id          String    @id @default(uuid())
   userId      String
 
-  // Provider identification
-  provider    String    @db.VarChar(20)
-  // Values: "openai", "anthropic", "google", "openrouter"
+  // Provider identification (currently only "openrouter")
+  provider    String    @default("openrouter") @db.VarChar(20)
 
   // AES-256-GCM encryption fields (3 separate columns)
   iv          String    @db.VarChar(32)   // 16 bytes as hex
@@ -338,7 +391,6 @@ model UserApiKey {
 
   @@unique([userId, provider])
   @@index([userId])
-  @@index([provider])
   @@map("user_api_keys")
 }
 ```
@@ -666,11 +718,13 @@ function sanitizeObject(obj: unknown): unknown {
 }
 ```
 
-### Task 2.13: Update ai-worker for User API Keys
+### Task 2.12: Update ai-worker for User API Keys
 
 **CRITICAL SECURITY NOTE** (from Gemini):
 > Do NOT pass decrypted API keys in BullMQ job payloads. Redis stores job data in plain text.
 > Pass only userId in job, fetch and decrypt key inside the worker.
+
+**Provider Strategy**: OpenRouter is the single LLM provider. Users store their OpenRouter API key.
 
 ```typescript
 // services/ai-worker/src/utils/resolveApiKey.ts
@@ -679,18 +733,23 @@ import { prisma } from '../db';
 
 export interface ResolvedApiKey {
   key: string;
-  provider: string;
   source: 'user' | 'system';
 }
 
-export async function resolveApiKey(
-  userId: string,
-  provider: string
-): Promise<ResolvedApiKey> {
-  // 1. Try user's key first
+/**
+ * Resolve OpenRouter API key for a user.
+ *
+ * Priority:
+ * 1. User's encrypted key (BYOK)
+ * 2. System key (bot owner's key from environment)
+ *
+ * OpenRouter is the single LLM provider - it routes to underlying models.
+ */
+export async function resolveOpenRouterKey(userId: string): Promise<ResolvedApiKey> {
+  // 1. Try user's BYOK key first
   const userKey = await prisma.userApiKey.findUnique({
     where: {
-      userId_provider: { userId, provider },
+      userId_provider: { userId, provider: 'openrouter' },
     },
   });
 
@@ -709,163 +768,224 @@ export async function resolveApiKey(
 
     return {
       key: decrypted,
-      provider,
       source: 'user',
     };
   }
 
-  // 2. Fall back to system key (from environment)
-  const envKeyMap: Record<string, string | undefined> = {
-    openai: process.env.OPENAI_API_KEY,
-    anthropic: process.env.ANTHROPIC_API_KEY,
-    google: process.env.GEMINI_API_KEY,
-    openrouter: process.env.OPENROUTER_API_KEY,
-  };
-
-  const systemKey = envKeyMap[provider];
+  // 2. Fall back to system key (bot owner's OpenRouter key)
+  const systemKey = process.env.OPENROUTER_API_KEY;
   if (!systemKey) {
-    throw new Error(`No API key available for provider: ${provider}`);
+    throw new Error('No OpenRouter API key available (user has no BYOK, system key not configured)');
   }
 
   return {
     key: systemKey,
-    provider,
     source: 'system',
   };
 }
 ```
 
-### Task 2.14: Key Validation Service
+### Task 2.13: Key Validation Service
+
+**Provider Strategy**: Only OpenRouter keys need validation (single provider).
 
 ```typescript
 // services/api-gateway/src/services/KeyValidationService.ts
 
+/**
+ * Validates OpenRouter API keys before storage.
+ *
+ * Makes a minimal API call to verify the key works.
+ * This prevents storing invalid keys that would fail at runtime.
+ */
 export class KeyValidationService {
+  private static readonly OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
+
   /**
-   * Validate an API key by making a minimal API call.
+   * Validate an OpenRouter API key by listing models.
    * Returns true if valid, throws specific error if not.
    */
-  async validateKey(provider: string, apiKey: string): Promise<boolean> {
-    switch (provider) {
-      case 'openai':
-        return this.validateOpenAI(apiKey);
-      case 'anthropic':
-        return this.validateAnthropic(apiKey);
-      case 'google':
-        return this.validateGoogle(apiKey);
-      case 'openrouter':
-        return this.validateOpenRouter(apiKey);
-      default:
-        throw new Error(`Unknown provider: ${provider}`);
-    }
-  }
-
-  private async validateOpenAI(apiKey: string): Promise<boolean> {
-    const response = await fetch('https://api.openai.com/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}` },
+  async validateOpenRouterKey(apiKey: string): Promise<boolean> {
+    const response = await fetch(`${KeyValidationService.OPENROUTER_API_URL}/models`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://tzurot.app',  // Required by OpenRouter
+        'X-Title': 'Tzurot Bot',               // Required by OpenRouter
+      },
     });
 
     if (response.status === 401) {
-      throw new InvalidApiKeyError('openai', 'Invalid API key');
+      throw new InvalidApiKeyError('Invalid OpenRouter API key');
+    }
+    if (response.status === 402) {
+      throw new QuotaExceededError('OpenRouter account has insufficient credits');
     }
     if (response.status === 429) {
-      throw new QuotaExceededError('openai', 'Rate limit or quota exceeded');
+      throw new RateLimitError('OpenRouter rate limit exceeded, try again later');
     }
     if (!response.ok) {
-      throw new ApiValidationError('openai', `Unexpected error: ${response.status}`);
+      throw new ApiValidationError(`OpenRouter validation failed: ${response.status}`);
     }
 
     return true;
   }
-
-  // Similar implementations for other providers...
 }
 
-// Custom error classes
+// Custom error classes for specific failure modes
 export class InvalidApiKeyError extends Error {
-  constructor(public provider: string, message: string) {
+  constructor(message: string) {
     super(message);
     this.name = 'InvalidApiKeyError';
   }
 }
 
 export class QuotaExceededError extends Error {
-  constructor(public provider: string, message: string) {
+  constructor(message: string) {
     super(message);
     this.name = 'QuotaExceededError';
   }
 }
 
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
 export class ApiValidationError extends Error {
-  constructor(public provider: string, message: string) {
+  constructor(message: string) {
     super(message);
     this.name = 'ApiValidationError';
   }
 }
 ```
 
-### Task 2.16: Thinking/Reasoning Model Handling
+### Task 2.14: Reasoning Model Handling
 
-**Key Constraints** (from research):
-- **OpenAI o1/o3**: No system role support, use `max_completion_tokens` not `max_tokens`
-- **Claude 3.7**: When thinking enabled, temperature must be 1.0, no top_p/top_k
-- **Gemini 2.0**: Uses `thinkingConfig.thinkingBudget`
+**Key Discovery**: OpenRouter provides a **unified `reasoning` object** that works across all reasoning models. We don't need model-specific adapters!
+
+**OpenRouter handles**:
+- Translating `reasoning.effort` → model-specific format
+- Translating `reasoning.maxTokens` → model-specific token budgets
+- Parameter constraints (some models ignore temp when reasoning)
+
+**What we need to handle**:
+1. Detect if a model supports reasoning (for UI/validation)
+2. Ensure `maxTokens > reasoning.maxTokens` when both are set
+3. Strip `<thinking>` tags from responses (optional, for clean output)
 
 ```typescript
-// services/ai-worker/src/utils/reasoningModelAdapter.ts
+// services/ai-worker/src/utils/reasoningModelUtils.ts
 
-export interface ReasoningModelConfig {
-  supportsSystemPrompt: boolean;
-  requiresFixedTemperature: boolean;
-  fixedTemperature?: number;
-  tokenParamName: 'max_tokens' | 'max_completion_tokens';
-  thinkingParamPath?: string; // e.g., 'thinking.budgetTokens'
-}
+/**
+ * Models known to support reasoning/thinking.
+ * OpenRouter handles the actual parameter translation.
+ */
+const REASONING_MODEL_PATTERNS = [
+  // OpenAI
+  'o1', 'o3', 'gpt-4o-reasoning',
+  // Anthropic
+  'claude-3-7', 'claude-3.7', 'claude-sonnet-4',
+  // Google
+  'gemini-2.0-flash-thinking', 'gemini-2.5-flash-preview',
+  // DeepSeek
+  'deepseek-r1', 'deepseek-reasoner',
+  // Alibaba
+  'qwen-qwq', 'qwq-32b',
+];
 
-const REASONING_MODEL_CONFIGS: Record<string, ReasoningModelConfig> = {
-  'o1': {
-    supportsSystemPrompt: false,
-    requiresFixedTemperature: false,
-    tokenParamName: 'max_completion_tokens',
-  },
-  'o1-mini': {
-    supportsSystemPrompt: false,
-    requiresFixedTemperature: false,
-    tokenParamName: 'max_completion_tokens',
-  },
-  'o3-mini': {
-    supportsSystemPrompt: false,
-    requiresFixedTemperature: false,
-    tokenParamName: 'max_completion_tokens',
-  },
-  'claude-3-7-sonnet': {
-    supportsSystemPrompt: true,
-    requiresFixedTemperature: true,
-    fixedTemperature: 1.0,
-    tokenParamName: 'max_tokens',
-    thinkingParamPath: 'thinking',
-  },
-  'gemini-2.0-flash-thinking': {
-    supportsSystemPrompt: true,
-    requiresFixedTemperature: false,
-    tokenParamName: 'max_tokens',
-    thinkingParamPath: 'thinkingConfig',
-  },
-};
-
-export function isReasoningModel(model: string): boolean {
-  return Object.keys(REASONING_MODEL_CONFIGS).some(key =>
-    model.toLowerCase().includes(key.toLowerCase())
+/**
+ * Check if a model supports reasoning parameters.
+ * Used for UI hints and validation, not for parameter translation.
+ */
+export function supportsReasoning(model: string): boolean {
+  const modelLower = model.toLowerCase();
+  return REASONING_MODEL_PATTERNS.some(pattern =>
+    modelLower.includes(pattern.toLowerCase())
   );
 }
 
-export function getReasoningConfig(model: string): ReasoningModelConfig | null {
-  for (const [key, config] of Object.entries(REASONING_MODEL_CONFIGS)) {
-    if (model.toLowerCase().includes(key.toLowerCase())) {
-      return config;
-    }
+/**
+ * Validate reasoning token budget constraints.
+ * Must be called before sending to OpenRouter.
+ */
+export function validateReasoningBudget(
+  maxTokens: number | undefined,
+  reasoningMaxTokens: number | undefined
+): void {
+  if (reasoningMaxTokens === undefined) return;
+
+  if (reasoningMaxTokens < 1024) {
+    throw new Error('Reasoning budget must be at least 1,024 tokens');
   }
+  if (reasoningMaxTokens > 32000) {
+    throw new Error('Reasoning budget cannot exceed 32,000 tokens');
+  }
+  if (maxTokens !== undefined && maxTokens <= reasoningMaxTokens) {
+    throw new Error(
+      `maxTokens (${maxTokens}) must be greater than reasoning.maxTokens (${reasoningMaxTokens}) ` +
+      'to leave room for the final response'
+    );
+  }
+}
+
+/**
+ * Strip thinking/reasoning tags from response content.
+ * Some models include <thinking> blocks in output.
+ */
+export function stripThinkingTags(content: string): string {
+  // Common patterns across models
+  return content
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+    .replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, '')
+    .trim();
+}
+
+/**
+ * Extract thinking content from response (for logging/debugging).
+ */
+export function extractThinkingContent(content: string): string | null {
+  const thinkingMatch = content.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+  if (thinkingMatch) return thinkingMatch[1].trim();
+
+  const reasoningMatch = content.match(/<reasoning>([\s\S]*?)<\/reasoning>/i);
+  if (reasoningMatch) return reasoningMatch[1].trim();
+
   return null;
+}
+```
+
+**Integration in LLMInvoker**:
+
+```typescript
+// In services/ai-worker/src/services/LLMInvoker.ts
+
+async invoke(params: InvokeParams): Promise<InvokeResult> {
+  const { model, messages, advancedParams } = params;
+
+  // Validate reasoning budget if set
+  if (advancedParams?.reasoning?.maxTokens) {
+    validateReasoningBudget(
+      advancedParams.maxTokens,
+      advancedParams.reasoning.maxTokens
+    );
+  }
+
+  // Build OpenRouter request - reasoning object is passed through directly
+  const request = {
+    model,
+    messages,
+    ...advancedParams,  // Includes reasoning object if present
+  };
+
+  const response = await this.openRouterClient.chat(request);
+
+  // Optionally strip thinking tags from response
+  const content = stripThinkingTags(response.content);
+
+  return { content, usage: response.usage };
 }
 ```
 
