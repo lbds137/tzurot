@@ -11,6 +11,13 @@ import type { PrismaConfig } from 'prisma';
 const config: PrismaConfig = {
   earlyAccess: true,
   schema: path.join(__dirname, 'schema.prisma'),
+
+  // Migrate configuration - provides database URL for migrations
+  migrate: {
+    async url() {
+      return process.env.DATABASE_URL ?? '';
+    },
+  },
 };
 
 export default config;
