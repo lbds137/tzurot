@@ -36,6 +36,20 @@ export interface MemoryQueryOptions {
    */
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
+  /**
+   * Channel IDs to scope the search to (for LTM scoping when user references channels)
+   * When provided, uses waterfall retrieval: channel-scoped first, then global backfill
+   */
+  channelIds?: string[];
+  /**
+   * Ratio of total limit to allocate to channel-scoped queries (0-1)
+   * Default: 0.5 (50% of limit for channel-scoped, remaining for global)
+   */
+  channelBudgetRatio?: number;
+  /**
+   * Memory IDs to exclude from results (used for deduplication in waterfall queries)
+   */
+  excludeIds?: string[];
 }
 
 export interface MemoryDocument {
@@ -200,6 +214,20 @@ export class PgvectorMemoryAdapter {
         // excludeNewerThan is already in milliseconds - don't multiply by 1000
         const excludeDate = new Date(options.excludeNewerThan).toISOString();
         whereConditions.push(Prisma.sql`m.created_at < ${excludeDate}::timestamptz`);
+      }
+
+      // Exclude specific memory IDs (for waterfall deduplication)
+      if (options.excludeIds !== undefined && options.excludeIds.length > 0) {
+        // Build array of UUIDs for NOT IN clause
+        const excludeUuids = options.excludeIds.map(id => Prisma.sql`${id}::uuid`);
+        whereConditions.push(Prisma.sql`m.id NOT IN (${Prisma.join(excludeUuids, ', ')})`);
+      }
+
+      // Filter by channel IDs (for channel-scoped queries)
+      if (options.channelIds !== undefined && options.channelIds.length > 0) {
+        // Build array of channel IDs for IN clause
+        const channelValues = options.channelIds.map(id => Prisma.sql`${id}`);
+        whereConditions.push(Prisma.sql`m.channel_id IN (${Prisma.join(channelValues, ', ')})`);
       }
 
       // Build WHERE clause from conditions
@@ -385,6 +413,96 @@ export class PgvectorMemoryAdapter {
       // Re-throw so pending_memory can be preserved for retry
       throw error;
     }
+  }
+
+  /**
+   * Query memories with channel scoping using the "waterfall" method
+   *
+   * When channelIds are provided, this method:
+   * 1. First queries memories from the specified channels (up to channelBudgetRatio of limit)
+   * 2. Then backfills with global semantic search (excluding already-found IDs)
+   * 3. Returns combined results with channel-scoped memories first
+   *
+   * This ensures users get relevant channel-specific context when they reference
+   * channels (e.g., "remember what we talked about in #gaming") while still
+   * including semantically relevant memories from other contexts.
+   *
+   * @param query - The search query text
+   * @param options - Query options including channelIds for scoping
+   * @returns Combined memories from channel-scoped and global searches
+   */
+  async queryMemoriesWithChannelScoping(
+    query: string,
+    options: MemoryQueryOptions
+  ): Promise<MemoryDocument[]> {
+    const totalLimit = options.limit ?? 10;
+    const channelBudgetRatio = options.channelBudgetRatio ?? 0.5;
+
+    // If no channels specified, just do a normal query
+    if (!options.channelIds || options.channelIds.length === 0) {
+      return this.queryMemories(query, options);
+    }
+
+    const channelBudget = Math.floor(totalLimit * channelBudgetRatio);
+
+    logger.debug(
+      {
+        channelIds: options.channelIds,
+        totalLimit,
+        channelBudget,
+        channelBudgetRatio,
+      },
+      '[PgvectorMemoryAdapter] Starting waterfall query with channel scoping'
+    );
+
+    // Step 1: Query channel-scoped memories first
+    const channelResults = await this.queryMemories(query, {
+      ...options,
+      channelIds: options.channelIds,
+      limit: channelBudget,
+    });
+
+    logger.debug(
+      { channelResultCount: channelResults.length, channelBudget },
+      '[PgvectorMemoryAdapter] Channel-scoped query complete'
+    );
+
+    // Step 2: Calculate remaining budget and get IDs to exclude
+    const remainingBudget = totalLimit - channelResults.length;
+    const excludeIds = channelResults
+      .map(r => r.metadata?.id as string | undefined)
+      .filter((id): id is string => id !== undefined);
+
+    // Step 3: Global semantic query with exclusion (no channel filter)
+    let globalResults: MemoryDocument[] = [];
+    if (remainingBudget > 0) {
+      globalResults = await this.queryMemories(query, {
+        ...options,
+        channelIds: undefined, // Remove channel filter for global search
+        limit: remainingBudget,
+        excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
+      });
+
+      logger.debug(
+        { globalResultCount: globalResults.length, remainingBudget },
+        '[PgvectorMemoryAdapter] Global backfill query complete'
+      );
+    }
+
+    // Step 4: Combine results (channel-scoped first for prominence)
+    const combinedResults = [...channelResults, ...globalResults];
+
+    logger.info(
+      {
+        totalResults: combinedResults.length,
+        channelScoped: channelResults.length,
+        globalBackfill: globalResults.length,
+        channelIds: options.channelIds,
+      },
+      '[PgvectorMemoryAdapter] Waterfall query complete'
+    );
+
+    return combinedResults;
   }
 
   /**

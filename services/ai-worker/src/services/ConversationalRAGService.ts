@@ -109,6 +109,8 @@ export interface ConversationContext {
   environment?: DiscordEnvironment;
   // Referenced messages (from replies and message links)
   referencedMessages?: ReferencedMessage[];
+  // Referenced channels (from #channel mentions - used for LTM scoping)
+  referencedChannels?: { channelId: string; channelName: string }[];
 }
 
 export interface RAGResponse {

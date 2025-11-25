@@ -12,6 +12,7 @@ import { z } from 'zod';
 import type {
   LoadedPersonality,
   MentionedPersona,
+  ReferencedChannel,
   ReferencedMessage,
   AttachmentMetadata,
   DiscordEnvironment,
@@ -20,6 +21,7 @@ import type {
 import {
   loadedPersonalitySchema,
   mentionedPersonaSchema,
+  referencedChannelSchema,
   attachmentMetadataSchema,
   apiConversationMessageSchema,
   referencedMessageSchema,
@@ -67,6 +69,7 @@ export interface JobContext {
   environment?: DiscordEnvironment;
   referencedMessages?: ReferencedMessage[];
   mentionedPersonas?: MentionedPersona[];
+  referencedChannels?: ReferencedChannel[];
 }
 
 /**
@@ -235,6 +238,7 @@ export const jobContextSchema = z.object({
   environment: discordEnvironmentSchema.optional(),
   referencedMessages: z.array(referencedMessageSchema).optional(),
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
+  referencedChannels: z.array(referencedChannelSchema).optional(),
 });
 
 /**

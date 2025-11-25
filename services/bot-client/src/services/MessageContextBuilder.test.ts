@@ -53,6 +53,7 @@ vi.mock('../utils/attachmentExtractor.js', () => ({
 // Create mock instance before mocking the module
 const mockExtractReferencesWithReplacement = vi.fn();
 const mockResolveMentions = vi.fn();
+const mockResolveAllMentions = vi.fn();
 
 vi.mock('../handlers/MessageReferenceExtractor.js', () => ({
   MessageReferenceExtractor: class {
@@ -63,6 +64,7 @@ vi.mock('../handlers/MessageReferenceExtractor.js', () => ({
 vi.mock('./MentionResolver.js', () => ({
   MentionResolver: class {
     resolveMentions = mockResolveMentions;
+    resolveAllMentions = mockResolveAllMentions;
   },
 }));
 
@@ -150,6 +152,14 @@ describe('MessageContextBuilder', () => {
       },
       reference: null,
     } as Message;
+
+    // Default mock for resolveAllMentions - returns unchanged content with empty arrays
+    mockResolveAllMentions.mockResolvedValue({
+      processedContent: 'Hello world',
+      mentionedUsers: [],
+      mentionedChannels: [],
+      mentionedRoles: [],
+    });
   });
 
   describe('buildContext', () => {
@@ -283,6 +293,12 @@ describe('MessageContextBuilder', () => {
         references: mockReferences,
         updatedContent: 'Check [Reference 1]',
       });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Check [Reference 1]',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Check this message');
 
@@ -392,6 +408,12 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: null,
       });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: '[no text content]',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
 
       // Pass null for content to trigger fallback
       const result = await builder.buildContext(mockMessage, mockPersonality, null as any);
@@ -444,6 +466,12 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Voice message',
       });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Voice message',
+        mentionedUsers: [],
+        mentionedChannels: [],
+        mentionedRoles: [],
+      });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Voice message');
 
@@ -484,7 +512,7 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hey <@123456>, how are you?',
       });
-      mockResolveMentions.mockResolvedValue({
+      mockResolveAllMentions.mockResolvedValue({
         processedContent: 'Hey @MentionedPersona, how are you?',
         mentionedUsers: [
           {
@@ -494,6 +522,8 @@ describe('MessageContextBuilder', () => {
             personaName: 'MentionedPersona',
           },
         ],
+        mentionedChannels: [],
+        mentionedRoles: [],
       });
 
       const result = await builder.buildContext(
@@ -502,10 +532,10 @@ describe('MessageContextBuilder', () => {
         'Hey <@123456>, how are you?'
       );
 
-      // Verify mention resolution was called
-      expect(mockResolveMentions).toHaveBeenCalledWith(
+      // Verify mention resolution was called with message object
+      expect(mockResolveAllMentions).toHaveBeenCalledWith(
         'Hey <@123456>, how are you?',
-        mockMessage.mentions.users,
+        mockMessage,
         'personality-123'
       );
 
@@ -531,14 +561,14 @@ describe('MessageContextBuilder', () => {
         references: [],
         updatedContent: 'Hello world',
       });
-      // No mentions in message (mockMentionedUsers is empty)
+      // resolveAllMentions returns no mentioned users (default mock behavior)
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello world');
 
-      // Verify mention resolution was NOT called (no mentions.users)
-      expect(mockResolveMentions).not.toHaveBeenCalled();
+      // Verify mention resolution was called (always called now)
+      expect(mockResolveAllMentions).toHaveBeenCalled();
 
-      // Verify mentionedPersonas is undefined
+      // Verify mentionedPersonas is undefined when no users were mentioned
       expect(result.context.mentionedPersonas).toBeUndefined();
     });
   });

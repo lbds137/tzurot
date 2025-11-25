@@ -64,6 +64,22 @@ export const DISCORD_MENTIONS = {
    * Use with 'g' flag for global matching: new RegExp(DISCORD_MENTIONS.USER_PATTERN, 'g')
    */
   USER_PATTERN: '<@!?(\\d+)>',
-  /** Maximum mentions to process per message (DoS prevention) */
+  /**
+   * Regex pattern string for Discord channel mentions
+   * Matches <#123456> format
+   * Use with 'g' flag for global matching: new RegExp(DISCORD_MENTIONS.CHANNEL_PATTERN, 'g')
+   */
+  CHANNEL_PATTERN: '<#(\\d+)>',
+  /**
+   * Regex pattern string for Discord role mentions
+   * Matches <@&123456> format
+   * Use with 'g' flag for global matching: new RegExp(DISCORD_MENTIONS.ROLE_PATTERN, 'g')
+   */
+  ROLE_PATTERN: '<@&(\\d+)>',
+  /** Maximum user mentions to process per message (DoS prevention) */
   MAX_PER_MESSAGE: 10,
+  /** Maximum channel mentions to process per message (DoS prevention) */
+  MAX_CHANNELS_PER_MESSAGE: 5,
+  /** Maximum role mentions to process per message (DoS prevention) */
+  MAX_ROLES_PER_MESSAGE: 5,
 } as const;
