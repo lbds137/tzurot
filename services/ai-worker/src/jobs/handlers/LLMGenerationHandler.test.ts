@@ -510,6 +510,85 @@ describe('LLMGenerationHandler', () => {
           undefined
         );
       });
+
+      it('should add mentioned personas to participants when not already present', async () => {
+        const jobData = createValidJobData({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            activePersonaId: 'active-persona-id',
+            activePersonaName: 'ActiveUser',
+            conversationHistory: [],
+            mentionedPersonas: [
+              { personaId: 'mentioned-persona-1', personaName: 'MentionedUser1' },
+              { personaId: 'mentioned-persona-2', personaName: 'MentionedUser2' },
+            ],
+          },
+        });
+        const job = { id: 'job-mentioned', data: jobData } as Job<LLMGenerationJobData>;
+
+        // extractParticipants returns just the active user initially
+        mockExtractParticipants.mockReturnValue([
+          { personaId: 'active-persona-id', personaName: 'ActiveUser', isActive: true },
+        ]);
+
+        await handler.processJob(job);
+
+        // Verify mentioned personas are added with isActive: false
+        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(String),
+          expect.objectContaining({
+            participants: expect.arrayContaining([
+              { personaId: 'active-persona-id', personaName: 'ActiveUser', isActive: true },
+              { personaId: 'mentioned-persona-1', personaName: 'MentionedUser1', isActive: false },
+              { personaId: 'mentioned-persona-2', personaName: 'MentionedUser2', isActive: false },
+            ]),
+          }),
+          undefined
+        );
+      });
+
+      it('should not duplicate mentioned personas that are already in participants', async () => {
+        const jobData = createValidJobData({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            activePersonaId: 'active-persona-id',
+            activePersonaName: 'ActiveUser',
+            conversationHistory: [],
+            mentionedPersonas: [
+              { personaId: 'active-persona-id', personaName: 'ActiveUser' }, // Already in participants
+              { personaId: 'new-persona-id', personaName: 'NewUser' },
+            ],
+          },
+        });
+        const job = { id: 'job-no-dup', data: jobData } as Job<LLMGenerationJobData>;
+
+        // extractParticipants already includes the active user
+        mockExtractParticipants.mockReturnValue([
+          { personaId: 'active-persona-id', personaName: 'ActiveUser', isActive: true },
+        ]);
+
+        await handler.processJob(job);
+
+        // Should have exactly 2 participants (no duplicate)
+        const call = mockRAGService.generateResponse.mock.calls[0];
+        const ragContext = call[2];
+        expect(ragContext.participants).toHaveLength(2);
+        expect(ragContext.participants).toContainEqual({
+          personaId: 'active-persona-id',
+          personaName: 'ActiveUser',
+          isActive: true,
+        });
+        expect(ragContext.participants).toContainEqual({
+          personaId: 'new-persona-id',
+          personaName: 'NewUser',
+          isActive: false,
+        });
+      });
     });
 
     describe('response structure', () => {
