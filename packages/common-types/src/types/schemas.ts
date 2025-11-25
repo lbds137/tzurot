@@ -147,6 +147,15 @@ export const loadedPersonalitySchema = z.object({
 });
 
 /**
+ * Mentioned persona schema
+ * Information about a user mentioned in the message via @mention
+ */
+export const mentionedPersonaSchema = z.object({
+  personaId: z.string(),
+  personaName: z.string(),
+});
+
+/**
  * Request context schema
  * Includes all contextual information about a message
  */
@@ -168,6 +177,8 @@ export const requestContextSchema = z.object({
   environment: discordEnvironmentSchema.optional(),
   // Referenced messages (from replies and message links)
   referencedMessages: z.array(referencedMessageSchema).optional(),
+  // Mentioned users (from @mentions in message content)
+  mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
 });
 
 /**
@@ -226,6 +237,7 @@ export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
+export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;

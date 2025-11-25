@@ -15,6 +15,7 @@ import type {
   GenerateResponse,
   LoadedPersonality,
   DiscordEnvironment,
+  MentionedPersona,
   RequestContext,
   ReferencedMessage,
 } from '@tzurot/common-types';
@@ -27,6 +28,7 @@ export type {
   GenerateResponse,
   LoadedPersonality,
   DiscordEnvironment,
+  MentionedPersona,
   ReferencedMessage,
 };
 
