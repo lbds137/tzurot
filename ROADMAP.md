@@ -188,10 +188,10 @@
   - Add `ownerId` (String?) - nullable initially, user who created personality
   - Add `isPublic` (Boolean, default true) - visibility control
   - **Completed**: 2025-11-26
-- [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema, 2-step process)
-  - Step A: Add `provider`, `advancedParameters` (JSONB), `maxReferencedMessages`
-  - Step B: Run data migration script (columns → JSONB)
-  - Step C: Drop old columns in separate migration after verification
+- [x] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema, 2-step process) ✅
+  - ✅ Step A: Add `provider`, `advancedParameters` (JSONB), `maxReferencedMessages` - **Completed**: 2025-11-26
+  - [ ] Step B: Run data migration script (columns → JSONB) - future work
+  - [ ] Step C: Drop old columns in separate migration after verification - future work
 - [ ] **Task 2.5**: Create `PersonalityAlias` table (leaf node)
   - Fields: alias, personalityId
   - Unique constraint on alias (prevent overlap)

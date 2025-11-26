@@ -101,8 +101,14 @@ model LlmConfig {
   ownerId                     String?                    @map("owner_id") @db.Uuid
   isGlobal                    Boolean                    @default(false) @map("is_global")
   isDefault                   Boolean                    @default(false) @map("is_default")
+  provider                    String                     @default("openrouter") @db.VarChar(20)
   model                       String                     @db.VarChar(255)
   visionModel                 String?                    @map("vision_model") @db.VarChar(255)
+  /// New JSONB field for provider-specific parameters (temperature, reasoning, etc.)
+  /// See AdvancedParamsSchema in common-types for validation
+  advancedParameters          Json?                      @map("advanced_parameters")
+  maxReferencedMessages       Int                        @default(20) @map("max_referenced_messages")
+  // Legacy columns - will be migrated to advancedParameters in Step B
   temperature                 Decimal?                   @db.Decimal(3, 2)
   topP                        Decimal?                   @map("top_p") @db.Decimal(3, 2)
   topK                        Int?                       @map("top_k")
