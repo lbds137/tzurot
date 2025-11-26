@@ -17,11 +17,14 @@
 
 **Recent Completion**:
 
-- ✅ **Sliding Window LTM Search + Message Limits** (2025-11-25)
+- ✅ **Sliding Window LTM Search + Message Limits + Parameterization Planning** (2025-11-25)
   - Added 3-turn conversation history window to LTM search queries
   - Solves the "pronoun problem" ("what about that?" now finds relevant memories)
   - Bumped MAX_REFERENCED_MESSAGES from 10 to 20
   - Added MESSAGE_LIMITS constant group, removed deprecated HISTORY_LIMIT
+  - Added Phase 2.5 to Sprint 2 Guide: Database-configurable limits per personality
+    - `maxMentionsPerMessage`, `maxChannelsPerMessage`, `maxRolesPerMessage`
+    - `ltmSearchHistoryTurns`, `maxReferencedMessages`
   - All 1,687 tests passing
 
 - ✅ **Channel/Role Mention Resolution** (2025-11-25) - PR #285
