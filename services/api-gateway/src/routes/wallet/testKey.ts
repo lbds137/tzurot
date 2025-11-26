@@ -12,109 +12,12 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { validateApiKey } from '../../utils/apiKeyValidation.js';
 
 const logger = createLogger('wallet-test-key');
 
-/** Timeout for API key validation requests (10 seconds) */
-const VALIDATION_TIMEOUT_MS = 10000;
-
 interface TestKeyRequest {
   provider: AIProvider;
-}
-
-interface ValidationResult {
-  valid: boolean;
-  credits?: number;
-  error?: string;
-}
-
-/**
- * Validate an OpenRouter API key
- */
-async function validateOpenRouterKey(apiKey: string): Promise<ValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
-
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (response.status === 401 || response.status === 403) {
-      return { valid: false, error: 'Invalid or expired API key' };
-    }
-
-    if (!response.ok) {
-      return { valid: false, error: `HTTP ${response.status}` };
-    }
-
-    const data = (await response.json()) as { data?: { limit_remaining?: number } };
-    const credits = data.data?.limit_remaining;
-
-    return { valid: true, credits };
-  } catch (error) {
-    clearTimeout(timeout);
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, error: 'Validation request timed out' };
-    }
-
-    return {
-      valid: false,
-      error: error instanceof Error ? error.message : 'Validation failed',
-    };
-  }
-}
-
-/**
- * Validate an OpenAI API key
- */
-async function validateOpenAIKey(apiKey: string): Promise<ValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/models', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (response.status === 401) {
-      return { valid: false, error: 'Invalid or expired API key' };
-    }
-
-    if (response.status === 429) {
-      return { valid: false, error: 'Rate limit exceeded or quota exhausted' };
-    }
-
-    if (!response.ok) {
-      return { valid: false, error: `HTTP ${response.status}` };
-    }
-
-    return { valid: true };
-  } catch (error) {
-    clearTimeout(timeout);
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, error: 'Validation request timed out' };
-    }
-
-    return {
-      valid: false,
-      error: error instanceof Error ? error.message : 'Validation failed',
-    };
-  }
 }
 
 export function createTestKeyRoute(prisma: PrismaClient): Router {
@@ -183,17 +86,7 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
       // Validate the API key
       logger.info({ provider, discordUserId }, '[Wallet] Testing API key');
 
-      let validation: ValidationResult;
-      switch (provider) {
-        case AIProvider.OpenRouter:
-          validation = await validateOpenRouterKey(apiKey);
-          break;
-        case AIProvider.OpenAI:
-          validation = await validateOpenAIKey(apiKey);
-          break;
-        default:
-          validation = { valid: false, error: 'Unknown provider' };
-      }
+      const validation = await validateApiKey(apiKey, provider);
 
       if (!validation.valid) {
         logger.warn(
