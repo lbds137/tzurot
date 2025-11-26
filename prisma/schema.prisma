@@ -8,20 +8,21 @@ datasource db {
 }
 
 model User {
-  id                 String                  @id @default(uuid()) @db.Uuid
-  discordId          String                  @unique @map("discord_id") @db.VarChar(20)
-  username           String                  @db.VarChar(255)
-  timezone           String                  @default("UTC") @db.VarChar(50)
-  isSuperuser        Boolean                 @default(false) @map("is_superuser")
-  createdAt          DateTime                @default(now()) @map("created_at")
-  updatedAt          DateTime                @updatedAt @map("updated_at")
-  apiKeys            UserApiKey[]
-  activatedChannels  ActivatedChannel[]
-  ownedLlmConfigs    LlmConfig[]             @relation("LlmConfigOwner")
-  personalityOwners  PersonalityOwner[]
-  ownedPersonas      Persona[]               @relation("PersonaOwner")
-  defaultPersonaLink UserDefaultPersona?
-  personalityConfigs UserPersonalityConfig[]
+  id                   String                  @id @default(uuid()) @db.Uuid
+  discordId            String                  @unique @map("discord_id") @db.VarChar(20)
+  username             String                  @db.VarChar(255)
+  timezone             String                  @default("UTC") @db.VarChar(50)
+  isSuperuser          Boolean                 @default(false) @map("is_superuser")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+  apiKeys              UserApiKey[]
+  activatedChannels    ActivatedChannel[]
+  ownedLlmConfigs      LlmConfig[]             @relation("LlmConfigOwner")
+  ownedPersonalities   Personality[]           @relation("PersonalityOwner")
+  personalityOwners    PersonalityOwner[]
+  ownedPersonas        Persona[]               @relation("PersonaOwner")
+  defaultPersonaLink   UserDefaultPersona?
+  personalityConfigs   UserPersonalityConfig[]
 
   @@index([discordId])
   @@map("users")
@@ -140,6 +141,7 @@ model Personality {
   displayName            String?                   @map("display_name") @db.VarChar(255)
   slug                   String                    @unique @db.VarChar(255)
   systemPromptId         String?                   @map("system_prompt_id") @db.Uuid
+  ownerId                String?                   @map("owner_id") @db.Uuid
   characterInfo          String                    @map("character_info")
   personalityTraits      String                    @map("personality_traits")
   personalityTone        String?                   @map("personality_tone")
@@ -150,6 +152,9 @@ model Personality {
   conversationalGoals    String?                   @map("conversational_goals")
   conversationalExamples String?                   @map("conversational_examples")
   customFields           Json?                     @map("custom_fields")
+  errorMessage           String?                   @map("error_message")
+  birthday               DateTime?                 @db.Date
+  isPublic               Boolean                   @default(true) @map("is_public")
   voiceEnabled           Boolean                   @default(false) @map("voice_enabled")
   voiceSettings          Json?                     @map("voice_settings")
   imageEnabled           Boolean                   @default(false) @map("image_enabled")
@@ -160,12 +165,14 @@ model Personality {
   activatedChannels      ActivatedChannel[]
   conversationHistory    ConversationHistory[]
   memories               Memory[]
+  owner                  User?                     @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   systemPrompt           SystemPrompt?             @relation(fields: [systemPromptId], references: [id])
   defaultConfigLink      PersonalityDefaultConfig?
   owners                 PersonalityOwner[]
   userConfigs            UserPersonalityConfig[]
 
   @@index([slug])
+  @@index([ownerId])
   @@map("personalities")
 }
 
