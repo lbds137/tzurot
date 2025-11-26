@@ -3,12 +3,13 @@
  * Handles /model set subcommand
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('model-set');
-const config = getConfig();
 
 interface SetResponse {
   override: {
@@ -27,42 +28,25 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
   const personalityId = interaction.options.getString('personality', true);
   const configId = interaction.options.getString('config', true);
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
-      return;
-    }
-
-    const response = await fetch(`${gatewayUrl}/user/model-override`, {
+    const result = await callGatewayApi<SetResponse>('/user/model-override', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userId}`,
-      },
-      body: JSON.stringify({
-        personalityId,
-        configId,
-      }),
+      userId,
+      body: { personalityId, configId },
     });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!result.ok) {
       logger.warn(
-        { userId, status: response.status, personalityId, configId },
+        { userId, status: result.status, personalityId, configId },
         '[Model] Failed to set override'
       );
-      await interaction.editReply({
-        content: `❌ Failed to set model: ${errorData.error ?? 'Unknown error'}`,
-      });
+      await replyWithError(interaction, `Failed to set model: ${result.error}`);
       return;
     }
 
-    const data = (await response.json()) as SetResponse;
+    const data = result.data;
 
     const embed = new EmbedBuilder()
       .setTitle('✅ Model Override Set')
@@ -86,9 +70,6 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
       '[Model] Set override'
     );
   } catch (error) {
-    logger.error({ err: error, userId }, '[Model] Error setting override');
-    await interaction.editReply({
-      content: '❌ An error occurred. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'Model Set' });
   }
 }

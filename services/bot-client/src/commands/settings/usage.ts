@@ -6,12 +6,13 @@
  * - period: day, week, month, all (optional, defaults to month)
  */
 
-import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('usage-command');
-const config = getConfig();
 
 /**
  * Period choices for the command
@@ -103,36 +104,21 @@ function getPeriodDisplayName(period: string): string {
  * Handle /usage command
  */
 export async function handleUsage(interaction: ChatInputCommandInteraction): Promise<void> {
-  const period = interaction.options.getString('period') ?? 'month';
   const userId = interaction.user.id;
+  const period = interaction.options.getString('period') ?? 'month';
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
+    const result = await callGatewayApi<UsageStats>(`/user/usage?period=${period}`, { userId });
+
+    if (!result.ok) {
+      logger.warn({ userId, status: result.status }, '[Usage] Failed to get usage stats');
+      await replyWithError(interaction, 'Failed to get usage statistics. Please try again later.');
       return;
     }
 
-    const response = await fetch(`${gatewayUrl}/user/usage?period=${period}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${userId}`,
-      },
-    });
-
-    if (!response.ok) {
-      logger.warn({ userId, status: response.status }, '[Usage] Failed to get usage stats');
-      await interaction.editReply({
-        content: '❌ Failed to get usage statistics. Please try again later.',
-      });
-      return;
-    }
-
-    const stats = (await response.json()) as UsageStats;
+    const stats = result.data;
 
     // Build the embed
     const embed = new EmbedBuilder()
@@ -231,9 +217,6 @@ export async function handleUsage(interaction: ChatInputCommandInteraction): Pro
 
     logger.info({ userId, period, totalRequests: stats.totalRequests }, '[Usage] Returned stats');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Usage] Error getting usage stats');
-    await interaction.editReply({
-      content: '❌ An error occurred while getting your usage statistics. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'Usage' });
   }
 }

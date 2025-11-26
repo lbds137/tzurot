@@ -3,12 +3,13 @@
  * Handles /model list subcommand
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('model-list');
-const config = getConfig();
 
 interface OverrideSummary {
   personalityId: string;
@@ -17,39 +18,28 @@ interface OverrideSummary {
   configName: string | null;
 }
 
+interface ListResponse {
+  overrides: OverrideSummary[];
+}
+
 /**
  * Handle /model list
  */
 export async function handleListOverrides(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
+    const result = await callGatewayApi<ListResponse>('/user/model-override', { userId });
+
+    if (!result.ok) {
+      logger.warn({ userId, status: result.status }, '[Model] Failed to list overrides');
+      await replyWithError(interaction, 'Failed to get overrides. Please try again later.');
       return;
     }
 
-    const response = await fetch(`${gatewayUrl}/user/model-override`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${userId}`,
-      },
-    });
-
-    if (!response.ok) {
-      logger.warn({ userId, status: response.status }, '[Model] Failed to list overrides');
-      await interaction.editReply({
-        content: '❌ Failed to get overrides. Please try again later.',
-      });
-      return;
-    }
-
-    const data = (await response.json()) as { overrides: OverrideSummary[] };
+    const data = result.data;
 
     const embed = new EmbedBuilder()
       .setTitle('🎭 Your Model Overrides')
@@ -75,9 +65,6 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
 
     logger.info({ userId, count: data.overrides.length }, '[Model] Listed overrides');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Model] Error listing overrides');
-    await interaction.editReply({
-      content: '❌ An error occurred. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'Model List' });
   }
 }

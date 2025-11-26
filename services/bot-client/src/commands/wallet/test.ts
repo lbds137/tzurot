@@ -8,14 +8,11 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_COLORS,
-  AIProvider,
-} from '@tzurot/common-types';
+import { EmbedBuilder } from 'discord.js';
+import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-test');
 
@@ -32,42 +29,35 @@ interface WalletTestResponse {
  * Tests the API key validity
  */
 export async function handleTestKey(interaction: ChatInputCommandInteraction): Promise<void> {
+  const userId = interaction.user.id;
   const provider = interaction.options.getString('provider', true) as AIProvider;
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-  const config = getConfig();
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/wallet/test`, {
+    const result = await callGatewayApi<WalletTestResponse>('/wallet/test', {
       method: 'POST',
-      headers: {
-        'Content-Type': CONTENT_TYPES.JSON,
-        'X-User-Id': interaction.user.id,
-      },
-      body: JSON.stringify({ provider }),
+      userId,
+      body: { provider },
     });
 
-    const data = (await response.json()) as WalletTestResponse;
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        await interaction.editReply(
-          `❌ You don't have an API key configured for **${getProviderDisplayName(provider)}**.\n\n` +
-            'Use `/wallet set` to add your API key first.'
+    if (!result.ok) {
+      if (result.status === 404) {
+        await replyWithError(
+          interaction,
+          `You don't have an API key configured for **${getProviderDisplayName(provider)}**.\n\nUse \`/wallet set\` to add your API key first.`
         );
         return;
       }
 
-      // Handle validation errors
+      // Handle validation errors - need to try parsing the error response for details
       const embed = new EmbedBuilder()
         .setColor(DISCORD_COLORS.ERROR)
         .setTitle('❌ API Key Invalid')
         .setDescription(`Your **${getProviderDisplayName(provider)}** API key failed validation.`)
         .addFields({
           name: 'Error',
-          value: data.error ?? 'Unknown error',
+          value: result.error,
           inline: false,
         })
         .addFields({
@@ -83,6 +73,8 @@ export async function handleTestKey(interaction: ChatInputCommandInteraction): P
       await interaction.editReply({ embeds: [embed] });
       return;
     }
+
+    const data = result.data;
 
     // Success - key is valid
     const embed = new EmbedBuilder()
@@ -110,25 +102,10 @@ export async function handleTestKey(interaction: ChatInputCommandInteraction): P
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(
-      { provider, userId: interaction.user.id, hasCredits: data.credits !== undefined },
+      { provider, userId, hasCredits: data.credits !== undefined },
       '[Wallet Test] API key validated'
     );
   } catch (error) {
-    logger.error({ err: error, provider, userId: interaction.user.id }, '[Wallet Test] Error');
-    await interaction.editReply('❌ An unexpected error occurred. Please try again later.');
-  }
-}
-
-/**
- * Get display name for a provider
- */
-function getProviderDisplayName(provider: AIProvider): string {
-  switch (provider) {
-    case AIProvider.OpenRouter:
-      return 'OpenRouter';
-    case AIProvider.OpenAI:
-      return 'OpenAI';
-    default:
-      return provider;
+    await handleCommandError(interaction, error, { userId, command: 'Wallet Test' });
   }
 }
