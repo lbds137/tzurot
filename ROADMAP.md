@@ -258,14 +258,22 @@
 - [x] **Task 3.4**: `/wallet test <provider>` - Validate key still works (quota check) ✅
   - Returns credit balance for OpenRouter
   - **Completed**: 2025-11-26
-- [ ] **Task 3.5**: `/llm-config create` - Create user LLM config override
-- [ ] **Task 3.6**: `/llm-config list` - Show available configs (global + user)
-- [ ] **Task 3.7**: `/llm-config delete` - Delete user config override
-- [ ] **Task 3.8**: `/model set <personality> <config>` - Override model for personality
-- [ ] **Task 3.9**: `/model reset <personality>` - Remove override, use default
-- [ ] **Task 3.10**: `/timezone set` - Dropdown of common timezones (user-level setting)
-- [ ] **Task 3.11**: `/timezone get` - Show current timezone
-- [ ] **Task 3.12**: `/usage` - Daily/weekly/monthly token stats
+- [x] **Task 3.5**: `/llm-config create` - Create user LLM config override ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.6**: `/llm-config list` - Show available configs (global + user) ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.7**: `/llm-config delete` - Delete user config override ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.8**: `/model set <personality> <config>` - Override model for personality ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.9**: `/model reset <personality>` - Remove override, use default ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.10**: `/timezone set` - Dropdown of common timezones (user-level setting) ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.11**: `/timezone get` - Show current timezone ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.12**: `/usage` - Daily/weekly/monthly token stats ✅
+  - **Completed**: 2025-11-26
 
 **Integration**: Ownership model (isSuperuser, ownerId) from QOL_MODEL_MANAGEMENT.md integrated here.
 
