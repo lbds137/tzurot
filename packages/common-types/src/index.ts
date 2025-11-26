@@ -6,6 +6,9 @@ export * from './constants/index.js';
 
 // Export types
 export * from './types/ai.js';
+
+// Export schemas
+export * from './schemas/index.js';
 export * from './types/api-types.js';
 export * from './types/discord.js';
 export * from './types/discord-types.js';
@@ -35,6 +38,12 @@ export * from './utils/tokenCounter.js';
 export { requireBotOwner } from './utils/ownerMiddleware.js';
 export { PersonalityCache, type PersonalityCacheOptions } from './utils/PersonalityCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
+export {
+  encryptApiKey,
+  decryptApiKey,
+  isValidEncryptedData,
+  type EncryptedData,
+} from './utils/encryption.js';
 
 // Export services
 export * from './services/prisma.js';

@@ -160,15 +160,16 @@
 
 **Preparation** (Code First - per Gemini consultation 2025-11-25):
 
-- [ ] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
-  - `encryptApiKey()`, `decryptApiKey()` using AES-256-GCM
+- [x] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`) ✅
+  - `encryptApiKey()`, `decryptApiKey()`, `isValidEncryptedData()` using AES-256-GCM
   - Master key from Railway environment (`APP_MASTER_KEY`)
-  - **Why first**: Need to know storage format (3 columns: iv, content, tag) before migration
-- [ ] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation (per provider)
-  - OpenAI: reasoningEffort, maxCompletionTokens, frequencyPenalty, etc.
-  - Anthropic: topK, thinking.budgetTokens, cacheControl, etc.
-  - Gemini: topK, safetySettings, thinkingConfig, etc.
-  - OpenRouter: minP, topA, typicalP, repetitionPenalty, etc.
+  - 32 tests covering round-trip, tamper detection, validation
+  - **Completed**: 2025-11-26
+- [x] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation ✅
+  - Unified OpenRouter schema (sampling, reasoning, output, routing params)
+  - `AdvancedParamsSchema` with helpers: `validateAdvancedParams()`, `hasReasoningEnabled()`
+  - 64 tests covering all param types and real-world scenarios
+  - **Completed**: 2025-11-26
 
 **Database Migrations** (Dependency Order - per Gemini consultation):
 
