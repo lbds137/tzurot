@@ -102,14 +102,14 @@ describe('Usage Command', () => {
         userId: '123456789',
       });
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          data: expect.objectContaining({
-            title: '📊 Your Usage Statistics',
-            fields: expect.arrayContaining([
-              expect.objectContaining({ name: 'No Usage' }),
-            ]),
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              title: '📊 Your Usage Statistics',
+              fields: expect.arrayContaining([expect.objectContaining({ name: 'No Usage' })]),
+            }),
           }),
-        })],
+        ],
       });
     });
 
@@ -140,19 +140,21 @@ describe('Usage Command', () => {
       await handleUsage(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          data: expect.objectContaining({
-            title: '📊 Your Usage Statistics',
-            fields: expect.arrayContaining([
-              expect.objectContaining({ name: 'Total Requests', value: '50' }),
-              expect.objectContaining({ name: 'Tokens In' }),
-              expect.objectContaining({ name: 'Tokens Out' }),
-              expect.objectContaining({ name: 'By Provider' }),
-              expect.objectContaining({ name: 'By Type' }),
-              expect.objectContaining({ name: 'Top Models' }),
-            ]),
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              title: '📊 Your Usage Statistics',
+              fields: expect.arrayContaining([
+                expect.objectContaining({ name: 'Total Requests', value: '50' }),
+                expect.objectContaining({ name: 'Tokens In' }),
+                expect.objectContaining({ name: 'Tokens Out' }),
+                expect.objectContaining({ name: 'By Provider' }),
+                expect.objectContaining({ name: 'By Type' }),
+                expect.objectContaining({ name: 'Top Models' }),
+              ]),
+            }),
           }),
-        })],
+        ],
       });
     });
 
@@ -202,11 +204,10 @@ describe('Usage Command', () => {
       const interaction = createMockInteraction();
       await handleUsage(interaction);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(
-        interaction,
-        error,
-        { userId: '123456789', command: 'Usage' }
-      );
+      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+        userId: '123456789',
+        command: 'Usage',
+      });
     });
   });
 });

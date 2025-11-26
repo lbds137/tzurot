@@ -72,7 +72,11 @@ describe('Timezone Subcommands', () => {
         body: { timezone: 'America/New_York' },
       });
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({ data: expect.objectContaining({ title: '⏰ Timezone Updated' }) })],
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({ title: '⏰ Timezone Updated' }),
+          }),
+        ],
       });
     });
 
@@ -99,11 +103,10 @@ describe('Timezone Subcommands', () => {
       const interaction = createMockInteraction();
       await handleTimezoneSet(interaction);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(
-        interaction,
-        error,
-        { userId: '123456789', command: 'Timezone Set' }
-      );
+      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+        userId: '123456789',
+        command: 'Timezone Set',
+      });
     });
   });
 
@@ -122,7 +125,9 @@ describe('Timezone Subcommands', () => {
         userId: '123456789',
       });
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({ data: expect.objectContaining({ title: '⏰ Your Timezone' }) })],
+        embeds: [
+          expect.objectContaining({ data: expect.objectContaining({ title: '⏰ Your Timezone' }) }),
+        ],
       });
     });
 
@@ -136,11 +141,13 @@ describe('Timezone Subcommands', () => {
       await handleTimezoneGet(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          data: expect.objectContaining({
-            description: expect.stringContaining('default timezone'),
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: expect.stringContaining('default timezone'),
+            }),
           }),
-        })],
+        ],
       });
     });
 
@@ -167,11 +174,10 @@ describe('Timezone Subcommands', () => {
       const interaction = createMockInteraction();
       await handleTimezoneGet(interaction);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(
-        interaction,
-        error,
-        { userId: '123456789', command: 'Timezone Get' }
-      );
+      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+        userId: '123456789',
+        command: 'Timezone Get',
+      });
     });
   });
 });

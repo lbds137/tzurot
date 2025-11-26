@@ -114,10 +114,9 @@ describe('handleDelete', () => {
     const interaction = createMockInteraction();
     await handleDelete(interaction);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      interaction,
-      error,
-      { userId: '123456789', command: 'LlmConfig Delete' }
-    );
+    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+      userId: '123456789',
+      command: 'LlmConfig Delete',
+    });
   });
 });
