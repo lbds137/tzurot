@@ -22,6 +22,7 @@ export {
   RETRY_CONFIG,
   CIRCUIT_BREAKER,
   CACHE_CONTROL,
+  VALIDATION_TIMEOUTS,
 } from './timing.js';
 
 // Queue constants
