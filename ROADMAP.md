@@ -203,39 +203,61 @@
 
 **Data Migration** (After Schema):
 
-- [ ] **Task 2.7**: Move `custom_fields.errorMessage` → `Personality.errorMessage` (67 personalities)
-- [ ] **Task 2.8**: Extract aliases from shapes.inc backups → PersonalityAlias table
-- [ ] **Task 2.9**: Extract birthdays from shapes.inc backups → Personality.birthday
-- [ ] **Task 2.10**: Assign ownership (set all existing personalities to bot owner as superuser)
+- [x] **Task 2.7**: Move `custom_fields.errorMessage` → `Personality.errorMessage` ✅
+  - SQL migration: `prisma/migrations/20251126190000_migrate_error_message_data/migration.sql`
+  - Script migration: `scripts/migrations/sprint2-data-migration.ts --task=2.7`
+- [x] **Task 2.8**: Extract aliases from display names → PersonalityAlias table ✅
+  - Script: `scripts/migrations/sprint2-data-migration.ts --task=2.8`
+- [x] **Task 2.9**: Import birthdays from shapes.inc → Personality.birthday ✅
+  - Script: `scripts/migrations/sprint2-data-migration.ts --task=2.9`
+  - Note: Only rich-fairbank has birthday defined ("09-18")
+- [x] **Task 2.10**: Assign ownership to existing personalities ✅
+  - Script: `scripts/migrations/sprint2-data-migration.ts --task=2.10`
+  - Prerequisites: Superuser must exist in users table with isSuperuser=true
 
 **Application Code** (After Data Migration):
 
-- [ ] **Task 2.11**: Add log sanitization middleware
-  - Regex: `sk-...`, `sk_...`, `AIza...` → `[REDACTED]`
-  - Apply to all services (bot-client, api-gateway, ai-worker)
-- [ ] **Task 2.12**: Update ai-worker to use decrypted user API keys
+- [x] **Task 2.11**: Add log sanitization middleware ✅
+  - Created `packages/common-types/src/utils/logSanitizer.ts`
+  - Integrated sanitization into `createLogger()` via Pino formatters
+  - Patterns: `sk-*`, `sk-or-*`, `sk-ant-*`, `AIza*`, Bearer tokens, DB URLs
+  - 21 new tests, all passing
+- [x] **Task 2.12**: Update ai-worker to use decrypted user API keys ✅
   - **CRITICAL**: Only pass userId in BullMQ job, NOT decrypted key (Redis stores plaintext)
-  - Fetch and decrypt key inside worker processor
-  - Implement hierarchical inheritance (user → system fallback)
-- [ ] **Task 2.13**: Add key validation service (dry run API calls before storage)
-  - Custom error classes: InvalidApiKeyError, QuotaExceededError
-- [ ] **Task 2.14**: Implement thinking/reasoning model runtime handling in `LLMInvoker`
-  - OpenAI o1/o3: No system role, use `max_completion_tokens`
-  - Claude 3.7: When thinking enabled, temperature must be 1.0
-  - Gemini 2.0: Uses `thinkingConfig.thinkingBudget`
-  - Strip `<thinking>` tags from final output
+  - Created `ApiKeyResolver` service at `services/ai-worker/src/services/ApiKeyResolver.ts`
+  - Integrated into `LLMGenerationHandler` to resolve keys at runtime
+  - Implements hierarchical inheritance (user key → system fallback)
+  - 15 new tests for ApiKeyResolver, 2 new BYOK tests for LLMGenerationHandler
+- [x] **Task 2.13**: Add key validation service (dry run API calls before storage) ✅
+  - Created `services/ai-worker/src/services/KeyValidationService.ts`
+  - Custom error classes: InvalidApiKeyError, QuotaExceededError, ValidationTimeoutError
+  - OpenRouter validation via `/auth/key` endpoint (includes credit balance)
+  - OpenAI validation via `/models` endpoint (lightweight read-only)
+  - 17 new tests, all passing
+- [x] **Task 2.14**: Implement thinking/reasoning model runtime handling in `LLMInvoker` ✅
+  - Created `services/ai-worker/src/utils/reasoningModelUtils.ts`
+  - Detects reasoning models: OpenAI o1/o3, Claude 3.7+, Gemini 2.0 Flash Thinking
+  - Transforms system messages to user messages for o-series (no system role support)
+  - Strips `<thinking>` tags from output for all reasoning models
+  - Integrated into `LLMInvoker.invokeWithRetry()` for automatic handling
+  - 37 new tests for reasoning model utilities
 
 ### Sprint 3: Slash Commands for BYOK (3-4 sessions)
 
 **Why Now**: Users need a UI to input their keys. Do this immediately after backend support.
 
-- [ ] **Task 3.1**: `/wallet set <provider>` - Modal input (ephemeral, secure)
+- [x] **Task 3.1**: `/wallet set <provider>` - Modal input (ephemeral, secure) ✅
   - Opens Discord Modal for API key input (more secure than slash command args)
-  - Validates key with dry run API call before storing
+  - Validates key with dry run API call before storing (OpenRouter /auth/key, OpenAI /models)
   - Encrypts and stores if valid
-- [ ] **Task 3.2**: `/wallet list` - Show configured providers (ephemeral)
-- [ ] **Task 3.3**: `/wallet remove <provider>` - Delete API key
-- [ ] **Task 3.4**: `/wallet test <provider>` - Validate key still works (quota check)
+  - **Completed**: 2025-11-26
+- [x] **Task 3.2**: `/wallet list` - Show configured providers (ephemeral) ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.3**: `/wallet remove <provider>` - Delete API key ✅
+  - **Completed**: 2025-11-26
+- [x] **Task 3.4**: `/wallet test <provider>` - Validate key still works (quota check) ✅
+  - Returns credit balance for OpenRouter
+  - **Completed**: 2025-11-26
 - [ ] **Task 3.5**: `/llm-config create` - Create user LLM config override
 - [ ] **Task 3.6**: `/llm-config list` - Show available configs (global + user)
 - [ ] **Task 3.7**: `/llm-config delete` - Delete user config override
@@ -507,6 +529,7 @@
 
 **Ongoing**: These don't block features but improve quality of life.
 
+- [ ] Consolidate `scripts/data/import-personality/` - Currently a separate workspace package with its own node_modules. Options: absorb into api-gateway, move to packages/, or document as intentionally standalone.
 - [ ] Investigate npm warning: "Unknown project config public-hoist-pattern" (pnpm/npm compat)
 - [ ] Full schema consistency review - naming conventions, missing fields, type alignment
 - [ ] Migrate `embedding Unsupported("vector")` to native `Float[] @db.Vector(1536)` (fixes Prisma HNSW drift)

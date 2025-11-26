@@ -113,6 +113,9 @@ export const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
+  // BYOK (Bring Your Own Key) Configuration
+  API_KEY_ENCRYPTION_KEY: optionalNonEmptyString(), // 32-byte hex key for AES-256-GCM encryption
+
   // Optional Services
   ELEVENLABS_API_KEY: optionalNonEmptyString(),
   IMAGE_GENERATION_API_KEY: optionalNonEmptyString(),
@@ -226,6 +229,9 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
 
     // Logging
     LOG_LEVEL: 'error', // Quiet logs in tests
+
+    // BYOK
+    API_KEY_ENCRYPTION_KEY: undefined,
 
     // Optional Services
     ELEVENLABS_API_KEY: undefined,

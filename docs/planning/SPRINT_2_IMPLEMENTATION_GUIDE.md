@@ -725,58 +725,59 @@ const maxMentions =
 
 ## Phase 3: Data Migration
 
+### Unified Migration Script
+
+**Location**: `scripts/migrations/sprint2-data-migration.ts`
+
+A comprehensive script handles all four data migration tasks:
+
+```bash
+# Dry run (preview changes without modifying database)
+railway run npx tsx scripts/migrations/sprint2-data-migration.ts --dry-run --verbose
+
+# Live run (apply changes)
+railway run npx tsx scripts/migrations/sprint2-data-migration.ts --verbose
+
+# Run specific task only
+railway run npx tsx scripts/migrations/sprint2-data-migration.ts --task=2.7  # errorMessage only
+railway run npx tsx scripts/migrations/sprint2-data-migration.ts --task=2.8  # aliases only
+railway run npx tsx scripts/migrations/sprint2-data-migration.ts --task=2.9  # birthdays only
+railway run npx tsx scripts/migrations/sprint2-data-migration.ts --task=2.10 # ownership only
+```
+
 ### Task 2.7: Migrate errorMessage from custom_fields
 
-```typescript
-// scripts/migrations/migrate-error-messages.ts
-async function migrateErrorMessages() {
-  const personalities = await prisma.personality.findMany({
-    where: {
-      customFields: { not: null },
-    },
-  });
+Moves `custom_fields->>'errorMessage'` to dedicated `error_message` column.
 
-  let migrated = 0;
-  for (const p of personalities) {
-    const customFields = p.customFields as Record<string, unknown> | null;
-    if (customFields?.errorMessage) {
-      await prisma.personality.update({
-        where: { id: p.id },
-        data: { errorMessage: String(customFields.errorMessage) },
-      });
-      migrated++;
-    }
-  }
+**SQL Alternative** (Prisma migration): `prisma/migrations/20251126190000_migrate_error_message_data/migration.sql`
 
-  console.log(`Migrated ${migrated} error messages`);
-}
-```
+### Task 2.8: Extract aliases from display names
 
-### Task 2.8-2.9: Extract aliases and birthdays from shapes.inc backups
+Creates PersonalityAlias records from personality display names. Examples:
 
-**Location**: `tzurot-legacy/data/` (shapes.inc backup files)
+- "Lilith" (name) → alias "lilith" for personality "lila-ani-tzuratech"
+- "COLD" (name) → alias "cold" for personality "cold-kerach-batuach"
 
-```typescript
-// scripts/migrations/import-shapes-data.ts
-import fs from 'fs';
-import path from 'path';
+### Task 2.9: Import birthdays from shapes.inc backups
 
-async function importShapesData() {
-  const backupDir = path.join(__dirname, '../../tzurot-legacy/data');
-
-  // Read shapes.inc backup files and extract:
-  // - aliases → PersonalityAlias table
-  // - birthdays → Personality.birthday
-  // - errorMessages (if not already in custom_fields)
-
-  // Implementation depends on backup file format
-}
-```
+Reads `tzurot-legacy/data/personalities/` backup files to find non-null `birthday` values.
+Currently only one personality has a birthday defined: rich-fairbank ("09-18").
 
 ### Task 2.10: Assign ownership to existing personalities
 
+Sets the superuser (bot owner) as owner of all personalities without an `ownerId`.
+
+**Prerequisites**: The superuser must be registered in the `users` table with `isSuperuser=true`.
+This can be done manually or via the first user registration flow.
+
+---
+
+### Legacy Reference: Individual Script Approach
+
+For reference, here's the original individual script approach (now consolidated into the unified script):
+
 ```typescript
-// scripts/migrations/assign-personality-ownership.ts
+// scripts/migrations/assign-personality-ownership.ts (OLD - now part of unified script)
 async function assignOwnership() {
   const BOT_OWNER_DISCORD_ID = process.env.BOT_OWNER_DISCORD_ID;
   if (!BOT_OWNER_DISCORD_ID) {

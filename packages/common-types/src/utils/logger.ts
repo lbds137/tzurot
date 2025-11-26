@@ -1,5 +1,6 @@
 import { pino } from 'pino';
 import type { Logger, LoggerOptions } from 'pino';
+import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
 
 /**
  * Custom error serializer that handles DOMException and other special error types.
@@ -8,15 +9,17 @@ import type { Logger, LoggerOptions } from 'pino';
  * DOMException (AbortError, etc.) to log all static constants (ABORT_ERR, etc.).
  * This custom serializer only picks useful properties.
  *
+ * Also applies log sanitization to redact sensitive data like API keys.
+ *
  * @param err - The error to serialize
- * @returns Serialized error object with only useful properties
+ * @returns Serialized error object with only useful properties and sanitized content
  */
 function customErrorSerializer(err: Error): object {
-  // Start with standard error properties
+  // Start with standard error properties (sanitize message for API keys)
   const serialized: Record<string, unknown> = {
     type: err.constructor.name,
-    message: err.message,
-    stack: err.stack,
+    message: sanitizeLogMessage(err.message),
+    stack: err.stack !== undefined ? sanitizeLogMessage(err.stack) : undefined,
   };
 
   // For DOMException (AbortError, etc.), only include specific properties
@@ -34,12 +37,21 @@ function customErrorSerializer(err: Error): object {
       const value = (err as unknown as Record<string, unknown>)[key];
       // Skip functions and standard properties we already included
       if (typeof value !== 'function' && !['message', 'stack', 'name'].includes(key)) {
-        serialized[key] = value;
+        // Sanitize string values
+        serialized[key] = typeof value === 'string' ? sanitizeLogMessage(value) : value;
       }
     }
   }
 
   return serialized;
+}
+
+/**
+ * Custom object serializer that sanitizes sensitive data.
+ * Used for request/response objects and general bindings.
+ */
+function sanitizedObjectSerializer(obj: unknown): unknown {
+  return sanitizeObject(obj);
 }
 
 /**
@@ -77,9 +89,18 @@ export function createLogger(name?: string): Logger {
   const config: LoggerOptions = {
     level: process.env.LOG_LEVEL ?? 'info',
     name,
-    // Custom error serializer that handles DOMException properly
+    // Custom serializers that sanitize sensitive data (API keys, tokens, etc.)
     serializers: {
       err: customErrorSerializer,
+      req: sanitizedObjectSerializer,
+      res: sanitizedObjectSerializer,
+    },
+    // Format hook to sanitize the final message string
+    formatters: {
+      log: (object: Record<string, unknown>) => {
+        // Sanitize the entire log object to catch any API keys
+        return sanitizeObject(object) as Record<string, unknown>;
+      },
     },
   };
 

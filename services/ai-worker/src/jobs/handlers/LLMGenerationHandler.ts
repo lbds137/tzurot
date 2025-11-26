@@ -1,7 +1,12 @@
 /**
  * LLM Generation Handler
  *
- * Handles LLM generation jobs including preprocessing dependency merging
+ * Handles LLM generation jobs including preprocessing dependency merging.
+ *
+ * BYOK Security Model:
+ * - API keys are NEVER passed through BullMQ jobs in plaintext
+ * - Keys are resolved at runtime using ApiKeyResolver
+ * - Keys are decrypted only in ai-worker, stored encrypted in DB
  */
 
 import { Job } from 'bullmq';
@@ -13,6 +18,7 @@ import {
   MessageContent,
   createLogger,
   REDIS_KEY_PREFIXES,
+  AIProvider,
   type LLMGenerationJobData,
   type LLMGenerationResult,
   type AudioTranscriptionResult,
@@ -20,6 +26,7 @@ import {
   llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
+import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 
 const logger = createLogger('LLMGenerationHandler');
 
@@ -28,7 +35,10 @@ const logger = createLogger('LLMGenerationHandler');
  * Processes dependencies (audio transcriptions, image descriptions) and generates AI responses
  */
 export class LLMGenerationHandler {
-  constructor(private readonly ragService: ConversationalRAGService) {}
+  constructor(
+    private readonly ragService: ConversationalRAGService,
+    private readonly apiKeyResolver?: ApiKeyResolver
+  ) {}
 
   /**
    * Process LLM generation job (may depend on preprocessing jobs)
@@ -174,11 +184,34 @@ export class LLMGenerationHandler {
    */
   private async generateResponse(job: Job<LLMGenerationJobData>): Promise<LLMGenerationResult> {
     const startTime = Date.now();
-    const { requestId, personality, message, context, userApiKey } = job.data;
+    const { requestId, personality, message, context } = job.data;
 
     logger.info(
       `[LLMGenerationHandler] Processing LLM generation job ${job.id} (${requestId}) for ${personality.name}`
     );
+
+    // BYOK: Resolve API key from database using ApiKeyResolver
+    // The key is NEVER passed through BullMQ - we look it up here using userId
+    let resolvedApiKey: string | undefined;
+    if (this.apiKeyResolver) {
+      try {
+        const keyResult = await this.apiKeyResolver.resolveApiKey(
+          context.userId,
+          AIProvider.OpenRouter // Default provider - could be determined from personality.model
+        );
+        resolvedApiKey = keyResult.apiKey;
+        logger.debug(
+          { userId: context.userId, source: keyResult.source },
+          '[LLMGenerationHandler] Resolved API key'
+        );
+      } catch (error) {
+        // Log but don't fail - system key might still work
+        logger.warn(
+          { err: error, userId: context.userId },
+          '[LLMGenerationHandler] Failed to resolve user API key, falling back to system key'
+        );
+      }
+    }
 
     // Debug: Check if referencedMessages exists in job data
     logger.info(
@@ -245,6 +278,7 @@ export class LLMGenerationHandler {
       );
 
       // Generate response using RAG
+      // Note: resolvedApiKey comes from ApiKeyResolver (BYOK) or is undefined (system key fallback)
       const response: RAGResponse = await this.ragService.generateResponse(
         personality,
         message as MessageContent,
@@ -266,7 +300,7 @@ export class LLMGenerationHandler {
           referencedMessages: context.referencedMessages,
           referencedChannels: context.referencedChannels,
         },
-        userApiKey
+        resolvedApiKey
       );
 
       const processingTimeMs = Date.now() - startTime;

@@ -16,6 +16,7 @@ export type { ErrorResponse };
 export enum ErrorCode {
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   UNAUTHORIZED = 'UNAUTHORIZED',
+  PAYMENT_REQUIRED = 'PAYMENT_REQUIRED',
   NOT_FOUND = 'NOT_FOUND',
   CONFLICT = 'CONFLICT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
@@ -33,6 +34,7 @@ export enum ErrorCode {
 const ERROR_STATUS_CODES: Record<ErrorCode, number> = {
   [ErrorCode.VALIDATION_ERROR]: 400,
   [ErrorCode.UNAUTHORIZED]: 403,
+  [ErrorCode.PAYMENT_REQUIRED]: 402,
   [ErrorCode.NOT_FOUND]: 404,
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.INTERNAL_ERROR]: 500,
@@ -104,6 +106,9 @@ export const ErrorResponses = {
     message = 'This endpoint is only available to the bot owner',
     requestId?: string
   ) => createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
+
+  paymentRequired: (message = 'Insufficient credits or quota', requestId?: string) =>
+    createErrorResponse(ErrorCode.PAYMENT_REQUIRED, message, requestId),
 
   notFound: (resource: string, requestId?: string) =>
     createErrorResponse(ErrorCode.NOT_FOUND, `${resource} not found`, requestId),

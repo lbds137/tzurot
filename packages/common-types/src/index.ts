@@ -44,6 +44,12 @@ export {
   isValidEncryptedData,
   type EncryptedData,
 } from './utils/encryption.js';
+export {
+  sanitizeLogMessage,
+  sanitizeObject,
+  createSanitizedSerializers,
+  sanitizeLogHook,
+} from './utils/logSanitizer.js';
 
 // Export services
 export * from './services/prisma.js';
