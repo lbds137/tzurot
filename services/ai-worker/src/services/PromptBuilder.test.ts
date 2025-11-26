@@ -185,6 +185,81 @@ describe('PromptBuilder', () => {
       const result2 = promptBuilder.buildSearchQuery('Test', [], '');
       expect(result2).toBe('Test');
     });
+
+    describe('with recentHistoryWindow', () => {
+      it('should include recent history window in search query', () => {
+        const recentHistory = 'User: I love Dark Souls\nAssistant: It is a challenging game';
+        const result = promptBuilder.buildSearchQuery(
+          'What do you think about that?',
+          [],
+          undefined,
+          recentHistory
+        );
+
+        // History should come FIRST for context
+        expect(result).toBe(
+          'User: I love Dark Souls\nAssistant: It is a challenging game\n\nWhat do you think about that?'
+        );
+      });
+
+      it('should combine history, user message, attachments, and references', () => {
+        const recentHistory = 'User: Previous message\nAssistant: Previous response';
+        const attachments: ProcessedAttachment[] = [
+          {
+            type: 'image',
+            description: 'Image description',
+            url: 'https://example.com/img.jpg',
+          },
+        ];
+        const referencedText = 'Referenced message content';
+
+        const result = promptBuilder.buildSearchQuery(
+          'Current message',
+          attachments,
+          referencedText,
+          recentHistory
+        );
+
+        expect(result).toBe(
+          'User: Previous message\nAssistant: Previous response\n\n' +
+            'Current message\n\n' +
+            'Image description\n\n' +
+            'Referenced message content'
+        );
+      });
+
+      it('should handle undefined recent history gracefully', () => {
+        const result = promptBuilder.buildSearchQuery('Test', [], undefined, undefined);
+        expect(result).toBe('Test');
+      });
+
+      it('should handle empty recent history gracefully', () => {
+        const result = promptBuilder.buildSearchQuery('Test', [], undefined, '');
+        expect(result).toBe('Test');
+      });
+
+      it('should use history alone if user message is "Hello" fallback', () => {
+        const recentHistory = 'User: What is the capital of France?\nAssistant: Paris';
+        const result = promptBuilder.buildSearchQuery('Hello', [], undefined, recentHistory);
+
+        // History provides context, Hello fallback is skipped
+        expect(result).toBe('User: What is the capital of France?\nAssistant: Paris');
+      });
+
+      it('should help resolve pronouns like "that" through context', () => {
+        const recentHistory = 'User: I bought a Tesla yesterday\nAssistant: That sounds exciting!';
+        const result = promptBuilder.buildSearchQuery(
+          'What do you know about it?',
+          [],
+          undefined,
+          recentHistory
+        );
+
+        // The search now includes "Tesla" context to help LTM find relevant memories
+        expect(result).toContain('Tesla');
+        expect(result).toContain('What do you know about it?');
+      });
+    });
   });
 
   describe('buildHumanMessage', () => {

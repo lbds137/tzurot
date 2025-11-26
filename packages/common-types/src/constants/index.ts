@@ -59,7 +59,7 @@ export {
 } from './media.js';
 
 // Message constants
-export { MessageRole, PLACEHOLDERS } from './message.js';
+export { MessageRole, PLACEHOLDERS, MESSAGE_LIMITS } from './message.js';
 
 // Service constants
 export { SERVICE_DEFAULTS, APP_SETTINGS, HealthStatus } from './service.js';

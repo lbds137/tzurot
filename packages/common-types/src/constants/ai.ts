@@ -22,8 +22,6 @@ export const AI_DEFAULTS = {
   MEMORY_LIMIT: 15,
   /** Default context window token budget (128k tokens) */
   CONTEXT_WINDOW_TOKENS: 131072,
-  /** @deprecated Use CONTEXT_WINDOW_TOKENS instead. Legacy message-count limit. */
-  HISTORY_LIMIT: 10,
   /**
    * Time buffer (in milliseconds) to prevent STM/LTM overlap
    * Excludes LTM memories within this time window of the oldest STM message
@@ -37,6 +35,13 @@ export const AI_DEFAULTS = {
    * 0.5 = 50% channel-scoped, 50% global backfill
    */
   CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
+  /**
+   * Number of prior conversation turns to include in LTM search query
+   * This solves the "pronoun problem" where users say "what about that?" -
+   * without recent context, LTM can't find relevant memories.
+   * 3 turns = 6 messages (3 user + 3 assistant)
+   */
+  LTM_SEARCH_HISTORY_TURNS: 3,
 } as const;
 
 /**

@@ -14,6 +14,7 @@ import {
   MessageRole,
   CONTENT_TYPES,
   INTERVALS,
+  MESSAGE_LIMITS,
 } from '@tzurot/common-types';
 import type {
   LoadedPersonality,
@@ -106,11 +107,10 @@ export class MessageContextBuilder {
 
     // Get conversation history from PostgreSQL
     // Retrieve more than needed - AI worker will trim based on token budget
-    const historyLimit = 100;
     const history = await this.conversationHistory.getRecentHistory(
       message.channel.id,
       personality.id,
-      historyLimit
+      MESSAGE_LIMITS.MAX_HISTORY_FETCH
     );
 
     // Extract Discord message IDs and timestamps for deduplication
@@ -152,7 +152,7 @@ export class MessageContextBuilder {
     logger.debug('[MessageContextBuilder] Extracting referenced messages with deduplication');
     const referenceExtractor = new MessageReferenceExtractor({
       prisma: this.prisma,
-      maxReferences: 10,
+      maxReferences: MESSAGE_LIMITS.MAX_REFERENCED_MESSAGES,
       embedProcessingDelayMs: INTERVALS.EMBED_PROCESSING_DELAY,
       conversationHistoryMessageIds,
       conversationHistoryTimestamps,

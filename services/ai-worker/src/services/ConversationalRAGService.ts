@@ -195,12 +195,17 @@ export class ConversationalRAGService {
           ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
           : undefined;
 
+      // Extract recent conversation history for context-aware LTM search
+      // This solves the "pronoun problem" where users say "what about that?"
+      const recentHistoryWindow = this.extractRecentHistoryWindow(context.rawConversationHistory);
+
       // Build the actual message text for memory search
-      // Includes: user message, voice transcriptions, image descriptions, AND referenced content
+      // Includes: recent history context, user message, voice transcriptions, image descriptions, AND referenced content
       const searchQuery = this.promptBuilder.buildSearchQuery(
         userMessage,
         processedAttachments,
-        referencedMessagesTextForSearch
+        referencedMessagesTextForSearch,
+        recentHistoryWindow
       );
 
       // Fetch ALL participant personas from conversation history
@@ -376,5 +381,53 @@ export class ConversationalRAGService {
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
     }
+  }
+
+  /**
+   * Extract recent conversation history for context-aware LTM search
+   *
+   * Returns the last N conversation turns (user + assistant pairs) as a formatted string.
+   * This helps resolve pronouns like "that", "it", "he" in the current message by
+   * providing recent topic context to the embedding model.
+   *
+   * @param rawHistory The raw conversation history array
+   * @returns Formatted string of recent history, or undefined if no history
+   */
+  private extractRecentHistoryWindow(
+    rawHistory?: { role: string; content: string; tokenCount?: number }[]
+  ): string | undefined {
+    if (!rawHistory || rawHistory.length === 0) {
+      return undefined;
+    }
+
+    // Get the last N turns (each turn = 2 messages: user + assistant)
+    const turnsToInclude = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS;
+    const messagesToInclude = turnsToInclude * 2;
+
+    // Take the last N messages (they're already in chronological order)
+    const recentMessages = rawHistory.slice(-messagesToInclude);
+
+    if (recentMessages.length === 0) {
+      return undefined;
+    }
+
+    // Format as "role: content" pairs, joined with newlines
+    const formatted = recentMessages
+      .map(msg => {
+        const role = msg.role === 'assistant' ? 'Assistant' : 'User';
+        // Truncate very long messages to avoid bloating the search query
+        const content =
+          msg.content.length > TEXT_LIMITS.LOG_PREVIEW
+            ? msg.content.substring(0, TEXT_LIMITS.LOG_PREVIEW) + '...'
+            : msg.content;
+        return `${role}: ${content}`;
+      })
+      .join('\n');
+
+    logger.debug(
+      `[RAG] Extracted ${recentMessages.length} messages (${Math.ceil(recentMessages.length / 2)} turns) for LTM search context`
+    );
+
+    return formatted;
   }
 }
