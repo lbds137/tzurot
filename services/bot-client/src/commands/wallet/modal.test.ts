@@ -107,7 +107,9 @@ describe('handleWalletModalSubmit', () => {
       const interaction = createMockInteraction('wallet-set-openai', 'wrong-format');
       await handleWalletModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Invalid OpenAI Key Format'));
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid OpenAI Key Format')
+      );
     });
 
     it('should detect OpenRouter key submitted for OpenAI', async () => {
@@ -207,9 +209,7 @@ describe('handleWalletModalSubmit', () => {
       const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-valid-key');
       await handleWalletModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(
-        expect.stringContaining('unexpected error')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
     });
   });
 });

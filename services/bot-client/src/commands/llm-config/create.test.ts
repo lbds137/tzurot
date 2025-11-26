@@ -42,24 +42,32 @@ describe('handleCreate', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(options: {
-    name?: string;
-    model?: string;
-    description?: string | null;
-    provider?: string | null;
-    visionModel?: string | null;
-  } = {}) {
+  function createMockInteraction(
+    options: {
+      name?: string;
+      model?: string;
+      description?: string | null;
+      provider?: string | null;
+      visionModel?: string | null;
+    } = {}
+  ) {
     return {
       user: { id: '123456789' },
       options: {
         getString: (name: string, _required?: boolean) => {
           switch (name) {
-            case 'name': return options.name ?? 'MyConfig';
-            case 'model': return options.model ?? 'anthropic/claude-sonnet-4';
-            case 'description': return options.description ?? null;
-            case 'provider': return options.provider ?? null;
-            case 'vision-model': return options.visionModel ?? null;
-            default: return null;
+            case 'name':
+              return options.name ?? 'MyConfig';
+            case 'model':
+              return options.model ?? 'anthropic/claude-sonnet-4';
+            case 'description':
+              return options.description ?? null;
+            case 'provider':
+              return options.provider ?? null;
+            case 'vision-model':
+              return options.visionModel ?? null;
+            default:
+              return null;
           }
         },
       },
@@ -96,12 +104,14 @@ describe('handleCreate', () => {
       },
     });
     expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: [expect.objectContaining({
-        data: expect.objectContaining({
-          title: '✅ Config Created',
-          description: expect.stringContaining('MyConfig'),
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: '✅ Config Created',
+            description: expect.stringContaining('MyConfig'),
+          }),
         }),
-      })],
+      ],
     });
   });
 
@@ -155,10 +165,9 @@ describe('handleCreate', () => {
     const interaction = createMockInteraction();
     await handleCreate(interaction);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      interaction,
-      error,
-      { userId: '123456789', command: 'LlmConfig Create' }
-    );
+    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+      userId: '123456789',
+      command: 'LlmConfig Create',
+    });
   });
 });

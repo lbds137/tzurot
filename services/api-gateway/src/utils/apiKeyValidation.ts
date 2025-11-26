@@ -161,6 +161,10 @@ export async function validateApiKey(
     case AIProvider.OpenAI:
       return validateOpenAIKey(apiKey);
     default:
-      return { valid: false, errorCode: 'UNKNOWN', error: `Unsupported provider: ${String(provider)}` };
+      return {
+        valid: false,
+        errorCode: 'UNKNOWN',
+        error: `Unsupported provider: ${String(provider)}`,
+      };
   }
 }

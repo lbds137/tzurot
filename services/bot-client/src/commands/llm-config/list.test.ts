@@ -54,9 +54,30 @@ describe('handleList', () => {
       ok: true,
       data: {
         configs: [
-          { id: '1', name: 'Default', model: 'anthropic/claude-sonnet-4', isGlobal: true, isDefault: true, isOwned: false },
-          { id: '2', name: 'Fast', model: 'openai/gpt-4o-mini', isGlobal: true, isDefault: false, isOwned: false },
-          { id: '3', name: 'MyConfig', model: 'anthropic/claude-opus-4', isGlobal: false, isDefault: false, isOwned: true },
+          {
+            id: '1',
+            name: 'Default',
+            model: 'anthropic/claude-sonnet-4',
+            isGlobal: true,
+            isDefault: true,
+            isOwned: false,
+          },
+          {
+            id: '2',
+            name: 'Fast',
+            model: 'openai/gpt-4o-mini',
+            isGlobal: true,
+            isDefault: false,
+            isOwned: false,
+          },
+          {
+            id: '3',
+            name: 'MyConfig',
+            model: 'anthropic/claude-opus-4',
+            isGlobal: false,
+            isDefault: false,
+            isOwned: true,
+          },
         ],
       },
     });
@@ -67,15 +88,17 @@ describe('handleList', () => {
     expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: '123456789' });
     expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: [expect.objectContaining({
-        data: expect.objectContaining({
-          title: '🔧 LLM Configurations',
-          fields: expect.arrayContaining([
-            expect.objectContaining({ name: '🌐 Global Configs' }),
-            expect.objectContaining({ name: '👤 Your Configs' }),
-          ]),
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: '🔧 LLM Configurations',
+            fields: expect.arrayContaining([
+              expect.objectContaining({ name: '🌐 Global Configs' }),
+              expect.objectContaining({ name: '👤 Your Configs' }),
+            ]),
+          }),
         }),
-      })],
+      ],
     });
   });
 
@@ -89,11 +112,13 @@ describe('handleList', () => {
     await handleList(interaction);
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: [expect.objectContaining({
-        data: expect.objectContaining({
-          description: expect.stringContaining('No configurations available'),
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: expect.stringContaining('No configurations available'),
+          }),
         }),
-      })],
+      ],
     });
   });
 
@@ -120,10 +145,9 @@ describe('handleList', () => {
     const interaction = createMockInteraction();
     await handleList(interaction);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      interaction,
-      error,
-      { userId: '123456789', command: 'LlmConfig List' }
-    );
+    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+      userId: '123456789',
+      command: 'LlmConfig List',
+    });
   });
 });

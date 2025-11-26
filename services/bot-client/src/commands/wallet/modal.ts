@@ -202,4 +202,3 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
 
   return null;
 }
-
