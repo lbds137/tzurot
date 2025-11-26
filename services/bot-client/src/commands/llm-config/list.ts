@@ -3,12 +3,13 @@
  * Handles /llm-config list subcommand
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('llm-config-list');
-const config = getConfig();
 
 interface LlmConfigSummary {
   id: string;
@@ -22,39 +23,28 @@ interface LlmConfigSummary {
   isOwned: boolean;
 }
 
+interface ListResponse {
+  configs: LlmConfigSummary[];
+}
+
 /**
  * Handle /llm-config list
  */
 export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
+    const result = await callGatewayApi<ListResponse>('/user/llm-config', { userId });
+
+    if (!result.ok) {
+      logger.warn({ userId, status: result.status }, '[LlmConfig] Failed to list configs');
+      await replyWithError(interaction, 'Failed to get configs. Please try again later.');
       return;
     }
 
-    const response = await fetch(`${gatewayUrl}/user/llm-config`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${userId}`,
-      },
-    });
-
-    if (!response.ok) {
-      logger.warn({ userId, status: response.status }, '[LlmConfig] Failed to list configs');
-      await interaction.editReply({
-        content: '❌ Failed to get configs. Please try again later.',
-      });
-      return;
-    }
-
-    const data = (await response.json()) as { configs: LlmConfigSummary[] };
+    const data = result.data;
 
     const embed = new EmbedBuilder()
       .setTitle('🔧 LLM Configurations')
@@ -106,9 +96,6 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
     logger.info({ userId, count: data.configs.length }, '[LlmConfig] Listed configs');
   } catch (error) {
-    logger.error({ err: error, userId }, '[LlmConfig] Error listing configs');
-    await interaction.editReply({
-      content: '❌ An error occurred. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'LlmConfig List' });
   }
 }

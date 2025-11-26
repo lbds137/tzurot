@@ -1,0 +1,121 @@
+/**
+ * Gateway Client
+ * Centralized API client for communicating with the API Gateway
+ *
+ * Provides:
+ * - Consistent authentication (Authorization: Bearer)
+ * - Standardized error handling
+ * - Gateway URL validation
+ */
+
+import { getConfig, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
+
+const logger = createLogger('gateway-client');
+
+/**
+ * Gateway API response wrapper
+ */
+export interface GatewayResponse<T> {
+  ok: true;
+  data: T;
+}
+
+export interface GatewayError {
+  ok: false;
+  error: string;
+  status: number;
+}
+
+export type GatewayResult<T> = GatewayResponse<T> | GatewayError;
+
+/**
+ * Options for gateway API calls
+ */
+export interface GatewayCallOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  userId: string;
+  body?: unknown;
+}
+
+/**
+ * Get the gateway URL, throwing if not configured
+ */
+export function getGatewayUrl(): string {
+  const config = getConfig();
+  const gatewayUrl = config.GATEWAY_URL;
+
+  if (gatewayUrl === undefined || gatewayUrl.length === 0) {
+    throw new Error('GATEWAY_URL not configured');
+  }
+
+  return gatewayUrl;
+}
+
+/**
+ * Check if gateway is configured (non-throwing version)
+ */
+export function isGatewayConfigured(): boolean {
+  try {
+    getGatewayUrl();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse error from API response
+ */
+export async function parseErrorResponse(response: Response): Promise<string> {
+  try {
+    const data = (await response.json()) as { error?: string; message?: string };
+    return data.error ?? data.message ?? `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+/**
+ * Call the gateway API with consistent auth and error handling
+ *
+ * @param path - API path (e.g., '/user/llm-config')
+ * @param options - Request options including userId for auth
+ * @returns GatewayResult with typed data or error
+ */
+export async function callGatewayApi<T>(
+  path: string,
+  options: GatewayCallOptions
+): Promise<GatewayResult<T>> {
+  const { method = 'GET', userId, body } = options;
+
+  try {
+    const gatewayUrl = getGatewayUrl();
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${userId}`,
+    };
+
+    if (body !== undefined) {
+      headers['Content-Type'] = CONTENT_TYPES.JSON;
+    }
+
+    const response = await fetch(`${gatewayUrl}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const error = await parseErrorResponse(response);
+      logger.warn({ path, method, status: response.status, userId }, '[Gateway] Request failed');
+      return { ok: false, error, status: response.status };
+    }
+
+    const data = (await response.json()) as T;
+    return { ok: true, data };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ err: error, path, method, userId }, '[Gateway] Request error');
+    return { ok: false, error: errorMessage, status: 0 };
+  }
+}

@@ -3,12 +3,13 @@
  * Handles /llm-config create subcommand
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('llm-config-create');
-const config = getConfig();
 
 interface CreateResponse {
   config: {
@@ -30,42 +31,22 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
   const provider = interaction.options.getString('provider') ?? 'openrouter';
   const visionModel = interaction.options.getString('vision-model');
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
-      return;
-    }
-
-    const response = await fetch(`${gatewayUrl}/user/llm-config`, {
+    const result = await callGatewayApi<CreateResponse>('/user/llm-config', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userId}`,
-      },
-      body: JSON.stringify({
-        name,
-        model,
-        description,
-        provider,
-        visionModel,
-      }),
+      userId,
+      body: { name, model, description, provider, visionModel },
     });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      logger.warn({ userId, status: response.status, name }, '[LlmConfig] Failed to create config');
-      await interaction.editReply({
-        content: `❌ Failed to create config: ${errorData.error ?? 'Unknown error'}`,
-      });
+    if (!result.ok) {
+      logger.warn({ userId, status: result.status, name }, '[LlmConfig] Failed to create config');
+      await replyWithError(interaction, `Failed to create config: ${result.error}`);
       return;
     }
 
-    const data = (await response.json()) as CreateResponse;
+    const data = result.data;
 
     const shortModel = data.config.model.includes('/')
       ? data.config.model.split('/').pop()
@@ -86,9 +67,6 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
 
     logger.info({ userId, configId: data.config.id, name }, '[LlmConfig] Created config');
   } catch (error) {
-    logger.error({ err: error, userId }, '[LlmConfig] Error creating config');
-    await interaction.editReply({
-      content: '❌ An error occurred. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'LlmConfig Create' });
   }
 }
