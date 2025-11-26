@@ -2,17 +2,18 @@
 
 > Last updated: 2025-11-26
 
-## Status: 🚀 **BYOK Preparation COMPLETE** - Ready for Database Migrations
+## Status: 🚀 **Database Migrations In Progress**
 
-**Current Phase**: Phase 1 Sprint 2 - BYOK Schema Migration (Database migrations next)
+**Current Phase**: Phase 1 Sprint 2 - BYOK Schema Migration (Database migrations active)
 
 **Sprint 2 Progress (2025-11-26)**:
 
 - ✅ **Task 2.P1**: Encryption utilities (AES-256-GCM for API key storage) - 32 tests
 - ✅ **Task 2.P2**: Advanced params schema (OpenRouter unified params) - 64 tests
+- ✅ **Task 2.1**: Update `User` table (added `timezone`, `isSuperuser`)
 - All 1,783 tests passing
 
-**Next Up**: Task 2.1 - Update `User` table (root dependency for BYOK schema)
+**Next Up**: Task 2.2 - Create `UserApiKey` table (depends on User)
 
 **Recent Completion**:
 
@@ -94,18 +95,16 @@
 - [x] Marked Prisma 7.0 complete in PHASED_IMPLEMENTATION_PLAN.md
 - [x] Reconciled QOL_MODEL_MANAGEMENT.md with ROADMAP.md sprints
 
-**Next Task**: Sprint 2 Preparation (Code First)
+**Current Sprint**: Database Migrations (Dependency Order)
 
-- [ ] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
-- [ ] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation
-
-**Then**: Database Migrations (Dependency Order)
-
-- [ ] **Task 2.1**: Update `User` table (root dependency)
+- [x] **Task 2.P1**: Create encryption utilities - DONE
+- [x] **Task 2.P2**: Create Zod schemas for `advancedParameters` - DONE
+- [x] **Task 2.1**: Update `User` table (root dependency) - DONE
 - [ ] **Task 2.2**: Create `UserApiKey` table (depends on User)
 - [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
-- [ ] **Task 2.4**: Update `Personality` table (add `errorMessage`, `birthday`)
-- [ ] **Task 2.5**: Update `User` table (add `timezone`, relationships)
+- [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema)
+- [ ] **Task 2.5**: Create `PersonalityAlias` table
+- [ ] **Task 2.6**: Create `UsageLog` table
 
 ## Planned Features (Priority Order)
 

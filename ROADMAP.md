@@ -1,6 +1,6 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-11-24
+> **Last Updated**: 2025-11-26
 > **Philosophy**: Launch, Stabilize, Evolve
 > **Context**: Solo dev + AI, must avoid decision fatigue and context switching
 
@@ -173,10 +173,11 @@
 
 **Database Migrations** (Dependency Order - per Gemini consultation):
 
-- [ ] **Task 2.1**: Update `User` table (ROOT DEPENDENCY - do first)
+- [x] **Task 2.1**: Update `User` table (ROOT DEPENDENCY - do first) ✅
   - Add `timezone` (String, default "UTC")
   - Add `isSuperuser` (Boolean, default false) - bot owner flag
   - Relationships: apiKeys, usageLogs, ownedPersonalities
+  - **Completed**: 2025-11-26
 - [ ] **Task 2.2**: Create `UserApiKey` table (depends on User)
   - Fields: iv, content, tag, provider, isActive
   - Unique constraint: (userId, provider)
@@ -502,6 +503,8 @@
 
 **Ongoing**: These don't block features but improve quality of life.
 
+- [ ] Investigate npm warning: "Unknown project config public-hoist-pattern" (pnpm/npm compat)
+- [ ] Full schema consistency review - naming conventions, missing fields, type alignment
 - [ ] Increase test coverage for `WebhookManager` (249 lines)
 - [ ] Refactor `MessageHandler` if it grows beyond 468 lines (consider splitting)
 - [ ] Add integration tests for end-to-end flows
