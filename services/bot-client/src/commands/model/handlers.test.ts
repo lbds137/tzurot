@@ -60,7 +60,12 @@ describe('Model Command Handlers', () => {
         data: {
           overrides: [
             { personalityId: 'p1', personalityName: 'Lilith', configId: 'c1', configName: 'Fast' },
-            { personalityId: 'p2', personalityName: 'Sarcastic', configId: 'c2', configName: 'GPT-4' },
+            {
+              personalityId: 'p2',
+              personalityName: 'Sarcastic',
+              configId: 'c2',
+              configName: 'GPT-4',
+            },
           ],
         },
       });
@@ -68,14 +73,18 @@ describe('Model Command Handlers', () => {
       const interaction = createMockInteraction();
       await handleListOverrides(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', { userId: '123456789' });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
+        userId: '123456789',
+      });
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          data: expect.objectContaining({
-            title: '🎭 Your Model Overrides',
-            description: expect.stringContaining('Lilith'),
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              title: '🎭 Your Model Overrides',
+              description: expect.stringContaining('Lilith'),
+            }),
           }),
-        })],
+        ],
       });
     });
 
@@ -89,11 +98,13 @@ describe('Model Command Handlers', () => {
       await handleListOverrides(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          data: expect.objectContaining({
-            description: expect.stringContaining("haven't set any"),
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: expect.stringContaining("haven't set any"),
+            }),
           }),
-        })],
+        ],
       });
     });
 
@@ -144,11 +155,13 @@ describe('Model Command Handlers', () => {
         body: { personalityId: 'p1', configId: 'c1' },
       });
       expect(mockEditReply).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          data: expect.objectContaining({
-            title: '✅ Model Override Set',
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              title: '✅ Model Override Set',
+            }),
           }),
-        })],
+        ],
       });
     });
 
@@ -222,11 +235,10 @@ describe('Model Command Handlers', () => {
       const interaction = createMockInteraction();
       await handleReset(interaction);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(
-        interaction,
-        error,
-        { userId: '123456789', command: 'Model Reset' }
-      );
+      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
+        userId: '123456789',
+        command: 'Model Reset',
+      });
     });
   });
 });
