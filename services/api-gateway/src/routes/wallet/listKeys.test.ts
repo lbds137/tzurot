@@ -61,9 +61,9 @@ describe('GET /wallet/list', () => {
       expect(router.stack.length).toBeGreaterThan(0);
 
       // Find the GET route - use type assertion for Express internals
-      const getRoute = (router.stack as unknown as Array<{ route?: { methods?: { get?: boolean } } }>).find(
-        layer => layer.route?.methods?.get
-      );
+      const getRoute = (
+        router.stack as unknown as Array<{ route?: { methods?: { get?: boolean } } }>
+      ).find(layer => layer.route?.methods?.get);
       expect(getRoute).toBeDefined();
     });
   });

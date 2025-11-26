@@ -71,9 +71,9 @@ describe('POST /wallet/set', () => {
       expect(router.stack.length).toBeGreaterThan(0);
 
       // Find the POST route - use type assertion for Express internals
-      const postRoute = (router.stack as unknown as Array<{ route?: { methods?: { post?: boolean } } }>).find(
-        layer => layer.route?.methods?.post
-      );
+      const postRoute = (
+        router.stack as unknown as Array<{ route?: { methods?: { post?: boolean } } }>
+      ).find(layer => layer.route?.methods?.post);
       expect(postRoute).toBeDefined();
     });
   });
