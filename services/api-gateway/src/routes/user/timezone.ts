@@ -6,67 +6,18 @@
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  isValidTimezone,
+  getTimezoneInfo,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('user-timezone');
-
-/**
- * Common timezone options for dropdown
- * Organized by region for better UX
- */
-export const COMMON_TIMEZONES = [
-  // Americas
-  { value: 'America/New_York', label: 'Eastern Time (US)', offset: 'UTC-5' },
-  { value: 'America/Chicago', label: 'Central Time (US)', offset: 'UTC-6' },
-  { value: 'America/Denver', label: 'Mountain Time (US)', offset: 'UTC-7' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (US)', offset: 'UTC-8' },
-  { value: 'America/Anchorage', label: 'Alaska Time', offset: 'UTC-9' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii Time', offset: 'UTC-10' },
-  { value: 'America/Toronto', label: 'Eastern Time (Canada)', offset: 'UTC-5' },
-  { value: 'America/Vancouver', label: 'Pacific Time (Canada)', offset: 'UTC-8' },
-  { value: 'America/Sao_Paulo', label: 'Brasília Time', offset: 'UTC-3' },
-  { value: 'America/Mexico_City', label: 'Mexico City', offset: 'UTC-6' },
-  // Europe
-  { value: 'Europe/London', label: 'London (GMT/BST)', offset: 'UTC+0' },
-  { value: 'Europe/Paris', label: 'Central European', offset: 'UTC+1' },
-  { value: 'Europe/Berlin', label: 'Berlin', offset: 'UTC+1' },
-  { value: 'Europe/Moscow', label: 'Moscow', offset: 'UTC+3' },
-  // Asia
-  { value: 'Asia/Dubai', label: 'Dubai', offset: 'UTC+4' },
-  { value: 'Asia/Kolkata', label: 'India Standard', offset: 'UTC+5:30' },
-  { value: 'Asia/Singapore', label: 'Singapore', offset: 'UTC+8' },
-  { value: 'Asia/Shanghai', label: 'China Standard', offset: 'UTC+8' },
-  { value: 'Asia/Tokyo', label: 'Japan Standard', offset: 'UTC+9' },
-  { value: 'Asia/Seoul', label: 'Korea Standard', offset: 'UTC+9' },
-  // Oceania
-  { value: 'Australia/Sydney', label: 'Sydney', offset: 'UTC+10' },
-  { value: 'Australia/Melbourne', label: 'Melbourne', offset: 'UTC+10' },
-  { value: 'Pacific/Auckland', label: 'New Zealand', offset: 'UTC+12' },
-  // Special
-  { value: 'UTC', label: 'UTC (Coordinated Universal Time)', offset: 'UTC+0' },
-] as const;
-
-/**
- * Validate timezone string
- */
-function isValidTimezone(tz: string): boolean {
-  // Check if it's in our common list
-  if (COMMON_TIMEZONES.some(t => t.value === tz)) {
-    return true;
-  }
-
-  // Try to validate using Intl API
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 interface SetTimezoneRequest {
   timezone: string;
@@ -153,7 +104,7 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
       });
 
       // Find the label for the timezone
-      const tzInfo = COMMON_TIMEZONES.find(t => t.value === timezone);
+      const tzInfo = getTimezoneInfo(timezone);
 
       sendCustomSuccess(
         res,
@@ -167,20 +118,6 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
       );
     })
   );
-
-  /**
-   * GET /user/timezone/list
-   * Get list of common timezones for UI dropdown
-   */
-  router.get('/list', (_req: Request, res: Response) => {
-    sendCustomSuccess(
-      res,
-      {
-        timezones: COMMON_TIMEZONES,
-      },
-      StatusCodes.OK
-    );
-  });
 
   return router;
 }

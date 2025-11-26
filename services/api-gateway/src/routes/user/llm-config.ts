@@ -10,28 +10,13 @@
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, type LlmConfigSummary } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('user-llm-config');
-
-/**
- * Config summary returned in list response
- */
-interface LlmConfigSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  provider: string;
-  model: string;
-  visionModel: string | null;
-  isGlobal: boolean;
-  isDefault: boolean;
-  isOwned: boolean; // True if user owns this config
-}
 
 /**
  * Request body for creating a config

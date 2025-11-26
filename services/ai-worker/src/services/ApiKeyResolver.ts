@@ -42,6 +42,10 @@ export interface ApiKeyResolutionResult {
 
 /**
  * Cache entry for API keys (to avoid repeated DB lookups)
+ *
+ * Note: Cache is local to each ai-worker instance. When users update/remove
+ * their API keys via the API gateway, the cache won't be immediately invalidated.
+ * Keys will refresh after the TTL expires (default 60 seconds).
  */
 interface CacheEntry {
   result: ApiKeyResolutionResult;
@@ -60,7 +64,7 @@ export class ApiKeyResolver {
   constructor(prisma: PrismaClient, encryptionKey?: string, options?: { cacheTtlMs?: number }) {
     this.prisma = prisma;
     this.encryptionKey = encryptionKey ?? config.API_KEY_ENCRYPTION_KEY ?? '';
-    this.cacheTtlMs = options?.cacheTtlMs ?? 5 * 60 * 1000; // 5 minutes default
+    this.cacheTtlMs = options?.cacheTtlMs ?? 60 * 1000; // 60 seconds default
 
     if (this.encryptionKey.length === 0) {
       logger.warn(

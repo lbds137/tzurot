@@ -5,21 +5,14 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('model-list');
 
-interface OverrideSummary {
-  personalityId: string;
-  personalityName: string;
-  configId: string | null;
-  configName: string | null;
-}
-
 interface ListResponse {
-  overrides: OverrideSummary[];
+  overrides: ModelOverrideSummary[];
 }
 
 /**

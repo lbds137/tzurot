@@ -5,40 +5,14 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('timezone-command');
 
-/**
- * Common timezone choices for Discord dropdown (max 25)
- */
-export const TIMEZONE_CHOICES = [
-  // Americas
-  { name: 'Eastern Time (US) - UTC-5', value: 'America/New_York' },
-  { name: 'Central Time (US) - UTC-6', value: 'America/Chicago' },
-  { name: 'Mountain Time (US) - UTC-7', value: 'America/Denver' },
-  { name: 'Pacific Time (US) - UTC-8', value: 'America/Los_Angeles' },
-  { name: 'Alaska Time - UTC-9', value: 'America/Anchorage' },
-  { name: 'Hawaii Time - UTC-10', value: 'Pacific/Honolulu' },
-  // Europe
-  { name: 'London (GMT/BST) - UTC+0', value: 'Europe/London' },
-  { name: 'Central European - UTC+1', value: 'Europe/Paris' },
-  { name: 'Moscow - UTC+3', value: 'Europe/Moscow' },
-  // Asia
-  { name: 'Dubai - UTC+4', value: 'Asia/Dubai' },
-  { name: 'India Standard - UTC+5:30', value: 'Asia/Kolkata' },
-  { name: 'Singapore - UTC+8', value: 'Asia/Singapore' },
-  { name: 'China Standard - UTC+8', value: 'Asia/Shanghai' },
-  { name: 'Japan Standard - UTC+9', value: 'Asia/Tokyo' },
-  { name: 'Korea Standard - UTC+9', value: 'Asia/Seoul' },
-  // Oceania
-  { name: 'Sydney - UTC+10', value: 'Australia/Sydney' },
-  { name: 'New Zealand - UTC+12', value: 'Pacific/Auckland' },
-  // Special
-  { name: 'UTC (Coordinated Universal Time)', value: 'UTC' },
-] as const;
+// Re-export for command registration
+export const TIMEZONE_CHOICES = TIMEZONE_DISCORD_CHOICES;
 
 /**
  * Get the current time in a timezone
