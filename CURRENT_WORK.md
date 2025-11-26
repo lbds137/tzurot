@@ -13,9 +13,10 @@
 - ✅ **Task 2.1**: Update `User` table (added `timezone`, `isSuperuser`)
 - ✅ **Task 2.2**: Create `UserApiKey` table (encrypted API key storage)
 - ✅ **Task 2.3**: Update `Personality` table (added errorMessage, birthday, ownerId, isPublic)
+- ✅ **Task 2.4 Step A**: Update `LlmConfig` (added provider, advancedParameters, maxReferencedMessages)
 - All 1,783 tests passing
 
-**Next Up**: Task 2.4 - Refactor `LlmConfig` table (hybrid schema with JSONB)
+**Next Up**: Task 2.5 - Create `PersonalityAlias` table
 
 **Recent Completion**:
 
@@ -104,7 +105,7 @@
 - [x] **Task 2.1**: Update `User` table (root dependency) - DONE
 - [x] **Task 2.2**: Create `UserApiKey` table (depends on User) - DONE
 - [x] **Task 2.3**: Update `Personality` table (depends on User for ownerId) - DONE
-- [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema)
+- [x] **Task 2.4**: Refactor `LlmConfig` table (Step A done, B/C deferred) - DONE
 - [ ] **Task 2.5**: Create `PersonalityAlias` table
 - [ ] **Task 2.6**: Create `UsageLog` table
 
