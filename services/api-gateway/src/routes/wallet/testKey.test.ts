@@ -66,7 +66,9 @@ describe('POST /wallet/test', () => {
       expect(router.stack.length).toBeGreaterThan(0);
 
       const postRoute = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { post?: boolean } } }>
+        router.stack as unknown as Array<{
+          route?: { path?: string; methods?: { post?: boolean } };
+        }>
       ).find(layer => layer.route?.path === '/' && layer.route?.methods?.post);
       expect(postRoute).toBeDefined();
     });
