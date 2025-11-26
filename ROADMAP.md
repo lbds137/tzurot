@@ -182,11 +182,12 @@
   - Fields: iv, content, tag, provider, isActive, lastUsedAt
   - Unique constraint: (userId, provider)
   - **Completed**: 2025-11-26
-- [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
+- [x] **Task 2.3**: Update `Personality` table (depends on User for ownerId) ✅
   - Add `errorMessage` (String?, Text) - migrate from `custom_fields.errorMessage`
   - Add `birthday` (DateTime?, Date) - extract from shapes.inc backups
   - Add `ownerId` (String?) - nullable initially, user who created personality
   - Add `isPublic` (Boolean, default true) - visibility control
+  - **Completed**: 2025-11-26
 - [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema, 2-step process)
   - Step A: Add `provider`, `advancedParameters` (JSONB), `maxReferencedMessages`
   - Step B: Run data migration script (columns → JSONB)

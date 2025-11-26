@@ -12,9 +12,10 @@
 - ✅ **Task 2.P2**: Advanced params schema (OpenRouter unified params) - 64 tests
 - ✅ **Task 2.1**: Update `User` table (added `timezone`, `isSuperuser`)
 - ✅ **Task 2.2**: Create `UserApiKey` table (encrypted API key storage)
+- ✅ **Task 2.3**: Update `Personality` table (added errorMessage, birthday, ownerId, isPublic)
 - All 1,783 tests passing
 
-**Next Up**: Task 2.3 - Update `Personality` table (add errorMessage, birthday, ownerId)
+**Next Up**: Task 2.4 - Refactor `LlmConfig` table (hybrid schema with JSONB)
 
 **Recent Completion**:
 
@@ -102,7 +103,7 @@
 - [x] **Task 2.P2**: Create Zod schemas for `advancedParameters` - DONE
 - [x] **Task 2.1**: Update `User` table (root dependency) - DONE
 - [x] **Task 2.2**: Create `UserApiKey` table (depends on User) - DONE
-- [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
+- [x] **Task 2.3**: Update `Personality` table (depends on User for ownerId) - DONE
 - [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema)
 - [ ] **Task 2.5**: Create `PersonalityAlias` table
 - [ ] **Task 2.6**: Create `UsageLog` table
