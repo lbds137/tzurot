@@ -17,6 +17,13 @@
 
 **Recent Completion**:
 
+- ✅ **Sliding Window LTM Search + Message Limits** (2025-11-25)
+  - Added 3-turn conversation history window to LTM search queries
+  - Solves the "pronoun problem" ("what about that?" now finds relevant memories)
+  - Bumped MAX_REFERENCED_MESSAGES from 10 to 20
+  - Added MESSAGE_LIMITS constant group, removed deprecated HISTORY_LIMIT
+  - All 1,687 tests passing
+
 - ✅ **Channel/Role Mention Resolution** (2025-11-25) - PR #285
   - Added channel mention resolution (`<#channelId>` → `#channel-name`)
   - Added role mention resolution (`<@&roleId>` → `@RoleName`)
