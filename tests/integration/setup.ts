@@ -54,8 +54,27 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       discord_id VARCHAR(20) UNIQUE NOT NULL,
       username VARCHAR(255) NOT NULL,
+      timezone VARCHAR(50) DEFAULT 'UTC',
+      is_superuser BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // User API keys table (references users) - encrypted storage for BYOK
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS user_api_keys (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider VARCHAR(20) DEFAULT 'openrouter',
+      iv VARCHAR(32) NOT NULL,
+      content TEXT NOT NULL,
+      tag VARCHAR(32) NOT NULL,
+      is_active BOOLEAN DEFAULT TRUE,
+      last_used_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, provider)
     )
   `);
 
@@ -81,6 +100,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
       is_global BOOLEAN DEFAULT FALSE,
       is_default BOOLEAN DEFAULT FALSE,
+      provider VARCHAR(20) DEFAULT 'openrouter',
       model VARCHAR(255) NOT NULL,
       vision_model VARCHAR(255),
       temperature DECIMAL(3, 2),
@@ -93,6 +113,8 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       memory_score_threshold DECIMAL(3, 2),
       memory_limit INTEGER,
       context_window_tokens INTEGER DEFAULT 131072,
+      advanced_parameters JSONB,
+      max_referenced_messages INTEGER DEFAULT 20,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
@@ -113,7 +135,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
     )
   `);
 
-  // Personalities table (references system_prompts)
+  // Personalities table (references system_prompts and users)
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS personalities (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -121,6 +143,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       display_name VARCHAR(255),
       slug VARCHAR(255) UNIQUE NOT NULL,
       system_prompt_id UUID REFERENCES system_prompts(id),
+      owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
       character_info TEXT NOT NULL,
       personality_traits TEXT NOT NULL,
       personality_tone TEXT,
@@ -136,8 +159,21 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       image_enabled BOOLEAN DEFAULT FALSE,
       image_settings JSONB,
       avatar_data BYTEA,
+      error_message TEXT,
+      birthday DATE,
+      is_public BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Personality aliases table (references personalities)
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS personality_aliases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      alias VARCHAR(100) UNIQUE NOT NULL,
+      personality_id UUID NOT NULL REFERENCES personalities(id) ON DELETE CASCADE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
 
@@ -280,6 +316,20 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
     )
   `);
 
+  // Usage logs table (references users) - API usage tracking for BYOK billing
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS usage_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider VARCHAR(20) NOT NULL,
+      model VARCHAR(255) NOT NULL,
+      tokens_in INTEGER NOT NULL,
+      tokens_out INTEGER NOT NULL,
+      request_type VARCHAR(50) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
   // Create indexes for performance
   await prisma.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS idx_personalities_slug ON personalities(slug)`
@@ -289,6 +339,15 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
   );
   await prisma.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS idx_memories_personality_id ON memories(personality_id)`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS usage_logs_user_id_idx ON usage_logs(user_id)`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS usage_logs_created_at_idx ON usage_logs(created_at)`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS usage_logs_user_id_created_at_idx ON usage_logs(user_id, created_at)`
   );
 }
 
