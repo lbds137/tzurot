@@ -8,6 +8,7 @@
 ## Overview
 
 This is the **single source of truth** for Sprint 2 implementation. It consolidates details from:
+
 - ROADMAP.md (task list)
 - PHASED_IMPLEMENTATION_PLAN.md (phases and testing)
 - schema-improvements-proposal.md (Prisma schemas)
@@ -94,9 +95,9 @@ function getEncryptionKey(): Buffer {
 }
 
 export interface EncryptedData {
-  iv: string;      // 16 bytes as hex (32 chars)
+  iv: string; // 16 bytes as hex (32 chars)
   content: string; // Ciphertext as hex
-  tag: string;     // 16 bytes as hex (32 chars)
+  tag: string; // 16 bytes as hex (32 chars)
 }
 
 /**
@@ -137,12 +138,14 @@ export function decryptApiKey(encrypted: EncryptedData): string {
 ```
 
 **Tests**: `packages/common-types/src/utils/encryption.test.ts`
+
 - Test encrypt/decrypt round-trip
 - Test different key lengths
 - Test tampered data detection (auth tag failure)
 - Test missing APP_MASTER_KEY error
 
 **Environment Setup**:
+
 ```bash
 # Generate a 32-byte key (64 hex chars)
 openssl rand -hex 32
@@ -169,6 +172,7 @@ railway variables set APP_MASTER_KEY=<generated-key> --service ai-worker
 **Research Conclusion (2025-11-25)**: After evaluating `@openrouter/sdk` (official TypeScript SDK, in beta) vs direct REST API, we chose to **keep our current approach**:
 
 **Current Implementation** (`services/ai-worker/src/services/ModelFactory.ts`):
+
 ```typescript
 // We use LangChain's ChatOpenAI with custom baseURL pointing to OpenRouter
 new ChatOpenAI({
@@ -178,7 +182,7 @@ new ChatOpenAI({
   configuration: {
     baseURL: 'https://openrouter.ai/api/v1',
   },
-})
+});
 ```
 
 **Why NOT switch to @openrouter/sdk**:
@@ -218,11 +222,13 @@ await modelWithReasoning.invoke(messages);
 **Implementation Plan**: Store advanced params in `LlmConfig.advancedParameters` (JSONB), then spread them into the ChatOpenAI constructor or use `.bind()` at invoke time.
 
 **Sources**:
+
 - [OpenRouter SDKs Documentation](https://openrouter.ai/docs/sdks)
 - [OpenRouter TypeScript SDK GitHub](https://github.com/OpenRouterTeam/typescript-sdk)
 - Gemini consultation (2025-11-25)
 
 **References**:
+
 - https://openrouter.ai/docs/api/reference/parameters
 - https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
 
@@ -269,21 +275,23 @@ const SamplingParamsSchema = z.object({
 // Note: OpenRouter may use camelCase here - verify against latest docs
 // ============================================
 const ReasoningParamsSchema = z.object({
-  reasoning: z.object({
-    // Effort level (OpenAI o1/o3, Grok, DeepSeek R1)
-    // Maps to ~80%/50%/20%/10%/0% of max_tokens for reasoning
-    effort: z.enum(['high', 'medium', 'low', 'minimal', 'none']).optional(),
+  reasoning: z
+    .object({
+      // Effort level (OpenAI o1/o3, Grok, DeepSeek R1)
+      // Maps to ~80%/50%/20%/10%/0% of max_tokens for reasoning
+      effort: z.enum(['high', 'medium', 'low', 'minimal', 'none']).optional(),
 
-    // Direct token budget (Anthropic, Gemini, Alibaba Qwen)
-    // Constraints: min 1024, max 32000, must be < max_tokens
-    max_tokens: z.number().int().min(1024).max(32000).optional(),
+      // Direct token budget (Anthropic, Gemini, Alibaba Qwen)
+      // Constraints: min 1024, max 32000, must be < max_tokens
+      max_tokens: z.number().int().min(1024).max(32000).optional(),
 
-    // Whether to include reasoning in response (default: true)
-    exclude: z.boolean().optional(),
+      // Whether to include reasoning in response (default: true)
+      exclude: z.boolean().optional(),
 
-    // Enable/disable reasoning (default: true for reasoning models)
-    enabled: z.boolean().optional(),
-  }).optional(),
+      // Enable/disable reasoning (default: true for reasoning models)
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 // ============================================
@@ -295,9 +303,11 @@ const OutputParamsSchema = z.object({
   logit_bias: z.record(z.string(), z.number().min(-100).max(100)).optional(),
 
   // Response format
-  response_format: z.object({
-    type: z.enum(['text', 'json_object']),
-  }).optional(),
+  response_format: z
+    .object({
+      type: z.enum(['text', 'json_object']),
+    })
+    .optional(),
 });
 
 // ============================================
@@ -317,8 +327,7 @@ const OpenRouterParamsSchema = z.object({
 // ============================================
 // COMBINED SCHEMA
 // ============================================
-export const AdvancedParamsSchema = SamplingParamsSchema
-  .merge(ReasoningParamsSchema)
+export const AdvancedParamsSchema = SamplingParamsSchema.merge(ReasoningParamsSchema)
   .merge(OutputParamsSchema)
   .merge(OpenRouterParamsSchema);
 
@@ -353,12 +362,14 @@ export function hasReasoningEnabled(params: AdvancedParams): boolean {
 ```
 
 **Key Constraints** (enforced at runtime, not in schema):
+
 1. When `reasoning.max_tokens` is set, `max_tokens` must be greater (leave room for response)
 2. Reasoning models may ignore/error on `temperature` if reasoning is enabled
 3. Minimum reasoning budget: 1,024 tokens
 4. Maximum reasoning budget: 32,000 tokens
 
 **Tests**: `packages/common-types/src/schemas/llmAdvancedParams.test.ts`
+
 - Test sampling params with valid/invalid ranges
 - Test reasoning object validation (effort levels, token budgets)
 - Test output params (maxTokens, stop sequences)
@@ -412,6 +423,7 @@ model User {
 ```
 
 **Migration SQL** (generated by Prisma):
+
 ```sql
 ALTER TABLE "users" ADD COLUMN "timezone" TEXT NOT NULL DEFAULT 'UTC';
 ALTER TABLE "users" ADD COLUMN "isSuperuser" BOOLEAN NOT NULL DEFAULT false;
@@ -539,15 +551,19 @@ async function migrateLlmConfigToJsonb() {
 
     // Move provider-specific columns to JSONB
     if (config.topK !== null) advancedParams.topK = config.topK;
-    if (config.frequencyPenalty !== null) advancedParams.frequencyPenalty = Number(config.frequencyPenalty);
-    if (config.presencePenalty !== null) advancedParams.presencePenalty = Number(config.presencePenalty);
-    if (config.repetitionPenalty !== null) advancedParams.repetitionPenalty = Number(config.repetitionPenalty);
+    if (config.frequencyPenalty !== null)
+      advancedParams.frequencyPenalty = Number(config.frequencyPenalty);
+    if (config.presencePenalty !== null)
+      advancedParams.presencePenalty = Number(config.presencePenalty);
+    if (config.repetitionPenalty !== null)
+      advancedParams.repetitionPenalty = Number(config.repetitionPenalty);
     if (config.stop !== null) advancedParams.stop = config.stop;
     if (config.seed !== null) advancedParams.seed = config.seed;
     if (config.logitBias !== null) advancedParams.logitBias = config.logitBias;
     if (config.responseFormat !== null) advancedParams.responseFormat = config.responseFormat;
     if (config.streamResponse !== null) advancedParams.streamResponse = config.streamResponse;
-    if (config.systemFingerprint !== null) advancedParams.systemFingerprint = config.systemFingerprint;
+    if (config.systemFingerprint !== null)
+      advancedParams.systemFingerprint = config.systemFingerprint;
 
     await prisma.llmConfig.update({
       where: { id: config.id },
@@ -635,6 +651,74 @@ model UsageLog {
   @@map("usage_logs")
 }
 ```
+
+---
+
+## Phase 2.5: Parameterizable Limits (Database Configuration)
+
+### Overview
+
+Several limits are currently hardcoded as constants in `@tzurot/common-types`. For flexibility, these should be made configurable per-personality in the database.
+
+**Current Constants Location**: `packages/common-types/src/constants/`
+
+| Constant | Current Value | Domain | Status |
+|----------|---------------|--------|--------|
+| `MESSAGE_LIMITS.MAX_REFERENCED_MESSAGES` | 20 | message.ts | ✅ Added to LlmConfig (Migration 4) |
+| `MESSAGE_LIMITS.MAX_HISTORY_FETCH` | 100 | message.ts | System-wide (no per-personality need) |
+| `AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS` | 3 | ai.ts | Candidate for personality config |
+| `DISCORD_MENTIONS.MAX_PER_MESSAGE` | 10 | discord.ts | Candidate for personality config |
+| `DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE` | 5 | discord.ts | Candidate for personality config |
+| `DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE` | 5 | discord.ts | Candidate for personality config |
+
+### Migration 4 Update: Additional Limit Columns
+
+Update Migration 4 to include mention limit columns in `LlmConfig`:
+
+```prisma
+model LlmConfig {
+  // ... existing fields ...
+
+  // Configurable limits (defaults match current constants)
+  maxReferencedMessages     Int?        @default(20)
+  maxMentionsPerMessage     Int?        @default(10)
+  maxChannelsPerMessage     Int?        @default(5)
+  maxRolesPerMessage        Int?        @default(5)
+  ltmSearchHistoryTurns     Int?        @default(3)
+
+  // ... rest of model ...
+}
+```
+
+### Resolution Strategy
+
+When processing a message, resolve each limit in this order:
+1. **Personality-specific value** (from LlmConfig if non-null)
+2. **Constant fallback** (from `@tzurot/common-types`)
+
+```typescript
+// Example usage in MessageContextBuilder
+const maxMentions = personality.llmConfig?.maxMentionsPerMessage
+  ?? DISCORD_MENTIONS.MAX_PER_MESSAGE;
+```
+
+### Implementation Notes
+
+- **Nullable columns**: Use `null` to mean "use system default" (not zero)
+- **Validation**: Add min/max constraints in Zod schema
+  - `maxMentionsPerMessage`: min 1, max 50
+  - `maxChannelsPerMessage`: min 1, max 20
+  - `maxRolesPerMessage`: min 1, max 20
+  - `ltmSearchHistoryTurns`: min 0, max 10
+  - `maxReferencedMessages`: min 1, max 50
+- **UI**: Future `/personality config` commands to modify these
+
+### Benefits
+
+1. **Personality customization**: Some personalities may need more/fewer mentions resolved
+2. **Performance tuning**: Heavy-traffic channels can reduce limits
+3. **Memory optimization**: Reduce LTM window for simpler personalities
+4. **A/B testing**: Test different values per personality to find optimal settings
 
 ---
 
@@ -739,10 +823,10 @@ async function assignOwnership() {
 ```typescript
 // API key patterns to redact
 const SENSITIVE_PATTERNS = [
-  /sk-[a-zA-Z0-9]{20,}/g,           // OpenAI
-  /sk_[a-zA-Z0-9]{20,}/g,           // Alternative format
-  /AIza[a-zA-Z0-9_-]{35,}/g,        // Google
-  /anthropic-[a-zA-Z0-9-]{20,}/g,   // Anthropic (if applicable)
+  /sk-[a-zA-Z0-9]{20,}/g, // OpenAI
+  /sk_[a-zA-Z0-9]{20,}/g, // Alternative format
+  /AIza[a-zA-Z0-9_-]{35,}/g, // Google
+  /anthropic-[a-zA-Z0-9-]{20,}/g, // Anthropic (if applicable)
 ];
 
 export function sanitizeLogMessage(message: string): string {
@@ -780,6 +864,7 @@ function sanitizeObject(obj: unknown): unknown {
 ### Task 2.12: Update ai-worker for User API Keys
 
 **CRITICAL SECURITY NOTE** (from Gemini):
+
 > Do NOT pass decrypted API keys in BullMQ job payloads. Redis stores job data in plain text.
 > Pass only userId in job, fetch and decrypt key inside the worker.
 
@@ -834,7 +919,9 @@ export async function resolveOpenRouterKey(userId: string): Promise<ResolvedApiK
   // 2. Fall back to system key (bot owner's OpenRouter key)
   const systemKey = process.env.OPENROUTER_API_KEY;
   if (!systemKey) {
-    throw new Error('No OpenRouter API key available (user has no BYOK, system key not configured)');
+    throw new Error(
+      'No OpenRouter API key available (user has no BYOK, system key not configured)'
+    );
   }
 
   return {
@@ -868,8 +955,8 @@ export class KeyValidationService {
     const response = await fetch(`${KeyValidationService.OPENROUTER_API_URL}/models`, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://tzurot.app',  // Required by OpenRouter
-        'X-Title': 'Tzurot Bot',               // Required by OpenRouter
+        'HTTP-Referer': 'https://tzurot.app', // Required by OpenRouter
+        'X-Title': 'Tzurot Bot', // Required by OpenRouter
       },
     });
 
@@ -925,11 +1012,13 @@ export class ApiValidationError extends Error {
 **Key Discovery**: OpenRouter provides a **unified `reasoning` object** that works across all reasoning models. We don't need model-specific adapters!
 
 **OpenRouter handles**:
+
 - Translating `reasoning.effort` → model-specific format
 - Translating `reasoning.maxTokens` → model-specific token budgets
 - Parameter constraints (some models ignore temp when reasoning)
 
 **What we need to handle**:
+
 1. Detect if a model supports reasoning (for UI/validation)
 2. Ensure `maxTokens > reasoning.maxTokens` when both are set
 3. Strip `<thinking>` tags from responses (optional, for clean output)
@@ -943,15 +1032,22 @@ export class ApiValidationError extends Error {
  */
 const REASONING_MODEL_PATTERNS = [
   // OpenAI
-  'o1', 'o3', 'gpt-4o-reasoning',
+  'o1',
+  'o3',
+  'gpt-4o-reasoning',
   // Anthropic
-  'claude-3-7', 'claude-3.7', 'claude-sonnet-4',
+  'claude-3-7',
+  'claude-3.7',
+  'claude-sonnet-4',
   // Google
-  'gemini-2.0-flash-thinking', 'gemini-2.5-flash-preview',
+  'gemini-2.0-flash-thinking',
+  'gemini-2.5-flash-preview',
   // DeepSeek
-  'deepseek-r1', 'deepseek-reasoner',
+  'deepseek-r1',
+  'deepseek-reasoner',
   // Alibaba
-  'qwen-qwq', 'qwq-32b',
+  'qwen-qwq',
+  'qwq-32b',
 ];
 
 /**
@@ -960,9 +1056,7 @@ const REASONING_MODEL_PATTERNS = [
  */
 export function supportsReasoning(model: string): boolean {
   const modelLower = model.toLowerCase();
-  return REASONING_MODEL_PATTERNS.some(pattern =>
-    modelLower.includes(pattern.toLowerCase())
-  );
+  return REASONING_MODEL_PATTERNS.some(pattern => modelLower.includes(pattern.toLowerCase()));
 }
 
 /**
@@ -984,7 +1078,7 @@ export function validateReasoningBudget(
   if (max_tokens !== undefined && max_tokens <= reasoning_max_tokens) {
     throw new Error(
       `max_tokens (${max_tokens}) must be greater than reasoning.max_tokens (${reasoning_max_tokens}) ` +
-      'to leave room for the final response'
+        'to leave room for the final response'
     );
   }
 }
@@ -1067,6 +1161,7 @@ Based on Gemini consultation:
 ## Testing Checklist
 
 ### Unit Tests
+
 - [ ] Encryption utilities (encrypt, decrypt, tamper detection)
 - [ ] Log sanitization (all API key patterns)
 - [ ] Zod schemas for advancedParameters (all providers)
@@ -1075,6 +1170,7 @@ Based on Gemini consultation:
 - [ ] Reasoning model constraints
 
 ### Integration Tests
+
 - [ ] BYOK flow: set → validate → encrypt → store → use → decrypt
 - [ ] Key validation failures (invalid key, quota exceeded)
 - [ ] Personality deletion cascades (aliases)
@@ -1082,6 +1178,7 @@ Based on Gemini consultation:
 - [ ] LlmConfig JSONB migration verification
 
 ### Migration Tests
+
 - [ ] Run on 67 personality dataset
 - [ ] Verify no data loss (aliases, errorMessages, birthdays)
 - [ ] Test rollback procedure
@@ -1130,5 +1227,6 @@ railway run pg_dump -Fc > backup_pre_sprint2_$(date +%Y%m%d).dump
 
 ## Changelog
 
+- **2025-11-25**: Added Phase 2.5 for parameterizable limits (mention/channel/role limits, LTM search turns)
 - **2025-11-25**: Added SDK decision section based on research + Gemini consultation
 - **2025-11-25**: Created consolidated guide from multiple docs + Gemini consultation
