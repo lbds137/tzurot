@@ -16,9 +16,21 @@
 - ✅ **Task 2.4 Step A**: Update `LlmConfig` (added provider, advancedParameters, maxReferencedMessages)
 - ✅ **Task 2.5**: Create `PersonalityAlias` table (alias → personality mapping)
 - ✅ **Task 2.6**: Create `UsageLog` table (API usage tracking)
+- ✅ Updated PGlite test schemas (integration + component tests)
 - All 1,783 tests passing
 
 **🎉 ALL SCHEMA MIGRATIONS COMPLETE!** Ready for Data Migration tasks (2.7-2.10)
+
+**Migrations Applied** (6 total):
+1. `20251126180629_add_user_timezone_and_superuser`
+2. `20251126181511_create_user_api_key_table`
+3. `20251126182042_update_personality_byok_fields`
+4. `20251126182342_add_llm_config_byok_fields`
+5. `20251126182643_create_personality_alias_table`
+6. `20251126182927_create_usage_log_table`
+
+**Technical Debt Added**:
+- Prisma HNSW drift issue: Consider migrating to native `Float[] @db.Vector(1536)` type
 
 **Recent Completion**:
 
