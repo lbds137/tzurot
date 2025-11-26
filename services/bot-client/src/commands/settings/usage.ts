@@ -8,7 +8,12 @@
 
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  type UsagePeriod,
+  type UsageStats,
+} from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
@@ -17,12 +22,12 @@ const logger = createLogger('usage-command');
 /**
  * Period choices for the command
  */
-export const PERIOD_CHOICES = [
+export const PERIOD_CHOICES: readonly { name: string; value: UsagePeriod }[] = [
   { name: 'Today', value: 'day' },
   { name: 'Last 7 days', value: 'week' },
   { name: 'Last 30 days', value: 'month' },
   { name: 'All time', value: 'all' },
-] as const;
+];
 
 /**
  * Slash command definition
@@ -43,40 +48,6 @@ export const data = new SlashCommandBuilder()
  */
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await handleUsage(interaction);
-}
-
-interface UsageStats {
-  period: string;
-  periodStart: string | null;
-  periodEnd: string;
-  totalRequests: number;
-  totalTokensIn: number;
-  totalTokensOut: number;
-  totalTokens: number;
-  byProvider: Record<
-    string,
-    {
-      requests: number;
-      tokensIn: number;
-      tokensOut: number;
-    }
-  >;
-  byModel: Record<
-    string,
-    {
-      requests: number;
-      tokensIn: number;
-      tokensOut: number;
-    }
-  >;
-  byRequestType: Record<
-    string,
-    {
-      requests: number;
-      tokensIn: number;
-      tokensOut: number;
-    }
-  >;
 }
 
 /**

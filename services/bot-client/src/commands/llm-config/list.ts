@@ -5,23 +5,11 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type LlmConfigSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('llm-config-list');
-
-interface LlmConfigSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  provider: string;
-  model: string;
-  visionModel: string | null;
-  isGlobal: boolean;
-  isDefault: boolean;
-  isOwned: boolean;
-}
 
 interface ListResponse {
   configs: LlmConfigSummary[];

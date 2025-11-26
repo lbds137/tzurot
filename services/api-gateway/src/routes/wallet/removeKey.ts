@@ -3,27 +3,22 @@
  * Remove an API key for a provider
  */
 
-import { Router, type Request, type Response } from 'express';
+import { type Request, type Response, type RequestHandler } from 'express';
 import { createLogger, AIProvider, type PrismaClient } from '@tzurot/common-types';
-import { extractUserId } from '../../services/AuthMiddleware.js';
+import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('wallet-remove-key');
 
-export function createRemoveKeyRoute(prisma: PrismaClient): Router {
-  // Note: This returns a handler function, not a Router
-  // Because the parent router uses router.delete('/:provider', ...)
-  return asyncHandler(async (req: Request, res: Response) => {
-    // Extract userId manually since we're not using middleware chain here
-    const discordUserId = extractUserId(req);
-
-    if (discordUserId === undefined || discordUserId.length === 0) {
-      sendError(res, ErrorResponses.unauthorized('User authentication required'));
-      return;
-    }
-
+/**
+ * Create remove key route handlers
+ * Returns an array of middleware: [auth, handler]
+ */
+export function createRemoveKeyRoute(prisma: PrismaClient): RequestHandler[] {
+  const handler = asyncHandler(async (req: Request, res: Response) => {
+    const discordUserId = (req as Request & { userId: string }).userId;
     const provider = req.params.provider as AIProvider;
 
     // Validate provider
@@ -68,5 +63,7 @@ export function createRemoveKeyRoute(prisma: PrismaClient): Router {
       message: `API key for ${provider} has been removed`,
       timestamp: new Date().toISOString(),
     });
-  }) as unknown as Router;
+  });
+
+  return [requireUserAuth(), handler];
 }
