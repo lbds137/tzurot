@@ -9,14 +9,11 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_COLORS,
-  AIProvider,
-} from '@tzurot/common-types';
+import { EmbedBuilder } from 'discord.js';
+import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-list');
 
@@ -34,28 +31,19 @@ interface WalletListResponse {
  * Displays configured API keys (without showing actual keys)
  */
 export async function handleListKeys(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const userId = interaction.user.id;
 
-  const config = getConfig();
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/wallet/list`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': CONTENT_TYPES.JSON,
-        'X-User-Id': interaction.user.id,
-      },
-    });
+    const result = await callGatewayApi<WalletListResponse>('/wallet/list', { userId });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      const errorMessage = errorData.error ?? `HTTP ${response.status}`;
-      await interaction.editReply(`❌ Failed to retrieve wallet info: ${errorMessage}`);
+    if (!result.ok) {
+      await replyWithError(interaction, `Failed to retrieve wallet info: ${result.error}`);
       return;
     }
 
-    const data = (await response.json()) as WalletListResponse;
+    const data = result.data;
 
     if (data.keys.length === 0) {
       const embed = new EmbedBuilder()
@@ -112,26 +100,8 @@ export async function handleListKeys(interaction: ChatInputCommandInteraction): 
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info(
-      { userId: interaction.user.id, keyCount: data.keys.length },
-      '[Wallet List] Listed keys'
-    );
+    logger.info({ userId, keyCount: data.keys.length }, '[Wallet List] Listed keys');
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, '[Wallet List] Error');
-    await interaction.editReply('❌ An unexpected error occurred. Please try again later.');
-  }
-}
-
-/**
- * Get display name for a provider
- */
-function getProviderDisplayName(provider: AIProvider): string {
-  switch (provider) {
-    case AIProvider.OpenRouter:
-      return 'OpenRouter';
-    case AIProvider.OpenAI:
-      return 'OpenAI';
-    default:
-      return provider;
+    await handleCommandError(interaction, error, { userId, command: 'Wallet List' });
   }
 }

@@ -3,12 +3,13 @@
  * Handles /timezone set and /timezone get
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('timezone-command');
-const config = getConfig();
 
 /**
  * Common timezone choices for Discord dropdown (max 25)
@@ -59,46 +60,35 @@ function getCurrentTimeInTimezone(timezone: string): string {
   }
 }
 
+interface TimezoneResponse {
+  timezone: string;
+  label?: string;
+  isDefault?: boolean;
+}
+
 /**
  * Handle /timezone set
  */
 export async function handleTimezoneSet(interaction: ChatInputCommandInteraction): Promise<void> {
-  const timezone = interaction.options.getString('timezone', true);
   const userId = interaction.user.id;
+  const timezone = interaction.options.getString('timezone', true);
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
-      return;
-    }
-
-    const response = await fetch(`${gatewayUrl}/user/timezone`, {
+    const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${userId}`,
-      },
-      body: JSON.stringify({ timezone }),
+      userId,
+      body: { timezone },
     });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      logger.warn(
-        { userId, timezone, status: response.status },
-        '[Timezone] Failed to set timezone'
-      );
-      await interaction.editReply({
-        content: `❌ Failed to set timezone: ${errorData.error ?? 'Unknown error'}`,
-      });
+    if (!result.ok) {
+      logger.warn({ userId, timezone, status: result.status }, '[Timezone] Failed to set timezone');
+      await replyWithError(interaction, `Failed to set timezone: ${result.error}`);
       return;
     }
 
-    const data = (await response.json()) as { timezone: string; label?: string };
+    const data = result.data;
 
     // Find the label for the timezone
     const tzChoice = TIMEZONE_CHOICES.find(tz => tz.value === timezone);
@@ -120,10 +110,7 @@ export async function handleTimezoneSet(interaction: ChatInputCommandInteraction
 
     logger.info({ userId, timezone }, '[Timezone] Timezone updated successfully');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Timezone] Error setting timezone');
-    await interaction.editReply({
-      content: '❌ An error occurred while setting your timezone. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'Timezone Set' });
   }
 }
 
@@ -133,33 +120,18 @@ export async function handleTimezoneSet(interaction: ChatInputCommandInteraction
 export async function handleTimezoneGet(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
+    const result = await callGatewayApi<TimezoneResponse>('/user/timezone', { userId });
+
+    if (!result.ok) {
+      logger.warn({ userId, status: result.status }, '[Timezone] Failed to get timezone');
+      await replyWithError(interaction, 'Failed to get timezone. Please try again later.');
       return;
     }
 
-    const response = await fetch(`${gatewayUrl}/user/timezone`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${userId}`,
-      },
-    });
-
-    if (!response.ok) {
-      logger.warn({ userId, status: response.status }, '[Timezone] Failed to get timezone');
-      await interaction.editReply({
-        content: '❌ Failed to get timezone. Please try again later.',
-      });
-      return;
-    }
-
-    const data = (await response.json()) as { timezone: string; isDefault?: boolean };
+    const data = result.data;
 
     // Find the label for the timezone
     const tzChoice = TIMEZONE_CHOICES.find(tz => tz.value === data.timezone);
@@ -182,9 +154,6 @@ export async function handleTimezoneGet(interaction: ChatInputCommandInteraction
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
-    logger.error({ err: error, userId }, '[Timezone] Error getting timezone');
-    await interaction.editReply({
-      content: '❌ An error occurred while getting your timezone. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'Timezone Get' });
   }
 }

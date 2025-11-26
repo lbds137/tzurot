@@ -3,12 +3,17 @@
  * Handles /model reset subcommand
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import {
+  deferEphemeral,
+  replyWithError,
+  handleCommandError,
+  createSuccessEmbed,
+} from '../../utils/commandHelpers.js';
 
 const logger = createLogger('model-reset');
-const config = getConfig();
 
 /**
  * Handle /model reset
@@ -17,49 +22,31 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
   const userId = interaction.user.id;
   const personalityId = interaction.options.getString('personality', true);
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined || gatewayUrl.length === 0) {
-      await interaction.editReply({
-        content: '❌ Service configuration error. Please try again later.',
-      });
-      return;
-    }
-
-    const response = await fetch(`${gatewayUrl}/user/model-override/${personalityId}`, {
+    const result = await callGatewayApi<void>(`/user/model-override/${personalityId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${userId}`,
-      },
+      userId,
     });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!result.ok) {
       logger.warn(
-        { userId, status: response.status, personalityId },
+        { userId, status: result.status, personalityId },
         '[Model] Failed to reset override'
       );
-      await interaction.editReply({
-        content: `❌ Failed to reset model: ${errorData.error ?? 'Unknown error'}`,
-      });
+      await replyWithError(interaction, `Failed to reset model: ${result.error}`);
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle('🔄 Model Override Removed')
-      .setColor(DISCORD_COLORS.SUCCESS)
-      .setDescription('The personality will now use its default model configuration.')
-      .setTimestamp();
-
+    const embed = createSuccessEmbed(
+      '🔄 Model Override Removed',
+      'The personality will now use its default model configuration.'
+    );
     await interaction.editReply({ embeds: [embed] });
 
     logger.info({ userId, personalityId }, '[Model] Reset override');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Model] Error resetting override');
-    await interaction.editReply({
-      content: '❌ An error occurred. Please try again later.',
-    });
+    await handleCommandError(interaction, error, { userId, command: 'Model Reset' });
   }
 }
