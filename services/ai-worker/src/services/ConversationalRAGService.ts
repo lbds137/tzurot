@@ -416,9 +416,10 @@ export class ConversationalRAGService {
       .map(msg => {
         const role = msg.role === 'assistant' ? 'Assistant' : 'User';
         // Truncate very long messages to avoid bloating the search query
+        // Use LTM_SEARCH_MESSAGE_PREVIEW (500) instead of LOG_PREVIEW (150) for better semantic context
         const content =
-          msg.content.length > TEXT_LIMITS.LOG_PREVIEW
-            ? msg.content.substring(0, TEXT_LIMITS.LOG_PREVIEW) + '...'
+          msg.content.length > AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW
+            ? msg.content.substring(0, AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW) + '...'
             : msg.content;
         return `${role}: ${content}`;
       })

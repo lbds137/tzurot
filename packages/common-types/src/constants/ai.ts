@@ -42,6 +42,12 @@ export const AI_DEFAULTS = {
    * 3 turns = 6 messages (3 user + 3 assistant)
    */
   LTM_SEARCH_HISTORY_TURNS: 3,
+  /**
+   * Max characters per message in LTM search history window
+   * Larger than LOG_PREVIEW (150) to preserve semantic context for search.
+   * 500 chars ≈ 125 tokens, so 6 messages ≈ 750 tokens (well under embedding limit)
+   */
+  LTM_SEARCH_MESSAGE_PREVIEW: 500,
 } as const;
 
 /**
