@@ -133,7 +133,9 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
       if (!isValidTimezone(timezone)) {
         return sendError(
           res,
-          ErrorResponses.validationError(`Invalid timezone: ${timezone}. Use a valid IANA timezone.`)
+          ErrorResponses.validationError(
+            `Invalid timezone: ${timezone}. Use a valid IANA timezone.`
+          )
         );
       }
 
