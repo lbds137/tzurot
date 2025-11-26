@@ -14,9 +14,10 @@
 - ✅ **Task 2.2**: Create `UserApiKey` table (encrypted API key storage)
 - ✅ **Task 2.3**: Update `Personality` table (added errorMessage, birthday, ownerId, isPublic)
 - ✅ **Task 2.4 Step A**: Update `LlmConfig` (added provider, advancedParameters, maxReferencedMessages)
+- ✅ **Task 2.5**: Create `PersonalityAlias` table (alias → personality mapping)
 - All 1,783 tests passing
 
-**Next Up**: Task 2.5 - Create `PersonalityAlias` table
+**Next Up**: Task 2.6 - Create `UsageLog` table (last schema migration!)
 
 **Recent Completion**:
 
@@ -106,7 +107,7 @@
 - [x] **Task 2.2**: Create `UserApiKey` table (depends on User) - DONE
 - [x] **Task 2.3**: Update `Personality` table (depends on User for ownerId) - DONE
 - [x] **Task 2.4**: Refactor `LlmConfig` table (Step A done, B/C deferred) - DONE
-- [ ] **Task 2.5**: Create `PersonalityAlias` table
+- [x] **Task 2.5**: Create `PersonalityAlias` table - DONE
 - [ ] **Task 2.6**: Create `UsageLog` table
 
 ## Planned Features (Priority Order)
