@@ -178,9 +178,10 @@
   - Add `isSuperuser` (Boolean, default false) - bot owner flag
   - Relationships: apiKeys, usageLogs, ownedPersonalities
   - **Completed**: 2025-11-26
-- [ ] **Task 2.2**: Create `UserApiKey` table (depends on User)
-  - Fields: iv, content, tag, provider, isActive
+- [x] **Task 2.2**: Create `UserApiKey` table (depends on User) ✅
+  - Fields: iv, content, tag, provider, isActive, lastUsedAt
   - Unique constraint: (userId, provider)
+  - **Completed**: 2025-11-26
 - [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
   - Add `errorMessage` (String?, Text) - migrate from `custom_fields.errorMessage`
   - Add `birthday` (DateTime?, Date) - extract from shapes.inc backups
@@ -505,6 +506,7 @@
 
 - [ ] Investigate npm warning: "Unknown project config public-hoist-pattern" (pnpm/npm compat)
 - [ ] Full schema consistency review - naming conventions, missing fields, type alignment
+- [ ] Migrate `embedding Unsupported("vector")` to native `Float[] @db.Vector(1536)` (fixes Prisma HNSW drift)
 - [ ] Increase test coverage for `WebhookManager` (249 lines)
 - [ ] Refactor `MessageHandler` if it grows beyond 468 lines (consider splitting)
 - [ ] Add integration tests for end-to-end flows

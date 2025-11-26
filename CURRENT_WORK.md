@@ -11,9 +11,10 @@
 - ✅ **Task 2.P1**: Encryption utilities (AES-256-GCM for API key storage) - 32 tests
 - ✅ **Task 2.P2**: Advanced params schema (OpenRouter unified params) - 64 tests
 - ✅ **Task 2.1**: Update `User` table (added `timezone`, `isSuperuser`)
+- ✅ **Task 2.2**: Create `UserApiKey` table (encrypted API key storage)
 - All 1,783 tests passing
 
-**Next Up**: Task 2.2 - Create `UserApiKey` table (depends on User)
+**Next Up**: Task 2.3 - Update `Personality` table (add errorMessage, birthday, ownerId)
 
 **Recent Completion**:
 
@@ -100,7 +101,7 @@
 - [x] **Task 2.P1**: Create encryption utilities - DONE
 - [x] **Task 2.P2**: Create Zod schemas for `advancedParameters` - DONE
 - [x] **Task 2.1**: Update `User` table (root dependency) - DONE
-- [ ] **Task 2.2**: Create `UserApiKey` table (depends on User)
+- [x] **Task 2.2**: Create `UserApiKey` table (depends on User) - DONE
 - [ ] **Task 2.3**: Update `Personality` table (depends on User for ownerId)
 - [ ] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema)
 - [ ] **Task 2.5**: Create `PersonalityAlias` table
