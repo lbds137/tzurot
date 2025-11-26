@@ -196,9 +196,10 @@
   - Fields: alias, personalityId
   - Unique constraint on alias (prevent overlap)
   - **Completed**: 2025-11-26
-- [ ] **Task 2.6**: Create `UsageLog` table (leaf node)
+- [x] **Task 2.6**: Create `UsageLog` table (leaf node) ✅
   - Fields: userId, provider, model, tokensIn, tokensOut, requestType, timestamp
   - Prevent infrastructure abuse even with BYOK
+  - **Completed**: 2025-11-26
 
 **Data Migration** (After Schema):
 

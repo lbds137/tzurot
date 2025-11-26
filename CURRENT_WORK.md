@@ -15,9 +15,10 @@
 - ✅ **Task 2.3**: Update `Personality` table (added errorMessage, birthday, ownerId, isPublic)
 - ✅ **Task 2.4 Step A**: Update `LlmConfig` (added provider, advancedParameters, maxReferencedMessages)
 - ✅ **Task 2.5**: Create `PersonalityAlias` table (alias → personality mapping)
+- ✅ **Task 2.6**: Create `UsageLog` table (API usage tracking)
 - All 1,783 tests passing
 
-**Next Up**: Task 2.6 - Create `UsageLog` table (last schema migration!)
+**🎉 ALL SCHEMA MIGRATIONS COMPLETE!** Ready for Data Migration tasks (2.7-2.10)
 
 **Recent Completion**:
 
@@ -108,7 +109,7 @@
 - [x] **Task 2.3**: Update `Personality` table (depends on User for ownerId) - DONE
 - [x] **Task 2.4**: Refactor `LlmConfig` table (Step A done, B/C deferred) - DONE
 - [x] **Task 2.5**: Create `PersonalityAlias` table - DONE
-- [ ] **Task 2.6**: Create `UsageLog` table
+- [x] **Task 2.6**: Create `UsageLog` table - DONE ✅
 
 ## Planned Features (Priority Order)
 

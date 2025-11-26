@@ -16,6 +16,7 @@ model User {
   createdAt            DateTime                @default(now()) @map("created_at")
   updatedAt            DateTime                @updatedAt @map("updated_at")
   apiKeys              UserApiKey[]
+  usageLogs            UsageLog[]
   activatedChannels    ActivatedChannel[]
   ownedLlmConfigs      LlmConfig[]             @relation("LlmConfigOwner")
   ownedPersonalities   Personality[]           @relation("PersonalityOwner")
@@ -26,6 +27,25 @@ model User {
 
   @@index([discordId])
   @@map("users")
+}
+
+/// Tracks API usage per user for monitoring, billing, and abuse prevention.
+/// Even with BYOK, we track usage to prevent infrastructure abuse.
+model UsageLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  provider    String   @db.VarChar(20)
+  model       String   @db.VarChar(255)
+  tokensIn    Int      @map("tokens_in")
+  tokensOut   Int      @map("tokens_out")
+  requestType String   @map("request_type") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("usage_logs")
 }
 
 /// Encrypted API keys for BYOK (Bring Your Own Key) support.
