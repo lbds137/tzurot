@@ -61,11 +61,14 @@ export interface ShapesIncPersonalityConfig {
   image_size?: string;
   force_image_size?: boolean;
 
-  // Custom fields we want to preserve
+  // Dedicated columns (migrated from custom_fields)
+  error_message?: string; // Custom error message → personalities.error_message
+  birthday?: string; // Birthday (MM-DD format) → personalities.birthday
+
+  // Custom fields we want to preserve in JSONB
   favorite_reacts?: string[]; // Emoji reactions personality can use
   keywords?: string[]; // Keywords for discovery/search
   search_description?: string; // Brief personality description
-  error_message?: string; // Custom error message
   wack_message?: string; // Custom reset message
   sleep_message?: string; // Custom offline message
 
@@ -121,6 +124,9 @@ export interface V3PersonalityData {
     memoryEnabled: boolean;
     voiceEnabled: boolean;
     imageEnabled: boolean;
+    // Dedicated columns (Sprint 2 BYOK migration)
+    errorMessage: string | null; // Custom error message
+    birthday: string | null; // Birthday (MM-DD format)
     customFields: Record<string, any> | null; // Extra fields like favorite_reacts, keywords
   };
 

@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@tzurot/*": ["packages/*/src"]
+    }
+  },
+  "include": ["./*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
