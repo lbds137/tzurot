@@ -5,18 +5,18 @@
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  type UsagePeriod,
+  type UsageStats,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('user-usage');
-
-/**
- * Period options for usage query
- */
-type UsagePeriod = 'day' | 'week' | 'month' | 'all';
 
 /**
  * Get the start date for a period
@@ -44,40 +44,6 @@ function getPeriodStartDate(period: UsagePeriod): Date | null {
     default:
       return null;
   }
-}
-
-interface UsageStats {
-  period: UsagePeriod;
-  periodStart: string | null;
-  periodEnd: string;
-  totalRequests: number;
-  totalTokensIn: number;
-  totalTokensOut: number;
-  totalTokens: number;
-  byProvider: Record<
-    string,
-    {
-      requests: number;
-      tokensIn: number;
-      tokensOut: number;
-    }
-  >;
-  byModel: Record<
-    string,
-    {
-      requests: number;
-      tokensIn: number;
-      tokensOut: number;
-    }
-  >;
-  byRequestType: Record<
-    string,
-    {
-      requests: number;
-      tokensIn: number;
-      tokensOut: number;
-    }
-  >;
 }
 
 export function createUsageRoutes(prisma: PrismaClient): Router {

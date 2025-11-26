@@ -10,23 +10,13 @@
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, type ModelOverrideSummary } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('user-model-override');
-
-/**
- * Override summary
- */
-interface OverrideSummary {
-  personalityId: string;
-  personalityName: string;
-  configId: string | null;
-  configName: string | null;
-}
 
 /**
  * Request body for setting override
@@ -73,7 +63,7 @@ export function createModelOverrideRoutes(prisma: PrismaClient): Router {
         },
       });
 
-      const result: OverrideSummary[] = overrides.map(o => ({
+      const result: ModelOverrideSummary[] = overrides.map(o => ({
         personalityId: o.personalityId,
         personalityName: o.personality.name,
         configId: o.llmConfigId,
@@ -167,7 +157,7 @@ export function createModelOverrideRoutes(prisma: PrismaClient): Router {
         },
       });
 
-      const result: OverrideSummary = {
+      const result: ModelOverrideSummary = {
         personalityId: override.personalityId,
         personalityName: override.personality.name,
         configId: override.llmConfigId,

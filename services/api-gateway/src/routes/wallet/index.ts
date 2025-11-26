@@ -32,7 +32,7 @@ export function createWalletRouter(prisma: PrismaClient): Router {
   router.use('/test', createTestKeyRoute(prisma));
 
   // Remove API key (parameterized route)
-  router.delete('/:provider', createRemoveKeyRoute(prisma));
+  router.delete('/:provider', ...createRemoveKeyRoute(prisma));
 
   return router;
 }

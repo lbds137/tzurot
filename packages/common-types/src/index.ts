@@ -6,6 +6,7 @@ export * from './constants/index.js';
 
 // Export types
 export * from './types/ai.js';
+export * from './types/byok.js';
 
 // Export schemas
 export * from './schemas/index.js';
