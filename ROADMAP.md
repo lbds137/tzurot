@@ -192,9 +192,10 @@
   - ✅ Step A: Add `provider`, `advancedParameters` (JSONB), `maxReferencedMessages` - **Completed**: 2025-11-26
   - [ ] Step B: Run data migration script (columns → JSONB) - future work
   - [ ] Step C: Drop old columns in separate migration after verification - future work
-- [ ] **Task 2.5**: Create `PersonalityAlias` table (leaf node)
+- [x] **Task 2.5**: Create `PersonalityAlias` table (leaf node) ✅
   - Fields: alias, personalityId
   - Unique constraint on alias (prevent overlap)
+  - **Completed**: 2025-11-26
 - [ ] **Task 2.6**: Create `UsageLog` table (leaf node)
   - Fields: userId, provider, model, tokensIn, tokensOut, requestType, timestamp
   - Prevent infrastructure abuse even with BYOK
