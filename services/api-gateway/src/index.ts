@@ -29,6 +29,7 @@ import { createRequire } from 'module';
 import { resolve } from 'path';
 import { createAIRouter } from './routes/ai/index.js';
 import { createAdminRouter } from './routes/admin/index.js';
+import { createWalletRouter } from './routes/wallet/index.js';
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
@@ -96,8 +97,14 @@ const attachmentStorage = new AttachmentStorageService({
 // Create AI router (admin router created in main() after cache invalidation service)
 const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
 
+// Create wallet router for BYOK API key management
+const walletRouter = createWalletRouter(prisma);
+
 // Register AI routes (admin routes registered in main())
 app.use('/ai', aiRouter);
+
+// Register wallet routes for BYOK
+app.use('/wallet', walletRouter);
 
 // Serve personality avatars with DB fallback
 // Avatars are primarily served from filesystem (/data/avatars)

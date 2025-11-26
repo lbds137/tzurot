@@ -96,3 +96,60 @@ export function requireOwnerAuth(customMessage?: string) {
     next();
   };
 }
+
+/**
+ * Extract user ID from request header (X-User-Id)
+ *
+ * @param req - Express request
+ * @returns User ID if found, undefined otherwise
+ */
+export function extractUserId(req: Request): string | undefined {
+  const headerUserId = req.headers['x-user-id'];
+  if (typeof headerUserId === 'string' && headerUserId.length > 0) {
+    return headerUserId;
+  }
+  return undefined;
+}
+
+/**
+ * Express middleware to require user authentication (any user, not just owner)
+ *
+ * Usage:
+ * ```ts
+ * router.post('/wallet/set', requireUserAuth(), async (req, res) => {
+ *   const userId = req.userId; // Available after auth
+ * });
+ * ```
+ *
+ * @param customMessage - Optional custom unauthorized message
+ * @returns Express middleware function
+ */
+export function requireUserAuth(customMessage?: string) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const userId = extractUserId(req);
+
+    if (userId === undefined || userId.length === 0) {
+      logger.warn(
+        {
+          path: req.path,
+          method: req.method,
+          ip: req.ip,
+        },
+        '[Auth] Missing user ID in request'
+      );
+
+      const errorResponse = ErrorResponses.unauthorized(
+        customMessage ?? 'User authentication required'
+      );
+      const statusCode = getStatusCode(errorResponse.error);
+
+      res.status(statusCode).json(errorResponse);
+      return;
+    }
+
+    // Attach userId to request for downstream handlers
+    (req as Request & { userId: string }).userId = userId;
+
+    next();
+  };
+}

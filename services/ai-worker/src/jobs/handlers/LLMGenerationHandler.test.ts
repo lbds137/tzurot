@@ -5,6 +5,7 @@
  * - Job validation
  * - Dependency processing (audio transcriptions, image descriptions)
  * - Response generation via RAG service
+ * - BYOK API key resolution
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -12,11 +13,13 @@ import type { Job } from 'bullmq';
 import {
   JobType,
   JobStatus,
+  AIProvider,
   type LLMGenerationJobData,
   type LoadedPersonality,
   REDIS_KEY_PREFIXES,
 } from '@tzurot/common-types';
 import { LLMGenerationHandler } from './LLMGenerationHandler.js';
+import type { ApiKeyResolver, ApiKeyResolutionResult } from '../../services/ApiKeyResolver.js';
 
 // Mock the redis module (dynamic import)
 vi.mock('../../redis.js', () => ({
@@ -45,6 +48,15 @@ function createMockRAGService() {
   return {
     generateResponse: vi.fn(),
   };
+}
+
+// Mock ApiKeyResolver
+function createMockApiKeyResolver() {
+  return {
+    resolveApiKey: vi.fn(),
+    invalidateUserCache: vi.fn(),
+    clearCache: vi.fn(),
+  } as unknown as ApiKeyResolver;
 }
 
 /**
@@ -387,19 +399,66 @@ describe('LLMGenerationHandler', () => {
         );
       });
 
-      it('should pass userApiKey when provided', async () => {
-        const jobData = createValidJobData({
-          userApiKey: 'user-openrouter-key-xxx',
-        });
+      it('should resolve and pass API key from ApiKeyResolver (BYOK)', async () => {
+        // Create handler with mock ApiKeyResolver
+        const mockApiKeyResolver = createMockApiKeyResolver();
+        const handlerWithResolver = new LLMGenerationHandler(
+          mockRAGService as any,
+          mockApiKeyResolver
+        );
+
+        // Configure mock to return a user's API key
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'user-resolved-key-from-db',
+          source: 'user',
+          provider: AIProvider.OpenRouter,
+          userId: 'user-456',
+        } as ApiKeyResolutionResult);
+
+        const jobData = createValidJobData();
         const job = { id: 'job-user-key', data: jobData } as Job<LLMGenerationJobData>;
 
-        await handler.processJob(job);
+        await handlerWithResolver.processJob(job);
 
+        // Verify ApiKeyResolver was called with correct userId and provider
+        expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+          'user-456', // userId from context
+          AIProvider.OpenRouter
+        );
+
+        // Verify the resolved key is passed to RAG service
         expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
           expect.any(Object),
           expect.any(String),
           expect.any(Object),
-          'user-openrouter-key-xxx'
+          'user-resolved-key-from-db'
+        );
+      });
+
+      it('should fall back to undefined key when ApiKeyResolver fails', async () => {
+        // Create handler with mock ApiKeyResolver that throws
+        const mockApiKeyResolver = createMockApiKeyResolver();
+        const handlerWithResolver = new LLMGenerationHandler(
+          mockRAGService as any,
+          mockApiKeyResolver
+        );
+
+        // Configure mock to throw an error
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockRejectedValue(
+          new Error('No API key available')
+        );
+
+        const jobData = createValidJobData();
+        const job = { id: 'job-fallback', data: jobData } as Job<LLMGenerationJobData>;
+
+        await handlerWithResolver.processJob(job);
+
+        // Verify RAG service is called with undefined key (system fallback)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(String),
+          expect.any(Object),
+          undefined
         );
       });
     });

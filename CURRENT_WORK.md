@@ -2,11 +2,51 @@
 
 > Last updated: 2025-11-26
 
-## Status: 🚀 **Database Migrations In Progress**
+## Status: 🚧 **Sprint 3 BYOK Slash Commands In Progress**
 
-**Current Phase**: Phase 1 Sprint 2 - BYOK Schema Migration (Database migrations active)
+**Current Phase**: Phase 1 Sprint 3 - Slash Commands for BYOK
 
-**Sprint 2 Progress (2025-11-26)**:
+**Sprint 3 Progress (2025-11-26)**:
+
+**Wallet Commands** ✅ **COMPLETE**:
+
+- ✅ **Task 3.1**: `/wallet set <provider>` - Modal input for secure API key entry
+  - Discord Modal for API key input (more secure than slash command args)
+  - Validates key with provider API before storing
+  - Encrypts using AES-256-GCM and stores in UserApiKey table
+  - 18 new tests (bot-client command routing + api-gateway routes)
+- ✅ **Task 3.2**: `/wallet list` - Show configured providers (ephemeral)
+- ✅ **Task 3.3**: `/wallet remove <provider>` - Delete API key
+- ✅ **Task 3.4**: `/wallet test <provider>` - Validate key still works (shows credit balance)
+
+**Files Created**:
+
+- `services/bot-client/src/commands/wallet/index.ts` - Main command definition
+- `services/bot-client/src/commands/wallet/set.ts` - Shows modal for API key input
+- `services/bot-client/src/commands/wallet/modal.ts` - Handles modal submission
+- `services/bot-client/src/commands/wallet/list.ts` - Lists configured providers
+- `services/bot-client/src/commands/wallet/remove.ts` - Removes API key
+- `services/bot-client/src/commands/wallet/test.ts` - Tests API key validity
+- `services/api-gateway/src/routes/wallet/index.ts` - Wallet route group
+- `services/api-gateway/src/routes/wallet/setKey.ts` - Stores encrypted key
+- `services/api-gateway/src/routes/wallet/listKeys.ts` - Lists user's keys
+- `services/api-gateway/src/routes/wallet/removeKey.ts` - Removes key
+- `services/api-gateway/src/routes/wallet/testKey.ts` - Validates key with provider
+
+**All 1,892 tests passing** ✅
+
+**Next Tasks** (Sprint 3 remaining):
+
+- Task 3.5-3.7: `/llm-config` commands (create, list, delete)
+- Task 3.8-3.9: `/model` commands (set, reset)
+- Task 3.10-3.11: `/timezone` commands (set, get)
+- Task 3.12: `/usage` command (token stats)
+
+---
+
+## Sprint 2 Completion Summary (2025-11-26)
+
+**Schema Migrations**:
 
 - ✅ **Task 2.P1**: Encryption utilities (AES-256-GCM for API key storage) - 32 tests
 - ✅ **Task 2.P2**: Advanced params schema (OpenRouter unified params) - 64 tests
@@ -16,12 +56,23 @@
 - ✅ **Task 2.4 Step A**: Update `LlmConfig` (added provider, advancedParameters, maxReferencedMessages)
 - ✅ **Task 2.5**: Create `PersonalityAlias` table (alias → personality mapping)
 - ✅ **Task 2.6**: Create `UsageLog` table (API usage tracking)
-- ✅ Updated PGlite test schemas (integration + component tests)
-- All 1,783 tests passing
 
-**🎉 ALL SCHEMA MIGRATIONS COMPLETE!** Ready for Data Migration tasks (2.7-2.10)
+**Data Migrations**:
+
+- ✅ **Task 2.7**: Migrate errorMessage from custom_fields → dedicated column
+- ✅ **Task 2.8**: Create aliases from display names → PersonalityAlias table
+- ✅ **Task 2.9**: Import birthdays from shapes.inc → birthday column
+- ✅ **Task 2.10**: Assign personality ownership to superuser
+
+**Application Code**:
+
+- ✅ **Task 2.11**: Log sanitization middleware (21 tests) - Redacts API keys from all logs
+- ✅ **Task 2.12**: ApiKeyResolver for BYOK (17 tests) - Resolves keys at runtime from DB
+- ✅ **Task 2.13**: KeyValidationService (17 tests) - Validates keys before storage
+- ✅ **Task 2.14**: Reasoning model support (37 tests) - o1/o3, Claude 3.7+, Gemini Thinking
 
 **Migrations Applied** (6 total):
+
 1. `20251126180629_add_user_timezone_and_superuser`
 2. `20251126181511_create_user_api_key_table`
 3. `20251126182042_update_personality_byok_fields`
@@ -30,6 +81,7 @@
 6. `20251126182927_create_usage_log_table`
 
 **Technical Debt Added**:
+
 - Prisma HNSW drift issue: Consider migrating to native `Float[] @db.Vector(1536)` type
 
 **Recent Completion**:

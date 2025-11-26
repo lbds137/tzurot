@@ -3,9 +3,14 @@
  *
  * Handles language model invocation with retry logic, timeout handling, and model caching.
  * Extracted from ConversationalRAGService for better modularity and testability.
+ *
+ * Reasoning Model Support:
+ * - Detects and handles reasoning/thinking models (o1, Claude 3.7+, Gemini Thinking)
+ * - Transforms messages for models that don't support system messages
+ * - Strips <thinking> tags from output
  */
 
-import { BaseMessage } from '@langchain/core/messages';
+import { BaseMessage, AIMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   createLogger,
@@ -16,6 +21,13 @@ import {
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { withRetry } from '../utils/retryService.js';
+import {
+  getReasoningModelConfig,
+  transformMessagesForReasoningModel,
+  stripThinkingTags,
+  ReasoningModelType,
+  type ReasoningModelConfig,
+} from '../utils/reasoningModelUtils.js';
 
 const logger = createLogger('LLMInvoker');
 
@@ -56,6 +68,7 @@ export class LLMInvoker {
    * - Exponential backoff between retries (1s, 2s, 4s, ...)
    * - Dynamic global timeout based on attachment count
    * - Per-attempt timeout using LLM_PER_ATTEMPT constant
+   * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
    *
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
@@ -75,6 +88,24 @@ export class LLMInvoker {
     // LLM always gets full independent timeout budget (480s = 8 minutes)
     const globalTimeoutMs = TIMEOUTS.LLM_INVOCATION;
 
+    // Get reasoning model config for special handling
+    const reasoningConfig = getReasoningModelConfig(modelName);
+    const isReasoningModel = reasoningConfig.type !== ReasoningModelType.Standard;
+
+    if (isReasoningModel) {
+      logger.info(
+        {
+          modelName,
+          reasoningType: reasoningConfig.type,
+          allowsSystemMessage: reasoningConfig.allowsSystemMessage,
+        },
+        '[LLMInvoker] Detected reasoning model, applying special handling'
+      );
+    }
+
+    // Transform messages for reasoning models (e.g., convert system to user for o1)
+    const transformedMessages = transformMessagesForReasoningModel(messages, reasoningConfig);
+
     logger.info(
       {
         modelName,
@@ -82,24 +113,81 @@ export class LLMInvoker {
         audioCount,
         jobTimeout,
         globalTimeoutMs,
+        isReasoningModel,
+        originalMessageCount: messages.length,
+        transformedMessageCount: transformedMessages.length,
       },
       `[LLMInvoker] Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
 
     // Use retryService for consistent retry behavior
-    const result = await withRetry(() => this.invokeSingleAttempt(model, messages, modelName), {
-      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-      globalTimeoutMs,
-      logger,
-      operationName: `LLM invocation (${modelName})`,
-    });
+    const result = await withRetry(
+      () => this.invokeSingleAttempt(model, transformedMessages, modelName),
+      {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        globalTimeoutMs,
+        logger,
+        operationName: `LLM invocation (${modelName})`,
+      }
+    );
+
+    // Post-process response for reasoning models (strip thinking tags)
+    const processedResponse = this.processReasoningModelResponse(
+      result.value,
+      reasoningConfig,
+      modelName
+    );
 
     logger.info(
       { modelName, attempts: result.attempts, totalTimeMs: result.totalTimeMs },
       '[LLMInvoker] LLM invocation completed'
     );
 
-    return result.value;
+    return processedResponse;
+  }
+
+  /**
+   * Process response from reasoning models to strip thinking tags
+   */
+  private processReasoningModelResponse(
+    response: BaseMessage,
+    config: ReasoningModelConfig,
+    modelName: string
+  ): BaseMessage {
+    if (!config.mayContainThinkingTags) {
+      return response;
+    }
+
+    // Extract content
+    const originalContent = Array.isArray(response.content)
+      ? response.content.map(c => (typeof c === 'object' && 'text' in c ? c.text : '')).join('')
+      : typeof response.content === 'string'
+        ? response.content
+        : '';
+
+    // Strip thinking tags
+    const strippedContent = stripThinkingTags(originalContent);
+
+    if (strippedContent !== originalContent) {
+      const removedLength = originalContent.length - strippedContent.length;
+      logger.info(
+        {
+          modelName,
+          originalLength: originalContent.length,
+          strippedLength: strippedContent.length,
+          removedLength,
+        },
+        '[LLMInvoker] Stripped thinking tags from reasoning model response'
+      );
+
+      // Return new AIMessage with stripped content
+      return new AIMessage({
+        content: strippedContent,
+        additional_kwargs: response.additional_kwargs,
+      });
+    }
+
+    return response;
   }
 
   /**
