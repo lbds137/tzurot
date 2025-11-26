@@ -30,6 +30,7 @@ import { resolve } from 'path';
 import { createAIRouter } from './routes/ai/index.js';
 import { createAdminRouter } from './routes/admin/index.js';
 import { createWalletRouter } from './routes/wallet/index.js';
+import { createUserRouter } from './routes/user/index.js';
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
@@ -100,11 +101,17 @@ const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage)
 // Create wallet router for BYOK API key management
 const walletRouter = createWalletRouter(prisma);
 
+// Create user router for user settings (timezone, preferences)
+const userRouter = createUserRouter(prisma);
+
 // Register AI routes (admin routes registered in main())
 app.use('/ai', aiRouter);
 
 // Register wallet routes for BYOK
 app.use('/wallet', walletRouter);
+
+// Register user routes for settings
+app.use('/user', userRouter);
 
 // Serve personality avatars with DB fallback
 // Avatars are primarily served from filesystem (/data/avatars)
