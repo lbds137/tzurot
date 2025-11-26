@@ -14,12 +14,12 @@ import type {
   TextChannel,
   User,
 } from 'discord.js';
-import { MessageRole, CONTENT_TYPES } from '@tzurot/common-types';
+import { MessageRole, CONTENT_TYPES, MESSAGE_LIMITS } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
     ConversationHistoryService: class {

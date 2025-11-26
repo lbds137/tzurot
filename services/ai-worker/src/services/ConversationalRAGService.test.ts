@@ -439,7 +439,8 @@ describe('ConversationalRAGService', () => {
       expect(mockPromptBuilderInstance.buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
         expect.any(Array),
-        'reference text for search'
+        'reference text for search',
+        undefined // recentHistoryWindow - no rawConversationHistory in context
       );
     });
 
@@ -554,7 +555,8 @@ describe('ConversationalRAGService', () => {
       expect(mockPromptBuilderInstance.buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
         processedAttachments,
-        undefined
+        undefined,
+        undefined // recentHistoryWindow - no rawConversationHistory in context
       );
     });
 

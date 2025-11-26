@@ -23,3 +23,20 @@ export const PLACEHOLDERS = {
   /** Assistant placeholders - all variations get replaced with the assistant/personality name */
   ASSISTANT: ['{assistant}', '{shape}', '{{char}}', '{personality}'] as const,
 } as const;
+
+/**
+ * Message context limits
+ * These control how much context is included in AI requests
+ */
+export const MESSAGE_LIMITS = {
+  /**
+   * Maximum number of referenced messages to include in AI context
+   * Referenced messages come from replies, message links, and embeds
+   */
+  MAX_REFERENCED_MESSAGES: 20,
+  /**
+   * Maximum conversation history messages to fetch from database
+   * AI worker will further trim based on token budget
+   */
+  MAX_HISTORY_FETCH: 100,
+} as const;
