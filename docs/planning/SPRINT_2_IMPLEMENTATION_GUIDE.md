@@ -662,14 +662,14 @@ Several limits are currently hardcoded as constants in `@tzurot/common-types`. F
 
 **Current Constants Location**: `packages/common-types/src/constants/`
 
-| Constant | Current Value | Domain | Status |
-|----------|---------------|--------|--------|
-| `MESSAGE_LIMITS.MAX_REFERENCED_MESSAGES` | 20 | message.ts | ✅ Added to LlmConfig (Migration 4) |
-| `MESSAGE_LIMITS.MAX_HISTORY_FETCH` | 100 | message.ts | System-wide (no per-personality need) |
-| `AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS` | 3 | ai.ts | Candidate for personality config |
-| `DISCORD_MENTIONS.MAX_PER_MESSAGE` | 10 | discord.ts | Candidate for personality config |
-| `DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE` | 5 | discord.ts | Candidate for personality config |
-| `DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE` | 5 | discord.ts | Candidate for personality config |
+| Constant                                    | Current Value | Domain     | Status                                |
+| ------------------------------------------- | ------------- | ---------- | ------------------------------------- |
+| `MESSAGE_LIMITS.MAX_REFERENCED_MESSAGES`    | 20            | message.ts | ✅ Added to LlmConfig (Migration 4)   |
+| `MESSAGE_LIMITS.MAX_HISTORY_FETCH`          | 100           | message.ts | System-wide (no per-personality need) |
+| `AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS`      | 3             | ai.ts      | Candidate for personality config      |
+| `DISCORD_MENTIONS.MAX_PER_MESSAGE`          | 10            | discord.ts | Candidate for personality config      |
+| `DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE` | 5             | discord.ts | Candidate for personality config      |
+| `DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE`    | 5             | discord.ts | Candidate for personality config      |
 
 ### Migration 4 Update: Additional Limit Columns
 
@@ -693,13 +693,14 @@ model LlmConfig {
 ### Resolution Strategy
 
 When processing a message, resolve each limit in this order:
+
 1. **Personality-specific value** (from LlmConfig if non-null)
 2. **Constant fallback** (from `@tzurot/common-types`)
 
 ```typescript
 // Example usage in MessageContextBuilder
-const maxMentions = personality.llmConfig?.maxMentionsPerMessage
-  ?? DISCORD_MENTIONS.MAX_PER_MESSAGE;
+const maxMentions =
+  personality.llmConfig?.maxMentionsPerMessage ?? DISCORD_MENTIONS.MAX_PER_MESSAGE;
 ```
 
 ### Implementation Notes
