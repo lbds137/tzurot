@@ -15,6 +15,7 @@ model User {
   isSuperuser        Boolean                 @default(false) @map("is_superuser")
   createdAt          DateTime                @default(now()) @map("created_at")
   updatedAt          DateTime                @updatedAt @map("updated_at")
+  apiKeys            UserApiKey[]
   activatedChannels  ActivatedChannel[]
   ownedLlmConfigs    LlmConfig[]             @relation("LlmConfigOwner")
   personalityOwners  PersonalityOwner[]
@@ -24,6 +25,26 @@ model User {
 
   @@index([discordId])
   @@map("users")
+}
+
+/// Encrypted API keys for BYOK (Bring Your Own Key) support.
+/// Uses AES-256-GCM encryption with separate columns for iv, content, and tag.
+model UserApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  provider   String    @default("openrouter") @db.VarChar(20)
+  iv         String    @db.VarChar(32)
+  content    String    @db.Text
+  tag        String    @db.VarChar(32)
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("user_api_keys")
 }
 
 model Persona {
