@@ -83,6 +83,7 @@ describe('AIJobProcessor Component Test', () => {
         owner_id UUID,
         is_global BOOLEAN DEFAULT FALSE,
         is_default BOOLEAN DEFAULT FALSE,
+        provider VARCHAR(20) DEFAULT 'openrouter',
         model VARCHAR(255) NOT NULL,
         vision_model VARCHAR(255),
         temperature DECIMAL(3, 2),
@@ -95,6 +96,8 @@ describe('AIJobProcessor Component Test', () => {
         memory_score_threshold DECIMAL(3, 2),
         memory_limit INTEGER,
         context_window_tokens INTEGER DEFAULT 131072,
+        advanced_parameters JSONB,
+        max_referenced_messages INTEGER DEFAULT 20,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
@@ -107,6 +110,7 @@ describe('AIJobProcessor Component Test', () => {
         display_name VARCHAR(255),
         slug VARCHAR(255) UNIQUE NOT NULL,
         system_prompt_id UUID REFERENCES system_prompts(id),
+        owner_id UUID,
         character_info TEXT NOT NULL,
         personality_traits TEXT NOT NULL,
         personality_tone TEXT,
@@ -122,6 +126,9 @@ describe('AIJobProcessor Component Test', () => {
         image_enabled BOOLEAN DEFAULT FALSE,
         image_settings JSONB,
         avatar_data BYTEA,
+        error_message TEXT,
+        birthday DATE,
+        is_public BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
