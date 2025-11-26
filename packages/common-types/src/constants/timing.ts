@@ -139,6 +139,14 @@ export const CACHE_CONTROL = {
 } as const;
 
 /**
+ * External API validation timeouts
+ */
+export const VALIDATION_TIMEOUTS = {
+  /** Timeout for API key validation requests (15 seconds - allows for slow provider responses) */
+  API_KEY_VALIDATION: 15000,
+} as const;
+
+/**
  * Test configuration timeouts
  */
 export const TEST_TIMEOUTS = {

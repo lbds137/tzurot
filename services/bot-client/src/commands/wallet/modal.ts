@@ -18,6 +18,7 @@ import {
   DISCORD_COLORS,
   AIProvider,
 } from '@tzurot/common-types';
+import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-modal');
 
@@ -202,16 +203,3 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
   return null;
 }
 
-/**
- * Get display name for a provider
- */
-function getProviderDisplayName(provider: AIProvider): string {
-  switch (provider) {
-    case AIProvider.OpenRouter:
-      return 'OpenRouter';
-    case AIProvider.OpenAI:
-      return 'OpenAI';
-    default:
-      return provider;
-  }
-}

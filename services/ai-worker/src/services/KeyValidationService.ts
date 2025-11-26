@@ -10,7 +10,7 @@
  * - Errors are specific to help users understand failures
  */
 
-import { createLogger, AIProvider } from '@tzurot/common-types';
+import { createLogger, AIProvider, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
 import { withTimeout } from '../utils/retryService.js';
 
 const logger = createLogger('KeyValidationService');
@@ -77,10 +77,6 @@ export interface KeyValidationResult {
   };
 }
 
-/**
- * Validation timeout in milliseconds
- */
-const VALIDATION_TIMEOUT_MS = 15_000; // 15 seconds
 
 /**
  * Key Validation Service
@@ -149,7 +145,7 @@ export class KeyValidationService {
             },
             signal,
           }),
-        VALIDATION_TIMEOUT_MS,
+        VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
         'OpenRouter key validation'
       );
 
@@ -234,7 +230,7 @@ export class KeyValidationService {
             },
             signal,
           }),
-        VALIDATION_TIMEOUT_MS,
+        VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
         'OpenAI key validation'
       );
 

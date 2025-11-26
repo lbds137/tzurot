@@ -15,9 +15,9 @@ import { AIProvider } from '@tzurot/common-types';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock the logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+// Mock the logger (preserve all other exports including VALIDATION_TIMEOUTS)
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
     createLogger: () => ({
