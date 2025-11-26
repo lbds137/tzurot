@@ -9,6 +9,7 @@
 import { Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
+import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
   createLogger,
   type LoadedPersonality,
@@ -140,15 +141,22 @@ export interface AIJobResult {
 export class AIJobProcessor {
   private ragService: ConversationalRAGService;
   private llmGenerationHandler: LLMGenerationHandler;
+  private apiKeyResolver: ApiKeyResolver;
 
   constructor(
     private prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter,
-    ragService?: ConversationalRAGService
+    ragService?: ConversationalRAGService,
+    apiKeyResolver?: ApiKeyResolver
   ) {
     // Use provided RAGService (for testing) or create new one (for production)
     this.ragService = ragService ?? new ConversationalRAGService(memoryManager);
-    this.llmGenerationHandler = new LLMGenerationHandler(this.ragService);
+
+    // Use provided ApiKeyResolver (for testing) or create new one (for production)
+    // ApiKeyResolver handles BYOK - looking up and decrypting user API keys
+    this.apiKeyResolver = apiKeyResolver ?? new ApiKeyResolver(prisma);
+
+    this.llmGenerationHandler = new LLMGenerationHandler(this.ragService, this.apiKeyResolver);
   }
 
   /**
