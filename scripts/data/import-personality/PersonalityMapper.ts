@@ -40,6 +40,9 @@ export class PersonalityMapper {
       conversationalExamples: config.personality_conversational_examples || null,
       voiceEnabled: false, // v3 doesn't support voice yet
       imageEnabled: false, // v3 doesn't support images yet
+      // Dedicated columns for error message and birthday (Sprint 2 migration)
+      errorMessage: config.error_message || null,
+      birthday: config.birthday || null,
       customFields: this.extractCustomFields(config),
     };
   }
@@ -66,10 +69,7 @@ export class PersonalityMapper {
       customFields.searchDescription = config.search_description;
     }
 
-    // Preserve custom messages
-    if (config.error_message) {
-      customFields.errorMessage = config.error_message;
-    }
+    // Preserve custom messages (error_message and birthday now have dedicated columns)
     if (config.wack_message) {
       customFields.wackMessage = config.wack_message;
     }
