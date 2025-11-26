@@ -37,7 +37,10 @@ export async function handleDelete(interaction: ChatInputCommandInteraction): Pr
 
     if (!response.ok) {
       const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      logger.warn({ userId, status: response.status, configId }, '[LlmConfig] Failed to delete config');
+      logger.warn(
+        { userId, status: response.status, configId },
+        '[LlmConfig] Failed to delete config'
+      );
       await interaction.editReply({
         content: `❌ Failed to delete config: ${errorData.error ?? 'Unknown error'}`,
       });

@@ -93,7 +93,9 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     }
 
     if (data.configs.length === 0) {
-      embed.setDescription('No configurations available.\n\nUse `/llm-config create` to create your own!');
+      embed.setDescription(
+        'No configurations available.\n\nUse `/llm-config create` to create your own!'
+      );
     } else {
       embed.setFooter({
         text: `${globalConfigs.length} global, ${userConfigs.length} personal configs`,

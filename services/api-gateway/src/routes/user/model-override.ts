@@ -224,7 +224,10 @@ export function createModelOverrideRoutes(prisma: PrismaClient): Router {
       }
 
       if (override.llmConfigId === null) {
-        return sendError(res, ErrorResponses.validationError('No model override set for this personality'));
+        return sendError(
+          res,
+          ErrorResponses.validationError('No model override set for this personality')
+        );
       }
 
       // Remove the override (set llmConfigId to null, or delete if no other data)

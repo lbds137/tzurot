@@ -136,7 +136,10 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
 
       // Name length validation
       if (body.name.length > 100) {
-        return sendError(res, ErrorResponses.validationError('name must be 100 characters or less'));
+        return sendError(
+          res,
+          ErrorResponses.validationError('name must be 100 characters or less')
+        );
       }
 
       // Get or create user
@@ -195,7 +198,10 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
         },
       });
 
-      logger.info({ discordUserId, configId: config.id, name: config.name }, '[LlmConfig] Created config');
+      logger.info(
+        { discordUserId, configId: config.id, name: config.name },
+        '[LlmConfig] Created config'
+      );
 
       sendCustomSuccess(
         res,
@@ -240,10 +246,7 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
 
       // Check ownership
       if (config.isGlobal || config.ownerId !== user.id) {
-        return sendError(
-          res,
-          ErrorResponses.unauthorized('You can only delete your own configs')
-        );
+        return sendError(res, ErrorResponses.unauthorized('You can only delete your own configs'));
       }
 
       // Check if config is in use by any UserPersonalityConfig

@@ -37,7 +37,10 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
 
     if (!response.ok) {
       const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      logger.warn({ userId, status: response.status, personalityId }, '[Model] Failed to reset override');
+      logger.warn(
+        { userId, status: response.status, personalityId },
+        '[Model] Failed to reset override'
+      );
       await interaction.editReply({
         content: `❌ Failed to reset model: ${errorData.error ?? 'Unknown error'}`,
       });
