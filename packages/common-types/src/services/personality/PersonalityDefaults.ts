@@ -137,5 +137,7 @@ export function mapToPersonality(
     personalityDislikes: replacePlaceholders(db.personalityDislikes, db.name),
     conversationalGoals: replacePlaceholders(db.conversationalGoals, db.name),
     conversationalExamples: replacePlaceholders(db.conversationalExamples, db.name),
+    // Custom error message (sent as webhook message from personality on LLM failures)
+    errorMessage: db.errorMessage ?? undefined,
   };
 }

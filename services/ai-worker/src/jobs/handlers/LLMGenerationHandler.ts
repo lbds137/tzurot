@@ -315,7 +315,8 @@ export class LLMGenerationHandler {
         referencedMessagesDescriptions: response.referencedMessagesDescriptions,
         metadata: {
           retrievedMemories: response.retrievedMemories,
-          tokensUsed: response.tokensUsed,
+          tokensIn: response.tokensIn,
+          tokensOut: response.tokensOut,
           processingTimeMs,
           modelUsed: response.modelUsed,
         },
@@ -333,6 +334,8 @@ export class LLMGenerationHandler {
         requestId,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
+        // Include personality's custom error message for webhook response
+        personalityErrorMessage: personality.errorMessage,
         metadata: {
           processingTimeMs,
         },

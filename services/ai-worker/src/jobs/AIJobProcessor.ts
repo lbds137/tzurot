@@ -132,7 +132,8 @@ export interface AIJobResult {
   error?: string;
   metadata?: {
     retrievedMemories?: number;
-    tokensUsed?: number;
+    tokensIn?: number;
+    tokensOut?: number;
     processingTimeMs?: number;
     modelUsed?: string;
   };
@@ -227,10 +228,60 @@ export class AIJobProcessor {
     // Delegate to LLM generation handler
     const result = await this.llmGenerationHandler.processJob(job);
 
+    // Log usage for BYOK tracking (only on success with user internal ID)
+    if (result.success === true && job.data.context.userInternalId !== undefined) {
+      await this.logUsage(job, result);
+    }
+
     // Persist to DB and publish to Redis Stream
     await this.persistAndPublishResult(job, result);
 
     return result;
+  }
+
+  /**
+   * Log usage to database for BYOK cost tracking
+   */
+  private async logUsage(
+    job: Job<LLMGenerationJobData>,
+    result: LLMGenerationResult
+  ): Promise<void> {
+    const { context, personality } = job.data;
+
+    // Skip if no user internal ID (can't log without it)
+    const userInternalId = context.userInternalId;
+    if (userInternalId === undefined || userInternalId.length === 0) {
+      return;
+    }
+
+    try {
+      // Determine provider from model name (default to openrouter)
+      const modelUsed = result.metadata?.modelUsed ?? personality.model;
+      const provider = modelUsed.includes('gemini') ? 'gemini' : 'openrouter';
+
+      // Get input/output tokens from LLM response metadata
+      const tokensIn = result.metadata?.tokensIn ?? 0;
+      const tokensOut = result.metadata?.tokensOut ?? 0;
+
+      await this.prisma.usageLog.create({
+        data: {
+          userId: userInternalId,
+          provider,
+          model: modelUsed,
+          tokensIn,
+          tokensOut,
+          requestType: 'llm_generation',
+        },
+      });
+
+      logger.debug(
+        { userId: userInternalId, model: modelUsed, tokensIn, tokensOut },
+        '[AIJobProcessor] Logged usage'
+      );
+    } catch (error) {
+      // Don't fail the job if usage logging fails
+      logger.warn({ err: error }, '[AIJobProcessor] Failed to log usage (non-fatal)');
+    }
   }
 
   /**
