@@ -14,6 +14,7 @@ import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
+import { handleAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('llm-config-command');
 
@@ -80,3 +81,8 @@ export const execute = createSubcommandRouter(
   },
   { logger, logPrefix: '[LlmConfig]' }
 );
+
+/**
+ * Autocomplete handler for config options
+ */
+export const autocomplete = handleAutocomplete;

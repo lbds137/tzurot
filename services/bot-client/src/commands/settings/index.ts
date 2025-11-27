@@ -12,8 +12,8 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
+import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import { createLogger, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleTimezoneSet, handleTimezoneGet } from './timezone.js';
 
@@ -36,9 +36,9 @@ export const data = new SlashCommandBuilder()
           .addStringOption(option =>
             option
               .setName('timezone')
-              .setDescription('Your timezone')
+              .setDescription('Your timezone (e.g., America/New_York)')
               .setRequired(true)
-              .addChoices(...TIMEZONE_DISCORD_CHOICES)
+              .setAutocomplete(true)
           )
       )
       .addSubcommand(subcommand =>
@@ -71,5 +71,33 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       // Future subcommand groups will be added here
       logger.warn({ group }, '[Settings] Unknown subcommand group');
       break;
+  }
+}
+
+/**
+ * Autocomplete handler for timezone option
+ */
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focusedOption = interaction.options.getFocused(true);
+
+  if (focusedOption.name === 'timezone') {
+    const query = focusedOption.value.toLowerCase();
+
+    // Filter timezones by query
+    const filtered = TIMEZONE_OPTIONS.filter(
+      tz =>
+        tz.value.toLowerCase().includes(query) ||
+        tz.label.toLowerCase().includes(query) ||
+        tz.offset.toLowerCase().includes(query)
+    ).slice(0, 25); // Discord limit
+
+    const choices = filtered.map(tz => ({
+      name: `${tz.label} (${tz.value}) - ${tz.offset}`,
+      value: tz.value,
+    }));
+
+    await interaction.respond(choices);
+  } else {
+    await interaction.respond([]);
   }
 }

@@ -165,12 +165,14 @@ client.on(Events.MessageCreate, message => {
   })();
 });
 
-// Interaction handler for slash commands and modals
+// Interaction handler for slash commands, modals, and autocomplete
 client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
       if (interaction.isChatInputCommand() || interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
+      } else if (interaction.isAutocomplete()) {
+        await commandHandler.handleAutocomplete(interaction);
       }
     } catch (error) {
       logger.error({ err: error }, 'Error in interaction handler');

@@ -10,6 +10,7 @@ import { Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
+import { LlmConfigResolver } from '../services/LlmConfigResolver.js';
 import {
   createLogger,
   type LoadedPersonality,
@@ -143,12 +144,14 @@ export class AIJobProcessor {
   private ragService: ConversationalRAGService;
   private llmGenerationHandler: LLMGenerationHandler;
   private apiKeyResolver: ApiKeyResolver;
+  private configResolver: LlmConfigResolver;
 
   constructor(
     private prisma: PrismaClient,
     memoryManager?: PgvectorMemoryAdapter,
     ragService?: ConversationalRAGService,
-    apiKeyResolver?: ApiKeyResolver
+    apiKeyResolver?: ApiKeyResolver,
+    configResolver?: LlmConfigResolver
   ) {
     // Use provided RAGService (for testing) or create new one (for production)
     this.ragService = ragService ?? new ConversationalRAGService(memoryManager);
@@ -157,7 +160,15 @@ export class AIJobProcessor {
     // ApiKeyResolver handles BYOK - looking up and decrypting user API keys
     this.apiKeyResolver = apiKeyResolver ?? new ApiKeyResolver(prisma);
 
-    this.llmGenerationHandler = new LLMGenerationHandler(this.ragService, this.apiKeyResolver);
+    // Use provided LlmConfigResolver (for testing) or create new one (for production)
+    // LlmConfigResolver handles user config overrides (per-personality and global default)
+    this.configResolver = configResolver ?? new LlmConfigResolver(prisma);
+
+    this.llmGenerationHandler = new LLMGenerationHandler(
+      this.ragService,
+      this.apiKeyResolver,
+      this.configResolver
+    );
   }
 
   /**

@@ -6,6 +6,9 @@
  * - GET /user/model-override - List all user's model overrides
  * - PUT /user/model-override - Set override for a personality
  * - DELETE /user/model-override/:personalityId - Remove override
+ * - GET /user/model-default - Get user's global default config
+ * - PUT /user/model-default - Set user's global default config
+ * - DELETE /user/model-default - Clear user's global default config
  */
 
 import { Router, type Response } from 'express';
@@ -25,6 +28,21 @@ const logger = createLogger('user-model-override');
 interface SetOverrideBody {
   personalityId: string;
   configId: string;
+}
+
+/**
+ * Request body for setting user's global default config
+ */
+interface SetDefaultBody {
+  configId: string;
+}
+
+/**
+ * Response for user default config
+ */
+interface UserDefaultConfigResponse {
+  configId: string | null;
+  configName: string | null;
 }
 
 export function createModelOverrideRoutes(prisma: PrismaClient): Router {
@@ -231,6 +249,140 @@ export function createModelOverrideRoutes(prisma: PrismaClient): Router {
         { discordUserId, personalityId, personalityName: override.personality.name },
         '[ModelOverride] Removed override'
       );
+
+      sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
+    })
+  );
+
+  // ============================================
+  // User Global Default Config Routes
+  // ============================================
+
+  /**
+   * GET /user/model-default
+   * Get user's global default LLM config
+   */
+  router.get(
+    '/default',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
+
+      const user = await prisma.user.findFirst({
+        where: { discordId: discordUserId },
+        select: {
+          defaultLlmConfigId: true,
+          defaultLlmConfig: { select: { name: true } },
+        },
+      });
+
+      const result: UserDefaultConfigResponse = {
+        configId: user?.defaultLlmConfigId ?? null,
+        configName: user?.defaultLlmConfig?.name ?? null,
+      };
+
+      logger.info(
+        { discordUserId, configId: result.configId },
+        '[ModelDefault] Got default config'
+      );
+
+      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+    })
+  );
+
+  /**
+   * PUT /user/model-default
+   * Set user's global default LLM config
+   */
+  router.put(
+    '/default',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
+      const body = req.body as SetDefaultBody;
+
+      // Validate required fields
+      if (!body.configId || body.configId.trim().length === 0) {
+        return sendError(res, ErrorResponses.validationError('configId is required'));
+      }
+
+      // Get or create user
+      let user = await prisma.user.findFirst({
+        where: { discordId: discordUserId },
+        select: { id: true },
+      });
+
+      user ??= await prisma.user.create({
+        data: {
+          discordId: discordUserId,
+          username: discordUserId, // Placeholder
+          timezone: 'UTC',
+        },
+        select: { id: true },
+      });
+
+      // Verify config exists and user can access it (global or owned)
+      const llmConfig = await prisma.llmConfig.findFirst({
+        where: {
+          id: body.configId,
+          OR: [{ isGlobal: true }, { ownerId: user.id }],
+        },
+        select: { id: true, name: true },
+      });
+
+      if (llmConfig === null) {
+        return sendError(res, ErrorResponses.notFound('Config not found or not accessible'));
+      }
+
+      // Update user's default config
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { defaultLlmConfigId: body.configId },
+      });
+
+      const result: UserDefaultConfigResponse = {
+        configId: llmConfig.id,
+        configName: llmConfig.name,
+      };
+
+      logger.info(
+        { discordUserId, configId: body.configId, configName: llmConfig.name },
+        '[ModelDefault] Set default config'
+      );
+
+      sendCustomSuccess(res, { default: result }, StatusCodes.OK);
+    })
+  );
+
+  /**
+   * DELETE /user/model-default
+   * Clear user's global default LLM config
+   */
+  router.delete(
+    '/default',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
+
+      const user = await prisma.user.findFirst({
+        where: { discordId: discordUserId },
+        select: { id: true, defaultLlmConfigId: true },
+      });
+
+      if (user === null) {
+        return sendError(res, ErrorResponses.notFound('User not found'));
+      }
+
+      if (user.defaultLlmConfigId === null) {
+        return sendError(res, ErrorResponses.validationError('No default config set'));
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { defaultLlmConfigId: null },
+      });
+
+      logger.info({ discordUserId }, '[ModelDefault] Cleared default config');
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
     })

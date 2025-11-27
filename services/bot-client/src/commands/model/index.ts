@@ -6,6 +6,8 @@
  * - /model list - Show your model overrides
  * - /model set - Override model for a personality
  * - /model reset - Remove override, use default
+ * - /model set-default - Set your global default config
+ * - /model clear-default - Clear your global default config
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -14,6 +16,9 @@ import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleListOverrides } from './list.js';
 import { handleSet } from './set.js';
 import { handleReset } from './reset.js';
+import { handleSetDefault } from './set-default.js';
+import { handleClearDefault } from './clear-default.js';
+import { handleAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('model-command');
 
@@ -56,6 +61,21 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .setAutocomplete(true)
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('set-default')
+      .setDescription('Set your global default LLM config (applies to all personalities)')
+      .addStringOption(option =>
+        option
+          .setName('config')
+          .setDescription('LLM config to use as default')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand.setName('clear-default').setDescription('Clear your global default LLM config')
   );
 
 /**
@@ -66,6 +86,13 @@ export const execute = createSubcommandRouter(
     list: handleListOverrides,
     set: handleSet,
     reset: handleReset,
+    'set-default': handleSetDefault,
+    'clear-default': handleClearDefault,
   },
   { logger, logPrefix: '[Model]' }
 );
+
+/**
+ * Autocomplete handler for personality and config options
+ */
+export const autocomplete = handleAutocomplete;

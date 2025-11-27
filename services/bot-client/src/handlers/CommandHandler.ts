@@ -10,6 +10,7 @@ import {
   Collection,
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
+  AutocompleteInteraction,
   MessageFlags,
 } from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -155,6 +156,41 @@ export class CommandHandler {
       } else {
         await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
       }
+    }
+  }
+
+  /**
+   * Handle an autocomplete interaction
+   */
+  async handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    const command = this.commands.get(interaction.commandName);
+
+    if (!command) {
+      logger.warn(
+        {},
+        `[CommandHandler] Unknown command for autocomplete: ${interaction.commandName}`
+      );
+      await interaction.respond([]);
+      return;
+    }
+
+    if (!command.autocomplete) {
+      logger.warn(
+        {},
+        `[CommandHandler] No autocomplete handler for command: ${interaction.commandName}`
+      );
+      await interaction.respond([]);
+      return;
+    }
+
+    try {
+      await command.autocomplete(interaction);
+    } catch (error) {
+      logger.error(
+        { err: error },
+        `[CommandHandler] Error in autocomplete for: ${interaction.commandName}`
+      );
+      await interaction.respond([]);
     }
   }
 
