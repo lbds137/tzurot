@@ -16,6 +16,12 @@ vi.mock('@tzurot/common-types', async () => {
     getConfig: vi.fn(() => ({
       GATEWAY_URL: 'http://localhost:3000',
     })),
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
   };
 });
 
@@ -101,6 +107,7 @@ describe('admin command', () => {
       vi.clearAllMocks();
 
       mockInteraction = {
+        user: { id: 'test-user-id' },
         options: {
           getSubcommand: vi.fn(),
         },

@@ -8,22 +8,14 @@
  * - /llm-config delete - Delete your config
  */
 
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { SlashCommandBuilder } from 'discord.js';
+import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
+import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
 
 const logger = createLogger('llm-config-command');
-
-/**
- * Provider choices for config creation
- */
-const PROVIDER_CHOICES = [
-  { name: 'OpenRouter (recommended)', value: 'openrouter' },
-  { name: 'Gemini', value: 'gemini' },
-] as const;
 
 /**
  * Slash command definition
@@ -52,7 +44,7 @@ export const data = new SlashCommandBuilder()
           .setName('provider')
           .setDescription('AI provider')
           .setRequired(false)
-          .addChoices(...PROVIDER_CHOICES)
+          .addChoices(...DISCORD_PROVIDER_CHOICES)
       )
       .addStringOption(option =>
         option.setName('description').setDescription('Optional description').setRequired(false)
@@ -80,24 +72,11 @@ export const data = new SlashCommandBuilder()
 /**
  * Command execution router
  */
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const subcommand = interaction.options.getSubcommand();
-  logger.info({ subcommand, userId: interaction.user.id }, '[LlmConfig] Executing subcommand');
-
-  switch (subcommand) {
-    case 'list':
-      await handleList(interaction);
-      break;
-    case 'create':
-      await handleCreate(interaction);
-      break;
-    case 'delete':
-      await handleDelete(interaction);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
-      });
-  }
-}
+export const execute = createSubcommandRouter(
+  {
+    list: handleList,
+    create: handleCreate,
+    delete: handleDelete,
+  },
+  { logger, logPrefix: '[LlmConfig]' }
+);

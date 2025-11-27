@@ -130,3 +130,19 @@ export function isValidDiscordId(id: string): boolean {
 export function filterValidDiscordIds(ids: string[]): string[] {
   return ids.filter(isValidDiscordId);
 }
+
+/**
+ * AI Provider choices for Discord slash commands
+ *
+ * Currently only OpenRouter is supported for BYOK.
+ * OpenAI is not offered because BYOK doesn't cover embeddings/whisper costs.
+ * Gemini is not offered (we use OpenRouter for all LLM calls).
+ *
+ * These are the choices displayed in /wallet and /llm-config commands.
+ */
+export const DISCORD_PROVIDER_CHOICES = [{ name: 'OpenRouter', value: 'openrouter' }] as const;
+
+/**
+ * Type for provider choice values
+ */
+export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['value'];

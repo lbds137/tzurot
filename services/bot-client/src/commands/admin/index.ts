@@ -9,14 +9,16 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
-import { getConfig, requireBotOwner } from '@tzurot/common-types';
+import { createLogger, getConfig, requireBotOwner, type EnvConfig } from '@tzurot/common-types';
+import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
 // Import subcommand handlers
 import { handleDbSync } from './db-sync.js';
 import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
+
+const logger = createLogger('admin-command');
 
 /**
  * Slash command definition
@@ -64,6 +66,21 @@ export const data = new SlashCommandBuilder()
   );
 
 /**
+ * Create admin router with config dependency
+ */
+function createAdminRouter(config: EnvConfig): (interaction: ChatInputCommandInteraction) => Promise<void> {
+  return createSubcommandRouter(
+    {
+      'db-sync': interaction => handleDbSync(interaction, config),
+      servers: handleServers,
+      kick: handleKick,
+      usage: interaction => handleUsage(interaction, config),
+    },
+    { logger, logPrefix: '[Admin]' }
+  );
+}
+
+/**
  * Command execution router
  * Routes to the appropriate subcommand handler
  */
@@ -74,25 +91,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   const config = getConfig();
-  const subcommand = interaction.options.getSubcommand();
-
-  switch (subcommand) {
-    case 'db-sync':
-      await handleDbSync(interaction, config);
-      break;
-    case 'servers':
-      await handleServers(interaction);
-      break;
-    case 'kick':
-      await handleKick(interaction);
-      break;
-    case 'usage':
-      await handleUsage(interaction, config);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
-      });
-  }
+  const router = createAdminRouter(config);
+  await router(interaction);
 }

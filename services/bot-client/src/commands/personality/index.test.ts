@@ -16,6 +16,12 @@ vi.mock('@tzurot/common-types', async () => {
     getConfig: vi.fn(() => ({
       GATEWAY_URL: 'http://localhost:3000',
     })),
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
   };
 });
 
@@ -92,6 +98,7 @@ describe('personality command', () => {
       vi.clearAllMocks();
 
       mockInteraction = {
+        user: { id: 'test-user-id' },
         isModalSubmit: vi.fn().mockReturnValue(false),
         options: {
           getSubcommand: vi.fn(),

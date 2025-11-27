@@ -43,8 +43,10 @@ export {
   DISCORD_COLORS,
   DISCORD_MENTIONS,
   DISCORD_SNOWFLAKE,
+  DISCORD_PROVIDER_CHOICES,
   isValidDiscordId,
   filterValidDiscordIds,
+  type DiscordProviderChoice,
 } from './discord.js';
 
 // Error constants

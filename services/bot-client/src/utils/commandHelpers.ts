@@ -115,3 +115,67 @@ export function createWarningEmbed(title: string, description: string): EmbedBui
     .setDescription(description)
     .setTimestamp();
 }
+
+/**
+ * Handler function type for safe wrapper
+ */
+export type CommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = (
+  interaction: T
+) => Promise<void>;
+
+/**
+ * Options for createSafeHandler
+ */
+export interface SafeHandlerOptions {
+  /** Command name for logging (e.g., 'Wallet List') */
+  commandName: string;
+  /** Whether the handler defers the reply (default: true) */
+  defersReply?: boolean;
+}
+
+/**
+ * Wraps a command handler with consistent error handling.
+ *
+ * This is a higher-order function that:
+ * - Catches any errors thrown by the handler
+ * - Logs the error with context
+ * - Replies to the user with a friendly error message
+ * - Handles both deferred and non-deferred interactions
+ *
+ * @example
+ * ```typescript
+ * export const handleListKeys = createSafeHandler(
+ *   async (interaction) => {
+ *     await deferEphemeral(interaction);
+ *     // ... handler logic
+ *   },
+ *   { commandName: 'Wallet List' }
+ * );
+ * ```
+ */
+export function createSafeHandler<
+  T extends ChatInputCommandInteraction = ChatInputCommandInteraction,
+>(handler: CommandHandler<T>, options: SafeHandlerOptions): CommandHandler<T> {
+  const { commandName, defersReply = true } = options;
+
+  return async (interaction: T): Promise<void> => {
+    try {
+      await handler(interaction);
+    } catch (error) {
+      const userId = interaction.user.id;
+      logger.error({ err: error, userId, command: commandName }, `[${commandName}] Error`);
+
+      const errorMessage = '\u274c An error occurred. Please try again later.';
+
+      // Handle based on interaction state
+      if (interaction.replied || interaction.deferred) {
+        await interaction.editReply({ content: errorMessage });
+      } else if (defersReply) {
+        // Handler was supposed to defer but crashed before doing so
+        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      } else {
+        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      }
+    }
+  };
+}

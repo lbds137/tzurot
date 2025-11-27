@@ -24,7 +24,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 vi.mock('./timezone.js', () => ({
   handleTimezoneSet: vi.fn(),
   handleTimezoneGet: vi.fn(),
-  TIMEZONE_CHOICES: [{ name: 'UTC', value: 'UTC' }],
 }));
 
 import { handleTimezoneSet, handleTimezoneGet } from './timezone.js';
@@ -36,10 +35,11 @@ describe('Settings Command (timezone)', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(subcommand: string) {
+  function createMockInteraction(group: string | null, subcommand: string) {
     return {
       user: { id: '123456789' },
       options: {
+        getSubcommandGroup: () => group,
         getSubcommand: () => subcommand,
       },
       reply: mockReply,
@@ -47,7 +47,7 @@ describe('Settings Command (timezone)', () => {
   }
 
   it('should route "set" subcommand to handleTimezoneSet', async () => {
-    const interaction = createMockInteraction('set');
+    const interaction = createMockInteraction('timezone', 'set');
 
     await execute(interaction);
 
@@ -56,7 +56,7 @@ describe('Settings Command (timezone)', () => {
   });
 
   it('should route "get" subcommand to handleTimezoneGet', async () => {
-    const interaction = createMockInteraction('get');
+    const interaction = createMockInteraction('timezone', 'get');
 
     await execute(interaction);
 
@@ -64,8 +64,8 @@ describe('Settings Command (timezone)', () => {
     expect(handleTimezoneSet).not.toHaveBeenCalled();
   });
 
-  it('should reply with error for unknown subcommand', async () => {
-    const interaction = createMockInteraction('unknown');
+  it('should reply with error for unknown subcommand in timezone group', async () => {
+    const interaction = createMockInteraction('timezone', 'unknown');
 
     await execute(interaction);
 
@@ -73,6 +73,16 @@ describe('Settings Command (timezone)', () => {
       content: '❌ Unknown subcommand',
       flags: MessageFlags.Ephemeral,
     });
+    expect(handleTimezoneSet).not.toHaveBeenCalled();
+    expect(handleTimezoneGet).not.toHaveBeenCalled();
+  });
+
+  it('should log warning for unknown subcommand group', async () => {
+    const interaction = createMockInteraction('unknown-group', 'set');
+
+    await execute(interaction);
+
+    // Unknown group should not route to any handler
     expect(handleTimezoneSet).not.toHaveBeenCalled();
     expect(handleTimezoneGet).not.toHaveBeenCalled();
   });
