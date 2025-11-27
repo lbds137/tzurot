@@ -13,6 +13,7 @@ import { getPrismaClient } from '@tzurot/common-types';
 const migrations = [
   '20251107130153_convert_discord_message_id_to_array',
   '20251117153407_add_hnsw_index_to_memories',
+  '20251127015433_replace_birthday_with_int_fields',
 ];
 
 async function fixChecksums() {

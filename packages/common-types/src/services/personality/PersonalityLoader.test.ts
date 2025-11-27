@@ -15,7 +15,11 @@ describe('PersonalityLoader', () => {
     mockPrisma = {
       personality: {
         findFirst: vi.fn(),
+        findUnique: vi.fn(),
         findMany: vi.fn(),
+      },
+      personalityAlias: {
+        findFirst: vi.fn(),
       },
       llmConfig: {
         findFirst: vi.fn(),
@@ -139,8 +143,77 @@ describe('PersonalityLoader', () => {
 
     it('should return null when personality not found', async () => {
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
 
       const result = await loader.loadFromDatabase('nonexistent');
+
+      expect(result).toBeNull();
+    });
+
+    it('should load personality by alias when direct lookup fails', async () => {
+      const mockPersonality = {
+        id: 'test-id',
+        name: 'Lilith',
+        displayName: 'Lilith',
+        slug: 'lilith-tzel-shani',
+        systemPrompt: { content: 'Test prompt' },
+        defaultConfigLink: null,
+        characterInfo: 'Test character',
+        personalityTraits: 'Test traits',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+      };
+
+      // Direct lookup returns null
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      // Alias lookup finds a match
+      vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
+        id: 'alias-id',
+        alias: 'lilith',
+        personalityId: 'test-id',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any);
+      // Personality lookup by ID returns the personality
+      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue(mockPersonality as any);
+
+      const result = await loader.loadFromDatabase('lilith');
+
+      expect(result).not.toBeNull();
+      expect(result?.name).toBe('Lilith');
+      expect(result?.slug).toBe('lilith-tzel-shani');
+      expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledWith({
+        where: {
+          alias: { equals: 'lilith', mode: 'insensitive' },
+        },
+        select: { personalityId: true },
+      });
+      expect(vi.mocked(mockPrisma.personality.findUnique)).toHaveBeenCalledWith({
+        where: { id: 'test-id' },
+        include: expect.any(Object),
+      });
+    });
+
+    it('should return null when alias exists but personality is deleted', async () => {
+      // Direct lookup returns null
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      // Alias lookup finds a match
+      vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
+        id: 'alias-id',
+        alias: 'deleted-bot',
+        personalityId: 'deleted-id',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any);
+      // Personality lookup by ID returns null (deleted)
+      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue(null);
+
+      const result = await loader.loadFromDatabase('deleted-bot');
 
       expect(result).toBeNull();
     });

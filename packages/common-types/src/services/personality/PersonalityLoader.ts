@@ -43,8 +43,15 @@ export class PersonalityLoader {
   constructor(private prisma: PrismaClient) {}
 
   /**
-   * Load a personality by name, ID, or slug from database
-   * @param nameOrId - Personality name, UUID, or slug
+   * Load a personality by name, ID, slug, or alias from database
+   *
+   * Lookup order:
+   * 1. UUID (if input looks like a UUID)
+   * 2. Name (case-insensitive)
+   * 3. Slug (lowercase)
+   * 4. Alias (case-insensitive) - falls back to PersonalityAlias table
+   *
+   * @param nameOrId - Personality name, UUID, slug, or alias
    * @returns DatabasePersonality or null if not found
    */
   async loadFromDatabase(nameOrId: string): Promise<DatabasePersonality | null> {
@@ -52,6 +59,7 @@ export class PersonalityLoader {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
 
     try {
+      // Step 1: Try direct lookup by ID, name, or slug
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
           OR: [
@@ -63,12 +71,37 @@ export class PersonalityLoader {
         include: PERSONALITY_INCLUDE,
       });
 
-      if (!dbPersonality) {
-        logger.debug(`Personality not found: ${nameOrId}`);
-        return null;
+      if (dbPersonality) {
+        return dbPersonality as DatabasePersonality;
       }
 
-      return dbPersonality as DatabasePersonality;
+      // Step 2: If not found, check aliases (case-insensitive)
+      const aliasMatch = await this.prisma.personalityAlias.findFirst({
+        where: {
+          alias: { equals: nameOrId.toLowerCase(), mode: 'insensitive' },
+        },
+        select: { personalityId: true },
+      });
+
+      if (aliasMatch) {
+        logger.debug(
+          { alias: nameOrId, personalityId: aliasMatch.personalityId },
+          '[PersonalityLoader] Found personality via alias'
+        );
+
+        // Load the personality by its ID
+        const personalityByAlias = await this.prisma.personality.findUnique({
+          where: { id: aliasMatch.personalityId },
+          include: PERSONALITY_INCLUDE,
+        });
+
+        if (personalityByAlias) {
+          return personalityByAlias as DatabasePersonality;
+        }
+      }
+
+      logger.debug(`Personality not found: ${nameOrId}`);
+      return null;
     } catch (error) {
       logger.error({ err: error }, `Failed to load personality from database: ${nameOrId}`);
       return null;

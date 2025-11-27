@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: '2025-11-19'
+lastUpdated: '2025-11-26'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -128,6 +128,8 @@ model Memory {
   personalityId String
   channelId     String
   content       String
+  /// Vector embedding - managed outside Prisma (index created manually)
+  /// IMPORTANT: Prisma cannot manage vector indexes - see "pgvector Index Protection" section
   embedding     Unsupported("vector(1536)")?  // OpenAI embedding dimension
   metadata      Json?
   createdAt     DateTime @default(now())
@@ -136,23 +138,91 @@ model Memory {
   personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
   @@index([personalityId, channelId])
-  @@index([embedding(ops: VectorCosineOps)], type: Ivfflat)
+  // NOTE: Vector index CANNOT be declared here - Prisma doesn't support it
+  // See "pgvector Index Protection" section for the required workflow
   @@map("memories")
 }
 ```
 
-### Vector Index Creation
+### Vector Index (Managed Outside Prisma)
 
 ```sql
--- Migration: Add ivfflat index for fast similarity search
--- ivfflat: Inverted file with flat compression
--- lists: Number of clusters (rule of thumb: rows / 1000)
+-- This index is created via manual migration and MUST NOT BE DROPPED
+-- Prisma will try to drop it as "drift" - see "pgvector Index Protection" section
 
-CREATE INDEX memories_embedding_idx
+CREATE INDEX IF NOT EXISTS idx_memories_embedding
 ON memories
 USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);  -- Adjust based on data size
+WITH (lists = 50);  -- MUST be 50 for consistency between dev/prod
 ```
+
+## pgvector Index Protection
+
+### The Problem
+
+Prisma 7.0.0 does NOT natively support pgvector indexes. When you create a vector index manually:
+
+1. Prisma sees it in the database
+2. Prisma doesn't find it declared in the schema (because it CAN'T be declared)
+3. Prisma generates `DROP INDEX "idx_memories_embedding"` as "drift correction"
+4. **Your similarity search becomes 100x slower**
+
+### The Solution: `--create-only` Workflow
+
+**NEVER run `prisma migrate dev` directly.** Always use this workflow:
+
+```bash
+# 1. Generate migration without applying
+npx prisma migrate dev --create-only --name your_migration_name
+
+# 2. MANUALLY REVIEW the generated SQL file
+#    Look for: DROP INDEX "idx_memories_embedding"
+#    If found, DELETE those lines from the migration file
+
+# 3. Only then apply the migration
+npx prisma migrate deploy
+```
+
+### Safety Mechanisms
+
+**Pre-commit hook** (hooks/pre-commit):
+
+- Automatically checks staged migration files for `DROP INDEX.*idx_memories_embedding`
+- Blocks commits that would drop the vector index
+
+**Manual check script**:
+
+```bash
+pnpm check:migrations  # Scans all migrations for dangerous operations
+```
+
+### What If Prisma Already Dropped the Index?
+
+If you accidentally ran `prisma migrate dev` and the index was dropped:
+
+```sql
+-- Recreate the index (run via psql or migration)
+CREATE INDEX IF NOT EXISTS idx_memories_embedding
+ON memories USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 50);
+```
+
+### Why This Happens (Technical Details)
+
+Prisma's migration engine:
+
+- Diffs your schema against the database
+- Considers anything in DB not in schema as "drift"
+- Vector indexes CAN'T be declared in Prisma schema (Unsupported field limitation)
+- Result: Every migration tries to "fix" the drift by dropping the index
+
+There is **no way to make Prisma ignore the index**:
+
+- `@ignore` cannot be used on `Unsupported` fields
+- `@@index` doesn't support IVFFlat/HNSW types
+- `extensions = [vector]` doesn't help with index management
+
+The only solution is disciplined use of `--create-only` and manual review.
 
 ## Vector Operations
 
