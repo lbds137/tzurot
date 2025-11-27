@@ -10,7 +10,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { createLogger, AIProvider } from '@tzurot/common-types';
+import { createLogger, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 
 const logger = createLogger('wallet-set');
 
@@ -64,13 +64,13 @@ function getProviderInfo(provider: AIProvider): {
     case AIProvider.OpenRouter:
       return {
         displayName: 'OpenRouter',
-        placeholder: 'sk-or-v1-...',
+        placeholder: API_KEY_FORMATS.OPENROUTER_PLACEHOLDER,
         helpUrl: 'https://openrouter.ai/keys',
       };
     case AIProvider.OpenAI:
       return {
         displayName: 'OpenAI',
-        placeholder: 'sk-...',
+        placeholder: API_KEY_FORMATS.OPENAI_PLACEHOLDER,
         helpUrl: 'https://platform.openai.com/api-keys',
       };
     default:

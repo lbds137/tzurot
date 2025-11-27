@@ -46,6 +46,7 @@ model UsageLog {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([provider]) // For admin queries filtering by provider across all users
   @@index([userId, createdAt])
   @@index([userId, provider])
   @@map("usage_logs")

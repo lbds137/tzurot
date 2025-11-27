@@ -83,11 +83,38 @@ export interface KeyValidationResult {
  */
 export class KeyValidationService {
   /**
-   * Validate an API key for a specific provider
+   * Validate an API key for a specific provider.
    *
-   * @param apiKey - The API key to validate
+   * Makes a lightweight API call to the provider to verify the key is valid
+   * and has available quota/credits. This is a dry-run validation that
+   * doesn't consume significant resources.
+   *
+   * @param apiKey - The API key to validate (never logged)
    * @param provider - The AI provider (openrouter, openai, etc.)
-   * @returns Validation result with success/failure details
+   * @returns Validation result with success/failure details and optional metadata
+   *
+   * @throws Never throws - all errors are caught and returned in the result
+   *
+   * @example
+   * ```typescript
+   * const service = new KeyValidationService();
+   * const result = await service.validateKey('sk-or-v1-...', AIProvider.OpenRouter);
+   *
+   * if (result.valid) {
+   *   console.log('Key is valid, credits:', result.metadata?.creditBalance);
+   * } else {
+   *   console.error('Validation failed:', result.error?.message);
+   * }
+   * ```
+   *
+   * @remarks
+   * - OpenRouter: Uses /auth/key endpoint, returns credit balance
+   * - OpenAI: Uses /models endpoint (lightweight read-only call)
+   * - Unsupported providers: Returns valid=true (optimistic validation)
+   *
+   * @see {@link InvalidApiKeyError} - Thrown when key is rejected by provider
+   * @see {@link QuotaExceededError} - Thrown when credits/quota exhausted
+   * @see {@link ValidationTimeoutError} - Thrown when validation request times out
    */
   async validateKey(apiKey: string, provider: AIProvider): Promise<KeyValidationResult> {
     logger.info({ provider }, '[KeyValidationService] Validating API key');

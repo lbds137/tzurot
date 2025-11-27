@@ -192,6 +192,38 @@ app.use(
 );
 
 /**
+ * Validate BYOK (Bring Your Own Key) encryption configuration
+ * Logs clear warning if not configured, throws if key is invalid format
+ */
+function validateByokConfiguration(): void {
+  const encryptionKey = envConfig.API_KEY_ENCRYPTION_KEY;
+
+  if (encryptionKey === undefined || encryptionKey.length === 0) {
+    logger.warn(
+      { component: 'BYOK' },
+      '[Gateway] ⚠️  API_KEY_ENCRYPTION_KEY not configured - BYOK is DISABLED. ' +
+        'Users will NOT be able to store their own API keys. ' +
+        'All requests will use system API keys from environment variables. ' +
+        'To enable BYOK, set API_KEY_ENCRYPTION_KEY to a 64-character hex string (32 bytes).'
+    );
+    return;
+  }
+
+  // Validate key format
+  if (encryptionKey.length !== 64) {
+    throw new Error(
+      `Invalid API_KEY_ENCRYPTION_KEY: must be 64 hex characters (32 bytes), got ${encryptionKey.length} characters`
+    );
+  }
+
+  if (!/^[0-9a-fA-F]+$/.test(encryptionKey)) {
+    throw new Error('Invalid API_KEY_ENCRYPTION_KEY: must contain only hexadecimal characters');
+  }
+
+  logger.info('[Gateway] BYOK encryption key validated - user API key storage is ENABLED');
+}
+
+/**
  * Ensure avatar storage directory exists
  */
 async function ensureAvatarDirectory(): Promise<void> {
@@ -342,6 +374,9 @@ async function main(): Promise<void> {
     },
     '[Gateway] Configuration:'
   );
+
+  // Validate BYOK encryption key configuration (early, before processing requests)
+  validateByokConfiguration();
 
   // Ensure avatar storage directory exists
   await ensureAvatarDirectory();
