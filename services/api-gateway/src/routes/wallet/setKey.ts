@@ -12,7 +12,7 @@ import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  getConfig,
+  isBotOwner,
   AIProvider,
   encryptApiKey,
   WALLET_ERROR_MESSAGES,
@@ -30,14 +30,6 @@ const logger = createLogger('wallet-set-key');
 interface SetKeyRequest {
   provider: AIProvider;
   apiKey: string;
-}
-
-/**
- * Check if a Discord user is the bot owner
- */
-function isBotOwner(discordId: string): boolean {
-  const config = getConfig();
-  return config.BOT_OWNER_ID !== undefined && config.BOT_OWNER_ID === discordId;
 }
 
 /**
