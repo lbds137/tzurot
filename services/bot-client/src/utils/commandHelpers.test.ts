@@ -39,6 +39,7 @@ import {
   createInfoEmbed,
   createErrorEmbed,
   createWarningEmbed,
+  createSafeHandler,
 } from './commandHelpers.js';
 import { isGatewayConfigured } from './userGatewayClient.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
@@ -155,6 +156,77 @@ describe('commandHelpers', () => {
 
       expect(embed).toBeInstanceOf(EmbedBuilder);
       expect(embed.data.color).toBe(0xfee75c); // WARNING color
+    });
+  });
+
+  describe('createSafeHandler', () => {
+    it('should call handler normally when no error', async () => {
+      const mockHandler = vi.fn().mockResolvedValue(undefined);
+      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
+
+      await safeHandler(mockInteraction);
+
+      expect(mockHandler).toHaveBeenCalledWith(mockInteraction);
+    });
+
+    it('should catch errors and reply with error message when deferred', async () => {
+      const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
+      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
+
+      // Simulate deferred interaction
+      const deferredInteraction = {
+        ...mockInteraction,
+        deferred: true,
+        replied: false,
+        editReply: vi.fn(),
+        reply: vi.fn(),
+      } as unknown as ChatInputCommandInteraction;
+
+      await safeHandler(deferredInteraction);
+
+      expect(deferredInteraction.editReply).toHaveBeenCalledWith({
+        content: '\u274c An error occurred. Please try again later.',
+      });
+      expect(deferredInteraction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should catch errors and reply when not deferred', async () => {
+      const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
+      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
+
+      // Simulate non-deferred interaction
+      const freshInteraction = {
+        ...mockInteraction,
+        deferred: false,
+        replied: false,
+        editReply: vi.fn(),
+        reply: vi.fn(),
+      } as unknown as ChatInputCommandInteraction;
+
+      await safeHandler(freshInteraction);
+
+      expect(freshInteraction.reply).toHaveBeenCalledWith({
+        content: '\u274c An error occurred. Please try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should use editReply when already replied', async () => {
+      const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
+      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
+
+      const repliedInteraction = {
+        ...mockInteraction,
+        deferred: false,
+        replied: true,
+        editReply: vi.fn(),
+        reply: vi.fn(),
+      } as unknown as ChatInputCommandInteraction;
+
+      await safeHandler(repliedInteraction);
+
+      expect(repliedInteraction.editReply).toHaveBeenCalled();
+      expect(repliedInteraction.reply).not.toHaveBeenCalled();
     });
   });
 });

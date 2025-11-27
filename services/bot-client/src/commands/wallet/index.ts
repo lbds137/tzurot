@@ -9,9 +9,10 @@
  * - /wallet test <provider> - Test API key validity
  */
 
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, AIProvider } from '@tzurot/common-types';
+import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
+import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleSetKey } from './set.js';
 import { handleListKeys } from './list.js';
 import { handleRemoveKey } from './remove.js';
@@ -19,14 +20,6 @@ import { handleTestKey } from './test.js';
 import { handleWalletModalSubmit } from './modal.js';
 
 const logger = createLogger('wallet-command');
-
-/**
- * Provider choices for slash command options
- */
-const providerChoices = [
-  { name: 'OpenRouter (recommended)', value: AIProvider.OpenRouter },
-  { name: 'OpenAI', value: AIProvider.OpenAI },
-] as const;
 
 /**
  * Slash command definition
@@ -43,7 +36,7 @@ export const data = new SlashCommandBuilder()
           .setName('provider')
           .setDescription('AI provider to configure')
           .setRequired(true)
-          .addChoices(...providerChoices)
+          .addChoices(...DISCORD_PROVIDER_CHOICES)
       )
   )
   .addSubcommand(subcommand =>
@@ -58,7 +51,7 @@ export const data = new SlashCommandBuilder()
           .setName('provider')
           .setDescription('AI provider to remove')
           .setRequired(true)
-          .addChoices(...providerChoices)
+          .addChoices(...DISCORD_PROVIDER_CHOICES)
       )
   )
   .addSubcommand(subcommand =>
@@ -70,9 +63,22 @@ export const data = new SlashCommandBuilder()
           .setName('provider')
           .setDescription('AI provider to test')
           .setRequired(true)
-          .addChoices(...providerChoices)
+          .addChoices(...DISCORD_PROVIDER_CHOICES)
       )
   );
+
+/**
+ * Subcommand router for wallet commands
+ */
+const walletRouter = createSubcommandRouter(
+  {
+    set: handleSetKey,
+    list: handleListKeys,
+    remove: handleRemoveKey,
+    test: handleTestKey,
+  },
+  { logger, logPrefix: '[Wallet]' }
+);
 
 /**
  * Command execution router
@@ -81,32 +87,11 @@ export const data = new SlashCommandBuilder()
 export async function execute(
   interaction: ChatInputCommandInteraction | ModalSubmitInteraction
 ): Promise<void> {
-  // Handle modal submissions
+  // Handle modal submissions separately
   if (interaction.isModalSubmit()) {
     await handleWalletModalSubmit(interaction);
     return;
   }
 
-  const subcommand = interaction.options.getSubcommand();
-  logger.info({ subcommand, userId: interaction.user.id }, '[Wallet] Executing subcommand');
-
-  switch (subcommand) {
-    case 'set':
-      await handleSetKey(interaction);
-      break;
-    case 'list':
-      await handleListKeys(interaction);
-      break;
-    case 'remove':
-      await handleRemoveKey(interaction);
-      break;
-    case 'test':
-      await handleTestKey(interaction);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
-      });
-  }
+  await walletRouter(interaction);
 }

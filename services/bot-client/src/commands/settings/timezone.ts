@@ -1,18 +1,20 @@
 /**
  * Timezone Subcommand Handlers
- * Handles /timezone set and /timezone get
+ * Handles /settings timezone set and /settings timezone get
  */
 
-import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
+import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import {
+  deferEphemeral,
+  replyWithError,
+  handleCommandError,
+  createSuccessEmbed,
+  createInfoEmbed,
+} from '../../utils/commandHelpers.js';
 
 const logger = createLogger('timezone-command');
-
-// Re-export for command registration
-export const TIMEZONE_CHOICES = TIMEZONE_DISCORD_CHOICES;
 
 /**
  * Get the current time in a timezone
@@ -65,13 +67,13 @@ export async function handleTimezoneSet(interaction: ChatInputCommandInteraction
     const data = result.data;
 
     // Find the label for the timezone
-    const tzChoice = TIMEZONE_CHOICES.find(tz => tz.value === timezone);
+    const tzChoice = TIMEZONE_DISCORD_CHOICES.find(tz => tz.value === timezone);
     const displayName = tzChoice?.name ?? data.label ?? timezone;
 
-    const embed = new EmbedBuilder()
-      .setTitle('⏰ Timezone Updated')
-      .setColor(DISCORD_COLORS.SUCCESS)
-      .setDescription(`Your timezone has been set to **${displayName}**`)
+    const embed = createSuccessEmbed(
+      '⏰ Timezone Updated',
+      `Your timezone has been set to **${displayName}**`
+    )
       .addFields({
         name: 'Current Time',
         value: getCurrentTimeInTimezone(timezone),
@@ -108,17 +110,15 @@ export async function handleTimezoneGet(interaction: ChatInputCommandInteraction
     const data = result.data;
 
     // Find the label for the timezone
-    const tzChoice = TIMEZONE_CHOICES.find(tz => tz.value === data.timezone);
+    const tzChoice = TIMEZONE_DISCORD_CHOICES.find(tz => tz.value === data.timezone);
     const displayName = tzChoice?.name ?? data.timezone;
 
-    const embed = new EmbedBuilder()
-      .setTitle('⏰ Your Timezone')
-      .setColor(DISCORD_COLORS.BLURPLE)
-      .setDescription(
-        data.isDefault === true
-          ? `You're using the default timezone: **${displayName}**\n\nUse \`/timezone set\` to change it.`
-          : `Your timezone is set to: **${displayName}**`
-      )
+    const description =
+      data.isDefault === true
+        ? `You're using the default timezone: **${displayName}**\n\nUse \`/settings timezone set\` to change it.`
+        : `Your timezone is set to: **${displayName}**`;
+
+    const embed = createInfoEmbed('⏰ Your Timezone', description)
       .addFields({
         name: 'Current Time',
         value: getCurrentTimeInTimezone(data.timezone),
