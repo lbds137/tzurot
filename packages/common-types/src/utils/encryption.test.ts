@@ -11,7 +11,7 @@ describe('Encryption Utilities', () => {
   const TEST_API_KEY = 'sk-test-1234567890abcdefghijklmnopqrstuvwxyz';
 
   beforeEach(() => {
-    vi.stubEnv('APP_MASTER_KEY', VALID_MASTER_KEY);
+    vi.stubEnv('API_KEY_ENCRYPTION_KEY', VALID_MASTER_KEY);
   });
 
   afterEach(() => {
@@ -64,31 +64,35 @@ describe('Encryption Utilities', () => {
       expect(encrypted.content.length).toBeGreaterThan(0);
     });
 
-    it('should throw if APP_MASTER_KEY is missing', () => {
-      vi.stubEnv('APP_MASTER_KEY', '');
+    it('should throw if API_KEY_ENCRYPTION_KEY is missing', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', '');
 
       expect(() => encryptApiKey(TEST_API_KEY)).toThrow(
-        'APP_MASTER_KEY environment variable is required'
+        'API_KEY_ENCRYPTION_KEY environment variable is required'
       );
     });
 
-    it('should throw if APP_MASTER_KEY is too short', () => {
-      vi.stubEnv('APP_MASTER_KEY', 'a'.repeat(32)); // 16 bytes, need 32
-
-      expect(() => encryptApiKey(TEST_API_KEY)).toThrow('APP_MASTER_KEY must be 64 hex characters');
-    });
-
-    it('should throw if APP_MASTER_KEY is too long', () => {
-      vi.stubEnv('APP_MASTER_KEY', 'a'.repeat(128));
-
-      expect(() => encryptApiKey(TEST_API_KEY)).toThrow('APP_MASTER_KEY must be 64 hex characters');
-    });
-
-    it('should throw if APP_MASTER_KEY contains non-hex characters', () => {
-      vi.stubEnv('APP_MASTER_KEY', 'g'.repeat(64)); // 'g' is not hex
+    it('should throw if API_KEY_ENCRYPTION_KEY is too short', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'a'.repeat(32)); // 16 bytes, need 32
 
       expect(() => encryptApiKey(TEST_API_KEY)).toThrow(
-        'APP_MASTER_KEY must contain only hexadecimal characters'
+        'API_KEY_ENCRYPTION_KEY must be 64 hex characters'
+      );
+    });
+
+    it('should throw if API_KEY_ENCRYPTION_KEY is too long', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'a'.repeat(128));
+
+      expect(() => encryptApiKey(TEST_API_KEY)).toThrow(
+        'API_KEY_ENCRYPTION_KEY must be 64 hex characters'
+      );
+    });
+
+    it('should throw if API_KEY_ENCRYPTION_KEY contains non-hex characters', () => {
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'g'.repeat(64)); // 'g' is not hex
+
+      expect(() => encryptApiKey(TEST_API_KEY)).toThrow(
+        'API_KEY_ENCRYPTION_KEY must contain only hexadecimal characters'
       );
     });
   });
@@ -172,7 +176,7 @@ describe('Encryption Utilities', () => {
       const encrypted = encryptApiKey(TEST_API_KEY);
 
       // Change to different key
-      vi.stubEnv('APP_MASTER_KEY', 'b'.repeat(64));
+      vi.stubEnv('API_KEY_ENCRYPTION_KEY', 'b'.repeat(64));
 
       expect(() => decryptApiKey(encrypted)).toThrow();
     });

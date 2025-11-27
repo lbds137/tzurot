@@ -47,6 +47,7 @@ model UsageLog {
   @@index([userId])
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([userId, provider])
   @@map("usage_logs")
 }
 

@@ -255,9 +255,9 @@ export class AIJobProcessor {
     }
 
     try {
-      // Determine provider from model name (default to openrouter)
+      // Use provider from API key resolution (reliable) or fallback to openrouter
       const modelUsed = result.metadata?.modelUsed ?? personality.model;
-      const provider = modelUsed.includes('gemini') ? 'gemini' : 'openrouter';
+      const provider = result.metadata?.providerUsed ?? 'openrouter';
 
       // Get input/output tokens from LLM response metadata
       const tokensIn = result.metadata?.tokensIn ?? 0;

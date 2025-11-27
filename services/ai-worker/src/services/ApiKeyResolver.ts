@@ -64,7 +64,7 @@ export class ApiKeyResolver {
   constructor(prisma: PrismaClient, encryptionKey?: string, options?: { cacheTtlMs?: number }) {
     this.prisma = prisma;
     this.encryptionKey = encryptionKey ?? config.API_KEY_ENCRYPTION_KEY ?? '';
-    this.cacheTtlMs = options?.cacheTtlMs ?? 60 * 1000; // 60 seconds default
+    this.cacheTtlMs = options?.cacheTtlMs ?? 5 * 1000; // 5 seconds - short TTL to ensure key updates propagate quickly
 
     if (this.encryptionKey.length === 0) {
       logger.warn(
