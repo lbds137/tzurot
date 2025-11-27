@@ -3,7 +3,7 @@
  * GET /user/usage - Get token usage statistics
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -15,6 +15,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-usage');
 
@@ -59,8 +60,8 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
   router.get(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const discordUserId = (req as Request & { userId: string }).userId;
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
       const period = (req.query.period as UsagePeriod) ?? 'month';
 
       // Validate period

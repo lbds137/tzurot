@@ -5,7 +5,7 @@
  * Validates the stored API key by making a dry-run API call
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger, AIProvider, decryptApiKey, type PrismaClient } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
@@ -13,6 +13,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { validateApiKey } from '../../utils/apiKeyValidation.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-test-key');
 
@@ -26,9 +27,9 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
   router.post(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const { provider } = req.body as TestKeyRequest;
-      const discordUserId = (req as Request & { userId: string }).userId;
+      const discordUserId = req.userId;
 
       // Validate provider
       if (

@@ -8,13 +8,14 @@
  * - DELETE /user/llm-config/:id - Delete user config
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger, type PrismaClient, type LlmConfigSummary } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-llm-config');
 
@@ -41,8 +42,8 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
   router.get(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const discordUserId = (req as Request & { userId: string }).userId;
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
 
       // Get user ID
       const user = await prisma.user.findFirst({
@@ -107,8 +108,8 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
   router.post(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const discordUserId = (req as Request & { userId: string }).userId;
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
       const body = req.body as CreateConfigBody;
 
       // Validate required fields
@@ -205,8 +206,8 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
   router.delete(
     '/:id',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const discordUserId = (req as Request & { userId: string }).userId;
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
       const configId = req.params.id;
 
       // Get user ID

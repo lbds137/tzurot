@@ -27,6 +27,21 @@ const optionalDiscordId = () =>
     .or(z.literal('').transform(() => undefined));
 
 /**
+ * Helper for optional hex encryption key (must be exactly 64 hex chars = 32 bytes if provided)
+ * @returns Zod schema for optional encryption key
+ */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+const optionalEncryptionKey = () =>
+  z
+    .string()
+    .regex(
+      /^[0-9a-fA-F]{64}$/,
+      'Must be exactly 64 hexadecimal characters (32 bytes for AES-256). Generate with: openssl rand -hex 32'
+    )
+    .optional()
+    .or(z.literal('').transform(() => undefined));
+
+/**
  * Environment variable validation schema
  * Validates all required configuration at startup
  */
@@ -114,7 +129,7 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
   // BYOK (Bring Your Own Key) Configuration
-  API_KEY_ENCRYPTION_KEY: optionalNonEmptyString(), // 32-byte hex key for AES-256-GCM encryption
+  API_KEY_ENCRYPTION_KEY: optionalEncryptionKey(), // 32-byte hex key for AES-256-GCM encryption
 
   // Optional Services
   ELEVENLABS_API_KEY: optionalNonEmptyString(),

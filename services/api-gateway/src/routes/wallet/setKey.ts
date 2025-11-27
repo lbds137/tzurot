@@ -8,7 +8,7 @@
  * - Never logs or returns the actual key
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -24,6 +24,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { validateApiKey } from '../../utils/apiKeyValidation.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-set-key');
 
@@ -70,9 +71,9 @@ export function createSetKeyRoute(
   router.post(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const { provider, apiKey } = req.body as SetKeyRequest;
-      const discordUserId = (req as Request & { userId: string }).userId;
+      const discordUserId = req.userId;
 
       // Validate required fields
       if (

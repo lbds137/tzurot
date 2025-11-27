@@ -11,8 +11,9 @@ export const WALLET_ERROR_MESSAGES = {
   /** Missing required fields in set key request */
   MISSING_FIELDS: 'provider and apiKey are required',
 
-  /** Invalid provider specified */
-  INVALID_PROVIDER: (provider: string) => `Invalid provider: ${provider}`,
+  /** Invalid provider specified - shows valid options */
+  INVALID_PROVIDER: (provider: string) =>
+    `Invalid provider: ${provider}. Supported providers: openrouter, openai`,
 
   /** Generic invalid API key message */
   INVALID_API_KEY: 'Invalid API key',
