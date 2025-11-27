@@ -158,7 +158,9 @@ export const data = new SlashCommandBuilder()
 /**
  * Create personality router with config dependency
  */
-function createPersonalityRouter(config: EnvConfig): (interaction: ChatInputCommandInteraction) => Promise<void> {
+function createPersonalityRouter(
+  config: EnvConfig
+): (interaction: ChatInputCommandInteraction) => Promise<void> {
   return createSubcommandRouter(
     {
       create: interaction => handleCreate(interaction, config),

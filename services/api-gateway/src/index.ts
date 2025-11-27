@@ -21,6 +21,7 @@ import {
   getPrismaClient,
   PersonalityService,
   CacheInvalidationService,
+  ApiKeyCacheInvalidationService,
   CONTENT_TYPES,
   CACHE_CONTROL,
   HealthStatus,
@@ -95,20 +96,14 @@ const attachmentStorage = new AttachmentStorageService({
   gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
 });
 
-// Create AI router (admin router created in main() after cache invalidation service)
+// Create AI router (admin and wallet routers created in main() after cache invalidation service)
 const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
-
-// Create wallet router for BYOK API key management
-const walletRouter = createWalletRouter(prisma);
 
 // Create user router for user settings (timezone, preferences)
 const userRouter = createUserRouter(prisma);
 
-// Register AI routes (admin routes registered in main())
+// Register AI routes (admin and wallet routes registered in main())
 app.use('/ai', aiRouter);
-
-// Register wallet routes for BYOK
-app.use('/wallet', walletRouter);
 
 // Register user routes for settings
 app.use('/user', userRouter);
@@ -402,9 +397,18 @@ async function main(): Promise<void> {
   const personalityService = new PersonalityService(prisma);
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
 
-  // Subscribe to cache invalidation events
+  // Subscribe to personality cache invalidation events
   await cacheInvalidationService.subscribe();
   logger.info('[Gateway] Subscribed to personality cache invalidation events');
+
+  // Create API key cache invalidation service (publish-only in api-gateway)
+  const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
+  logger.info('[Gateway] API key cache invalidation service initialized');
+
+  // Create and register wallet routes with cache invalidation support
+  const walletRouter = createWalletRouter(prisma, apiKeyCacheInvalidation);
+  app.use('/wallet', walletRouter);
+  logger.info('[Gateway] Wallet routes registered with cache invalidation support');
 
   // Start listening for database NOTIFY events (PostgreSQL triggers)
   // This automatically invalidates cache when database changes occur
