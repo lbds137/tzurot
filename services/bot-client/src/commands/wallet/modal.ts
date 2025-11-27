@@ -17,6 +17,7 @@ import {
   CONTENT_TYPES,
   DISCORD_COLORS,
   AIProvider,
+  API_KEY_FORMATS,
 } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../utils/providers.js';
 
@@ -93,36 +94,19 @@ async function handleSetKeySubmit(
     });
 
     if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      const errorMessage = errorData.error ?? `HTTP ${response.status}`;
+      const errorData = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
 
       logger.error(
-        { status: response.status, provider, userId: interaction.user.id },
+        { status: response.status, provider, userId: interaction.user.id, error: errorData.error },
         '[Wallet Modal] Failed to store API key'
       );
 
-      // Handle specific error cases
-      if (response.status === 401) {
-        await interaction.editReply(
-          '❌ **Invalid API Key**\n\n' +
-            'The API key you provided is not valid. Please check:\n' +
-            '• The key is copied correctly (no extra spaces)\n' +
-            '• The key has not expired or been revoked\n' +
-            `• You're using a key for ${getProviderDisplayName(provider)}`
-        );
-        return;
-      }
-
-      if (response.status === 402) {
-        await interaction.editReply(
-          '❌ **Insufficient Credits**\n\n' +
-            'Your API key is valid but has insufficient credits.\n' +
-            'Please add funds to your account and try again.'
-        );
-        return;
-      }
-
-      await interaction.editReply(`❌ Failed to save API key: ${errorMessage}`);
+      // Handle specific error cases with user-friendly messages
+      const friendlyMessage = getErrorMessage(response.status, errorData, provider);
+      await interaction.editReply(friendlyMessage);
       return;
     }
 
@@ -165,16 +149,87 @@ async function handleSetKeySubmit(
 }
 
 /**
+ * Get user-friendly error message for HTTP status codes
+ */
+function getErrorMessage(
+  status: number,
+  errorData: { error?: string; message?: string },
+  provider: AIProvider
+): string {
+  const providerName = getProviderDisplayName(provider);
+
+  switch (status) {
+    case 400:
+      // Validation error
+      return (
+        '❌ **Validation Error**\n\n' +
+        (errorData.message ?? 'The request was invalid.') +
+        '\n\nPlease check your API key and try again.'
+      );
+
+    case 401:
+    case 403:
+      // Invalid/unauthorized key
+      return (
+        '❌ **Invalid API Key**\n\n' +
+        'The API key you provided is not valid. Please check:\n' +
+        '• The key is copied correctly (no extra spaces)\n' +
+        '• The key has not expired or been revoked\n' +
+        `• You're using a key for ${providerName}`
+      );
+
+    case 402:
+      // Insufficient credits
+      return (
+        '❌ **Insufficient Credits**\n\n' +
+        'Your API key is valid but has insufficient credits.\n' +
+        'Please add funds to your account and try again.'
+      );
+
+    case 429:
+      // Rate limited
+      return (
+        '⏳ **Too Many Requests**\n\n' +
+        'You have made too many API key operations recently.\n' +
+        'Please wait a few minutes and try again.'
+      );
+
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      // Server errors
+      return (
+        '❌ **Server Error**\n\n' +
+        'The server encountered an error while processing your request.\n' +
+        'This is usually temporary. Please try again in a few minutes.\n\n' +
+        'If the problem persists, contact support.'
+      );
+
+    default:
+      // Unknown error - still provide friendly message
+      return (
+        '❌ **Unable to Save API Key**\n\n' +
+        'An unexpected error occurred while saving your API key.\n' +
+        (errorData.message !== undefined && errorData.message.length > 0
+          ? `Details: ${errorData.message}\n\n`
+          : '') +
+        'Please try again later or contact support if the issue persists.'
+      );
+  }
+}
+
+/**
  * Validate API key format based on provider
  */
 function validateKeyFormat(apiKey: string, provider: AIProvider): string | null {
   switch (provider) {
     case AIProvider.OpenRouter:
       // OpenRouter keys start with 'sk-or-' or 'sk-or-v1-'
-      if (!apiKey.startsWith('sk-or-')) {
+      if (!apiKey.startsWith(API_KEY_FORMATS.OPENROUTER_PREFIX)) {
         return (
           '❌ **Invalid OpenRouter Key Format**\n\n' +
-          'OpenRouter API keys should start with `sk-or-`.\n' +
+          `OpenRouter API keys should start with \`${API_KEY_FORMATS.OPENROUTER_PREFIX}\`.\n` +
           'Get your key at: https://openrouter.ai/keys'
         );
       }
@@ -182,18 +237,18 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
 
     case AIProvider.OpenAI:
       // OpenAI keys start with 'sk-'
-      if (!apiKey.startsWith('sk-')) {
+      if (!apiKey.startsWith(API_KEY_FORMATS.OPENAI_PREFIX)) {
         return (
           '❌ **Invalid OpenAI Key Format**\n\n' +
-          'OpenAI API keys should start with `sk-`.\n' +
+          `OpenAI API keys should start with \`${API_KEY_FORMATS.OPENAI_PREFIX}\`.\n` +
           'Get your key at: https://platform.openai.com/api-keys'
         );
       }
       // But shouldn't be OpenRouter keys
-      if (apiKey.startsWith('sk-or-')) {
+      if (apiKey.startsWith(API_KEY_FORMATS.OPENROUTER_PREFIX)) {
         return (
           '❌ **Wrong Provider**\n\n' +
-          'This looks like an OpenRouter key (starts with `sk-or-`).\n' +
+          `This looks like an OpenRouter key (starts with \`${API_KEY_FORMATS.OPENROUTER_PREFIX}\`).\n` +
           'Use `/wallet set provider:OpenRouter` instead.'
         );
       }

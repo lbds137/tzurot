@@ -87,7 +87,7 @@ describe('handleSetKey', () => {
     const modal = mockShowModal.mock.calls[0][0];
     const textInput = modal.components[0].components[0];
 
-    expect(textInput.data.placeholder).toBe('sk-or-v1-...');
+    expect(textInput.data.placeholder).toBe('sk-or-v1-xxxx...');
   });
 
   it('should use provider-specific placeholder for OpenAI', async () => {
@@ -97,7 +97,7 @@ describe('handleSetKey', () => {
     const modal = mockShowModal.mock.calls[0][0];
     const textInput = modal.components[0].components[0];
 
-    expect(textInput.data.placeholder).toBe('sk-...');
+    expect(textInput.data.placeholder).toBe('sk-xxxx...');
   });
 
   it('should handle unknown provider gracefully', async () => {

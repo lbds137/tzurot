@@ -198,9 +198,7 @@ describe('handleWalletModalSubmit', () => {
       const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-valid-key');
       await handleWalletModalSubmit(interaction);
 
-      expect(mockEditReply).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to save API key: Internal error')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Server Error'));
     });
 
     it('should handle network errors', async () => {

@@ -637,10 +637,7 @@ describe('LLMInvoker', () => {
       it('should handle multimodal array content in reasoning model response', async () => {
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({
-            content: [
-              { text: '<thinking>Analyzing...</thinking>' },
-              { text: 'The answer is 42.' },
-            ],
+            content: [{ text: '<thinking>Analyzing...</thinking>' }, { text: 'The answer is 42.' }],
             additional_kwargs: {},
           }),
         } as any as BaseChatModel;

@@ -1,13 +1,25 @@
 /**
  * Tests for POST /wallet/set route
  *
- * These tests verify the route factory creates a properly configured router.
- * The actual handler logic is tested via integration tests or by testing
- * the underlying service functions.
+ * Comprehensive tests for API key storage including validation,
+ * encryption, and error handling.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Request, Response } from 'express';
 import { AIProvider } from '@tzurot/common-types';
+
+// Mock apiKeyValidation module
+vi.mock('../../utils/apiKeyValidation.js', () => ({
+  validateApiKey: vi.fn(),
+}));
+
+// Import after mock setup to get the mocked version
+import { validateApiKey } from '../../utils/apiKeyValidation.js';
+const mockValidateApiKey = vi.mocked(validateApiKey);
+
+// Mock config for bot owner testing
+let mockBotOwnerId: string | undefined = undefined;
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -19,6 +31,9 @@ vi.mock('@tzurot/common-types', async () => {
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
+    }),
+    getConfig: () => ({
+      BOT_OWNER_ID: mockBotOwnerId,
     }),
     encryptApiKey: vi.fn().mockReturnValue({
       iv: 'mock-iv-12345678901234567890123456789012',
@@ -39,20 +54,52 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock Prisma
 const mockPrisma = {
   user: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
+    upsert: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   userApiKey: {
-    upsert: vi.fn(),
+    upsert: vi.fn().mockResolvedValue({ id: 'key-uuid-123' }),
   },
 };
 
 import { createSetKeyRoute } from './setKey.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
+// Helper to create mock request/response
+function createMockReqRes(body: Record<string, unknown> = {}) {
+  const req = {
+    body,
+    userId: 'discord-user-123',
+  } as unknown as Request & { userId: string };
+
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+  } as unknown as Response;
+
+  return { req, res };
+}
+
+// Helper to call the route handler directly
+async function callHandler(
+  prisma: unknown,
+  req: Request & { userId: string },
+  res: Response
+): Promise<void> {
+  const router = createSetKeyRoute(prisma as PrismaClient);
+  // Get the handler from the router stack
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const layer = (router.stack as any[]).find(l => l.route?.methods?.post);
+  const handler = (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
+    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
+  ].handle;
+  await handler(req, res);
+}
+
 describe('POST /wallet/set', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockValidateApiKey.mockResolvedValue({ valid: true, credits: 100 });
+    mockBotOwnerId = undefined; // Reset bot owner for each test
   });
 
   describe('route factory', () => {
@@ -78,15 +125,302 @@ describe('POST /wallet/set', () => {
     });
   });
 
+  describe('validation', () => {
+    it('should reject request with missing provider', async () => {
+      const { req, res } = createMockReqRes({ apiKey: 'test-key' });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+        })
+      );
+    });
+
+    it('should reject request with missing apiKey', async () => {
+      const { req, res } = createMockReqRes({ provider: 'openrouter' });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+        })
+      );
+    });
+
+    it('should reject request with empty apiKey', async () => {
+      const { req, res } = createMockReqRes({ provider: 'openrouter', apiKey: '' });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should reject invalid provider', async () => {
+      const { req, res } = createMockReqRes({ provider: 'invalid-provider', apiKey: 'test-key' });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Invalid provider'),
+        })
+      );
+    });
+  });
+
+  describe('API key validation', () => {
+    it('should validate API key with provider', async () => {
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockValidateApiKey).toHaveBeenCalledWith('sk-valid-key', AIProvider.OpenRouter);
+    });
+
+    it('should return 403 for invalid API key', async () => {
+      mockValidateApiKey.mockResolvedValue({
+        valid: false,
+        errorCode: 'INVALID_KEY',
+        error: 'Invalid API key',
+      });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-invalid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'UNAUTHORIZED',
+        })
+      );
+    });
+
+    it('should return 402 for quota exceeded', async () => {
+      mockValidateApiKey.mockResolvedValue({
+        valid: false,
+        errorCode: 'QUOTA_EXCEEDED',
+        error: 'Insufficient credits',
+      });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-no-credits',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(402);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'PAYMENT_REQUIRED',
+        })
+      );
+    });
+
+    it('should return 400 for other validation errors', async () => {
+      mockValidateApiKey.mockResolvedValue({
+        valid: false,
+        errorCode: 'UNKNOWN',
+        error: 'Could not reach provider',
+      });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-test-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('successful key storage', () => {
+    it('should create user if not exists via upsert', async () => {
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { discordId: 'discord-user-123' },
+          update: {},
+          create: expect.objectContaining({
+            discordId: 'discord-user-123',
+          }),
+        })
+      );
+    });
+
+    it('should encrypt and store API key', async () => {
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.userApiKey.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId_provider: {
+              userId: 'user-uuid-123',
+              provider: AIProvider.OpenRouter,
+            },
+          },
+          create: expect.objectContaining({
+            provider: AIProvider.OpenRouter,
+            iv: expect.any(String),
+            content: expect.any(String),
+            tag: expect.any(String),
+          }),
+        })
+      );
+    });
+
+    it('should return success with credits', async () => {
+      mockValidateApiKey.mockResolvedValue({ valid: true, credits: 50.25 });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          provider: AIProvider.OpenRouter,
+          credits: 50.25,
+        })
+      );
+    });
+
+    it('should return success without credits when not provided', async () => {
+      mockValidateApiKey.mockResolvedValue({ valid: true });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenAI,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          provider: AIProvider.OpenAI,
+          credits: undefined,
+        })
+      );
+    });
+  });
+
   describe('provider validation', () => {
     it('should support OpenRouter provider', () => {
-      // Verify the AIProvider enum includes OpenRouter
       expect(AIProvider.OpenRouter).toBe('openrouter');
     });
 
     it('should support OpenAI provider', () => {
-      // Verify the AIProvider enum includes OpenAI
       expect(AIProvider.OpenAI).toBe('openai');
+    });
+  });
+
+  describe('bot owner auto-promotion', () => {
+    it('should create regular user with isSuperuser=false when not bot owner', async () => {
+      mockBotOwnerId = 'different-owner-id';
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            discordId: 'discord-user-123',
+            isSuperuser: false,
+          }),
+        })
+      );
+    });
+
+    it('should auto-promote bot owner to superuser on user creation', async () => {
+      mockBotOwnerId = 'discord-user-123'; // Match the test user
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            discordId: 'discord-user-123',
+            isSuperuser: true,
+          }),
+        })
+      );
+    });
+
+    it('should not demote existing superusers on update', async () => {
+      mockBotOwnerId = 'different-owner-id';
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      // Update should be empty (no-op) - doesn't change isSuperuser
+      expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {},
+        })
+      );
+    });
+
+    it('should handle undefined BOT_OWNER_ID gracefully', async () => {
+      mockBotOwnerId = undefined;
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(mockPrisma.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            isSuperuser: false,
+          }),
+        })
+      );
     });
   });
 });
