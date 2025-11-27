@@ -7,8 +7,18 @@ import type { PrismaClient } from './prisma.js';
 import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
+import { getConfig } from '../config/index.js';
 
 const logger = createLogger('UserService');
+
+/**
+ * Check if a Discord ID matches the configured bot owner
+ * Used to auto-promote the bot owner to superuser on first interaction
+ */
+function isBotOwner(discordId: string): boolean {
+  const config = getConfig();
+  return config.BOT_OWNER_ID !== undefined && config.BOT_OWNER_ID === discordId;
+}
 
 export class UserService {
   private userCache: Map<string, string>; // discordId -> userId (UUID)
@@ -56,15 +66,27 @@ export class UserService {
         try {
           await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // Create user
-            logger.debug({ userId, discordId, username }, '[UserService] Creating user record');
+            // Auto-promote bot owner to superuser on first interaction
+            const shouldBeSuperuser = isBotOwner(discordId);
+            logger.debug(
+              { userId, discordId, username, isSuperuser: shouldBeSuperuser },
+              '[UserService] Creating user record'
+            );
             try {
               await tx.user.create({
                 data: {
                   id: userId,
                   discordId,
                   username,
+                  isSuperuser: shouldBeSuperuser,
                 },
               });
+              if (shouldBeSuperuser) {
+                logger.info(
+                  { userId, discordId, username },
+                  '[UserService] Bot owner auto-promoted to superuser'
+                );
+              }
               logger.debug({ userId }, '[UserService] User record created successfully');
             } catch (userError) {
               logger.error(
