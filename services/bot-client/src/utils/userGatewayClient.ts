@@ -3,7 +3,7 @@
  * Centralized API client for communicating with the API Gateway
  *
  * Provides:
- * - Consistent authentication (Authorization: Bearer)
+ * - Consistent authentication (X-User-Id header)
  * - Standardized error handling
  * - Gateway URL validation
  */
@@ -92,7 +92,7 @@ export async function callGatewayApi<T>(
     const gatewayUrl = getGatewayUrl();
 
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${userId}`,
+      'X-User-Id': userId,
     };
 
     if (body !== undefined) {

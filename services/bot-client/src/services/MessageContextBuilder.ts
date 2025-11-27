@@ -85,21 +85,26 @@ export class MessageContextBuilder {
     const displayName =
       message.member?.displayName ?? message.author.globalName ?? message.author.username;
 
-    const userId = await this.userService.getOrCreateUser(
+    // Get internal user ID for database operations (persona, history queries)
+    const internalUserId = await this.userService.getOrCreateUser(
       message.author.id,
       message.author.username,
       displayName
     );
 
+    // Discord ID is used for API context (BYOK resolution, etc.)
+    const discordUserId = message.author.id;
+
     // Get persona for this user + personality combination
-    const personaId = await this.userService.getPersonaForUser(userId, personality.id);
+    const personaId = await this.userService.getPersonaForUser(internalUserId, personality.id);
     const personaName = await this.userService.getPersonaName(personaId);
 
     logger.debug(
       {
         personaId,
         personaName,
-        userId,
+        internalUserId,
+        discordUserId,
         personalityId: personality.id,
       },
       '[MessageContextBuilder] User persona lookup complete'
@@ -240,8 +245,9 @@ export class MessageContextBuilder {
     const environment = extractDiscordEnvironment(message);
 
     // Build complete context
+    // Note: userId is the Discord ID (for BYOK resolution), not the internal UUID
     const context: MessageContext = {
-      userId,
+      userId: discordUserId,
       userName: message.author.username,
       channelId: message.channel.id,
       serverId: message.guild?.id,
@@ -268,7 +274,7 @@ export class MessageContextBuilder {
 
     return {
       context,
-      userId,
+      userId: internalUserId, // Internal UUID for database operations
       personaId,
       personaName,
       messageContent,

@@ -140,7 +140,7 @@ describe('userGatewayClient', () => {
         expect.objectContaining({
           method: 'GET',
           headers: {
-            Authorization: 'Bearer user-123',
+            'X-User-Id': 'user-123',
           },
         })
       );
@@ -163,7 +163,7 @@ describe('userGatewayClient', () => {
         expect.objectContaining({
           method: 'POST',
           headers: {
-            Authorization: 'Bearer user-123',
+            'X-User-Id': 'user-123',
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ key: 'value' }),
