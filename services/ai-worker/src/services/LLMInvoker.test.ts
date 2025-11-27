@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker } from './LLMInvoker.js';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { TIMEOUTS } from '@tzurot/common-types';
 
@@ -560,6 +560,157 @@ describe('LLMInvoker', () => {
 
       expect(result.content).toBe('The file has a .ext extension');
       expect(mockModel.invoke).toHaveBeenCalledTimes(1); // No retry needed
+    });
+
+    describe('reasoning model support', () => {
+      it('should detect and log reasoning model type for o1 models', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({ content: 'Reasoning response' }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry(mockModel, messages, 'openai/o1-preview');
+
+        expect(result.content).toBe('Reasoning response');
+        expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('should detect and log reasoning model type for Claude thinking models', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({ content: 'Claude thinking response' }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry(
+          mockModel,
+          messages,
+          'anthropic/claude-3-7-sonnet:thinking'
+        );
+
+        expect(result.content).toBe('Claude thinking response');
+        expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('should strip thinking tags from response content', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: '<thinking>Let me think about this...</thinking>Here is my answer.',
+            additional_kwargs: {},
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        // Use a model name that enables thinking tag stripping
+        const result = await invoker.invokeWithRetry(
+          mockModel,
+          messages,
+          'anthropic/claude-3-7-sonnet:thinking'
+        );
+
+        expect(result.content).toBe('Here is my answer.');
+      });
+
+      it('should preserve response if no thinking tags present', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Just a normal response',
+            additional_kwargs: { key: 'value' },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry(
+          mockModel,
+          messages,
+          'anthropic/claude-3-7-sonnet:thinking'
+        );
+
+        expect(result.content).toBe('Just a normal response');
+        // Should return original response, not create new AIMessage
+        expect(result.additional_kwargs).toEqual({ key: 'value' });
+      });
+
+      it('should handle multimodal array content in reasoning model response', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: [
+              { text: '<thinking>Analyzing...</thinking>' },
+              { text: 'The answer is 42.' },
+            ],
+            additional_kwargs: {},
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('What is 6*7?')];
+
+        const result = await invoker.invokeWithRetry(
+          mockModel,
+          messages,
+          'anthropic/claude-3-7-sonnet:thinking'
+        );
+
+        // Should strip thinking tags from combined content
+        expect(result.content).toBe('The answer is 42.');
+      });
+
+      it('should handle array content blocks with non-text elements', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: [{ type: 'image', data: 'base64...' }, { text: 'Image description' }],
+            additional_kwargs: {},
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Describe this')];
+
+        // Use standard model - no thinking tag stripping
+        const result = await invoker.invokeWithRetry(mockModel, messages, 'openai/gpt-4');
+
+        // Should pass through unchanged for standard models
+        expect(result.content).toEqual([
+          { type: 'image', data: 'base64...' },
+          { text: 'Image description' },
+        ]);
+      });
+
+      it('should not strip thinking tags for standard (non-reasoning) models', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: '<thinking>This is valid content</thinking>',
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry(mockModel, messages, 'openai/gpt-4');
+
+        // Standard models should preserve thinking tags
+        expect(result.content).toBe('<thinking>This is valid content</thinking>');
+      });
+
+      it('should handle Gemini thinking models', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: '<thinking>Working on it</thinking>The result is here.',
+            additional_kwargs: {},
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        // Gemini thinking pattern is "gemini-2.0-flash-thinking"
+        const result = await invoker.invokeWithRetry(
+          mockModel,
+          messages,
+          'google/gemini-2.0-flash-thinking'
+        );
+
+        expect(result.content).toBe('The result is here.');
+      });
     });
   });
 });

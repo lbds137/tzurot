@@ -6,7 +6,13 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import { extractOwnerId, isValidOwner, requireOwnerAuth } from './AuthMiddleware.js';
+import {
+  extractOwnerId,
+  isValidOwner,
+  requireOwnerAuth,
+  extractUserId,
+  requireUserAuth,
+} from './AuthMiddleware.js';
 import * as commonTypes from '@tzurot/common-types';
 
 // Mock getConfig
@@ -304,6 +310,131 @@ describe('authMiddleware', () => {
 
       expect(mockNext).not.toHaveBeenCalled();
       expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe('extractUserId', () => {
+    it('should extract user ID from X-User-Id header', () => {
+      const req = {
+        headers: { 'x-user-id': 'user-123' },
+      } as unknown as Request;
+
+      expect(extractUserId(req)).toBe('user-123');
+    });
+
+    it('should return undefined when header is missing', () => {
+      const req = {
+        headers: {},
+      } as unknown as Request;
+
+      expect(extractUserId(req)).toBeUndefined();
+    });
+
+    it('should return undefined when header is empty string', () => {
+      const req = {
+        headers: { 'x-user-id': '' },
+      } as unknown as Request;
+
+      expect(extractUserId(req)).toBeUndefined();
+    });
+
+    it('should return undefined when header is array', () => {
+      const req = {
+        headers: { 'x-user-id': ['id1', 'id2'] },
+      } as unknown as Request;
+
+      expect(extractUserId(req)).toBeUndefined();
+    });
+
+    it('should handle whitespace in user ID', () => {
+      const req = {
+        headers: { 'x-user-id': '  user-123  ' },
+      } as unknown as Request;
+
+      // Should return the raw value (whitespace handling is caller's responsibility)
+      expect(extractUserId(req)).toBe('  user-123  ');
+    });
+  });
+
+  describe('requireUserAuth middleware', () => {
+    let mockReq: Partial<Request>;
+    let mockRes: Partial<Response>;
+    let mockNext: NextFunction;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      mockReq = {
+        headers: {},
+        path: '/wallet/set',
+        method: 'POST',
+        ip: '127.0.0.1',
+      };
+
+      mockRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis(),
+      };
+
+      mockNext = vi.fn();
+    });
+
+    it('should call next() and attach userId when user ID is valid', () => {
+      mockReq.headers = { 'x-user-id': 'user-123' };
+
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledOnce();
+      expect((mockReq as Request & { userId: string }).userId).toBe('user-123');
+      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockRes.json).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 when user ID is missing', () => {
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'UNAUTHORIZED',
+          message: 'User authentication required',
+        })
+      );
+    });
+
+    it('should return 403 when user ID is empty string', () => {
+      mockReq.headers = { 'x-user-id': '' };
+
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should use custom message when provided', () => {
+      const middleware = requireUserAuth('Custom auth required message');
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Custom auth required message',
+        })
+      );
+    });
+
+    it('should include timestamp in error response', () => {
+      const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timestamp: expect.any(String),
+        })
+      );
     });
   });
 });
