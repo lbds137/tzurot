@@ -3,7 +3,7 @@
  * Remove an API key for a provider
  */
 
-import { type Request, type Response, type RequestHandler } from 'express';
+import { type Response, type RequestHandler } from 'express';
 import {
   createLogger,
   AIProvider,
@@ -14,6 +14,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-remove-key');
 
@@ -25,8 +26,8 @@ export function createRemoveKeyRoute(
   prisma: PrismaClient,
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): RequestHandler[] {
-  const handler = asyncHandler(async (req: Request, res: Response) => {
-    const discordUserId = (req as Request & { userId: string }).userId;
+  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
     const provider = req.params.provider as AIProvider;
 
     // Validate provider

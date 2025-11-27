@@ -37,16 +37,23 @@ const logger = createLogger('asyncHandler');
  * }));
  * ```
  *
+ * Supports typed requests (e.g., AuthenticatedRequest) via generic parameter:
+ * ```typescript
+ * asyncHandler(async (req: AuthenticatedRequest, res) => {
+ *   const userId = req.userId; // Type-safe
+ * })
+ * ```
+ *
  * @param handler - Async route handler function
  * @returns Express route handler with error handling
  */
-export function asyncHandler(
-  handler: (req: Request, res: Response) => Promise<void>
+export function asyncHandler<R extends Request = Request>(
+  handler: (req: R, res: Response) => Promise<void>
 ): (req: Request, res: Response) => void {
   return (req: Request, res: Response) => {
     void (async () => {
       try {
-        await handler(req, res);
+        await handler(req as R, res);
       } catch (error) {
         logger.error({ err: error }, 'Request handler error');
 

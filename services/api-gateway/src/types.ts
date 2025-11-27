@@ -5,6 +5,7 @@
  * Request types are now in @tzurot/common-types for sharing across services.
  */
 
+import type { Request } from 'express';
 import type { ErrorCode } from './utils/errorResponses.js';
 import type { HealthStatus } from '@tzurot/common-types';
 
@@ -18,6 +19,14 @@ export type {
 
 // Re-export ErrorCode for convenience
 export type { ErrorCode } from './utils/errorResponses.js';
+
+/**
+ * Express Request with authenticated user ID
+ * Set by AuthMiddleware after Discord token validation
+ */
+export interface AuthenticatedRequest extends Request {
+  userId: string; // Discord user ID
+}
 
 /**
  * Health check response
