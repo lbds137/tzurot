@@ -8,9 +8,9 @@
  * - /model reset - Remove override, use default
  */
 
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleListOverrides } from './list.js';
 import { handleSet } from './set.js';
 import { handleReset } from './reset.js';
@@ -61,24 +61,11 @@ export const data = new SlashCommandBuilder()
 /**
  * Command execution router
  */
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const subcommand = interaction.options.getSubcommand();
-  logger.info({ subcommand, userId: interaction.user.id }, '[Model] Executing subcommand');
-
-  switch (subcommand) {
-    case 'list':
-      await handleListOverrides(interaction);
-      break;
-    case 'set':
-      await handleSet(interaction);
-      break;
-    case 'reset':
-      await handleReset(interaction);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
-      });
-  }
-}
+export const execute = createSubcommandRouter(
+  {
+    list: handleListOverrides,
+    set: handleSet,
+    reset: handleReset,
+  },
+  { logger, logPrefix: '[Model]' }
+);

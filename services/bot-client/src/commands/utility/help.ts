@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
 import type { Command } from '../../types.js';
 import { DISCORD_COLORS } from '@tzurot/common-types';
 
@@ -15,7 +15,7 @@ export async function handleHelp(
   if (!commands) {
     await interaction.reply({
       content: '❌ Commands list not available',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }

@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import { handleHelp } from './help.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { Command } from '../../types.js';
@@ -23,7 +24,7 @@ describe('handleHelp', () => {
 
     expect(mockInteraction.reply).toHaveBeenCalledWith({
       content: '❌ Commands list not available',
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   });
 

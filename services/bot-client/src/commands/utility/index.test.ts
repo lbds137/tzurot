@@ -3,9 +3,24 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import { data, execute } from './index.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { Command } from '../../types.js';
+
+// Mock common-types
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
 
 // Mock subcommand handlers
 vi.mock('./ping.js', () => ({
@@ -57,6 +72,7 @@ describe('utility command', () => {
       vi.clearAllMocks();
 
       mockInteraction = {
+        user: { id: 'test-user-id' },
         options: {
           getSubcommand: vi.fn(),
         },
@@ -103,7 +119,7 @@ describe('utility command', () => {
 
       expect(mockInteraction.reply).toHaveBeenCalledWith({
         content: '❌ Unknown subcommand',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       expect(handlePing).not.toHaveBeenCalled();
       expect(handleHelp).not.toHaveBeenCalled();

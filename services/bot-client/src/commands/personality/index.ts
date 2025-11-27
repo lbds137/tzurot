@@ -8,8 +8,8 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
-import { getConfig, requireBotOwner } from '@tzurot/common-types';
+import { createLogger, getConfig, requireBotOwner, type EnvConfig } from '@tzurot/common-types';
+import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
 // Import subcommand handlers
 import { handleCreate } from './create.js';
@@ -17,6 +17,8 @@ import { handleEdit } from './edit.js';
 import { handleImport } from './import.js';
 import { handleCreateModal } from './create-modal.js';
 import { handleModalSubmit } from './modal.js';
+
+const logger = createLogger('personality-command');
 
 /**
  * Slash command definition
@@ -154,6 +156,21 @@ export const data = new SlashCommandBuilder()
   );
 
 /**
+ * Create personality router with config dependency
+ */
+function createPersonalityRouter(config: EnvConfig): (interaction: ChatInputCommandInteraction) => Promise<void> {
+  return createSubcommandRouter(
+    {
+      create: interaction => handleCreate(interaction, config),
+      edit: interaction => handleEdit(interaction, config),
+      import: interaction => handleImport(interaction, config),
+      'create-modal': handleCreateModal,
+    },
+    { logger, logPrefix: '[Personality]' }
+  );
+}
+
+/**
  * Command execution router
  * Routes to the appropriate subcommand handler
  */
@@ -167,31 +184,12 @@ export async function execute(
 
   const config = getConfig();
 
-  // Handle modal submissions
+  // Handle modal submissions separately
   if (interaction.isModalSubmit()) {
     await handleModalSubmit(interaction, config);
     return;
   }
 
-  const subcommand = interaction.options.getSubcommand();
-
-  switch (subcommand) {
-    case 'create':
-      await handleCreate(interaction, config);
-      break;
-    case 'edit':
-      await handleEdit(interaction, config);
-      break;
-    case 'import':
-      await handleImport(interaction, config);
-      break;
-    case 'create-modal':
-      await handleCreateModal(interaction);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
-      });
-  }
+  const router = createPersonalityRouter(config);
+  await router(interaction);
 }

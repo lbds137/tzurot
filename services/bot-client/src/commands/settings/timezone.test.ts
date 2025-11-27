@@ -29,10 +29,44 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
+
+// Create mock EmbedBuilder-like objects
+function createMockEmbed(title: string, description?: string) {
+  const data: Record<string, unknown> = { title };
+  if (description !== undefined) {
+    data.description = description;
+  }
+
+  const embed = {
+    data,
+    addFields: vi.fn().mockReturnThis(),
+    setFooter: vi.fn().mockReturnThis(),
+    setTimestamp: vi.fn().mockReturnThis(),
+  };
+
+  // Update data when methods are called
+  embed.addFields.mockImplementation((field: { name: string; value: string }) => {
+    data.fields = [field];
+    return embed;
+  });
+
+  return embed;
+}
+
+const mockCreateSuccessEmbed = vi.fn((title: string, description: string) =>
+  createMockEmbed(title, description)
+);
+const mockCreateInfoEmbed = vi.fn((title: string, description?: string) =>
+  createMockEmbed(title, description)
+);
+
 vi.mock('../../utils/commandHelpers.js', () => ({
   deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
+  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...(args as [string, string])),
+  createInfoEmbed: (...args: unknown[]) =>
+    mockCreateInfoEmbed(...(args as [string, string | undefined])),
 }));
 
 describe('Timezone Subcommands', () => {
@@ -40,6 +74,13 @@ describe('Timezone Subcommands', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the mock embed creators to return fresh mocks
+    mockCreateSuccessEmbed.mockImplementation((title: string, description: string) =>
+      createMockEmbed(title, description)
+    );
+    mockCreateInfoEmbed.mockImplementation((title: string, description?: string) =>
+      createMockEmbed(title, description)
+    );
   });
 
   function createMockInteraction(options: { timezone?: string } = {}) {

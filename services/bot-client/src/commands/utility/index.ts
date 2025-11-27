@@ -8,11 +8,15 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
+import { createLogger } from '@tzurot/common-types';
 import type { Command } from '../../types.js';
+import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
 // Import subcommand handlers
 import { handlePing } from './ping.js';
 import { handleHelp } from './help.js';
+
+const logger = createLogger('utility-command');
 
 /**
  * Slash command definition
@@ -28,6 +32,19 @@ export const data = new SlashCommandBuilder()
   );
 
 /**
+ * Create a router with access to commands map for help subcommand
+ */
+function createUtilityRouter(commands?: Map<string, Command>): (interaction: ChatInputCommandInteraction) => Promise<void> {
+  return createSubcommandRouter(
+    {
+      ping: handlePing,
+      help: interaction => handleHelp(interaction, commands),
+    },
+    { logger, logPrefix: '[Utility]' }
+  );
+}
+
+/**
  * Command execution router
  * Routes to the appropriate subcommand handler
  */
@@ -35,19 +52,6 @@ export async function execute(
   interaction: ChatInputCommandInteraction,
   commands?: Map<string, Command>
 ): Promise<void> {
-  const subcommand = interaction.options.getSubcommand();
-
-  switch (subcommand) {
-    case 'ping':
-      await handlePing(interaction);
-      break;
-    case 'help':
-      await handleHelp(interaction, commands);
-      break;
-    default:
-      await interaction.reply({
-        content: '❌ Unknown subcommand',
-        ephemeral: true,
-      });
-  }
+  const router = createUtilityRouter(commands);
+  await router(interaction);
 }
