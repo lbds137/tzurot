@@ -10,6 +10,7 @@ import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
+import { createAdminLlmConfigRoutes } from './llm-config.js';
 
 /**
  * Create admin router with injected dependencies
@@ -28,6 +29,9 @@ export function createAdminRouter(
   // Personality management endpoints
   router.use('/personality', createCreatePersonalityRoute(prisma));
   router.use('/personality', createUpdatePersonalityRoute(prisma));
+
+  // LLM config management endpoints
+  router.use('/llm-config', createAdminLlmConfigRoutes(prisma));
 
   // Cache invalidation endpoint
   router.use('/invalidate-cache', createInvalidateCacheRoute(cacheInvalidationService));

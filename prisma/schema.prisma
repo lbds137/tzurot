@@ -15,11 +15,13 @@ model User {
   username             String                  @db.VarChar(255)
   timezone             String                  @default("UTC") @db.VarChar(50)
   isSuperuser          Boolean                 @default(false) @map("is_superuser")
+  defaultLlmConfigId   String?                 @map("default_llm_config_id") @db.Uuid
   createdAt            DateTime                @default(now()) @map("created_at")
   updatedAt            DateTime                @updatedAt @map("updated_at")
   apiKeys              UserApiKey[]
   usageLogs            UsageLog[]
   activatedChannels    ActivatedChannel[]
+  defaultLlmConfig     LlmConfig?              @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
   ownedLlmConfigs      LlmConfig[]             @relation("LlmConfigOwner")
   ownedPersonalities   Personality[]           @relation("PersonalityOwner")
   personalityOwners    PersonalityOwner[]
@@ -28,6 +30,7 @@ model User {
   personalityConfigs   UserPersonalityConfig[]
 
   @@index([discordId])
+  @@index([defaultLlmConfigId])
   @@map("users")
 }
 
@@ -149,6 +152,7 @@ model LlmConfig {
   owner                       User?                      @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   personalitiesUsingAsDefault PersonalityDefaultConfig[]
   userPersonalityConfigs      UserPersonalityConfig[]
+  usersWithAsDefault          User[]                     @relation("UserDefaultLlmConfig")
 
   @@index([ownerId])
   @@index([isGlobal])
