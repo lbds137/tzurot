@@ -92,27 +92,29 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       // Mock transaction to capture the create call
-      mockPrisma.$transaction.mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-        const mockTx = {
-          user: {
-            create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-          },
-          persona: {
-            create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-          },
-          userDefaultPersona: {
-            create: vi.fn().mockResolvedValue({}),
-          },
-        };
-        await callback(mockTx);
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+            },
+            persona: {
+              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+            },
+            userDefaultPersona: {
+              create: vi.fn().mockResolvedValue({}),
+            },
+          };
+          await callback(mockTx);
 
-        // Verify isSuperuser was false
-        expect(mockTx.user.create).toHaveBeenCalledWith({
-          data: expect.objectContaining({
-            isSuperuser: false,
-          }),
-        });
-      });
+          // Verify isSuperuser was false
+          expect(mockTx.user.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+              isSuperuser: false,
+            }),
+          });
+        }
+      );
 
       await userService.getOrCreateUser('123456', 'testuser');
     });
@@ -126,23 +128,25 @@ describe('UserService', () => {
 
       // Mock transaction to capture the create call
       let capturedUserData: { isSuperuser?: boolean } | undefined;
-      mockPrisma.$transaction.mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-        const mockTx = {
-          user: {
-            create: vi.fn().mockImplementation(({ data }) => {
-              capturedUserData = data;
-              return Promise.resolve({ id: 'test-user-uuid' });
-            }),
-          },
-          persona: {
-            create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-          },
-          userDefaultPersona: {
-            create: vi.fn().mockResolvedValue({}),
-          },
-        };
-        await callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedUserData = data;
+                return Promise.resolve({ id: 'test-user-uuid' });
+              }),
+            },
+            persona: {
+              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+            },
+            userDefaultPersona: {
+              create: vi.fn().mockResolvedValue({}),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
 
       await userService.getOrCreateUser('999888777', 'botowner');
 
@@ -161,23 +165,25 @@ describe('UserService', () => {
 
       // Mock transaction to capture the create call
       let capturedUserData: { isSuperuser?: boolean } | undefined;
-      mockPrisma.$transaction.mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-        const mockTx = {
-          user: {
-            create: vi.fn().mockImplementation(({ data }) => {
-              capturedUserData = data;
-              return Promise.resolve({ id: 'test-user-uuid' });
-            }),
-          },
-          persona: {
-            create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-          },
-          userDefaultPersona: {
-            create: vi.fn().mockResolvedValue({}),
-          },
-        };
-        await callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedUserData = data;
+                return Promise.resolve({ id: 'test-user-uuid' });
+              }),
+            },
+            persona: {
+              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+            },
+            userDefaultPersona: {
+              create: vi.fn().mockResolvedValue({}),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
 
       // Different Discord ID
       await userService.getOrCreateUser('111222333', 'regularuser');
