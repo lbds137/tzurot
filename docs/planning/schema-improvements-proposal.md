@@ -483,7 +483,7 @@ model User {
    import crypto from 'crypto';
 
    const ALGORITHM = 'aes-256-gcm';
-   const ENCRYPTION_KEY = Buffer.from(process.env.APP_MASTER_KEY!, 'hex'); // 32 bytes
+   const ENCRYPTION_KEY = Buffer.from(process.env.API_KEY_ENCRYPTION_KEY!, 'hex'); // 32 bytes
 
    export const encryptApiKey = (text: string) => {
      const iv = crypto.randomBytes(16);
@@ -535,7 +535,7 @@ model User {
 
 **Migration**:
 
-1. Generate `APP_MASTER_KEY` (32 bytes) and add to Railway environment variables
+1. Generate `API_KEY_ENCRYPTION_KEY` (32 bytes) and add to Railway environment variables
 2. Create `UserApiKey` table
 3. No data migration (new feature - users will add keys via commands)
 
@@ -813,7 +813,7 @@ export function validateImageParams(provider: string, params: unknown) {
 
 **BYOK Setup:**
 
-- [ ] Generate APP_MASTER_KEY (32 bytes) for Railway environment
+- [ ] Generate API_KEY_ENCRYPTION_KEY (32 bytes) for Railway environment
 - [ ] Document key rotation procedure
 
 ### Application Code Changes

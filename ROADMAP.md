@@ -162,7 +162,7 @@
 
 - [x] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`) ✅
   - `encryptApiKey()`, `decryptApiKey()`, `isValidEncryptedData()` using AES-256-GCM
-  - Master key from Railway environment (`APP_MASTER_KEY`)
+  - Master key from Railway environment (`API_KEY_ENCRYPTION_KEY`)
   - 32 tests covering round-trip, tamper detection, validation
   - **Completed**: 2025-11-26
 - [x] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation ✅

@@ -112,7 +112,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 
 - [ ] Create encryption utilities (`packages/common-types/src/utils/encryption.ts`)
   - AES-256-GCM encrypt/decrypt functions
-  - Master key from Railway environment (`APP_MASTER_KEY`)
+  - Master key from Railway environment (`API_KEY_ENCRYPTION_KEY`)
 - [ ] Add log sanitization middleware
   - Regex: `sk-...`, `sk_...`, `AIza...` → `[REDACTED]`
   - Apply to all services (bot-client, api-gateway, ai-worker)

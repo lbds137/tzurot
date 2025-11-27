@@ -234,6 +234,8 @@ export const generationPayloadSchema = z.object({
       tokensOut: z.number().optional(),
       processingTimeMs: z.number().optional(),
       modelUsed: z.string().optional(),
+      /** AI provider used (from API key resolution) */
+      providerUsed: z.string().optional(),
     })
     .optional(),
 });

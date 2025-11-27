@@ -193,6 +193,7 @@ export class LLMGenerationHandler {
     // BYOK: Resolve API key from database using ApiKeyResolver
     // The key is NEVER passed through BullMQ - we look it up here using userId
     let resolvedApiKey: string | undefined;
+    let resolvedProvider: string | undefined;
     if (this.apiKeyResolver) {
       try {
         const keyResult = await this.apiKeyResolver.resolveApiKey(
@@ -200,8 +201,9 @@ export class LLMGenerationHandler {
           AIProvider.OpenRouter // Default provider - could be determined from personality.model
         );
         resolvedApiKey = keyResult.apiKey;
+        resolvedProvider = keyResult.provider;
         logger.debug(
-          { userId: context.userId, source: keyResult.source },
+          { userId: context.userId, source: keyResult.source, provider: resolvedProvider },
           '[LLMGenerationHandler] Resolved API key'
         );
       } catch (error) {
@@ -319,6 +321,7 @@ export class LLMGenerationHandler {
           tokensOut: response.tokensOut,
           processingTimeMs,
           modelUsed: response.modelUsed,
+          providerUsed: resolvedProvider,
         },
       };
 

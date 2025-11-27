@@ -193,5 +193,55 @@ describe('UserService', () => {
       // Cleanup
       delete process.env.BOT_OWNER_ID;
     });
+
+    it('should promote EXISTING user to superuser when BOT_OWNER_ID matches', async () => {
+      // Set BOT_OWNER_ID environment variable
+      process.env.BOT_OWNER_ID = '999888777';
+      resetConfig(); // Force config to reload
+
+      // User exists but is NOT superuser
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+      });
+
+      // Mock update call
+      mockPrisma.user.update = vi.fn().mockResolvedValue({ id: 'existing-user-id' });
+
+      const result = await userService.getOrCreateUser('999888777', 'botowner');
+
+      expect(result).toBe('existing-user-id');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'existing-user-id' },
+        data: { isSuperuser: true },
+      });
+
+      // Cleanup
+      delete process.env.BOT_OWNER_ID;
+    });
+
+    it('should NOT update existing user who is already superuser', async () => {
+      // Set BOT_OWNER_ID environment variable
+      process.env.BOT_OWNER_ID = '999888777';
+      resetConfig(); // Force config to reload
+
+      // User exists and IS already superuser
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: true,
+      });
+
+      // Mock update call
+      mockPrisma.user.update = vi.fn();
+
+      const result = await userService.getOrCreateUser('999888777', 'botowner');
+
+      expect(result).toBe('existing-user-id');
+      // Should NOT call update since already superuser
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+
+      // Cleanup
+      delete process.env.BOT_OWNER_ID;
+    });
   });
 });

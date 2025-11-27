@@ -84,12 +84,12 @@ const ALGORITHM = 'aes-256-gcm';
  * Key must be 32 bytes (256 bits) in hex format (64 hex characters).
  */
 function getEncryptionKey(): Buffer {
-  const key = process.env.APP_MASTER_KEY;
+  const key = process.env.API_KEY_ENCRYPTION_KEY;
   if (!key) {
-    throw new Error('APP_MASTER_KEY environment variable is required');
+    throw new Error('API_KEY_ENCRYPTION_KEY environment variable is required');
   }
   if (key.length !== 64) {
-    throw new Error('APP_MASTER_KEY must be 64 hex characters (32 bytes)');
+    throw new Error('API_KEY_ENCRYPTION_KEY must be 64 hex characters (32 bytes)');
   }
   return Buffer.from(key, 'hex');
 }
@@ -142,7 +142,7 @@ export function decryptApiKey(encrypted: EncryptedData): string {
 - Test encrypt/decrypt round-trip
 - Test different key lengths
 - Test tampered data detection (auth tag failure)
-- Test missing APP_MASTER_KEY error
+- Test missing API_KEY_ENCRYPTION_KEY error
 
 **Environment Setup**:
 
@@ -151,8 +151,8 @@ export function decryptApiKey(encrypted: EncryptedData): string {
 openssl rand -hex 32
 
 # Add to Railway environment
-railway variables set APP_MASTER_KEY=<generated-key> --service api-gateway
-railway variables set APP_MASTER_KEY=<generated-key> --service ai-worker
+railway variables set API_KEY_ENCRYPTION_KEY=<generated-key> --service api-gateway
+railway variables set API_KEY_ENCRYPTION_KEY=<generated-key> --service ai-worker
 ```
 
 ---
@@ -1150,7 +1150,7 @@ async invoke(params: InvokeParams): Promise<InvokeResult> {
 
 Based on Gemini consultation:
 
-- [ ] **Encryption key management**: APP_MASTER_KEY in Railway secrets (not .env file)
+- [ ] **Encryption key management**: API_KEY_ENCRYPTION_KEY in Railway secrets (not .env file)
 - [ ] **Discord ephemeral responses**: All `/wallet` commands use `ephemeral: true`
 - [ ] **Log sanitization**: Regex patterns catch all API key formats
 - [ ] **BullMQ security**: Only pass userId in job, not decrypted keys
