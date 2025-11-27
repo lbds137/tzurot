@@ -134,4 +134,6 @@ export interface DatabasePersonality {
   personalityDislikes: string | null;
   conversationalGoals: string | null;
   conversationalExamples: string | null;
+  // Custom error message for this personality
+  errorMessage: string | null;
 }

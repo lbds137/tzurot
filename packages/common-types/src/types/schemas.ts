@@ -144,6 +144,9 @@ export const loadedPersonalitySchema = z.object({
   personalityDislikes: z.string().optional(),
   conversationalGoals: z.string().optional(),
   conversationalExamples: z.string().optional(),
+
+  // Custom error message for this personality (shown to users on LLM failures)
+  errorMessage: z.string().optional(),
 });
 
 /**
@@ -172,7 +175,8 @@ export const referencedChannelSchema = z.object({
  * Includes all contextual information about a message
  */
 export const requestContextSchema = z.object({
-  userId: z.string(),
+  userId: z.string(), // Discord ID (for BYOK API key resolution)
+  userInternalId: z.string().optional(), // Internal UUID (for usage logging)
   userName: z.string().optional(),
   channelId: z.string().optional(),
   serverId: z.string().optional(),
@@ -224,7 +228,10 @@ export const generationPayloadSchema = z.object({
   metadata: z
     .object({
       retrievedMemories: z.number().optional(),
-      tokensUsed: z.number().optional(),
+      /** Input/prompt tokens consumed */
+      tokensIn: z.number().optional(),
+      /** Output/completion tokens consumed */
+      tokensOut: z.number().optional(),
       processingTimeMs: z.number().optional(),
       modelUsed: z.string().optional(),
     })
@@ -243,6 +250,8 @@ export const llmGenerationResultSchema = generationPayloadSchema.extend({
   error: z.string().optional(),
   // Override content to be optional when success=false
   content: z.string().optional(),
+  // Custom error message from personality (for webhook response on failures)
+  personalityErrorMessage: z.string().optional(),
 });
 
 // Infer TypeScript types from schemas

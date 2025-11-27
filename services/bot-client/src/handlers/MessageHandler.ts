@@ -92,6 +92,38 @@ export class MessageHandler {
 
     const { message, personality, personaId, userMessageContent, userMessageTime } = jobContext;
 
+    // Handle explicit failure from ai-worker (success: false)
+    if (result.success === false) {
+      logger.error(
+        { jobId, error: result.error },
+        '[MessageHandler] Job failed with error from ai-worker'
+      );
+
+      // Use personality's custom error message if available, otherwise generic
+      const errorContent =
+        result.personalityErrorMessage ??
+        'Sorry, I encountered an error generating a response. Please try again later.';
+
+      // Send error via personality webhook (not parent bot)
+      try {
+        await this.responseSender.sendResponse({
+          content: errorContent,
+          personality,
+          message,
+        });
+      } catch (sendError) {
+        logger.error(
+          { err: sendError, jobId },
+          '[MessageHandler] Failed to send error via webhook, falling back to reply'
+        );
+        // Fallback to direct reply if webhook fails
+        await message.reply(errorContent).catch(() => {
+          // Intentionally ignore reply failures - we've already logged the webhook error
+        });
+      }
+      return;
+    }
+
     // BOUNDARY VALIDATION: Validate result has valid content before using it
     if (
       result.content === undefined ||
@@ -108,15 +140,22 @@ export class MessageHandler {
         '[MessageHandler] Job result missing or invalid content field'
       );
 
-      // Notify user of the error
+      // Use personality's custom error message if available
+      const errorContent =
+        result.personalityErrorMessage ??
+        'Sorry, I encountered an error generating a response. Please try again later.';
+
+      // Send error via personality webhook
       try {
-        await message.reply(
-          'Sorry, I encountered an error generating a response. Please try again later.'
-        );
-      } catch (replyError) {
+        await this.responseSender.sendResponse({
+          content: errorContent,
+          personality,
+          message,
+        });
+      } catch (sendError) {
         logger.error(
-          { err: replyError, jobId },
-          '[MessageHandler] Failed to send error notification to user'
+          { err: sendError, jobId },
+          '[MessageHandler] Failed to send error via webhook'
         );
       }
       return;
@@ -158,14 +197,25 @@ export class MessageHandler {
     } catch (error) {
       logger.error({ err: error, jobId }, '[MessageHandler] Error handling job result');
 
-      // Try to notify user of the error (don't throw - we don't want to crash the listener)
+      // Try to notify user of the error via webhook (don't throw - we don't want to crash the listener)
+      const errorContent =
+        result.personalityErrorMessage ??
+        'Sorry, I encountered an error while processing your request.';
+
       try {
-        await message.reply('Sorry, I encountered an error while processing your request.');
-      } catch (replyError) {
+        await this.responseSender.sendResponse({
+          content: errorContent,
+          personality,
+          message,
+        });
+      } catch (sendError) {
         logger.error(
-          { err: replyError, jobId },
-          '[MessageHandler] Failed to send error message to user'
+          { err: sendError, jobId },
+          '[MessageHandler] Failed to send error via webhook, falling back to reply'
         );
+        await message.reply(errorContent).catch(() => {
+          // Intentionally ignore reply failures - we've already logged the webhook error
+        });
       }
     }
   }
