@@ -4,7 +4,12 @@
  */
 
 import { type Request, type Response, type RequestHandler } from 'express';
-import { createLogger, AIProvider, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  AIProvider,
+  type PrismaClient,
+  type ApiKeyCacheInvalidationService,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -16,7 +21,10 @@ const logger = createLogger('wallet-remove-key');
  * Create remove key route handlers
  * Returns an array of middleware: [auth, handler]
  */
-export function createRemoveKeyRoute(prisma: PrismaClient): RequestHandler[] {
+export function createRemoveKeyRoute(
+  prisma: PrismaClient,
+  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
+): RequestHandler[] {
   const handler = asyncHandler(async (req: Request, res: Response) => {
     const discordUserId = (req as Request & { userId: string }).userId;
     const provider = req.params.provider as AIProvider;
@@ -56,6 +64,12 @@ export function createRemoveKeyRoute(prisma: PrismaClient): RequestHandler[] {
     });
 
     logger.info({ provider, discordUserId }, '[Wallet] API key removed');
+
+    // Publish cache invalidation event for ai-worker instances
+    if (apiKeyCacheInvalidation !== undefined) {
+      await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
+      logger.debug({ discordUserId }, '[Wallet] Published API key cache invalidation event');
+    }
 
     sendCustomSuccess(res, {
       success: true,

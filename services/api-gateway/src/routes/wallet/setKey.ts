@@ -17,6 +17,7 @@ import {
   encryptApiKey,
   WALLET_ERROR_MESSAGES,
   type PrismaClient,
+  type ApiKeyCacheInvalidationService,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -44,15 +45,18 @@ function isBotOwner(discordId: string): boolean {
  * Creates user if not exists (Discord user ID as ID)
  * Uses upsert to handle race conditions when multiple requests arrive simultaneously
  *
- * Auto-promotes bot owner to superuser on first interaction (same as UserService)
+ * Auto-promotes bot owner to superuser (both new and existing users)
+ * This handles the case where BOT_OWNER_ID is set after user was created
  */
 async function ensureUserExists(prisma: PrismaClient, discordUserId: string): Promise<string> {
   const shouldBeSuperuser = isBotOwner(discordUserId);
 
   // Use upsert to atomically find-or-create, avoiding race conditions
+  // If user exists and should be superuser, update them (for owner promotion)
+  // Otherwise do nothing (don't demote existing superusers)
   const user = await prisma.user.upsert({
     where: { discordId: discordUserId },
-    update: {}, // No-op if exists - don't demote existing superusers
+    update: shouldBeSuperuser ? { isSuperuser: true } : {},
     create: {
       discordId: discordUserId,
       username: discordUserId, // Placeholder - updated via other flows
@@ -65,7 +69,10 @@ async function ensureUserExists(prisma: PrismaClient, discordUserId: string): Pr
   return user.id;
 }
 
-export function createSetKeyRoute(prisma: PrismaClient): Router {
+export function createSetKeyRoute(
+  prisma: PrismaClient,
+  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
+): Router {
   const router = Router();
 
   router.post(
@@ -164,6 +171,12 @@ export function createSetKeyRoute(prisma: PrismaClient): Router {
         { provider, discordUserId, hasCredits: validation.credits !== undefined },
         '[Wallet] API key stored successfully'
       );
+
+      // Publish cache invalidation event for ai-worker instances
+      if (apiKeyCacheInvalidation !== undefined) {
+        await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
+        logger.debug({ discordUserId }, '[Wallet] Published API key cache invalidation event');
+      }
 
       sendCustomSuccess(
         res,

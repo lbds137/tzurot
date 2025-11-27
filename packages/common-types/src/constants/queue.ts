@@ -59,8 +59,10 @@ export const REDIS_KEY_PREFIXES = {
  * Redis pub/sub channels
  */
 export const REDIS_CHANNELS = {
-  /** Channel for broadcasting cache invalidation events across services */
+  /** Channel for broadcasting personality cache invalidation events across services */
   CACHE_INVALIDATION: 'cache:invalidation',
+  /** Channel for broadcasting API key cache invalidation events across services */
+  API_KEY_CACHE_INVALIDATION: 'cache:api-key-invalidation',
 } as const;
 
 /**

@@ -22,6 +22,7 @@ import {
   getPrismaClient,
   PersonalityService,
   CacheInvalidationService,
+  ApiKeyCacheInvalidationService,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -29,6 +30,7 @@ import {
   type AnyJobData,
   type AnyJobResult,
 } from '@tzurot/common-types';
+import { ApiKeyResolver } from './services/ApiKeyResolver.js';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
@@ -101,9 +103,26 @@ async function main(): Promise<void> {
   const personalityService = new PersonalityService(prisma);
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
 
-  // Subscribe to cache invalidation events
+  // Subscribe to personality cache invalidation events
   await cacheInvalidationService.subscribe();
   logger.info('[AIWorker] Subscribed to personality cache invalidation events');
+
+  // Create ApiKeyResolver for BYOK support
+  const apiKeyResolver = new ApiKeyResolver(prisma);
+  logger.info('[AIWorker] ApiKeyResolver initialized for BYOK support');
+
+  // Subscribe to API key cache invalidation events
+  const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
+  await apiKeyCacheInvalidation.subscribe(event => {
+    if (event.type === 'all') {
+      apiKeyResolver.clearCache();
+      logger.info('[AIWorker] Cleared all API key cache entries');
+    } else {
+      apiKeyResolver.invalidateUserCache(event.discordId);
+      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated API key cache for user');
+    }
+  });
+  logger.info('[AIWorker] Subscribed to API key cache invalidation events');
 
   // Initialize vector memory manager (pgvector)
   let memoryManager: PgvectorMemoryAdapter | undefined;
@@ -134,7 +153,8 @@ async function main(): Promise<void> {
   }
 
   // Initialize job processor with injected dependencies
-  const jobProcessor = new AIJobProcessor(prisma, memoryManager);
+  // Note: third param is ragService (undefined = use default), fourth is apiKeyResolver
+  const jobProcessor = new AIJobProcessor(prisma, memoryManager, undefined, apiKeyResolver);
 
   // Create BullMQ worker
   logger.info('[AIWorker] Creating BullMQ worker...');
@@ -271,6 +291,7 @@ async function main(): Promise<void> {
     await scheduledQueue.close();
     await pendingMemoryProcessor.disconnect();
     await cacheInvalidationService.unsubscribe();
+    await apiKeyCacheInvalidation.unsubscribe();
     cacheRedis.disconnect();
     logger.info('[AIWorker] All workers and connections closed');
     process.exit(0);
