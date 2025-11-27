@@ -10,6 +10,21 @@ import { MessageFlags } from 'discord-api-types/v10';
 import { getConfig } from '../config/index.js';
 
 /**
+ * Check if a Discord ID matches the configured bot owner
+ *
+ * Used for:
+ * - Auto-promoting bot owner to superuser on first interaction
+ * - BYOK wallet owner checks
+ *
+ * @param discordId - Discord user ID to check
+ * @returns true if the ID matches BOT_OWNER_ID config
+ */
+export function isBotOwner(discordId: string): boolean {
+  const config = getConfig();
+  return config.BOT_OWNER_ID !== undefined && config.BOT_OWNER_ID === discordId;
+}
+
+/**
  * Verify that the interaction user is the bot owner
  *
  * Replies with error message if verification fails.

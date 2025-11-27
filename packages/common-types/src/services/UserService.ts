@@ -7,18 +7,9 @@ import type { PrismaClient } from './prisma.js';
 import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
-import { getConfig } from '../config/index.js';
+import { isBotOwner } from '../utils/ownerMiddleware.js';
 
 const logger = createLogger('UserService');
-
-/**
- * Check if a Discord ID matches the configured bot owner
- * Used to auto-promote the bot owner to superuser on first interaction
- */
-function isBotOwner(discordId: string): boolean {
-  const config = getConfig();
-  return config.BOT_OWNER_ID !== undefined && config.BOT_OWNER_ID === discordId;
-}
 
 export class UserService {
   private userCache: Map<string, string>; // discordId -> userId (UUID)
