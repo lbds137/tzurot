@@ -73,3 +73,6 @@ export {
   getTimezoneInfo,
   type TimezoneOption,
 } from './timezone.js';
+
+// Wallet (BYOK) constants
+export { WALLET_ERROR_MESSAGES, API_KEY_FORMATS, WALLET_SUCCESS_MESSAGES } from './wallet.js';

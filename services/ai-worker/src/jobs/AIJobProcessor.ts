@@ -241,6 +241,7 @@ export class AIJobProcessor {
 
   /**
    * Log usage to database for BYOK cost tracking
+   * Includes simple retry logic for transient failures
    */
   private async logUsage(
     job: Job<LLMGenerationJobData>,
@@ -254,33 +255,53 @@ export class AIJobProcessor {
       return;
     }
 
-    try {
-      // Use provider from API key resolution (reliable) or fallback to openrouter
-      const modelUsed = result.metadata?.modelUsed ?? personality.model;
-      const provider = result.metadata?.providerUsed ?? 'openrouter';
+    // Use provider from API key resolution (reliable) or fallback to openrouter
+    const modelUsed = result.metadata?.modelUsed ?? personality.model;
+    const provider = result.metadata?.providerUsed ?? 'openrouter';
 
-      // Get input/output tokens from LLM response metadata
-      const tokensIn = result.metadata?.tokensIn ?? 0;
-      const tokensOut = result.metadata?.tokensOut ?? 0;
+    // Get input/output tokens from LLM response metadata
+    const tokensIn = result.metadata?.tokensIn ?? 0;
+    const tokensOut = result.metadata?.tokensOut ?? 0;
 
-      await this.prisma.usageLog.create({
-        data: {
-          userId: userInternalId,
-          provider,
-          model: modelUsed,
-          tokensIn,
-          tokensOut,
-          requestType: 'llm_generation',
-        },
-      });
+    // Simple retry logic - try up to 3 times with exponential backoff
+    const maxRetries = 3;
+    const baseDelayMs = 100;
 
-      logger.debug(
-        { userId: userInternalId, model: modelUsed, tokensIn, tokensOut },
-        '[AIJobProcessor] Logged usage'
-      );
-    } catch (error) {
-      // Don't fail the job if usage logging fails
-      logger.warn({ err: error }, '[AIJobProcessor] Failed to log usage (non-fatal)');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.prisma.usageLog.create({
+          data: {
+            userId: userInternalId,
+            provider,
+            model: modelUsed,
+            tokensIn,
+            tokensOut,
+            requestType: 'llm_generation',
+          },
+        });
+
+        logger.debug(
+          { userId: userInternalId, model: modelUsed, tokensIn, tokensOut },
+          '[AIJobProcessor] Logged usage'
+        );
+        return; // Success - exit retry loop
+      } catch (error) {
+        if (attempt < maxRetries) {
+          // Exponential backoff: 100ms, 200ms, 400ms...
+          const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+          logger.debug(
+            { err: error, attempt, maxRetries, delayMs },
+            '[AIJobProcessor] Usage logging failed, retrying...'
+          );
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          // Final attempt failed - log warning but don't fail the job
+          logger.warn(
+            { err: error, userId: userInternalId, attempts: maxRetries },
+            '[AIJobProcessor] Failed to log usage after retries (non-fatal)'
+          );
+        }
+      }
     }
   }
 

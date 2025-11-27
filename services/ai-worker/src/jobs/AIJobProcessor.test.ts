@@ -518,8 +518,8 @@ describe('AIJobProcessor', () => {
       });
     });
 
-    it('should not fail job when usage logging fails', async () => {
-      vi.mocked(mockPrisma.usageLog.create).mockRejectedValueOnce(
+    it('should not fail job when usage logging fails after all retries', async () => {
+      vi.mocked(mockPrisma.usageLog.create).mockRejectedValue(
         new Error('Database error during usage logging')
       );
 
@@ -528,6 +528,44 @@ describe('AIJobProcessor', () => {
       // Should not throw - usage logging errors are non-fatal
       const result = await processor.processJob(job);
       expect(result.success).toBe(true);
+
+      // Should have attempted 3 times (with retry)
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledTimes(3);
+    });
+
+    it('should succeed on retry after initial failure', async () => {
+      // First call fails, second succeeds
+      vi.mocked(mockPrisma.usageLog.create)
+        .mockRejectedValueOnce(new Error('Transient error'))
+        .mockResolvedValueOnce({ id: 'usage-123' } as ReturnType<
+          typeof mockPrisma.usageLog.create
+        >);
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      const result = await processor.processJob(job);
+      expect(result.success).toBe(true);
+
+      // Should have called twice (initial + one retry)
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('should succeed on third retry after two failures', async () => {
+      // First two calls fail, third succeeds
+      vi.mocked(mockPrisma.usageLog.create)
+        .mockRejectedValueOnce(new Error('Transient error 1'))
+        .mockRejectedValueOnce(new Error('Transient error 2'))
+        .mockResolvedValueOnce({ id: 'usage-123' } as ReturnType<
+          typeof mockPrisma.usageLog.create
+        >);
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      const result = await processor.processJob(job);
+      expect(result.success).toBe(true);
+
+      // Should have called three times
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledTimes(3);
     });
 
     it('should default tokens to 0 when missing from metadata', async () => {
@@ -557,9 +595,7 @@ describe('AIJobProcessor', () => {
   describe('cleanup job results', () => {
     it('should not fail when cleanup throws an error', async () => {
       // Make cleanup throw an error
-      vi.mocked(cleanupOldJobResults).mockRejectedValueOnce(
-        new Error('Cleanup failed')
-      );
+      vi.mocked(cleanupOldJobResults).mockRejectedValueOnce(new Error('Cleanup failed'));
 
       vi.mocked(processAudioTranscriptionJob).mockResolvedValue({
         requestId: 'req-audio-123',
