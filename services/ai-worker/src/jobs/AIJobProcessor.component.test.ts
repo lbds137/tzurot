@@ -127,7 +127,9 @@ describe('AIJobProcessor Component Test', () => {
         image_settings JSONB,
         avatar_data BYTEA,
         error_message TEXT,
-        birthday DATE,
+        birth_month INTEGER,
+        birth_day INTEGER,
+        birth_year INTEGER,
         is_public BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
