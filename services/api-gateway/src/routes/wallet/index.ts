@@ -14,7 +14,7 @@
  */
 
 import { Router } from 'express';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, ApiKeyCacheInvalidationService } from '@tzurot/common-types';
 import { createSetKeyRoute } from './setKey.js';
 import { createListKeysRoute } from './listKeys.js';
 import { createRemoveKeyRoute } from './removeKey.js';
@@ -23,8 +23,13 @@ import { createWalletRateLimiter } from '../../utils/rateLimiter.js';
 
 /**
  * Create wallet router with injected dependencies
+ * @param prisma - Database client
+ * @param apiKeyCacheInvalidation - Optional service for publishing cache invalidation events
  */
-export function createWalletRouter(prisma: PrismaClient): Router {
+export function createWalletRouter(
+  prisma: PrismaClient,
+  apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
+): Router {
   const router = Router();
 
   // Apply rate limiting to all wallet operations
@@ -32,7 +37,7 @@ export function createWalletRouter(prisma: PrismaClient): Router {
   router.use(createWalletRateLimiter());
 
   // Set API key
-  router.use('/set', createSetKeyRoute(prisma));
+  router.use('/set', createSetKeyRoute(prisma, apiKeyCacheInvalidation));
 
   // List API keys
   router.use('/list', createListKeysRoute(prisma));
@@ -41,7 +46,7 @@ export function createWalletRouter(prisma: PrismaClient): Router {
   router.use('/test', createTestKeyRoute(prisma));
 
   // Remove API key (parameterized route)
-  router.delete('/:provider', ...createRemoveKeyRoute(prisma));
+  router.delete('/:provider', ...createRemoveKeyRoute(prisma, apiKeyCacheInvalidation));
 
   return router;
 }

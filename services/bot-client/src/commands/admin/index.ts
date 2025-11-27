@@ -68,7 +68,9 @@ export const data = new SlashCommandBuilder()
 /**
  * Create admin router with config dependency
  */
-function createAdminRouter(config: EnvConfig): (interaction: ChatInputCommandInteraction) => Promise<void> {
+function createAdminRouter(
+  config: EnvConfig
+): (interaction: ChatInputCommandInteraction) => Promise<void> {
   return createSubcommandRouter(
     {
       'db-sync': interaction => handleDbSync(interaction, config),

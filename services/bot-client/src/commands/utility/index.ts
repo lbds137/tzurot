@@ -34,7 +34,9 @@ export const data = new SlashCommandBuilder()
 /**
  * Create a router with access to commands map for help subcommand
  */
-function createUtilityRouter(commands?: Map<string, Command>): (interaction: ChatInputCommandInteraction) => Promise<void> {
+function createUtilityRouter(
+  commands?: Map<string, Command>
+): (interaction: ChatInputCommandInteraction) => Promise<void> {
   return createSubcommandRouter(
     {
       ping: handlePing,
