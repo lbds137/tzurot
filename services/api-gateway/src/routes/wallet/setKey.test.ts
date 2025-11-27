@@ -35,6 +35,11 @@ vi.mock('@tzurot/common-types', async () => {
     getConfig: () => ({
       BOT_OWNER_ID: mockBotOwnerId,
     }),
+    // Must mock isBotOwner separately since it uses getConfig internally,
+    // and the actual isBotOwner wouldn't see our mocked getConfig
+    isBotOwner: (discordId: string) => {
+      return mockBotOwnerId !== undefined && mockBotOwnerId === discordId;
+    },
     encryptApiKey: vi.fn().mockReturnValue({
       iv: 'mock-iv-12345678901234567890123456789012',
       content: 'mock-encrypted-content',
