@@ -45,16 +45,39 @@ vi.mock('./CleanupJobResults.js', () => ({
   cleanupOldJobResults: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock LLMGenerationHandler with a mock processJob function we can control
+const mockProcessJob = vi.fn().mockResolvedValue({
+  requestId: 'req-llm-123',
+  success: true,
+  content: 'AI response',
+  metadata: {
+    tokensIn: 100,
+    tokensOut: 50,
+    modelUsed: 'test-model',
+    providerUsed: 'openrouter',
+  },
+});
+
+vi.mock('./handlers/LLMGenerationHandler.js', () => ({
+  LLMGenerationHandler: class MockLLMGenerationHandler {
+    processJob = mockProcessJob;
+  },
+}));
+
 // Import mocked modules
 import { redisService } from '../redis.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
+import { cleanupOldJobResults } from './CleanupJobResults.js';
 
 // Create mock factories
 function createMockPrisma(): PrismaClient {
   return {
     jobResult: {
       create: vi.fn().mockResolvedValue({ id: 'result-123' }),
+    },
+    usageLog: {
+      create: vi.fn().mockResolvedValue({ id: 'usage-123' }),
     },
   } as unknown as PrismaClient;
 }
@@ -101,6 +124,18 @@ describe('AIJobProcessor', () => {
     vi.clearAllMocks();
     mockPrisma = createMockPrisma();
     mockRAGService = createMockRAGService();
+    // Reset the mockProcessJob to default behavior
+    mockProcessJob.mockResolvedValue({
+      requestId: 'req-llm-123',
+      success: true,
+      content: 'AI response',
+      metadata: {
+        tokensIn: 100,
+        tokensOut: 50,
+        modelUsed: 'test-model',
+        providerUsed: 'openrouter',
+      },
+    });
     processor = new AIJobProcessor(mockPrisma, undefined, mockRAGService);
   });
 
@@ -343,6 +378,212 @@ describe('AIJobProcessor', () => {
 
         await expect(processor.processJob(job)).rejects.toThrow('Unknown job type: unknown-type');
       });
+    });
+  });
+
+  describe('LLM generation jobs', () => {
+    const baseLLMJobData: LLMGenerationJobData = {
+      requestId: 'req-llm-123',
+      jobType: JobType.LLMGeneration,
+      message: 'Hello, AI!',
+      personality: {
+        id: 'personality-123',
+        name: 'TestBot',
+        displayName: 'Test Bot',
+        slug: 'testbot',
+        systemPrompt: 'You are a helpful assistant.',
+        model: 'test-model',
+        temperature: 0.7,
+        maxTokens: 2000,
+        contextWindowTokens: 8192,
+        characterInfo: 'A helpful test personality',
+        personalityTraits: 'Helpful, friendly',
+      },
+      context: {
+        ...baseContext,
+        userInternalId: 'user-internal-uuid-123',
+      },
+      responseDestination: baseResponseDestination,
+    };
+
+    it('should route LLM generation jobs to the LLM handler', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      const result = await processor.processJob(job);
+
+      expect(result.success).toBe(true);
+      expect(result.content).toBe('AI response');
+    });
+
+    it('should log usage when job succeeds with userInternalId', async () => {
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-internal-uuid-123',
+          provider: 'openrouter',
+          model: 'test-model',
+          tokensIn: 100,
+          tokensOut: 50,
+          requestType: 'llm_generation',
+        }),
+      });
+    });
+
+    it('should skip usage logging when userInternalId is undefined', async () => {
+      const jobDataWithoutInternalId = {
+        ...baseLLMJobData,
+        context: { ...baseContext }, // No userInternalId
+      };
+      const job = createMockJob(jobDataWithoutInternalId, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).not.toHaveBeenCalled();
+    });
+
+    it('should skip usage logging when userInternalId is empty string', async () => {
+      const jobDataWithEmptyInternalId = {
+        ...baseLLMJobData,
+        context: { ...baseContext, userInternalId: '' },
+      };
+      const job = createMockJob(jobDataWithEmptyInternalId, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).not.toHaveBeenCalled();
+    });
+
+    it('should skip usage logging when job fails', async () => {
+      // Override the mock to return a failed result
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: false,
+        error: 'AI generation failed',
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).not.toHaveBeenCalled();
+    });
+
+    it('should use personality model when modelUsed is missing from metadata', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          tokensIn: 100,
+          tokensOut: 50,
+          // modelUsed is missing
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          model: 'test-model', // Falls back to personality.model
+        }),
+      });
+    });
+
+    it('should default to openrouter provider when providerUsed is missing', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          // providerUsed is missing
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          provider: 'openrouter', // Default
+        }),
+      });
+    });
+
+    it('should not fail job when usage logging fails', async () => {
+      vi.mocked(mockPrisma.usageLog.create).mockRejectedValueOnce(
+        new Error('Database error during usage logging')
+      );
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      // Should not throw - usage logging errors are non-fatal
+      const result = await processor.processJob(job);
+      expect(result.success).toBe(true);
+    });
+
+    it('should default tokens to 0 when missing from metadata', async () => {
+      mockProcessJob.mockResolvedValueOnce({
+        requestId: 'req-llm-123',
+        success: true,
+        content: 'AI response',
+        metadata: {
+          modelUsed: 'test-model',
+          // tokensIn and tokensOut are missing
+        },
+      });
+
+      const job = createMockJob(baseLLMJobData, 'llm-job-123');
+
+      await processor.processJob(job);
+
+      expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tokensIn: 0,
+          tokensOut: 0,
+        }),
+      });
+    });
+  });
+
+  describe('cleanup job results', () => {
+    it('should not fail when cleanup throws an error', async () => {
+      // Make cleanup throw an error
+      vi.mocked(cleanupOldJobResults).mockRejectedValueOnce(
+        new Error('Cleanup failed')
+      );
+
+      vi.mocked(processAudioTranscriptionJob).mockResolvedValue({
+        requestId: 'req-audio-123',
+        success: true,
+        transcript: 'Test transcript',
+      });
+
+      const audioJobData: AudioTranscriptionJobData = {
+        requestId: 'req-audio-123',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          name: 'voice.ogg',
+          size: 1024,
+        },
+        context: baseContext,
+        responseDestination: baseResponseDestination,
+      };
+      const job = createMockJob(audioJobData, 'audio-job-123');
+
+      // Should not throw - cleanup errors are non-critical
+      const result = await processor.processJob(job);
+      expect(result.success).toBe(true);
     });
   });
 
