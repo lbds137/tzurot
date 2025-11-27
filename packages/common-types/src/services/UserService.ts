@@ -53,8 +53,21 @@ export class UserService {
       // Try to find existing user
       let user = await this.prisma.user.findUnique({
         where: { discordId },
-        select: { id: true },
+        select: { id: true, isSuperuser: true },
       });
+
+      // Check if existing user should be promoted to superuser
+      // This handles the case where BOT_OWNER_ID is set after user was created
+      if (user && !user.isSuperuser && isBotOwner(discordId)) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { isSuperuser: true },
+        });
+        logger.info(
+          { userId: user.id, discordId },
+          '[UserService] Promoted existing user to superuser'
+        );
+      }
 
       // Create if doesn't exist
       if (!user) {
@@ -62,12 +75,13 @@ export class UserService {
         const userId = generateUserUuid(discordId);
         const personaId = generatePersonaUuid(username, userId);
 
+        // Auto-promote bot owner to superuser on first interaction
+        const shouldBeSuperuser = isBotOwner(discordId);
+
         // Create user, default persona, and link in a transaction
         try {
           await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // Create user
-            // Auto-promote bot owner to superuser on first interaction
-            const shouldBeSuperuser = isBotOwner(discordId);
             logger.debug(
               { userId, discordId, username, isSuperuser: shouldBeSuperuser },
               '[UserService] Creating user record'
@@ -165,7 +179,7 @@ export class UserService {
           throw transactionError;
         }
 
-        user = { id: userId };
+        user = { id: userId, isSuperuser: shouldBeSuperuser };
       }
 
       // Cache the result

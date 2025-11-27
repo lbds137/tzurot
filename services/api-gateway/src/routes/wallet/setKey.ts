@@ -27,28 +27,20 @@ interface SetKeyRequest {
 /**
  * Ensure user exists in database
  * Creates user if not exists (Discord user ID as ID)
+ * Uses upsert to handle race conditions when multiple requests arrive simultaneously
  */
 async function ensureUserExists(prisma: PrismaClient, discordUserId: string): Promise<string> {
-  // Discord IDs are snowflakes (numeric strings), but our user IDs are UUIDs
-  // We need to check if a user with this Discord ID exists
-  let user = await prisma.user.findFirst({
+  // Use upsert to atomically find-or-create, avoiding race conditions
+  const user = await prisma.user.upsert({
     where: { discordId: discordUserId },
+    update: {}, // No-op if exists
+    create: {
+      discordId: discordUserId,
+      username: discordUserId, // Placeholder - updated via other flows
+      timezone: 'UTC',
+    },
     select: { id: true },
   });
-
-  if (!user) {
-    // Create new user with Discord ID
-    // Use discordId as placeholder username (can be updated later via other flows)
-    user = await prisma.user.create({
-      data: {
-        discordId: discordUserId,
-        username: discordUserId,
-        timezone: 'UTC',
-      },
-      select: { id: true },
-    });
-    logger.info({ discordUserId }, '[Wallet] Created new user');
-  }
 
   return user.id;
 }

@@ -37,21 +37,21 @@ export interface EncryptedData {
  * Get encryption key from environment.
  * Key must be 32 bytes (256 bits) in hex format (64 hex characters).
  *
- * @throws Error if APP_MASTER_KEY is missing or invalid length
+ * @throws Error if API_KEY_ENCRYPTION_KEY is missing or invalid length
  */
 function getEncryptionKey(): Buffer {
-  const key = process.env.APP_MASTER_KEY;
+  const key = process.env.API_KEY_ENCRYPTION_KEY;
   if (key === undefined || key === '') {
-    throw new Error('APP_MASTER_KEY environment variable is required for encryption');
+    throw new Error('API_KEY_ENCRYPTION_KEY environment variable is required for encryption');
   }
   if (key.length !== 64) {
     throw new Error(
-      `APP_MASTER_KEY must be 64 hex characters (32 bytes), got ${key.length} characters`
+      `API_KEY_ENCRYPTION_KEY must be 64 hex characters (32 bytes), got ${key.length} characters`
     );
   }
   // Validate hex format
   if (!/^[0-9a-fA-F]+$/.test(key)) {
-    throw new Error('APP_MASTER_KEY must contain only hexadecimal characters');
+    throw new Error('API_KEY_ENCRYPTION_KEY must contain only hexadecimal characters');
   }
   return Buffer.from(key, 'hex');
 }
@@ -62,7 +62,7 @@ function getEncryptionKey(): Buffer {
  *
  * @param plaintext - The API key to encrypt
  * @returns EncryptedData with iv, content, and tag as hex strings
- * @throws Error if APP_MASTER_KEY is missing or invalid
+ * @throws Error if API_KEY_ENCRYPTION_KEY is missing or invalid
  *
  * @example
  * const encrypted = encryptApiKey('sk-abc123...');
