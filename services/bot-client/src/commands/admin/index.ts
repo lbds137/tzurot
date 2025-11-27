@@ -8,7 +8,7 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
 import { createLogger, getConfig, requireBotOwner, type EnvConfig } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
@@ -17,6 +17,9 @@ import { handleDbSync } from './db-sync.js';
 import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
+import { handleLlmConfigCreate } from './llm-config-create.js';
+import { handleLlmConfigSetDefault } from './llm-config-set-default.js';
+import { handleLlmConfigEdit } from './llm-config-edit.js';
 
 const logger = createLogger('admin-command');
 
@@ -45,7 +48,11 @@ export const data = new SlashCommandBuilder()
       .setName('kick')
       .setDescription('Remove the bot from a server')
       .addStringOption(option =>
-        option.setName('server-id').setDescription('Discord server ID to leave').setRequired(true)
+        option
+          .setName('server-id')
+          .setDescription('Discord server to leave')
+          .setRequired(true)
+          .setAutocomplete(true)
       )
   )
   .addSubcommand(subcommand =>
@@ -63,6 +70,86 @@ export const data = new SlashCommandBuilder()
             { name: 'Last 30 days', value: '30d' }
           )
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('llm-config-create')
+      .setDescription('Create a new global LLM config')
+      .addStringOption(option =>
+        option.setName('name').setDescription('Config name').setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('model')
+          .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('provider')
+          .setDescription('AI provider')
+          .setRequired(false)
+          .addChoices(
+            { name: 'OpenRouter', value: 'openrouter' },
+            { name: 'Anthropic', value: 'anthropic' },
+            { name: 'OpenAI', value: 'openai' },
+            { name: 'Google', value: 'google' }
+          )
+      )
+      .addStringOption(option =>
+        option.setName('description').setDescription('Optional description').setRequired(false)
+      )
+      .addStringOption(option =>
+        option.setName('vision-model').setDescription('Vision model (optional)').setRequired(false)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('llm-config-set-default')
+      .setDescription('Set a global config as the system default')
+      .addStringOption(option =>
+        option
+          .setName('config')
+          .setDescription('Global config to set as default')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('llm-config-edit')
+      .setDescription('Edit an existing global LLM config')
+      .addStringOption(option =>
+        option
+          .setName('config')
+          .setDescription('Global config to edit')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option.setName('name').setDescription('New config name').setRequired(false)
+      )
+      .addStringOption(option =>
+        option.setName('model').setDescription('New model ID').setRequired(false)
+      )
+      .addStringOption(option =>
+        option
+          .setName('provider')
+          .setDescription('New AI provider')
+          .setRequired(false)
+          .addChoices(
+            { name: 'OpenRouter', value: 'openrouter' },
+            { name: 'Anthropic', value: 'anthropic' },
+            { name: 'OpenAI', value: 'openai' },
+            { name: 'Google', value: 'google' }
+          )
+      )
+      .addStringOption(option =>
+        option.setName('description').setDescription('New description').setRequired(false)
+      )
+      .addStringOption(option =>
+        option.setName('vision-model').setDescription('New vision model').setRequired(false)
+      )
   );
 
 /**
@@ -77,6 +164,9 @@ function createAdminRouter(
       servers: handleServers,
       kick: handleKick,
       usage: interaction => handleUsage(interaction, config),
+      'llm-config-create': interaction => handleLlmConfigCreate(interaction, config),
+      'llm-config-set-default': interaction => handleLlmConfigSetDefault(interaction, config),
+      'llm-config-edit': interaction => handleLlmConfigEdit(interaction, config),
     },
     { logger, logPrefix: '[Admin]' }
   );
@@ -95,4 +185,105 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const config = getConfig();
   const router = createAdminRouter(config);
   await router(interaction);
+}
+
+/**
+ * Autocomplete handler for admin commands
+ */
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focusedOption = interaction.options.getFocused(true);
+  const config = getConfig();
+
+  try {
+    if (focusedOption.name === 'config') {
+      // Autocomplete for llm-config-set-default
+      await handleConfigAutocomplete(interaction, focusedOption.value, config);
+    } else if (focusedOption.name === 'server-id') {
+      // Autocomplete for kick command
+      await handleServerAutocomplete(interaction, focusedOption.value);
+    } else {
+      await interaction.respond([]);
+    }
+  } catch (error) {
+    logger.error({ err: error, option: focusedOption.name }, '[Admin] Autocomplete error');
+    await interaction.respond([]);
+  }
+}
+
+/**
+ * Autocomplete for global LLM configs
+ */
+async function handleConfigAutocomplete(
+  interaction: AutocompleteInteraction,
+  query: string,
+  config: EnvConfig
+): Promise<void> {
+  const gatewayUrl = config.GATEWAY_URL;
+  if (!gatewayUrl) {
+    await interaction.respond([]);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${gatewayUrl}/admin/llm-config`, {
+      headers: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        'X-Admin-Key': config.ADMIN_API_KEY ?? '',
+      },
+    });
+
+    if (!response.ok) {
+      await interaction.respond([]);
+      return;
+    }
+
+    const data = (await response.json()) as {
+      configs: {
+        id: string;
+        name: string;
+        model: string;
+        isGlobal: boolean;
+        isDefault: boolean;
+      }[];
+    };
+
+    const queryLower = query.toLowerCase();
+    const filtered = data.configs
+      .filter(
+        c =>
+          c.isGlobal &&
+          (c.name.toLowerCase().includes(queryLower) || c.model.toLowerCase().includes(queryLower))
+      )
+      .slice(0, 25);
+
+    const choices = filtered.map(c => ({
+      name: `${c.name} (${c.model.split('/').pop()})${c.isDefault ? ' [DEFAULT]' : ''}`,
+      value: c.id,
+    }));
+
+    await interaction.respond(choices);
+  } catch {
+    await interaction.respond([]);
+  }
+}
+
+/**
+ * Autocomplete for servers the bot is in
+ */
+async function handleServerAutocomplete(
+  interaction: AutocompleteInteraction,
+  query: string
+): Promise<void> {
+  const client = interaction.client;
+  const queryLower = query.toLowerCase();
+
+  const servers = client.guilds.cache
+    .filter(guild => guild.name.toLowerCase().includes(queryLower) || guild.id.includes(query))
+    .map(guild => ({
+      name: `${guild.name} (${guild.memberCount} members)`,
+      value: guild.id,
+    }))
+    .slice(0, 25);
+
+  await interaction.respond(servers);
 }

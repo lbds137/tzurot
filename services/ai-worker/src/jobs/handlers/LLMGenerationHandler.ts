@@ -27,6 +27,7 @@ import {
 } from '@tzurot/common-types';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
+import { LlmConfigResolver } from '../../services/LlmConfigResolver.js';
 
 const logger = createLogger('LLMGenerationHandler');
 
@@ -37,7 +38,8 @@ const logger = createLogger('LLMGenerationHandler');
 export class LLMGenerationHandler {
   constructor(
     private readonly ragService: ConversationalRAGService,
-    private readonly apiKeyResolver?: ApiKeyResolver
+    private readonly apiKeyResolver?: ApiKeyResolver,
+    private readonly configResolver?: LlmConfigResolver
   ) {}
 
   /**
@@ -190,6 +192,59 @@ export class LLMGenerationHandler {
       `[LLMGenerationHandler] Processing LLM generation job ${job.id} (${requestId}) for ${personality.name}`
     );
 
+    // Resolve LLM config with user overrides
+    // Hierarchy: user-personality > user-default > personality default
+    let effectivePersonality = personality;
+    let configSource: 'personality' | 'user-personality' | 'user-default' = 'personality';
+
+    if (this.configResolver) {
+      try {
+        const configResult = await this.configResolver.resolveConfig(
+          context.userId,
+          personality.id,
+          personality
+        );
+
+        configSource = configResult.source;
+
+        // If user has an override, apply it to the personality
+        if (configResult.source !== 'personality') {
+          effectivePersonality = {
+            ...personality,
+            model: configResult.config.model,
+            visionModel: configResult.config.visionModel ?? personality.visionModel,
+            temperature: configResult.config.temperature ?? personality.temperature,
+            topP: configResult.config.topP ?? personality.topP,
+            topK: configResult.config.topK ?? personality.topK,
+            frequencyPenalty: configResult.config.frequencyPenalty ?? personality.frequencyPenalty,
+            presencePenalty: configResult.config.presencePenalty ?? personality.presencePenalty,
+            maxTokens: configResult.config.maxTokens ?? personality.maxTokens,
+            memoryScoreThreshold:
+              configResult.config.memoryScoreThreshold ?? personality.memoryScoreThreshold,
+            memoryLimit: configResult.config.memoryLimit ?? personality.memoryLimit,
+            contextWindowTokens:
+              configResult.config.contextWindowTokens ?? personality.contextWindowTokens,
+          };
+
+          logger.info(
+            {
+              userId: context.userId,
+              personalityId: personality.id,
+              source: configResult.source,
+              configName: configResult.configName,
+              model: effectivePersonality.model,
+            },
+            '[LLMGenerationHandler] Applied user config override'
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, userId: context.userId },
+          '[LLMGenerationHandler] Failed to resolve user config, using personality default'
+        );
+      }
+    }
+
     // BYOK: Resolve API key from database using ApiKeyResolver
     // The key is NEVER passed through BullMQ - we look it up here using userId
     let resolvedApiKey: string | undefined;
@@ -281,8 +336,9 @@ export class LLMGenerationHandler {
 
       // Generate response using RAG
       // Note: resolvedApiKey comes from ApiKeyResolver (BYOK) or is undefined (system key fallback)
+      // Note: effectivePersonality has user config overrides applied (if any)
       const response: RAGResponse = await this.ragService.generateResponse(
-        personality,
+        effectivePersonality,
         message as MessageContent,
         {
           userId: context.userId,
@@ -322,6 +378,7 @@ export class LLMGenerationHandler {
           processingTimeMs,
           modelUsed: response.modelUsed,
           providerUsed: resolvedProvider,
+          configSource, // 'personality' | 'user-personality' | 'user-default'
         },
       };
 

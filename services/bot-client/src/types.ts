@@ -7,6 +7,7 @@
 import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
+  AutocompleteInteraction,
   SlashCommandBuilder,
 } from 'discord.js';
 import type {
@@ -59,4 +60,6 @@ export interface Command {
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction,
     ...args: unknown[]
   ) => Promise<void>;
+  /** Optional autocomplete handler for commands with autocomplete options */
+  autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }

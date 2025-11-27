@@ -236,6 +236,8 @@ export const generationPayloadSchema = z.object({
       modelUsed: z.string().optional(),
       /** AI provider used (from API key resolution) */
       providerUsed: z.string().optional(),
+      /** Source of LLM config: 'personality' | 'user-personality' | 'user-default' */
+      configSource: z.enum(['personality', 'user-personality', 'user-default']).optional(),
     })
     .optional(),
 });
