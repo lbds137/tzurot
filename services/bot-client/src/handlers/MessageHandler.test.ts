@@ -282,9 +282,11 @@ describe('MessageHandler', () => {
         reply: vi.fn().mockResolvedValue({ id: 'error-reply-123' }),
       } as unknown as Message;
 
+      const mockPersonality = { id: 'p-1', name: 'Bot' };
+
       const mockContext = {
         message: mockMessage,
-        personality: { id: 'p-1', name: 'Bot' },
+        personality: mockPersonality,
         personaId: 'persona-1',
         userMessageContent: 'Message',
         userMessageTime: new Date(),
@@ -299,10 +301,12 @@ describe('MessageHandler', () => {
       // Should still complete the job
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
 
-      // Should notify user of error
-      expect(mockMessage.reply).toHaveBeenCalledWith(
-        'Sorry, I encountered an error while processing your request.'
-      );
+      // Should notify user of error via webhook (not direct reply)
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith({
+        content: 'Sorry, I encountered an error while processing your request.',
+        personality: mockPersonality,
+        message: mockMessage,
+      });
     });
 
     it('should handle chunked messages correctly', async () => {

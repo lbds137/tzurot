@@ -245,9 +245,11 @@ export class MessageContextBuilder {
     const environment = extractDiscordEnvironment(message);
 
     // Build complete context
-    // Note: userId is the Discord ID (for BYOK resolution), not the internal UUID
+    // Note: userId is the Discord ID (for BYOK resolution)
+    // userInternalId is the internal UUID (for usage logging and database operations)
     const context: MessageContext = {
       userId: discordUserId,
+      userInternalId: internalUserId,
       userName: message.author.username,
       channelId: message.channel.id,
       serverId: message.guild?.id,

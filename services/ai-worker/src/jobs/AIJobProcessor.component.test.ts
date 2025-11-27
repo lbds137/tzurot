@@ -184,7 +184,8 @@ describe('AIJobProcessor Component Test', () => {
       generateResponse: vi.fn().mockResolvedValue({
         content: 'This is a mocked AI response for testing',
         retrievedMemories: 5,
-        tokensUsed: 150,
+        tokensIn: 100,
+        tokensOut: 50,
         modelUsed: 'anthropic/claude-sonnet-4',
       } as RAGResponse),
     } as unknown as ConversationalRAGService;
@@ -249,7 +250,8 @@ describe('AIJobProcessor Component Test', () => {
         content: 'This is a mocked AI response for testing',
         metadata: {
           retrievedMemories: 5,
-          tokensUsed: 150,
+          tokensIn: 100,
+          tokensOut: 50,
           modelUsed: 'anthropic/claude-sonnet-4',
         },
       });

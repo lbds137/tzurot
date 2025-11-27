@@ -63,7 +63,8 @@ function createMockRAGService(): ConversationalRAGService {
   return {
     generateResponse: vi.fn().mockResolvedValue({
       content: 'Mocked AI response',
-      tokensUsed: 100,
+      tokensIn: 80,
+      tokensOut: 20,
       retrievedMemories: 5,
       modelUsed: 'test-model',
     }),

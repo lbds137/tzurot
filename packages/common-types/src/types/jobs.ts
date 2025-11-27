@@ -49,6 +49,7 @@ export interface JobDependency {
  */
 export interface JobContext {
   userId: string;
+  userInternalId?: string;
   userName?: string;
   channelId?: string;
   serverId?: string;
@@ -226,6 +227,7 @@ export const jobDependencySchema = z.object({
  */
 export const jobContextSchema = z.object({
   userId: z.string(),
+  userInternalId: z.string().optional(),
   userName: z.string().optional(),
   channelId: z.string().optional(),
   serverId: z.string().optional(),

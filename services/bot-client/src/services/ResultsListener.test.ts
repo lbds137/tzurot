@@ -41,7 +41,8 @@ describe('ResultsListener - JobResult Construction', () => {
           success: true,
           metadata: {
             modelUsed: 'anthropic/claude-sonnet-4.5',
-            tokensUsed: 1000,
+            tokensIn: 800,
+            tokensOut: 200,
           },
         }),
         completedAt: '2025-11-15T08:00:00.000Z',
@@ -71,7 +72,8 @@ describe('ResultsListener - JobResult Construction', () => {
           success: true,
           metadata: {
             modelUsed: 'anthropic/claude-sonnet-4.5',
-            tokensUsed: 1000,
+            tokensIn: 800,
+            tokensOut: 200,
           },
         },
       });
@@ -111,7 +113,8 @@ describe('ResultsListener - JobResult Construction', () => {
           referencedMessagesDescriptions: '[Previous message]',
           metadata: {
             modelUsed: 'anthropic/claude-sonnet-4.5',
-            tokensUsed: 2000,
+            tokensIn: 1500,
+            tokensOut: 500,
             processingTimeMs: 5000,
             retrievedMemories: 10,
           },
@@ -132,7 +135,8 @@ describe('ResultsListener - JobResult Construction', () => {
         referencedMessagesDescriptions: '[Previous message]',
         metadata: {
           modelUsed: 'anthropic/claude-sonnet-4.5',
-          tokensUsed: 2000,
+          tokensIn: 1500,
+          tokensOut: 500,
           processingTimeMs: 5000,
           retrievedMemories: 10,
         },

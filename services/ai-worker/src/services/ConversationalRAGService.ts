@@ -116,7 +116,10 @@ export interface ConversationContext {
 export interface RAGResponse {
   content: string;
   retrievedMemories?: number;
-  tokensUsed?: number;
+  /** Input/prompt tokens consumed */
+  tokensIn?: number;
+  /** Output/completion tokens consumed */
+  tokensOut?: number;
   attachmentDescriptions?: string;
   referencedMessagesDescriptions?: string;
   modelUsed?: string;
@@ -363,16 +366,23 @@ export class ConversationalRAGService {
               .join('\n\n')
           : undefined;
 
-      // Extract token usage if available (some providers include this in response)
+      // Extract token usage if available (LangChain provides usage_metadata)
       const responseData = response as unknown as {
-        usage_metadata?: { total_tokens?: number };
+        usage_metadata?: {
+          input_tokens?: number;
+          output_tokens?: number;
+          total_tokens?: number;
+        };
       };
-      const tokensUsed = responseData.usage_metadata?.total_tokens;
+      const usageMetadata = responseData.usage_metadata;
+      const tokensIn = usageMetadata?.input_tokens;
+      const tokensOut = usageMetadata?.output_tokens;
 
       return {
         content,
         retrievedMemories: relevantMemories.length,
-        tokensUsed,
+        tokensIn,
+        tokensOut,
         attachmentDescriptions,
         referencedMessagesDescriptions,
         modelUsed: modelName,

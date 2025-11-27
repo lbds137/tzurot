@@ -114,7 +114,8 @@ describe('LLMGenerationHandler', () => {
     mockRAGService.generateResponse.mockResolvedValue({
       content: 'Hello! I am doing well, thank you for asking.',
       retrievedMemories: 0,
-      tokensUsed: 150,
+      tokensIn: 100,
+      tokensOut: 50,
       modelUsed: 'anthropic/claude-sonnet-4',
     });
   });
@@ -186,7 +187,8 @@ describe('LLMGenerationHandler', () => {
 
         expect(result.metadata).toBeDefined();
         expect(result.metadata?.retrievedMemories).toBe(0);
-        expect(result.metadata?.tokensUsed).toBe(150);
+        expect(result.metadata?.tokensIn).toBe(100);
+        expect(result.metadata?.tokensOut).toBe(50);
         expect(result.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
         expect(result.metadata?.processingTimeMs).toBeGreaterThanOrEqual(0);
       });
@@ -659,7 +661,8 @@ describe('LLMGenerationHandler', () => {
           content: 'Response text',
           attachmentDescriptions: 'Image shows a sunset.',
           retrievedMemories: 2,
-          tokensUsed: 200,
+          tokensIn: 150,
+          tokensOut: 50,
           modelUsed: 'test-model',
         });
 
@@ -676,7 +679,8 @@ describe('LLMGenerationHandler', () => {
           content: 'Response about referenced messages',
           referencedMessagesDescriptions: 'User replied to: "Original message"',
           retrievedMemories: 1,
-          tokensUsed: 180,
+          tokensIn: 130,
+          tokensOut: 50,
           modelUsed: 'test-model',
         });
 

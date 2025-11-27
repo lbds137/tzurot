@@ -179,7 +179,8 @@ describe('API Endpoint Contract Tests', () => {
           content: 'Generated response text',
           metadata: {
             modelUsed: 'anthropic/claude-sonnet-4.5',
-            tokensUsed: 150,
+            tokensIn: 100,
+            tokensOut: 50,
             processingTimeMs: 250,
           },
         },
@@ -229,7 +230,8 @@ describe('API Endpoint Contract Tests', () => {
         result: {
           content: 'Generated response',
           metadata: {
-            tokensUsed: 150,
+            tokensIn: 100,
+            tokensOut: 50,
             processingTimeMs: 250,
           },
         },
