@@ -14,7 +14,8 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { getPrismaClient, type PrismaClient } from '@tzurot/common-types';
+// Use relative import for standalone script execution
+import { getPrismaClient, type PrismaClient } from '../../packages/common-types/src/index.js';
 
 // Parse CLI args
 const args = process.argv.slice(2);
@@ -156,7 +157,28 @@ async function createAliasesFromDisplayNames(prisma: PrismaClient): Promise<numb
 }
 
 /**
+ * Parse shapes.inc birthday format "MM-DD" into month and day integers
+ */
+function parseBirthday(birthday: string): { month: number; day: number } | null {
+  // shapes.inc uses "MM-DD" format (e.g., "12-24" for December 24)
+  const match = birthday.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (!match) return null;
+
+  const month = parseInt(match[1], 10);
+  const day = parseInt(match[2], 10);
+
+  // Validate ranges
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+
+  return { month, day };
+}
+
+/**
  * Task 2.9: Import birthdays from shapes.inc backups
+ *
+ * Schema uses separate Int fields: birthMonth, birthDay, birthYear (optional)
+ * Shapes.inc only provides MM-DD format, so birthYear stays null
  */
 async function importBirthdaysFromShapesInc(prisma: PrismaClient): Promise<number> {
   log('\n📋 Task 2.9: Importing birthdays from shapes.inc backups...');
@@ -197,7 +219,7 @@ async function importBirthdaysFromShapesInc(prisma: PrismaClient): Promise<numbe
     // Find matching personality in v3 database
     const personality = await prisma.personality.findUnique({
       where: { slug },
-      select: { id: true, name: true, birthday: true },
+      select: { id: true, name: true, birthMonth: true, birthDay: true },
     });
 
     if (!personality) {
@@ -205,17 +227,32 @@ async function importBirthdaysFromShapesInc(prisma: PrismaClient): Promise<numbe
       continue;
     }
 
-    if (personality.birthday) {
-      debug(`${personality.name} already has birthday set: ${personality.birthday}`);
+    if (personality.birthMonth !== null && personality.birthDay !== null) {
+      debug(
+        `${personality.name} already has birthday set: ${personality.birthMonth}-${personality.birthDay}`
+      );
       continue;
     }
 
-    debug(`Setting birthday for ${personality.name}: ${birthday}`);
+    // Parse MM-DD format into separate fields
+    const parsed = parseBirthday(birthday);
+    if (!parsed) {
+      debug(`Invalid birthday format for ${personality.name}: ${birthday}`);
+      continue;
+    }
+
+    debug(
+      `Setting birthday for ${personality.name}: ${birthday} → month=${parsed.month}, day=${parsed.day}`
+    );
 
     if (!DRY_RUN) {
       await prisma.personality.update({
         where: { id: personality.id },
-        data: { birthday },
+        data: {
+          birthMonth: parsed.month,
+          birthDay: parsed.day,
+          // birthYear remains null - shapes.inc doesn't provide it
+        },
       });
     }
     importedCount++;

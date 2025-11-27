@@ -540,7 +540,8 @@
 - [ ] Consolidate `scripts/data/import-personality/` - Currently a separate workspace package with its own node_modules. Options: absorb into api-gateway, move to packages/, or document as intentionally standalone.
 - [ ] Investigate npm warning: "Unknown project config public-hoist-pattern" (pnpm/npm compat)
 - [ ] Full schema consistency review - naming conventions, missing fields, type alignment
-- [ ] Migrate `embedding Unsupported("vector")` to native `Float[] @db.Vector(1536)` (fixes Prisma HNSW drift)
+- [x] ~~Migrate embedding to native @db.Vector~~ INVALID: Prisma 7.0.0 does NOT support @db.Vector type
+- [ ] Investigate Atlas (atlasgo.io) for composite schema management - prevents Prisma pgvector index drift by allowing manual SQL + Prisma schema to coexist
 - [ ] Increase test coverage for `WebhookManager` (249 lines)
 - [ ] Refactor `MessageHandler` if it grows beyond 468 lines (consider splitting)
 - [ ] Add integration tests for end-to-end flows

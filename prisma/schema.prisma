@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../packages/common-types/src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../packages/common-types/src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [vector]
 }
 
 model User {
@@ -179,7 +181,9 @@ model Personality {
   conversationalExamples String?                   @map("conversational_examples")
   customFields           Json?                     @map("custom_fields")
   errorMessage           String?                   @map("error_message")
-  birthday               DateTime?                 @db.Date
+  birthMonth             Int?                      @map("birth_month")
+  birthDay               Int?                      @map("birth_day")
+  birthYear              Int?                      @map("birth_year")
   isPublic               Boolean                   @default(true) @map("is_public")
   voiceEnabled           Boolean                   @default(false) @map("voice_enabled")
   voiceSettings          Json?                     @map("voice_settings")
@@ -314,6 +318,8 @@ model Memory {
   personaId            String?                @map("persona_id") @db.Uuid
   personalityId        String                 @map("personality_id") @db.Uuid
   content              String
+  /// Vector embedding for similarity search - managed outside Prisma
+  /// Index: idx_memories_embedding USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50)
   embedding            Unsupported("vector")?
   isSummarized         Boolean                @default(false) @map("is_summarized")
   originalMessageCount Int?                   @map("original_message_count")
