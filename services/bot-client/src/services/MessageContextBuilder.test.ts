@@ -207,8 +207,9 @@ describe('MessageContextBuilder', () => {
       );
 
       // Verify context structure
+      // Note: context.userId is the Discord ID (for BYOK), not the internal UUID
       expect(result.context).toMatchObject({
-        userId: 'user-uuid-123',
+        userId: 'user-123', // Discord ID for BYOK resolution
         userName: 'testuser',
         channelId: 'channel-123',
         serverId: 'guild-123',
