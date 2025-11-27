@@ -8,6 +8,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getConfig, createLogger } from '@tzurot/common-types';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
+import type { AuthenticatedRequest } from '../types.js';
 
 const logger = createLogger('auth-middleware');
 
@@ -148,7 +149,7 @@ export function requireUserAuth(customMessage?: string) {
     }
 
     // Attach userId to request for downstream handlers
-    (req as Request & { userId: string }).userId = userId;
+    (req as AuthenticatedRequest).userId = userId;
 
     next();
   };

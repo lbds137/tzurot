@@ -4,7 +4,7 @@
  * PUT /user/timezone - Set timezone
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -16,6 +16,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-timezone');
 
@@ -33,8 +34,8 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
   router.get(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const discordUserId = (req as Request & { userId: string }).userId;
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
 
       const user = await prisma.user.findFirst({
         where: { discordId: discordUserId },
@@ -71,8 +72,8 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
   router.put(
     '/',
     requireUserAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
-      const discordUserId = (req as Request & { userId: string }).userId;
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
       const { timezone } = req.body as SetTimezoneRequest;
 
       // Validate required field
