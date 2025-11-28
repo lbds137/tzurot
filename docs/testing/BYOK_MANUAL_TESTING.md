@@ -19,12 +19,27 @@ railway variables set API_KEY_ENCRYPTION_KEY=<your-64-hex-chars> --service api-g
 railway variables set API_KEY_ENCRYPTION_KEY=<your-64-hex-chars> --service ai-worker
 ```
 
+On **both** `api-gateway` and `bot-client` services (for admin commands):
+
+```bash
+# Generate admin API key (shared secret for service-to-service auth)
+openssl rand -hex 32
+
+# Set on Railway (same key for both services)
+railway variables set ADMIN_API_KEY=<your-64-hex-chars> --service api-gateway
+railway variables set ADMIN_API_KEY=<your-64-hex-chars> --service bot-client
+```
+
 ### Verify Setup
 
 ```bash
-# Check variables are set
+# Check BYOK encryption key is set
 railway variables --service api-gateway | grep API_KEY_ENCRYPTION
 railway variables --service ai-worker | grep API_KEY_ENCRYPTION
+
+# Check admin API key is set (for admin commands)
+railway variables --service api-gateway | grep ADMIN_API_KEY
+railway variables --service bot-client | grep ADMIN_API_KEY
 
 # Check services are healthy
 curl https://api-gateway-development-83e8.up.railway.app/health
@@ -42,7 +57,7 @@ curl https://api-gateway-development-83e8.up.railway.app/health
 | **Model Override**     | `/model set/list/reset/set-default/clear-default` | Override which LLM config a personality uses (per-user) |
 | **LLM Configs**        | `/llm-config create/list/delete`                  | Create personal model configurations                    |
 | **Settings**           | `/settings timezone/usage`                        | User preferences and usage stats                        |
-| **Admin (Owner Only)** | `/admin llm-config-create/llm-config-set-default` | Manage global LLM configs                               |
+| **Admin (Owner Only)** | `/admin llm-config-create/edit/set-default`       | Manage global LLM configs                               |
 
 ### Important Architecture Notes
 
@@ -210,7 +225,8 @@ Common examples: `America/New_York`, `America/Los_Angeles`, `Europe/London`, `As
 **Commands:**
 
 - `/admin llm-config-create <name> <model>` - Create a global LLM config
-- `/admin llm-config-set-default <config-id>` - Set a config as the system default
+- `/admin llm-config-edit <config> [name] [model] [...]` - Edit an existing global config
+- `/admin llm-config-set-default <config>` - Set a config as the system default
 
 #### Test Flow
 
@@ -219,8 +235,9 @@ Common examples: `America/New_York`, `America/Los_Angeles`, `Europe/London`, `As
 | 5.1  | `/llm-config list` (as any user)                                        | Shows existing global configs     |
 | 5.2  | `/admin llm-config-create name:Claude4 model:anthropic/claude-sonnet-4` | Success: shows new config ID      |
 | 5.3  | `/llm-config list` (as any user)                                        | Shows new "Claude4" config        |
-| 5.4  | `/admin llm-config-set-default <Claude4-ID>`                            | Success: "Claude4 is now default" |
-| 5.5  | Send message without any overrides                                      | Uses Claude4 model                |
+| 5.4  | `/admin llm-config-edit config:Claude4 model:anthropic/claude-haiku-4`  | Success: shows updated config     |
+| 5.5  | `/admin llm-config-set-default config:Claude4`                          | Success: "Claude4 is now default" |
+| 5.6  | Send message without any overrides                                      | Uses Claude4 model                |
 
 #### Notes
 
@@ -228,6 +245,7 @@ Common examples: `America/New_York`, `America/Los_Angeles`, `Europe/London`, `As
 - Global configs are visible to all users for selection
 - Setting a default affects all users who don't have overrides
 - Can't delete a config that's set as default or in use
+- Config selection uses autocomplete (type to filter)
 
 ---
 
@@ -317,9 +335,11 @@ Run these in order to verify basic functionality:
 
 ```
 1. /admin llm-config-create name:GlobalTest model:google/gemini-2.0-flash-exp
-2. /llm-config list                      → Shows "GlobalTest" as global
-3. /admin llm-config-set-default <id>    → Set as system default
-4. @lilith hello (as normal user)        → Uses GlobalTest model
+2. /llm-config list                                → Shows "GlobalTest" as global
+3. /admin llm-config-edit config:GlobalTest model:anthropic/claude-sonnet-4
+4. /llm-config list                                → Shows updated model
+5. /admin llm-config-set-default config:GlobalTest → Set as system default
+6. @lilith hello (as normal user)                  → Uses GlobalTest model
 ```
 
 ---
@@ -330,7 +350,7 @@ Run these in order to verify basic functionality:
 
 2. **Config deletion blocked if in use** - Must remove all overrides using a config before deleting it
 
-3. **No global config editing via Discord** - Can create and set default, but editing requires database access
+3. **No global config deletion via Discord** - Can create, edit, and set default, but deletion requires database access (prevents accidental deletion of configs in use)
 
 ---
 

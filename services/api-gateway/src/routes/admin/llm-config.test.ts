@@ -21,8 +21,8 @@ const createMockCacheInvalidationService = () => ({
   invalidateConfigUsers: vi.fn().mockResolvedValue(undefined),
 });
 
-const createMockPrismaClient = () => ({
-  llmConfig: {
+const createMockPrismaClient = () => {
+  const mockLlmConfig = {
     findMany: vi.fn(),
     findFirst: vi.fn(),
     findUnique: vi.fn(),
@@ -30,14 +30,22 @@ const createMockPrismaClient = () => ({
     update: vi.fn(),
     updateMany: vi.fn(),
     delete: vi.fn(),
-  },
-  personalityDefaultConfig: {
-    count: vi.fn(),
-  },
-  userPersonalityConfig: {
-    count: vi.fn(),
-  },
-});
+  };
+
+  return {
+    llmConfig: mockLlmConfig,
+    personalityDefaultConfig: {
+      count: vi.fn(),
+    },
+    userPersonalityConfig: {
+      count: vi.fn(),
+    },
+    // Transaction mock - executes callback with same mock objects
+    $transaction: vi.fn(async (callback: (tx: { llmConfig: typeof mockLlmConfig }) => Promise<void>) => {
+      await callback({ llmConfig: mockLlmConfig });
+    }),
+  };
+};
 
 describe('Admin LLM Config Routes', () => {
   let app: Express;
