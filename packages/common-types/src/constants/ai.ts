@@ -88,3 +88,49 @@ export enum AIProvider {
   OpenAI = 'openai',
   OpenRouter = 'openrouter',
 }
+
+/**
+ * Free Model Guest Mode Configuration
+ *
+ * Used when a user has no BYOK API key and the system fallback is unavailable.
+ * Guest users are restricted to free-tier models only.
+ */
+export const GUEST_MODE = {
+  /**
+   * Default free model for guest users
+   * Grok 4.1 Fast: 2M context window, vision support, excellent for conversational AI
+   */
+  DEFAULT_MODEL: 'x-ai/grok-4.1-fast:free',
+
+  /**
+   * Alternative free models (for failover or user choice)
+   * Ordered by preference for chat/roleplay use cases
+   */
+  FREE_MODELS: [
+    'x-ai/grok-4.1-fast:free', // 2M context, vision support
+    'nvidia/nemotron-nano-12b-v2-vl:free', // 128k context, vision support
+    'tngtech/tng-r1t-chimera:free', // 164k context, creative storytelling
+  ] as const,
+
+  /**
+   * Free model suffix used by OpenRouter
+   * Models ending with this suffix are free to use
+   */
+  FREE_MODEL_SUFFIX: ':free',
+
+  /**
+   * Message footer for guest mode responses
+   */
+  FOOTER_MESSAGE: '🆓 Using free model (no API key required)',
+} as const;
+
+/**
+ * Check if a model ID is a free model
+ * Free models on OpenRouter end with ':free'
+ *
+ * @param modelId - The model ID to check (e.g., 'x-ai/grok-4.1-fast:free')
+ * @returns true if the model is free
+ */
+export function isFreeModel(modelId: string): boolean {
+  return modelId.endsWith(GUEST_MODE.FREE_MODEL_SUFFIX);
+}

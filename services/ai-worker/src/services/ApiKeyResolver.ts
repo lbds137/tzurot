@@ -28,17 +28,27 @@ const logger = createLogger('ApiKeyResolver');
 const config = getConfig();
 
 /**
+ * Source of the API key
+ * - 'user': User's own BYOK API key
+ * - 'system': System-provided API key (bot owner pays)
+ * - 'guest': No API key available, limited to free models only
+ */
+export type ApiKeySource = 'user' | 'system' | 'guest';
+
+/**
  * Result of API key resolution
  */
 export interface ApiKeyResolutionResult {
-  /** The resolved API key (decrypted) */
+  /** The resolved API key (decrypted). Empty string for guest mode. */
   apiKey: string;
   /** Source of the key */
-  source: 'user' | 'system';
+  source: ApiKeySource;
   /** Provider the key is for */
   provider: AIProvider;
   /** User ID if resolved from user's wallet */
   userId?: string;
+  /** Whether this user is in guest mode (no API key, free models only) */
+  isGuestMode: boolean;
 }
 
 /**
@@ -109,6 +119,7 @@ export class ApiKeyResolver {
           source: 'user',
           provider,
           userId,
+          isGuestMode: false,
         };
         this.cacheResult(cacheKey, result);
         logger.debug({ userId, provider, source: 'user' }, 'API key resolved from user wallet');
@@ -118,20 +129,31 @@ export class ApiKeyResolver {
 
     // Fall back to system API key
     const systemKey = this.getSystemApiKey(provider);
-    if (systemKey === null) {
-      throw new Error(
-        `No API key available for provider ${provider}. ` +
-          'User has no BYOK key and system key is not configured.'
-      );
+    if (systemKey !== null) {
+      const result: ApiKeyResolutionResult = {
+        apiKey: systemKey,
+        source: 'system',
+        provider,
+        isGuestMode: false,
+      };
+      this.cacheResult(cacheKey, result);
+      logger.debug({ userId, provider, source: 'system' }, 'API key resolved from system');
+      return result;
     }
 
+    // No API key available - enter Guest Mode (free models only)
     const result: ApiKeyResolutionResult = {
-      apiKey: systemKey,
-      source: 'system',
+      apiKey: '', // No API key - will use free models that don't require auth
+      source: 'guest',
       provider,
+      userId,
+      isGuestMode: true,
     };
     this.cacheResult(cacheKey, result);
-    logger.debug({ userId, provider, source: 'system' }, 'API key resolved from system');
+    logger.info(
+      { userId, provider, source: 'guest' },
+      'No API key available, using Guest Mode (free models only)'
+    );
     return result;
   }
 
