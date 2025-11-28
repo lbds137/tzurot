@@ -206,7 +206,9 @@ export class OpenRouterModelCache {
         throw new Error('Invalid response format from OpenRouter API');
       }
 
-      logger.info(`[OpenRouterModelCache] Fetched ${String(data.data.length)} models from OpenRouter`);
+      logger.info(
+        `[OpenRouterModelCache] Fetched ${String(data.data.length)} models from OpenRouter`
+      );
       return data.data;
     } catch (error) {
       clearTimeout(timeoutId);
