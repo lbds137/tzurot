@@ -54,17 +54,11 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
 
   // Pattern 1b: Roleplay asterisk before name - preserve the asterisk
   // Example: "*COLD: content" → "*content"
-  const roleplayNamePattern = new RegExp(
-    `^(\\*)${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
-    'i'
-  );
+  const roleplayNamePattern = new RegExp(`^(\\*)${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
 
   // Pattern 1c: Plain name prefix - strip entirely
   // Example: "Lilith: [2m ago] content" → "content"
-  const plainNamePattern = new RegExp(
-    `^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
-    'i'
-  );
+  const plainNamePattern = new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
 
   // Pattern 2: Standalone "[timestamp]" at the start (no name prefix)
   // Example: "[2m ago] content" - happens when AI strips name but leaves timestamp

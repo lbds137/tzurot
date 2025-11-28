@@ -205,7 +205,8 @@ describe('stripPersonalityPrefix', () => {
 
     it('should handle the COLD guest mode example', () => {
       // Preserves leading asterisk for roleplay formatting
-      const content = '*COLD: I confirm the successful activation of the Guest Mode configuration.*';
+      const content =
+        '*COLD: I confirm the successful activation of the Guest Mode configuration.*';
       const expected = '*I confirm the successful activation of the Guest Mode configuration.*';
       expect(stripPersonalityPrefix(content, 'COLD')).toBe(expected);
     });
