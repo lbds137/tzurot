@@ -7,7 +7,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandHandler } from './CommandHandler.js';
 import { Collection, MessageFlags } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  ModalSubmitInteraction,
+  AutocompleteInteraction,
+} from 'discord.js';
 import type { Command } from '../types.js';
 
 // Mock dependencies
@@ -311,6 +315,87 @@ describe('CommandHandler', () => {
 
       expect(handler.getCommands().has('test')).toBe(true);
       expect(handler.getCommands().get('test')).toBe(mockCommand);
+    });
+  });
+
+  describe('handleAutocomplete', () => {
+    it('should respond with empty array for unknown command', async () => {
+      const mockInteraction = {
+        commandName: 'unknown',
+        respond: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AutocompleteInteraction;
+
+      await handler.handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([]);
+    });
+
+    it('should respond with empty array when command has no autocomplete handler', async () => {
+      const mockCommand: Command = {
+        data: {
+          name: 'test',
+          description: 'Test command',
+        },
+        execute: vi.fn(),
+        // No autocomplete handler
+      };
+
+      handler.getCommands().set('test', mockCommand);
+
+      const mockInteraction = {
+        commandName: 'test',
+        respond: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AutocompleteInteraction;
+
+      await handler.handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([]);
+    });
+
+    it('should call autocomplete handler when defined', async () => {
+      const mockAutocomplete = vi.fn().mockResolvedValue(undefined);
+      const mockCommand: Command = {
+        data: {
+          name: 'test',
+          description: 'Test command',
+        },
+        execute: vi.fn(),
+        autocomplete: mockAutocomplete,
+      };
+
+      handler.getCommands().set('test', mockCommand);
+
+      const mockInteraction = {
+        commandName: 'test',
+        respond: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AutocompleteInteraction;
+
+      await handler.handleAutocomplete(mockInteraction);
+
+      expect(mockAutocomplete).toHaveBeenCalledWith(mockInteraction);
+    });
+
+    it('should respond with empty array on autocomplete error', async () => {
+      const mockAutocomplete = vi.fn().mockRejectedValue(new Error('Autocomplete failed'));
+      const mockCommand: Command = {
+        data: {
+          name: 'test',
+          description: 'Test command',
+        },
+        execute: vi.fn(),
+        autocomplete: mockAutocomplete,
+      };
+
+      handler.getCommands().set('test', mockCommand);
+
+      const mockInteraction = {
+        commandName: 'test',
+        respond: vi.fn().mockResolvedValue(undefined),
+      } as unknown as AutocompleteInteraction;
+
+      await handler.handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([]);
     });
   });
 });
