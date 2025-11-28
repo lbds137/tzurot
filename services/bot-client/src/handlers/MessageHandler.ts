@@ -178,6 +178,7 @@ export class MessageHandler {
         personality,
         message,
         modelUsed: result.metadata?.modelUsed,
+        isGuestMode: result.metadata?.isGuestMode,
       });
 
       // Save assistant message to conversation history

@@ -99,6 +99,56 @@ describe('DiscordResponseSender', () => {
       );
     });
 
+    it('should add guest mode footer when isGuestMode is true', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        isGuestMode: true,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).toContain('🆓 Using free model (no API key required)');
+    });
+
+    it('should add both model indicator and guest mode footer', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'x-ai/grok-4.1-fast:free',
+        isGuestMode: true,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).toContain('Model: [x-ai/grok-4.1-fast:free]');
+      expect(calledContent).toContain('🆓 Using free model (no API key required)');
+    });
+
+    it('should not add guest mode footer when isGuestMode is false', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        isGuestMode: false,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).not.toContain('🆓');
+    });
+
     it('should handle chunked messages', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
