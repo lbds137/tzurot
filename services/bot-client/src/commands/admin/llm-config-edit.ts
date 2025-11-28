@@ -15,9 +15,7 @@ const logger = createLogger('admin-llm-config-edit');
 /**
  * Handle /admin llm-config-edit
  */
-export async function handleLlmConfigEdit(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
+export async function handleLlmConfigEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   const configId = interaction.options.getString('config', true);
   const name = interaction.options.getString('name');
   const model = interaction.options.getString('model');

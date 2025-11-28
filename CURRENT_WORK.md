@@ -1,12 +1,40 @@
 # 🎯 Current Work
 
-> Last updated: 2025-11-26
+> Last updated: 2025-11-28
 
-## Status: 🚧 **Sprint 3 BYOK Slash Commands In Progress**
+## Status: ✅ **Sprint 3 BYOK Slash Commands COMPLETE**
 
-**Current Phase**: Phase 1 Sprint 3 - Slash Commands for BYOK
+**Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish (Free Model Guest Mode)
 
-**Sprint 3 Progress (2025-11-26)**:
+**Session Summary (2025-11-28)**:
+
+**Bug Fixes**:
+
+- ✅ Fixed LTM search query using hardcoded "User:" and "Assistant:" role labels
+  - Role labels are noise for semantic search - now uses raw content only
+  - File: `services/ai-worker/src/services/ConversationalRAGService.ts`
+- ✅ Reduced participant logging spam
+  - Consolidated per-iteration "Found participant in history" logs into single summary
+  - File: `services/ai-worker/src/jobs/utils/conversationUtils.ts`
+- ✅ Fixed flaky ContextWindowManager test (use fixed timestamps)
+- ✅ Fixed LTM UUID error (Discord ID passed where UUID expected)
+- ✅ Fixed API key validation null check bug
+- ✅ Fixed autocomplete handler not being loaded
+- ✅ Wrapped config deletion checks in transaction (race condition prevention)
+
+**Roadmap Updates**:
+
+- ✅ Added **Free Model Guest Mode** to Sprint 5 (PRIORITY - before persona management)
+  - Enables public usage without BYOK (guests use `:free` models only)
+  - Database-driven free model configs with hardcoded fallback
+  - Tasks 5.G1-5.G9 in ROADMAP.md
+- ✅ Added **User Persona Management** to Sprint 5 (Tasks 5.0.1-5.0.7)
+
+**Next Priority**: Free Model Guest Mode implementation (Sprint 5.G1-5.G9)
+
+---
+
+**Sprint 3 Completion Summary (2025-11-26)**:
 
 **Wallet Commands** ✅ **COMPLETE**:
 
