@@ -6,8 +6,9 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { adminPutJson } from '../../utils/adminApiClient.js';
 
 const logger = createLogger('admin-llm-config-edit');
 
@@ -15,8 +16,7 @@ const logger = createLogger('admin-llm-config-edit');
  * Handle /admin llm-config-edit
  */
 export async function handleLlmConfigEdit(
-  interaction: ChatInputCommandInteraction,
-  config: EnvConfig
+  interaction: ChatInputCommandInteraction
 ): Promise<void> {
   const configId = interaction.options.getString('config', true);
   const name = interaction.options.getString('name');
@@ -28,12 +28,6 @@ export async function handleLlmConfigEdit(
   await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (!gatewayUrl) {
-      await replyWithError(interaction, 'Gateway URL not configured');
-      return;
-    }
-
     // Build update body (only include provided fields)
     const updateBody: Record<string, unknown> = {};
     if (name !== null) {
@@ -57,14 +51,7 @@ export async function handleLlmConfigEdit(
       return;
     }
 
-    const response = await fetch(`${gatewayUrl}/admin/llm-config/${configId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Key': config.ADMIN_API_KEY ?? '',
-      },
-      body: JSON.stringify(updateBody),
-    });
+    const response = await adminPutJson(`/admin/llm-config/${configId}`, updateBody);
 
     if (!response.ok) {
       const errorData = (await response.json()) as { error?: string };

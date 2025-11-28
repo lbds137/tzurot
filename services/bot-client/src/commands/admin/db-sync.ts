@@ -5,13 +5,8 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  DISCORD_COLORS,
-  CONTENT_TYPES,
-  TEXT_LIMITS,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
+import { adminPostJson } from '../../utils/adminApiClient.js';
 
 const logger = createLogger('admin-db-sync');
 
@@ -24,10 +19,7 @@ interface SyncResult {
   totalCollections?: number;
 }
 
-export async function handleDbSync(
-  interaction: ChatInputCommandInteraction,
-  config: ReturnType<typeof getConfig>
-): Promise<void> {
+export async function handleDbSync(interaction: ChatInputCommandInteraction): Promise<void> {
   const dryRun = interaction.options.getBoolean('dry-run') ?? false;
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -35,16 +27,9 @@ export async function handleDbSync(
   try {
     // Call API Gateway sync endpoint
     // (API gateway will validate that database URLs are configured)
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/admin/db-sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': CONTENT_TYPES.JSON,
-      },
-      body: JSON.stringify({
-        dryRun,
-        ownerId: interaction.user.id,
-      }),
+    const response = await adminPostJson('/admin/db-sync', {
+      dryRun,
+      ownerId: interaction.user.id,
     });
 
     if (!response.ok) {

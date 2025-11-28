@@ -5,14 +5,12 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import { getConfig, createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { adminFetch } from '../../utils/adminApiClient.js';
 
 const logger = createLogger('admin-usage');
 
-export async function handleUsage(
-  interaction: ChatInputCommandInteraction,
-  config: ReturnType<typeof getConfig>
-): Promise<void> {
+export async function handleUsage(interaction: ChatInputCommandInteraction): Promise<void> {
   const timeframeOption = interaction.options.getString('timeframe');
   const timeframe =
     timeframeOption !== undefined && timeframeOption !== null && timeframeOption.length > 0
@@ -22,12 +20,7 @@ export async function handleUsage(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/admin/usage?timeframe=${timeframe}`, {
-      headers: {
-        'X-Owner-Id': interaction.user.id,
-      },
-    });
+    const response = await adminFetch(`/admin/usage?timeframe=${timeframe}`);
 
     if (!response.ok) {
       const errorText = await response.text();
