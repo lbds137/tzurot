@@ -7,7 +7,11 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  ModalSubmitInteraction,
+  AutocompleteInteraction,
+} from 'discord.js';
 import { createLogger, getConfig, requireBotOwner, type EnvConfig } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
@@ -17,6 +21,7 @@ import { handleEdit } from './edit.js';
 import { handleImport } from './import.js';
 import { handleCreateModal } from './create-modal.js';
 import { handleModalSubmit } from './modal.js';
+import { handleAutocomplete as personalityAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('personality-command');
 
@@ -91,6 +96,7 @@ export const data = new SlashCommandBuilder()
           .setName('slug')
           .setDescription('Unique identifier of the personality to edit')
           .setRequired(true)
+          .setAutocomplete(true)
       )
       .addStringOption(option =>
         option.setName('name').setDescription('Display name of the personality').setRequired(false)
@@ -194,4 +200,11 @@ export async function execute(
 
   const router = createPersonalityRouter(config);
   await router(interaction);
+}
+
+/**
+ * Autocomplete handler for personality commands
+ */
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  await personalityAutocomplete(interaction);
 }

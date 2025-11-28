@@ -23,7 +23,18 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       await interaction.respond([]);
     }
   } catch (error) {
-    logger.error({ err: error, option: focusedOption.name }, '[LlmConfig] Autocomplete error');
+    logger.error(
+      {
+        err: error,
+        option: focusedOption.name,
+        query: focusedOption.value,
+        userId,
+        guildId: interaction.guildId,
+        command: interaction.commandName,
+        subcommand: interaction.options.getSubcommand(false),
+      },
+      '[LlmConfig] Autocomplete error'
+    );
     await interaction.respond([]);
   }
 }

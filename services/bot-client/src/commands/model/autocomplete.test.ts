@@ -40,8 +40,11 @@ describe('handleAutocomplete', () => {
 
     mockInteraction = {
       user: mockUser,
+      guildId: 'guild-123',
+      commandName: 'model',
       options: {
         getFocused: vi.fn(),
+        getSubcommand: vi.fn().mockReturnValue('set'),
       },
       respond: vi.fn().mockResolvedValue(undefined),
     } as unknown as AutocompleteInteraction;

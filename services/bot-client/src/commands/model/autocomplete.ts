@@ -30,7 +30,18 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       await interaction.respond([]);
     }
   } catch (error) {
-    logger.error({ err: error, option: focusedOption.name }, '[Model] Autocomplete error');
+    logger.error(
+      {
+        err: error,
+        option: focusedOption.name,
+        query: focusedOption.value,
+        userId,
+        guildId: interaction.guildId,
+        command: interaction.commandName,
+        subcommand: interaction.options.getSubcommand(false),
+      },
+      '[Model] Autocomplete error'
+    );
     await interaction.respond([]);
   }
 }
