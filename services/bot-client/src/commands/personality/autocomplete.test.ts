@@ -1,5 +1,5 @@
 /**
- * Tests for LLM Config Command Autocomplete Handler
+ * Tests for Personality Command Autocomplete Handler
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -41,10 +41,10 @@ describe('handleAutocomplete', () => {
     mockInteraction = {
       user: mockUser,
       guildId: 'guild-123',
-      commandName: 'llm-config',
+      commandName: 'personality',
       options: {
         getFocused: vi.fn(),
-        getSubcommand: vi.fn().mockReturnValue('delete'),
+        getSubcommand: vi.fn().mockReturnValue('edit'),
       },
       respond: vi.fn().mockResolvedValue(undefined),
     } as unknown as AutocompleteInteraction;
@@ -54,30 +54,28 @@ describe('handleAutocomplete', () => {
     vi.restoreAllMocks();
   });
 
-  describe('config autocomplete', () => {
-    it('should respond with filtered user-owned configs only', async () => {
+  describe('slug autocomplete', () => {
+    it('should respond with filtered user-owned personalities only', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'slug',
         value: '',
       });
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
-          configs: [
+          personalities: [
             {
-              id: 'c1',
-              name: 'My Config',
-              description: null,
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: false,
+              id: 'p1',
+              name: 'My Personality',
+              displayName: 'Display Name',
+              slug: 'my-personality',
               isOwned: true,
             },
             {
-              id: 'c2',
-              name: 'Global Config',
-              description: null,
-              model: 'openai/gpt-4',
-              isGlobal: true,
+              id: 'p2',
+              name: 'Public Personality',
+              displayName: null,
+              slug: 'public-personality',
               isOwned: false,
             },
           ],
@@ -86,36 +84,27 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
-      // Should only return owned configs
+      expect(callGatewayApi).toHaveBeenCalledWith('/user/personality', { userId: 'user-123' });
+      // Should only return owned personalities with slug as value
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'My Config (claude-sonnet-4)', value: 'c1' },
+        { name: 'Display Name', value: 'my-personality' },
       ]);
     });
 
-    it('should filter by config name', async () => {
+    it('should use name when displayName is null', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
-        value: 'fast',
+        name: 'slug',
+        value: '',
       });
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
-          configs: [
+          personalities: [
             {
-              id: 'c1',
-              name: 'Fast Config',
-              description: null,
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: false,
-              isOwned: true,
-            },
-            {
-              id: 'c2',
-              name: 'Slow Config',
-              description: null,
-              model: 'openai/gpt-4',
-              isGlobal: false,
+              id: 'p1',
+              name: 'Internal Name',
+              displayName: null,
+              slug: 'internal-name',
               isOwned: true,
             },
           ],
@@ -125,33 +114,63 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Fast Config (claude-sonnet-4)', value: 'c1' },
+        { name: 'Internal Name', value: 'internal-name' },
       ]);
     });
 
-    it('should filter by model name', async () => {
+    it('should filter by personality name', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
-        value: 'gpt',
+        name: 'slug',
+        value: 'alice',
       });
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
-          configs: [
+          personalities: [
             {
-              id: 'c1',
-              name: 'Claude Config',
-              description: null,
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: false,
+              id: 'p1',
+              name: 'Alice',
+              displayName: null,
+              slug: 'alice',
               isOwned: true,
             },
             {
-              id: 'c2',
-              name: 'GPT Config',
-              description: null,
-              model: 'openai/gpt-4',
-              isGlobal: false,
+              id: 'p2',
+              name: 'Bob',
+              displayName: null,
+              slug: 'bob',
+              isOwned: true,
+            },
+          ],
+        },
+      });
+
+      await handleAutocomplete(mockInteraction);
+
+      expect(mockInteraction.respond).toHaveBeenCalledWith([{ name: 'Alice', value: 'alice' }]);
+    });
+
+    it('should filter by slug', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'slug',
+        value: 'my-custom',
+      });
+      vi.mocked(callGatewayApi).mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            {
+              id: 'p1',
+              name: 'Test Bot',
+              displayName: null,
+              slug: 'my-custom-bot',
+              isOwned: true,
+            },
+            {
+              id: 'p2',
+              name: 'Other Bot',
+              displayName: null,
+              slug: 'other-bot',
               isOwned: true,
             },
           ],
@@ -161,33 +180,31 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'GPT Config (gpt-4)', value: 'c2' },
+        { name: 'Test Bot', value: 'my-custom-bot' },
       ]);
     });
 
-    it('should filter by description', async () => {
+    it('should filter by displayName', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
-        value: 'cheap',
+        name: 'slug',
+        value: 'demon',
       });
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
-          configs: [
+          personalities: [
             {
-              id: 'c1',
-              name: 'Config A',
-              description: 'Fast and cheap',
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: false,
+              id: 'p1',
+              name: 'Lilith',
+              displayName: 'Demon Queen',
+              slug: 'lilith',
               isOwned: true,
             },
             {
-              id: 'c2',
-              name: 'Config B',
-              description: 'Expensive but good',
-              model: 'openai/gpt-4',
-              isGlobal: false,
+              id: 'p2',
+              name: 'Angel',
+              displayName: 'Divine Being',
+              slug: 'angel',
               isOwned: true,
             },
           ],
@@ -197,13 +214,13 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Config A (claude-sonnet-4)', value: 'c1' },
+        { name: 'Demon Queen', value: 'lilith' },
       ]);
     });
 
     it('should respond with empty array on API error', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'slug',
         value: 'test',
       });
       vi.mocked(callGatewayApi).mockResolvedValue({
@@ -219,20 +236,19 @@ describe('handleAutocomplete', () => {
 
     it('should limit results to 25', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'slug',
         value: '',
       });
-      const manyConfigs = Array.from({ length: 30 }, (_, i) => ({
-        id: `c${i}`,
-        name: `Config${i}`,
-        description: null,
-        model: `provider/model${i}`,
-        isGlobal: false,
+      const manyPersonalities = Array.from({ length: 30 }, (_, i) => ({
+        id: `p${i}`,
+        name: `Personality${i}`,
+        displayName: null,
+        slug: `personality-${i}`,
         isOwned: true,
       }));
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
-        data: { configs: manyConfigs },
+        data: { personalities: manyPersonalities },
       });
 
       await handleAutocomplete(mockInteraction);
@@ -258,7 +274,7 @@ describe('handleAutocomplete', () => {
   describe('error handling', () => {
     it('should respond with empty array on exception', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'slug',
         value: 'test',
       });
       vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
