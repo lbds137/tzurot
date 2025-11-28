@@ -218,18 +218,43 @@ export class MemoryRetriever {
   /**
    * Get user's persona ID for a specific personality
    * Checks for personality-specific override first, then falls back to default persona
+   *
+   * @param discordUserId - The user's Discord ID (snowflake), NOT their internal UUID
+   * @param personalityId - The personality UUID
    */
   async getUserPersonaForPersonality(
-    userId: string,
+    discordUserId: string,
     personalityId: string
   ): Promise<string | null> {
     try {
       const prisma = getPrismaClient();
 
-      // First check if user has a personality-specific persona override
+      // First lookup user by Discord ID to get their internal UUID
+      // (userId parameter is Discord ID, not internal UUID)
+      const user = await prisma.user.findUnique({
+        where: { discordId: discordUserId },
+        select: {
+          id: true,
+          defaultPersonaLink: {
+            select: { personaId: true },
+          },
+        },
+      });
+
+      if (user === null) {
+        logger.warn(
+          {},
+          `[MemoryRetriever] No user found for Discord ID ${discordUserId}`
+        );
+        return null;
+      }
+
+      const internalUserId = user.id;
+
+      // Check if user has a personality-specific persona override
       const userPersonalityConfig = await prisma.userPersonalityConfig.findFirst({
         where: {
-          userId,
+          userId: internalUserId, // Use internal UUID, not Discord ID
           personalityId,
           personaId: { not: null }, // Has a persona override
         },
@@ -242,33 +267,24 @@ export class MemoryRetriever {
         userPersonalityConfig.personaId.length > 0
       ) {
         logger.debug(
-          `[MemoryRetriever] Using personality-specific persona override for user ${userId}, personality ${personalityId}`
+          `[MemoryRetriever] Using personality-specific persona override for user ${discordUserId}, personality ${personalityId}`
         );
         return userPersonalityConfig.personaId;
       }
 
-      // Fall back to user's default persona
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          defaultPersonaLink: {
-            select: { personaId: true },
-          },
-        },
-      });
-
-      const personaId = user?.defaultPersonaLink?.personaId ?? null;
+      // Fall back to user's default persona (already loaded above)
+      const personaId = user.defaultPersonaLink?.personaId ?? null;
       if (personaId !== null && personaId.length > 0) {
-        logger.debug(`[MemoryRetriever] Using default persona for user ${userId}`);
+        logger.debug(`[MemoryRetriever] Using default persona for user ${discordUserId}`);
       } else {
-        logger.warn({}, `[MemoryRetriever] No persona found for user ${userId}`);
+        logger.warn({}, `[MemoryRetriever] No persona found for user ${discordUserId}`);
       }
 
       return personaId;
     } catch (error) {
       return logAndReturnFallback(
         logger,
-        `[MemoryRetriever] Failed to resolve persona for user ${userId}`,
+        `[MemoryRetriever] Failed to resolve persona for user ${discordUserId}`,
         error,
         null
       );
