@@ -67,17 +67,39 @@ describe('MemoryRetriever', () => {
   });
 
   describe('getUserPersonaForPersonality', () => {
+    // Note: The function receives Discord ID (snowflake) and must first look up
+    // the internal user UUID before querying userPersonalityConfig
+
     it('should return personality-specific persona override if exists', async () => {
+      // First lookup returns user with internal UUID
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'internal-uuid-123',
+        defaultPersonaLink: null,
+      });
       mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue({
         personaId: 'override-persona-123',
       });
 
-      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
+      const result = await retriever.getUserPersonaForPersonality(
+        'discord-id-123',
+        'personality-123'
+      );
 
       expect(result).toBe('override-persona-123');
+      // Verify user lookup by Discord ID
+      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith({
+        where: { discordId: 'discord-id-123' },
+        select: {
+          id: true,
+          defaultPersonaLink: {
+            select: { personaId: true },
+          },
+        },
+      });
+      // Verify config lookup uses internal UUID, not Discord ID
       expect(mockPrismaClient.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
         where: {
-          userId: 'user-123',
+          userId: 'internal-uuid-123', // Internal UUID, not Discord ID
           personalityId: 'personality-123',
           personaId: { not: null },
         },
@@ -86,45 +108,59 @@ describe('MemoryRetriever', () => {
     });
 
     it('should fall back to default persona if no override exists', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
       mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
+        id: 'internal-uuid-123',
         defaultPersonaLink: {
           personaId: 'default-persona-456',
         },
       });
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
-      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
+      const result = await retriever.getUserPersonaForPersonality(
+        'discord-id-123',
+        'personality-123'
+      );
 
       expect(result).toBe('default-persona-456');
-      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 'user-123' },
-        include: {
-          defaultPersonaLink: {
-            select: { personaId: true },
-          },
-        },
-      });
+    });
+
+    it('should return null if user not found by Discord ID', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      const result = await retriever.getUserPersonaForPersonality(
+        'unknown-discord-id',
+        'personality-123'
+      );
+
+      expect(result).toBeNull();
+      // Should not attempt to query userPersonalityConfig if user not found
+      expect(mockPrismaClient.userPersonalityConfig.findFirst).not.toHaveBeenCalled();
     });
 
     it('should return null if no persona found', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
       mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
+        id: 'internal-uuid-123',
         defaultPersonaLink: null,
       });
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
-      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
+      const result = await retriever.getUserPersonaForPersonality(
+        'discord-id-123',
+        'personality-123'
+      );
 
       expect(result).toBeNull();
     });
 
     it('should return null on database error', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockRejectedValue(
+      mockPrismaClient.user.findUnique.mockRejectedValue(
         new Error('Database connection failed')
       );
 
-      const result = await retriever.getUserPersonaForPersonality('user-123', 'personality-123');
+      const result = await retriever.getUserPersonaForPersonality(
+        'discord-id-123',
+        'personality-123'
+      );
 
       expect(result).toBeNull();
     });
