@@ -408,7 +408,10 @@ async function main(): Promise<void> {
   // ============================================================================
 
   // Validate service secret is configured
-  if (envConfig.INTERNAL_SERVICE_SECRET === undefined || envConfig.INTERNAL_SERVICE_SECRET.length === 0) {
+  if (
+    envConfig.INTERNAL_SERVICE_SECRET === undefined ||
+    envConfig.INTERNAL_SERVICE_SECRET.length === 0
+  ) {
     logger.warn(
       {},
       '[Gateway] ⚠️  INTERNAL_SERVICE_SECRET is not set - all protected endpoints will reject requests. ' +
