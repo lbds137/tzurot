@@ -222,7 +222,8 @@ export class PromptBuilder {
     );
 
     // Relevant memories from past interactions
-    const memoryContext = formatMemoriesContext(relevantMemories);
+    // Use user's preferred timezone for memory timestamps
+    const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
 
     const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${referencesContext}${participantsContext}${memoryContext}`;
 
