@@ -63,11 +63,13 @@ export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValid
       return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
     }
 
-    const data = (await response.json()) as { data?: { limit_remaining?: number } };
+    const data = (await response.json()) as { data?: { limit_remaining?: number | null } };
     const credits = data.data?.limit_remaining;
 
     // Check if quota is available
-    if (credits !== undefined && credits <= 0) {
+    // Note: null means unlimited (no limit set), only reject if explicitly 0 or negative
+    // Using typeof check because null <= 0 is true in JavaScript (coercion quirk)
+    if (typeof credits === 'number' && credits <= 0) {
       return {
         valid: false,
         errorCode: 'QUOTA_EXCEEDED',
@@ -76,7 +78,8 @@ export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValid
       };
     }
 
-    return { valid: true, credits };
+    // Only include credits if it's a number (null means unlimited)
+    return { valid: true, credits: typeof credits === 'number' ? credits : undefined };
   } catch (error) {
     clearTimeout(timeout);
 

@@ -106,6 +106,23 @@ describe('apiKeyValidation', () => {
       expect(result.credits).toBeUndefined();
     });
 
+    it('should return valid=true when limit_remaining is null (unlimited)', async () => {
+      // OpenRouter returns null for limit_remaining when no limit is set (unlimited account)
+      // This was a bug: null <= 0 is true in JavaScript due to type coercion
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: { limit_remaining: null },
+        }),
+      });
+
+      const result = await validateOpenRouterKey('sk-or-unlimited');
+
+      expect(result.valid).toBe(true);
+      expect(result.credits).toBeUndefined(); // null is converted to undefined
+    });
+
     it('should return valid=false with TIMEOUT for aborted request', async () => {
       const abortError = new Error('Aborted');
       abortError.name = 'AbortError';
