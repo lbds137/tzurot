@@ -20,7 +20,7 @@
  */
 
 import { Router } from 'express';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
 import { createTimezoneRoutes } from './timezone.js';
 import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality.js';
@@ -29,8 +29,13 @@ import { createModelOverrideRoutes } from './model-override.js';
 
 /**
  * Create user router with injected dependencies
+ * @param prisma - Prisma client instance
+ * @param llmConfigCacheInvalidation - Optional cache invalidation service for LLM configs
  */
-export function createUserRouter(prisma: PrismaClient): Router {
+export function createUserRouter(
+  prisma: PrismaClient,
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+): Router {
   const router = Router();
 
   // Timezone routes
@@ -45,8 +50,8 @@ export function createUserRouter(prisma: PrismaClient): Router {
   // LLM config routes
   router.use('/llm-config', createLlmConfigRoutes(prisma));
 
-  // Model override routes
-  router.use('/model-override', createModelOverrideRoutes(prisma));
+  // Model override routes (with cache invalidation for default config changes)
+  router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));
 
   return router;
 }

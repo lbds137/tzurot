@@ -12,11 +12,11 @@
 
 **There are THREE types of comments on a PR - they use DIFFERENT API endpoints!**
 
-| Type | Description | API Endpoint | gh command |
-|------|-------------|--------------|------------|
-| **Issue Comments** | General PR conversation | `/repos/{owner}/{repo}/issues/{pr}/comments` | `gh pr view --json comments` |
-| **Review Comments** | Line-specific comments on diff | `/repos/{owner}/{repo}/pulls/{pr}/comments` | `gh api ...pulls/{pr}/comments` |
-| **Reviews** | Formal reviews (APPROVE, etc.) | `/repos/{owner}/{repo}/pulls/{pr}/reviews` | `gh pr view --json reviews` |
+| Type                | Description                    | API Endpoint                                 | gh command                      |
+| ------------------- | ------------------------------ | -------------------------------------------- | ------------------------------- |
+| **Issue Comments**  | General PR conversation        | `/repos/{owner}/{repo}/issues/{pr}/comments` | `gh pr view --json comments`    |
+| **Review Comments** | Line-specific comments on diff | `/repos/{owner}/{repo}/pulls/{pr}/comments`  | `gh api ...pulls/{pr}/comments` |
+| **Reviews**         | Formal reviews (APPROVE, etc.) | `/repos/{owner}/{repo}/pulls/{pr}/reviews`   | `gh pr view --json reviews`     |
 
 **Common Mistake**: Using `/pulls/{pr}/comments` when you want issue comments (general discussion).
 
@@ -33,6 +33,7 @@ gh pr view --json projectItems
 ```
 
 **Scope Required**: Working with projects requires the `project` scope:
+
 ```bash
 gh auth refresh -s project
 ```
@@ -130,6 +131,7 @@ gh pr checks 123 --json name,state,bucket,conclusion
 ```
 
 **Exit codes**:
+
 - 0: All checks passed
 - 1: Error
 - 8: Checks still pending
@@ -196,6 +198,7 @@ gh api endpoint -H "Accept: application/vnd.github+json"
 ### Placeholders
 
 The following placeholders are automatically replaced:
+
 - `{owner}` - Repository owner (from current directory or GH_REPO)
 - `{repo}` - Repository name
 - `{branch}` - Current branch name
@@ -400,6 +403,7 @@ gh auth refresh -s project -s read:org
 **Cause**: Missing required scope or permissions.
 
 **Fix**:
+
 ```bash
 gh auth refresh -s <needed-scope>
 ```
@@ -409,6 +413,7 @@ gh auth refresh -s <needed-scope>
 **Cause**: Using wrong endpoint. PRs have multiple comment types.
 
 **Fix**: Determine which type of comments you need:
+
 - General discussion → `/issues/{pr}/comments` or `gh pr view --json comments`
 - Line comments → `/pulls/{pr}/comments`
 - Reviews → `/pulls/{pr}/reviews`
@@ -418,6 +423,7 @@ gh auth refresh -s <needed-scope>
 **Cause**: GitHub Projects v2 uses `projectItems` not `projectCards`.
 
 **Fix**:
+
 ```bash
 gh pr view --json projectItems
 ```
@@ -427,6 +433,7 @@ gh pr view --json projectItems
 **Cause**: Too many API requests.
 
 **Fix**: Wait and retry, or add delay between requests:
+
 ```bash
 sleep 1
 ```
@@ -436,6 +443,7 @@ sleep 1
 **Cause**: Token doesn't have `repo` scope.
 
 **Fix**:
+
 ```bash
 gh auth refresh -s repo
 ```
@@ -444,14 +452,14 @@ gh auth refresh -s repo
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| View PR | `gh pr view 123` |
-| Create PR to develop | `gh pr create --base develop` |
-| Comment on PR | `gh pr comment 123 --body "text"` |
-| Check CI status | `gh pr checks 123` |
-| Merge with rebase | `gh pr merge 123 --rebase` |
-| List open PRs | `gh pr list` |
-| Get PR comments | `gh pr view 123 --json comments` |
-| Get PR as JSON | `gh pr view 123 --json number,title,body` |
-| API request | `gh api repos/{owner}/{repo}/endpoint` |
+| Task                 | Command                                   |
+| -------------------- | ----------------------------------------- |
+| View PR              | `gh pr view 123`                          |
+| Create PR to develop | `gh pr create --base develop`             |
+| Comment on PR        | `gh pr comment 123 --body "text"`         |
+| Check CI status      | `gh pr checks 123`                        |
+| Merge with rebase    | `gh pr merge 123 --rebase`                |
+| List open PRs        | `gh pr list`                              |
+| Get PR comments      | `gh pr view 123 --json comments`          |
+| Get PR as JSON       | `gh pr view 123 --json number,title,body` |
+| API request          | `gh api repos/{owner}/{repo}/endpoint`    |

@@ -97,17 +97,11 @@ const attachmentStorage = new AttachmentStorageService({
   gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
 });
 
-// Create AI router (admin and wallet routers created in main() after cache invalidation service)
+// Create AI router (admin, user, and wallet routers created in main() after cache invalidation service)
 const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
 
-// Create user router for user settings (timezone, preferences)
-const userRouter = createUserRouter(prisma);
-
-// Register AI routes (admin and wallet routes registered in main())
+// Register AI routes (admin, user, and wallet routes registered in main())
 app.use('/ai', aiRouter);
-
-// Register user routes for settings
-app.use('/user', userRouter);
 
 // Serve personality avatars with DB fallback
 // Avatars are primarily served from filesystem (/data/avatars)
@@ -415,6 +409,11 @@ async function main(): Promise<void> {
   app.use('/wallet', walletRouter);
   logger.info('[Gateway] Wallet routes registered with cache invalidation support');
 
+  // Create and register user routes with cache invalidation support
+  const userRouter = createUserRouter(prisma, llmConfigCacheInvalidation);
+  app.use('/user', userRouter);
+  logger.info('[Gateway] User routes registered with cache invalidation support');
+
   // Start listening for database NOTIFY events (PostgreSQL triggers)
   // This automatically invalidates cache when database changes occur
   if (envConfig.DATABASE_URL === undefined || envConfig.DATABASE_URL.length === 0) {
@@ -435,6 +434,15 @@ async function main(): Promise<void> {
   );
   app.use('/admin', adminRouter);
   logger.info('[Gateway] Admin routes registered with cache invalidation support');
+
+  // Warn if ADMIN_API_KEY is not set (admin routes will reject all requests)
+  if (envConfig.ADMIN_API_KEY === undefined || envConfig.ADMIN_API_KEY.length === 0) {
+    logger.warn(
+      {},
+      '[Gateway] ADMIN_API_KEY is not set - all admin requests will be rejected. ' +
+        'Set ADMIN_API_KEY environment variable to enable admin functionality.'
+    );
+  }
 
   // 404 handler - must be registered AFTER all routes
   app.use((req, res) => {
