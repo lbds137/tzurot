@@ -30,6 +30,7 @@ vi.mock('@tzurot/common-types', async () => {
     }),
     getConfig: () => ({
       GATEWAY_URL: 'http://gateway-test.local',
+      INTERNAL_SERVICE_SECRET: 'test-service-secret',
     }),
   };
 });
@@ -104,6 +105,7 @@ describe('GatewayClient', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Service-Auth': 'test-service-secret',
           },
           body: expect.any(String),
         })
@@ -259,6 +261,7 @@ describe('GatewayClient', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Service-Auth': 'test-service-secret',
           },
         })
       );
@@ -361,6 +364,7 @@ describe('GatewayClient', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Service-Auth': 'test-service-secret',
           },
         })
       );
