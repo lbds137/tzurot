@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
+import { createLogger, TIMEZONE_DISCORD_CHOICES, formatFullDateTime } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   deferEphemeral,
@@ -17,20 +17,11 @@ import {
 const logger = createLogger('timezone-command');
 
 /**
- * Get the current time in a timezone
+ * Get the current time in a timezone using centralized formatting
  */
 function getCurrentTimeInTimezone(timezone: string): string {
   try {
-    return new Date().toLocaleString('en-US', {
-      timeZone: timezone,
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZoneName: 'short',
-    });
+    return formatFullDateTime(new Date(), timezone);
   } catch {
     return 'Unable to display time';
   }

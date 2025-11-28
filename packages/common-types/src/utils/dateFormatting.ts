@@ -49,21 +49,26 @@ export function formatFullDateTime(date: Date | string | number, timezone?: stri
  * - LTM memory timestamps (when full timestamp not needed)
  * - Log file names
  * - Date-based filtering
+ *
+ * @param date - Date to format
+ * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). Defaults to APP_SETTINGS.TIMEZONE
  */
-export function formatDateOnly(date: Date | string | number): string {
+export function formatDateOnly(date: Date | string | number, timezone?: string): string {
   const d = typeof date === 'object' ? date : new Date(date);
 
   if (isNaN(d.getTime())) {
     return 'Invalid Date';
   }
 
-  // Format as YYYY-MM-DD in Eastern timezone
+  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+
+  // Format as YYYY-MM-DD
   const parts = d
     .toLocaleDateString('en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-      timeZone: APP_SETTINGS.TIMEZONE,
+      timeZone: tz,
     })
     .split('/');
 
@@ -83,8 +88,11 @@ export function formatDateOnly(date: Date | string | number): string {
  * Used for:
  * - STM conversation history timestamps
  * - Activity logs
+ *
+ * @param timestamp - Timestamp to format
+ * @param timezone - Optional IANA timezone for absolute date fallback. Defaults to APP_SETTINGS.TIMEZONE
  */
-export function formatRelativeTime(timestamp: Date | string | number): string {
+export function formatRelativeTime(timestamp: Date | string | number, timezone?: string): string {
   const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
 
   if (isNaN(date.getTime())) {
@@ -113,7 +121,7 @@ export function formatRelativeTime(timestamp: Date | string | number): string {
   }
 
   // For older messages, show absolute date (YYYY-MM-DD)
-  return formatDateOnly(date);
+  return formatDateOnly(date, timezone);
 }
 
 /**
@@ -124,19 +132,24 @@ export function formatRelativeTime(timestamp: Date | string | number): string {
  * Used for:
  * - LTM memory timestamps in system prompt
  * - More compact than full format but still includes day of week
+ *
+ * @param timestamp - Timestamp to format
+ * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). Defaults to APP_SETTINGS.TIMEZONE
  */
-export function formatMemoryTimestamp(timestamp: Date | string | number): string {
+export function formatMemoryTimestamp(timestamp: Date | string | number, timezone?: string): string {
   const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
 
   if (isNaN(date.getTime())) {
     return '';
   }
 
+  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+
   return date.toLocaleDateString('en-US', {
     weekday: 'short',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-    timeZone: APP_SETTINGS.TIMEZONE,
+    timeZone: tz,
   });
 }
