@@ -1,6 +1,6 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-11-26
+> **Last Updated**: 2025-11-28
 > **Philosophy**: Launch, Stabilize, Evolve
 > **Context**: Solo dev + AI, must avoid decision fatigue and context switching
 
@@ -329,6 +329,28 @@
 ### Sprint 5: Quick Wins & Polish (3-5 sessions)
 
 **Why**: Low effort, high visible impact features.
+
+**User Persona Management** (Reduces manual DB work):
+
+- [ ] **Task 5.0.1**: Create persona API routes (`/user/persona`)
+  - GET `/user/persona` - List user's personas
+  - POST `/user/persona` - Create new persona
+  - PUT `/user/persona/:id` - Edit persona (name, description, content, preferredName, pronouns)
+  - DELETE `/user/persona/:id` - Delete persona (cascade memories)
+  - PUT `/user/persona/:id/set-default` - Set as user's default persona
+- [ ] **Task 5.0.2**: `/persona create` - Create a new persona (modal input)
+  - Fields: name (required), preferredName, pronouns, content/description
+- [ ] **Task 5.0.3**: `/persona edit <persona>` - Edit existing persona (modal)
+  - Autocomplete for user's personas
+- [ ] **Task 5.0.4**: `/persona list` - Show user's personas with default indicator
+- [ ] **Task 5.0.5**: `/persona set-default <persona>` - Set default persona
+- [ ] **Task 5.0.6**: `/persona delete <persona>` - Delete persona (with confirmation)
+  - Warn: Deleting persona removes associated memories
+- [ ] **Task 5.0.7**: `/persona set-personality <personality> <persona>` - Override persona for specific personality
+  - Uses `UserPersonalityConfig.personaId` for per-personality persona override
+  - Enables different identities with different AI personalities
+
+**Quick Wins**:
 
 - [ ] **Task 5.1**: Transcription Cleanup (LLM post-processing for Whisper)
   - Add punctuation and formatting to transcriptions
