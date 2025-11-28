@@ -69,6 +69,8 @@ export const INTERVALS = {
   WEBHOOK_MESSAGE_TTL: 7 * 24 * 60 * 60,
   /** Voice transcript cache TTL in Redis (5 minutes in seconds) */
   VOICE_TRANSCRIPT_TTL: 5 * 60,
+  /** OpenRouter models cache TTL in Redis (24 hours in seconds) */
+  OPENROUTER_MODELS_TTL: 24 * 60 * 60,
 } as const;
 
 /**

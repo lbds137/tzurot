@@ -39,6 +39,7 @@ export const data = new SlashCommandBuilder()
           .setName('model')
           .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
           .setRequired(true)
+          .setAutocomplete(true)
       )
       .addStringOption(option =>
         option
@@ -55,6 +56,7 @@ export const data = new SlashCommandBuilder()
           .setName('vision-model')
           .setDescription('Vision model for image analysis (optional)')
           .setRequired(false)
+          .setAutocomplete(true)
       )
   )
   .addSubcommand(subcommand =>

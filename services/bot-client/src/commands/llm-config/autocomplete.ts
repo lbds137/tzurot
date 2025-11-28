@@ -1,11 +1,16 @@
 /**
  * LLM Config Command Autocomplete Handler
- * Provides autocomplete suggestions for config options
+ * Provides autocomplete suggestions for config and model options
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, type LlmConfigSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import {
+  fetchTextModels,
+  fetchVisionModels,
+  formatModelChoice,
+} from '../../utils/modelAutocomplete.js';
 
 const logger = createLogger('llm-config-autocomplete');
 
@@ -19,6 +24,10 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   try {
     if (focusedOption.name === 'config') {
       await handleConfigAutocomplete(interaction, focusedOption.value, userId);
+    } else if (focusedOption.name === 'model') {
+      await handleModelAutocomplete(interaction, focusedOption.value);
+    } else if (focusedOption.name === 'vision-model') {
+      await handleVisionModelAutocomplete(interaction, focusedOption.value);
     } else {
       await interaction.respond([]);
     }
@@ -74,6 +83,34 @@ async function handleConfigAutocomplete(
     name: `${c.name} (${c.model.split('/').pop()})`,
     value: c.id,
   }));
+
+  await interaction.respond(choices);
+}
+
+/**
+ * Handle model autocomplete - fetches text generation models from OpenRouter
+ */
+async function handleModelAutocomplete(
+  interaction: AutocompleteInteraction,
+  query: string
+): Promise<void> {
+  const models = await fetchTextModels(query, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
+
+  const choices = models.map(m => formatModelChoice(m));
+
+  await interaction.respond(choices);
+}
+
+/**
+ * Handle vision-model autocomplete - fetches vision-capable models from OpenRouter
+ */
+async function handleVisionModelAutocomplete(
+  interaction: AutocompleteInteraction,
+  query: string
+): Promise<void> {
+  const models = await fetchVisionModels(query, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
+
+  const choices = models.map(m => formatModelChoice(m));
 
   await interaction.respond(choices);
 }

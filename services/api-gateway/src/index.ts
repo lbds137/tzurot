@@ -33,7 +33,9 @@ import { createAIRouter } from './routes/ai/index.js';
 import { createAdminRouter } from './routes/admin/index.js';
 import { createWalletRouter } from './routes/wallet/index.js';
 import { createUserRouter } from './routes/user/index.js';
+import { createModelsRouter } from './routes/models/index.js';
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
+import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
@@ -413,6 +415,12 @@ async function main(): Promise<void> {
   const userRouter = createUserRouter(prisma, llmConfigCacheInvalidation);
   app.use('/user', userRouter);
   logger.info('[Gateway] User routes registered with cache invalidation support');
+
+  // Create and register models routes (OpenRouter model list with caching)
+  const modelCache = new OpenRouterModelCache(cacheRedis);
+  const modelsRouter = createModelsRouter(modelCache);
+  app.use('/models', modelsRouter);
+  logger.info('[Gateway] Models routes registered with OpenRouter caching');
 
   // Start listening for database NOTIFY events (PostgreSQL triggers)
   // This automatically invalidates cache when database changes occur
