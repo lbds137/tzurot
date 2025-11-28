@@ -6,6 +6,19 @@
  */
 
 /**
+ * Summary of a personality for autocomplete/listing
+ * Used in responses for /user/personality
+ */
+export interface PersonalitySummary {
+  id: string;
+  name: string;
+  displayName: string | null;
+  slug: string;
+  /** True if the requesting user owns this personality */
+  isOwned: boolean;
+}
+
+/**
  * Summary of an LLM configuration
  * Used in list responses for /user/llm-config
  */

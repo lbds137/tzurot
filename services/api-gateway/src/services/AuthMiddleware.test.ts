@@ -12,6 +12,9 @@ import {
   requireOwnerAuth,
   extractUserId,
   requireUserAuth,
+  extractAdminApiKey,
+  isValidAdminKey,
+  requireAdminAuth,
 } from './AuthMiddleware.js';
 import * as commonTypes from '@tzurot/common-types';
 
@@ -428,6 +431,222 @@ describe('authMiddleware', () => {
 
     it('should include timestamp in error response', () => {
       const middleware = requireUserAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timestamp: expect.any(String),
+        })
+      );
+    });
+  });
+
+  describe('extractAdminApiKey', () => {
+    it('should extract admin key from X-Admin-Key header', () => {
+      const req = {
+        headers: { 'x-admin-key': 'test-admin-key-123' },
+      } as unknown as Request;
+
+      expect(extractAdminApiKey(req)).toBe('test-admin-key-123');
+    });
+
+    it('should return undefined when header is missing', () => {
+      const req = {
+        headers: {},
+      } as unknown as Request;
+
+      expect(extractAdminApiKey(req)).toBeUndefined();
+    });
+
+    it('should return undefined when header is empty string', () => {
+      const req = {
+        headers: { 'x-admin-key': '' },
+      } as unknown as Request;
+
+      expect(extractAdminApiKey(req)).toBeUndefined();
+    });
+
+    it('should return undefined when header is array', () => {
+      const req = {
+        headers: { 'x-admin-key': ['key1', 'key2'] },
+      } as unknown as Request;
+
+      expect(extractAdminApiKey(req)).toBeUndefined();
+    });
+  });
+
+  describe('isValidAdminKey', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return true when key matches configured key', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      expect(isValidAdminKey('valid-admin-key')).toBe(true);
+    });
+
+    it('should return false when key does not match', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      expect(isValidAdminKey('wrong-admin-key')).toBe(false);
+    });
+
+    it('should return false when key is undefined', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      expect(isValidAdminKey(undefined)).toBe(false);
+    });
+
+    it('should return false when ADMIN_API_KEY is not configured', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: undefined,
+      } as any);
+
+      expect(isValidAdminKey('some-key')).toBe(false);
+    });
+
+    it('should return false when key is empty string', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      expect(isValidAdminKey('')).toBe(false);
+    });
+
+    it('should handle case-sensitive comparison', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'CaseSensitiveKey',
+      } as any);
+
+      expect(isValidAdminKey('casesensitivekey')).toBe(false);
+      expect(isValidAdminKey('CaseSensitiveKey')).toBe(true);
+    });
+
+    it('should use constant-time comparison (same length keys)', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'abcdef',
+      } as any);
+
+      // Different keys of same length should be compared safely
+      expect(isValidAdminKey('ghijkl')).toBe(false);
+      expect(isValidAdminKey('abcdef')).toBe(true);
+    });
+  });
+
+  describe('requireAdminAuth middleware', () => {
+    let mockReq: Partial<Request>;
+    let mockRes: Partial<Response>;
+    let mockNext: NextFunction;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      mockReq = {
+        headers: {},
+        path: '/admin/llm-config',
+        method: 'PUT',
+        ip: '127.0.0.1',
+      };
+
+      mockRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis(),
+      };
+
+      mockNext = vi.fn();
+    });
+
+    it('should call next() when admin key is valid', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      mockReq.headers = { 'x-admin-key': 'valid-admin-key' };
+
+      const middleware = requireAdminAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledOnce();
+      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockRes.json).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 when admin key is invalid', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      mockReq.headers = { 'x-admin-key': 'wrong-key' };
+
+      const middleware = requireAdminAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'UNAUTHORIZED',
+          message: 'Admin authentication required',
+        })
+      );
+    });
+
+    it('should return 403 when admin key is missing', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      const middleware = requireAdminAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should use custom message when provided', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      mockReq.headers = { 'x-admin-key': 'wrong-key' };
+
+      const middleware = requireAdminAuth('Custom admin message');
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Custom admin message',
+        })
+      );
+    });
+
+    it('should return 403 when ADMIN_API_KEY is not configured', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: undefined,
+      } as any);
+
+      mockReq.headers = { 'x-admin-key': 'some-key' };
+
+      const middleware = requireAdminAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should include timestamp in error response', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        ADMIN_API_KEY: 'valid-admin-key',
+      } as any);
+
+      const middleware = requireAdminAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.json).toHaveBeenCalledWith(

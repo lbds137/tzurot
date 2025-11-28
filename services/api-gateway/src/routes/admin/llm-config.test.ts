@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
 
 // Mock the admin auth middleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -14,6 +14,12 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
     next();
   },
 }));
+
+const createMockCacheInvalidationService = () => ({
+  invalidateAll: vi.fn().mockResolvedValue(undefined),
+  invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+  invalidateConfigUsers: vi.fn().mockResolvedValue(undefined),
+});
 
 const createMockPrismaClient = () => ({
   llmConfig: {
@@ -151,6 +157,8 @@ describe('Admin LLM Config Routes', () => {
         name: 'Old Name',
         isGlobal: true,
       });
+      // No duplicate name exists
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.update.mockResolvedValue({
         id: 'config-id',
         name: 'New Name',
@@ -377,6 +385,142 @@ describe('Admin LLM Config Routes', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/5 user override/i);
+    });
+  });
+
+  describe('PUT /admin/llm-config/:id - duplicate name check', () => {
+    it('should reject duplicate name when renaming config', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        isGlobal: true,
+      });
+      // Simulate another config with the same name exists
+      prisma.llmConfig.findFirst.mockResolvedValue({
+        id: 'other-config-id',
+        name: 'Duplicate Name',
+        isGlobal: true,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id').send({
+        name: 'Duplicate Name',
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/already exists/i);
+      expect(prisma.llmConfig.update).not.toHaveBeenCalled();
+    });
+
+    it('should allow keeping the same name (no duplicate check against self)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Same Name',
+        isGlobal: true,
+      });
+      // findFirst returns null because we exclude the current config from the check
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'Same Name',
+        model: 'new-model',
+        isGlobal: true,
+        isDefault: false,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id').send({
+        name: 'Same Name',
+        model: 'new-model',
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
+        where: {
+          isGlobal: true,
+          name: 'Same Name',
+          id: { not: 'config-id' },
+        },
+      });
+    });
+  });
+
+  describe('Cache invalidation', () => {
+    let appWithCache: Express;
+    let cacheService: ReturnType<typeof createMockCacheInvalidationService>;
+
+    beforeEach(() => {
+      cacheService = createMockCacheInvalidationService();
+      appWithCache = express();
+      appWithCache.use(express.json());
+      appWithCache.use(
+        '/admin/llm-config',
+        createAdminLlmConfigRoutes(
+          prisma as unknown as PrismaClient,
+          cacheService as unknown as LlmConfigCacheInvalidationService
+        )
+      );
+    });
+
+    it('should invalidate cache after updating a global config', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        isGlobal: true,
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null); // No duplicate
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'New Name',
+        isGlobal: true,
+        isDefault: false,
+      });
+
+      const response = await request(appWithCache).put('/admin/llm-config/config-id').send({
+        name: 'New Name',
+      });
+
+      expect(response.status).toBe(200);
+      expect(cacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('should invalidate cache after setting a config as default', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'My Config',
+        isGlobal: true,
+      });
+      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        isDefault: true,
+      });
+
+      const response = await request(appWithCache).put('/admin/llm-config/config-id/set-default');
+
+      expect(response.status).toBe(200);
+      expect(cacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('should not call invalidate when no cache service provided', async () => {
+      // Using the default app without cache service
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        isGlobal: true,
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'New Name',
+        isGlobal: true,
+        isDefault: false,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id').send({
+        name: 'New Name',
+      });
+
+      expect(response.status).toBe(200);
+      // No error should occur even without cache service
     });
   });
 });

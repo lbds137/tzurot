@@ -11,7 +11,11 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  type LlmConfigCacheInvalidationService,
+} from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -32,7 +36,10 @@ interface CreateGlobalConfigBody {
   maxReferencedMessages?: number;
 }
 
-export function createAdminLlmConfigRoutes(prisma: PrismaClient): Router {
+export function createAdminLlmConfigRoutes(
+  prisma: PrismaClient,
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+): Router {
   const router = Router();
 
   /**
@@ -181,6 +188,20 @@ export function createAdminLlmConfigRoutes(prisma: PrismaClient): Router {
             ErrorResponses.validationError('name must be 100 characters or less')
           );
         }
+        // Check for duplicate name (excluding current config)
+        const duplicate = await prisma.llmConfig.findFirst({
+          where: {
+            isGlobal: true,
+            name: body.name.trim(),
+            id: { not: configId },
+          },
+        });
+        if (duplicate !== null) {
+          return sendError(
+            res,
+            ErrorResponses.validationError(`A global config named "${body.name}" already exists`)
+          );
+        }
         updateData.name = body.name.trim();
       }
       if (body.description !== undefined) {
@@ -227,6 +248,12 @@ export function createAdminLlmConfigRoutes(prisma: PrismaClient): Router {
         '[AdminLlmConfig] Updated global config'
       );
 
+      // Invalidate LLM config caches (global config may affect any user)
+      if (llmConfigCacheInvalidation) {
+        await llmConfigCacheInvalidation.invalidateAll();
+        logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+      }
+
       sendCustomSuccess(res, { config }, StatusCodes.OK);
     })
   );
@@ -271,6 +298,12 @@ export function createAdminLlmConfigRoutes(prisma: PrismaClient): Router {
       });
 
       logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as system default');
+
+      // Invalidate LLM config caches (default config affects fallback resolution)
+      if (llmConfigCacheInvalidation) {
+        await llmConfigCacheInvalidation.invalidateAll();
+        logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+      }
 
       sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
     })
