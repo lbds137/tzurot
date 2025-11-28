@@ -21,9 +21,6 @@ import {
 
 const logger = createLogger('LlmConfigResolver');
 
-/** Default interval for cache cleanup (5 minutes) */
-const CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-
 /**
  * Resolved LLM config values that can override personality defaults
  */
@@ -87,7 +84,7 @@ export class LlmConfigResolver {
   private startCleanupInterval(): void {
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredEntries();
-    }, CACHE_CLEANUP_INTERVAL_MS);
+    }, INTERVALS.CACHE_CLEANUP);
 
     // Ensure interval doesn't prevent process exit
     this.cleanupInterval.unref();

@@ -554,6 +554,58 @@ describe('/user/model-override routes', () => {
     });
   });
 
+  describe('PUT /user/model-override/default cache invalidation', () => {
+    it('should call invalidateUserLlmConfig on success', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const router = createModelOverrideRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService
+      );
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: 'config-1' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith('discord-user-123');
+    });
+
+    it('should not fail if cache invalidation throws', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockRejectedValue(new Error('Redis error')),
+      };
+
+      const router = createModelOverrideRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService
+      );
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: 'config-1' });
+
+      await handler(req, res);
+
+      // Should still return success even if cache invalidation fails
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should work without cache invalidation service', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: 'config-1' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
   describe('DELETE /user/model-override/default', () => {
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
@@ -609,6 +661,72 @@ describe('/user/model-override routes', () => {
           deleted: true,
         })
       );
+    });
+  });
+
+  describe('DELETE /user/model-override/default cache invalidation', () => {
+    it('should call invalidateUserLlmConfig on success', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-uuid-123',
+        defaultLlmConfigId: 'config-123',
+      });
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const router = createModelOverrideRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService
+      );
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith('discord-user-123');
+    });
+
+    it('should not fail if cache invalidation throws', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-uuid-123',
+        defaultLlmConfigId: 'config-123',
+      });
+      const mockInvalidation = {
+        invalidateUserLlmConfig: vi.fn().mockRejectedValue(new Error('Redis error')),
+      };
+
+      const router = createModelOverrideRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService
+      );
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      // Should still return success even if cache invalidation fails
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+        })
+      );
+    });
+
+    it('should work without cache invalidation service', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-uuid-123',
+        defaultLlmConfigId: 'config-123',
+      });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
     });
   });
 });

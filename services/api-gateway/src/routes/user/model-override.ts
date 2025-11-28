@@ -13,7 +13,12 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, type ModelOverrideSummary } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  type ModelOverrideSummary,
+  type LlmConfigCacheInvalidationService,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -45,7 +50,10 @@ interface UserDefaultConfigResponse {
   configName: string | null;
 }
 
-export function createModelOverrideRoutes(prisma: PrismaClient): Router {
+export function createModelOverrideRoutes(
+  prisma: PrismaClient,
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+): Router {
   const router = Router();
 
   /**
@@ -350,6 +358,17 @@ export function createModelOverrideRoutes(prisma: PrismaClient): Router {
         '[ModelDefault] Set default config'
       );
 
+      // Invalidate user's LLM config cache so ai-worker picks up the change
+      if (llmConfigCacheInvalidation) {
+        try {
+          await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
+          logger.debug({ discordUserId }, '[ModelDefault] Invalidated user LLM config cache');
+        } catch (err) {
+          // Log but don't fail the request - cache will expire naturally
+          logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
+        }
+      }
+
       sendCustomSuccess(res, { default: result }, StatusCodes.OK);
     })
   );
@@ -383,6 +402,17 @@ export function createModelOverrideRoutes(prisma: PrismaClient): Router {
       });
 
       logger.info({ discordUserId }, '[ModelDefault] Cleared default config');
+
+      // Invalidate user's LLM config cache so ai-worker picks up the change
+      if (llmConfigCacheInvalidation) {
+        try {
+          await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
+          logger.debug({ discordUserId }, '[ModelDefault] Invalidated user LLM config cache');
+        } catch (err) {
+          // Log but don't fail the request - cache will expire naturally
+          logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
+        }
+      }
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
     })
