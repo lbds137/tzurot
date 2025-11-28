@@ -154,6 +154,46 @@ describe('stripPersonalityPrefix', () => {
     });
   });
 
+  describe('Roleplay asterisk prefix', () => {
+    it('should preserve leading asterisk when stripping name', () => {
+      // AI adds "*NAME:" for roleplay action notation
+      // We strip NAME: but preserve the asterisk for roleplay formatting
+      expect(stripPersonalityPrefix('*COLD: I confirm the activation', 'COLD')).toBe(
+        '*I confirm the activation'
+      );
+      expect(stripPersonalityPrefix('*Emily: waves hello', 'Emily')).toBe('*waves hello');
+    });
+
+    it('should handle roleplay asterisk with trailing asterisk', () => {
+      // Full roleplay wrap: *NAME: content*
+      // Preserves both asterisks for proper roleplay formatting
+      expect(stripPersonalityPrefix('*COLD: I confirm*', 'COLD')).toBe('*I confirm*');
+    });
+
+    it('should handle markdown bold around name', () => {
+      // **NAME:** format - strips all the markdown around the name
+      expect(stripPersonalityPrefix('**Emily:** Hello there!', 'Emily')).toBe('Hello there!');
+      expect(stripPersonalityPrefix('**COLD:** System ready', 'COLD')).toBe('System ready');
+    });
+
+    it('should handle markdown bold with colon outside', () => {
+      // **NAME**: format (colon outside bold)
+      expect(stripPersonalityPrefix('**Emily**: Hello there!', 'Emily')).toBe('Hello there!');
+    });
+
+    it('should handle roleplay asterisk with timestamp', () => {
+      // Preserves leading asterisk
+      expect(stripPersonalityPrefix('*Emily: [now] waves*', 'Emily')).toBe('*waves*');
+    });
+
+    it('should strip name without leading asterisk normally', () => {
+      // Standard case without roleplay notation
+      expect(stripPersonalityPrefix('COLD: I confirm the activation', 'COLD')).toBe(
+        'I confirm the activation'
+      );
+    });
+  });
+
   describe('Real-world examples', () => {
     it('should handle the Emily example from the bug report', () => {
       const content =
@@ -161,6 +201,13 @@ describe('stripPersonalityPrefix', () => {
       const expected =
         '*my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
       expect(stripPersonalityPrefix(content, 'Emily')).toBe(expected);
+    });
+
+    it('should handle the COLD guest mode example', () => {
+      // Preserves leading asterisk for roleplay formatting
+      const content = '*COLD: I confirm the successful activation of the Guest Mode configuration.*';
+      const expected = '*I confirm the successful activation of the Guest Mode configuration.*';
+      expect(stripPersonalityPrefix(content, 'COLD')).toBe(expected);
     });
 
     it('should handle typical Haiku output', () => {
