@@ -89,6 +89,7 @@ Reference documentation and quick lookups.
 **Key docs:**
 
 - `RAILWAY_CLI_REFERENCE.md` - Railway CLI command reference
+- `GITHUB_CLI_REFERENCE.md` - GitHub CLI (gh) command reference with common pitfalls
 
 ### 📄 [templates/](templates/)
 
