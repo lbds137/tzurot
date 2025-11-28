@@ -2,10 +2,18 @@
  * Tests for Admin Command Router
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { data, execute } from './index.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { data, execute, autocomplete } from './index.js';
+import type {
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  Collection,
+  Guild,
+} from 'discord.js';
 import { MessageFlags } from 'discord.js';
+
+// Mock fetch
+global.fetch = vi.fn();
 
 // Mock requireBotOwner middleware
 vi.mock('@tzurot/common-types', async () => {
@@ -204,6 +212,251 @@ describe('admin command', () => {
       expect(handleDbSync).toHaveBeenCalledWith(mockInteraction, config);
       expect(config).toBeDefined();
       expect(config.GATEWAY_URL).toBe('http://localhost:3000');
+    });
+  });
+
+  describe('autocomplete', () => {
+    let mockAutocompleteInteraction: AutocompleteInteraction;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      // Reset getConfig mock for autocomplete tests
+      vi.mocked(getConfig).mockReturnValue({
+        GATEWAY_URL: 'http://localhost:3000',
+        ADMIN_API_KEY: 'test-admin-key',
+      } as ReturnType<typeof getConfig>);
+
+      mockAutocompleteInteraction = {
+        options: {
+          getFocused: vi.fn(),
+        },
+        respond: vi.fn().mockResolvedValue(undefined),
+        client: {
+          guilds: {
+            cache: new Map() as unknown as Collection<string, Guild>,
+          },
+        },
+      } as unknown as AutocompleteInteraction;
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    describe('config autocomplete', () => {
+      it('should respond with filtered configs', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: 'claude',
+        });
+        vi.mocked(fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              configs: [
+                {
+                  id: 'c1',
+                  name: 'Claude Config',
+                  model: 'anthropic/claude-sonnet-4',
+                  isGlobal: true,
+                  isDefault: false,
+                },
+                {
+                  id: 'c2',
+                  name: 'GPT Config',
+                  model: 'openai/gpt-4',
+                  isGlobal: true,
+                  isDefault: true,
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+        );
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
+          { name: 'Claude Config (claude-sonnet-4)', value: 'c1' },
+        ]);
+      });
+
+      it('should show [DEFAULT] marker for default config', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        vi.mocked(fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              configs: [
+                {
+                  id: 'c1',
+                  name: 'Default Config',
+                  model: 'anthropic/claude-sonnet-4',
+                  isGlobal: true,
+                  isDefault: true,
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+        );
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
+          { name: 'Default Config (claude-sonnet-4) [DEFAULT]', value: 'c1' },
+        ]);
+      });
+
+      it('should respond with empty array when gateway URL not configured', async () => {
+        vi.mocked(getConfig).mockReturnValue({ GATEWAY_URL: undefined } as ReturnType<
+          typeof getConfig
+        >);
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
+      });
+
+      it('should respond with empty array on API error', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
+      });
+
+      it('should respond with empty array on fetch error', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
+      });
+
+      it('should only show global configs', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        vi.mocked(fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              configs: [
+                {
+                  id: 'c1',
+                  name: 'Global Config',
+                  model: 'model-1',
+                  isGlobal: true,
+                  isDefault: false,
+                },
+                {
+                  id: 'c2',
+                  name: 'User Config',
+                  model: 'model-2',
+                  isGlobal: false,
+                  isDefault: false,
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+        );
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
+          { name: 'Global Config (model-1)', value: 'c1' },
+        ]);
+      });
+    });
+
+    describe('server-id autocomplete', () => {
+      it('should respond with filtered servers', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'server-id',
+          value: 'test',
+        });
+
+        // Create a mock guilds cache with filter, map, and slice methods
+        const mockGuilds = [
+          { id: 'guild-1', name: 'Test Server', memberCount: 100 },
+          { id: 'guild-2', name: 'Other Server', memberCount: 50 },
+        ];
+
+        const mockCache = {
+          filter: vi.fn((fn: (g: (typeof mockGuilds)[0]) => boolean) => ({
+            map: vi.fn((mapFn: (g: (typeof mockGuilds)[0]) => { name: string; value: string }) =>
+              mockGuilds.filter(fn).map(mapFn)
+            ),
+          })),
+        };
+
+        mockAutocompleteInteraction.client.guilds.cache = mockCache as unknown as Collection<
+          string,
+          Guild
+        >;
+
+        // Make filter return only 'Test Server' when querying 'test'
+        mockCache.filter.mockImplementation((fn: (g: (typeof mockGuilds)[0]) => boolean) => ({
+          map: (mapFn: (g: (typeof mockGuilds)[0]) => { name: string; value: string }) => {
+            const filtered = mockGuilds.filter(g => g.name.toLowerCase().includes('test'));
+            return {
+              slice: () => filtered.map(mapFn),
+            };
+          },
+        }));
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
+          { name: 'Test Server (100 members)', value: 'guild-1' },
+        ]);
+      });
+    });
+
+    describe('unknown option', () => {
+      it('should respond with empty array for unknown option', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'unknown',
+          value: 'test',
+        });
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
+      });
+    });
+
+    describe('error handling', () => {
+      it('should respond with empty array on handler exception', async () => {
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        // Make fetch throw after getFocused succeeds
+        vi.mocked(fetch).mockImplementation(() => {
+          throw new Error('Handler error');
+        });
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
+      });
     });
   });
 });

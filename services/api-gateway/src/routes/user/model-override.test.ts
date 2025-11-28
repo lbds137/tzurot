@@ -34,6 +34,7 @@ const mockPrisma = {
   user: {
     findFirst: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
   },
   personality: {
     findFirst: vi.fn(),
@@ -415,6 +416,194 @@ describe('/user/model-override routes', () => {
       expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith({
         where: { id: 'override-1' },
         data: { llmConfigId: null },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+        })
+      );
+    });
+  });
+
+  describe('GET /user/model-override/default', () => {
+    it('should return null default when user not found', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          default: {
+            configId: null,
+            configName: null,
+          },
+        })
+      );
+    });
+
+    it('should return user default config when set', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        defaultLlmConfigId: 'config-123',
+        defaultLlmConfig: { name: 'My Default Config' },
+      });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          default: {
+            configId: 'config-123',
+            configName: 'My Default Config',
+          },
+        })
+      );
+    });
+  });
+
+  describe('PUT /user/model-override/default', () => {
+
+    it('should reject missing configId', async () => {
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('configId'),
+        })
+      );
+    });
+
+    it('should reject empty configId', async () => {
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: '  ' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should return 404 when config not found or not accessible', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: 'config-1' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Config'),
+        })
+      );
+    });
+
+    it('should create user if not exists', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: 'config-1' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should set default config successfully', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/default');
+      const { req, res } = createMockReqRes({ configId: 'config-1' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: { defaultLlmConfigId: 'config-1' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          default: {
+            configId: 'config-1',
+            configName: 'Test Config',
+          },
+        })
+      );
+    });
+  });
+
+  describe('DELETE /user/model-override/default', () => {
+
+    it('should return 404 when user not found', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return 400 when no default config set', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-uuid-123',
+        defaultLlmConfigId: null,
+      });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('No default'),
+        })
+      );
+    });
+
+    it('should clear default config successfully', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'user-uuid-123',
+        defaultLlmConfigId: 'config-123',
+      });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-uuid-123' },
+        data: { defaultLlmConfigId: null },
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
