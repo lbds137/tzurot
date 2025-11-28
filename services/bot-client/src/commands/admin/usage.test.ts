@@ -28,6 +28,40 @@ vi.mock('@tzurot/common-types', async () => {
 // Mock fetch
 global.fetch = vi.fn();
 
+/**
+ * Create complete mock usage stats with all required fields
+ */
+function createMockUsageStats(overrides: Partial<{
+  timeframe: string;
+  periodStart: string | null;
+  periodEnd: string;
+  totalRequests: number;
+  totalTokensIn: number;
+  totalTokensOut: number;
+  totalTokens: number;
+  uniqueUsers: number;
+  byProvider: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
+  byModel: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
+  byRequestType: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
+  topUsers: { discordId: string; requests: number; tokens: number }[];
+}> = {}) {
+  return {
+    timeframe: '7d',
+    periodStart: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    periodEnd: new Date().toISOString(),
+    totalRequests: 100,
+    totalTokensIn: 5000,
+    totalTokensOut: 2500,
+    totalTokens: 7500,
+    uniqueUsers: 5,
+    byProvider: { openrouter: { requests: 100, tokensIn: 5000, tokensOut: 2500 } },
+    byModel: { 'claude-sonnet': { requests: 100, tokensIn: 5000, tokensOut: 2500 } },
+    byRequestType: { chat: { requests: 100, tokensIn: 5000, tokensOut: 2500 } },
+    topUsers: [{ discordId: 'user-123', requests: 50, tokens: 3000 }],
+    ...overrides,
+  };
+}
+
 describe('handleUsage', () => {
   let mockInteraction: ChatInputCommandInteraction;
   let mockUser: User;
@@ -56,7 +90,7 @@ describe('handleUsage', () => {
   it('should defer reply with ephemeral flag', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
+      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
     );
 
     await handleUsage(mockInteraction);
@@ -69,7 +103,7 @@ describe('handleUsage', () => {
   it('should use default timeframe of 7d when not provided', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
+      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
     );
 
     await handleUsage(mockInteraction);
@@ -80,7 +114,7 @@ describe('handleUsage', () => {
   it('should use provided timeframe', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('30d');
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
+      new Response(JSON.stringify(createMockUsageStats({ timeframe: '30d' })), { status: 200 })
     );
 
     await handleUsage(mockInteraction);
@@ -94,7 +128,7 @@ describe('handleUsage', () => {
   it('should include admin key in headers', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
+      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
     );
 
     await handleUsage(mockInteraction);
@@ -113,11 +147,7 @@ describe('handleUsage', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('7d');
     vi.mocked(fetch).mockResolvedValue(
       new Response(
-        JSON.stringify({
-          totalRequests: 150,
-          totalTokens: 50000,
-          estimatedCost: 2.5,
-        }),
+        JSON.stringify(createMockUsageStats({ totalRequests: 150, totalTokens: 50000 })),
         { status: 200 }
       )
     );
@@ -152,14 +182,21 @@ describe('handleUsage', () => {
     );
   });
 
-  it('should handle partial usage data', async () => {
+  it('should handle zero usage data', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
-        JSON.stringify({
-          totalRequests: 100,
-          // Missing totalTokens and estimatedCost
-        }),
+        JSON.stringify(createMockUsageStats({
+          totalRequests: 0,
+          totalTokensIn: 0,
+          totalTokensOut: 0,
+          totalTokens: 0,
+          uniqueUsers: 0,
+          byProvider: {},
+          byModel: {},
+          byRequestType: {},
+          topUsers: [],
+        })),
         { status: 200 }
       )
     );
@@ -171,33 +208,52 @@ describe('handleUsage', () => {
     });
   });
 
-  it('should handle empty usage data', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
-
-    await handleUsage(mockInteraction);
-
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
-      embeds: [expect.any(Object)],
-    });
-  });
-
-  it('should format cost with 2 decimal places', async () => {
+  it('should handle large token counts', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
-        JSON.stringify({
-          totalRequests: 100,
-          totalTokens: 10000,
-          estimatedCost: 1.234567,
-        }),
+        JSON.stringify(createMockUsageStats({
+          totalRequests: 1000,
+          totalTokensIn: 1_500_000,
+          totalTokensOut: 500_000,
+          totalTokens: 2_000_000,
+        })),
         { status: 200 }
       )
     );
 
     await handleUsage(mockInteraction);
 
-    // Cost should be formatted as $1.23
+    // Large token counts should be formatted with K/M suffixes
+    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+      embeds: [expect.any(Object)],
+    });
+  });
+
+  it('should display all breakdowns when data is available', async () => {
+    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify(createMockUsageStats({
+          byProvider: {
+            openrouter: { requests: 80, tokensIn: 4000, tokensOut: 2000 },
+            anthropic: { requests: 20, tokensIn: 1000, tokensOut: 500 },
+          },
+          byModel: {
+            'claude-sonnet': { requests: 60, tokensIn: 3000, tokensOut: 1500 },
+            'gpt-4': { requests: 40, tokensIn: 2000, tokensOut: 1000 },
+          },
+          topUsers: [
+            { discordId: 'user-1', requests: 50, tokens: 3000 },
+            { discordId: 'user-2', requests: 30, tokens: 2000 },
+          ],
+        })),
+        { status: 200 }
+      )
+    );
+
+    await handleUsage(mockInteraction);
+
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });

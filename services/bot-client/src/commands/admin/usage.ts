@@ -1,12 +1,13 @@
 /**
  * Admin Usage Subcommand
- * Handles /admin usage
+ * Handles /admin usage - Shows global usage statistics across all users
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { MessageFlags } from 'discord.js';
+import { createLogger } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
+import { buildAdminUsageEmbed, type AdminUsageStats } from '../../utils/usageFormatter.js';
 
 const logger = createLogger('admin-usage');
 
@@ -32,52 +33,17 @@ export async function handleUsage(interaction: ChatInputCommandInteraction): Pro
       return;
     }
 
-    const data = await response.json();
-
-    const embed = new EmbedBuilder()
-      .setColor(DISCORD_COLORS.BLURPLE)
-      .setTitle('📊 API Usage Statistics')
-      .setDescription(`Timeframe: **${timeframe}**`)
-      .setTimestamp();
-
-    // Add usage data fields
-    if (typeof data === 'object' && data !== null) {
-      const usageData = data as {
-        totalRequests?: number;
-        totalTokens?: number;
-        estimatedCost?: number;
-      };
-
-      if (usageData.totalRequests !== undefined) {
-        embed.addFields({
-          name: 'Total Requests',
-          value: String(usageData.totalRequests),
-          inline: true,
-        });
-      }
-
-      if (usageData.totalTokens !== undefined) {
-        embed.addFields({
-          name: 'Total Tokens',
-          value: String(usageData.totalTokens),
-          inline: true,
-        });
-      }
-
-      if (usageData.estimatedCost !== undefined) {
-        embed.addFields({
-          name: 'Estimated Cost',
-          value: `$${usageData.estimatedCost.toFixed(2)}`,
-          inline: true,
-        });
-      }
-    }
+    const stats = (await response.json()) as AdminUsageStats;
+    const embed = buildAdminUsageEmbed(stats);
 
     await interaction.editReply({ embeds: [embed] });
+
+    logger.info(
+      { timeframe, totalRequests: stats.totalRequests, uniqueUsers: stats.uniqueUsers },
+      '[AdminUsage] Returned stats'
+    );
   } catch (error) {
     logger.error({ err: error }, 'Error retrieving usage statistics');
-    await interaction.editReply(
-      '❌ Error retrieving usage statistics.\n' + 'This feature may not be implemented yet.'
-    );
+    await interaction.editReply('❌ Error retrieving usage statistics. Please try again later.');
   }
 }
