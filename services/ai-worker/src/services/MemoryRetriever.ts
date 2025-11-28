@@ -242,10 +242,7 @@ export class MemoryRetriever {
       });
 
       if (user === null) {
-        logger.warn(
-          {},
-          `[MemoryRetriever] No user found for Discord ID ${discordUserId}`
-        );
+        logger.warn({}, `[MemoryRetriever] No user found for Discord ID ${discordUserId}`);
         return null;
       }
 

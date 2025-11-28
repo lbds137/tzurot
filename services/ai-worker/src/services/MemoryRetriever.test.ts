@@ -153,9 +153,7 @@ describe('MemoryRetriever', () => {
     });
 
     it('should return null on database error', async () => {
-      mockPrismaClient.user.findUnique.mockRejectedValue(
-        new Error('Database connection failed')
-      );
+      mockPrismaClient.user.findUnique.mockRejectedValue(new Error('Database connection failed'));
 
       const result = await retriever.getUserPersonaForPersonality(
         'discord-id-123',
