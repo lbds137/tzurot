@@ -34,6 +34,9 @@ describe('LlmConfigResolver', () => {
     userPersonalityConfig: {
       findFirst: ReturnType<typeof vi.fn>;
     };
+    llmConfig: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
   };
 
   const mockPersonality: LoadedPersonality = {
@@ -66,6 +69,9 @@ describe('LlmConfigResolver', () => {
         findFirst: vi.fn(),
       },
       userPersonalityConfig: {
+        findFirst: vi.fn(),
+      },
+      llmConfig: {
         findFirst: vi.fn(),
       },
     };
@@ -519,6 +525,163 @@ describe('LlmConfigResolver', () => {
 
       // Should fall back to personality default
       expect(result.config.temperature).toBe(0.7);
+    });
+  });
+
+  describe('getFreeDefaultConfig', () => {
+    it('should return null when no free default config exists', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.getFreeDefaultConfig();
+
+      expect(result).toBeNull();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
+        where: { isFreeDefault: true },
+        select: expect.any(Object),
+      });
+    });
+
+    it('should return config when isFreeDefault config exists', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        name: 'Free Default Config',
+        model: 'google/gemini-2.0-flash:free',
+        visionModel: null,
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 40,
+        frequencyPenalty: 0.0,
+        presencePenalty: 0.0,
+        maxTokens: 4096,
+        memoryScoreThreshold: 0.7,
+        memoryLimit: 10,
+        contextWindowTokens: 131072,
+      });
+
+      const result = await resolver.getFreeDefaultConfig();
+
+      expect(result).not.toBeNull();
+      expect(result!.model).toBe('google/gemini-2.0-flash:free');
+      expect(result!.temperature).toBe(0.7);
+      expect(result!.maxTokens).toBe(4096);
+    });
+
+    it('should cache the free default config result', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        name: 'Free Default Config',
+        model: 'google/gemini-2.0-flash:free',
+        visionModel: null,
+        temperature: 0.7,
+        topP: null,
+        topK: null,
+        frequencyPenalty: null,
+        presencePenalty: null,
+        maxTokens: null,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        contextWindowTokens: null,
+      });
+
+      // First call
+      await resolver.getFreeDefaultConfig();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+
+      // Second call - should use cache
+      await resolver.getFreeDefaultConfig();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it('should respect cache TTL for free default config', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        name: 'Free Default Config',
+        model: 'google/gemini-2.0-flash:free',
+        visionModel: null,
+        temperature: 0.7,
+        topP: null,
+        topK: null,
+        frequencyPenalty: null,
+        presencePenalty: null,
+        maxTokens: null,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        contextWindowTokens: null,
+      });
+
+      // First call
+      await resolver.getFreeDefaultConfig();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+
+      // Advance time past TTL
+      vi.advanceTimersByTime(61000);
+
+      // Third call - cache expired, should query again
+      await resolver.getFreeDefaultConfig();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle database errors gracefully', async () => {
+      mockPrisma.llmConfig.findFirst.mockRejectedValue(new Error('Database error'));
+
+      const result = await resolver.getFreeDefaultConfig();
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle Prisma Decimal values in config', async () => {
+      const mockDecimal = {
+        toNumber: () => 0.85,
+      };
+
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        name: 'Free Default Config',
+        model: 'google/gemini-2.0-flash:free',
+        visionModel: null,
+        temperature: mockDecimal, // Prisma Decimal
+        topP: mockDecimal,
+        topK: 40,
+        frequencyPenalty: mockDecimal,
+        presencePenalty: mockDecimal,
+        maxTokens: 4096,
+        memoryScoreThreshold: mockDecimal,
+        memoryLimit: 10,
+        contextWindowTokens: 131072,
+      });
+
+      const result = await resolver.getFreeDefaultConfig();
+
+      expect(result).not.toBeNull();
+      expect(result!.temperature).toBe(0.85);
+      expect(result!.topP).toBe(0.85);
+      expect(result!.frequencyPenalty).toBe(0.85);
+      expect(result!.presencePenalty).toBe(0.85);
+      expect(result!.memoryScoreThreshold).toBe(0.85);
+    });
+
+    it('should be invalidated when clearCache is called', async () => {
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        name: 'Free Default Config',
+        model: 'google/gemini-2.0-flash:free',
+        visionModel: null,
+        temperature: 0.7,
+        topP: null,
+        topK: null,
+        frequencyPenalty: null,
+        presencePenalty: null,
+        maxTokens: null,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        contextWindowTokens: null,
+      });
+
+      // First call - caches result
+      await resolver.getFreeDefaultConfig();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+
+      // Clear cache
+      resolver.clearCache();
+
+      // Should query again
+      await resolver.getFreeDefaultConfig();
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
     });
   });
 });

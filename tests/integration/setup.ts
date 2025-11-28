@@ -100,6 +100,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
       is_global BOOLEAN DEFAULT FALSE,
       is_default BOOLEAN DEFAULT FALSE,
+      is_free_default BOOLEAN DEFAULT FALSE,
       provider VARCHAR(20) DEFAULT 'openrouter',
       model VARCHAR(255) NOT NULL,
       vision_model VARCHAR(255),

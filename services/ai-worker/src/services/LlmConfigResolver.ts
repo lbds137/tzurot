@@ -382,4 +382,77 @@ export class LlmConfigResolver {
     this.cache.clear();
     logger.debug('Cleared config cache');
   }
+
+  /**
+   * Get the default free config for guest mode users.
+   *
+   * Resolution order:
+   * 1. Database config with isFreeDefault=true
+   * 2. Returns null if none found (caller should use hardcoded fallback)
+   *
+   * @returns The free default config or null if none set
+   */
+  async getFreeDefaultConfig(): Promise<ResolvedLlmConfig | null> {
+    // Check cache first
+    const cacheKey = '__free_default__';
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      logger.debug({ source: 'cache' }, 'Free default config resolved from cache');
+      return cached.result.config;
+    }
+
+    try {
+      const freeConfig = await this.prisma.llmConfig.findFirst({
+        where: { isFreeDefault: true },
+        select: {
+          name: true,
+          model: true,
+          visionModel: true,
+          temperature: true,
+          topP: true,
+          topK: true,
+          frequencyPenalty: true,
+          presencePenalty: true,
+          maxTokens: true,
+          memoryScoreThreshold: true,
+          memoryLimit: true,
+          contextWindowTokens: true,
+        },
+      });
+
+      if (freeConfig === null) {
+        logger.debug('No free default config found in database');
+        return null;
+      }
+
+      const config: ResolvedLlmConfig = {
+        model: freeConfig.model,
+        visionModel: freeConfig.visionModel,
+        temperature: this.toNumber(freeConfig.temperature),
+        topP: this.toNumber(freeConfig.topP),
+        topK: freeConfig.topK,
+        frequencyPenalty: this.toNumber(freeConfig.frequencyPenalty),
+        presencePenalty: this.toNumber(freeConfig.presencePenalty),
+        maxTokens: freeConfig.maxTokens,
+        memoryScoreThreshold: this.toNumber(freeConfig.memoryScoreThreshold),
+        memoryLimit: freeConfig.memoryLimit,
+        contextWindowTokens: freeConfig.contextWindowTokens,
+      };
+
+      // Cache the result
+      this.cache.set(cacheKey, {
+        result: { config, source: 'personality', configName: freeConfig.name },
+        expiresAt: Date.now() + this.cacheTtlMs,
+      });
+
+      logger.info(
+        { configName: freeConfig.name, model: config.model },
+        'Free default config loaded from database'
+      );
+      return config;
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to get free default config');
+      return null;
+    }
+  }
 }

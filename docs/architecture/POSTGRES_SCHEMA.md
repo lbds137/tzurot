@@ -97,11 +97,13 @@ CREATE TABLE llm_configs (
   repetition_penalty DECIMAL(3,2),
   max_tokens INTEGER,
   is_default BOOLEAN DEFAULT false,
+  is_free_default BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX idx_llm_configs_default ON llm_configs(is_default) WHERE is_default = true;
+CREATE INDEX idx_llm_configs_is_free_default ON llm_configs(is_free_default);
 ```
 
 **Notes:**

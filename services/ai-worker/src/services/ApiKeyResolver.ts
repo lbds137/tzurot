@@ -29,17 +29,16 @@ const config = getConfig();
 
 /**
  * Source of the API key
- * - 'user': User's own BYOK API key
- * - 'system': System-provided API key (bot owner pays)
- * - 'guest': No API key available, limited to free models only
+ * - 'user': User's own BYOK API key (full model access)
+ * - 'system': System-provided API key (guest mode, free models only)
  */
-export type ApiKeySource = 'user' | 'system' | 'guest';
+export type ApiKeySource = 'user' | 'system';
 
 /**
  * Result of API key resolution
  */
 export interface ApiKeyResolutionResult {
-  /** The resolved API key (decrypted). Empty string for guest mode. */
+  /** The resolved API key (decrypted) */
   apiKey: string;
   /** Source of the key */
   source: ApiKeySource;
@@ -127,34 +126,30 @@ export class ApiKeyResolver {
       }
     }
 
-    // Fall back to system API key
+    // Fall back to system API key - but restrict to free models (guest mode)
+    // Users without their own BYOK key can only use free models on the system key
     const systemKey = this.getSystemApiKey(provider);
     if (systemKey !== null) {
       const result: ApiKeyResolutionResult = {
         apiKey: systemKey,
         source: 'system',
         provider,
-        isGuestMode: false,
+        userId,
+        isGuestMode: true, // Restrict to free models when using system key
       };
       this.cacheResult(cacheKey, result);
-      logger.debug({ userId, provider, source: 'system' }, 'API key resolved from system');
+      logger.info(
+        { userId, provider, source: 'system' },
+        'Using system API key in Guest Mode (free models only)'
+      );
       return result;
     }
 
-    // No API key available - enter Guest Mode (free models only)
-    const result: ApiKeyResolutionResult = {
-      apiKey: '', // No API key - will use free models that don't require auth
-      source: 'guest',
-      provider,
-      userId,
-      isGuestMode: true,
-    };
-    this.cacheResult(cacheKey, result);
-    logger.info(
-      { userId, provider, source: 'guest' },
-      'No API key available, using Guest Mode (free models only)'
+    // No API key available at all - cannot make API calls
+    throw new Error(
+      `No API key available for provider ${provider}. ` +
+        'Please configure your own API key or contact the bot administrator.'
     );
-    return result;
   }
 
   /**
