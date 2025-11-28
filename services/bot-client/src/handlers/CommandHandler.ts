@@ -72,6 +72,7 @@ export class CommandHandler {
         const commandWithCategory: Command = {
           data: importedModule.data,
           execute: importedModule.execute,
+          autocomplete: importedModule.autocomplete,
           category,
         };
 
