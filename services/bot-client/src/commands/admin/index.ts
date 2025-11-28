@@ -9,14 +9,9 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
-import {
-  createLogger,
-  getConfig,
-  requireBotOwner,
-  DISCORD_LIMITS,
-  type EnvConfig,
-} from '@tzurot/common-types';
+import { createLogger, requireBotOwner, DISCORD_LIMITS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import { adminFetch } from '../../utils/adminApiClient.js';
 
 // Import subcommand handlers
 import { handleDbSync } from './db-sync.js';
@@ -161,18 +156,16 @@ export const data = new SlashCommandBuilder()
 /**
  * Create admin router with config dependency
  */
-function createAdminRouter(
-  config: EnvConfig
-): (interaction: ChatInputCommandInteraction) => Promise<void> {
+function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Promise<void> {
   return createSubcommandRouter(
     {
-      'db-sync': interaction => handleDbSync(interaction, config),
+      'db-sync': handleDbSync,
       servers: handleServers,
       kick: handleKick,
-      usage: interaction => handleUsage(interaction, config),
-      'llm-config-create': interaction => handleLlmConfigCreate(interaction, config),
-      'llm-config-set-default': interaction => handleLlmConfigSetDefault(interaction, config),
-      'llm-config-edit': interaction => handleLlmConfigEdit(interaction, config),
+      usage: handleUsage,
+      'llm-config-create': handleLlmConfigCreate,
+      'llm-config-set-default': handleLlmConfigSetDefault,
+      'llm-config-edit': handleLlmConfigEdit,
     },
     { logger, logPrefix: '[Admin]' }
   );
@@ -188,8 +181,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const config = getConfig();
-  const router = createAdminRouter(config);
+  const router = createAdminRouter();
   await router(interaction);
 }
 
@@ -198,12 +190,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
  */
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
-  const config = getConfig();
 
   try {
     if (focusedOption.name === 'config') {
       // Autocomplete for llm-config-set-default
-      await handleConfigAutocomplete(interaction, focusedOption.value, config);
+      await handleConfigAutocomplete(interaction, focusedOption.value);
     } else if (focusedOption.name === 'server-id') {
       // Autocomplete for kick command
       await handleServerAutocomplete(interaction, focusedOption.value);
@@ -232,21 +223,10 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
  */
 async function handleConfigAutocomplete(
   interaction: AutocompleteInteraction,
-  query: string,
-  config: EnvConfig
+  query: string
 ): Promise<void> {
-  const gatewayUrl = config.GATEWAY_URL;
-  if (!gatewayUrl) {
-    await interaction.respond([]);
-    return;
-  }
-
   try {
-    const response = await fetch(`${gatewayUrl}/admin/llm-config`, {
-      headers: {
-        'X-Admin-Key': config.ADMIN_API_KEY ?? '',
-      },
-    });
+    const response = await adminFetch('/admin/llm-config');
 
     if (!response.ok) {
       await interaction.respond([]);

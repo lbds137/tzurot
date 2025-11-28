@@ -6,8 +6,9 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { adminPostJson } from '../../utils/adminApiClient.js';
 
 const logger = createLogger('admin-llm-config-create');
 
@@ -15,8 +16,7 @@ const logger = createLogger('admin-llm-config-create');
  * Handle /admin llm-config-create
  */
 export async function handleLlmConfigCreate(
-  interaction: ChatInputCommandInteraction,
-  config: EnvConfig
+  interaction: ChatInputCommandInteraction
 ): Promise<void> {
   const name = interaction.options.getString('name', true);
   const model = interaction.options.getString('model', true);
@@ -27,25 +27,12 @@ export async function handleLlmConfigCreate(
   await deferEphemeral(interaction);
 
   try {
-    const gatewayUrl = config.GATEWAY_URL;
-    if (!gatewayUrl) {
-      await replyWithError(interaction, 'Gateway URL not configured');
-      return;
-    }
-
-    const response = await fetch(`${gatewayUrl}/admin/llm-config`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Key': config.ADMIN_API_KEY ?? '',
-      },
-      body: JSON.stringify({
-        name,
-        model,
-        provider,
-        description,
-        visionModel,
-      }),
+    const response = await adminPostJson('/admin/llm-config', {
+      name,
+      model,
+      provider,
+      description,
+      visionModel,
     });
 
     if (!response.ok) {

@@ -142,8 +142,7 @@ describe('admin command', () => {
 
       await execute(mockInteraction);
 
-      const config = getConfig();
-      expect(handleDbSync).toHaveBeenCalledWith(mockInteraction, config);
+      expect(handleDbSync).toHaveBeenCalledWith(mockInteraction);
       expect(handleServers).not.toHaveBeenCalled();
       expect(handleKick).not.toHaveBeenCalled();
       expect(handleUsage).not.toHaveBeenCalled();
@@ -179,8 +178,7 @@ describe('admin command', () => {
 
       await execute(mockInteraction);
 
-      const config = getConfig();
-      expect(handleUsage).toHaveBeenCalledWith(mockInteraction, config);
+      expect(handleUsage).toHaveBeenCalledWith(mockInteraction);
       expect(handleDbSync).not.toHaveBeenCalled();
       expect(handleServers).not.toHaveBeenCalled();
       expect(handleKick).not.toHaveBeenCalled();
@@ -202,16 +200,14 @@ describe('admin command', () => {
       expect(handleUsage).not.toHaveBeenCalled();
     });
 
-    it('should pass config to handlers that need it', async () => {
+    it('should route handlers without passing config directly', async () => {
       vi.mocked(requireBotOwner).mockResolvedValue(true);
       vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('db-sync');
 
       await execute(mockInteraction);
 
-      const config = getConfig();
-      expect(handleDbSync).toHaveBeenCalledWith(mockInteraction, config);
-      expect(config).toBeDefined();
-      expect(config.GATEWAY_URL).toBe('http://localhost:3000');
+      // Handlers now get config internally via centralized adminApiClient
+      expect(handleDbSync).toHaveBeenCalledWith(mockInteraction);
     });
   });
 

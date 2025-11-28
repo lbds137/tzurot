@@ -5,10 +5,10 @@
  * Endpoints:
  * - GET /user/model-override - List all user's model overrides
  * - PUT /user/model-override - Set override for a personality
- * - DELETE /user/model-override/:personalityId - Remove override
- * - GET /user/model-default - Get user's global default config
- * - PUT /user/model-default - Set user's global default config
- * - DELETE /user/model-default - Clear user's global default config
+ * - GET /user/model-override/default - Get user's global default config
+ * - PUT /user/model-override/default - Set user's global default config
+ * - DELETE /user/model-override/default - Clear user's global default config
+ * - DELETE /user/model-override/:personalityId - Remove override (MUST be after /default routes)
  */
 
 import { Router, type Response } from 'express';
@@ -206,68 +206,14 @@ export function createModelOverrideRoutes(
     })
   );
 
-  /**
-   * DELETE /user/model-override/:personalityId
-   * Remove model override for a personality
-   */
-  router.delete(
-    '/:personalityId',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const personalityId = req.params.personalityId;
-
-      // Get user ID
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (user === null) {
-        return sendError(res, ErrorResponses.notFound('User not found'));
-      }
-
-      // Find the override
-      const override = await prisma.userPersonalityConfig.findFirst({
-        where: {
-          userId: user.id,
-          personalityId,
-        },
-        select: { id: true, llmConfigId: true, personality: { select: { name: true } } },
-      });
-
-      if (override === null) {
-        return sendError(res, ErrorResponses.notFound('No override found for this personality'));
-      }
-
-      if (override.llmConfigId === null) {
-        return sendError(
-          res,
-          ErrorResponses.validationError('No model override set for this personality')
-        );
-      }
-
-      // Remove the override (set llmConfigId to null, or delete if no other data)
-      await prisma.userPersonalityConfig.update({
-        where: { id: override.id },
-        data: { llmConfigId: null },
-      });
-
-      logger.info(
-        { discordUserId, personalityId, personalityName: override.personality.name },
-        '[ModelOverride] Removed override'
-      );
-
-      sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
-    })
-  );
-
   // ============================================
   // User Global Default Config Routes
+  // NOTE: These MUST be defined BEFORE /:personalityId to avoid
+  // Express matching "default" as a personalityId parameter
   // ============================================
 
   /**
-   * GET /user/model-default
+   * GET /user/model-override/default
    * Get user's global default LLM config
    */
   router.get(
@@ -413,6 +359,67 @@ export function createModelOverrideRoutes(
           logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
         }
       }
+
+      sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
+    })
+  );
+
+  // ============================================
+  // Personality-specific Override Route
+  // NOTE: This wildcard route MUST come AFTER /default routes
+  // ============================================
+
+  /**
+   * DELETE /user/model-override/:personalityId
+   * Remove model override for a personality
+   */
+  router.delete(
+    '/:personalityId',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
+      const personalityId = req.params.personalityId;
+
+      // Get user ID
+      const user = await prisma.user.findFirst({
+        where: { discordId: discordUserId },
+        select: { id: true },
+      });
+
+      if (user === null) {
+        return sendError(res, ErrorResponses.notFound('User not found'));
+      }
+
+      // Find the override
+      const override = await prisma.userPersonalityConfig.findFirst({
+        where: {
+          userId: user.id,
+          personalityId,
+        },
+        select: { id: true, llmConfigId: true, personality: { select: { name: true } } },
+      });
+
+      if (override === null) {
+        return sendError(res, ErrorResponses.notFound('No override found for this personality'));
+      }
+
+      if (override.llmConfigId === null) {
+        return sendError(
+          res,
+          ErrorResponses.validationError('No model override set for this personality')
+        );
+      }
+
+      // Remove the override (set llmConfigId to null, or delete if no other data)
+      await prisma.userPersonalityConfig.update({
+        where: { id: override.id },
+        data: { llmConfigId: null },
+      });
+
+      logger.info(
+        { discordUserId, personalityId, personalityName: override.personality.name },
+        '[ModelOverride] Removed override'
+      );
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
     })

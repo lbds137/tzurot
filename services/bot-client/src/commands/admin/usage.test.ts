@@ -6,9 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleUsage } from './usage.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import type { getConfig } from '@tzurot/common-types';
 
-// Mock logger
+// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -19,6 +18,10 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    getConfig: () => ({
+      GATEWAY_URL: 'http://localhost:3000',
+      ADMIN_API_KEY: 'test-admin-key',
+    }),
   };
 });
 
@@ -27,7 +30,6 @@ global.fetch = vi.fn();
 
 describe('handleUsage', () => {
   let mockInteraction: ChatInputCommandInteraction;
-  let mockConfig: ReturnType<typeof getConfig>;
   let mockUser: User;
 
   beforeEach(() => {
@@ -45,10 +47,6 @@ describe('handleUsage', () => {
       deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
-
-    mockConfig = {
-      GATEWAY_URL: 'http://localhost:3000',
-    } as ReturnType<typeof getConfig>;
   });
 
   afterEach(() => {
@@ -61,7 +59,7 @@ describe('handleUsage', () => {
       new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.deferReply).toHaveBeenCalledWith({
       flags: MessageFlags.Ephemeral,
@@ -74,7 +72,7 @@ describe('handleUsage', () => {
       new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('timeframe=7d'), expect.any(Object));
   });
@@ -85,7 +83,7 @@ describe('handleUsage', () => {
       new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('timeframe=30d'),
@@ -93,20 +91,20 @@ describe('handleUsage', () => {
     );
   });
 
-  it('should include owner ID in headers', async () => {
+  it('should include admin key in headers', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ totalRequests: 100 }), { status: 200 })
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        headers: {
-          'X-Owner-Id': 'user-123',
-        },
+        headers: expect.objectContaining({
+          'X-Admin-Key': 'test-admin-key',
+        }),
       })
     );
   });
@@ -124,7 +122,7 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -135,7 +133,7 @@ describe('handleUsage', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Failed to retrieve usage statistics')
@@ -147,7 +145,7 @@ describe('handleUsage', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Error retrieving usage statistics')
@@ -166,7 +164,7 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -177,7 +175,7 @@ describe('handleUsage', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -197,7 +195,7 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     // Cost should be formatted as $1.23
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
@@ -209,7 +207,7 @@ describe('handleUsage', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(new Response('Unauthorized', { status: 403 }));
 
-    await handleUsage(mockInteraction, mockConfig);
+    await handleUsage(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Failed to retrieve usage statistics')

@@ -6,9 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleDbSync } from './db-sync.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import type { getConfig } from '@tzurot/common-types';
 
-// Mock logger
+// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -19,6 +18,10 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    getConfig: () => ({
+      GATEWAY_URL: 'http://localhost:3000',
+      ADMIN_API_KEY: 'test-admin-key',
+    }),
   };
 });
 
@@ -27,7 +30,6 @@ global.fetch = vi.fn();
 
 describe('handleDbSync', () => {
   let mockInteraction: ChatInputCommandInteraction;
-  let mockConfig: ReturnType<typeof getConfig>;
   let mockUser: User;
 
   beforeEach(() => {
@@ -45,10 +47,6 @@ describe('handleDbSync', () => {
       deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
-
-    mockConfig = {
-      GATEWAY_URL: 'http://localhost:3000',
-    } as ReturnType<typeof getConfig>;
   });
 
   afterEach(() => {
@@ -61,7 +59,7 @@ describe('handleDbSync', () => {
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.deferReply).toHaveBeenCalledWith({
       flags: MessageFlags.Ephemeral,
@@ -74,7 +72,7 @@ describe('handleDbSync', () => {
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -90,7 +88,7 @@ describe('handleDbSync', () => {
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -106,7 +104,7 @@ describe('handleDbSync', () => {
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -116,21 +114,22 @@ describe('handleDbSync', () => {
     );
   });
 
-  it('should use POST method with correct headers', async () => {
+  it('should use POST method with correct headers including admin key', async () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
-      `${mockConfig.GATEWAY_URL}/admin/db-sync`,
+      'http://localhost:3000/admin/db-sync',
       expect.objectContaining({
         method: 'POST',
-        headers: {
+        headers: expect.objectContaining({
           'Content-Type': 'application/json',
-        },
+          'X-Admin-Key': 'test-admin-key',
+        }),
       })
     );
   });
@@ -149,7 +148,7 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -170,7 +169,7 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -192,7 +191,7 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -212,7 +211,7 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -223,7 +222,7 @@ describe('handleDbSync', () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(new Response('Database not configured', { status: 500 }));
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Database sync failed')
@@ -235,7 +234,7 @@ describe('handleDbSync', () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockRejectedValue(new Error('Network timeout'));
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Error during database sync')
@@ -257,7 +256,7 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -275,7 +274,7 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -286,7 +285,7 @@ describe('handleDbSync', () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(new Response('Forbidden', { status: 403 }));
 
-    await handleDbSync(mockInteraction, mockConfig);
+    await handleDbSync(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith(
       expect.stringContaining('❌ Database sync failed')

@@ -6,9 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleLlmConfigCreate } from './llm-config-create.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import type { getConfig } from '@tzurot/common-types';
 
-// Mock logger
+// Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -19,6 +18,10 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    getConfig: () => ({
+      GATEWAY_URL: 'http://localhost:3000',
+      ADMIN_API_KEY: 'test-admin-key',
+    }),
   };
 });
 
@@ -27,7 +30,6 @@ global.fetch = vi.fn();
 
 describe('handleLlmConfigCreate', () => {
   let mockInteraction: ChatInputCommandInteraction;
-  let mockConfig: ReturnType<typeof getConfig>;
   let mockUser: User;
 
   beforeEach(() => {
@@ -45,11 +47,6 @@ describe('handleLlmConfigCreate', () => {
       deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
-
-    mockConfig = {
-      GATEWAY_URL: 'http://localhost:3000',
-      ADMIN_API_KEY: 'test-admin-key',
-    } as ReturnType<typeof getConfig>;
   });
 
   afterEach(() => {
@@ -73,31 +70,10 @@ describe('handleLlmConfigCreate', () => {
       )
     );
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(mockInteraction.deferReply).toHaveBeenCalledWith({
       flags: MessageFlags.Ephemeral,
-    });
-  });
-
-  it('should show error when gateway URL not configured', async () => {
-    vi.mocked(mockInteraction.options.getString).mockImplementation(
-      (name: string, required?: boolean) => {
-        if (name === 'name') return 'Test Config';
-        if (name === 'model') return 'test-model';
-        return null;
-      }
-    );
-
-    const configWithoutGateway = { ...mockConfig, GATEWAY_URL: undefined };
-
-    await handleLlmConfigCreate(
-      mockInteraction,
-      configWithoutGateway as ReturnType<typeof getConfig>
-    );
-
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Gateway URL not configured'),
     });
   });
 
@@ -121,7 +97,7 @@ describe('handleLlmConfigCreate', () => {
       )
     );
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:3000/admin/llm-config',
@@ -157,7 +133,7 @@ describe('handleLlmConfigCreate', () => {
       )
     );
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
@@ -176,7 +152,7 @@ describe('handleLlmConfigCreate', () => {
       new Response(JSON.stringify({ error: 'Config already exists' }), { status: 400 })
     );
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Config already exists'),
@@ -193,7 +169,7 @@ describe('handleLlmConfigCreate', () => {
     );
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({}), { status: 500 }));
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('HTTP 500'),
@@ -210,7 +186,7 @@ describe('handleLlmConfigCreate', () => {
     );
     vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('error occurred'),
@@ -233,7 +209,7 @@ describe('handleLlmConfigCreate', () => {
       )
     );
 
-    await handleLlmConfigCreate(mockInteraction, mockConfig);
+    await handleLlmConfigCreate(mockInteraction);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
