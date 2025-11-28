@@ -290,16 +290,16 @@ export function createAdminLlmConfigRoutes(
         );
       }
 
-      // Clear any existing default
-      await prisma.llmConfig.updateMany({
-        where: { isDefault: true },
-        data: { isDefault: false },
-      });
-
-      // Set the new default
-      await prisma.llmConfig.update({
-        where: { id: configId },
-        data: { isDefault: true },
+      // Atomically clear existing default and set new one (prevents race condition)
+      await prisma.$transaction(async tx => {
+        await tx.llmConfig.updateMany({
+          where: { isDefault: true },
+          data: { isDefault: false },
+        });
+        await tx.llmConfig.update({
+          where: { id: configId },
+          data: { isDefault: true },
+        });
       });
 
       logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as system default');
