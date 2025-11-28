@@ -9,7 +9,13 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
-import { createLogger, getConfig, requireBotOwner, type EnvConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  requireBotOwner,
+  DISCORD_LIMITS,
+  type EnvConfig,
+} from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
 // Import subcommand handlers
@@ -227,7 +233,6 @@ async function handleConfigAutocomplete(
   try {
     const response = await fetch(`${gatewayUrl}/admin/llm-config`, {
       headers: {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         'X-Admin-Key': config.ADMIN_API_KEY ?? '',
       },
     });
@@ -254,7 +259,7 @@ async function handleConfigAutocomplete(
           c.isGlobal &&
           (c.name.toLowerCase().includes(queryLower) || c.model.toLowerCase().includes(queryLower))
       )
-      .slice(0, 25);
+      .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
     const choices = filtered.map(c => ({
       name: `${c.name} (${c.model.split('/').pop()})${c.isDefault ? ' [DEFAULT]' : ''}`,
@@ -283,7 +288,7 @@ async function handleServerAutocomplete(
       name: `${guild.name} (${guild.memberCount} members)`,
       value: guild.id,
     }))
-    .slice(0, 25);
+    .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
   await interaction.respond(servers);
 }

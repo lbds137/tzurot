@@ -22,6 +22,7 @@ import {
   PersonalityService,
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
+  LlmConfigCacheInvalidationService,
   CONTENT_TYPES,
   CACHE_CONTROL,
   HealthStatus,
@@ -405,6 +406,10 @@ async function main(): Promise<void> {
   const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
   logger.info('[Gateway] API key cache invalidation service initialized');
 
+  // Create LLM config cache invalidation service (publish-only in api-gateway)
+  const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
+  logger.info('[Gateway] LLM config cache invalidation service initialized');
+
   // Create and register wallet routes with cache invalidation support
   const walletRouter = createWalletRouter(prisma, apiKeyCacheInvalidation);
   app.use('/wallet', walletRouter);
@@ -422,8 +427,12 @@ async function main(): Promise<void> {
   await dbNotificationListener.start();
   logger.info('[Gateway] Listening for database change notifications');
 
-  // Create and register admin routes with cache invalidation service
-  const adminRouter = createAdminRouter(prisma, cacheInvalidationService);
+  // Create and register admin routes with cache invalidation services
+  const adminRouter = createAdminRouter(
+    prisma,
+    cacheInvalidationService,
+    llmConfigCacheInvalidation
+  );
   app.use('/admin', adminRouter);
   logger.info('[Gateway] Admin routes registered with cache invalidation support');
 

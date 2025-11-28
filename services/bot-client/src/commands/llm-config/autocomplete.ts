@@ -4,22 +4,10 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS, type LlmConfigSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('llm-config-autocomplete');
-
-/**
- * LLM config summary from API
- */
-interface LlmConfigSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  model: string;
-  isGlobal: boolean;
-  isOwned: boolean;
-}
 
 /**
  * Handle autocomplete for /llm-config commands
@@ -68,7 +56,7 @@ async function handleConfigAutocomplete(
           c.model.toLowerCase().includes(queryLower) ||
           (c.description?.toLowerCase().includes(queryLower) ?? false))
     )
-    .slice(0, 25); // Discord limit
+    .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
   const choices = filtered.map(c => ({
     // Show model info in the name for clarity

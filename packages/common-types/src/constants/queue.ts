@@ -63,6 +63,8 @@ export const REDIS_CHANNELS = {
   CACHE_INVALIDATION: 'cache:invalidation',
   /** Channel for broadcasting API key cache invalidation events across services */
   API_KEY_CACHE_INVALIDATION: 'cache:api-key-invalidation',
+  /** Channel for broadcasting LLM config cache invalidation events across services */
+  LLM_CONFIG_CACHE_INVALIDATION: 'cache:llm-config-invalidation',
 } as const;
 
 /**

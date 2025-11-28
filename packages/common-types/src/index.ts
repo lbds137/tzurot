@@ -59,4 +59,5 @@ export * from './services/ConversationHistoryService.js';
 export * from './services/UserService.js';
 export * from './services/CacheInvalidationService.js';
 export * from './services/ApiKeyCacheInvalidationService.js';
+export * from './services/LlmConfigCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';

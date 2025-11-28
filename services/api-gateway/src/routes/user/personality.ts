@@ -8,24 +8,13 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, type PersonalitySummary } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-personality');
-
-/**
- * Summary of a personality for autocomplete/listing
- */
-interface PersonalitySummary {
-  id: string;
-  name: string;
-  displayName: string | null;
-  slug: string;
-  isOwned: boolean;
-}
 
 export function createPersonalityRoutes(prisma: PrismaClient): Router {
   const router = Router();

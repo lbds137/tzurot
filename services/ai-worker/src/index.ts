@@ -23,6 +23,7 @@ import {
   PersonalityService,
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
+  LlmConfigCacheInvalidationService,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -31,6 +32,7 @@ import {
   type AnyJobResult,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
+import { LlmConfigResolver } from './services/LlmConfigResolver.js';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
@@ -124,6 +126,33 @@ async function main(): Promise<void> {
   });
   logger.info('[AIWorker] Subscribed to API key cache invalidation events');
 
+  // Create LlmConfigResolver for user config overrides
+  const llmConfigResolver = new LlmConfigResolver(prisma);
+  logger.info('[AIWorker] LlmConfigResolver initialized for config overrides');
+
+  // Subscribe to LLM config cache invalidation events
+  const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
+  await llmConfigCacheInvalidation.subscribe(event => {
+    if (event.type === 'all') {
+      llmConfigResolver.clearCache();
+      logger.info('[AIWorker] Cleared all LLM config cache entries');
+    } else if (event.type === 'user') {
+      llmConfigResolver.invalidateUserCache(event.discordId);
+      logger.info(
+        { discordId: event.discordId },
+        '[AIWorker] Invalidated LLM config cache for user'
+      );
+    } else {
+      // For config-specific invalidation, clear entire cache (safer than tracking users)
+      llmConfigResolver.clearCache();
+      logger.info(
+        { configId: event.configId },
+        '[AIWorker] Cleared LLM config cache (config changed)'
+      );
+    }
+  });
+  logger.info('[AIWorker] Subscribed to LLM config cache invalidation events');
+
   // Initialize vector memory manager (pgvector)
   let memoryManager: PgvectorMemoryAdapter | undefined;
 
@@ -153,8 +182,15 @@ async function main(): Promise<void> {
   }
 
   // Initialize job processor with injected dependencies
-  // Note: third param is ragService (undefined = use default), fourth is apiKeyResolver
-  const jobProcessor = new AIJobProcessor(prisma, memoryManager, undefined, apiKeyResolver);
+  // Note: third param is ragService (undefined = use default), fourth is apiKeyResolver,
+  // fifth is llmConfigResolver
+  const jobProcessor = new AIJobProcessor(
+    prisma,
+    memoryManager,
+    undefined,
+    apiKeyResolver,
+    llmConfigResolver
+  );
 
   // Create BullMQ worker
   logger.info('[AIWorker] Creating BullMQ worker...');

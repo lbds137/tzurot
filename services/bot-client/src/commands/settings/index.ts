@@ -13,7 +13,7 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
-import { createLogger, TIMEZONE_OPTIONS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleTimezoneSet, handleTimezoneGet } from './timezone.js';
 
@@ -89,7 +89,7 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
         tz.value.toLowerCase().includes(query) ||
         tz.label.toLowerCase().includes(query) ||
         tz.offset.toLowerCase().includes(query)
-    ).slice(0, 25); // Discord limit
+    ).slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
     const choices = filtered.map(tz => ({
       name: `${tz.label} (${tz.value}) - ${tz.offset}`,
