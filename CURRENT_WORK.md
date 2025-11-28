@@ -10,6 +10,18 @@
 
 **Bug Fixes**:
 
+- ✅ Fixed user timezone not being respected in system prompt date/time
+  - Added timezone parameter to `formatFullDateTime()` utility
+  - Added `userTimezone` field to JobContext, RequestContext, and ConversationContext
+  - MessageContextBuilder now fetches user's timezone via `UserService.getUserTimezone()`
+  - PromptBuilder uses user's timezone when displaying current date/time
+  - Files: dateFormatting.ts, jobs.ts, schemas.ts, UserService.ts, MessageContextBuilder.ts, LLMGenerationHandler.ts, ConversationalRAGService.ts, PromptBuilder.ts
+- ✅ Centralized timezone support across ALL date formatting utilities
+  - Added optional timezone param to `formatDateOnly()`, `formatRelativeTime()`, `formatMemoryTimestamp()`
+  - Updated `formatMemoriesContext()` and `formatSingleMemory()` to accept timezone
+  - PromptBuilder passes user timezone to memory formatting (LTM timestamps)
+  - timezone.ts command now uses centralized `formatFullDateTime()` instead of ad-hoc formatting
+  - All user-facing timestamps in prompts now respect user's configured timezone
 - ✅ Fixed LTM search query using hardcoded "User:" and "Assistant:" role labels
   - Role labels are noise for semantic search - now uses raw content only
   - File: `services/ai-worker/src/services/ConversationalRAGService.ts`

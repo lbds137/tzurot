@@ -136,7 +136,10 @@ export function formatRelativeTime(timestamp: Date | string | number, timezone?:
  * @param timestamp - Timestamp to format
  * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). Defaults to APP_SETTINGS.TIMEZONE
  */
-export function formatMemoryTimestamp(timestamp: Date | string | number, timezone?: string): string {
+export function formatMemoryTimestamp(
+  timestamp: Date | string | number,
+  timezone?: string
+): string {
   const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
 
   if (isNaN(date.getTime())) {
