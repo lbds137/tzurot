@@ -14,3 +14,21 @@ ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey"
 
 -- Add index for performance
 CREATE INDEX "users_default_llm_config_id_idx" ON "users"("default_llm_config_id");
+
+-- ============================================================================
+-- ROLLBACK INSTRUCTIONS (manual - Prisma doesn't support down migrations)
+-- ============================================================================
+-- To rollback this migration, run the following SQL commands in order:
+--
+-- 1. Drop the index
+--    DROP INDEX "users_default_llm_config_id_idx";
+--
+-- 2. Drop the foreign key constraint
+--    ALTER TABLE "users" DROP CONSTRAINT "users_default_llm_config_id_fkey";
+--
+-- 3. Drop the column
+--    ALTER TABLE "users" DROP COLUMN "default_llm_config_id";
+--
+-- 4. Remove the migration record from Prisma's tracking table
+--    DELETE FROM "_prisma_migrations" WHERE migration_name = '20251127120000_add_user_default_llm_config';
+-- ============================================================================

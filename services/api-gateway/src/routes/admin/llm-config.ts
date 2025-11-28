@@ -250,8 +250,13 @@ export function createAdminLlmConfigRoutes(
 
       // Invalidate LLM config caches (global config may affect any user)
       if (llmConfigCacheInvalidation) {
-        await llmConfigCacheInvalidation.invalidateAll();
-        logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+        try {
+          await llmConfigCacheInvalidation.invalidateAll();
+          logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+        } catch (err) {
+          // Log but don't fail the request - cache will expire naturally
+          logger.error({ err, configId }, '[AdminLlmConfig] Failed to invalidate caches');
+        }
       }
 
       sendCustomSuccess(res, { config }, StatusCodes.OK);
@@ -301,8 +306,13 @@ export function createAdminLlmConfigRoutes(
 
       // Invalidate LLM config caches (default config affects fallback resolution)
       if (llmConfigCacheInvalidation) {
-        await llmConfigCacheInvalidation.invalidateAll();
-        logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+        try {
+          await llmConfigCacheInvalidation.invalidateAll();
+          logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+        } catch (err) {
+          // Log but don't fail the request - cache will expire naturally
+          logger.error({ err, configId }, '[AdminLlmConfig] Failed to invalidate caches');
+        }
       }
 
       sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
