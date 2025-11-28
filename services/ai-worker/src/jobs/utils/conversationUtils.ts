@@ -55,9 +55,6 @@ export function extractParticipants(
       msg.personaName !== undefined &&
       msg.personaName.length > 0
     ) {
-      logger.debug(
-        `[conversationUtils] Found participant in history: ${msg.personaName} (${msg.personaId})`
-      );
       uniquePersonas.set(msg.personaId, msg.personaName);
     }
   }
@@ -69,17 +66,16 @@ export function extractParticipants(
     activePersonaName !== undefined &&
     activePersonaName.length > 0
   ) {
-    logger.debug(
-      `[conversationUtils] Including active persona: ${activePersonaName} (${activePersonaId})`
-    );
     uniquePersonas.set(activePersonaId, activePersonaName);
-  } else {
-    logger.debug(
-      `[conversationUtils] Active persona not included - hasActivePersonaId: ${activePersonaId !== undefined && activePersonaId.length > 0}, hasActivePersonaName: ${activePersonaName !== undefined && activePersonaName.length > 0}, activePersonaId: ${activePersonaId ?? 'undefined'}, activePersonaName: ${activePersonaName ?? 'undefined'}`
-    );
   }
 
-  logger.debug(`[conversationUtils] Found ${uniquePersonas.size} unique participant(s)`);
+  // Single summary log instead of per-iteration logging
+  if (uniquePersonas.size > 0) {
+    const participantNames = Array.from(uniquePersonas.values()).join(', ');
+    logger.debug(
+      `[conversationUtils] Found ${uniquePersonas.size} participant(s): ${participantNames}`
+    );
+  }
 
   // Convert to array with isActive flag
   return Array.from(uniquePersonas.entries()).map(([personaId, personaName]) => ({
