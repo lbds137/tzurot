@@ -44,9 +44,27 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
   // Escape special regex characters in personality name
   const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // Pattern 1: Specific personality name with optional timestamp
-  // Example: "Lilith: [2m ago] content" or "Emily: content"
-  const namePattern = new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
+  // Pattern 1a: Markdown bold around name - strip entirely
+  // Examples: "**Emily:** content" → "content", "**COLD**: content" → "content"
+  // The colon can be inside (**NAME:**) or outside (**NAME**:) the bold
+  const boldNamePattern = new RegExp(
+    `^\\*\\*${escapedName}:?\\*?\\*?:?\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
+    'i'
+  );
+
+  // Pattern 1b: Roleplay asterisk before name - preserve the asterisk
+  // Example: "*COLD: content" → "*content"
+  const roleplayNamePattern = new RegExp(
+    `^(\\*)${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
+    'i'
+  );
+
+  // Pattern 1c: Plain name prefix - strip entirely
+  // Example: "Lilith: [2m ago] content" → "content"
+  const plainNamePattern = new RegExp(
+    `^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
+    'i'
+  );
 
   // Pattern 2: Standalone "[timestamp]" at the start (no name prefix)
   // Example: "[2m ago] content" - happens when AI strips name but leaves timestamp
@@ -56,13 +74,30 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
   while (strippedCount < maxIterations) {
     const beforeStrip = cleaned;
 
-    // Try name-specific pattern first
-    cleaned = cleaned.replace(namePattern, '').trim();
-    if (cleaned === beforeStrip) {
-      // Name pattern didn't match, try standalone timestamp
-      cleaned = cleaned.replace(standaloneTimestampPattern, '').trim();
+    // Try patterns in order of specificity
+    // 1. Markdown bold (**NAME:**) - strip entirely
+    cleaned = cleaned.replace(boldNamePattern, '').trim();
+    if (cleaned !== beforeStrip) {
+      strippedCount++;
+      continue;
     }
 
+    // 2. Roleplay asterisk (*NAME:) - preserve the asterisk
+    cleaned = cleaned.replace(roleplayNamePattern, '$1').trim();
+    if (cleaned !== beforeStrip) {
+      strippedCount++;
+      continue;
+    }
+
+    // 3. Plain name prefix (NAME:) - strip entirely
+    cleaned = cleaned.replace(plainNamePattern, '').trim();
+    if (cleaned !== beforeStrip) {
+      strippedCount++;
+      continue;
+    }
+
+    // 4. Standalone timestamp
+    cleaned = cleaned.replace(standaloneTimestampPattern, '').trim();
     if (cleaned === beforeStrip) {
       // No more prefixes found
       break;
