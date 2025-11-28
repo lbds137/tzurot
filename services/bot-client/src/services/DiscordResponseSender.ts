@@ -7,7 +7,7 @@
 
 import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
-import { preserveCodeBlocks, createLogger, AI_ENDPOINTS } from '@tzurot/common-types';
+import { preserveCodeBlocks, createLogger, AI_ENDPOINTS, GUEST_MODE } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
@@ -36,6 +36,8 @@ export interface SendResponseOptions {
   message: Message;
   /** Model name used for generation (optional, adds indicator) */
   modelUsed?: string;
+  /** Whether response was generated in guest mode (free model, no API key) */
+  isGuestMode?: boolean;
 }
 
 /**
@@ -59,13 +61,18 @@ export class DiscordResponseSender {
    * - Redis webhook storage
    */
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
-    const { content, personality, message, modelUsed } = options;
+    const { content, personality, message, modelUsed, isGuestMode } = options;
 
     // Add model indicator if provided
     let contentWithIndicator = content;
     if (modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
       contentWithIndicator += `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
+    }
+
+    // Add guest mode footer if using free model without API key
+    if (isGuestMode === true) {
+      contentWithIndicator += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
     }
 
     // Determine if this is a webhook-capable channel
