@@ -53,6 +53,8 @@ export const REDIS_KEY_PREFIXES = {
   WEBHOOK_MESSAGE: 'webhook:',
   /** Prefix for voice transcript cache */
   VOICE_TRANSCRIPT: 'transcript:',
+  /** Key for OpenRouter models cache */
+  OPENROUTER_MODELS: 'openrouter:models',
 } as const;
 
 /**
