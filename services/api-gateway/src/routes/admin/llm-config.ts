@@ -351,38 +351,45 @@ export function createAdminLlmConfigRoutes(
         );
       }
 
-      // Check if in use by any personality
-      const personalityCount = await prisma.personalityDefaultConfig.count({
-        where: { llmConfigId: configId },
+      // Use transaction to prevent race condition: usage could be added between check and delete
+      // Note: Early validation (isGlobal, isDefault) is outside transaction since those are
+      // properties of the config itself, not external references that could change concurrently
+      const deleteResult = await prisma.$transaction(async tx => {
+        // Check if in use by any personality (inside transaction)
+        const personalityCount = await tx.personalityDefaultConfig.count({
+          where: { llmConfigId: configId },
+        });
+
+        if (personalityCount > 0) {
+          return {
+            success: false,
+            error: `Cannot delete: config is used as default by ${personalityCount} personality(ies)`,
+          };
+        }
+
+        // Check if in use by any user override (inside transaction)
+        const userOverrideCount = await tx.userPersonalityConfig.count({
+          where: { llmConfigId: configId },
+        });
+
+        if (userOverrideCount > 0) {
+          return {
+            success: false,
+            error: `Cannot delete: config is used by ${userOverrideCount} user override(s)`,
+          };
+        }
+
+        // Delete (atomically after checks pass)
+        await tx.llmConfig.delete({
+          where: { id: configId },
+        });
+
+        return { success: true };
       });
 
-      if (personalityCount > 0) {
-        return sendError(
-          res,
-          ErrorResponses.validationError(
-            `Cannot delete: config is used as default by ${personalityCount} personality(ies)`
-          )
-        );
+      if (!deleteResult.success) {
+        return sendError(res, ErrorResponses.validationError(deleteResult.error!));
       }
-
-      // Check if in use by any user override
-      const userOverrideCount = await prisma.userPersonalityConfig.count({
-        where: { llmConfigId: configId },
-      });
-
-      if (userOverrideCount > 0) {
-        return sendError(
-          res,
-          ErrorResponses.validationError(
-            `Cannot delete: config is used by ${userOverrideCount} user override(s)`
-          )
-        );
-      }
-
-      // Delete
-      await prisma.llmConfig.delete({
-        where: { id: configId },
-      });
 
       logger.info({ configId, name: config.name }, '[AdminLlmConfig] Deleted global config');
 

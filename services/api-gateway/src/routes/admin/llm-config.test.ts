@@ -32,20 +32,28 @@ const createMockPrismaClient = () => {
     delete: vi.fn(),
   };
 
+  const mockPersonalityDefaultConfig = {
+    count: vi.fn(),
+  };
+
+  const mockUserPersonalityConfig = {
+    count: vi.fn(),
+  };
+
   return {
     llmConfig: mockLlmConfig,
-    personalityDefaultConfig: {
-      count: vi.fn(),
-    },
-    userPersonalityConfig: {
-      count: vi.fn(),
-    },
-    // Transaction mock - executes callback with same mock objects
-    $transaction: vi.fn(
-      async (callback: (tx: { llmConfig: typeof mockLlmConfig }) => Promise<void>) => {
-        await callback({ llmConfig: mockLlmConfig });
-      }
-    ),
+    personalityDefaultConfig: mockPersonalityDefaultConfig,
+    userPersonalityConfig: mockUserPersonalityConfig,
+    // Transaction mock - executes callback with all mock objects and returns result
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
+      // Provide all models that might be used in transactions
+      const txMock = {
+        llmConfig: mockLlmConfig,
+        personalityDefaultConfig: mockPersonalityDefaultConfig,
+        userPersonalityConfig: mockUserPersonalityConfig,
+      };
+      return callback(txMock);
+    }),
   };
 };
 
