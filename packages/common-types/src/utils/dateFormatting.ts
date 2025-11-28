@@ -15,13 +15,18 @@ import { APP_SETTINGS } from '../constants/index.js';
  * Used for:
  * - Current date in system prompt
  * - Displaying when context was generated
+ *
+ * @param date - Date to format
+ * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). Defaults to APP_SETTINGS.TIMEZONE
  */
-export function formatFullDateTime(date: Date | string | number): string {
+export function formatFullDateTime(date: Date | string | number, timezone?: string): string {
   const d = typeof date === 'object' ? date : new Date(date);
 
   if (isNaN(d.getTime())) {
     return 'Invalid Date';
   }
+
+  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
 
   return d.toLocaleString('en-US', {
     weekday: 'long',
@@ -30,7 +35,7 @@ export function formatFullDateTime(date: Date | string | number): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: APP_SETTINGS.TIMEZONE,
+    timeZone: tz,
     timeZoneName: 'short',
   });
 }

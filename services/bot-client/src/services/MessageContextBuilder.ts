@@ -99,6 +99,9 @@ export class MessageContextBuilder {
     const personaId = await this.userService.getPersonaForUser(internalUserId, personality.id);
     const personaName = await this.userService.getPersonaName(personaId);
 
+    // Get user's timezone preference
+    const userTimezone = await this.userService.getUserTimezone(internalUserId);
+
     logger.debug(
       {
         personaId,
@@ -251,6 +254,7 @@ export class MessageContextBuilder {
       userId: discordUserId,
       userInternalId: internalUserId,
       userName: message.author.username,
+      userTimezone: userTimezone, // User's timezone preference for date/time formatting
       channelId: message.channel.id,
       serverId: message.guild?.id,
       messageContent,

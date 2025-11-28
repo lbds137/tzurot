@@ -183,6 +183,24 @@ export class UserService {
   }
 
   /**
+   * Get user's timezone preference
+   * @param userId User's internal UUID
+   * @returns User's timezone (IANA format) or 'UTC' if not set
+   */
+  async getUserTimezone(userId: string): Promise<string> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { timezone: true },
+      });
+      return user?.timezone ?? 'UTC';
+    } catch (error) {
+      logger.error({ err: error }, `Failed to get timezone for user ${userId}`);
+      return 'UTC'; // Default to UTC on error
+    }
+  }
+
+  /**
    * Get persona name by ID
    * @param personaId Persona UUID
    * @returns Persona name (preferredName if set, otherwise name)
