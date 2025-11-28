@@ -26,8 +26,8 @@ On **both** `api-gateway` and `bot-client` services (for admin commands):
 openssl rand -hex 32
 
 # Set on Railway (same key for both services)
-railway variables set ADMIN_API_KEY=<your-64-hex-chars> --service api-gateway
-railway variables set ADMIN_API_KEY=<your-64-hex-chars> --service bot-client
+railway variables set INTERNAL_SERVICE_SECRET=<your-64-hex-chars> --service api-gateway
+railway variables set INTERNAL_SERVICE_SECRET=<your-64-hex-chars> --service bot-client
 ```
 
 ### Verify Setup
@@ -38,8 +38,8 @@ railway variables --service api-gateway | grep API_KEY_ENCRYPTION
 railway variables --service ai-worker | grep API_KEY_ENCRYPTION
 
 # Check admin API key is set (for admin commands)
-railway variables --service api-gateway | grep ADMIN_API_KEY
-railway variables --service bot-client | grep ADMIN_API_KEY
+railway variables --service api-gateway | grep INTERNAL_SERVICE_SECRET
+railway variables --service bot-client | grep INTERNAL_SERVICE_SECRET
 
 # Check services are healthy
 curl https://api-gateway-development-83e8.up.railway.app/health

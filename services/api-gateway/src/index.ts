@@ -36,6 +36,7 @@ import { createUserRouter } from './routes/user/index.js';
 import { createModelsRouter } from './routes/models/index.js';
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
+import { requireServiceAuth } from './services/AuthMiddleware.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
@@ -99,11 +100,9 @@ const attachmentStorage = new AttachmentStorageService({
   gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
 });
 
-// Create AI router (admin, user, and wallet routers created in main() after cache invalidation service)
-const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
-
-// Register AI routes (admin, user, and wallet routes registered in main())
-app.use('/ai', aiRouter);
+// ============================================================================
+// PUBLIC ROUTES (no authentication required)
+// ============================================================================
 
 // Serve personality avatars with DB fallback
 // Avatars are primarily served from filesystem (/data/avatars)
@@ -273,9 +272,7 @@ async function checkAvatarStorage(): Promise<{
   }
 }
 
-/**
- * GET /health - Health check endpoint
- */
+// Health check endpoint (must be public for Railway health checks)
 app.get('/health', (_req, res) => {
   void (async () => {
     try {
@@ -406,6 +403,28 @@ async function main(): Promise<void> {
   const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
   logger.info('[Gateway] LLM config cache invalidation service initialized');
 
+  // ============================================================================
+  // PROTECTED ROUTES (require service authentication via X-Service-Auth header)
+  // ============================================================================
+
+  // Validate service secret is configured
+  if (envConfig.INTERNAL_SERVICE_SECRET === undefined || envConfig.INTERNAL_SERVICE_SECRET.length === 0) {
+    logger.warn(
+      {},
+      '[Gateway] ⚠️  INTERNAL_SERVICE_SECRET is not set - all protected endpoints will reject requests. ' +
+        'Set INTERNAL_SERVICE_SECRET as a shared Railway variable to enable service-to-service auth.'
+    );
+  }
+
+  // Apply global service authentication to all routes below this point
+  app.use(requireServiceAuth());
+  logger.info('[Gateway] Service authentication middleware applied globally');
+
+  // Create and register AI routes
+  const aiRouter = createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage);
+  app.use('/ai', aiRouter);
+  logger.info('[Gateway] AI routes registered');
+
   // Create and register wallet routes with cache invalidation support
   const walletRouter = createWalletRouter(prisma, apiKeyCacheInvalidation);
   app.use('/wallet', walletRouter);
@@ -442,15 +461,6 @@ async function main(): Promise<void> {
   );
   app.use('/admin', adminRouter);
   logger.info('[Gateway] Admin routes registered with cache invalidation support');
-
-  // Warn if ADMIN_API_KEY is not set (admin routes will reject all requests)
-  if (envConfig.ADMIN_API_KEY === undefined || envConfig.ADMIN_API_KEY.length === 0) {
-    logger.warn(
-      {},
-      '[Gateway] ADMIN_API_KEY is not set - all admin requests will be rejected. ' +
-        'Set ADMIN_API_KEY environment variable to enable admin functionality.'
-    );
-  }
 
   // 404 handler - must be registered AFTER all routes
   app.use((req, res) => {

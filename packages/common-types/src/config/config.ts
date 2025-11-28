@@ -60,7 +60,7 @@ export const envSchema = z.object({
     .or(z.literal('').transform(() => undefined)), // 'true' to automatically transcribe voice messages as bot
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
-  ADMIN_API_KEY: optionalNonEmptyString(), // API key for admin endpoints authentication
+  INTERNAL_SERVICE_SECRET: optionalNonEmptyString(), // Shared secret for service-to-service auth (bot-client -> api-gateway)
 
   // AI Provider Configuration
   AI_PROVIDER: z.nativeEnum(AIProvider).default(AIProvider.OpenRouter),

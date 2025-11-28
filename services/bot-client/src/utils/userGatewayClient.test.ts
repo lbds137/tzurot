@@ -18,6 +18,7 @@ vi.mock('@tzurot/common-types', async () => {
     }),
     getConfig: vi.fn().mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
+      INTERNAL_SERVICE_SECRET: 'test-service-secret',
     }),
     CONTENT_TYPES: {
       JSON: 'application/json',
@@ -45,6 +46,7 @@ describe('userGatewayClient', () => {
     mockFetch.mockReset();
     mockGetConfig.mockReturnValue({
       GATEWAY_URL: 'http://localhost:3000',
+      INTERNAL_SERVICE_SECRET: 'test-service-secret',
     });
   });
 
@@ -140,6 +142,7 @@ describe('userGatewayClient', () => {
         expect.objectContaining({
           method: 'GET',
           headers: {
+            'X-Service-Auth': 'test-service-secret',
             'X-User-Id': 'user-123',
           },
         })
@@ -163,6 +166,7 @@ describe('userGatewayClient', () => {
         expect.objectContaining({
           method: 'POST',
           headers: {
+            'X-Service-Auth': 'test-service-secret',
             'X-User-Id': 'user-123',
             'Content-Type': 'application/json',
           },

@@ -20,7 +20,7 @@ vi.mock('@tzurot/common-types', async () => {
     }),
     getConfig: () => ({
       GATEWAY_URL: 'http://localhost:3000',
-      ADMIN_API_KEY: 'test-admin-key',
+      INTERNAL_SERVICE_SECRET: 'test-service-secret',
     }),
   };
 });
@@ -127,7 +127,7 @@ describe('handleUsage', () => {
     );
   });
 
-  it('should include admin key in headers', async () => {
+  it('should include service secret in headers', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
@@ -139,7 +139,7 @@ describe('handleUsage', () => {
       expect.any(String),
       expect.objectContaining({
         headers: expect.objectContaining({
-          'X-Admin-Key': 'test-admin-key',
+          'X-Service-Auth': 'test-service-secret',
         }),
       })
     );

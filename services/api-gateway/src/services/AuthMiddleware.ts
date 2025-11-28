@@ -156,13 +156,13 @@ export function requireUserAuth(customMessage?: string) {
 }
 
 /**
- * Extract admin API key from request header (X-Admin-Key)
+ * Extract service secret from request header (X-Service-Auth)
  *
  * @param req - Express request
- * @returns Admin API key if found, undefined otherwise
+ * @returns Service secret if found, undefined otherwise
  */
-export function extractAdminApiKey(req: Request): string | undefined {
-  const headerKey = req.headers['x-admin-key'];
+export function extractServiceSecret(req: Request): string | undefined {
+  const headerKey = req.headers['x-service-auth'];
   if (typeof headerKey === 'string' && headerKey.length > 0) {
     return headerKey;
   }
@@ -170,74 +170,74 @@ export function extractAdminApiKey(req: Request): string | undefined {
 }
 
 /**
- * Verify admin API key matches configured key
+ * Verify service secret matches configured secret
  *
  * Uses constant-time comparison to prevent timing attacks.
  *
- * @param providedKey - The key to verify
+ * @param providedSecret - The secret to verify
  * @returns true if valid, false otherwise
  */
-export function isValidAdminKey(providedKey: string | undefined): boolean {
+export function isValidServiceSecret(providedSecret: string | undefined): boolean {
   const config = getConfig();
-  const configuredKey = config.ADMIN_API_KEY;
+  const configuredSecret = config.INTERNAL_SERVICE_SECRET;
 
   if (
-    providedKey === undefined ||
-    providedKey.length === 0 ||
-    configuredKey === undefined ||
-    configuredKey.length === 0
+    providedSecret === undefined ||
+    providedSecret.length === 0 ||
+    configuredSecret === undefined ||
+    configuredSecret.length === 0
   ) {
     return false;
   }
 
   // Constant-time comparison to prevent timing attacks
-  if (providedKey.length !== configuredKey.length) {
+  if (providedSecret.length !== configuredSecret.length) {
     return false;
   }
 
   let result = 0;
-  for (let i = 0; i < providedKey.length; i++) {
-    result |= providedKey.charCodeAt(i) ^ configuredKey.charCodeAt(i);
+  for (let i = 0; i < providedSecret.length; i++) {
+    result |= providedSecret.charCodeAt(i) ^ configuredSecret.charCodeAt(i);
   }
   return result === 0;
 }
 
 /**
- * Express middleware to require admin API key authentication
+ * Express middleware to require service-to-service authentication
  *
- * Checks the X-Admin-Key header against ADMIN_API_KEY environment variable.
- * Use this to protect administrative endpoints that are called from the bot.
+ * Checks the X-Service-Auth header against INTERNAL_SERVICE_SECRET environment variable.
+ * Use this to protect endpoints that should only be called by internal services (bot-client, ai-worker).
  *
  * Usage:
  * ```ts
- * router.use('/admin', requireAdminAuth());
+ * app.use(requireServiceAuth()); // Apply globally
  * // or
- * router.put('/admin/config/:id', requireAdminAuth(), async (req, res) => {
- *   // Only requests with valid admin key can reach here
+ * router.post('/ai/generate', requireServiceAuth(), async (req, res) => {
+ *   // Only requests with valid service secret can reach here
  * });
  * ```
  *
  * @param customMessage - Optional custom unauthorized message
  * @returns Express middleware function
  */
-export function requireAdminAuth(customMessage?: string) {
+export function requireServiceAuth(customMessage?: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const adminKey = extractAdminApiKey(req);
+    const serviceSecret = extractServiceSecret(req);
 
-    if (!isValidAdminKey(adminKey)) {
+    if (!isValidServiceSecret(serviceSecret)) {
       // Log unauthorized access attempt for security monitoring
       logger.warn(
         {
-          hasKey: adminKey !== undefined,
+          hasSecret: serviceSecret !== undefined,
           path: req.path,
           method: req.method,
           ip: req.ip,
         },
-        '[Auth] Admin authentication failed'
+        '[Auth] Service authentication failed'
       );
 
       const errorResponse = ErrorResponses.unauthorized(
-        customMessage ?? 'Admin authentication required'
+        customMessage ?? 'Service authentication required'
       );
       const statusCode = getStatusCode(errorResponse.error);
 
