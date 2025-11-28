@@ -21,6 +21,9 @@ import {
 
 const logger = createLogger('LlmConfigResolver');
 
+/** Default interval for cache cleanup (5 minutes) */
+const CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * Resolved LLM config values that can override personality defaults
  */
@@ -65,10 +68,61 @@ export class LlmConfigResolver {
   private prisma: PrismaClient;
   private cache = new Map<string, CacheEntry>();
   private readonly cacheTtlMs: number;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number }) {
+  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number; enableCleanup?: boolean }) {
     this.prisma = prisma;
     this.cacheTtlMs = options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL;
+
+    // Start periodic cleanup of expired cache entries (prevents memory leak)
+    // Default enabled in production, can be disabled for testing
+    if (options?.enableCleanup !== false) {
+      this.startCleanupInterval();
+    }
+  }
+
+  /**
+   * Start periodic cleanup of expired cache entries
+   */
+  private startCleanupInterval(): void {
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupExpiredEntries();
+    }, CACHE_CLEANUP_INTERVAL_MS);
+
+    // Ensure interval doesn't prevent process exit
+    this.cleanupInterval.unref();
+  }
+
+  /**
+   * Remove expired entries from the cache
+   */
+  private cleanupExpiredEntries(): void {
+    const now = Date.now();
+    let removedCount = 0;
+
+    for (const [key, entry] of this.cache) {
+      if (entry.expiresAt <= now) {
+        this.cache.delete(key);
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      logger.debug(
+        { removedCount, remaining: this.cache.size },
+        'Cleaned up expired cache entries'
+      );
+    }
+  }
+
+  /**
+   * Stop the cleanup interval (call on shutdown)
+   */
+  stopCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
   }
 
   /**
@@ -271,7 +325,11 @@ export class LlmConfigResolver {
   }
 
   /**
-   * Convert Prisma Decimal to number
+   * Convert Prisma Decimal to number with type safety
+   *
+   * Handles Prisma's Decimal type which has a toNumber() method.
+   * Validates the result is actually a number to catch any future
+   * changes in Prisma's internal implementation.
    */
   private toNumber(value: unknown): number | null {
     if (value === null || value === undefined) {
@@ -280,10 +338,21 @@ export class LlmConfigResolver {
     if (typeof value === 'number') {
       return value;
     }
-    // Prisma Decimal objects have a toNumber() method
-    if (typeof value === 'object' && 'toNumber' in value) {
-      return (value as { toNumber: () => number }).toNumber();
+    // Handle Prisma Decimal (has toNumber method)
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'toNumber' in value &&
+      typeof (value as Record<string, unknown>).toNumber === 'function'
+    ) {
+      const result = (value as { toNumber: () => unknown }).toNumber();
+      if (typeof result === 'number') {
+        return result;
+      }
+      logger.warn({ valueType: typeof result }, 'Prisma Decimal.toNumber() returned non-number');
+      return null;
     }
+    logger.warn({ valueType: typeof value }, 'Unexpected value type in toNumber');
     return null;
   }
 

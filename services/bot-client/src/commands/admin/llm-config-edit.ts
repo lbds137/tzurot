@@ -61,7 +61,6 @@ export async function handleLlmConfigEdit(
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         'X-Admin-Key': config.ADMIN_API_KEY ?? '',
       },
       body: JSON.stringify(updateBody),

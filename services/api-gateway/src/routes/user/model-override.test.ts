@@ -472,7 +472,6 @@ describe('/user/model-override routes', () => {
   });
 
   describe('PUT /user/model-override/default', () => {
-
     it('should reject missing configId', async () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/default');
@@ -556,7 +555,6 @@ describe('/user/model-override routes', () => {
   });
 
   describe('DELETE /user/model-override/default', () => {
-
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 

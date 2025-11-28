@@ -4,33 +4,15 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  type PersonalitySummary,
+  type LlmConfigSummary,
+} from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('model-autocomplete');
-
-/**
- * Personality summary from API
- */
-interface PersonalitySummary {
-  id: string;
-  name: string;
-  displayName: string | null;
-  slug: string;
-  isOwned: boolean;
-}
-
-/**
- * LLM config summary from API
- */
-interface LlmConfigSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  model: string;
-  isGlobal: boolean;
-  isOwned: boolean;
-}
 
 /**
  * Handle autocomplete for /model commands
@@ -80,7 +62,7 @@ async function handlePersonalityAutocomplete(
         p.slug.toLowerCase().includes(queryLower) ||
         (p.displayName?.toLowerCase().includes(queryLower) ?? false)
     )
-    .slice(0, 25); // Discord limit
+    .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
   const choices = filtered.map(p => ({
     name: p.displayName ?? p.name,
@@ -116,7 +98,7 @@ async function handleConfigAutocomplete(
         c.model.toLowerCase().includes(queryLower) ||
         (c.description?.toLowerCase().includes(queryLower) ?? false)
     )
-    .slice(0, 25); // Discord limit
+    .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
   const choices = filtered.map(c => ({
     // Show model info in the name for clarity

@@ -154,3 +154,97 @@ export function requireUserAuth(customMessage?: string) {
     next();
   };
 }
+
+/**
+ * Extract admin API key from request header (X-Admin-Key)
+ *
+ * @param req - Express request
+ * @returns Admin API key if found, undefined otherwise
+ */
+export function extractAdminApiKey(req: Request): string | undefined {
+  const headerKey = req.headers['x-admin-key'];
+  if (typeof headerKey === 'string' && headerKey.length > 0) {
+    return headerKey;
+  }
+  return undefined;
+}
+
+/**
+ * Verify admin API key matches configured key
+ *
+ * Uses constant-time comparison to prevent timing attacks.
+ *
+ * @param providedKey - The key to verify
+ * @returns true if valid, false otherwise
+ */
+export function isValidAdminKey(providedKey: string | undefined): boolean {
+  const config = getConfig();
+  const configuredKey = config.ADMIN_API_KEY;
+
+  if (
+    providedKey === undefined ||
+    providedKey.length === 0 ||
+    configuredKey === undefined ||
+    configuredKey.length === 0
+  ) {
+    return false;
+  }
+
+  // Constant-time comparison to prevent timing attacks
+  if (providedKey.length !== configuredKey.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let i = 0; i < providedKey.length; i++) {
+    result |= providedKey.charCodeAt(i) ^ configuredKey.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
+ * Express middleware to require admin API key authentication
+ *
+ * Checks the X-Admin-Key header against ADMIN_API_KEY environment variable.
+ * Use this to protect administrative endpoints that are called from the bot.
+ *
+ * Usage:
+ * ```ts
+ * router.use('/admin', requireAdminAuth());
+ * // or
+ * router.put('/admin/config/:id', requireAdminAuth(), async (req, res) => {
+ *   // Only requests with valid admin key can reach here
+ * });
+ * ```
+ *
+ * @param customMessage - Optional custom unauthorized message
+ * @returns Express middleware function
+ */
+export function requireAdminAuth(customMessage?: string) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const adminKey = extractAdminApiKey(req);
+
+    if (!isValidAdminKey(adminKey)) {
+      // Log unauthorized access attempt for security monitoring
+      logger.warn(
+        {
+          hasKey: adminKey !== undefined,
+          path: req.path,
+          method: req.method,
+          ip: req.ip,
+        },
+        '[Auth] Admin authentication failed'
+      );
+
+      const errorResponse = ErrorResponses.unauthorized(
+        customMessage ?? 'Admin authentication required'
+      );
+      const statusCode = getStatusCode(errorResponse.error);
+
+      res.status(statusCode).json(errorResponse);
+      return;
+    }
+
+    next();
+  };
+}

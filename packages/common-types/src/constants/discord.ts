@@ -38,6 +38,8 @@ export const DISCORD_LIMITS = {
   AVATAR_SIZE: 10 * 1024 * 1024,
   /** Maximum webhook cache size */
   WEBHOOK_CACHE_SIZE: 100,
+  /** Maximum number of autocomplete choices Discord allows */
+  AUTOCOMPLETE_MAX_CHOICES: 25,
 } as const;
 
 /**

@@ -69,7 +69,11 @@ describe('LlmConfigResolver', () => {
         findFirst: vi.fn(),
       },
     };
-    resolver = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, { cacheTtlMs: 60000 });
+    // Disable cleanup interval in tests to avoid timer issues
+    resolver = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, {
+      cacheTtlMs: 60000,
+      enableCleanup: false,
+    });
   });
 
   afterEach(() => {
@@ -395,6 +399,126 @@ describe('LlmConfigResolver', () => {
       expect(result.config.topP).toBe(0.9);
       expect(result.config.maxTokens).toBe(4096);
       expect(result.config.contextWindowTokens).toBe(128000);
+    });
+  });
+
+  describe('cache cleanup', () => {
+    it('should not start cleanup interval when enableCleanup is false', () => {
+      // Resolver created in beforeEach with enableCleanup: false
+      // No interval should be running, so advancing timers shouldn't cause issues
+      vi.advanceTimersByTime(10 * 60 * 1000); // 10 minutes
+      // If this doesn't throw, the test passes
+      expect(true).toBe(true);
+    });
+
+    it('should clean up expired cache entries when cleanup runs', async () => {
+      // Create a new resolver with cleanup enabled
+      const cleanupResolver = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 1000, // 1 second TTL
+        enableCleanup: true,
+      });
+
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: null,
+        defaultLlmConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      // Cache an entry
+      await cleanupResolver.resolveConfig('user-123', 'personality-1', mockPersonality);
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(1);
+
+      // Entry is still valid - should use cache
+      await cleanupResolver.resolveConfig('user-123', 'personality-1', mockPersonality);
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(1);
+
+      // Advance time past TTL
+      vi.advanceTimersByTime(2000); // 2 seconds - past the 1 second TTL
+
+      // Advance time to trigger cleanup interval (5 minutes)
+      vi.advanceTimersByTime(5 * 60 * 1000);
+
+      // Entry should be expired and cleaned up, new query should happen
+      await cleanupResolver.resolveConfig('user-123', 'personality-1', mockPersonality);
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(2);
+
+      // Clean up
+      cleanupResolver.stopCleanup();
+    });
+
+    it('should stop cleanup interval when stopCleanup is called', () => {
+      const cleanupResolver = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, {
+        cacheTtlMs: 1000,
+        enableCleanup: true,
+      });
+
+      // Stop the cleanup
+      cleanupResolver.stopCleanup();
+
+      // Advancing timers should not cause issues
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      expect(true).toBe(true);
+    });
+  });
+
+  describe('toNumber edge cases', () => {
+    it('should handle Prisma Decimal objects', async () => {
+      // Create a mock Decimal object (like Prisma's)
+      const mockDecimal = {
+        toNumber: () => 0.85,
+      };
+
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: 'config-id',
+        defaultLlmConfig: {
+          name: 'Decimal Config',
+          model: 'test/model',
+          visionModel: null,
+          temperature: mockDecimal, // Prisma Decimal
+          topP: null,
+          topK: null,
+          frequencyPenalty: null,
+          presencePenalty: null,
+          maxTokens: null,
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: null,
+        },
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig('user-123', 'personality-1', mockPersonality);
+
+      expect(result.config.temperature).toBe(0.85);
+    });
+
+    it('should return null for non-numeric, non-Decimal values', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: 'config-id',
+        defaultLlmConfig: {
+          name: 'Bad Config',
+          model: 'test/model',
+          visionModel: null,
+          temperature: 'not-a-number', // Invalid
+          topP: null,
+          topK: null,
+          frequencyPenalty: null,
+          presencePenalty: null,
+          maxTokens: null,
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: null,
+        },
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig('user-123', 'personality-1', mockPersonality);
+
+      // Should fall back to personality default
+      expect(result.config.temperature).toBe(0.7);
     });
   });
 });

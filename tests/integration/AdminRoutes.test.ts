@@ -150,15 +150,17 @@ describe('Admin Routes Integration', () => {
     it('should reject GET on POST-only routes', async () => {
       const response = await request(app).get('/admin/personality');
 
-      // Should return 404 or 405 (method not allowed)
-      expect([404, 405]).toContain(response.status);
+      // Should return 403 (auth required), 404, or 405 (method not allowed)
+      // 403 is returned first because admin auth middleware runs before route matching
+      expect([403, 404, 405]).toContain(response.status);
     });
 
     it('should reject DELETE on non-DELETE routes', async () => {
       const response = await request(app).delete('/admin/db-sync');
 
-      // Should return 404 or 405 (method not allowed)
-      expect([404, 405]).toContain(response.status);
+      // Should return 403 (auth required), 404, or 405 (method not allowed)
+      // 403 is returned first because admin auth middleware runs before route matching
+      expect([403, 404, 405]).toContain(response.status);
     });
   });
 });
