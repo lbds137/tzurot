@@ -240,6 +240,8 @@ export const generationPayloadSchema = z.object({
       providerUsed: z.string().optional(),
       /** Source of LLM config: 'personality' | 'user-personality' | 'user-default' */
       configSource: z.enum(['personality', 'user-personality', 'user-default']).optional(),
+      /** Whether response was generated using guest mode (free model, no API key) */
+      isGuestMode: z.boolean().optional(),
     })
     .optional(),
 });

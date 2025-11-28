@@ -74,6 +74,7 @@ describe('ApiKeyResolver', () => {
         source: 'user',
         provider: AIProvider.OpenRouter,
         userId: 'user-123',
+        isGuestMode: false,
       });
 
       expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledWith({
@@ -102,6 +103,7 @@ describe('ApiKeyResolver', () => {
         apiKey: 'system-openrouter-key',
         source: 'system',
         provider: AIProvider.OpenRouter,
+        isGuestMode: false,
       });
     });
 
@@ -112,6 +114,7 @@ describe('ApiKeyResolver', () => {
         apiKey: 'system-openrouter-key',
         source: 'system',
         provider: AIProvider.OpenRouter,
+        isGuestMode: false,
       });
 
       // Should not query database when no userId
@@ -127,16 +130,23 @@ describe('ApiKeyResolver', () => {
         apiKey: 'system-openai-key',
         source: 'system',
         provider: AIProvider.OpenAI,
+        isGuestMode: false,
       });
     });
 
-    it('should throw when no key available for provider', async () => {
+    it('should return guest mode when no key available for provider', async () => {
       mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
 
-      // Gemini has no system key in our mock config
-      await expect(resolver.resolveApiKey('user-123', AIProvider.Gemini)).rejects.toThrow(
-        'No API key available for provider gemini'
-      );
+      // Gemini has no system key in our mock config - should return guest mode
+      const result = await resolver.resolveApiKey('user-123', AIProvider.Gemini);
+
+      expect(result).toEqual({
+        apiKey: '',
+        source: 'guest',
+        provider: AIProvider.Gemini,
+        userId: 'user-123',
+        isGuestMode: true,
+      });
     });
 
     it('should fall back to system key on decryption error', async () => {
@@ -155,6 +165,7 @@ describe('ApiKeyResolver', () => {
         apiKey: 'system-openrouter-key',
         source: 'system',
         provider: AIProvider.OpenRouter,
+        isGuestMode: false,
       });
     });
 
@@ -167,6 +178,7 @@ describe('ApiKeyResolver', () => {
         apiKey: 'system-openrouter-key',
         source: 'system',
         provider: AIProvider.OpenRouter,
+        isGuestMode: false,
       });
     });
   });
@@ -343,7 +355,59 @@ describe('ApiKeyResolver', () => {
         apiKey: 'system-openrouter-key',
         source: 'system',
         provider: AIProvider.OpenRouter,
+        isGuestMode: false,
       });
+    });
+  });
+
+  describe('guest mode', () => {
+    it('should return guest mode when no user key and no system key', async () => {
+      // Create resolver with a mock config that has no system keys
+      vi.doMock('@tzurot/common-types', async () => {
+        const actual = await vi.importActual('@tzurot/common-types');
+        return {
+          ...actual,
+          createLogger: () => ({
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+          }),
+          getConfig: () => ({
+            API_KEY_ENCRYPTION_KEY: 'test-encryption-key-32-bytes-long!',
+            // No OPENROUTER_API_KEY or OPENAI_API_KEY
+          }),
+          decryptApiKey: vi.fn(),
+          AIProvider: {
+            OpenRouter: 'openrouter',
+            OpenAI: 'openai',
+            Gemini: 'gemini',
+          },
+        };
+      });
+
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      // Gemini has no system key configured
+      const result = await resolver.resolveApiKey('user-456', AIProvider.Gemini);
+
+      expect(result.source).toBe('guest');
+      expect(result.isGuestMode).toBe(true);
+      expect(result.apiKey).toBe('');
+      expect(result.userId).toBe('user-456');
+    });
+
+    it('should cache guest mode results', async () => {
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      // First call - get guest mode
+      const result1 = await resolver.resolveApiKey('user-123', AIProvider.Gemini);
+      // Second call - should use cache
+      const result2 = await resolver.resolveApiKey('user-123', AIProvider.Gemini);
+
+      expect(result1.isGuestMode).toBe(true);
+      expect(result2.isGuestMode).toBe(true);
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(1);
     });
   });
 });

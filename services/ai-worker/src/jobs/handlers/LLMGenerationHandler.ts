@@ -19,6 +19,8 @@ import {
   createLogger,
   REDIS_KEY_PREFIXES,
   AIProvider,
+  GUEST_MODE,
+  isFreeModel,
   type LLMGenerationJobData,
   type LLMGenerationResult,
   type AudioTranscriptionResult,
@@ -249,6 +251,8 @@ export class LLMGenerationHandler {
     // The key is NEVER passed through BullMQ - we look it up here using userId
     let resolvedApiKey: string | undefined;
     let resolvedProvider: string | undefined;
+    let isGuestMode = false;
+
     if (this.apiKeyResolver) {
       try {
         const keyResult = await this.apiKeyResolver.resolveApiKey(
@@ -257,16 +261,66 @@ export class LLMGenerationHandler {
         );
         resolvedApiKey = keyResult.apiKey;
         resolvedProvider = keyResult.provider;
+        isGuestMode = keyResult.isGuestMode;
+
         logger.debug(
-          { userId: context.userId, source: keyResult.source, provider: resolvedProvider },
+          {
+            userId: context.userId,
+            source: keyResult.source,
+            provider: resolvedProvider,
+            isGuestMode,
+          },
           '[LLMGenerationHandler] Resolved API key'
         );
+
+        // Guest Mode: Enforce free-model-only
+        if (isGuestMode) {
+          const currentModel = effectivePersonality.model;
+
+          // If current model is not free, override to guest default
+          if (!isFreeModel(currentModel)) {
+            logger.info(
+              {
+                userId: context.userId,
+                originalModel: currentModel,
+                guestModel: GUEST_MODE.DEFAULT_MODEL,
+              },
+              '[LLMGenerationHandler] Guest mode: overriding paid model with free model'
+            );
+
+            effectivePersonality = {
+              ...effectivePersonality,
+              model: GUEST_MODE.DEFAULT_MODEL,
+              // Clear vision model if not free - guest mode may not support vision on all models
+              visionModel:
+                effectivePersonality.visionModel !== undefined &&
+                effectivePersonality.visionModel.length > 0 &&
+                isFreeModel(effectivePersonality.visionModel)
+                  ? effectivePersonality.visionModel
+                  : undefined,
+            };
+          }
+
+          logger.info(
+            { userId: context.userId, model: effectivePersonality.model },
+            '[LLMGenerationHandler] Guest mode active - using free model'
+          );
+        }
       } catch (error) {
-        // Log but don't fail - system key might still work
+        // Log but don't fail - guest mode can still work
         logger.warn(
           { err: error, userId: context.userId },
-          '[LLMGenerationHandler] Failed to resolve user API key, falling back to system key'
+          '[LLMGenerationHandler] Failed to resolve API key, falling back to guest mode'
         );
+        isGuestMode = true;
+
+        // Apply guest mode model override
+        if (!isFreeModel(effectivePersonality.model)) {
+          effectivePersonality = {
+            ...effectivePersonality,
+            model: GUEST_MODE.DEFAULT_MODEL,
+          };
+        }
       }
     }
 
@@ -380,6 +434,7 @@ export class LLMGenerationHandler {
           modelUsed: response.modelUsed,
           providerUsed: resolvedProvider,
           configSource, // 'personality' | 'user-personality' | 'user-default'
+          isGuestMode, // True if using free model (no API key)
         },
       };
 

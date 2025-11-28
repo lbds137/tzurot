@@ -10,6 +10,8 @@ export {
   AI_ENDPOINTS,
   MODEL_DEFAULTS,
   AIProvider,
+  GUEST_MODE,
+  isFreeModel,
   type DefaultModelName,
 } from './ai.js';
 
