@@ -115,14 +115,16 @@ describe('ContextWindowManager', () => {
     });
 
     it('should count memory tokens with timestamps', () => {
+      // Use fixed timestamps for deterministic tests (avoid Date.now() which can cause flaky token counts)
+      const fixedTimestamp = new Date('2024-06-15T12:00:00Z').getTime();
       const memories: MemoryDocument[] = [
         {
           pageContent: 'User likes pizza',
-          metadata: { createdAt: Date.now() },
+          metadata: { createdAt: fixedTimestamp },
         },
         {
           pageContent: 'User lives in NYC',
-          metadata: { createdAt: Date.now() },
+          metadata: { createdAt: fixedTimestamp },
         },
       ];
 
