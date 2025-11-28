@@ -134,16 +134,36 @@ describe('Model Command Handlers', () => {
     }
 
     it('should set model override', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          override: {
-            personalityId: 'p1',
-            personalityName: 'Lilith',
-            configId: 'c1',
-            configName: 'Fast',
-          },
-        },
+      // Mock responses based on API path
+      mockCallGatewayApi.mockImplementation((path: string, options?: { method?: string }) => {
+        if (path === '/wallet/list') {
+          return Promise.resolve({
+            ok: true,
+            data: { keys: [{ provider: 'openrouter', isActive: true }] },
+          });
+        }
+        if (path === '/user/llm-config') {
+          return Promise.resolve({
+            ok: true,
+            data: {
+              configs: [{ id: 'c1', name: 'Fast', model: 'openai/gpt-4o-mini' }],
+            },
+          });
+        }
+        if (path === '/user/model-override' && options?.method === 'PUT') {
+          return Promise.resolve({
+            ok: true,
+            data: {
+              override: {
+                personalityId: 'p1',
+                personalityName: 'Lilith',
+                configId: 'c1',
+                configName: 'Fast',
+              },
+            },
+          });
+        }
+        return Promise.resolve({ ok: false, error: 'Unknown path' });
       });
 
       const interaction = createMockInteraction();

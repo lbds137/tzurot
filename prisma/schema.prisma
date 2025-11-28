@@ -129,6 +129,8 @@ model LlmConfig {
   ownerId                     String?                    @map("owner_id") @db.Uuid
   isGlobal                    Boolean                    @default(false) @map("is_global")
   isDefault                   Boolean                    @default(false) @map("is_default")
+  /// Default config for guest mode (users without API keys). Only one should be true.
+  isFreeDefault               Boolean                    @default(false) @map("is_free_default")
   provider                    String                     @default("openrouter") @db.VarChar(20)
   model                       String                     @db.VarChar(255)
   visionModel                 String?                    @map("vision_model") @db.VarChar(255)
@@ -156,6 +158,7 @@ model LlmConfig {
 
   @@index([ownerId])
   @@index([isGlobal])
+  @@index([isFreeDefault])
   @@map("llm_configs")
 }
 

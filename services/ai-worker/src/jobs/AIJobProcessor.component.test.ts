@@ -83,6 +83,7 @@ describe('AIJobProcessor Component Test', () => {
         owner_id UUID,
         is_global BOOLEAN DEFAULT FALSE,
         is_default BOOLEAN DEFAULT FALSE,
+        is_free_default BOOLEAN DEFAULT FALSE,
         provider VARCHAR(20) DEFAULT 'openrouter',
         model VARCHAR(255) NOT NULL,
         vision_model VARCHAR(255),

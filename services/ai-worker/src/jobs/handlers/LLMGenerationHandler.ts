@@ -279,18 +279,38 @@ export class LLMGenerationHandler {
 
           // If current model is not free, override to guest default
           if (!isFreeModel(currentModel)) {
+            // Try to get free default from database first, fall back to hardcoded
+            let guestModel: string = GUEST_MODE.DEFAULT_MODEL;
+            if (this.configResolver) {
+              try {
+                const freeConfig = await this.configResolver.getFreeDefaultConfig();
+                if (freeConfig !== null) {
+                  guestModel = freeConfig.model;
+                  logger.debug(
+                    { model: guestModel },
+                    '[LLMGenerationHandler] Using database free default config'
+                  );
+                }
+              } catch (error) {
+                logger.warn(
+                  { err: error },
+                  '[LLMGenerationHandler] Failed to get free default config, using hardcoded fallback'
+                );
+              }
+            }
+
             logger.info(
               {
                 userId: context.userId,
                 originalModel: currentModel,
-                guestModel: GUEST_MODE.DEFAULT_MODEL,
+                guestModel,
               },
               '[LLMGenerationHandler] Guest mode: overriding paid model with free model'
             );
 
             effectivePersonality = {
               ...effectivePersonality,
-              model: GUEST_MODE.DEFAULT_MODEL,
+              model: guestModel,
               // Clear vision model if not free - guest mode may not support vision on all models
               visionModel:
                 effectivePersonality.visionModel !== undefined &&
@@ -316,9 +336,21 @@ export class LLMGenerationHandler {
 
         // Apply guest mode model override
         if (!isFreeModel(effectivePersonality.model)) {
+          // Try to get free default from database, fall back to hardcoded
+          let guestModel: string = GUEST_MODE.DEFAULT_MODEL;
+          if (this.configResolver) {
+            try {
+              const freeConfig = await this.configResolver.getFreeDefaultConfig();
+              if (freeConfig !== null) {
+                guestModel = freeConfig.model;
+              }
+            } catch {
+              // Silently fall back to hardcoded - we're already in error recovery
+            }
+          }
           effectivePersonality = {
             ...effectivePersonality,
-            model: GUEST_MODE.DEFAULT_MODEL,
+            model: guestModel,
           };
         }
       }

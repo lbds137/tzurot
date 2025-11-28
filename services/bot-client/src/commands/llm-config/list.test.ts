@@ -50,36 +50,48 @@ describe('handleList', () => {
   }
 
   it('should list configs with global and user configs', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        configs: [
-          {
-            id: '1',
-            name: 'Default',
-            model: 'anthropic/claude-sonnet-4',
-            isGlobal: true,
-            isDefault: true,
-            isOwned: false,
+    // Mock responses based on API path
+    mockCallGatewayApi.mockImplementation((path: string) => {
+      if (path === '/user/llm-config') {
+        return Promise.resolve({
+          ok: true,
+          data: {
+            configs: [
+              {
+                id: '1',
+                name: 'Default',
+                model: 'anthropic/claude-sonnet-4',
+                isGlobal: true,
+                isDefault: true,
+                isOwned: false,
+              },
+              {
+                id: '2',
+                name: 'Fast',
+                model: 'openai/gpt-4o-mini',
+                isGlobal: true,
+                isDefault: false,
+                isOwned: false,
+              },
+              {
+                id: '3',
+                name: 'MyConfig',
+                model: 'anthropic/claude-opus-4',
+                isGlobal: false,
+                isDefault: false,
+                isOwned: true,
+              },
+            ],
           },
-          {
-            id: '2',
-            name: 'Fast',
-            model: 'openai/gpt-4o-mini',
-            isGlobal: true,
-            isDefault: false,
-            isOwned: false,
-          },
-          {
-            id: '3',
-            name: 'MyConfig',
-            model: 'anthropic/claude-opus-4',
-            isGlobal: false,
-            isDefault: false,
-            isOwned: true,
-          },
-        ],
-      },
+        });
+      }
+      if (path === '/wallet/list') {
+        return Promise.resolve({
+          ok: true,
+          data: { keys: [{ provider: 'openrouter', isActive: true }] },
+        });
+      }
+      return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
     const interaction = createMockInteraction();
@@ -87,6 +99,7 @@ describe('handleList', () => {
 
     expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: '123456789' });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/list', { userId: '123456789' });
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -103,9 +116,21 @@ describe('handleList', () => {
   });
 
   it('should show message when no configs exist', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { configs: [] },
+    // Mock responses based on API path
+    mockCallGatewayApi.mockImplementation((path: string) => {
+      if (path === '/user/llm-config') {
+        return Promise.resolve({
+          ok: true,
+          data: { configs: [] },
+        });
+      }
+      if (path === '/wallet/list') {
+        return Promise.resolve({
+          ok: true,
+          data: { keys: [{ provider: 'openrouter', isActive: true }] },
+        });
+      }
+      return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
     const interaction = createMockInteraction();
