@@ -49,6 +49,7 @@ export class GatewayClient {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
         },
         body: JSON.stringify({
           personality: personality,
@@ -103,6 +104,7 @@ export class GatewayClient {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
         },
         body: JSON.stringify({
           attachments,
@@ -150,6 +152,7 @@ export class GatewayClient {
         method: 'POST',
         headers: {
           'Content-Type': CONTENT_TYPES.JSON,
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
         },
         signal: AbortSignal.timeout(5000), // 5s timeout
       });
