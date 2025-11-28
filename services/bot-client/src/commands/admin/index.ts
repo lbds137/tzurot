@@ -211,7 +211,18 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
       await interaction.respond([]);
     }
   } catch (error) {
-    logger.error({ err: error, option: focusedOption.name }, '[Admin] Autocomplete error');
+    logger.error(
+      {
+        err: error,
+        option: focusedOption.name,
+        query: focusedOption.value,
+        userId: interaction.user.id,
+        guildId: interaction.guildId,
+        command: interaction.commandName,
+        subcommand: interaction.options.getSubcommand(false),
+      },
+      '[Admin] Autocomplete error'
+    );
     await interaction.respond([]);
   }
 }
