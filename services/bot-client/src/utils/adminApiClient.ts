@@ -98,10 +98,7 @@ export async function adminPostJson(
  * @param body - Object to send as JSON body
  * @returns Fetch response
  */
-export async function adminPutJson(
-  path: string,
-  body: Record<string, unknown>
-): Promise<Response> {
+export async function adminPutJson(path: string, body: Record<string, unknown>): Promise<Response> {
   return adminFetch(path, {
     method: 'PUT',
     headers: {

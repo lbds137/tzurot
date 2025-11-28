@@ -330,6 +330,52 @@
 
 **Why**: Low effort, high visible impact features.
 
+**Free Model Guest Mode** (PRIORITY - Enables public usage without BYOK):
+
+> **Context**: Users without an OpenRouter API key ("guests") should still be able to use the bot, but only with free models (`:free` suffix on OpenRouter). This allows public usage without the bot owner paying for API costs.
+
+**Database Changes**:
+
+- [ ] **Task 5.G1**: Add `isFreeDefault` boolean to `LlmConfig` table
+  - Marks one free LlmConfig as the default for guest users
+  - Only one config can have this flag set to true
+  - Constraint: Model must end with `:free` suffix if `isFreeDefault=true`
+
+**Application Code**:
+
+- [ ] **Task 5.G2**: Add `isFreeModel()` utility to detect free models
+  - Simple check: `model.endsWith(':free')`
+  - Location: `packages/common-types/src/utils/`
+- [ ] **Task 5.G3**: Update `ApiKeyResolver` to detect "guest mode"
+  - When user has no API key AND system key is used as fallback
+  - Return `source: 'guest' | 'user' | 'system'` (add 'guest' option)
+- [ ] **Task 5.G4**: Update `LlmConfigResolver` to enforce free-model-only for guests
+  - If `source === 'guest'`, REJECT any LlmConfig where model doesn't end with `:free`
+  - Fall back to `isFreeDefault=true` config if user's selection is invalid
+- [ ] **Task 5.G5**: Add "Guest Mode" footer indicator in AI responses
+  - When `source === 'guest'`, append subtle indicator
+  - Example: "🌟 Free tier • /wallet set to unlock all models"
+
+**Slash Commands**:
+
+- [ ] **Task 5.G6**: Update `/llm-config list` to show free configs for guests
+  - Filter to only show `:free` models when user has no API key
+  - Show all models when user has API key
+- [ ] **Task 5.G7**: Update `/model set` to validate free-model-only for guests
+  - Reject non-free model selection if user has no API key
+  - Show helpful error: "This model requires an API key. Use /wallet set or choose a free model."
+
+**Hardcoded Fallback**:
+
+- [ ] **Task 5.G8**: Research most future-proof free model for hardcoded fallback
+  - Requirements: Likely to remain free, good quality, stable provider
+  - Current candidates: `google/gemini-2.0-flash-exp:free`, `meta-llama/llama-3.3-70b-instruct:free`
+  - Consult Gemini MCP for recommendation
+- [ ] **Task 5.G9**: Implement hardcoded fallback free model config
+  - Location: `packages/common-types/src/constants/ai.ts`
+  - Used when: No `isFreeDefault=true` LlmConfig exists in DB
+  - Include sensible defaults: temperature, context window, etc.
+
 **User Persona Management** (Reduces manual DB work):
 
 - [ ] **Task 5.0.1**: Create persona API routes (`/user/persona`)
