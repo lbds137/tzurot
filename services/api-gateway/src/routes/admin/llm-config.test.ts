@@ -41,9 +41,11 @@ const createMockPrismaClient = () => {
       count: vi.fn(),
     },
     // Transaction mock - executes callback with same mock objects
-    $transaction: vi.fn(async (callback: (tx: { llmConfig: typeof mockLlmConfig }) => Promise<void>) => {
-      await callback({ llmConfig: mockLlmConfig });
-    }),
+    $transaction: vi.fn(
+      async (callback: (tx: { llmConfig: typeof mockLlmConfig }) => Promise<void>) => {
+        await callback({ llmConfig: mockLlmConfig });
+      }
+    ),
   };
 };
 
