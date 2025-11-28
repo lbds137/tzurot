@@ -89,6 +89,8 @@ export interface ConversationContext {
   serverId?: string;
   sessionId?: string;
   userName?: string;
+  /** User's preferred timezone (IANA format, e.g., 'America/New_York') */
+  userTimezone?: string;
   isProxyMessage?: boolean;
   // Active speaker - the persona making the current request
   activePersonaId?: string;

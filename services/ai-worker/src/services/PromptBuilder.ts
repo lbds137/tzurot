@@ -193,7 +193,8 @@ export class PromptBuilder {
     logger.debug(`[PromptBuilder] System prompt length: ${systemPrompt.length} chars`);
 
     // Current date/time context (place early for better awareness)
-    const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
+    // Use user's preferred timezone if available
+    const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date(), context.userTimezone)}`;
 
     // Discord environment context (where conversation is happening)
     const environmentContext =

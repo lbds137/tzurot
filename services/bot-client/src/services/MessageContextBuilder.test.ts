@@ -29,6 +29,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       getOrCreateUser = vi.fn();
       getPersonaForUser = vi.fn();
       getPersonaName = vi.fn();
+      getUserTimezone = vi.fn();
     },
     createLogger: () => ({
       info: vi.fn(),

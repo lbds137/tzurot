@@ -343,6 +343,7 @@ export class LLMGenerationHandler {
         {
           userId: context.userId,
           userName: context.userName,
+          userTimezone: context.userTimezone,
           channelId: context.channelId,
           serverId: context.serverId,
           sessionId: context.sessionId,
