@@ -36,12 +36,17 @@ export function formatSingleMemory(doc: MemoryDocument, timezone?: string): stri
  * @param timezone - Optional IANA timezone for timestamp formatting. Defaults to server timezone.
  * @returns Formatted memory context string, or empty string if no memories
  */
-export function formatMemoriesContext(relevantMemories: MemoryDocument[], timezone?: string): string {
+export function formatMemoriesContext(
+  relevantMemories: MemoryDocument[],
+  timezone?: string
+): string {
   if (relevantMemories.length === 0) {
     return '';
   }
 
-  const formattedMemories = relevantMemories.map(doc => formatSingleMemory(doc, timezone)).join('\n');
+  const formattedMemories = relevantMemories
+    .map(doc => formatSingleMemory(doc, timezone))
+    .join('\n');
 
   return '\n\n## Relevant Memories\n' + formattedMemories;
 }
