@@ -13,6 +13,8 @@
 
 > **🚂 RAILWAY CLI REFERENCE**: Before running ANY `railway` command, consult [docs/reference/RAILWAY_CLI_REFERENCE.md](docs/reference/RAILWAY_CLI_REFERENCE.md) to avoid errors from outdated AI training data. This reference has accurate, tested commands for Railway CLI 4.5.3.
 
+> **🐙 GITHUB CLI REFERENCE**: Before running `gh` commands (especially `gh api` or reading PR comments), consult [docs/reference/GITHUB_CLI_REFERENCE.md](docs/reference/GITHUB_CLI_REFERENCE.md). Key pitfall: PR comments have THREE different API endpoints (issue comments, review comments, reviews) - using the wrong one returns empty results!
+
 > **⚠️ PRODUCTION STATUS**: v3 is deployed on Railway in TWO environments:
 >
 > - **Development**: For testing new features before stable release
