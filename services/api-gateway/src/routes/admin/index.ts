@@ -16,6 +16,7 @@ import { createCreatePersonalityRoute } from './createPersonality.js';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
+import { createAdminUsageRoutes } from './usage.js';
 import { requireAdminAuth } from '../../services/AuthMiddleware.js';
 
 /**
@@ -46,6 +47,9 @@ export function createAdminRouter(
 
   // Cache invalidation endpoint
   router.use('/invalidate-cache', createInvalidateCacheRoute(cacheInvalidationService));
+
+  // Usage statistics endpoint
+  router.use('/usage', createAdminUsageRoutes(prisma));
 
   return router;
 }
