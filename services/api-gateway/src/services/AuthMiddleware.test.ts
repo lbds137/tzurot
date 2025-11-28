@@ -12,9 +12,9 @@ import {
   requireOwnerAuth,
   extractUserId,
   requireUserAuth,
-  extractAdminApiKey,
-  isValidAdminKey,
-  requireAdminAuth,
+  extractServiceSecret,
+  isValidServiceSecret,
+  requireServiceAuth,
 } from './AuthMiddleware.js';
 import * as commonTypes from '@tzurot/common-types';
 
@@ -441,13 +441,13 @@ describe('authMiddleware', () => {
     });
   });
 
-  describe('extractAdminApiKey', () => {
-    it('should extract admin key from X-Admin-Key header', () => {
+  describe('extractServiceSecret', () => {
+    it('should extract service secret from X-Service-Auth header', () => {
       const req = {
-        headers: { 'x-admin-key': 'test-admin-key-123' },
+        headers: { 'x-service-auth': 'test-admin-key-123' },
       } as unknown as Request;
 
-      expect(extractAdminApiKey(req)).toBe('test-admin-key-123');
+      expect(extractServiceSecret(req)).toBe('test-admin-key-123');
     });
 
     it('should return undefined when header is missing', () => {
@@ -455,92 +455,92 @@ describe('authMiddleware', () => {
         headers: {},
       } as unknown as Request;
 
-      expect(extractAdminApiKey(req)).toBeUndefined();
+      expect(extractServiceSecret(req)).toBeUndefined();
     });
 
     it('should return undefined when header is empty string', () => {
       const req = {
-        headers: { 'x-admin-key': '' },
+        headers: { 'x-service-auth': '' },
       } as unknown as Request;
 
-      expect(extractAdminApiKey(req)).toBeUndefined();
+      expect(extractServiceSecret(req)).toBeUndefined();
     });
 
     it('should return undefined when header is array', () => {
       const req = {
-        headers: { 'x-admin-key': ['key1', 'key2'] },
+        headers: { 'x-service-auth': ['key1', 'key2'] },
       } as unknown as Request;
 
-      expect(extractAdminApiKey(req)).toBeUndefined();
+      expect(extractServiceSecret(req)).toBeUndefined();
     });
   });
 
-  describe('isValidAdminKey', () => {
+  describe('isValidServiceSecret', () => {
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
     it('should return true when key matches configured key', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      expect(isValidAdminKey('valid-admin-key')).toBe(true);
+      expect(isValidServiceSecret('valid-service-secret')).toBe(true);
     });
 
     it('should return false when key does not match', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      expect(isValidAdminKey('wrong-admin-key')).toBe(false);
+      expect(isValidServiceSecret('wrong-admin-key')).toBe(false);
     });
 
     it('should return false when key is undefined', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      expect(isValidAdminKey(undefined)).toBe(false);
+      expect(isValidServiceSecret(undefined)).toBe(false);
     });
 
-    it('should return false when ADMIN_API_KEY is not configured', () => {
+    it('should return false when INTERNAL_SERVICE_SECRET is not configured', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: undefined,
+        INTERNAL_SERVICE_SECRET: undefined,
       } as any);
 
-      expect(isValidAdminKey('some-key')).toBe(false);
+      expect(isValidServiceSecret('some-key')).toBe(false);
     });
 
     it('should return false when key is empty string', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      expect(isValidAdminKey('')).toBe(false);
+      expect(isValidServiceSecret('')).toBe(false);
     });
 
     it('should handle case-sensitive comparison', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'CaseSensitiveKey',
+        INTERNAL_SERVICE_SECRET: 'CaseSensitiveKey',
       } as any);
 
-      expect(isValidAdminKey('casesensitivekey')).toBe(false);
-      expect(isValidAdminKey('CaseSensitiveKey')).toBe(true);
+      expect(isValidServiceSecret('casesensitivekey')).toBe(false);
+      expect(isValidServiceSecret('CaseSensitiveKey')).toBe(true);
     });
 
     it('should use constant-time comparison (same length keys)', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'abcdef',
+        INTERNAL_SERVICE_SECRET: 'abcdef',
       } as any);
 
       // Different keys of same length should be compared safely
-      expect(isValidAdminKey('ghijkl')).toBe(false);
-      expect(isValidAdminKey('abcdef')).toBe(true);
+      expect(isValidServiceSecret('ghijkl')).toBe(false);
+      expect(isValidServiceSecret('abcdef')).toBe(true);
     });
   });
 
-  describe('requireAdminAuth middleware', () => {
+  describe('requireServiceAuth middleware', () => {
     let mockReq: Partial<Request>;
     let mockRes: Partial<Response>;
     let mockNext: NextFunction;
@@ -563,14 +563,14 @@ describe('authMiddleware', () => {
       mockNext = vi.fn();
     });
 
-    it('should call next() when admin key is valid', () => {
+    it('should call next() when service secret is valid', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      mockReq.headers = { 'x-admin-key': 'valid-admin-key' };
+      mockReq.headers = { 'x-service-auth': 'valid-service-secret' };
 
-      const middleware = requireAdminAuth();
+      const middleware = requireServiceAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledOnce();
@@ -578,14 +578,14 @@ describe('authMiddleware', () => {
       expect(mockRes.json).not.toHaveBeenCalled();
     });
 
-    it('should return 403 when admin key is invalid', () => {
+    it('should return 403 when service secret is invalid', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      mockReq.headers = { 'x-admin-key': 'wrong-key' };
+      mockReq.headers = { 'x-service-auth': 'wrong-secret' };
 
-      const middleware = requireAdminAuth();
+      const middleware = requireServiceAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
@@ -593,17 +593,17 @@ describe('authMiddleware', () => {
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'UNAUTHORIZED',
-          message: 'Admin authentication required',
+          message: 'Service authentication required',
         })
       );
     });
 
-    it('should return 403 when admin key is missing', () => {
+    it('should return 403 when service secret is missing', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      const middleware = requireAdminAuth();
+      const middleware = requireServiceAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
@@ -612,12 +612,12 @@ describe('authMiddleware', () => {
 
     it('should use custom message when provided', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      mockReq.headers = { 'x-admin-key': 'wrong-key' };
+      mockReq.headers = { 'x-service-auth': 'wrong-secret' };
 
-      const middleware = requireAdminAuth('Custom admin message');
+      const middleware = requireServiceAuth('Custom admin message');
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.json).toHaveBeenCalledWith(
@@ -627,14 +627,14 @@ describe('authMiddleware', () => {
       );
     });
 
-    it('should return 403 when ADMIN_API_KEY is not configured', () => {
+    it('should return 403 when INTERNAL_SERVICE_SECRET is not configured', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: undefined,
+        INTERNAL_SERVICE_SECRET: undefined,
       } as any);
 
-      mockReq.headers = { 'x-admin-key': 'some-key' };
+      mockReq.headers = { 'x-service-auth': 'some-key' };
 
-      const middleware = requireAdminAuth();
+      const middleware = requireServiceAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockNext).not.toHaveBeenCalled();
@@ -643,10 +643,10 @@ describe('authMiddleware', () => {
 
     it('should include timestamp in error response', () => {
       vi.mocked(commonTypes.getConfig).mockReturnValue({
-        ADMIN_API_KEY: 'valid-admin-key',
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
       } as any);
 
-      const middleware = requireAdminAuth();
+      const middleware = requireServiceAuth();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockRes.json).toHaveBeenCalledWith(

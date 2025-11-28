@@ -20,7 +20,7 @@ vi.mock('@tzurot/common-types', async () => {
     }),
     getConfig: () => ({
       GATEWAY_URL: 'http://localhost:3000',
-      ADMIN_API_KEY: 'test-admin-key',
+      INTERNAL_SERVICE_SECRET: 'test-service-secret',
     }),
   };
 });
@@ -114,7 +114,7 @@ describe('handleDbSync', () => {
     );
   });
 
-  it('should use POST method with correct headers including admin key', async () => {
+  it('should use POST method with correct headers including service secret', async () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
@@ -128,7 +128,7 @@ describe('handleDbSync', () => {
         method: 'POST',
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
-          'X-Admin-Key': 'test-admin-key',
+          'X-Service-Auth': 'test-service-secret',
         }),
       })
     );

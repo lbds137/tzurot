@@ -20,7 +20,7 @@ vi.mock('@tzurot/common-types', async () => {
     }),
     getConfig: () => ({
       GATEWAY_URL: 'http://localhost:3000',
-      ADMIN_API_KEY: 'test-admin-key',
+      INTERNAL_SERVICE_SECRET: 'test-service-secret',
     }),
   };
 });
@@ -105,7 +105,7 @@ describe('handleLlmConfigCreate', () => {
         method: 'POST',
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
-          'X-Admin-Key': 'test-admin-key',
+          'X-Service-Auth': 'test-service-secret',
         }),
         body: JSON.stringify({
           name: 'Test Config',

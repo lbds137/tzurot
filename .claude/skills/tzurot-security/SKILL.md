@@ -595,11 +595,11 @@ client.on('messageCreate', async message => {
 import crypto from 'crypto';
 
 class AdminAuthService {
-  private readonly ADMIN_API_KEY = process.env.ADMIN_API_KEY!; // Rotate-able secret
+  private readonly INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET!; // Rotate-able secret
 
   generateHMACSignature(payload: object, timestamp: number): string {
     const message = JSON.stringify(payload) + timestamp;
-    return crypto.createHmac('sha256', this.ADMIN_API_KEY).update(message).digest('hex');
+    return crypto.createHmac('sha256', this.INTERNAL_SERVICE_SECRET).update(message).digest('hex');
   }
 
   verifyRequest(req: Request): boolean {
@@ -633,11 +633,11 @@ app.post('/admin/invalidate-cache', async (req, res) => {
 
 ```bash
 #!/bin/bash
-ADMIN_API_KEY="your-admin-api-key"
+INTERNAL_SERVICE_SECRET="your-admin-api-key"
 TIMESTAMP=$(date +%s)000  # Milliseconds
 PAYLOAD='{"type":"all"}'
 
-SIGNATURE=$(echo -n "${PAYLOAD}${TIMESTAMP}" | openssl dgst -sha256 -hmac "$ADMIN_API_KEY" | awk '{print $2}')
+SIGNATURE=$(echo -n "${PAYLOAD}${TIMESTAMP}" | openssl dgst -sha256 -hmac "$INTERNAL_SERVICE_SECRET" | awk '{print $2}')
 
 curl -X POST https://api-gateway.railway.app/admin/invalidate-cache \
   -H "Content-Type: application/json" \
@@ -700,7 +700,7 @@ app.use('/admin', verifyOwner);
 **Before Public Production Launch:**
 
 - [ ] Implement Option A (HMAC signatures) OR strengthen Option B (rate limiting)
-- [ ] Add `ADMIN_API_KEY` environment variable to Railway
+- [ ] Add `INTERNAL_SERVICE_SECRET` environment variable to Railway
 - [ ] Document key rotation procedure
 - [ ] Add admin endpoint monitoring/alerting
 

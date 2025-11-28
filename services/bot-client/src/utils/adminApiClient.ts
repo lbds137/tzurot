@@ -2,7 +2,7 @@
  * Admin API Client
  *
  * Centralized utility for making authenticated requests to admin endpoints.
- * Automatically includes the X-Admin-Key header to avoid duplication and errors.
+ * Automatically includes the X-Service-Auth header for service-to-service authentication.
  */
 
 import { getConfig, CONTENT_TYPES } from '@tzurot/common-types';
@@ -19,7 +19,7 @@ export interface AdminFetchOptions extends Omit<RequestInit, 'headers'> {
  *
  * Automatically:
  * - Prepends GATEWAY_URL to the path
- * - Adds X-Admin-Key header for authentication
+ * - Adds X-Service-Auth header for service authentication
  * - Merges any additional headers
  *
  * @param path - API path (e.g., '/admin/usage')
@@ -53,7 +53,7 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
     ...restOptions,
     headers: {
       ...customHeaders,
-      'X-Admin-Key': config.ADMIN_API_KEY ?? '',
+      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
     },
   });
 }

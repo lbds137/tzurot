@@ -220,7 +220,7 @@ describe('admin command', () => {
       // Reset getConfig mock for autocomplete tests
       vi.mocked(getConfig).mockReturnValue({
         GATEWAY_URL: 'http://localhost:3000',
-        ADMIN_API_KEY: 'test-admin-key',
+        INTERNAL_SERVICE_SECRET: 'test-service-secret',
       } as ReturnType<typeof getConfig>);
 
       mockAutocompleteInteraction = {

@@ -3,7 +3,8 @@
  * Centralized API client for communicating with the API Gateway
  *
  * Provides:
- * - Consistent authentication (X-User-Id header)
+ * - Service-to-service authentication (X-Service-Auth header)
+ * - User identification (X-User-Id header)
  * - Standardized error handling
  * - Gateway URL validation
  */
@@ -90,8 +91,10 @@ export async function callGatewayApi<T>(
 
   try {
     const gatewayUrl = getGatewayUrl();
+    const config = getConfig();
 
     const headers: Record<string, string> = {
+      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
       'X-User-Id': userId,
     };
 

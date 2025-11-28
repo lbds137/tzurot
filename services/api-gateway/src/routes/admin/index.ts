@@ -2,7 +2,8 @@
  * Admin Routes
  * Owner-only administrative endpoints
  *
- * All admin routes require authentication via X-Admin-Key header.
+ * Note: Service authentication (X-Service-Auth) is applied globally in index.ts.
+ * These routes are already protected by requireServiceAuth middleware.
  */
 
 import { Router } from 'express';
@@ -17,7 +18,6 @@ import { createUpdatePersonalityRoute } from './updatePersonality.js';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
 import { createAdminUsageRoutes } from './usage.js';
-import { requireAdminAuth } from '../../services/AuthMiddleware.js';
 
 /**
  * Create admin router with injected dependencies
@@ -32,8 +32,7 @@ export function createAdminRouter(
 ): Router {
   const router = Router();
 
-  // Apply admin authentication to ALL admin routes
-  router.use(requireAdminAuth());
+  // Note: Service auth is applied globally - no need to apply here
 
   // Database sync endpoint
   router.use('/db-sync', createDbSyncRoute());
