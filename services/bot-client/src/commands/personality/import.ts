@@ -117,6 +117,7 @@ export async function handleImport(
       headers: {
         'Content-Type': CONTENT_TYPES.JSON,
         'X-Owner-Id': interaction.user.id,
+        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
       },
       body: JSON.stringify(payload),
     });
