@@ -43,8 +43,8 @@ export const TIMEOUTS = {
  * Cache and cleanup intervals
  */
 export const INTERVALS = {
-  /** API key cache TTL (60 seconds - reasonable for BYOK; users rarely change keys mid-session) */
-  API_KEY_CACHE_TTL: 60 * 1000,
+  /** API key cache TTL (10 seconds - balance between performance and responsiveness to key rotation) */
+  API_KEY_CACHE_TTL: 10 * 1000,
   /** In-memory cache cleanup interval for expired entries (5 minutes) */
   CACHE_CLEANUP: 5 * 60 * 1000,
   /** Webhook cache TTL (10 minutes) */

@@ -12,9 +12,6 @@
  */
 
 import crypto from 'crypto';
-import { createLogger } from './logger.js';
-
-const logger = createLogger('encryption');
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16; // 128 bits
@@ -76,8 +73,6 @@ export function encryptApiKey(plaintext: string): EncryptedData {
   encrypted += cipher.final('hex');
   const tag = cipher.getAuthTag();
 
-  logger.debug('API key encrypted successfully');
-
   return {
     iv: iv.toString('hex'),
     content: encrypted,
@@ -107,8 +102,6 @@ export function decryptApiKey(encrypted: EncryptedData): string {
 
   let decrypted = decipher.update(encrypted.content, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
-
-  logger.debug('API key decrypted successfully');
 
   return decrypted;
 }
