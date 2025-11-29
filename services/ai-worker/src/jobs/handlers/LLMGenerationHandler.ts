@@ -220,6 +220,8 @@ export class LLMGenerationHandler {
             topK: configResult.config.topK ?? personality.topK,
             frequencyPenalty: configResult.config.frequencyPenalty ?? personality.frequencyPenalty,
             presencePenalty: configResult.config.presencePenalty ?? personality.presencePenalty,
+            repetitionPenalty:
+              configResult.config.repetitionPenalty ?? personality.repetitionPenalty,
             maxTokens: configResult.config.maxTokens ?? personality.maxTokens,
             memoryScoreThreshold:
               configResult.config.memoryScoreThreshold ?? personality.memoryScoreThreshold,

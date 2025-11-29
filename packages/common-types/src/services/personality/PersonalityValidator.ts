@@ -61,6 +61,7 @@ export const LlmConfigSchema = z
     topK: z.preprocess(coerceToNumber, z.number().int().min(1).max(1000).optional()),
     frequencyPenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
     presencePenalty: z.preprocess(coerceToNumber, z.number().min(-2).max(2).optional()),
+    repetitionPenalty: z.preprocess(coerceToNumber, z.number().min(0).max(2).optional()),
     memoryScoreThreshold: z.preprocess(coerceToNumber, z.number().min(0).max(1).optional()),
     memoryLimit: z.preprocess(coerceToNumber, z.number().int().positive().max(1000).optional()),
     contextWindowTokens: z.preprocess(
@@ -118,6 +119,7 @@ export interface DatabasePersonality {
       topK: number | null;
       frequencyPenalty: Decimal | null;
       presencePenalty: Decimal | null;
+      repetitionPenalty: Decimal | null;
       maxTokens: number | null;
       memoryScoreThreshold: Decimal | null;
       memoryLimit: number | null;

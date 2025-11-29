@@ -32,6 +32,7 @@ export interface ResolvedLlmConfig {
   topK?: number | null;
   frequencyPenalty?: number | null;
   presencePenalty?: number | null;
+  repetitionPenalty?: number | null;
   maxTokens?: number | null;
   memoryScoreThreshold?: number | null;
   memoryLimit?: number | null;
@@ -168,6 +169,7 @@ export class LlmConfigResolver {
               topK: true,
               frequencyPenalty: true,
               presencePenalty: true,
+              repetitionPenalty: true,
               maxTokens: true,
               memoryScoreThreshold: true,
               memoryLimit: true,
@@ -205,6 +207,7 @@ export class LlmConfigResolver {
               topK: true,
               frequencyPenalty: true,
               presencePenalty: true,
+              repetitionPenalty: true,
               maxTokens: true,
               memoryScoreThreshold: true,
               memoryLimit: true,
@@ -275,6 +278,7 @@ export class LlmConfigResolver {
       topK: personality.topK,
       frequencyPenalty: personality.frequencyPenalty,
       presencePenalty: personality.presencePenalty,
+      repetitionPenalty: personality.repetitionPenalty,
       maxTokens: personality.maxTokens,
       memoryScoreThreshold: personality.memoryScoreThreshold,
       memoryLimit: personality.memoryLimit,
@@ -296,6 +300,7 @@ export class LlmConfigResolver {
       topK?: number | null;
       frequencyPenalty?: unknown;
       presencePenalty?: unknown;
+      repetitionPenalty?: unknown;
       maxTokens?: number | null;
       memoryScoreThreshold?: unknown;
       memoryLimit?: number | null;
@@ -313,6 +318,7 @@ export class LlmConfigResolver {
       topK: override.topK ?? personality.topK,
       frequencyPenalty: this.toNumber(override.frequencyPenalty) ?? personality.frequencyPenalty,
       presencePenalty: this.toNumber(override.presencePenalty) ?? personality.presencePenalty,
+      repetitionPenalty: this.toNumber(override.repetitionPenalty) ?? personality.repetitionPenalty,
       maxTokens: override.maxTokens ?? personality.maxTokens,
       memoryScoreThreshold:
         this.toNumber(override.memoryScoreThreshold) ?? personality.memoryScoreThreshold,
@@ -413,6 +419,7 @@ export class LlmConfigResolver {
           topK: true,
           frequencyPenalty: true,
           presencePenalty: true,
+          repetitionPenalty: true,
           maxTokens: true,
           memoryScoreThreshold: true,
           memoryLimit: true,
@@ -433,6 +440,7 @@ export class LlmConfigResolver {
         topK: freeConfig.topK,
         frequencyPenalty: this.toNumber(freeConfig.frequencyPenalty),
         presencePenalty: this.toNumber(freeConfig.presencePenalty),
+        repetitionPenalty: this.toNumber(freeConfig.repetitionPenalty),
         maxTokens: freeConfig.maxTokens,
         memoryScoreThreshold: this.toNumber(freeConfig.memoryScoreThreshold),
         memoryLimit: freeConfig.memoryLimit,

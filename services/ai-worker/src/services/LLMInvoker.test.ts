@@ -35,32 +35,52 @@ describe('LLMInvoker', () => {
 
   describe('getModel', () => {
     it('should create and cache a new model', () => {
-      const result1 = invoker.getModel('test-model', 'test-key', 0.8);
-      const result2 = invoker.getModel('test-model', 'test-key', 0.8);
+      const config = { modelName: 'test-model', apiKey: 'test-key', temperature: 0.8 };
+      const result1 = invoker.getModel(config);
+      const result2 = invoker.getModel(config);
 
       expect(result1).toBe(result2); // Same cached instance
       expect(result1.modelName).toBe('test-model');
     });
 
     it('should create different models for different configurations', () => {
-      const result1 = invoker.getModel('model-1', 'key-1', 0.7);
-      const result2 = invoker.getModel('model-2', 'key-2', 0.9);
+      const result1 = invoker.getModel({ modelName: 'model-1', apiKey: 'key-1', temperature: 0.7 });
+      const result2 = invoker.getModel({ modelName: 'model-2', apiKey: 'key-2', temperature: 0.9 });
 
       expect(result1).not.toBe(result2);
     });
 
     it('should use default temperature when not provided', () => {
-      const result = invoker.getModel('test-model');
+      const result = invoker.getModel({ modelName: 'test-model' });
 
       expect(result).toBeDefined();
       expect(result.model).toBeDefined();
     });
 
-    it('should handle undefined parameters', () => {
-      const result = invoker.getModel();
+    it('should handle empty config', () => {
+      const result = invoker.getModel({});
 
       expect(result).toBeDefined();
       expect(result.modelName).toBeDefined();
+    });
+
+    it('should pass all sampling params to ModelFactory', () => {
+      const config = {
+        modelName: 'test-model',
+        apiKey: 'test-key',
+        temperature: 0.8,
+        topP: 0.9,
+        topK: 40,
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        repetitionPenalty: 1.1,
+        maxTokens: 2048,
+      };
+
+      const result = invoker.getModel(config);
+
+      expect(result).toBeDefined();
+      expect(result.modelName).toBe('test-model');
     });
   });
 

@@ -125,6 +125,7 @@ export const loadedPersonalitySchema = z.object({
   topK: z.number().optional(),
   frequencyPenalty: z.number().optional(),
   presencePenalty: z.number().optional(),
+  repetitionPenalty: z.number().optional(),
   contextWindowTokens: z.number(),
 
   // Memory configuration
