@@ -37,7 +37,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id'],
+    uuidColumns: ['id', 'default_llm_config_id'],
     timestampColumns: ['created_at', 'updated_at'],
   },
   personas: {
@@ -71,7 +71,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'system_prompt_id'],
+    uuidColumns: ['id', 'system_prompt_id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
   },
   personality_default_configs: {
