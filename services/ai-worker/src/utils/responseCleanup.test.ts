@@ -170,6 +170,27 @@ describe('stripPersonalityPrefix', () => {
       expect(stripPersonalityPrefix('*COLD: I confirm*', 'COLD')).toBe('*I confirm*');
     });
 
+    it('should strip closed roleplay prefix followed by another roleplay response', () => {
+      // Bug case: *NAME: [timestamp]**response* - double asterisk
+      // The first asterisks are prefix wrapper, the second are response wrapper
+      // Should strip prefix wrapper entirely, leaving response wrapper intact
+      const input = '*COLD: [Current Time]**I acknowledge the progression update and task status.*';
+      const expected = '*I acknowledge the progression update and task status.*';
+      expect(stripPersonalityPrefix(input, 'COLD')).toBe(expected);
+    });
+
+    it('should strip closed roleplay prefix with space before content', () => {
+      // *NAME: [timestamp]* content - closed roleplay prefix, then normal content
+      expect(stripPersonalityPrefix('*COLD: [Current Time]* content here', 'COLD')).toBe(
+        'content here'
+      );
+    });
+
+    it('should strip closed roleplay prefix without timestamp', () => {
+      // *NAME:* content - closed roleplay without timestamp
+      expect(stripPersonalityPrefix('*COLD:* testing', 'COLD')).toBe('testing');
+    });
+
     it('should handle markdown bold around name', () => {
       // **NAME:** format - strips all the markdown around the name
       expect(stripPersonalityPrefix('**Emily:** Hello there!', 'Emily')).toBe('Hello there!');
