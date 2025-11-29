@@ -2,47 +2,38 @@
 
 > Last updated: 2025-11-28
 
-## Status: ✅ **Sprint 3 BYOK Slash Commands COMPLETE**
+## Status: ✅ **Sprint 5 Free Model Guest Mode COMPLETE**
 
-**Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish (Free Model Guest Mode)
+**Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
 
 **Session Summary (2025-11-28)**:
 
+**🎉 Free Model Guest Mode - COMPLETE (Tasks 5.G1-5.G9)**:
+
+- ✅ **5.G1**: Added `isFreeDefault` boolean to `LlmConfig` table
+- ✅ **5.G2**: Added `isFreeModel()` utility in `common-types/constants/ai.ts`
+- ✅ **5.G3**: `ApiKeyResolver` returns `isGuestMode: boolean` in results
+- ✅ **5.G4**: `LlmConfigResolver.getFreeDefaultConfig()` for DB-driven defaults
+- ✅ **5.G5**: Guest mode footer in responses via `DiscordResponseSender`
+- ✅ **5.G6**: `/llm-config list` shows 🆓 badges, dims paid models for guests
+- ✅ **5.G7**: `/model set` and `/model set-default` validate free-model-only for guests
+- ✅ **5.G8**: Selected `x-ai/grok-4.1-fast:free` as default (2M context, vision)
+- ✅ **5.G9**: `GUEST_MODE` constant with fallback config in `ai.ts`
+
 **Bug Fixes**:
 
+- ✅ Fixed roleplay asterisk preservation in name stripping (`*COLD: text*` → `*text*`)
 - ✅ Fixed user timezone not being respected in system prompt date/time
-  - Added timezone parameter to `formatFullDateTime()` utility
-  - Added `userTimezone` field to JobContext, RequestContext, and ConversationContext
-  - MessageContextBuilder now fetches user's timezone via `UserService.getUserTimezone()`
-  - PromptBuilder uses user's timezone when displaying current date/time
-  - Files: dateFormatting.ts, jobs.ts, schemas.ts, UserService.ts, MessageContextBuilder.ts, LLMGenerationHandler.ts, ConversationalRAGService.ts, PromptBuilder.ts
 - ✅ Centralized timezone support across ALL date formatting utilities
-  - Added optional timezone param to `formatDateOnly()`, `formatRelativeTime()`, `formatMemoryTimestamp()`
-  - Updated `formatMemoriesContext()` and `formatSingleMemory()` to accept timezone
-  - PromptBuilder passes user timezone to memory formatting (LTM timestamps)
-  - timezone.ts command now uses centralized `formatFullDateTime()` instead of ad-hoc formatting
-  - All user-facing timestamps in prompts now respect user's configured timezone
-- ✅ Fixed LTM search query using hardcoded "User:" and "Assistant:" role labels
-  - Role labels are noise for semantic search - now uses raw content only
-  - File: `services/ai-worker/src/services/ConversationalRAGService.ts`
+- ✅ Fixed LTM search query using hardcoded role labels
 - ✅ Reduced participant logging spam
-  - Consolidated per-iteration "Found participant in history" logs into single summary
-  - File: `services/ai-worker/src/jobs/utils/conversationUtils.ts`
-- ✅ Fixed flaky ContextWindowManager test (use fixed timestamps)
+- ✅ Fixed flaky ContextWindowManager test
 - ✅ Fixed LTM UUID error (Discord ID passed where UUID expected)
 - ✅ Fixed API key validation null check bug
 - ✅ Fixed autocomplete handler not being loaded
-- ✅ Wrapped config deletion checks in transaction (race condition prevention)
+- ✅ Wrapped config deletion checks in transaction
 
-**Roadmap Updates**:
-
-- ✅ Added **Free Model Guest Mode** to Sprint 5 (PRIORITY - before persona management)
-  - Enables public usage without BYOK (guests use `:free` models only)
-  - Database-driven free model configs with hardcoded fallback
-  - Tasks 5.G1-5.G9 in ROADMAP.md
-- ✅ Added **User Persona Management** to Sprint 5 (Tasks 5.0.1-5.0.7)
-
-**Next Priority**: Free Model Guest Mode implementation (Sprint 5.G1-5.G9)
+**Next Priority**: User Persona Management (Sprint 5.0.1-5.0.7) or Quick Wins (5.1-5.6)
 
 ---
 
