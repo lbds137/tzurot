@@ -1,0 +1,306 @@
+/**
+ * Tests for Model Factory
+ *
+ * These tests verify that all LLM sampling parameters are correctly passed
+ * to the ChatOpenAI constructor when creating models.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock @langchain/openai - use vi.hoisted for top-level mock reference
+const { mockChatOpenAI } = vi.hoisted(() => ({
+  mockChatOpenAI: vi.fn(),
+}));
+
+vi.mock('@langchain/openai', () => ({
+  ChatOpenAI: mockChatOpenAI,
+}));
+
+// Mock @tzurot/common-types
+vi.mock('@tzurot/common-types', () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+  getConfig: () => ({
+    AI_PROVIDER: 'openrouter',
+    DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
+    OPENROUTER_API_KEY: 'test-openrouter-key',
+    OPENAI_API_KEY: 'test-openai-key',
+  }),
+  AIProvider: {
+    OpenRouter: 'openrouter',
+    OpenAI: 'openai',
+  },
+  AI_ENDPOINTS: {
+    OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
+  },
+}));
+
+import { createChatModel, getModelCacheKey, type ModelConfig } from './ModelFactory.js';
+
+describe('ModelFactory', () => {
+  beforeEach(() => {
+    mockChatOpenAI.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('createChatModel', () => {
+    it('should pass basic parameters to ChatOpenAI', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        apiKey: 'test-api-key',
+        temperature: 0.8,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'test-model',
+          apiKey: 'test-api-key',
+          temperature: 0.8,
+        })
+      );
+    });
+
+    it('should pass topP to ChatOpenAI', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        topP: 0.95,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          topP: 0.95,
+        })
+      );
+    });
+
+    it('should pass frequencyPenalty to ChatOpenAI', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        frequencyPenalty: 0.5,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          frequencyPenalty: 0.5,
+        })
+      );
+    });
+
+    it('should pass presencePenalty to ChatOpenAI', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        presencePenalty: 0.3,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          presencePenalty: 0.3,
+        })
+      );
+    });
+
+    it('should pass maxTokens to ChatOpenAI', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        maxTokens: 4096,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxTokens: 4096,
+        })
+      );
+    });
+
+    it('should pass topK via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        topK: 40,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            top_k: 40,
+          }),
+        })
+      );
+    });
+
+    it('should pass repetitionPenalty via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        repetitionPenalty: 1.1,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            repetition_penalty: 1.1,
+          }),
+        })
+      );
+    });
+
+    it('should pass all sampling parameters together', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        apiKey: 'test-key',
+        temperature: 0.8,
+        topP: 0.95,
+        topK: 40,
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        repetitionPenalty: 1.1,
+        maxTokens: 4096,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'test-model',
+          apiKey: 'test-key',
+          temperature: 0.8,
+          topP: 0.95,
+          frequencyPenalty: 0.5,
+          presencePenalty: 0.3,
+          maxTokens: 4096,
+          modelKwargs: expect.objectContaining({
+            top_k: 40,
+            repetition_penalty: 1.1,
+          }),
+        })
+      );
+    });
+
+    it('should use default temperature of 0.7 when not provided', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          temperature: 0.7,
+        })
+      );
+    });
+
+    it('should not include modelKwargs when topK and repetitionPenalty are undefined', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        temperature: 0.8,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0];
+      expect(callArgs.modelKwargs).toBeUndefined();
+    });
+
+    it('should include OpenRouter base URL configuration', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configuration: {
+            baseURL: 'https://openrouter.ai/api/v1',
+          },
+        })
+      );
+    });
+  });
+
+  describe('getModelCacheKey', () => {
+    it('should include all parameters in cache key', () => {
+      const config1: ModelConfig = {
+        modelName: 'model-1',
+        temperature: 0.7,
+        topP: 0.9,
+      };
+      const config2: ModelConfig = {
+        modelName: 'model-1',
+        temperature: 0.7,
+        topP: 0.8,
+      };
+
+      const key1 = getModelCacheKey(config1);
+      const key2 = getModelCacheKey(config2);
+
+      expect(key1).not.toBe(key2);
+    });
+
+    it('should generate same key for same configs', () => {
+      const config: ModelConfig = {
+        modelName: 'model-1',
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 40,
+      };
+
+      const key1 = getModelCacheKey(config);
+      const key2 = getModelCacheKey(config);
+
+      expect(key1).toBe(key2);
+    });
+
+    it('should differentiate by repetitionPenalty', () => {
+      const config1: ModelConfig = {
+        modelName: 'model-1',
+        repetitionPenalty: 1.0,
+      };
+      const config2: ModelConfig = {
+        modelName: 'model-1',
+        repetitionPenalty: 1.1,
+      };
+
+      const key1 = getModelCacheKey(config1);
+      const key2 = getModelCacheKey(config2);
+
+      expect(key1).not.toBe(key2);
+    });
+
+    it('should differentiate by maxTokens', () => {
+      const config1: ModelConfig = {
+        modelName: 'model-1',
+        maxTokens: 2048,
+      };
+      const config2: ModelConfig = {
+        modelName: 'model-1',
+        maxTokens: 4096,
+      };
+
+      const key1 = getModelCacheKey(config1);
+      const key2 = getModelCacheKey(config2);
+
+      expect(key1).not.toBe(key2);
+    });
+  });
+});

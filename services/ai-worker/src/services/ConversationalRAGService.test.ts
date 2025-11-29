@@ -662,9 +662,11 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context);
 
       expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
-        'claude-3-sonnet',
-        undefined,
-        0.9
+        expect.objectContaining({
+          modelName: 'claude-3-sonnet',
+          apiKey: undefined,
+          temperature: 0.9,
+        })
       );
     });
 
@@ -675,7 +677,42 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context, userApiKey);
 
-      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith('test-model', userApiKey, 0.7);
+      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'test-model',
+          apiKey: userApiKey,
+          temperature: 0.7,
+        })
+      );
+    });
+
+    it('should pass all sampling parameters to LLMInvoker', async () => {
+      const personality = createMockPersonality({
+        model: 'claude-3-sonnet',
+        temperature: 0.8,
+        topP: 0.95,
+        topK: 50,
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        repetitionPenalty: 1.1,
+        maxTokens: 4096,
+      });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'claude-3-sonnet',
+          temperature: 0.8,
+          topP: 0.95,
+          topK: 50,
+          frequencyPenalty: 0.5,
+          presencePenalty: 0.3,
+          repetitionPenalty: 1.1,
+          maxTokens: 4096,
+        })
+      );
     });
 
     it('should pass image and audio counts for timeout calculation', async () => {

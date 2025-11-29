@@ -19,7 +19,12 @@ import {
   calculateJobTimeout,
   ERROR_MESSAGES,
 } from '@tzurot/common-types';
-import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
+import {
+  createChatModel,
+  getModelCacheKey,
+  type ChatModelResult,
+  type ModelConfig,
+} from './ModelFactory.js';
 import { withRetry } from '../utils/retryService.js';
 import {
   getReasoningModelConfig,
@@ -35,22 +40,17 @@ export class LLMInvoker {
   private models = new Map<string, ChatModelResult>();
 
   /**
-   * Get or create a chat model for a specific configuration
-   * This supports BYOK (Bring Your Own Key) - different users can use different keys
-   * Returns both the model and the validated model name
+   * Get or create a chat model for a specific configuration.
+   * This supports BYOK (Bring Your Own Key) - different users can use different keys.
+   * Returns both the model and the validated model name.
+   *
+   * @param config - Model configuration including sampling params
    */
-  getModel(modelName?: string, apiKey?: string, temperature?: number): ChatModelResult {
-    const cacheKey = getModelCacheKey({ modelName, apiKey, temperature });
+  getModel(config: ModelConfig): ChatModelResult {
+    const cacheKey = getModelCacheKey(config);
 
     if (!this.models.has(cacheKey)) {
-      this.models.set(
-        cacheKey,
-        createChatModel({
-          modelName,
-          apiKey,
-          temperature: temperature ?? 0.7,
-        })
-      );
+      this.models.set(cacheKey, createChatModel(config));
     }
 
     const model = this.models.get(cacheKey);

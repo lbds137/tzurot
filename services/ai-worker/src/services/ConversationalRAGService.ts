@@ -268,11 +268,18 @@ export class ConversationalRAGService {
       ];
 
       // Get the appropriate model (provider determined by AI_PROVIDER env var)
-      const { model, modelName } = this.llmInvoker.getModel(
-        personality.model,
-        userApiKey,
-        personality.temperature
-      );
+      // Pass all LLM sampling parameters from personality config
+      const { model, modelName } = this.llmInvoker.getModel({
+        modelName: personality.model,
+        apiKey: userApiKey,
+        temperature: personality.temperature,
+        topP: personality.topP,
+        topK: personality.topK,
+        frequencyPenalty: personality.frequencyPenalty,
+        presencePenalty: personality.presencePenalty,
+        repetitionPenalty: personality.repetitionPenalty,
+        maxTokens: personality.maxTokens,
+      });
 
       // Calculate attachment counts for dynamic timeout calculation
       const imageCount =

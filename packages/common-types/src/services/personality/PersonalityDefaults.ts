@@ -95,6 +95,8 @@ export function mapToPersonality(
     personalityConfig?.frequencyPenalty ?? globalDefaultConfig?.frequencyPenalty;
   const presencePenalty =
     personalityConfig?.presencePenalty ?? globalDefaultConfig?.presencePenalty;
+  const repetitionPenalty =
+    personalityConfig?.repetitionPenalty ?? globalDefaultConfig?.repetitionPenalty;
   const memoryScoreThreshold =
     personalityConfig?.memoryScoreThreshold ?? globalDefaultConfig?.memoryScoreThreshold;
   const memoryLimit = personalityConfig?.memoryLimit ?? globalDefaultConfig?.memoryLimit;
@@ -120,6 +122,7 @@ export function mapToPersonality(
     topK: personalityConfig?.topK ?? globalDefaultConfig?.topK ?? undefined,
     frequencyPenalty,
     presencePenalty,
+    repetitionPenalty,
     contextWindowTokens:
       personalityConfig?.contextWindowTokens ??
       globalDefaultConfig?.contextWindowTokens ??

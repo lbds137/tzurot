@@ -44,8 +44,15 @@ function validateModelForProvider(
 
 export interface ModelConfig {
   modelName?: string;
-  temperature?: number;
   apiKey?: string; // User-provided key (BYOK)
+  // LLM sampling parameters
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  repetitionPenalty?: number;
+  maxTokens?: number;
 }
 
 /**
@@ -57,13 +64,55 @@ export interface ChatModelResult {
 }
 
 /**
+ * Build model kwargs for provider-specific parameters.
+ * These are params that LangChain doesn't have first-class support for,
+ * but OpenRouter/OpenAI accept via the API.
+ */
+function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
+  const kwargs: Record<string, unknown> = {};
+
+  // top_k is supported by OpenRouter but not a standard OpenAI param
+  if (modelConfig.topK !== undefined) {
+    kwargs.top_k = modelConfig.topK;
+  }
+
+  // repetition_penalty is supported by OpenRouter (alternative to frequency/presence penalty)
+  if (modelConfig.repetitionPenalty !== undefined) {
+    kwargs.repetition_penalty = modelConfig.repetitionPenalty;
+  }
+
+  return kwargs;
+}
+
+/**
  * Create a chat model based on environment configuration
  */
 export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
   const provider = config.AI_PROVIDER;
-  const temperature = modelConfig.temperature ?? 0.7;
 
-  logger.debug(`[ModelFactory] Creating model for provider: ${provider}`);
+  // Extract sampling parameters with defaults
+  const temperature = modelConfig.temperature ?? 0.7;
+  const topP = modelConfig.topP;
+  const frequencyPenalty = modelConfig.frequencyPenalty;
+  const presencePenalty = modelConfig.presencePenalty;
+  const maxTokens = modelConfig.maxTokens;
+
+  // Build kwargs for provider-specific params (top_k, repetition_penalty)
+  const modelKwargs = buildModelKwargs(modelConfig);
+  const hasModelKwargs = Object.keys(modelKwargs).length > 0;
+
+  logger.debug(
+    {
+      provider,
+      temperature,
+      topP,
+      frequencyPenalty,
+      presencePenalty,
+      maxTokens,
+      modelKwargs: hasModelKwargs ? modelKwargs : undefined,
+    },
+    '[ModelFactory] Creating model with parameters'
+  );
 
   switch (provider) {
     case AIProvider.OpenRouter: {
@@ -88,6 +137,11 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           modelName,
           apiKey,
           temperature,
+          topP,
+          frequencyPenalty,
+          presencePenalty,
+          maxTokens,
+          modelKwargs: hasModelKwargs ? modelKwargs : undefined,
           configuration: {
             baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
           },
@@ -118,6 +172,13 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           modelName,
           apiKey,
           temperature,
+          topP,
+          frequencyPenalty,
+          presencePenalty,
+          maxTokens,
+          // Note: top_k and repetition_penalty are not standard OpenAI params
+          // but we pass them anyway in case the API evolves
+          modelKwargs: hasModelKwargs ? modelKwargs : undefined,
         }),
         modelName,
       };
@@ -130,7 +191,8 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
 }
 
 /**
- * Get a cache key for model instances
+ * Get a cache key for model instances.
+ * Includes all sampling params so different configs get different cached instances.
  */
 export function getModelCacheKey(modelConfig: ModelConfig): string {
   const provider = config.AI_PROVIDER;
@@ -144,5 +206,17 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     modelConfig.apiKey !== undefined && modelConfig.apiKey.length >= 10
       ? modelConfig.apiKey.substring(0, 10)
       : 'env';
-  return `${provider}-${modelName}-${apiKeyPrefix}`;
+
+  // Include sampling params in cache key so different configs get different instances
+  const paramsKey = [
+    modelConfig.temperature ?? 0.7,
+    modelConfig.topP ?? '-',
+    modelConfig.topK ?? '-',
+    modelConfig.frequencyPenalty ?? '-',
+    modelConfig.presencePenalty ?? '-',
+    modelConfig.repetitionPenalty ?? '-',
+    modelConfig.maxTokens ?? '-',
+  ].join(':');
+
+  return `${provider}-${modelName}-${apiKeyPrefix}-${paramsKey}`;
 }
