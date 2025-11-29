@@ -73,6 +73,7 @@ model UserApiKey {
 
   @@unique([userId, provider])
   @@index([userId])
+  @@index([provider])
   @@map("user_api_keys")
 }
 
@@ -130,6 +131,7 @@ model LlmConfig {
   isGlobal                    Boolean                    @default(false) @map("is_global")
   isDefault                   Boolean                    @default(false) @map("is_default")
   /// Default config for guest mode (users without API keys). Only one should be true.
+  /// Enforced by partial unique index: llm_configs_free_default_unique (WHERE is_free_default = true)
   isFreeDefault               Boolean                    @default(false) @map("is_free_default")
   provider                    String                     @default("openrouter") @db.VarChar(20)
   model                       String                     @db.VarChar(255)
