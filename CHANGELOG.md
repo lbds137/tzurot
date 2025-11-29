@@ -1,10 +1,7 @@
 # Changelog
 
-See [GitHub Releases](https://github.com/lbds137/tzurot/releases) for detailed changelogs of all versions.
+See [GitHub Releases](https://github.com/lbds137/tzurot/releases) for detailed changelogs.
 
-Each release includes:
+## [3.0.0-beta.1] - 2025-11-28
 
-- Summary of changes
-- Breaking changes (if any)
-- Migration guides
-- Test results and deployment status
+First beta release. Guest Mode & BYOK infrastructure complete.
