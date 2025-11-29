@@ -207,8 +207,10 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 
   try {
     if (focusedOption.name === 'config') {
-      // Autocomplete for llm-config-set-default
-      await handleConfigAutocomplete(interaction, focusedOption.value);
+      // Autocomplete for llm-config commands
+      const subcommand = interaction.options.getSubcommand(false);
+      const freeOnly = subcommand === 'llm-config-set-free-default';
+      await handleConfigAutocomplete(interaction, focusedOption.value, freeOnly);
     } else if (focusedOption.name === 'server-id') {
       // Autocomplete for kick command
       await handleServerAutocomplete(interaction, focusedOption.value);
@@ -234,10 +236,12 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 
 /**
  * Autocomplete for global LLM configs
+ * @param freeOnly - If true, only show free models (those with :free in model name)
  */
 async function handleConfigAutocomplete(
   interaction: AutocompleteInteraction,
-  query: string
+  query: string,
+  freeOnly = false
 ): Promise<void> {
   try {
     const response = await adminFetch('/admin/llm-config');
@@ -260,11 +264,20 @@ async function handleConfigAutocomplete(
 
     const queryLower = query.toLowerCase();
     const filtered = data.configs
-      .filter(
-        c =>
-          c.isGlobal &&
-          (c.name.toLowerCase().includes(queryLower) || c.model.toLowerCase().includes(queryLower))
-      )
+      .filter(c => {
+        // Must be global
+        if (!c.isGlobal) {
+          return false;
+        }
+        // If freeOnly, must have :free in model name
+        if (freeOnly && !c.model.includes(':free')) {
+          return false;
+        }
+        // Must match query
+        return (
+          c.name.toLowerCase().includes(queryLower) || c.model.toLowerCase().includes(queryLower)
+        );
+      })
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
     const choices = filtered.map(c => {
