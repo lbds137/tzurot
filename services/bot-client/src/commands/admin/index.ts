@@ -20,6 +20,7 @@ import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleLlmConfigCreate } from './llm-config-create.js';
 import { handleLlmConfigSetDefault } from './llm-config-set-default.js';
+import { handleLlmConfigSetFreeDefault } from './llm-config-set-free-default.js';
 import { handleLlmConfigEdit } from './llm-config-edit.js';
 
 const logger = createLogger('admin-command');
@@ -118,6 +119,18 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand(subcommand =>
     subcommand
+      .setName('llm-config-set-free-default')
+      .setDescription('Set a global config as the free tier default for guest users')
+      .addStringOption(option =>
+        option
+          .setName('config')
+          .setDescription('Global config to set as free tier default')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
       .setName('llm-config-edit')
       .setDescription('Edit an existing global LLM config')
       .addStringOption(option =>
@@ -165,6 +178,7 @@ function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Prom
       usage: handleUsage,
       'llm-config-create': handleLlmConfigCreate,
       'llm-config-set-default': handleLlmConfigSetDefault,
+      'llm-config-set-free-default': handleLlmConfigSetFreeDefault,
       'llm-config-edit': handleLlmConfigEdit,
     },
     { logger, logPrefix: '[Admin]' }
@@ -240,6 +254,7 @@ async function handleConfigAutocomplete(
         model: string;
         isGlobal: boolean;
         isDefault: boolean;
+        isFreeDefault?: boolean;
       }[];
     };
 
@@ -252,10 +267,19 @@ async function handleConfigAutocomplete(
       )
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
-    const choices = filtered.map(c => ({
-      name: `${c.name} (${c.model.split('/').pop()})${c.isDefault ? ' [DEFAULT]' : ''}`,
-      value: c.id,
-    }));
+    const choices = filtered.map(c => {
+      let suffix = '';
+      if (c.isDefault === true) {
+        suffix += ' [DEFAULT]';
+      }
+      if (c.isFreeDefault === true) {
+        suffix += ' [FREE]';
+      }
+      return {
+        name: `${c.name} (${c.model.split('/').pop()})${suffix}`,
+        value: c.id,
+      };
+    });
 
     await interaction.respond(choices);
   } catch {
