@@ -226,6 +226,7 @@ describe('admin command', () => {
       mockAutocompleteInteraction = {
         options: {
           getFocused: vi.fn(),
+          getSubcommand: vi.fn().mockReturnValue('llm-config-set-default'),
         },
         respond: vi.fn().mockResolvedValue(undefined),
         client: {
@@ -233,6 +234,9 @@ describe('admin command', () => {
             cache: new Map() as unknown as Collection<string, Guild>,
           },
         },
+        user: { id: 'test-user' },
+        guildId: 'test-guild',
+        commandName: 'admin',
       } as unknown as AutocompleteInteraction;
     });
 
@@ -377,6 +381,89 @@ describe('admin command', () => {
 
         expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
           { name: 'Global Config (model-1)', value: 'c1' },
+        ]);
+      });
+
+      it('should only show free models for llm-config-set-free-default', async () => {
+        // Set subcommand to llm-config-set-free-default
+        vi.mocked(mockAutocompleteInteraction.options.getSubcommand).mockReturnValue(
+          'llm-config-set-free-default'
+        );
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        vi.mocked(fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              configs: [
+                {
+                  id: 'c1',
+                  name: 'Free Model',
+                  model: 'some-provider/model-name:free',
+                  isGlobal: true,
+                  isDefault: false,
+                },
+                {
+                  id: 'c2',
+                  name: 'Paid Model',
+                  model: 'anthropic/claude-sonnet-4',
+                  isGlobal: true,
+                  isDefault: true,
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+        );
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        // Should only show the free model, not the paid one
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
+          { name: 'Free Model (model-name:free)', value: 'c1' },
+        ]);
+      });
+
+      it('should show all models for llm-config-set-default', async () => {
+        // Set subcommand to llm-config-set-default (non-free)
+        vi.mocked(mockAutocompleteInteraction.options.getSubcommand).mockReturnValue(
+          'llm-config-set-default'
+        );
+        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
+          name: 'config',
+          value: '',
+        });
+        vi.mocked(fetch).mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              configs: [
+                {
+                  id: 'c1',
+                  name: 'Free Model',
+                  model: 'some-provider/model-name:free',
+                  isGlobal: true,
+                  isDefault: false,
+                },
+                {
+                  id: 'c2',
+                  name: 'Paid Model',
+                  model: 'anthropic/claude-sonnet-4',
+                  isGlobal: true,
+                  isDefault: true,
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+        );
+
+        await autocomplete(mockAutocompleteInteraction);
+
+        // Should show both models
+        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
+          { name: 'Free Model (model-name:free)', value: 'c1' },
+          { name: 'Paid Model (claude-sonnet-4) [DEFAULT]', value: 'c2' },
         ]);
       });
     });
