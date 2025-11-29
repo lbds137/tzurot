@@ -52,9 +52,22 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
     'i'
   );
 
-  // Pattern 1b: Roleplay asterisk before name - preserve the asterisk
+  // Pattern 1b-i: Closed roleplay asterisk around name - strip entirely
+  // When the prefix has BOTH leading and trailing asterisks, the roleplay is complete
+  // Example: "*COLD: [timestamp]*content" → "content"
+  // Example: "*COLD: [timestamp]**roleplay*" → "*roleplay*"
+  const closedRoleplayNamePattern = new RegExp(
+    `^\\*${escapedName}:\\s*(?:\\[[^\\]]+?\\])?\\s*\\*`,
+    'i'
+  );
+
+  // Pattern 1b-ii: Open roleplay asterisk before name - preserve the asterisk
+  // When only the leading asterisk exists, it continues into the content
   // Example: "*COLD: content" → "*content"
-  const roleplayNamePattern = new RegExp(`^(\\*)${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
+  const openRoleplayNamePattern = new RegExp(
+    `^(\\*)${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
+    'i'
+  );
 
   // Pattern 1c: Plain name prefix - strip entirely
   // Example: "Lilith: [2m ago] content" → "content"
@@ -76,8 +89,15 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
       continue;
     }
 
-    // 2. Roleplay asterisk (*NAME:) - preserve the asterisk
-    cleaned = cleaned.replace(roleplayNamePattern, '$1').trim();
+    // 2a. Closed roleplay asterisk (*NAME:*) - strip entirely
+    cleaned = cleaned.replace(closedRoleplayNamePattern, '').trim();
+    if (cleaned !== beforeStrip) {
+      strippedCount++;
+      continue;
+    }
+
+    // 2b. Open roleplay asterisk (*NAME:) - preserve the asterisk
+    cleaned = cleaned.replace(openRoleplayNamePattern, '$1').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
       continue;
