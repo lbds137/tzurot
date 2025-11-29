@@ -5,7 +5,9 @@
  * Endpoints:
  * - GET /admin/llm-config - List all LLM configs
  * - POST /admin/llm-config - Create a global LLM config
+ * - PUT /admin/llm-config/:id - Edit a global config
  * - PUT /admin/llm-config/:id/set-default - Set a config as system default
+ * - PUT /admin/llm-config/:id/set-free-default - Set a config as free tier default
  * - DELETE /admin/llm-config/:id - Delete a global config
  */
 
@@ -60,12 +62,18 @@ export function createAdminLlmConfigRoutes(
           visionModel: true,
           isGlobal: true,
           isDefault: true,
+          isFreeDefault: true,
           ownerId: true,
           owner: {
             select: { discordId: true, username: true },
           },
         },
-        orderBy: [{ isDefault: 'desc' }, { isGlobal: 'desc' }, { name: 'asc' }],
+        orderBy: [
+          { isDefault: 'desc' },
+          { isFreeDefault: 'desc' },
+          { isGlobal: 'desc' },
+          { name: 'asc' },
+        ],
       });
 
       const formattedConfigs = configs.map(c => ({
@@ -305,6 +313,62 @@ export function createAdminLlmConfigRoutes(
       logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as system default');
 
       // Invalidate LLM config caches (default config affects fallback resolution)
+      if (llmConfigCacheInvalidation) {
+        try {
+          await llmConfigCacheInvalidation.invalidateAll();
+          logger.debug({ configId }, '[AdminLlmConfig] Invalidated LLM config caches');
+        } catch (err) {
+          // Log but don't fail the request - cache will expire naturally
+          logger.error({ err, configId }, '[AdminLlmConfig] Failed to invalidate caches');
+        }
+      }
+
+      sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
+    })
+  );
+
+  /**
+   * PUT /admin/llm-config/:id/set-free-default
+   * Set a config as the free tier default (for guest users without API keys)
+   */
+  router.put(
+    '/:id/set-free-default',
+    asyncHandler(async (req: Request, res: Response) => {
+      const configId = req.params.id;
+
+      // Find the config
+      const config = await prisma.llmConfig.findUnique({
+        where: { id: configId },
+        select: { id: true, name: true, isGlobal: true },
+      });
+
+      if (config === null) {
+        return sendError(res, ErrorResponses.notFound('Config not found'));
+      }
+
+      // Only global configs can be set as free default
+      if (!config.isGlobal) {
+        return sendError(
+          res,
+          ErrorResponses.validationError('Only global configs can be set as free tier default')
+        );
+      }
+
+      // Atomically clear existing free default and set new one (prevents race condition)
+      await prisma.$transaction(async tx => {
+        await tx.llmConfig.updateMany({
+          where: { isFreeDefault: true },
+          data: { isFreeDefault: false },
+        });
+        await tx.llmConfig.update({
+          where: { id: configId },
+          data: { isFreeDefault: true },
+        });
+      });
+
+      logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as free tier default');
+
+      // Invalidate LLM config caches (free default affects guest resolution)
       if (llmConfigCacheInvalidation) {
         try {
           await llmConfigCacheInvalidation.invalidateAll();
