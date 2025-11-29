@@ -14,6 +14,7 @@ import {
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('model-set');
 
@@ -46,6 +47,26 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
   const configId = interaction.options.getString('config', true);
 
   await deferEphemeral(interaction);
+
+  // Handle "Unlock All Models" upsell selection
+  if (configId === UNLOCK_MODELS_VALUE) {
+    const embed = new EmbedBuilder()
+      .setTitle('✨ Unlock All Models')
+      .setColor(DISCORD_COLORS.BLURPLE)
+      .setDescription(
+        "You're currently in **Guest Mode**, which only allows free models.\n\n" +
+          'To unlock **all 400+ models** including GPT-4, Claude, and more:\n\n' +
+          '1. Get an API key from [OpenRouter](https://openrouter.ai/keys)\n' +
+          '2. Run `/wallet set` and enter your key\n' +
+          "3. That's it! All models will be available."
+      )
+      .setFooter({ text: 'Your API key is encrypted and stored securely' })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+    logger.info({ userId }, '[Model] User clicked unlock models upsell');
+    return;
+  }
 
   try {
     // Check wallet status and get config details in parallel

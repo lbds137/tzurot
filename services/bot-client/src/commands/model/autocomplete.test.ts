@@ -26,6 +26,23 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
+
+// Helper to mock both config and wallet APIs for config autocomplete tests
+function mockConfigApis(configs: unknown[], hasActiveWallet: boolean) {
+  vi.mocked(callGatewayApi).mockImplementation((path: string) => {
+    if (path === '/user/llm-config') {
+      return Promise.resolve({ ok: true, data: { configs } });
+    }
+    if (path === '/wallet/list') {
+      return Promise.resolve({
+        ok: true,
+        data: { keys: hasActiveWallet ? [{ provider: 'openrouter', isActive: true }] : [] },
+      });
+    }
+    return Promise.resolve({ ok: false, error: 'Unknown path', status: 404 });
+  });
+}
 
 describe('handleAutocomplete', () => {
   let mockInteraction: AutocompleteInteraction;
@@ -156,34 +173,32 @@ describe('handleAutocomplete', () => {
   });
 
   describe('config autocomplete', () => {
-    it('should respond with filtered configs', async () => {
+    it('should respond with filtered configs for users with wallet', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'config',
         value: 'claude',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          configs: [
-            {
-              id: 'c1',
-              name: 'Claude Config',
-              description: null,
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: true,
-              isOwned: false,
-            },
-            {
-              id: 'c2',
-              name: 'GPT Config',
-              description: null,
-              model: 'openai/gpt-4',
-              isGlobal: true,
-              isOwned: false,
-            },
-          ],
-        },
-      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Claude Config',
+            description: null,
+            model: 'anthropic/claude-sonnet-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+          {
+            id: 'c2',
+            name: 'GPT Config',
+            description: null,
+            model: 'openai/gpt-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        true // has wallet
+      );
 
       await handleAutocomplete(mockInteraction);
 
@@ -198,29 +213,27 @@ describe('handleAutocomplete', () => {
         name: 'config',
         value: 'gpt',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          configs: [
-            {
-              id: 'c1',
-              name: 'Claude Config',
-              description: null,
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: true,
-              isOwned: false,
-            },
-            {
-              id: 'c2',
-              name: 'GPT Config',
-              description: null,
-              model: 'openai/gpt-4',
-              isGlobal: true,
-              isOwned: false,
-            },
-          ],
-        },
-      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Claude Config',
+            description: null,
+            model: 'anthropic/claude-sonnet-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+          {
+            id: 'c2',
+            name: 'GPT Config',
+            description: null,
+            model: 'openai/gpt-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        true
+      );
 
       await handleAutocomplete(mockInteraction);
 
@@ -234,29 +247,27 @@ describe('handleAutocomplete', () => {
         name: 'config',
         value: 'fast',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          configs: [
-            {
-              id: 'c1',
-              name: 'Claude Config',
-              description: 'Fast and cheap',
-              model: 'anthropic/claude-sonnet-4',
-              isGlobal: true,
-              isOwned: false,
-            },
-            {
-              id: 'c2',
-              name: 'GPT Config',
-              description: 'Slow but accurate',
-              model: 'openai/gpt-4',
-              isGlobal: true,
-              isOwned: false,
-            },
-          ],
-        },
-      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Claude Config',
+            description: 'Fast and cheap',
+            model: 'anthropic/claude-sonnet-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+          {
+            id: 'c2',
+            name: 'GPT Config',
+            description: 'Slow but accurate',
+            model: 'openai/gpt-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        true
+      );
 
       await handleAutocomplete(mockInteraction);
 
@@ -279,6 +290,134 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe('guest mode config autocomplete', () => {
+    it('should only show free models for guest users', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: '',
+      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Claude Pro',
+            description: null,
+            model: 'anthropic/claude-sonnet-4',
+            isGlobal: true,
+            isOwned: false,
+          },
+          {
+            id: 'c2',
+            name: 'Grok Free',
+            description: null,
+            model: 'x-ai/grok-4.1-fast:free',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        false // no wallet = guest mode
+      );
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      // Should only have the free model + upsell option
+      expect(choices).toHaveLength(2);
+      expect(choices[0]).toEqual({ name: '🆓 Grok Free (grok-4.1-fast:free)', value: 'c2' });
+      expect(choices[1]).toEqual({ name: '✨ Unlock All Models...', value: UNLOCK_MODELS_VALUE });
+    });
+
+    it('should add upsell option at the end for guest users', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: '',
+      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Free Config',
+            description: null,
+            model: 'some-model:free',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        false // guest mode
+      );
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(choices[choices.length - 1]).toEqual({
+        name: '✨ Unlock All Models...',
+        value: UNLOCK_MODELS_VALUE,
+      });
+    });
+
+    it('should not add upsell option for users with wallet', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: '',
+      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Free Config',
+            description: null,
+            model: 'some-model:free',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        true // has wallet
+      );
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(choices.some(c => c.value === UNLOCK_MODELS_VALUE)).toBe(false);
+    });
+
+    it('should add 🆓 badge to free models', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'config',
+        value: '',
+      });
+      mockConfigApis(
+        [
+          {
+            id: 'c1',
+            name: 'Free Config',
+            description: null,
+            model: 'some-model:free',
+            isGlobal: true,
+            isOwned: false,
+          },
+        ],
+        true // even with wallet, free models get the badge
+      );
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      expect(choices[0].name).toContain('🆓');
     });
   });
 
