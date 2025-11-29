@@ -22,6 +22,7 @@ export type SyncTableName =
   | 'personalities'
   | 'personality_default_configs'
   | 'personality_owners'
+  | 'personality_aliases'
   | 'user_personality_configs'
   | 'conversation_history'
   | 'activated_channels'
@@ -85,6 +86,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['personality_id', 'user_id'],
     timestampColumns: ['created_at', 'updated_at'],
+  },
+  personality_aliases: {
+    pk: 'id',
+    createdAt: 'created_at',
+    // No updatedAt - aliases are immutable
+    uuidColumns: ['id', 'personality_id'],
+    timestampColumns: ['created_at'],
   },
   user_personality_configs: {
     pk: 'id',
