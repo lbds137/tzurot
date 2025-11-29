@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.0",
-    "@prisma/client": "^7.0.0",
-    "@prisma/client-runtime-utils": "^7.0.0",
+    "@prisma/client": "^7.0.1",
+    "@prisma/client-runtime-utils": "^7.0.1",
     "discord-api-types": "^0.38.34",
     "discord.js": "^14.25.1",
     "ioredis": "^5.8.2",
@@ -33,6 +33,6 @@
   "devDependencies": {
     "@types/node": "^24.10.1",
     "pino-pretty": "^13.1.2",
-    "prisma": "^7.0.0"
+    "prisma": "^7.0.1"
   }
 }

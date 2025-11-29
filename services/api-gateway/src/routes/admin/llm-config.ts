@@ -452,7 +452,10 @@ export function createAdminLlmConfigRoutes(
       });
 
       if (!deleteResult.success) {
-        return sendError(res, ErrorResponses.validationError(deleteResult.error!));
+        return sendError(
+          res,
+          ErrorResponses.validationError(deleteResult.error ?? 'Delete failed')
+        );
       }
 
       logger.info({ configId, name: config.name }, '[AdminLlmConfig] Deleted global config');

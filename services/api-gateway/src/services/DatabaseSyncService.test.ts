@@ -673,4 +673,304 @@ describe('DatabaseSyncService', () => {
       expect(result.stats.conversation_history.conflicts).toBe(1);
     });
   });
+
+  describe('llm_configs Singleton Flag Handling', () => {
+    beforeEach(() => {
+      // Mock schema version and validation queries
+      devClient.$queryRaw.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('_prisma_migrations')) {
+          return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        if (queryStr.includes('information_schema')) {
+          return [
+            { table_name: 'llm_configs', column_name: 'id' },
+            { table_name: 'llm_configs', column_name: 'owner_id' },
+          ];
+        }
+        return [];
+      });
+
+      prodClient.$queryRaw.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('_prisma_migrations')) {
+          return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        return [];
+      });
+    });
+
+    it('should clear is_default flag in prod when dev config is newer', async () => {
+      const devConfig = {
+        id: 'dev-config-1',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-15'), // Newer
+      };
+      const prodConfig = {
+        id: 'prod-config-1',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-10'), // Older
+      };
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [devConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...devConfig, name: 'Dev Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [prodConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...prodConfig, name: 'Prod Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Should have cleared is_default in prod (since dev is newer)
+      expect(prodClient.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE llm_configs SET is_default = false'),
+        prodConfig.id
+      );
+    });
+
+    it('should clear is_default flag in dev when prod config is newer', async () => {
+      const devConfig = {
+        id: 'dev-config-1',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-10'), // Older
+      };
+      const prodConfig = {
+        id: 'prod-config-1',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-15'), // Newer
+      };
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [devConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...devConfig, name: 'Dev Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [prodConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...prodConfig, name: 'Prod Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Should have cleared is_default in dev (since prod is newer)
+      expect(devClient.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE llm_configs SET is_default = false'),
+        devConfig.id
+      );
+    });
+
+    it('should clear is_free_default flag in prod when dev config is newer', async () => {
+      const devConfig = {
+        id: 'dev-free-config',
+        is_default: false,
+        is_free_default: true,
+        updated_at: new Date('2025-01-15'), // Newer
+      };
+      const prodConfig = {
+        id: 'prod-free-config',
+        is_default: false,
+        is_free_default: true,
+        updated_at: new Date('2025-01-10'), // Older
+      };
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [devConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...devConfig, name: 'Dev Free Config', model: 'free-model:free' }];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [prodConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...prodConfig, name: 'Prod Free Config', model: 'free-model:free' }];
+        }
+        return [];
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Should have cleared is_free_default in prod (since dev is newer)
+      expect(prodClient.$executeRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE llm_configs SET is_free_default = false'),
+        prodConfig.id
+      );
+    });
+
+    it('should not clear flags when same config has flag in both databases', async () => {
+      const sharedConfigId = 'shared-config-id';
+      const devConfig = {
+        id: sharedConfigId,
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-15'),
+      };
+      const prodConfig = {
+        id: sharedConfigId,
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-10'),
+      };
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [devConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...devConfig, name: 'Shared Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [prodConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...prodConfig, name: 'Shared Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Should NOT have cleared any flags (same config has flag in both)
+      const devCalls = devClient.$executeRawUnsafe.mock.calls.filter(call =>
+        String(call[0]).includes('is_default = false')
+      );
+      const prodCalls = prodClient.$executeRawUnsafe.mock.calls.filter(call =>
+        String(call[0]).includes('is_default = false')
+      );
+
+      expect(devCalls.length).toBe(0);
+      expect(prodCalls.length).toBe(0);
+    });
+
+    it('should not clear flags when only one database has the flag set', async () => {
+      const devConfig = {
+        id: 'dev-config',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-15'),
+      };
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [devConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...devConfig, name: 'Dev Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return []; // No configs with flags in prod
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [];
+        }
+        return [];
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Should NOT have cleared any flags (no conflict)
+      const devCalls = devClient.$executeRawUnsafe.mock.calls.filter(call =>
+        String(call[0]).includes('is_default = false')
+      );
+      const prodCalls = prodClient.$executeRawUnsafe.mock.calls.filter(call =>
+        String(call[0]).includes('is_default = false')
+      );
+
+      expect(devCalls.length).toBe(0);
+      expect(prodCalls.length).toBe(0);
+    });
+
+    it('should skip singleton flag handling in dry-run mode', async () => {
+      const devConfig = {
+        id: 'dev-config-1',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-15'),
+      };
+      const prodConfig = {
+        id: 'prod-config-1',
+        is_default: true,
+        is_free_default: false,
+        updated_at: new Date('2025-01-10'),
+      };
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [devConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...devConfig, name: 'Dev Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('is_default = true OR is_free_default = true')) {
+          return [prodConfig];
+        }
+        if (queryStr.includes('FROM "llm_configs"')) {
+          return [{ ...prodConfig, name: 'Prod Config', model: 'test-model' }];
+        }
+        return [];
+      });
+
+      await service.sync({ dryRun: true });
+
+      // Should NOT have executed any updates in dry-run mode
+      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+    });
+  });
 });
