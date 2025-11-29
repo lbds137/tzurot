@@ -86,6 +86,7 @@ async function handleSetKeySubmit(
       headers: {
         'Content-Type': CONTENT_TYPES.JSON,
         'X-User-Id': interaction.user.id,
+        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
       },
       body: JSON.stringify({
         provider,
