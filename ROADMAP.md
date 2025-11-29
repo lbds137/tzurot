@@ -336,45 +336,45 @@
 
 **Database Changes**:
 
-- [ ] **Task 5.G1**: Add `isFreeDefault` boolean to `LlmConfig` table
+- [x] **Task 5.G1**: Add `isFreeDefault` boolean to `LlmConfig` table ✅
+  - Migration: `20251128220000_add_is_free_default_to_llm_config`
   - Marks one free LlmConfig as the default for guest users
-  - Only one config can have this flag set to true
-  - Constraint: Model must end with `:free` suffix if `isFreeDefault=true`
+  - **Completed**: 2025-11-28
 
 **Application Code**:
 
-- [ ] **Task 5.G2**: Add `isFreeModel()` utility to detect free models
-  - Simple check: `model.endsWith(':free')`
-  - Location: `packages/common-types/src/utils/`
-- [ ] **Task 5.G3**: Update `ApiKeyResolver` to detect "guest mode"
-  - When user has no API key AND system key is used as fallback
-  - Return `source: 'guest' | 'user' | 'system'` (add 'guest' option)
-- [ ] **Task 5.G4**: Update `LlmConfigResolver` to enforce free-model-only for guests
-  - If `source === 'guest'`, REJECT any LlmConfig where model doesn't end with `:free`
-  - Fall back to `isFreeDefault=true` config if user's selection is invalid
-- [ ] **Task 5.G5**: Add "Guest Mode" footer indicator in AI responses
-  - When `source === 'guest'`, append subtle indicator
-  - Example: "🌟 Free tier • /wallet set to unlock all models"
+- [x] **Task 5.G2**: Add `isFreeModel()` utility to detect free models ✅
+  - Location: `packages/common-types/src/constants/ai.ts`
+  - **Completed**: 2025-11-28
+- [x] **Task 5.G3**: Update `ApiKeyResolver` to detect "guest mode" ✅
+  - Returns `isGuestMode: boolean` in `ApiKeyResolutionResult`
+  - **Completed**: 2025-11-28
+- [x] **Task 5.G4**: Update `LlmConfigResolver` to enforce free-model-only for guests ✅
+  - Added `getFreeDefaultConfig()` method for DB-driven free defaults
+  - **Completed**: 2025-11-28
+- [x] **Task 5.G5**: Add "Guest Mode" footer indicator in AI responses ✅
+  - `DiscordResponseSender.ts` appends `GUEST_MODE.FOOTER_MESSAGE`
+  - **Completed**: 2025-11-28
 
 **Slash Commands**:
 
-- [ ] **Task 5.G6**: Update `/llm-config list` to show free configs for guests
-  - Filter to only show `:free` models when user has no API key
-  - Show all models when user has API key
-- [ ] **Task 5.G7**: Update `/model set` to validate free-model-only for guests
-  - Reject non-free model selection if user has no API key
-  - Show helpful error: "This model requires an API key. Use /wallet set or choose a free model."
+- [x] **Task 5.G6**: Update `/llm-config list` to show free configs for guests ✅
+  - Shows 🆓 badges on free models, dims paid models for guests
+  - **Completed**: 2025-11-28
+- [x] **Task 5.G7**: Update `/model set` and `/model set-default` to validate free-model-only for guests ✅
+  - Both commands show "Premium Model Not Available" error for guests selecting paid models
+  - **Completed**: 2025-11-28
 
 **Hardcoded Fallback**:
 
-- [ ] **Task 5.G8**: Research most future-proof free model for hardcoded fallback
-  - Requirements: Likely to remain free, good quality, stable provider
-  - Current candidates: `google/gemini-2.0-flash-exp:free`, `meta-llama/llama-3.3-70b-instruct:free`
-  - Consult Gemini MCP for recommendation
-- [ ] **Task 5.G9**: Implement hardcoded fallback free model config
-  - Location: `packages/common-types/src/constants/ai.ts`
-  - Used when: No `isFreeDefault=true` LlmConfig exists in DB
-  - Include sensible defaults: temperature, context window, etc.
+- [x] **Task 5.G8**: Research most future-proof free model for hardcoded fallback ✅
+  - Selected: `x-ai/grok-4.1-fast:free` (2M context, vision support)
+  - Alternatives: `nvidia/nemotron-nano-12b-v2-vl:free`, `tngtech/tng-r1t-chimera:free`
+  - **Completed**: 2025-11-28
+- [x] **Task 5.G9**: Implement hardcoded fallback free model config ✅
+  - Location: `packages/common-types/src/constants/ai.ts` - `GUEST_MODE` constant
+  - Includes `DEFAULT_MODEL`, `FREE_MODELS` array, `FOOTER_MESSAGE`
+  - **Completed**: 2025-11-28
 
 **User Persona Management** (Reduces manual DB work):
 
