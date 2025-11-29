@@ -324,6 +324,52 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
+  describe('PUT /admin/llm-config/:id/set-free-default', () => {
+    it('should set a global config as free tier default', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Free Config',
+        isGlobal: true,
+      });
+      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        isFreeDefault: true,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.configName).toBe('Free Config');
+      // Verify it clears existing free default
+      expect(prisma.llmConfig.updateMany).toHaveBeenCalledWith({
+        where: { isFreeDefault: true },
+        data: { isFreeDefault: false },
+      });
+    });
+
+    it('should return 404 when config not found', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue(null);
+
+      const response = await request(app).put('/admin/llm-config/nonexistent/set-free-default');
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should reject setting non-global config as free default', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        isGlobal: false,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/only global/i);
+    });
+  });
+
   describe('DELETE /admin/llm-config/:id', () => {
     it('should delete a global config', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
@@ -513,6 +559,26 @@ describe('Admin LLM Config Routes', () => {
       });
 
       const response = await request(appWithCache).put('/admin/llm-config/config-id/set-default');
+
+      expect(response.status).toBe(200);
+      expect(cacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('should invalidate cache after setting a config as free default', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Free Config',
+        isGlobal: true,
+      });
+      prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        isFreeDefault: true,
+      });
+
+      const response = await request(appWithCache).put(
+        '/admin/llm-config/config-id/set-free-default'
+      );
 
       expect(response.status).toBe(200);
       expect(cacheService.invalidateAll).toHaveBeenCalled();
