@@ -13,7 +13,7 @@ import {
   TEXT_LIMITS,
   RETRY_CONFIG,
 } from '@tzurot/common-types';
-import { describeImage, transcribeAudio } from './MultimodalProcessor.js';
+import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
@@ -74,16 +74,19 @@ export class ReferencedMessageFormatter {
    * Format referenced messages for inclusion in prompt
    *
    * Processes all attachments (images, voice messages) in parallel for better performance.
+   * If preprocessed attachments are provided, uses them instead of making inline API calls.
    *
    * @param references - Referenced messages to format
    * @param personality - Personality configuration for vision/transcription models
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
+   * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
    * @returns Formatted string ready for prompt
    */
   async formatReferencedMessages(
     references: ReferencedMessage[],
     personality: LoadedPersonality,
-    isGuestMode = false
+    isGuestMode = false,
+    preprocessedAttachments?: Record<number, ProcessedAttachment[]>
   ): Promise<string> {
     const lines: string[] = [];
     lines.push('## Referenced Messages\n');
@@ -113,15 +116,19 @@ export class ReferencedMessageFormatter {
         lines.push(`\nMessage Embeds (structured data from Discord):\n${ref.embeds}`);
       }
 
-      // Process attachments in parallel
+      // Process attachments in parallel (or use preprocessed data if available)
       if (ref.attachments && ref.attachments.length > 0) {
         lines.push('\nAttachments:');
+
+        // Get preprocessed attachments for this reference if available
+        const preprocessedForRef = preprocessedAttachments?.[ref.referenceNumber];
 
         const attachmentLines = await this.processAttachmentsParallel(
           ref.attachments,
           ref.referenceNumber,
           personality,
-          isGuestMode
+          isGuestMode,
+          preprocessedForRef
         );
 
         lines.push(...attachmentLines);
@@ -157,18 +164,21 @@ export class ReferencedMessageFormatter {
    *
    * Uses Promise.allSettled to process images and voice messages concurrently,
    * significantly reducing latency when multiple attachments are present.
+   * If preprocessed attachments are provided, uses them instead of making API calls.
    *
    * @param attachments - Attachments to process
    * @param referenceNumber - Reference number for logging
    * @param personality - Personality configuration
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
+   * @param preprocessedAttachments - Pre-processed attachments for this reference (optional)
    * @returns Array of formatted attachment lines
    */
   private async processAttachmentsParallel(
     attachments: ReferencedMessage['attachments'],
     referenceNumber: number,
     personality: LoadedPersonality,
-    isGuestMode: boolean
+    isGuestMode: boolean,
+    preprocessedAttachments?: ProcessedAttachment[]
   ): Promise<string[]> {
     if (!attachments || attachments.length === 0) {
       return [];
@@ -176,7 +186,7 @@ export class ReferencedMessageFormatter {
 
     // Create promises for all attachments that need processing
     const processingPromises = attachments.map((attachment, index) =>
-      this.processSingleAttachment(attachment, index, referenceNumber, personality, isGuestMode)
+      this.processSingleAttachment(attachment, index, referenceNumber, personality, isGuestMode, preprocessedAttachments)
     );
 
     // Process all attachments in parallel
@@ -203,15 +213,30 @@ export class ReferencedMessageFormatter {
   }
 
   /**
+   * Find preprocessed result for an attachment by URL
+   */
+  private findPreprocessedByUrl(
+    url: string,
+    preprocessedAttachments?: ProcessedAttachment[]
+  ): ProcessedAttachment | undefined {
+    if (!preprocessedAttachments || preprocessedAttachments.length === 0) {
+      return undefined;
+    }
+    return preprocessedAttachments.find(p => p.originalUrl === url);
+  }
+
+  /**
    * Process a single attachment (image or voice message)
    *
    * Handles vision model or transcription processing with graceful error handling.
+   * If preprocessed data is available, uses it instead of making API calls.
    *
    * @param attachment - Attachment to process
    * @param index - Index in the attachments array
    * @param referenceNumber - Reference number for logging
    * @param personality - Personality configuration
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
+   * @param preprocessedAttachments - Pre-processed attachments for this reference (optional)
    * @returns Processed attachment result
    */
   private async processSingleAttachment(
@@ -219,10 +244,26 @@ export class ReferencedMessageFormatter {
     index: number,
     referenceNumber: number,
     personality: LoadedPersonality,
-    isGuestMode: boolean
+    isGuestMode: boolean,
+    preprocessedAttachments?: ProcessedAttachment[]
   ): Promise<ProcessedAttachmentResult> {
+    // Check for preprocessed result first (avoids API calls)
+    const preprocessed = this.findPreprocessedByUrl(attachment.url, preprocessedAttachments);
+
     // Handle voice messages - transcribe them for AI context
     if (attachment.isVoiceMessage === true) {
+      // Check if we have preprocessed transcription
+      if (preprocessed?.description !== undefined && preprocessed.description !== '') {
+        logger.debug(
+          { referenceNumber, url: attachment.url },
+          '[ReferencedMessageFormatter] Using preprocessed voice transcription'
+        );
+        return {
+          index,
+          line: `- Voice Message (${attachment.duration}s): "${preprocessed.description}"`,
+        };
+      }
+
       try {
         logger.info(
           {
@@ -262,6 +303,19 @@ export class ReferencedMessageFormatter {
 
     // Process images through vision model
     if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
+      // Check if we have preprocessed image description
+      if (preprocessed?.description !== undefined && preprocessed.description !== '') {
+        logger.debug(
+          { referenceNumber, url: attachment.url },
+          '[ReferencedMessageFormatter] Using preprocessed image description'
+        );
+        return {
+          index,
+          line: `- Image (${attachment.name}): ${preprocessed.description}`,
+        };
+      }
+
+      // Fall back to inline processing (shouldn't happen if preprocessing is enabled)
       try {
         logger.info(
           {
@@ -269,7 +323,7 @@ export class ReferencedMessageFormatter {
             url: attachment.url,
             name: attachment.name,
           },
-          '[ReferencedMessageFormatter] Processing image in referenced message through vision model'
+          '[ReferencedMessageFormatter] Processing image in referenced message through vision model (inline fallback)'
         );
 
         const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {

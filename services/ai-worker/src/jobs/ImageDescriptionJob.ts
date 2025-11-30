@@ -47,7 +47,7 @@ export async function processImageDescriptionJob(
     throw new Error(`Image description job validation failed: ${validation.error.message}`);
   }
 
-  const { requestId, attachments, personality, context } = job.data;
+  const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
 
   // Resolve guest mode status via BYOK lookup
   let isGuestMode = false;
@@ -139,6 +139,7 @@ export async function processImageDescriptionJob(
         requestId,
         success: false,
         error: `All images failed processing. Details: ${failureDetails}`,
+        sourceReferenceNumber,
       };
     }
 
@@ -166,6 +167,7 @@ export async function processImageDescriptionJob(
       requestId,
       success: true,
       descriptions,
+      sourceReferenceNumber,
       metadata: {
         processingTimeMs,
         imageCount: descriptions.length,
@@ -184,6 +186,7 @@ export async function processImageDescriptionJob(
       requestId,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      sourceReferenceNumber,
       metadata: {
         processingTimeMs,
         imageCount: attachments.length,

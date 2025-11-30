@@ -222,7 +222,150 @@ export async function createJobChain(params: {
         imageJobs: images.length > 0 ? 1 : 0,
         totalChildren: children.length,
       },
-      '[JobChain] Built preprocessing child jobs'
+      '[JobChain] Built preprocessing child jobs for direct attachments'
+    );
+  }
+
+  // Also preprocess attachments from referenced messages
+  // This ensures referenced message images/audio get the same preprocessing treatment
+  // as direct attachments, avoiding inline processing timeouts
+  if (context.referencedMessages && context.referencedMessages.length > 0) {
+    for (const refMsg of context.referencedMessages) {
+      if (!refMsg.attachments || refMsg.attachments.length === 0) {
+        continue;
+      }
+
+      const refNum = refMsg.referenceNumber;
+      const { audio: refAudio, images: refImages } = categorizeAttachments(refMsg.attachments);
+
+      // Create audio transcription jobs for referenced message audio
+      for (let i = 0; i < refAudio.length; i++) {
+        const attachment = refAudio[i];
+        const audioRequestId = `${requestId}-ref${refNum}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
+        const jobId = `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${audioRequestId}`;
+
+        const jobData: AudioTranscriptionJobData = {
+          requestId: audioRequestId,
+          jobType: JobType.AudioTranscription,
+          attachment,
+          context: {
+            userId: context.userId,
+            channelId: context.channelId,
+          },
+          responseDestination,
+          sourceReferenceNumber: refNum,
+        };
+
+        const validation = audioTranscriptionJobDataSchema.safeParse(jobData);
+        if (!validation.success) {
+          logger.error(
+            {
+              requestId: audioRequestId,
+              referenceNumber: refNum,
+              errors: validation.error.format(),
+            },
+            '[JobChain] Referenced message audio transcription job validation failed'
+          );
+          throw new Error(
+            `Referenced message audio transcription job validation failed: ${validation.error.message}`
+          );
+        }
+
+        children.push({
+          name: JobType.AudioTranscription,
+          data: jobData,
+          queueName: QUEUE_NAME,
+          opts: {
+            jobId,
+          },
+        });
+
+        dependencies.push({
+          jobId,
+          type: JobType.AudioTranscription,
+          status: JobStatus.Queued,
+          resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
+        });
+
+        logger.info(
+          {
+            jobId,
+            requestId: audioRequestId,
+            referenceNumber: refNum,
+            attachmentName: attachment.name,
+          },
+          '[JobChain] Added referenced message audio transcription child job'
+        );
+      }
+
+      // Create image description job for referenced message images
+      if (refImages.length > 0) {
+        const imageRequestId = `${requestId}-ref${refNum}${JOB_REQUEST_SUFFIXES.IMAGE}`;
+        const jobId = `${JOB_PREFIXES.IMAGE_DESCRIPTION}${imageRequestId}`;
+
+        const jobData: ImageDescriptionJobData = {
+          requestId: imageRequestId,
+          jobType: JobType.ImageDescription,
+          attachments: refImages,
+          personality,
+          context: {
+            userId: context.userId,
+            channelId: context.channelId,
+          },
+          responseDestination,
+          sourceReferenceNumber: refNum,
+        };
+
+        const validation = imageDescriptionJobDataSchema.safeParse(jobData);
+        if (!validation.success) {
+          logger.error(
+            {
+              requestId: imageRequestId,
+              referenceNumber: refNum,
+              errors: validation.error.format(),
+            },
+            '[JobChain] Referenced message image description job validation failed'
+          );
+          throw new Error(
+            `Referenced message image description job validation failed: ${validation.error.message}`
+          );
+        }
+
+        children.push({
+          name: JobType.ImageDescription,
+          data: jobData,
+          queueName: QUEUE_NAME,
+          opts: {
+            jobId,
+          },
+        });
+
+        dependencies.push({
+          jobId,
+          type: JobType.ImageDescription,
+          status: JobStatus.Queued,
+          resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
+        });
+
+        logger.info(
+          {
+            jobId,
+            requestId: imageRequestId,
+            referenceNumber: refNum,
+            imageCount: refImages.length,
+          },
+          '[JobChain] Added referenced message image description child job'
+        );
+      }
+    }
+
+    logger.info(
+      {
+        requestId,
+        referencedMessageCount: context.referencedMessages.length,
+        totalChildren: children.length,
+      },
+      '[JobChain] Built preprocessing child jobs including referenced messages'
     );
   }
 

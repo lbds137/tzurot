@@ -108,6 +108,8 @@ export interface AudioTranscriptionJobData extends BaseJobData {
   attachment: AttachmentMetadata;
   /** Context for logging/telemetry */
   context: Pick<JobContext, 'userId' | 'channelId'>;
+  /** If from a referenced message, the reference number (1-indexed) */
+  sourceReferenceNumber?: number;
 }
 
 /**
@@ -121,6 +123,8 @@ export interface ImageDescriptionJobData extends BaseJobData {
   personality: LoadedPersonality;
   /** Context for logging/telemetry */
   context: Pick<JobContext, 'userId' | 'channelId'>;
+  /** If from a referenced message, the reference number (1-indexed) */
+  sourceReferenceNumber?: number;
 }
 
 /**
@@ -157,6 +161,12 @@ export interface AudioTranscriptionResult {
   success: boolean;
   /** Transcribed text (uses 'content' for consistency with LLMGenerationResult) */
   content?: string;
+  /** Original attachment URL (for converting to ProcessedAttachment) */
+  attachmentUrl?: string;
+  /** Original attachment name */
+  attachmentName?: string;
+  /** If from a referenced message, the reference number (1-indexed) */
+  sourceReferenceNumber?: number;
   /** Error message if failed */
   error?: string;
   metadata?: {
@@ -176,6 +186,8 @@ export interface ImageDescriptionResult {
     url: string;
     description: string;
   }[];
+  /** If from a referenced message, the reference number (1-indexed) */
+  sourceReferenceNumber?: number;
   /** Error message if failed */
   error?: string;
   metadata?: {
@@ -267,6 +279,7 @@ export const audioTranscriptionJobDataSchema = baseJobDataSchema.extend({
   jobType: z.literal(JobType.AudioTranscription),
   attachment: attachmentMetadataSchema,
   context: jobContextSchema.pick({ userId: true, channelId: true }),
+  sourceReferenceNumber: z.number().optional(),
 });
 
 /**
@@ -280,6 +293,7 @@ export const imageDescriptionJobDataSchema = baseJobDataSchema.extend({
     .min(1, 'At least one image attachment is required'),
   personality: loadedPersonalitySchema,
   context: jobContextSchema.pick({ userId: true, channelId: true }),
+  sourceReferenceNumber: z.number().optional(),
 });
 
 /**
