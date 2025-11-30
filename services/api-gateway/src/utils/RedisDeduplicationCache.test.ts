@@ -3,10 +3,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Mock } from 'vitest';
 import type { GenerateRequest } from '../types.js';
 
-// Mock ioredis
-const mockRedis = {
+/**
+ * Minimal Redis client interface for deduplication
+ * Only includes methods actually used by RedisDeduplicationCache
+ */
+interface MockRedisClient {
+  get: Mock<(key: string) => Promise<string | null>>;
+  setex: Mock<(key: string, seconds: number, value: string) => Promise<string>>;
+  scan: Mock<(cursor: string, ...args: string[]) => Promise<[string, string[]]>>;
+}
+
+// Mock ioredis with proper typing
+const mockRedis: MockRedisClient = {
   get: vi.fn(),
   setex: vi.fn(),
   scan: vi.fn(), // SCAN for getCacheSize (replaced KEYS)
@@ -63,17 +74,17 @@ describe('RedisDeduplicationCache', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    cache = new RedisDeduplicationCache(mockRedis as never);
+    cache = new RedisDeduplicationCache(mockRedis as unknown as import('ioredis').Redis);
   });
 
   describe('constructor', () => {
     it('should create cache with default options', () => {
-      const newCache = new RedisDeduplicationCache(mockRedis as never);
+      const newCache = new RedisDeduplicationCache(mockRedis as unknown as import('ioredis').Redis);
       expect(newCache).toBeDefined();
     });
 
     it('should create cache with custom window', () => {
-      const newCache = new RedisDeduplicationCache(mockRedis as never, {
+      const newCache = new RedisDeduplicationCache(mockRedis as unknown as import('ioredis').Redis, {
         duplicateWindowSeconds: 10,
       });
       expect(newCache).toBeDefined();
@@ -154,7 +165,7 @@ describe('RedisDeduplicationCache', () => {
     it('should use correct TTL from options', async () => {
       mockRedis.setex.mockResolvedValue('OK');
 
-      const customCache = new RedisDeduplicationCache(mockRedis as never, {
+      const customCache = new RedisDeduplicationCache(mockRedis as unknown as import('ioredis').Redis, {
         duplicateWindowSeconds: 30,
       });
 
