@@ -111,13 +111,30 @@ export class RedisDeduplicationCache {
 
   /**
    * Get approximate cache size (for monitoring)
-   * Note: This scans Redis keys, which can be slow on large datasets.
-   * For high-traffic production, consider using a separate counter.
+   *
+   * Uses SCAN instead of KEYS to avoid blocking Redis.
+   * SCAN iterates incrementally and doesn't block the server.
    */
   async getCacheSize(): Promise<number> {
     try {
-      const keys = await this.redis.keys(`${this.keyPrefix}*`);
-      return keys.length;
+      let cursor = '0';
+      let count = 0;
+
+      do {
+        // SCAN returns [newCursor, keys]
+        // COUNT is a hint, not a guarantee - Redis may return more or fewer
+        const [newCursor, keys] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          `${this.keyPrefix}*`,
+          'COUNT',
+          100
+        );
+        cursor = newCursor;
+        count += keys.length;
+      } while (cursor !== '0');
+
+      return count;
     } catch (error) {
       logger.error({ err: error }, '[Deduplication] Failed to get cache size');
       return 0;
@@ -141,14 +158,5 @@ export class RedisDeduplicationCache {
     const messageHash = createHash('sha256').update(messageStr).digest('hex').substring(0, 16);
 
     return `${personalityName}:${contextStr}:${messageHash}`;
-  }
-
-  /**
-   * No-op dispose for compatibility with in-memory version
-   * Redis handles TTL-based cleanup automatically
-   */
-  dispose(): void {
-    // No cleanup needed - Redis handles TTL automatically
-    logger.debug('[Deduplication] Dispose called (no-op for Redis backend)');
   }
 }

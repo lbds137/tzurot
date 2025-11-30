@@ -2,14 +2,14 @@
  * Tests for RedisDeduplicationCache
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { GenerateRequest } from '../types.js';
 
 // Mock ioredis
 const mockRedis = {
   get: vi.fn(),
   setex: vi.fn(),
-  keys: vi.fn(),
+  scan: vi.fn(), // SCAN for getCacheSize (replaced KEYS)
 };
 
 vi.mock('ioredis', () => ({
@@ -66,15 +66,10 @@ describe('RedisDeduplicationCache', () => {
     cache = new RedisDeduplicationCache(mockRedis as never);
   });
 
-  afterEach(() => {
-    cache.dispose();
-  });
-
   describe('constructor', () => {
     it('should create cache with default options', () => {
       const newCache = new RedisDeduplicationCache(mockRedis as never);
       expect(newCache).toBeDefined();
-      newCache.dispose();
     });
 
     it('should create cache with custom window', () => {
@@ -82,7 +77,6 @@ describe('RedisDeduplicationCache', () => {
         duplicateWindowSeconds: 10,
       });
       expect(newCache).toBeDefined();
-      newCache.dispose();
     });
   });
 
@@ -168,23 +162,34 @@ describe('RedisDeduplicationCache', () => {
       await customCache.cacheRequest(request, 'req-123', 'job-456');
 
       expect(mockRedis.setex).toHaveBeenCalledWith(expect.any(String), 30, expect.any(String));
-
-      customCache.dispose();
     });
   });
 
   describe('getCacheSize', () => {
-    it('should return count of matching keys', async () => {
-      mockRedis.keys.mockResolvedValue(['dedup:key1', 'dedup:key2', 'dedup:key3']);
+    it('should return count of matching keys using SCAN', async () => {
+      // SCAN returns [cursor, keys] - mock single iteration completing
+      mockRedis.scan.mockResolvedValue(['0', ['dedup:key1', 'dedup:key2', 'dedup:key3']]);
 
       const size = await cache.getCacheSize();
 
       expect(size).toBe(3);
-      expect(mockRedis.keys).toHaveBeenCalledWith('dedup:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith('0', 'MATCH', 'dedup:*', 'COUNT', 100);
+    });
+
+    it('should handle multiple SCAN iterations', async () => {
+      // First call returns cursor '42' (more to scan), second returns '0' (done)
+      mockRedis.scan
+        .mockResolvedValueOnce(['42', ['dedup:key1', 'dedup:key2']])
+        .mockResolvedValueOnce(['0', ['dedup:key3']]);
+
+      const size = await cache.getCacheSize();
+
+      expect(size).toBe(3);
+      expect(mockRedis.scan).toHaveBeenCalledTimes(2);
     });
 
     it('should return 0 when no keys found', async () => {
-      mockRedis.keys.mockResolvedValue([]);
+      mockRedis.scan.mockResolvedValue(['0', []]);
 
       const size = await cache.getCacheSize();
 
@@ -192,23 +197,11 @@ describe('RedisDeduplicationCache', () => {
     });
 
     it('should return 0 on Redis error', async () => {
-      mockRedis.keys.mockRejectedValue(new Error('Redis scan failed'));
+      mockRedis.scan.mockRejectedValue(new Error('Redis scan failed'));
 
       const size = await cache.getCacheSize();
 
       expect(size).toBe(0);
-    });
-  });
-
-  describe('dispose', () => {
-    it('should be callable without error', () => {
-      expect(() => cache.dispose()).not.toThrow();
-    });
-
-    it('should be safe to call multiple times', () => {
-      cache.dispose();
-      cache.dispose();
-      // Should not throw
     });
   });
 

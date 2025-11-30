@@ -21,8 +21,8 @@ export interface RedisRateLimiterOptions {
   maxRequests?: number;
   /** Custom message for rate limit exceeded */
   message?: string;
-  /** Key generator function (default: uses X-User-Id header) */
-  keyGenerator?: (req: Request) => string;
+  /** Key generator function - return null to skip rate limiting (default: uses X-User-Id header) */
+  keyGenerator?: (req: Request) => string | null;
   /** Optional key prefix (default: 'ratelimit:') */
   keyPrefix?: string;
 }
@@ -32,6 +32,25 @@ const DEFAULT_MAX_REQUESTS = 10;
 const DEFAULT_KEY_PREFIX = REDIS_KEY_PREFIXES.RATE_LIMIT;
 
 /**
+ * Lua script for atomic INCR + EXPIRE
+ *
+ * This prevents the race condition where a process could crash between
+ * INCR and EXPIRE, leaving a key without TTL (permanent rate limit).
+ *
+ * KEYS[1] = rate limit key
+ * ARGV[1] = TTL in seconds
+ *
+ * Returns the incremented count
+ */
+const INCR_WITH_EXPIRE_LUA = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`;
+
+/**
  * Redis-backed rate limiter factory
  */
 export class RedisRateLimiter {
@@ -39,7 +58,7 @@ export class RedisRateLimiter {
   private readonly windowMs: number;
   private readonly maxRequests: number;
   private readonly message: string;
-  private readonly keyGenerator: (req: Request) => string;
+  private readonly keyGenerator: (req: Request) => string | null;
   private readonly keyPrefix: string;
 
   constructor(redis: Redis, options: RedisRateLimiterOptions = {}) {
@@ -67,8 +86,10 @@ export class RedisRateLimiter {
   private async checkRateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
     const userKey = this.keyGenerator(req);
 
-    if (!userKey) {
-      // No key = can't rate limit (should be caught by auth middleware)
+    if (userKey === null) {
+      // No key = can't rate limit, allow through
+      // This happens for unauthenticated requests (should be caught by auth middleware)
+      logger.debug('[RateLimiter.checkRateLimit] No user key, skipping rate limit');
       next();
       return;
     }
@@ -77,14 +98,10 @@ export class RedisRateLimiter {
     const windowSeconds = Math.ceil(this.windowMs / 1000);
 
     try {
-      // Atomically increment counter and set TTL on first access
-      // INCR creates the key with value 1 if it doesn't exist
-      const count = await this.redis.incr(key);
-
-      // Set TTL only on first request (when count is 1)
-      if (count === 1) {
-        await this.redis.expire(key, windowSeconds);
-      }
+      // Use Lua script for atomic INCR + EXPIRE
+      // This prevents race condition where process crash between INCR and EXPIRE
+      // could leave a key without TTL (permanent rate limit)
+      const count = (await this.redis.eval(INCR_WITH_EXPIRE_LUA, 1, key, windowSeconds)) as number;
 
       // Check if over limit
       if (count > this.maxRequests) {
@@ -94,7 +111,7 @@ export class RedisRateLimiter {
 
         logger.warn(
           { userId: userKey, count, maxRequests: this.maxRequests },
-          '[RateLimit] Rate limit exceeded'
+          '[RateLimiter.checkRateLimit] Rate limit exceeded'
         );
 
         res.status(StatusCodes.TOO_MANY_REQUESTS).json({
@@ -111,7 +128,7 @@ export class RedisRateLimiter {
       // (fail open to prevent service disruption)
       logger.error(
         { err: error, userId: userKey },
-        '[RateLimit] Redis error - allowing request through'
+        '[RateLimiter.checkRateLimit] Redis error - allowing request through'
       );
       next();
     }
@@ -137,9 +154,16 @@ export class RedisRateLimiter {
 
 /**
  * Default key generator - uses X-User-Id header
+ *
+ * Returns null if no user ID is present to skip rate limiting.
+ * This prevents all anonymous requests from sharing a single rate limit bucket.
  */
-function defaultKeyGenerator(req: Request): string {
-  return (req.headers['x-user-id'] as string) ?? '';
+function defaultKeyGenerator(req: Request): string | null {
+  const userId = req.headers['x-user-id'] as string | undefined;
+  if (userId === undefined || userId === null || userId.length === 0) {
+    return null;
+  }
+  return userId;
 }
 
 /**
