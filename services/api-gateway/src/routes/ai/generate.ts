@@ -107,8 +107,6 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
           },
           responseDestination: {
             type: 'api' as const,
-            // Callback URL support: If needed, add callbackUrl field from request
-            // and implement webhook delivery in ai-worker result handling
           },
           userApiKey: request.userApiKey,
         });
