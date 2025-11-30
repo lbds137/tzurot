@@ -1,6 +1,6 @@
 # Deployment Scripts
 
-Scripts for deploying to Railway, managing environment variables, and creating releases.
+Scripts for deploying to Railway and managing environment variables.
 
 ## Scripts
 
@@ -8,7 +8,6 @@ Scripts for deploying to Railway, managing environment variables, and creating r
 - **setup-railway-variables.sh** - Configure Railway environment variables for all services
 - **update-gateway-url.sh** - Update GATEWAY_URL environment variable
 - **verify-build.sh** - Verify all services build successfully before deployment
-- **create-release.sh** - Create a new release with version tagging
 
 ## Usage
 
@@ -18,9 +17,16 @@ Scripts for deploying to Railway, managing environment variables, and creating r
 
 # Setup Railway variables
 ./scripts/deployment/setup-railway-variables.sh
+```
 
-# Create a release
-./scripts/deployment/create-release.sh v3.0.0-alpha.50
+## Creating Releases
+
+Use `gh` CLI directly for creating releases (see `tzurot-docs` skill for formatting):
+
+```bash
+gh release create v3.0.0-alpha.50 \
+  --title "v3.0.0-alpha.50 - Feature Name" \
+  --notes "Release notes here..."
 ```
 
 **⚠️ See:** `tzurot-deployment` skill for Railway-specific commands and troubleshooting

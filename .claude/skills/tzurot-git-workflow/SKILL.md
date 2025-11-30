@@ -653,7 +653,7 @@ git push --force-with-lease origin feat/my-feature
 **Release checklist:**
 
 - [ ] Version bumped in all package.json files
-- [ ] CHANGELOG.md updated with release notes
+- [ ] GitHub Release draft prepared with release notes
 - [ ] All tests passing
 - [ ] Smoke tests in development environment passed
 - [ ] PR title includes version number

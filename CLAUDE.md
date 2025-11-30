@@ -204,7 +204,7 @@ Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` t
 
 1. **tzurot-architecture** - Microservices boundaries, service responsibilities,
    dependency rules, anti-patterns from v2
-2. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, CHANGELOG.md),
+2. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, folder structure),
    session handoff protocol
 3. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
    cost optimization, prompt structuring
@@ -818,7 +818,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 - Follow the categorization in [docs/README.md](docs/README.md)
 - Update EXISTING docs instead of creating new ones when possible
 - Use descriptive names: `memory-and-context-redesign.md` not `memory.md`
-- Keep the root clean - only `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `CURRENT_WORK.md` belong there
+- Keep the root clean - only `README.md`, `CLAUDE.md`, `CURRENT_WORK.md`, `ROADMAP.md` belong there
 
 ## Documentation Maintenance
 
@@ -827,8 +827,8 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 **Key Documents**:
 
 - **CURRENT_WORK.md** - Active work, recent completions, next planned work
-- **CHANGELOG.md** - Release history and notable changes
 - **docs/** - Organized by category (see docs/README.md)
+- **GitHub Releases** - Release history and notable changes (https://github.com/lbds137/tzurot/releases)
 
 **Update CURRENT_WORK.md at:**
 

@@ -918,7 +918,7 @@ export function validateImageParams(provider: string, params: unknown) {
 - [ ] Document advancedParameters JSONB structure (LLM & image, per provider)
 - [ ] Document encryption key rotation procedure
 - [ ] Document migration process and rollback procedures
-- [ ] Update CHANGELOG.md with breaking changes
+- [ ] Create GitHub Release with breaking changes noted
 - [ ] Update CURRENT_WORK.md with BYOK implementation status
 
 **Security Documentation:**

@@ -500,8 +500,7 @@ OM_LOG_AUTH=false  # Enable for debugging
 - [ ] Deploy updated ai-worker
 - [ ] Monitor logs for errors
 - [ ] Test core functionality in prod
-- [ ] Update CHANGELOG.md
-- [ ] Create release notes
+- [ ] Create GitHub Release with migration notes
 
 **Rollback Plan:**
 
