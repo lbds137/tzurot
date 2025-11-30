@@ -3,7 +3,7 @@
 [![codecov](https://codecov.io/gh/lbds137/tzurot/branch/develop/graph/badge.svg)](https://codecov.io/gh/lbds137/tzurot)
 [![CI](https://github.com/lbds137/tzurot/workflows/CI/badge.svg)](https://github.com/lbds137/tzurot/actions)
 
-> **🔨 Status**: Active development deployment (private testing only)
+> **🚀 Status**: Public beta - BYOK (Bring Your Own Key) enabled
 
 A modern, scalable Discord bot with customizable AI personalities, powered by microservices architecture with long-term memory.
 
@@ -11,11 +11,11 @@ A modern, scalable Discord bot with customizable AI personalities, powered by mi
 
 Shapes.inc (v2's AI provider) killed their API to force users to their website only, forcing a complete rewrite. v3 is better in every way:
 
-- **Vendor Independence**: Clean abstraction for AI providers - never locked in again
+- **Vendor Independence**: Clean abstraction for AI providers (OpenRouter primary)
 - **TypeScript Throughout**: Full type safety and better IDE support
 - **True Microservices**: Each service has a single, clear responsibility
 - **Long-term Memory**: pgvector for personality memory across conversations
-- **Multiple Providers**: OpenRouter (400+ models) + direct Gemini support
+- **Multiple Providers**: OpenRouter (400+ models including free tier)
 - **Clean Architecture**: No over-engineered DDD - just simple, maintainable code
 
 ## Architecture
@@ -42,13 +42,14 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
               │  Service   │                                        │ (pgvector) │
               └─────┬──────┘                                        └────────────┘
                     │
-                    ├────────────┬────────────┬───────────┐
-                    ▼            ▼            ▼           ▼
-              ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-              │OpenRouter│ │  Gemini  │ │  OpenAI  │ │  Qdrant  │
-              │   API    │ │   API    │ │(Whisper, │ │ (Vector  │
-              │          │ │          │ │Embedding)│ │ Memory)  │
-              └──────────┘ └──────────┘ └──────────┘ └──────────┘
+                    ├────────────┐
+                    ▼            ▼
+              ┌──────────┐ ┌──────────┐
+              │OpenRouter│ │  OpenAI  │
+              │   API    │ │(Whisper, │
+              │(400+     │ │Embedding)│
+              │ models)  │ │          │
+              └──────────┘ └──────────┘
 ```
 
 **Services:**
@@ -59,14 +60,12 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 
 **Data Stores:**
 
-- **PostgreSQL**: User data, personalities, conversation history, personas
-- **Qdrant**: Vector embeddings for long-term memory retrieval
-- **Redis**: BullMQ job queue for async processing
+- **PostgreSQL + pgvector**: User data, personalities, conversation history, vector embeddings for long-term memory
+- **Redis**: BullMQ job queue for async processing, ioredis client
 
 **External APIs:**
 
-- **OpenRouter**: 400+ AI models via unified API (primary provider)
-- **Gemini**: Direct Google AI integration (alternative provider)
+- **OpenRouter**: 400+ AI models via unified API (primary provider, includes free models)
 - **OpenAI**: Whisper (voice transcription) + text-embedding-3-small (vectors)
 
 ## Quick Start
@@ -140,13 +139,13 @@ const provider = AIProviderFactory.create('openai', {
 
 ### Currently Supported
 
-- ✅ OpenRouter (400+ models via one API)
-- ✅ Gemini (direct API integration)
+- ✅ OpenRouter (400+ models via one API, including free tier)
 
 ### Planned Support
 
 - ⏳ Direct Anthropic Claude
 - ⏳ Direct OpenAI
+- ⏳ Direct Gemini
 - ⏳ Local models (Ollama)
 - ⏳ Custom endpoints
 
@@ -164,9 +163,15 @@ const provider = AIProviderFactory.create('openai', {
 - **Voice Support**: Send voice messages for transcription
 - **Message Chunking**: Automatically handles Discord's 2000 character limit
 - **Model Indicators**: Shows which AI model generated each response
+- **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter API keys
+- **Guest Mode**: Free model access for users without API keys
 - **Slash Commands**:
+  - `/wallet set/list/remove/test` - Manage your API keys (BYOK)
+  - `/llm-config create/list/delete` - Create custom LLM configurations
+  - `/model set/set-default` - Choose AI models per personality
   - `/personality create/edit/import` - Manage personalities
-  - `/admin servers/kick/usage` - Bot administration
+  - `/settings timezone/usage` - User settings
+  - `/admin servers/kick/usage` - Bot administration (owner only)
   - `/ping`, `/help` - Utility commands
 
 ### 📋 Planned Features
@@ -174,15 +179,7 @@ const provider = AIProviderFactory.create('openai', {
 - Auto-response in activated channels (v2 feature not yet ported)
 - Rate limiting per user/channel
 - NSFW verification system
-
-### 🚧 Required for Public Launch
-
-- **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter/Gemini keys
-- **Admin Commands**: Bot owner slash commands
-  - `/admin servers` - List all servers bot is in
-  - `/admin kick <server_id>` - Remove bot from a server
-  - `/admin usage` - View API usage/costs
-- **Cost Protection**: Prevent unauthorized API usage
+- User persona management
 
 ## Development
 
@@ -212,14 +209,14 @@ pnpm format
 
 ## Deployment
 
-### Development Deployment (Railway)
+### Railway Deployment
 
-**Current Status**: Running in Railway's "development" environment for private testing
+**Current Status**: Public beta running on Railway
 
 - **API Gateway**: https://api-gateway-development-83e8.up.railway.app
 - **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
 
-**Note**: Not open to public yet - requires BYOK implementation to prevent unexpected API costs.
+**BYOK Enabled**: Users can bring their own API keys via `/wallet` commands. Guest users without keys get access to free models only.
 
 See [Railway Deployment Guide](docs/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
 
