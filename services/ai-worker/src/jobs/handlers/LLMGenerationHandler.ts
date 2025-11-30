@@ -95,15 +95,23 @@ export class LLMGenerationHandler {
       '[LLMGenerationHandler] Processing job through pipeline'
     );
 
+    // Track which step we're on for error reporting
+    let currentStepName = 'unknown';
+    let lastSuccessfulStep = 'ValidationStep';
+
     try {
       // Execute remaining pipeline steps in order (skip validation, already done)
       for (let i = 1; i < this.pipeline.length; i++) {
         const step = this.pipeline[i];
+        currentStepName = step.name;
+
         logger.debug(
           { jobId: job.id, step: step.name },
-          '[LLMGenerationHandler] Executing pipeline step'
+          '[LLMGenerationHandler.processJob] Executing pipeline step'
         );
+
         context = await step.process(context);
+        lastSuccessfulStep = step.name;
       }
 
       // Verify we have a result
@@ -114,7 +122,7 @@ export class LLMGenerationHandler {
       const processingTimeMs = Date.now() - startTime;
       logger.info(
         { jobId: job.id, processingTimeMs, success: context.result.success },
-        '[LLMGenerationHandler] Job completed'
+        '[LLMGenerationHandler.processJob] Job completed'
       );
 
       return context.result;
@@ -122,11 +130,17 @@ export class LLMGenerationHandler {
       const processingTimeMs = Date.now() - startTime;
 
       logger.error(
-        { err: error, jobId: job.id, processingTimeMs },
-        '[LLMGenerationHandler] Pipeline failed'
+        {
+          err: error,
+          jobId: job.id,
+          processingTimeMs,
+          failedStep: currentStepName,
+          lastSuccessfulStep,
+        },
+        '[LLMGenerationHandler.processJob] Pipeline failed'
       );
 
-      // Return error result
+      // Return error result with step information for debugging
       return {
         requestId: job.data.requestId,
         success: false,
@@ -134,6 +148,8 @@ export class LLMGenerationHandler {
         personalityErrorMessage: job.data.personality.errorMessage,
         metadata: {
           processingTimeMs,
+          failedStep: currentStepName,
+          lastSuccessfulStep,
         },
       };
     }

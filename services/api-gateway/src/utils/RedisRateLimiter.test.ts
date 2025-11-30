@@ -9,8 +9,7 @@ import { RedisRateLimiter, createRedisWalletRateLimiter } from './RedisRateLimit
 
 // Mock ioredis
 const mockRedis = {
-  incr: vi.fn(),
-  expire: vi.fn(),
+  eval: vi.fn(), // Lua script execution (atomic INCR + EXPIRE)
   ttl: vi.fn(),
   get: vi.fn(),
   del: vi.fn(),
@@ -59,8 +58,8 @@ describe('RedisRateLimiter', () => {
 
   describe('middleware', () => {
     it('should allow request when under limit', async () => {
-      mockRedis.incr.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
+      // Lua script returns the incremented count
+      mockRedis.eval.mockResolvedValue(1);
 
       const middleware = limiter.middleware();
       middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -72,32 +71,36 @@ describe('RedisRateLimiter', () => {
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    it('should set TTL on first request', async () => {
-      mockRedis.incr.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
+    it('should use atomic Lua script for INCR + EXPIRE', async () => {
+      mockRedis.eval.mockResolvedValue(1);
 
       const middleware = limiter.middleware();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(mockRedis.expire).toHaveBeenCalledWith('ratelimit:user-123', 60);
+      // Should call eval with Lua script, 1 key, the key, and TTL
+      expect(mockRedis.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call'),
+        1,
+        'ratelimit:user-123',
+        60
+      );
     });
 
-    it('should not set TTL on subsequent requests', async () => {
-      mockRedis.incr.mockResolvedValue(3);
+    it('should allow subsequent requests under limit', async () => {
+      mockRedis.eval.mockResolvedValue(3);
 
       const middleware = limiter.middleware();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(mockRedis.expire).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should block request when over limit', async () => {
-      mockRedis.incr.mockResolvedValue(6);
+      mockRedis.eval.mockResolvedValue(6);
       mockRedis.ttl.mockResolvedValue(30);
 
       const middleware = limiter.middleware();
@@ -114,8 +117,8 @@ describe('RedisRateLimiter', () => {
       });
     });
 
-    it('should allow request through on Redis error', async () => {
-      mockRedis.incr.mockRejectedValue(new Error('Redis connection lost'));
+    it('should allow request through on Redis error (fail open)', async () => {
+      mockRedis.eval.mockRejectedValue(new Error('Redis connection lost'));
 
       const middleware = limiter.middleware();
       middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -127,7 +130,7 @@ describe('RedisRateLimiter', () => {
       expect(mockRes.status).not.toHaveBeenCalled();
     });
 
-    it('should skip rate limiting when no user key', async () => {
+    it('should skip rate limiting when no user key (returns null)', async () => {
       mockReq.headers = {};
 
       const middleware = limiter.middleware();
@@ -135,7 +138,19 @@ describe('RedisRateLimiter', () => {
 
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(mockRedis.incr).not.toHaveBeenCalled();
+      expect(mockRedis.eval).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('should skip rate limiting when user key is empty string', async () => {
+      mockReq.headers = { 'x-user-id': '' };
+
+      const middleware = limiter.middleware();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockRedis.eval).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
     });
   });
@@ -143,19 +158,41 @@ describe('RedisRateLimiter', () => {
   describe('custom key generator', () => {
     it('should use custom key generator', async () => {
       const customLimiter = new RedisRateLimiter(mockRedis as never, {
-        keyGenerator: req => (req.headers['x-api-key'] as string) ?? '',
+        keyGenerator: req => {
+          const apiKey = req.headers['x-api-key'] as string | undefined;
+          return apiKey && apiKey.length > 0 ? apiKey : null;
+        },
       });
 
       mockReq.headers = { 'x-api-key': 'my-api-key' };
-      mockRedis.incr.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
+      mockRedis.eval.mockResolvedValue(1);
 
       const middleware = customLimiter.middleware();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(mockRedis.incr).toHaveBeenCalledWith('ratelimit:my-api-key');
+      // Check eval was called with the custom key
+      expect(mockRedis.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        'ratelimit:my-api-key',
+        expect.any(Number)
+      );
+    });
+
+    it('should skip rate limiting when custom key generator returns null', async () => {
+      const customLimiter = new RedisRateLimiter(mockRedis as never, {
+        keyGenerator: () => null,
+      });
+
+      const middleware = customLimiter.middleware();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockRedis.eval).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
     });
   });
 
@@ -165,15 +202,19 @@ describe('RedisRateLimiter', () => {
         keyPrefix: 'custom:prefix:',
       });
 
-      mockRedis.incr.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
+      mockRedis.eval.mockResolvedValue(1);
 
       const middleware = customLimiter.middleware();
       middleware(mockReq as Request, mockRes as Response, mockNext);
 
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(mockRedis.incr).toHaveBeenCalledWith('custom:prefix:user-123');
+      expect(mockRedis.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        'custom:prefix:user-123',
+        expect.any(Number)
+      );
     });
   });
 
