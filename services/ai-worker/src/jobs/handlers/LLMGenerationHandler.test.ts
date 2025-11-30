@@ -776,9 +776,7 @@ describe('LLMGenerationHandler', () => {
 
         mockGetJobResult.mockResolvedValueOnce({
           success: true,
-          descriptions: [
-            { url: 'https://example.com/job1-image.png', description: 'Job 1 image' },
-          ],
+          descriptions: [{ url: 'https://example.com/job1-image.png', description: 'Job 1 image' }],
         });
 
         await handler.processJob(job1);

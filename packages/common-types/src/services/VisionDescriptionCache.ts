@@ -60,10 +60,7 @@ export class VisionDescriptionCache {
         return description;
       }
 
-      logger.debug(
-        { urlPrefix: imageUrl.substring(0, 60) },
-        '[VisionDescriptionCache] Cache MISS'
-      );
+      logger.debug({ urlPrefix: imageUrl.substring(0, 60) }, '[VisionDescriptionCache] Cache MISS');
       return null;
     } catch (error) {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to get description');
