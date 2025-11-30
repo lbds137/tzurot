@@ -4,6 +4,9 @@
  * Processes images to extract text descriptions using vision models.
  * Supports personality's configured vision model, main LLM with vision support,
  * or fallback to default vision model (Qwen3-VL).
+ *
+ * Vision capability detection uses OpenRouter's cached model data from Redis
+ * for accurate, dynamic capability checking rather than hardcoded model lists.
  */
 
 import { ChatOpenAI } from '@langchain/openai';
@@ -18,56 +21,22 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { logErrorWithDetails } from '../../utils/errorHandling.js';
+import { checkModelVisionSupport } from '../../redis.js';
 
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
 
 /**
- * Check if a model has vision support
+ * Check if a model has vision support using OpenRouter's cached model data.
  *
- * NOTE: This uses pattern matching as a fallback. The preferred approach is to use
- * ModelCapabilityChecker.modelSupportsVision() which queries OpenRouter's model cache
- * for accurate capability detection. See services/ModelCapabilityChecker.ts.
+ * This queries the Redis cache populated by api-gateway's OpenRouterModelCache,
+ * which contains accurate capability information from OpenRouter's /models API.
  *
- * TODO: Refactor to use ModelCapabilityChecker once Redis is plumbed through the call stack.
+ * @param modelName - The model ID to check (e.g., "google/gemma-3-27b-it:free")
+ * @returns true if the model supports image input
  */
-export function hasVisionSupport(modelName: string): boolean {
-  const normalized = modelName.toLowerCase();
-
-  // OpenAI vision models (gpt-4o, gpt-4-turbo, gpt-4-vision, etc.)
-  if (
-    normalized.includes('gpt-4') &&
-    (normalized.includes('vision') || normalized.includes('4o') || normalized.includes('turbo'))
-  ) {
-    return true;
-  }
-
-  // Anthropic Claude 3+ models (all have vision)
-  if (normalized.includes('claude-3') || normalized.includes('claude-4')) {
-    return true;
-  }
-
-  // Google Gemini models (1.5+, 2.0+, 2.5+ all have vision)
-  if (normalized.includes('gemini')) {
-    // Match gemini-1.5+, gemini-2.0+, gemini-2.5+, etc.
-    // Exclude old gemini-pro without vision
-    if (normalized.includes('1.5') || normalized.includes('2.') || normalized.includes('vision')) {
-      return true;
-    }
-  }
-
-  // Google Gemma 3 models (multimodal with vision support)
-  // e.g., google/gemma-3-27b-it:free
-  if (normalized.includes('gemma-3') || normalized.includes('gemma3')) {
-    return true;
-  }
-
-  // Llama vision models
-  if (normalized.includes('llama') && normalized.includes('vision')) {
-    return true;
-  }
-
-  return false;
+export async function hasVisionSupport(modelName: string): Promise<boolean> {
+  return checkModelVisionSupport(modelName);
 }
 
 /**
@@ -103,7 +72,8 @@ export async function describeImage(
   }
 
   // Priority 2: Use personality's main model if it has native vision support
-  if (hasVisionSupport(personality.model)) {
+  const mainModelHasVision = await hasVisionSupport(personality.model);
+  if (mainModelHasVision) {
     logger.info(
       { model: personality.model },
       'Using main LLM for vision (native vision support detected)'
