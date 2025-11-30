@@ -9,7 +9,12 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger, REDIS_KEY_PREFIXES, type OpenRouterModel } from '@tzurot/common-types';
+import {
+  createLogger,
+  REDIS_KEY_PREFIXES,
+  AI_DEFAULTS,
+  type OpenRouterModel,
+} from '@tzurot/common-types';
 
 const logger = createLogger('ModelCapabilityChecker');
 
@@ -23,7 +28,6 @@ interface CachedCapabilities {
 }
 
 const capabilityCache = new Map<string, CachedCapabilities>();
-const CAPABILITY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Check if a model supports vision input using OpenRouter's model data
@@ -43,15 +47,27 @@ export async function modelSupportsVision(modelId: string, redis: Redis): Promis
 
   // Check in-memory cache first
   const cached = capabilityCache.get(normalizedId);
-  if (cached && Date.now() - cached.timestamp < CAPABILITY_CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS) {
     return cached.supportsVision;
   }
 
   // Try to get from Redis cache
   try {
     const modelsJson = await redis.get(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
-    if (modelsJson !== null && modelsJson.length > 0) {
-      const models = JSON.parse(modelsJson) as OpenRouterModel[];
+    if (modelsJson !== null && modelsJson !== '') {
+      // Parse JSON separately for clearer error logging
+      let models: OpenRouterModel[];
+      try {
+        models = JSON.parse(modelsJson) as OpenRouterModel[];
+      } catch (parseError) {
+        logger.warn(
+          { err: parseError, modelId },
+          '[ModelCapabilityChecker] Failed to parse Redis cache data, using fallback'
+        );
+        // Fall through to pattern matching
+        models = [];
+      }
+
       const model = models.find(m => m.id === normalizedId || m.id === modelId);
 
       if (model) {
@@ -67,7 +83,7 @@ export async function modelSupportsVision(modelId: string, redis: Redis): Promis
   } catch (error) {
     logger.warn(
       { err: error, modelId },
-      '[ModelCapabilityChecker] Failed to read from Redis cache, using fallback'
+      '[ModelCapabilityChecker] Failed to read from Redis, using fallback'
     );
   }
 

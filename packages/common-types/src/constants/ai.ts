@@ -61,6 +61,12 @@ export const AI_DEFAULTS = {
    * 500 chars ≈ 125 tokens, so 6 messages ≈ 750 tokens (well under embedding limit)
    */
   LTM_SEARCH_MESSAGE_PREVIEW: 500,
+  /**
+   * In-memory cache TTL for model capability lookups (5 minutes)
+   * Model capabilities rarely change, so longer TTL reduces Redis calls.
+   * Short enough to pick up OpenRouter model updates within a session.
+   */
+  MODEL_CAPABILITY_CACHE_TTL_MS: 5 * 60 * 1000,
 } as const;
 
 /**
