@@ -71,7 +71,13 @@ export const redisService = new RedisService(redis);
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
 
 // Create ioredis client for model capability checking (uses same Redis URL)
-// BullMQ and ModelCapabilityChecker require ioredis, not node-redis
+//
+// NOTE: We maintain both node-redis and ioredis clients because:
+// - node-redis: Used by RedisService and VoiceTranscriptCache (existing infrastructure)
+// - ioredis: Required by BullMQ and ModelCapabilityChecker (library requirements)
+//
+// This results in 2 Redis connections per ai-worker instance.
+// TODO: Consider migrating fully to ioredis to reduce connection overhead (tech debt)
 const ioredisConfig = createBullMQRedisConfig({
   host: parsedUrl.host,
   port: parsedUrl.port,
