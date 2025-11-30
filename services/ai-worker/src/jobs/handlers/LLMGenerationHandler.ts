@@ -52,6 +52,26 @@ const logger = createLogger('LLMGenerationHandler');
  *
  * Each step is stateless - context flows through as function arguments,
  * ensuring thread safety when handling concurrent jobs.
+ *
+ * ## Error Handling / Failure Behavior
+ *
+ * **All pipeline steps are critical** - any failure stops the pipeline and returns
+ * an error result. There are no "optional" steps that can be skipped on failure.
+ *
+ * **ValidationStep** runs outside try/catch:
+ * - Validation errors indicate programming errors (malformed job data)
+ * - These propagate as exceptions and fail the BullMQ job directly
+ * - No error result is returned; the job goes to the failed queue
+ *
+ * **Steps 2-6** run inside try/catch:
+ * - Errors are caught and converted to error results with `success: false`
+ * - Error results include `failedStep` and `lastSuccessfulStep` for debugging
+ * - These are "soft failures" - the job completes but reports an error to the client
+ *
+ * This design ensures:
+ * - BullMQ retries are only used for transient infrastructure failures (validation errors)
+ * - Application-level errors (API rate limits, model unavailable) return error messages to users
+ * - Debugging information is always available in the error result metadata
  */
 export class LLMGenerationHandler {
   private readonly pipeline: IPipelineStep[];
