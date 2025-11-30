@@ -705,5 +705,102 @@ describe('LLMGenerationHandler', () => {
         expect(result.referencedMessagesDescriptions).toBe('User replied to: "Original message"');
       });
     });
+
+    describe('cross-job state isolation', () => {
+      it('should not leak preprocessing results from one job to another', async () => {
+        // Job 1: Has preprocessed attachments from dependencies
+        const job1Data = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'image-job-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-001`,
+            },
+          ],
+        });
+        const job1 = { id: 'job-1-with-deps', data: job1Data } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValueOnce({
+          success: true,
+          descriptions: [
+            { url: 'https://example.com/job1-image.png', description: 'Job 1 image description' },
+          ],
+        });
+
+        const result1 = await handler.processJob(job1);
+        expect(result1.success).toBe(true);
+
+        // Verify Job 1 had preprocessed attachments
+        const job1RagCall = mockRAGService.generateResponse.mock.calls[0];
+        const job1Context = job1RagCall[2];
+        expect(job1Context.preprocessedAttachments).toBeDefined();
+        expect(job1Context.preprocessedAttachments).toHaveLength(1);
+        expect(job1Context.preprocessedAttachments[0].description).toBe('Job 1 image description');
+
+        // Clear mocks for job 2
+        mockRAGService.generateResponse.mockClear();
+        mockGetJobResult.mockClear();
+
+        // Job 2: Has NO dependencies - should NOT inherit Job 1's preprocessing results
+        const job2Data = createValidJobData({
+          dependencies: undefined, // No dependencies!
+        });
+        const job2 = { id: 'job-2-no-deps', data: job2Data } as Job<LLMGenerationJobData>;
+
+        const result2 = await handler.processJob(job2);
+        expect(result2.success).toBe(true);
+
+        // Verify Job 2 did NOT receive Job 1's preprocessed attachments
+        const job2RagCall = mockRAGService.generateResponse.mock.calls[0];
+        const job2Context = job2RagCall[2];
+        expect(job2Context.preprocessedAttachments).toBeUndefined();
+
+        // Redis should not have been called since Job 2 has no dependencies
+        expect(mockGetJobResult).not.toHaveBeenCalled();
+      });
+
+      it('should reset preprocessing results even when job has empty dependencies array', async () => {
+        // Job 1: Has preprocessed attachments
+        const job1Data = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'image-job-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-001`,
+            },
+          ],
+        });
+        const job1 = { id: 'job-1', data: job1Data } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValueOnce({
+          success: true,
+          descriptions: [
+            { url: 'https://example.com/job1-image.png', description: 'Job 1 image' },
+          ],
+        });
+
+        await handler.processJob(job1);
+
+        // Clear mocks
+        mockRAGService.generateResponse.mockClear();
+        mockGetJobResult.mockClear();
+
+        // Job 2: Has empty dependencies array (not undefined)
+        const job2Data = createValidJobData({
+          dependencies: [], // Empty array!
+        });
+        const job2 = { id: 'job-2-empty-deps', data: job2Data } as Job<LLMGenerationJobData>;
+
+        const result2 = await handler.processJob(job2);
+        expect(result2.success).toBe(true);
+
+        // Verify Job 2 has no preprocessing results
+        const job2RagCall = mockRAGService.generateResponse.mock.calls[0];
+        const job2Context = job2RagCall[2];
+        expect(job2Context.preprocessedAttachments).toBeUndefined();
+      });
+    });
   });
 });

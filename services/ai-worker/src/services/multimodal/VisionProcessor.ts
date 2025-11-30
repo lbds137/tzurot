@@ -22,7 +22,7 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { logErrorWithDetails } from '../../utils/errorHandling.js';
-import { checkModelVisionSupport } from '../../redis.js';
+import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
 
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
@@ -65,6 +65,20 @@ export async function describeImage(
     'describeImage called - checking vision model configuration'
   );
 
+  // Check cache first to avoid duplicate vision API calls
+  // This is especially important for referenced message images which may be processed
+  // both inline (ReferencedMessageFormatter) and via preprocessing (ImageDescriptionJob)
+  const cachedDescription = await visionDescriptionCache.get(attachment.url);
+  if (cachedDescription !== null) {
+    logger.info(
+      { attachmentName: attachment.name },
+      'Using cached vision description - avoiding duplicate API call'
+    );
+    return cachedDescription;
+  }
+
+  let description: string;
+
   // Priority 1: Use personality's configured vision model if specified
   if (
     personality.visionModel !== undefined &&
@@ -75,36 +89,41 @@ export async function describeImage(
       { visionModel: personality.visionModel },
       'Using configured vision model (personality override)'
     );
-    return describeWithVisionModel(attachment, personality, personality.visionModel);
+    description = await describeWithVisionModel(attachment, personality, personality.visionModel);
+  } else {
+    // Priority 2: Use personality's main model if it has native vision support
+    const mainModelHasVision = await hasVisionSupport(personality.model);
+    if (mainModelHasVision) {
+      logger.info(
+        { model: personality.model },
+        'Using main LLM for vision (native vision support detected)'
+      );
+      description = await describeWithVisionModel(attachment, personality, personality.model);
+    } else {
+      // Priority 3: Use fallback vision model
+      // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
+      const fallbackModel = isGuestMode
+        ? MODEL_DEFAULTS.VISION_FALLBACK_FREE
+        : config.VISION_FALLBACK_MODEL;
+
+      logger.info(
+        { mainModel: personality.model, fallbackModel, isGuestMode },
+        'Using fallback vision model - main LLM lacks vision support'
+      );
+      description = await describeWithFallbackVision(
+        attachment,
+        personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
+          ? personality.systemPrompt
+          : '',
+        fallbackModel
+      );
+    }
   }
 
-  // Priority 2: Use personality's main model if it has native vision support
-  const mainModelHasVision = await hasVisionSupport(personality.model);
-  if (mainModelHasVision) {
-    logger.info(
-      { model: personality.model },
-      'Using main LLM for vision (native vision support detected)'
-    );
-    return describeWithVisionModel(attachment, personality, personality.model);
-  }
+  // Cache the description for future use (both code paths benefit)
+  await visionDescriptionCache.store(attachment.url, description);
 
-  // Priority 3: Use fallback vision model
-  // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
-  const fallbackModel = isGuestMode
-    ? MODEL_DEFAULTS.VISION_FALLBACK_FREE
-    : config.VISION_FALLBACK_MODEL;
-
-  logger.info(
-    { mainModel: personality.model, fallbackModel, isGuestMode },
-    'Using fallback vision model - main LLM lacks vision support'
-  );
-  return describeWithFallbackVision(
-    attachment,
-    personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
-      ? personality.systemPrompt
-      : '',
-    fallbackModel
-  );
+  return description;
 }
 
 /**

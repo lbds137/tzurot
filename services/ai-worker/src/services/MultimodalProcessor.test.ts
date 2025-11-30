@@ -35,10 +35,14 @@ vi.mock('openai', () => ({
 // Mock fetch for audio downloads
 global.fetch = vi.fn();
 
-// Mock redis module (transcribeAudio tries to import it, VisionProcessor uses checkModelVisionSupport)
+// Mock redis module (transcribeAudio tries to import it, VisionProcessor uses checkModelVisionSupport and visionDescriptionCache)
 vi.mock('../redis.js', () => ({
   getVoiceTranscript: vi.fn().mockResolvedValue(null), // Return null to skip cache
   checkModelVisionSupport: vi.fn().mockResolvedValue(false), // Default to no vision support
+  visionDescriptionCache: {
+    get: vi.fn().mockResolvedValue(null), // Default: cache miss
+    store: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 describe('MultimodalProcessor', () => {
