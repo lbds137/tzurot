@@ -226,6 +226,34 @@ await queue.add(
 - [x] **Pipeline failure documentation**: Added comprehensive error handling docs to LLMGenerationHandler
 - [x] **ESLint documentation**: Documented ESLint 9 flat config in CLAUDE.md, deleted unused .eslintrc.json
 - [x] **GitHub Releases**: Deleted CHANGELOG.md, added Keep a Changelog guidance to tzurot-docs skill
+- [x] **ValidationStep test**: Added explicit test for validation error propagation behavior
+- [x] **AuthStep logging**: Changed API key resolution failure from `warn` to `error` level
+- [x] **Rate limiter edge case**: Added whitespace-only userId check
+
+## Future Improvements (from PR Review)
+
+Non-blocking suggestions for future work:
+
+### Performance Optimization
+
+- [ ] **Redis pipelining for deduplication** - Currently 2 Redis calls per request, could batch
+- [ ] **Pre-compile Lua script** - Use `defineCommand()` for rate limiter Lua script
+- [ ] **Return TTL from Lua script** - Avoid extra Redis call when rate limited
+
+### Monitoring & Observability
+
+- [ ] **Add error.stack to pipeline metadata** - Better production debugging
+- [ ] **Track metrics** - Rate limit hit rate, deduplication cache hit rate, pipeline step failure distribution
+
+### Known Scaling Blockers (Timer Patterns)
+
+Timer-based cleanup patterns that prevent horizontal scaling (documented in CLAUDE.md):
+
+- `LlmConfigResolver.ts` - cache cleanup interval
+- `WebhookManager.ts` - webhook cleanup interval
+- `DatabaseNotificationListener.ts` - reconnection timeout
+
+Consider migrating to BullMQ repeatable jobs or Redis-based coordination.
 
 ---
 

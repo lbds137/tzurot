@@ -160,7 +160,8 @@ export class RedisRateLimiter {
  */
 function defaultKeyGenerator(req: Request): string | null {
   const userId = req.headers['x-user-id'] as string | undefined;
-  if (userId === undefined || userId === null || userId.length === 0) {
+  // Check for undefined, null, empty, or whitespace-only strings
+  if (userId === undefined || userId === null || userId.trim().length === 0) {
     return null;
   }
   return userId;

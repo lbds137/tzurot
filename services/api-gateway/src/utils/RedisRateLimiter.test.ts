@@ -165,6 +165,18 @@ describe('RedisRateLimiter', () => {
       expect(mockRedis.eval).not.toHaveBeenCalled();
       expect(mockNext).toHaveBeenCalled();
     });
+
+    it('should skip rate limiting when user key is whitespace-only', async () => {
+      mockReq.headers = { 'x-user-id': '   ' };
+
+      const middleware = limiter.middleware();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockRedis.eval).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
+    });
   });
 
   describe('custom key generator', () => {

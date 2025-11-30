@@ -704,6 +704,38 @@ describe('LLMGenerationHandler', () => {
     });
 
     describe('error handling', () => {
+      /**
+       * Error Propagation Behavior:
+       *
+       * ValidationStep errors propagate as EXCEPTIONS (fail BullMQ job directly).
+       * Post-validation errors are CAUGHT and return error results {success: false}.
+       *
+       * This design ensures:
+       * - Malformed job data fails the job immediately (programming error)
+       * - Application errors (rate limits, model unavailable) return graceful errors to users
+       */
+
+      it('should propagate validation errors as exceptions (not error results)', async () => {
+        // Validation errors indicate programming errors - they should throw,
+        // NOT return {success: false, error: ...}
+        const invalidJobData = {
+          requestId: 'test-validation-propagation',
+          // Missing required fields: jobType, personality, message, context
+        } as any;
+        const job = {
+          id: 'job-validation-exception',
+          data: invalidJobData,
+        } as Job<LLMGenerationJobData>;
+
+        // Should throw exception (rejects), not return error result
+        await expect(handler.processJob(job)).rejects.toThrow(
+          'LLM generation job validation failed'
+        );
+
+        // Verify RAG service was never called (stopped at validation)
+        expect(mockRAGService.generateResponse).not.toHaveBeenCalled();
+      });
+
       it('should return failure result when RAG service throws', async () => {
         const jobData = createValidJobData();
         const job = { id: 'job-rag-error', data: jobData } as Job<LLMGenerationJobData>;
