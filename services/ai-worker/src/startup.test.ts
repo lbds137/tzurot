@@ -27,11 +27,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 import { HealthStatus } from '@tzurot/common-types';
-import {
-  validateRequiredEnvVars,
-  validateAIConfig,
-  buildHealthResponse,
-} from './startup.js';
+import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -43,25 +39,33 @@ describe('Startup Utilities', () => {
       const config = {
         REDIS_URL: 'redis://localhost:6379',
       };
-      expect(() => validateRequiredEnvVars(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).not.toThrow();
+      expect(() =>
+        validateRequiredEnvVars(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).not.toThrow();
     });
 
     it('should throw when REDIS_URL is undefined', () => {
       const config = {
         REDIS_URL: undefined,
       };
-      expect(() => validateRequiredEnvVars(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'REDIS_URL environment variable is required'
-      );
+      expect(() =>
+        validateRequiredEnvVars(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).toThrow('REDIS_URL environment variable is required');
     });
 
     it('should throw when REDIS_URL is empty', () => {
       const config = {
         REDIS_URL: '',
       };
-      expect(() => validateRequiredEnvVars(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'REDIS_URL environment variable is required'
-      );
+      expect(() =>
+        validateRequiredEnvVars(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).toThrow('REDIS_URL environment variable is required');
     });
   });
 
@@ -70,25 +74,27 @@ describe('Startup Utilities', () => {
       const config = {
         OPENAI_API_KEY: 'test-key',
       };
-      expect(() => validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).not.toThrow();
+      expect(() =>
+        validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).not.toThrow();
     });
 
     it('should throw when OPENAI_API_KEY is undefined', () => {
       const config = {
         OPENAI_API_KEY: undefined,
       };
-      expect(() => validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'OPENAI_API_KEY environment variable is required for memory embeddings'
-      );
+      expect(() =>
+        validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).toThrow('OPENAI_API_KEY environment variable is required for memory embeddings');
     });
 
     it('should throw when OPENAI_API_KEY is empty', () => {
       const config = {
         OPENAI_API_KEY: '',
       };
-      expect(() => validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'OPENAI_API_KEY environment variable is required for memory embeddings'
-      );
+      expect(() =>
+        validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).toThrow('OPENAI_API_KEY environment variable is required for memory embeddings');
     });
   });
 

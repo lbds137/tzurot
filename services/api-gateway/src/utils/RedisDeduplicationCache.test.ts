@@ -84,9 +84,12 @@ describe('RedisDeduplicationCache', () => {
     });
 
     it('should create cache with custom window', () => {
-      const newCache = new RedisDeduplicationCache(mockRedis as unknown as import('ioredis').Redis, {
-        duplicateWindowSeconds: 10,
-      });
+      const newCache = new RedisDeduplicationCache(
+        mockRedis as unknown as import('ioredis').Redis,
+        {
+          duplicateWindowSeconds: 10,
+        }
+      );
       expect(newCache).toBeDefined();
     });
   });
@@ -165,9 +168,12 @@ describe('RedisDeduplicationCache', () => {
     it('should use correct TTL from options', async () => {
       mockRedis.setex.mockResolvedValue('OK');
 
-      const customCache = new RedisDeduplicationCache(mockRedis as unknown as import('ioredis').Redis, {
-        duplicateWindowSeconds: 30,
-      });
+      const customCache = new RedisDeduplicationCache(
+        mockRedis as unknown as import('ioredis').Redis,
+        {
+          duplicateWindowSeconds: 30,
+        }
+      );
 
       const request = createMockRequest('Hello world');
       await customCache.cacheRequest(request, 'req-123', 'job-456');
