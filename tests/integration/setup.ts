@@ -18,13 +18,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import type { RedisClientType } from 'redis';
-import { createClient } from 'redis';
+import { Redis as IORedis } from 'ioredis';
 import { createRedisClientMock } from './helpers/RedisClientMock.js';
 
 export interface TestEnvironment {
   prisma: PrismaClient;
-  redis: RedisClientType;
+  redis: IORedis;
   cleanup: () => Promise<void>;
 }
 
@@ -370,14 +369,17 @@ async function setupPGlite(): Promise<TestEnvironment> {
   // Initialize schema
   await initializePGliteSchema(prisma);
 
-  // Create Redis mock
-  const redis = createRedisClientMock() as unknown as RedisClientType;
+  // Create Redis mock (ioredis-compatible)
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const redis: IORedis = createRedisClientMock() as unknown as IORedis;
 
   return {
     prisma,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await redis.quit();
       if (pgliteInstance) {
         await pgliteInstance.close();
@@ -397,14 +399,17 @@ function setupWithRealDatabase(): TestEnvironment {
   const adapter = new PrismaPg({ connectionString: databaseUrl });
   const prisma = new PrismaClient({ adapter });
 
-  // Create a Redis mock instance for local development
-  const redis = createRedisClientMock() as unknown as RedisClientType;
+  // Create a Redis mock instance for local development (ioredis-compatible)
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const redis: IORedis = createRedisClientMock() as unknown as IORedis;
 
   return {
     prisma,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await redis.quit();
     },
   };
@@ -412,8 +417,9 @@ function setupWithRealDatabase(): TestEnvironment {
 
 /**
  * Set up CI test environment (real Postgres + Redis)
+ * Uses ioredis (unified Redis client for all services - BullMQ requires it anyway)
  */
-async function setupCI(): Promise<TestEnvironment> {
+function setupCI(): TestEnvironment {
   // In CI, use environment variables pointing to service containers
   const databaseUrl =
     process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/tzurot_test';
@@ -423,15 +429,23 @@ async function setupCI(): Promise<TestEnvironment> {
   const adapter = new PrismaPg({ connectionString: databaseUrl });
   const prisma = new PrismaClient({ adapter });
 
-  // Create Redis client
-  const redis = createClient({ url: redisUrl });
-  await redis.connect();
+  // Parse Redis URL for ioredis (connects lazily)
+  const url = new URL(redisUrl);
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+  const redis: IORedis = new IORedis({
+    host: url.hostname,
+    port: parseInt(url.port, 10) || 6379,
+    password: url.password || undefined,
+    username: url.username || undefined,
+  });
 
   return {
     prisma,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await redis.quit();
     },
   };

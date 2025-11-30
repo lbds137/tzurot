@@ -1,15 +1,17 @@
 /**
  * RedisService
  * Handles Redis operations for webhook message tracking
+ *
+ * Uses ioredis (unified Redis client for all services - BullMQ requires it anyway)
  */
 
-import type { RedisClientType } from 'redis';
+import type { Redis } from 'ioredis';
 import { createLogger, REDIS_KEY_PREFIXES, INTERVALS } from '@tzurot/common-types';
 
 const logger = createLogger('RedisService');
 
 export class RedisService {
-  constructor(private redis: RedisClientType) {}
+  constructor(private redis: Redis) {}
 
   /**
    * Store webhook message -> personality mapping
@@ -23,7 +25,8 @@ export class RedisService {
     ttlSeconds: number = INTERVALS.WEBHOOK_MESSAGE_TTL
   ): Promise<void> {
     try {
-      await this.redis.setEx(
+      // ioredis uses lowercase method names: setex instead of setEx
+      await this.redis.setex(
         `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`,
         ttlSeconds,
         personalityName

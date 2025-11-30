@@ -3,21 +3,23 @@
  *
  * Tests the critical JobResult construction logic from Redis Stream messages.
  * Focus: Ensuring the bug where `result` field was missing is prevented.
+ *
+ * Uses ioredis (unified Redis client for all services - BullMQ requires it anyway)
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import type { JobResult } from '@tzurot/common-types';
 import { JobStatus } from '@tzurot/common-types';
 
-// Mock the Redis client to prevent actual connections during tests
-vi.mock('redis', () => ({
-  createClient: vi.fn(() => ({
+// Mock ioredis to prevent actual connections during tests
+vi.mock('ioredis', () => ({
+  Redis: vi.fn(() => ({
     on: vi.fn(),
     connect: vi.fn().mockResolvedValue(undefined),
     quit: vi.fn().mockResolvedValue(undefined),
-    xGroupCreate: vi.fn().mockResolvedValue(undefined),
-    xReadGroup: vi.fn().mockResolvedValue(null),
-    xAck: vi.fn().mockResolvedValue(1),
+    xgroup: vi.fn().mockResolvedValue(undefined),
+    xreadgroup: vi.fn().mockResolvedValue(null),
+    xack: vi.fn().mockResolvedValue(1),
   })),
 }));
 
@@ -178,14 +180,14 @@ describe('ResultsListener - JobResult Construction', () => {
   });
 
   describe('Redis Stream message structure', () => {
-    it('should match expected Redis xAdd format', () => {
-      // This is what ai-worker publishes:
-      // await redis.xAdd('job-results', '*', {
-      //   jobId,
-      //   requestId,
-      //   result: JSON.stringify(result),
-      //   completedAt: new Date().toISOString(),
-      // });
+    it('should match expected Redis xadd format', () => {
+      // This is what ai-worker publishes (ioredis varargs format):
+      // await redis.xadd('job-results', '*',
+      //   'jobId', jobId,
+      //   'requestId', requestId,
+      //   'result', JSON.stringify(result),
+      //   'completedAt', new Date().toISOString()
+      // );
 
       const expectedStructure = {
         jobId: expect.any(String),
