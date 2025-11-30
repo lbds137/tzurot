@@ -2,17 +2,21 @@
  * Redis Client for AI Worker
  *
  * Exports singleton RedisService instance for transcript caching and job results.
+ * Also exports ioredis client for model capability checking.
  */
 
 import { createClient, type RedisClientType } from 'redis';
+import { Redis as IORedis } from 'ioredis';
 import {
   createLogger,
   getConfig,
   parseRedisUrl,
   createRedisSocketConfig,
+  createBullMQRedisConfig,
   VoiceTranscriptCache,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
+import { modelSupportsVision, clearCapabilityCache } from './services/ModelCapabilityChecker.js';
 
 const logger = createLogger('Redis');
 const config = getConfig();
@@ -65,3 +69,45 @@ export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
+
+// Create ioredis client for model capability checking (uses same Redis URL)
+// BullMQ and ModelCapabilityChecker require ioredis, not node-redis
+const ioredisConfig = createBullMQRedisConfig({
+  host: parsedUrl.host,
+  port: parsedUrl.port,
+  password: parsedUrl.password,
+  username: parsedUrl.username,
+  family: 6, // Railway private network uses IPv6
+});
+
+const ioredisClient = new IORedis({
+  host: ioredisConfig.host,
+  port: ioredisConfig.port,
+  password: ioredisConfig.password,
+  username: ioredisConfig.username,
+  family: ioredisConfig.family,
+});
+
+ioredisClient.on('error', (error: Error) => {
+  logger.error({ err: error }, '[Redis] ioredis client error');
+});
+
+ioredisClient.on('connect', () => {
+  logger.info('[Redis] ioredis client connected (for model capability checking)');
+});
+
+/**
+ * Check if a model supports vision input using OpenRouter's cached model data.
+ * This is a singleton wrapper that uses the shared ioredis client.
+ *
+ * @param modelId - The model ID to check (e.g., "google/gemma-3-27b-it:free")
+ * @returns true if the model supports image input
+ */
+export async function checkModelVisionSupport(modelId: string): Promise<boolean> {
+  return modelSupportsVision(modelId, ioredisClient);
+}
+
+/**
+ * Clear the model capability cache (useful when model data is updated)
+ */
+export { clearCapabilityCache };
