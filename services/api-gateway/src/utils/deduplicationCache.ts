@@ -29,8 +29,7 @@ export function initializeDeduplicationCache(
   options?: RedisDeduplicationOptions
 ): void {
   if (_cache !== null) {
-    logger.warn({}, '[DeduplicationCache] Cache already initialized, disposing old instance');
-    _cache.dispose();
+    logger.warn({}, '[DeduplicationCache] Cache already initialized, replacing instance');
   }
 
   _cache = new RedisDeduplicationCache(redis, options);
@@ -51,14 +50,14 @@ export function getDeduplicationCache(): RedisDeduplicationCache {
 }
 
 /**
- * Dispose the deduplication cache
- * Should be called during graceful shutdown
+ * Clear the deduplication cache reference
+ * Note: Redis handles TTL-based cleanup automatically, so there's nothing to dispose
+ * This just clears the local reference for graceful shutdown consistency
  */
 export function disposeDeduplicationCache(): void {
   if (_cache !== null) {
-    _cache.dispose();
     _cache = null;
-    logger.info('[DeduplicationCache] Deduplication cache disposed');
+    logger.info('[DeduplicationCache] Deduplication cache reference cleared');
   }
 }
 

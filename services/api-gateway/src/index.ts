@@ -117,7 +117,11 @@ async function main(): Promise<void> {
   // INITIALIZE SERVICES
   // ============================================================================
 
-  const cacheRedis = new Redis(envConfig.REDIS_URL!);
+  // REDIS_URL is validated in startup.ts, but TypeScript doesn't know that
+  if (envConfig.REDIS_URL === undefined) {
+    throw new Error('REDIS_URL is required but was not provided');
+  }
+  const cacheRedis = new Redis(envConfig.REDIS_URL);
   cacheRedis.on('error', err => {
     logger.error({ err }, '[Gateway] Cache Redis connection error');
   });
@@ -144,8 +148,12 @@ async function main(): Promise<void> {
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
+  // DATABASE_URL is validated in startup.ts, but TypeScript doesn't know that
+  if (envConfig.DATABASE_URL === undefined) {
+    throw new Error('DATABASE_URL is required but was not provided');
+  }
   const dbNotificationListener = new DatabaseNotificationListener(
-    envConfig.DATABASE_URL!,
+    envConfig.DATABASE_URL,
     cacheInvalidationService
   );
   await dbNotificationListener.start();

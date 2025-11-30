@@ -370,16 +370,13 @@ async function setupPGlite(): Promise<TestEnvironment> {
   await initializePGliteSchema(prisma);
 
   // Create Redis mock (ioredis-compatible)
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const redis: IORedis = createRedisClientMock() as unknown as IORedis;
 
   return {
     prisma,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await redis.quit();
       if (pgliteInstance) {
         await pgliteInstance.close();
@@ -400,16 +397,13 @@ function setupWithRealDatabase(): TestEnvironment {
   const prisma = new PrismaClient({ adapter });
 
   // Create a Redis mock instance for local development (ioredis-compatible)
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const redis: IORedis = createRedisClientMock() as unknown as IORedis;
 
   return {
     prisma,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await redis.quit();
     },
   };
@@ -431,7 +425,6 @@ function setupCI(): TestEnvironment {
 
   // Parse Redis URL for ioredis (connects lazily)
   const url = new URL(redisUrl);
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const redis: IORedis = new IORedis({
     host: url.hostname,
     port: parseInt(url.port, 10) || 6379,
@@ -441,11 +434,9 @@ function setupCI(): TestEnvironment {
 
   return {
     prisma,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     redis,
     cleanup: async () => {
       await prisma.$disconnect();
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await redis.quit();
     },
   };
