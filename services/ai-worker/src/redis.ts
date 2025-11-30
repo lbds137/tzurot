@@ -1,17 +1,20 @@
 /**
  * Redis Client for AI Worker
  *
- * Exports singleton RedisService instance for transcript caching and job results.
- * Also exports ioredis client for model capability checking.
+ * Single ioredis client for all Redis operations:
+ * - RedisService: Job results and streaming
+ * - VoiceTranscriptCache: Transcript caching
+ * - ModelCapabilityChecker: Vision support detection
+ *
+ * Unified on ioredis because BullMQ requires it anyway.
+ * This eliminates the previous dual-client overhead (node-redis + ioredis).
  */
 
-import { createClient, type RedisClientType } from 'redis';
 import { Redis as IORedis } from 'ioredis';
 import {
   createLogger,
   getConfig,
   parseRedisUrl,
-  createRedisSocketConfig,
   createBullMQRedisConfig,
   VoiceTranscriptCache,
 } from '@tzurot/common-types';
@@ -28,7 +31,8 @@ if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
 
 const parsedUrl = parseRedisUrl(config.REDIS_URL);
 
-const redisConfig = createRedisSocketConfig({
+// Use BullMQ-compatible config for all ioredis operations
+const ioredisConfig = createBullMQRedisConfig({
   host: parsedUrl.host,
   port: parsedUrl.port,
   password: parsedUrl.password,
@@ -38,30 +42,45 @@ const redisConfig = createRedisSocketConfig({
 
 logger.info(
   {
-    host: redisConfig.socket.host,
-    port: redisConfig.socket.port,
-    hasPassword: redisConfig.password !== undefined,
-    connectTimeout: redisConfig.socket.connectTimeout,
-    commandTimeout: redisConfig.socket.commandTimeout,
+    host: ioredisConfig.host,
+    port: ioredisConfig.port,
+    hasPassword: ioredisConfig.password !== undefined,
+    connectTimeout: ioredisConfig.connectTimeout,
+    commandTimeout: ioredisConfig.commandTimeout,
   },
-  '[Redis] Redis config:'
+  '[Redis] Redis config (ioredis):'
 );
 
-// Create Redis client
-const redis: RedisClientType = createClient(redisConfig) as RedisClientType;
+// Single ioredis client for all operations
+const redis = new IORedis({
+  host: ioredisConfig.host,
+  port: ioredisConfig.port,
+  password: ioredisConfig.password,
+  username: ioredisConfig.username,
+  family: ioredisConfig.family,
+  connectTimeout: ioredisConfig.connectTimeout,
+  commandTimeout: ioredisConfig.commandTimeout,
+  keepAlive: ioredisConfig.keepAlive,
+  lazyConnect: ioredisConfig.lazyConnect,
+  enableReadyCheck: ioredisConfig.enableReadyCheck,
+  // Note: maxRetriesPerRequest is set to null for BullMQ queues, but we want
+  // standard retries for general Redis operations. Leave as default (20).
+});
 
-// Error handling
-redis.on('error', error => {
-  logger.error({ err: error }, '[Redis] Redis client error');
+redis.on('error', (error: Error) => {
+  logger.error({ err: error }, '[Redis] ioredis client error');
 });
 
 redis.on('connect', () => {
-  logger.info('[Redis] Connected to Redis');
+  logger.info('[Redis] Connected to Redis (ioredis)');
 });
 
-// Connect on startup
-redis.connect().catch(error => {
-  logger.error({ err: error }, '[Redis] Failed to connect to Redis');
+redis.on('ready', () => {
+  logger.info('[Redis] Redis client ready');
+});
+
+redis.on('reconnecting', () => {
+  logger.info('[Redis] Reconnecting to Redis');
 });
 
 // Export singleton RedisService instance
@@ -69,38 +88,6 @@ export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
-
-// Create ioredis client for model capability checking (uses same Redis URL)
-//
-// NOTE: We maintain both node-redis and ioredis clients because:
-// - node-redis: Used by RedisService and VoiceTranscriptCache (existing infrastructure)
-// - ioredis: Required by BullMQ and ModelCapabilityChecker (library requirements)
-//
-// This results in 2 Redis connections per ai-worker instance.
-// TODO: Consider migrating fully to ioredis to reduce connection overhead (tech debt)
-const ioredisConfig = createBullMQRedisConfig({
-  host: parsedUrl.host,
-  port: parsedUrl.port,
-  password: parsedUrl.password,
-  username: parsedUrl.username,
-  family: 6, // Railway private network uses IPv6
-});
-
-const ioredisClient = new IORedis({
-  host: ioredisConfig.host,
-  port: ioredisConfig.port,
-  password: ioredisConfig.password,
-  username: ioredisConfig.username,
-  family: ioredisConfig.family,
-});
-
-ioredisClient.on('error', (error: Error) => {
-  logger.error({ err: error }, '[Redis] ioredis client error');
-});
-
-ioredisClient.on('connect', () => {
-  logger.info('[Redis] ioredis client connected (for model capability checking)');
-});
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.
@@ -110,10 +97,17 @@ ioredisClient.on('connect', () => {
  * @returns true if the model supports image input
  */
 export async function checkModelVisionSupport(modelId: string): Promise<boolean> {
-  return modelSupportsVision(modelId, ioredisClient);
+  return modelSupportsVision(modelId, redis);
 }
 
 /**
  * Clear the model capability cache (useful when model data is updated)
  */
 export { clearCapabilityCache };
+
+/**
+ * Close Redis connection for graceful shutdown
+ */
+export async function closeRedis(): Promise<void> {
+  await redisService.close();
+}

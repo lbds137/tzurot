@@ -5,14 +5,15 @@
  * AI job results to Discord channels.
  *
  * Uses consumer groups for reliability and scalability.
+ * Uses ioredis (unified Redis client for all services - BullMQ requires it anyway)
  */
 
-import { createClient, type RedisClientType } from 'redis';
+import { Redis as IORedis } from 'ioredis';
 import {
   createLogger,
   getConfig,
   parseRedisUrl,
-  createRedisSocketConfig,
+  createBullMQRedisConfig,
   type LLMGenerationResult,
 } from '@tzurot/common-types';
 
@@ -33,7 +34,7 @@ interface JobResultMessage {
 }
 
 export class ResultsListener {
-  private redis: RedisClientType;
+  private redis: IORedis;
   private isListening = false;
   private onResult?: (jobId: string, result: LLMGenerationResult) => Promise<void>;
 
@@ -46,7 +47,7 @@ export class ResultsListener {
 
     const parsedUrl = parseRedisUrl(config.REDIS_URL);
 
-    const redisConfig = createRedisSocketConfig({
+    const ioredisConfig = createBullMQRedisConfig({
       host: parsedUrl.host,
       port: parsedUrl.port,
       password: parsedUrl.password,
@@ -54,9 +55,20 @@ export class ResultsListener {
       family: 6, // Railway private network uses IPv6
     });
 
-    this.redis = createClient(redisConfig) as RedisClientType;
+    this.redis = new IORedis({
+      host: ioredisConfig.host,
+      port: ioredisConfig.port,
+      password: ioredisConfig.password,
+      username: ioredisConfig.username,
+      family: ioredisConfig.family,
+      connectTimeout: ioredisConfig.connectTimeout,
+      commandTimeout: ioredisConfig.commandTimeout,
+      keepAlive: ioredisConfig.keepAlive,
+      lazyConnect: true, // Connect manually in start()
+      enableReadyCheck: ioredisConfig.enableReadyCheck,
+    });
 
-    this.redis.on('error', error => {
+    this.redis.on('error', (error: Error) => {
       logger.error({ err: error }, '[ResultsListener] Redis client error');
     });
   }
@@ -71,15 +83,14 @@ export class ResultsListener {
     this.onResult = onResult;
 
     try {
-      // Connect to Redis
+      // Connect to Redis (manual since lazyConnect is true)
       await this.redis.connect();
-      logger.info('[ResultsListener] Connected to Redis');
+      logger.info('[ResultsListener] Connected to Redis (ioredis)');
 
       // Create consumer group (idempotent - won't error if exists)
       try {
-        await this.redis.xGroupCreate(STREAM_NAME, CONSUMER_GROUP, '0', {
-          MKSTREAM: true, // Create stream if it doesn't exist
-        });
+        // ioredis xgroup: xgroup('CREATE', stream, group, id, 'MKSTREAM')
+        await this.redis.xgroup('CREATE', STREAM_NAME, CONSUMER_GROUP, '0', 'MKSTREAM');
         logger.info(
           { stream: STREAM_NAME, group: CONSUMER_GROUP },
           '[ResultsListener] Created consumer group'
@@ -124,26 +135,38 @@ export class ResultsListener {
     while (this.isListening) {
       try {
         // Read pending messages first (messages that were read but not ACKed)
-        const pendingMessages = await this.redis.xReadGroup(
+        // ioredis xreadgroup: xreadgroup('GROUP', group, consumer, 'COUNT', n, 'STREAMS', key, id)
+        const pendingMessages = await this.redis.xreadgroup(
+          'GROUP',
           CONSUMER_GROUP,
           CONSUMER_NAME,
-          [{ key: STREAM_NAME, id: '0' }], // '0' means pending messages
-          { COUNT: READ_COUNT }
+          'COUNT',
+          READ_COUNT,
+          'STREAMS',
+          STREAM_NAME,
+          '0' // '0' means pending messages
         );
 
-        if (pendingMessages && pendingMessages.length > 0) {
+        if (pendingMessages !== null && pendingMessages.length > 0) {
           await this.processMessages(pendingMessages);
         }
 
         // Read new messages (block until available)
-        const newMessages = await this.redis.xReadGroup(
+        // ioredis xreadgroup with BLOCK: xreadgroup('GROUP', group, consumer, 'COUNT', n, 'BLOCK', ms, 'STREAMS', key, id)
+        const newMessages = await this.redis.xreadgroup(
+          'GROUP',
           CONSUMER_GROUP,
           CONSUMER_NAME,
-          [{ key: STREAM_NAME, id: '>' }], // '>' means only new messages
-          { COUNT: READ_COUNT, BLOCK: BLOCK_MS }
+          'COUNT',
+          READ_COUNT,
+          'BLOCK',
+          BLOCK_MS,
+          'STREAMS',
+          STREAM_NAME,
+          '>' // '>' means only new messages
         );
 
-        if (newMessages && newMessages.length > 0) {
+        if (newMessages !== null && newMessages.length > 0) {
           await this.processMessages(newMessages);
         }
       } catch (error) {
@@ -156,31 +179,30 @@ export class ResultsListener {
 
   /**
    * Process messages from Redis Stream
+   *
+   * ioredis xreadgroup returns: [[streamName, [[messageId, [field, value, field, value, ...]], ...]]]
    */
   private async processMessages(messages: unknown): Promise<void> {
-    // Type assertion - xReadGroup returns a specific structure
-    const streamMessages = messages as {
-      name: string;
-      messages: {
-        id: string;
-        message: Record<string, string>;
-      }[];
-    }[];
+    // ioredis returns nested arrays: [[streamName, [[id, [f1, v1, f2, v2, ...]], ...]]]
+    const streamResults = messages as [string, [string, string[]][]][];
 
-    for (const stream of streamMessages) {
-      for (const msg of stream.messages) {
+    for (const [_streamName, entries] of streamResults) {
+      for (const [messageId, fields] of entries) {
         try {
+          // Convert flat array [f1, v1, f2, v2, ...] to object
+          const messageObj: Record<string, string> = {};
+          for (let i = 0; i < fields.length; i += 2) {
+            messageObj[fields[i]] = fields[i + 1];
+          }
+
           const data: JobResultMessage = {
-            jobId: msg.message.jobId,
-            requestId: msg.message.requestId,
-            result: msg.message.result,
-            completedAt: msg.message.completedAt,
+            jobId: messageObj.jobId,
+            requestId: messageObj.requestId,
+            result: messageObj.result,
+            completedAt: messageObj.completedAt,
           };
 
-          logger.info(
-            { jobId: data.jobId, messageId: msg.id },
-            '[ResultsListener] Received job result'
-          );
+          logger.info({ jobId: data.jobId, messageId }, '[ResultsListener] Received job result');
 
           // Parse LLMGenerationResult from JSON string
           const result = JSON.parse(data.result) as LLMGenerationResult;
@@ -191,12 +213,13 @@ export class ResultsListener {
           }
 
           // Acknowledge message (removes from pending)
-          await this.redis.xAck(STREAM_NAME, CONSUMER_GROUP, msg.id);
+          // ioredis xack: xack(stream, group, id)
+          await this.redis.xack(STREAM_NAME, CONSUMER_GROUP, messageId);
 
-          logger.debug({ messageId: msg.id }, '[ResultsListener] Acknowledged message');
+          logger.debug({ messageId }, '[ResultsListener] Acknowledged message');
         } catch (error) {
           logger.error(
-            { err: error, messageId: msg.id },
+            { err: error, messageId },
             '[ResultsListener] Error processing message - will retry'
           );
           // Don't ACK - message stays in pending list for retry

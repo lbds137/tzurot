@@ -7,14 +7,14 @@
  * - ai-worker: Reads transcripts to avoid re-transcribing
  */
 
-import type { RedisClientType } from 'redis';
+import type { Redis } from 'ioredis';
 import { createLogger } from '../utils/logger.js';
 import { REDIS_KEY_PREFIXES, INTERVALS } from '../constants/index.js';
 
 const logger = createLogger('VoiceTranscriptCache');
 
 export class VoiceTranscriptCache {
-  constructor(private redis: RedisClientType) {}
+  constructor(private redis: Redis) {}
 
   /**
    * Store voice transcript in cache
@@ -28,7 +28,8 @@ export class VoiceTranscriptCache {
     ttlSeconds: number = INTERVALS.VOICE_TRANSCRIPT_TTL
   ): Promise<void> {
     try {
-      await this.redis.setEx(
+      // ioredis uses lowercase method names: setex instead of setEx
+      await this.redis.setex(
         `${REDIS_KEY_PREFIXES.VOICE_TRANSCRIPT}${attachmentUrl}`,
         ttlSeconds,
         transcript

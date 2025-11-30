@@ -1,9 +1,11 @@
 /**
  * Simple in-memory Redis client mock
- * Implements the minimal RedisClientType interface needed for testing
+ * Implements the minimal ioredis Redis interface needed for testing
+ *
+ * Uses ioredis (unified Redis client for all services - BullMQ requires it anyway)
  */
 
-import type { RedisClientType } from 'redis';
+import type { Redis } from 'ioredis';
 
 export class RedisClientMock {
   private store = new Map<string, { value: string; expiresAt?: number }>();
@@ -22,35 +24,37 @@ export class RedisClientMock {
     this.store.clear();
   }
 
-  quit(): void {
+  quit(): Promise<string> {
     this.disconnect();
+    return Promise.resolve('OK');
   }
 
-  ping(): string {
-    return 'PONG';
+  ping(): Promise<string> {
+    return Promise.resolve('PONG');
   }
 
-  set(key: string, value: string): string | null {
+  set(key: string, value: string): Promise<string | null> {
     this.store.set(key, { value });
-    return 'OK';
+    return Promise.resolve('OK');
   }
 
-  get(key: string): string | null {
+  get(key: string): Promise<string | null> {
     const entry = this.store.get(key);
     if (!entry) {
-      return null;
+      return Promise.resolve(null);
     }
 
     // Check if expired
     if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
       this.store.delete(key);
-      return null;
+      return Promise.resolve(null);
     }
 
-    return entry.value;
+    return Promise.resolve(entry.value);
   }
 
-  setEx(key: string, seconds: number, value: string): string | null {
+  // ioredis uses lowercase method names
+  setex(key: string, seconds: number, value: string): Promise<string | null> {
     const expiresAt = Date.now() + seconds * 1000;
     this.store.set(key, { value, expiresAt });
 
@@ -62,10 +66,10 @@ export class RedisClientMock {
 
     this.timers.set(key, timer);
 
-    return 'OK';
+    return Promise.resolve('OK');
   }
 
-  del(key: string | string[]): number {
+  del(key: string | string[]): Promise<number> {
     const keys = Array.isArray(key) ? key : [key];
     let deleted = 0;
 
@@ -83,7 +87,7 @@ export class RedisClientMock {
       }
     }
 
-    return deleted;
+    return Promise.resolve(deleted);
   }
 
   // Add any other methods needed by the services
@@ -91,8 +95,8 @@ export class RedisClientMock {
 }
 
 /**
- * Create a RedisClientType-compatible mock
+ * Create an ioredis Redis-compatible mock
  */
-export function createRedisClientMock(): RedisClientType {
-  return new RedisClientMock() as unknown as RedisClientType;
+export function createRedisClientMock(): Redis {
+  return new RedisClientMock() as unknown as Redis;
 }
