@@ -37,12 +37,18 @@ const capabilityCache = new Map<string, CachedCapabilities>();
  * 2. Redis cache (populated by api-gateway)
  * 3. Fallback to pattern matching (for resilience)
  *
+ * Note on :free suffix handling:
+ * OpenRouter's /api/v1/models endpoint returns model IDs WITHOUT the :free suffix.
+ * However, users and LlmConfig may store model IDs WITH the suffix (e.g., "x-ai/grok-4.1-fast:free").
+ * We normalize by stripping :free for the cache key, and check both forms when querying the model list
+ * to handle edge cases where OpenRouter might change their behavior.
+ *
  * @param modelId - The model ID to check (e.g., "google/gemma-3-27b-it:free")
  * @param redis - Redis client instance
  * @returns true if the model supports image input
  */
 export async function modelSupportsVision(modelId: string, redis: Redis): Promise<boolean> {
-  // Normalize model ID for cache key (strip :free suffix for lookup)
+  // Normalize model ID for cache key (strip :free suffix since OpenRouter stores without it)
   const normalizedId = modelId.replace(/:free$/, '');
 
   // Check in-memory cache first

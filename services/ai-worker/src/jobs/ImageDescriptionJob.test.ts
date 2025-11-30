@@ -6,7 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES } from '@tzurot/common-types';
+import { JobType, CONTENT_TYPES, AIProvider } from '@tzurot/common-types';
+import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 // Mock describeImage and withRetry
 vi.mock('../services/MultimodalProcessor.js', () => ({
@@ -422,6 +423,164 @@ describe('ImageDescriptionJob', () => {
       expect(result.descriptions[0].url).toBe('https://example.com/image1.png');
       expect(result.metadata.imageCount).toBe(1);
       expect(result.metadata.failedCount).toBe(1); // Track failures
+    });
+
+    it('should pass isGuestMode=true to describeImage for guest users', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-guest-mode',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'guest-user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'image-test-req-guest-mode',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      // Mock ApiKeyResolver returning guest mode
+      const mockApiKeyResolver = {
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: null,
+          source: 'fallback',
+          isGuestMode: true,
+        }),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // Verify ApiKeyResolver was called with correct params
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+        'guest-user-123',
+        AIProvider.OpenRouter
+      );
+
+      // Verify describeImage was called with isGuestMode=true
+      // describeImage is called inside withRetry, so check the mockWithRetry call
+      expect(mockWithRetry).toHaveBeenCalledTimes(1);
+      // Execute the retry function to verify describeImage receives correct params
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockDescribeImage).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        true // isGuestMode
+      );
+    });
+
+    it('should pass isGuestMode=false to describeImage for BYOK users', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-byok-mode',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'byok-user-456',
+          channelId: 'channel-789',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-789',
+        },
+      };
+
+      const job = {
+        id: 'image-test-req-byok-mode',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      // Mock ApiKeyResolver returning BYOK user (not guest mode)
+      const mockApiKeyResolver = {
+        resolveApiKey: vi.fn().mockResolvedValue({
+          apiKey: 'sk-user-provided-key',
+          source: 'user',
+          isGuestMode: false,
+        }),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // Verify ApiKeyResolver was called
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+        'byok-user-456',
+        AIProvider.OpenRouter
+      );
+
+      // Execute the retry function to verify describeImage receives correct params
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockDescribeImage).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        false // isGuestMode
+      );
+    });
+
+    it('should default to guest mode when ApiKeyResolver fails', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-resolver-fail',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'user-error',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'image-test-req-resolver-fail',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      // Mock ApiKeyResolver throwing an error
+      const mockApiKeyResolver = {
+        resolveApiKey: vi.fn().mockRejectedValue(new Error('Database connection failed')),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // Execute the retry function to verify describeImage receives isGuestMode=true (fallback)
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockDescribeImage).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        true // isGuestMode defaults to true on error
+      );
     });
   });
 });
