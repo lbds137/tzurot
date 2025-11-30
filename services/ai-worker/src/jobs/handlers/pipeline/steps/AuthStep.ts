@@ -61,8 +61,10 @@ export class AuthStep implements IPipelineStep {
           );
         }
       } catch (error) {
-        // Log but don't fail - guest mode can still work
-        logger.warn(
+        // Log at error level - resolution failure is unexpected and should be investigated
+        // (Normal guest mode is signaled via isGuestMode=true, not by throwing)
+        // We still recover gracefully by falling back to guest mode
+        logger.error(
           { err: error, userId: jobContext.userId },
           '[AuthStep] Failed to resolve API key, falling back to guest mode'
         );
