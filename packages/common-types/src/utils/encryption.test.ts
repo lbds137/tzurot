@@ -139,10 +139,13 @@ describe('Encryption Utilities', () => {
     it('should throw on tampered ciphertext', () => {
       const encrypted = encryptApiKey(TEST_API_KEY);
 
-      // Tamper with the content
+      // Tamper with the content by flipping a bit (XOR with 0x01)
+      // This guarantees a change unlike replacing with a fixed value
+      const firstByte = parseInt(encrypted.content.slice(0, 2), 16);
+      const flippedByte = (firstByte ^ 0x01).toString(16).padStart(2, '0');
       const tampered: EncryptedData = {
         ...encrypted,
-        content: 'ff' + encrypted.content.slice(2),
+        content: flippedByte + encrypted.content.slice(2),
       };
 
       expect(() => decryptApiKey(tampered)).toThrow();
@@ -151,10 +154,12 @@ describe('Encryption Utilities', () => {
     it('should throw on tampered IV', () => {
       const encrypted = encryptApiKey(TEST_API_KEY);
 
-      // Tamper with the IV
+      // Tamper with the IV by flipping a bit
+      const firstByte = parseInt(encrypted.iv.slice(0, 2), 16);
+      const flippedByte = (firstByte ^ 0x01).toString(16).padStart(2, '0');
       const tampered: EncryptedData = {
         ...encrypted,
-        iv: 'ff' + encrypted.iv.slice(2),
+        iv: flippedByte + encrypted.iv.slice(2),
       };
 
       expect(() => decryptApiKey(tampered)).toThrow();
@@ -163,10 +168,12 @@ describe('Encryption Utilities', () => {
     it('should throw on tampered auth tag', () => {
       const encrypted = encryptApiKey(TEST_API_KEY);
 
-      // Tamper with the tag
+      // Tamper with the tag by flipping a bit
+      const firstByte = parseInt(encrypted.tag.slice(0, 2), 16);
+      const flippedByte = (firstByte ^ 0x01).toString(16).padStart(2, '0');
       const tampered: EncryptedData = {
         ...encrypted,
-        tag: 'ff' + encrypted.tag.slice(2),
+        tag: flippedByte + encrypted.tag.slice(2),
       };
 
       expect(() => decryptApiKey(tampered)).toThrow();
