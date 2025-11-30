@@ -24,8 +24,12 @@ const config = getConfig();
 
 /**
  * Check if a model has vision support
- * Uses flexible pattern matching instead of hardcoded lists
- * to avoid outdated model names as vendors release new versions
+ *
+ * NOTE: This uses pattern matching as a fallback. The preferred approach is to use
+ * ModelCapabilityChecker.modelSupportsVision() which queries OpenRouter's model cache
+ * for accurate capability detection. See services/ModelCapabilityChecker.ts.
+ *
+ * TODO: Refactor to use ModelCapabilityChecker once Redis is plumbed through the call stack.
  */
 export function hasVisionSupport(modelName: string): boolean {
   const normalized = modelName.toLowerCase();
@@ -52,7 +56,12 @@ export function hasVisionSupport(modelName: string): boolean {
     }
   }
 
-  // Add more providers as needed
+  // Google Gemma 3 models (multimodal with vision support)
+  // e.g., google/gemma-3-27b-it:free
+  if (normalized.includes('gemma-3') || normalized.includes('gemma3')) {
+    return true;
+  }
+
   // Llama vision models
   if (normalized.includes('llama') && normalized.includes('vision')) {
     return true;
