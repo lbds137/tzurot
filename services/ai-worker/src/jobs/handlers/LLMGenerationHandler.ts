@@ -21,12 +21,14 @@ import {
   AIProvider,
   GUEST_MODE,
   isFreeModel,
+  AttachmentType,
   type LLMGenerationJobData,
   type LLMGenerationResult,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
   llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
+import type { ProcessedAttachment } from '../../services/MultimodalProcessor.js';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import { LlmConfigResolver } from '../../services/LlmConfigResolver.js';
@@ -73,10 +75,22 @@ export class LLMGenerationHandler {
   }
 
   /**
+   * Preprocessing results returned from dependency jobs
+   */
+  private preprocessingResults: {
+    processedAttachments: ProcessedAttachment[];
+    transcriptions: string[];
+  } = { processedAttachments: [], transcriptions: [] };
+
+  /**
    * Fetch and merge preprocessing results (audio transcriptions, image descriptions)
+   * Returns structured data for use by RAG service instead of orphaned string
    */
   private async processDependencies(job: Job<LLMGenerationJobData>): Promise<void> {
     const { dependencies } = job.data;
+
+    // Reset for this job
+    this.preprocessingResults = { processedAttachments: [], transcriptions: [] };
 
     if (!dependencies || dependencies.length === 0) {
       return;
@@ -148,38 +162,34 @@ export class LLMGenerationHandler {
       }
     }
 
-    // Merge preprocessing results into message context
-    // Build attachment descriptions string
-    let attachmentDescriptions = '';
+    // Convert image descriptions to ProcessedAttachment format for RAG service
+    // This avoids duplicate vision API calls - the descriptions are already computed
+    const processedAttachments: ProcessedAttachment[] = imageDescriptions.map(img => ({
+      type: AttachmentType.Image,
+      description: img.description,
+      originalUrl: img.url,
+      // Minimal metadata - full metadata not needed since description is already computed
+      metadata: {
+        url: img.url,
+        name: img.url.split('/').pop() ?? 'image',
+        contentType: 'image/unknown',
+        size: 0,
+      },
+    }));
 
-    if (imageDescriptions.length > 0) {
-      attachmentDescriptions += '## Image Descriptions\n\n';
-      imageDescriptions.forEach((img, i) => {
-        attachmentDescriptions += `**Image ${i + 1}**: ${img.description}\n\n`;
-      });
-    }
-
-    if (transcriptions.length > 0) {
-      attachmentDescriptions += '## Audio Transcriptions\n\n';
-      transcriptions.forEach((transcript, i) => {
-        attachmentDescriptions += `**Audio ${i + 1}**: ${transcript}\n\n`;
-      });
-    }
-
-    // Store the processed attachment descriptions for the LLM
-    // Note: The actual integration into the message will be handled by RAG service
-    if (attachmentDescriptions) {
-      // Store in a temporary property that RAG service can access
-      job.data.__preprocessedAttachments = attachmentDescriptions;
-    }
+    // Store results for use by generateResponse
+    this.preprocessingResults = {
+      processedAttachments,
+      transcriptions,
+    };
 
     logger.info(
       {
         jobId: job.id,
         transcriptionCount: transcriptions.length,
-        imageCount: imageDescriptions.length,
+        imageCount: processedAttachments.length,
       },
-      '[LLMGenerationHandler] Merged preprocessing results into job context'
+      '[LLMGenerationHandler] Fetched preprocessing results from dependency jobs'
     );
   }
 
@@ -426,6 +436,7 @@ export class LLMGenerationHandler {
       // Note: resolvedApiKey comes from ApiKeyResolver (BYOK) or is undefined (system key fallback)
       // Note: effectivePersonality has user config overrides applied (if any)
       // Note: isGuestMode determines which vision fallback model to use
+      // Note: preprocessedAttachments from dependency jobs avoids duplicate vision API calls
       const response: RAGResponse = await this.ragService.generateResponse(
         effectivePersonality,
         message as MessageContent,
@@ -444,6 +455,12 @@ export class LLMGenerationHandler {
           oldestHistoryTimestamp,
           participants: allParticipants,
           attachments: context.attachments,
+          // Use preprocessed attachments from dependency jobs if available
+          // This avoids duplicate vision API calls
+          preprocessedAttachments:
+            this.preprocessingResults.processedAttachments.length > 0
+              ? this.preprocessingResults.processedAttachments
+              : undefined,
           environment: context.environment,
           referencedMessages: context.referencedMessages,
           referencedChannels: context.referencedChannels,
