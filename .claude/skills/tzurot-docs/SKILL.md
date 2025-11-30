@@ -113,18 +113,22 @@ Follow [Keep a Changelog](https://keepachangelog.com/) principles in release not
 ## What's Changed
 
 ### Added
+
 - New feature X for doing Y
 - Support for Z integration
 
 ### Changed
+
 - Improved performance of A by 50%
 - Updated B to use new API
 
 ### Fixed
+
 - Bug where X would fail under Y conditions
 - Memory leak in Z service
 
 ### Security
+
 - Updated dependency X to patch CVE-YYYY-XXXXX
 ```
 

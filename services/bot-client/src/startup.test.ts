@@ -25,11 +25,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-import {
-  validateDiscordToken,
-  validateRedisUrl,
-  logGatewayHealthStatus,
-} from './startup.js';
+import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -41,25 +37,27 @@ describe('Startup Utilities', () => {
       const config = {
         DISCORD_TOKEN: 'valid-token',
       };
-      expect(() => validateDiscordToken(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).not.toThrow();
+      expect(() =>
+        validateDiscordToken(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).not.toThrow();
     });
 
     it('should throw when DISCORD_TOKEN is undefined', () => {
       const config = {
         DISCORD_TOKEN: undefined,
       };
-      expect(() => validateDiscordToken(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'DISCORD_TOKEN environment variable is required'
-      );
+      expect(() =>
+        validateDiscordToken(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).toThrow('DISCORD_TOKEN environment variable is required');
     });
 
     it('should throw when DISCORD_TOKEN is empty', () => {
       const config = {
         DISCORD_TOKEN: '',
       };
-      expect(() => validateDiscordToken(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'DISCORD_TOKEN environment variable is required'
-      );
+      expect(() =>
+        validateDiscordToken(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).toThrow('DISCORD_TOKEN environment variable is required');
     });
   });
 
@@ -68,25 +66,27 @@ describe('Startup Utilities', () => {
       const config = {
         REDIS_URL: 'redis://localhost:6379',
       };
-      expect(() => validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).not.toThrow();
+      expect(() =>
+        validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).not.toThrow();
     });
 
     it('should throw when REDIS_URL is undefined', () => {
       const config = {
         REDIS_URL: undefined,
       };
-      expect(() => validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'REDIS_URL environment variable is required'
-      );
+      expect(() =>
+        validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).toThrow('REDIS_URL environment variable is required');
     });
 
     it('should throw when REDIS_URL is empty', () => {
       const config = {
         REDIS_URL: '',
       };
-      expect(() => validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)).toThrow(
-        'REDIS_URL environment variable is required'
-      );
+      expect(() =>
+        validateRedisUrl(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
+      ).toThrow('REDIS_URL environment variable is required');
     });
   });
 
