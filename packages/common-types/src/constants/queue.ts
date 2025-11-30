@@ -57,6 +57,10 @@ export const REDIS_KEY_PREFIXES = {
   VISION_DESCRIPTION: 'vision:',
   /** Key for OpenRouter models cache */
   OPENROUTER_MODELS: 'openrouter:models',
+  /** Prefix for request deduplication cache */
+  REQUEST_DEDUP: 'dedup:',
+  /** Prefix for rate limiting counters */
+  RATE_LIMIT: 'ratelimit:',
 } as const;
 
 /**

@@ -317,11 +317,22 @@ export class AIJobProcessor {
   }
 
   /**
-   * Health check - verify RAG service is working
+   * Health check - verify processor is ready to handle jobs
+   *
+   * Checks that all required services are initialized.
+   * For a deeper health check (database connectivity, etc.),
+   * use the /health endpoint which does async checks.
    */
   healthCheck(): boolean {
-    // TODO: Add actual health check
-    return true;
+    // Verify all internal services are initialized
+    const hasRagService = this.ragService !== undefined && this.ragService !== null;
+    const hasHandler =
+      this.llmGenerationHandler !== undefined && this.llmGenerationHandler !== null;
+    const hasApiKeyResolver = this.apiKeyResolver !== undefined && this.apiKeyResolver !== null;
+    const hasConfigResolver = this.configResolver !== undefined && this.configResolver !== null;
+    const hasPrisma = this.prisma !== undefined && this.prisma !== null;
+
+    return hasRagService && hasHandler && hasApiKeyResolver && hasConfigResolver && hasPrisma;
   }
 
   /**
