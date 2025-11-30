@@ -74,7 +74,8 @@ services/api-gateway/src/utils/rateLimiter.ts:46:     // TODO: Replace with Redi
 
 #### 1.1 ESLint Rules Enhancement
 
-- [ ] Add `no-explicit-any` rule (warn initially)
+- [x] Add `no-explicit-any` rule ✅ Already set to "error" in eslint.config.js (flat config)
+- [x] Document ESLint flat config vs legacy ✅ Added to CLAUDE.md, deleted unused .eslintrc.json
 - [ ] Add custom rule or documentation for `setTimeout`/`setInterval` alternatives
 - [ ] Run linter audit and fix low-hanging fruit
 
