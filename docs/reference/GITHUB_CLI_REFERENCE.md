@@ -498,18 +498,18 @@ gh auth refresh -s repo
 
 ## Quick Reference
 
-| Task                 | Command                                                      |
-| -------------------- | ------------------------------------------------------------ |
-| View PR              | `gh pr view 123`                                             |
-| Create PR to develop | `gh pr create --base develop`                                |
-| Edit PR body ⚠️      | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="…"` |
-| Edit PR title ⚠️     | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="…"`|
-| Comment on PR        | `gh pr comment 123 --body "text"`                            |
-| Check CI status      | `gh pr checks 123`                                           |
-| Merge with rebase    | `gh pr merge 123 --rebase`                                   |
-| List open PRs        | `gh pr list`                                                 |
-| Get PR comments      | `gh pr view 123 --json comments`                             |
-| Get PR as JSON       | `gh pr view 123 --json number,title,body`                    |
-| API request          | `gh api repos/{owner}/{repo}/endpoint`                       |
+| Task                 | Command                                                       |
+| -------------------- | ------------------------------------------------------------- |
+| View PR              | `gh pr view 123`                                              |
+| Create PR to develop | `gh pr create --base develop`                                 |
+| Edit PR body ⚠️      | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="…"`  |
+| Edit PR title ⚠️     | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="…"` |
+| Comment on PR        | `gh pr comment 123 --body "text"`                             |
+| Check CI status      | `gh pr checks 123`                                            |
+| Merge with rebase    | `gh pr merge 123 --rebase`                                    |
+| List open PRs        | `gh pr list`                                                  |
+| Get PR comments      | `gh pr view 123 --json comments`                              |
+| Get PR as JSON       | `gh pr view 123 --json number,title,body`                     |
+| API request          | `gh api repos/{owner}/{repo}/endpoint`                        |
 
 ⚠️ = Workaround for broken `gh pr edit` command (see Troubleshooting)
