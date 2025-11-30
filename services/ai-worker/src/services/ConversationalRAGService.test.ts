@@ -395,7 +395,8 @@ describe('ConversationalRAGService', () => {
 
       expect(mockReferencedMessageFormatterInstance.formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
-        personality
+        personality,
+        false // isGuestMode (default)
       );
     });
 

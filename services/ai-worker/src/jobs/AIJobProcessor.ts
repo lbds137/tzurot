@@ -217,7 +217,7 @@ export class AIJobProcessor {
   private async processImageDescriptionJobWrapper(
     job: Job<ImageDescriptionJobData>
   ): Promise<ImageDescriptionResult> {
-    const result = await processImageDescriptionJob(job);
+    const result = await processImageDescriptionJob(job, this.apiKeyResolver);
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;

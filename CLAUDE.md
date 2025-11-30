@@ -20,7 +20,7 @@
 > - **Development**: For testing new features before stable release
 > - **Production**: Stable alpha version for bot owner + alpha users
 >
-> NOT open to PUBLIC yet - requires BYOK implementation (Phase 1 of ROADMAP.md) to prevent expensive API costs from random users.
+> ✅ **BYOK IS COMPLETE** - Public beta launch ready. Users can bring their own API keys via `/wallet` commands. Guest mode (free models) available for users without BYOK keys.
 
 ## Project Overview
 
@@ -65,11 +65,11 @@ If a change breaks something, that's fine - you'll fix it in the next commit. Cl
 
 All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 
-1. **Phase 1: "Gatekeeper"** (15-20 sessions, 4-6 weeks)
+1. **Phase 1: "Gatekeeper"** ✅ COMPLETE
    - **Goal**: Enable BYOK to allow public launch without bankruptcy risk
    - **Sprints**: Testing baseline → BYOK schema migration → Slash commands
-   - **Milestone**: Public beta launch ✅
-   - **Status**: 📋 Not Started (current priority)
+   - **Milestone**: Public beta launch
+   - **Status**: ✅ Complete - BYOK, /wallet commands, guest mode all implemented
 
 2. **Phase 2: "Refinement"** (12-18 sessions, 3-5 weeks)
    - **Goal**: Feature parity with v2, user retention features
@@ -428,7 +428,7 @@ OpenRouter/Gemini API
 - HTTP API endpoints
 - Job creation in BullMQ queue
 - Request validation
-- (Future: BYOK credential management)
+- BYOK credential management (encrypted API key storage)
 
 **ai-worker**:
 
@@ -462,16 +462,14 @@ OpenRouter/Gemini API
 - NSFW verification
 - Request deduplication
 
-### 🚧 Required for Public Production Launch
+### ✅ Public Production Launch Status
 
-**Critical blockers**:
+**Completed**:
 
-- **BYOK (Bring Your Own Key)**: User-provided API keys to prevent bot owner paying all costs
-- **Admin Commands**: Bot owner needs ability to manage servers
-  - `/admin servers` - List all servers bot is in
-  - `/admin kick <server_id>` - Remove bot from servers
-  - `/admin usage` - Monitor API costs
-- Without these, random users can rack up expensive API bills
+- ✅ **BYOK (Bring Your Own Key)**: User-provided API keys via `/wallet` commands
+- ✅ **Guest Mode**: Free model fallback for users without API keys
+- ✅ **Vision Fallback Tiering**: Guest users get free vision models, BYOK users get paid models
+- ✅ **Admin Commands**: Bot owner management utilities (`/admin servers`, `/admin kick`, `/admin usage`)
 
 ## Code Style - Tzurot v3
 
@@ -874,7 +872,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 **Project**: industrious-analysis (development environment)
 
-**Status**: Private testing only - NOT open to public (no BYOK yet)
+**Status**: Public beta - BYOK implemented, guest mode available for users without API keys
 
 **Services**:
 
@@ -894,7 +892,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 - Each service has own Dockerfile
 - Environment variables managed via Railway CLI or dashboard
 
-**Cost Warning**: All API usage currently on bot owner's account. Random users could cause expensive bills without BYOK.
+**Cost Model**: BYOK is implemented - users provide their own API keys via `/wallet` commands. Guest users without keys get free models only.
 
 ## Common Operations
 

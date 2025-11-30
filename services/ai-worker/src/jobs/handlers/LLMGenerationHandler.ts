@@ -425,6 +425,7 @@ export class LLMGenerationHandler {
       // Generate response using RAG
       // Note: resolvedApiKey comes from ApiKeyResolver (BYOK) or is undefined (system key fallback)
       // Note: effectivePersonality has user config overrides applied (if any)
+      // Note: isGuestMode determines which vision fallback model to use
       const response: RAGResponse = await this.ragService.generateResponse(
         effectivePersonality,
         message as MessageContent,
@@ -447,7 +448,8 @@ export class LLMGenerationHandler {
           referencedMessages: context.referencedMessages,
           referencedChannels: context.referencedChannels,
         },
-        resolvedApiKey
+        resolvedApiKey,
+        isGuestMode
       );
 
       const processingTimeMs = Date.now() - startTime;

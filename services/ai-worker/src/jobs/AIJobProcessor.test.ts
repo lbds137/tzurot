@@ -305,7 +305,8 @@ describe('AIJobProcessor', () => {
 
         const result = await processor.processJob(job);
 
-        expect(processImageDescriptionJob).toHaveBeenCalledWith(job);
+        // processImageDescriptionJob receives job and apiKeyResolver (for guest mode detection)
+        expect(processImageDescriptionJob).toHaveBeenCalledWith(job, expect.any(Object));
         expect(result).toEqual(imageResult);
       });
 

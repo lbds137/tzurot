@@ -397,7 +397,8 @@ describe('LLMGenerationHandler', () => {
             serverId: 'server-012',
             sessionId: 'session-xyz',
           }),
-          undefined // userApiKey
+          undefined, // userApiKey
+          false // isGuestMode (no ApiKeyResolver provided, defaults to false)
         );
       });
 
@@ -409,12 +410,13 @@ describe('LLMGenerationHandler', () => {
           mockApiKeyResolver
         );
 
-        // Configure mock to return a user's API key
+        // Configure mock to return a user's API key (BYOK user = not guest mode)
         vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
           apiKey: 'user-resolved-key-from-db',
           source: 'user',
           provider: AIProvider.OpenRouter,
           userId: 'user-456',
+          isGuestMode: false,
         } as ApiKeyResolutionResult);
 
         const jobData = createValidJobData();
@@ -433,7 +435,8 @@ describe('LLMGenerationHandler', () => {
           expect.any(Object),
           expect.any(String),
           expect.any(Object),
-          'user-resolved-key-from-db'
+          'user-resolved-key-from-db',
+          false // isGuestMode (BYOK user has their own key)
         );
       });
 
@@ -455,12 +458,13 @@ describe('LLMGenerationHandler', () => {
 
         await handlerWithResolver.processJob(job);
 
-        // Verify RAG service is called with undefined key (system fallback)
+        // Verify RAG service is called with undefined key (system fallback) and guest mode
         expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
           expect.any(Object),
           expect.any(String),
           expect.any(Object),
-          undefined
+          undefined, // no resolved key
+          true // isGuestMode (fallback to guest mode when resolution fails)
         );
       });
     });
@@ -568,7 +572,8 @@ describe('LLMGenerationHandler', () => {
           expect.objectContaining({
             oldestHistoryTimestamp: new Date('2025-01-01T10:00:00Z').getTime(),
           }),
-          undefined
+          undefined,
+          false // isGuestMode
         );
       });
 
@@ -607,7 +612,8 @@ describe('LLMGenerationHandler', () => {
               { personaId: 'mentioned-persona-2', personaName: 'MentionedUser2', isActive: false },
             ]),
           }),
-          undefined
+          undefined,
+          false // isGuestMode
         );
       });
 
