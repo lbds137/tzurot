@@ -394,7 +394,10 @@ describe('LLMGenerationHandler', () => {
         mockGetJobResult.mockResolvedValue({
           success: true,
           descriptions: [
-            { url: 'https://example.com/ref-img.png', description: 'Referenced image description.' },
+            {
+              url: 'https://example.com/ref-img.png',
+              description: 'Referenced image description.',
+            },
           ],
           sourceReferenceNumber: 1, // This indicates it's from referenced message 1
         });
@@ -495,14 +498,14 @@ describe('LLMGenerationHandler', () => {
           // Direct image (no sourceReferenceNumber)
           .mockResolvedValueOnce({
             success: true,
-            descriptions: [
-              { url: 'https://example.com/direct.png', description: 'Direct image.' },
-            ],
+            descriptions: [{ url: 'https://example.com/direct.png', description: 'Direct image.' }],
           })
           // Referenced image (sourceReferenceNumber: 1)
           .mockResolvedValueOnce({
             success: true,
-            descriptions: [{ url: 'https://example.com/ref.png', description: 'Referenced image.' }],
+            descriptions: [
+              { url: 'https://example.com/ref.png', description: 'Referenced image.' },
+            ],
             sourceReferenceNumber: 1,
           })
           // Direct audio (no sourceReferenceNumber)
@@ -537,8 +540,12 @@ describe('LLMGenerationHandler', () => {
         // Referenced attachments should have 2 items under reference 1
         expect(context.preprocessedReferenceAttachments).toBeDefined();
         expect(context.preprocessedReferenceAttachments[1]).toHaveLength(2);
-        expect(context.preprocessedReferenceAttachments[1][0].description).toBe('Referenced image.');
-        expect(context.preprocessedReferenceAttachments[1][1].description).toBe('Referenced audio.');
+        expect(context.preprocessedReferenceAttachments[1][0].description).toBe(
+          'Referenced image.'
+        );
+        expect(context.preprocessedReferenceAttachments[1][1].description).toBe(
+          'Referenced audio.'
+        );
       });
 
       it('should handle multiple reference numbers correctly', async () => {
