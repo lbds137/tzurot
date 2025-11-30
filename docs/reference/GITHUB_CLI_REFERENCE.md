@@ -95,6 +95,27 @@ gh pr create --draft --title "WIP: feature"
 gh pr create --label "enhancement" --reviewer username
 ```
 
+### Edit PR
+
+**⚠️ KNOWN BUG**: `gh pr edit` fails with "Projects (classic) deprecation" error even on latest versions (2.65.0+). This is a [known issue](https://github.com/cli/cli/issues/11983) with no fix as of November 2025.
+
+```bash
+# ❌ BROKEN - Will fail with GraphQL error
+gh pr edit 123 --body "new body"
+gh pr edit 123 --body-file body.md
+gh pr edit 123 --title "new title"
+
+# ✅ WORKAROUND - Use REST API directly
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="new body"
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="$(cat body.md)"
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="new title"
+
+# ✅ Update both title and body
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 \
+  -f title="new title" \
+  -f body="$(cat body.md)"
+```
+
 ### Add Comment to PR
 
 ```bash
@@ -428,6 +449,31 @@ gh auth refresh -s <needed-scope>
 gh pr view --json projectItems
 ```
 
+### "Projects (classic) is being deprecated" Error
+
+**Cause**: Known bug in gh CLI (affects all versions including 2.65.0+). The `gh pr edit` command queries deprecated GraphQL fields even when not working with projects.
+
+**Symptoms**:
+
+```
+GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience...
+(repository.pullRequest.projectCards)
+```
+
+**Impact**: `gh pr edit`, `gh issue view`, and related commands fail with exit code 1.
+
+**Workaround**: Use REST API directly instead of convenience commands:
+
+```bash
+# Instead of: gh pr edit 123 --body "new body"
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="new body"
+
+# Instead of: gh pr edit 123 --title "new title"
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="new title"
+```
+
+**Status**: Open bug in gh CLI - [Issue #11983](https://github.com/cli/cli/issues/11983), no fix as of November 2025.
+
 ### "Rate limit exceeded"
 
 **Cause**: Too many API requests.
@@ -452,14 +498,18 @@ gh auth refresh -s repo
 
 ## Quick Reference
 
-| Task                 | Command                                   |
-| -------------------- | ----------------------------------------- |
-| View PR              | `gh pr view 123`                          |
-| Create PR to develop | `gh pr create --base develop`             |
-| Comment on PR        | `gh pr comment 123 --body "text"`         |
-| Check CI status      | `gh pr checks 123`                        |
-| Merge with rebase    | `gh pr merge 123 --rebase`                |
-| List open PRs        | `gh pr list`                              |
-| Get PR comments      | `gh pr view 123 --json comments`          |
-| Get PR as JSON       | `gh pr view 123 --json number,title,body` |
-| API request          | `gh api repos/{owner}/{repo}/endpoint`    |
+| Task                 | Command                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| View PR              | `gh pr view 123`                                             |
+| Create PR to develop | `gh pr create --base develop`                                |
+| Edit PR body ⚠️      | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="…"` |
+| Edit PR title ⚠️     | `gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="…"`|
+| Comment on PR        | `gh pr comment 123 --body "text"`                            |
+| Check CI status      | `gh pr checks 123`                                           |
+| Merge with rebase    | `gh pr merge 123 --rebase`                                   |
+| List open PRs        | `gh pr list`                                                 |
+| Get PR comments      | `gh pr view 123 --json comments`                             |
+| Get PR as JSON       | `gh pr view 123 --json number,title,body`                    |
+| API request          | `gh api repos/{owner}/{repo}/endpoint`                       |
+
+⚠️ = Workaround for broken `gh pr edit` command (see Troubleshooting)
