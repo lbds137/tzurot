@@ -82,12 +82,12 @@ services/api-gateway/src/utils/rateLimiter.ts:46:     // TODO: Replace with Redi
 #### 1.2 Test Coverage for Entry Points
 
 - [x] Add smoke tests for `api-gateway/src/index.ts` (startup, health endpoint) ✅
-- [ ] Add smoke tests for `ai-worker/src/index.ts` (worker startup, job processing)
-- [ ] Add smoke tests for `bot-client/src/index.ts` (client login mock)
+- [x] Add smoke tests for `ai-worker/src/index.ts` (worker startup, job processing) ✅ Created startup.ts with 14 tests
+- [x] Add smoke tests for `bot-client/src/index.ts` (client login mock) ✅ Created startup.ts with 10 tests
 
 #### 1.3 Address TODO Comments
 
-- [ ] Implement proper health check in `AIJobProcessor.ts`
+- [x] Implement proper health check in `AIJobProcessor.ts` ✅ Already implemented with test coverage
 - [x] Document or remove callback URL TODO (if not planned) ✅ Removed - not needed for current architecture
 - [x] Create issue for distributed rate limiting migration ✅ Implemented with Redis-backed rate limiter
 
@@ -215,10 +215,17 @@ await queue.add(
 ## Success Metrics
 
 - [ ] No files > 400 lines in production code
-- [x] All entry points have basic smoke tests (api-gateway done, others pending)
+- [x] All entry points have basic smoke tests ✅ api-gateway, ai-worker, bot-client all have startup.ts tests
 - [x] Zero in-memory state for horizontal scaling ✅ Redis-backed rate limiter and deduplication
 - [ ] `any` usage reduced by 50%
 - [x] All TODOs resolved or converted to tracked issues ✅
+
+## Additional Improvements (PR #295)
+
+- [x] **Type safety in tests**: Replaced `as never` with properly typed `MockRedisClient` interfaces
+- [x] **Pipeline failure documentation**: Added comprehensive error handling docs to LLMGenerationHandler
+- [x] **ESLint documentation**: Documented ESLint 9 flat config in CLAUDE.md, deleted unused .eslintrc.json
+- [x] **GitHub Releases**: Deleted CHANGELOG.md, added Keep a Changelog guidance to tzurot-docs skill
 
 ---
 

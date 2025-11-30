@@ -33,16 +33,16 @@ import {
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
 import { LlmConfigResolver } from './services/LlmConfigResolver.js';
+import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
 
-// Get Redis connection config from environment
-if (envConfig.REDIS_URL === undefined || envConfig.REDIS_URL.length === 0) {
-  throw new Error('REDIS_URL environment variable is required');
-}
+// Validate required environment variables at startup
+validateRequiredEnvVars();
 
-const parsedUrl = parseRedisUrl(envConfig.REDIS_URL);
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+const parsedUrl = parseRedisUrl(envConfig.REDIS_URL!);
 
 const redisConfig = createBullMQRedisConfig({
   host: parsedUrl.host,
@@ -71,10 +71,8 @@ async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
 
   // Validate AI worker-specific required environment variables
-  if (envConfig.OPENAI_API_KEY === undefined || envConfig.OPENAI_API_KEY.length === 0) {
-    logger.fatal('OPENAI_API_KEY environment variable is required for memory embeddings');
-    process.exit(1);
-  }
+  validateAIConfig();
+
   logger.info(
     {
       redis: {
@@ -159,7 +157,8 @@ async function main(): Promise<void> {
   logger.info('[AIWorker] Initializing pgvector memory connection...');
 
   try {
-    memoryManager = new PgvectorMemoryAdapter(prisma, envConfig.OPENAI_API_KEY);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    memoryManager = new PgvectorMemoryAdapter(prisma, envConfig.OPENAI_API_KEY!);
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
@@ -357,18 +356,12 @@ async function startHealthServer(
     void (async () => {
       if (req.url === '/health') {
         try {
-          const memoryHealthy =
-            memoryManager !== undefined ? await memoryManager.healthCheck() : true; // If memory is disabled, we're still healthy
-          // Worker is healthy if it's running (not paused)
+          const memoryDisabled = memoryManager === undefined;
+          const memoryHealthy = memoryDisabled ? true : await memoryManager.healthCheck();
           const workerHealthy = !worker.isPaused();
 
-          const status = memoryHealthy && workerHealthy ? 200 : 503;
-          const health = {
-            status: memoryHealthy && workerHealthy ? HealthStatus.Healthy : HealthStatus.Degraded,
-            memory: memoryManager !== undefined ? memoryHealthy : 'disabled',
-            worker: workerHealthy,
-            timestamp: new Date().toISOString(),
-          };
+          const health = buildHealthResponse(memoryHealthy, workerHealthy, memoryDisabled);
+          const status = health.status === HealthStatus.Healthy ? 200 : 503;
 
           res.writeHead(status, { 'Content-Type': CONTENT_TYPES.JSON });
           res.end(JSON.stringify(health));

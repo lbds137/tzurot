@@ -4,11 +4,23 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
+import type { Mock } from 'vitest';
 import { StatusCodes } from 'http-status-codes';
 import { RedisRateLimiter, createRedisWalletRateLimiter } from './RedisRateLimiter.js';
 
-// Mock ioredis
-const mockRedis = {
+/**
+ * Minimal Redis client interface for rate limiting
+ * Only includes methods actually used by RedisRateLimiter
+ */
+interface MockRedisClient {
+  eval: Mock<(script: string, numKeys: number, ...args: (string | number)[]) => Promise<number>>;
+  ttl: Mock<(key: string) => Promise<number>>;
+  get: Mock<(key: string) => Promise<string | null>>;
+  del: Mock<(key: string) => Promise<number>>;
+}
+
+// Mock ioredis with proper typing
+const mockRedis: MockRedisClient = {
   eval: vi.fn(), // Lua script execution (atomic INCR + EXPIRE)
   ttl: vi.fn(),
   get: vi.fn(),
@@ -37,7 +49,7 @@ describe('RedisRateLimiter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    limiter = new RedisRateLimiter(mockRedis as never, {
+    limiter = new RedisRateLimiter(mockRedis as unknown as import('ioredis').Redis, {
       windowMs: 60000, // 1 minute
       maxRequests: 5,
     });
@@ -157,7 +169,7 @@ describe('RedisRateLimiter', () => {
 
   describe('custom key generator', () => {
     it('should use custom key generator', async () => {
-      const customLimiter = new RedisRateLimiter(mockRedis as never, {
+      const customLimiter = new RedisRateLimiter(mockRedis as unknown as import('ioredis').Redis, {
         keyGenerator: req => {
           const apiKey = req.headers['x-api-key'] as string | undefined;
           return apiKey && apiKey.length > 0 ? apiKey : null;
@@ -182,7 +194,7 @@ describe('RedisRateLimiter', () => {
     });
 
     it('should skip rate limiting when custom key generator returns null', async () => {
-      const customLimiter = new RedisRateLimiter(mockRedis as never, {
+      const customLimiter = new RedisRateLimiter(mockRedis as unknown as import('ioredis').Redis, {
         keyGenerator: () => null,
       });
 

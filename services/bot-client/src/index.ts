@@ -33,16 +33,14 @@ import { VoiceMessageProcessor } from './processors/VoiceMessageProcessor.js';
 import { ReplyMessageProcessor } from './processors/ReplyMessageProcessor.js';
 import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
+import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
 const envConfig = getConfig();
 
 // Validate bot-client specific required env vars
-if (envConfig.DISCORD_TOKEN === undefined || envConfig.DISCORD_TOKEN.length === 0) {
-  logger.error({}, 'DISCORD_TOKEN is required for bot-client');
-  process.exit(1);
-}
+validateDiscordToken();
 
 // Configuration from environment
 const config = {
@@ -87,10 +85,9 @@ function createServices(): Services {
   logger.info('[Bot] Prisma client initialized');
 
   // Initialize Redis for cache invalidation
-  if (envConfig.REDIS_URL === undefined || envConfig.REDIS_URL.length === 0) {
-    throw new Error('REDIS_URL environment variable is required');
-  }
-  const cacheRedis = new Redis(envConfig.REDIS_URL);
+  validateRedisUrl();
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', err => {
     logger.error({ err }, '[Bot] Cache Redis connection error');
   });
@@ -256,11 +253,7 @@ async function start(): Promise<void> {
     // Health check gateway
     logger.info('[Bot] Checking gateway health...');
     const isHealthy = await services.gatewayClient.healthCheck();
-    if (!isHealthy) {
-      logger.warn({}, '[Bot] Gateway health check failed, but continuing...');
-    } else {
-      logger.info('[Bot] Gateway is healthy');
-    }
+    logGatewayHealthStatus(isHealthy);
 
     // Login to Discord
     if (config.discordToken === undefined || config.discordToken.length === 0) {
