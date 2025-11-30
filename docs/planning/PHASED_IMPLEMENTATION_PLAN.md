@@ -198,7 +198,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 - [ ] Document `advancedParameters` JSONB structure (per provider)
 - [ ] Document encryption key rotation procedure
 - [ ] Document migration process and rollback procedures
-- [ ] Update CHANGELOG.md with breaking changes
+- [ ] Create GitHub Release with breaking changes noted
 - [ ] Update CURRENT_WORK.md with Phase 1 completion
 
 **Security**:
@@ -332,7 +332,7 @@ This document outlines a phased approach to implementing major v3 improvements, 
 **Developer**:
 
 - [ ] Document VoiceConfig schema and ElevenLabs integration
-- [ ] Update CHANGELOG.md
+- [ ] Create GitHub Release when feature complete
 - [ ] Update CURRENT_WORK.md
 
 ### Success Criteria

@@ -616,7 +616,7 @@
 - [ ] Refactor `MessageHandler` if it grows beyond 468 lines (consider splitting)
 - [ ] Add integration tests for end-to-end flows
 - [ ] Document all `advancedParameters` JSONB structures per provider
-- [ ] Update CHANGELOG.md with each release
+- [ ] Create GitHub Release with proper notes for each release
 - [ ] Rotate encryption keys every 90 days
 - [ ] Database backups before major migrations
 

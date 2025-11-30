@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
-description: Documentation maintenance for Tzurot v3 - Updating CURRENT_WORK.md, CHANGELOG.md, folder structure, and keeping docs current. Use at session end or when documentation needs updating.
-lastUpdated: '2025-11-19'
+description: Documentation maintenance for Tzurot v3 - Updating CURRENT_WORK.md, folder structure, and keeping docs current. Use at session end or when documentation needs updating.
+lastUpdated: '2025-11-30'
 ---
 
 # Tzurot v3 Documentation Maintenance
@@ -91,51 +91,44 @@ Without proper docs, each new session starts with a blank slate. Good documentat
 - Small bug fixes
 - Routine refactoring
 
-### CHANGELOG.md
+### GitHub Releases
 
 **Purpose:** Record all notable changes for users/developers
 
-**Update when:**
+**Location:** https://github.com/lbds137/tzurot/releases
 
-- Merging PRs to develop
-- Releasing new versions
-- Making breaking changes
+**Use GitHub Releases for:**
 
-**Format:** Follow [Keep a Changelog](https://keepachangelog.com/)
+- Release notes when publishing new versions
+- Breaking changes documentation
+- Migration guides
+
+**Note:** This project does NOT use CHANGELOG.md - GitHub Releases is the single source of truth for version history.
+
+**Release Notes Format:**
+
+Follow [Keep a Changelog](https://keepachangelog.com/) principles in release notes:
 
 ```markdown
-# Changelog
-
-All notable changes to Tzurot v3 will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+## What's Changed
 
 ### Added
-
-- Smart cache invalidation via Redis pub/sub (PR #244)
-- Claude Code Skills for project-specific workflows
-
-### Fixed
-
-- Resource leak in CacheInvalidationService subscribe() error path
+- New feature X for doing Y
+- Support for Z integration
 
 ### Changed
+- Improved performance of A by 50%
+- Updated B to use new API
 
-- Centralized Redis channel constants to REDIS_CHANNELS
+### Fixed
+- Bug where X would fail under Y conditions
+- Memory leak in Z service
 
-## [3.0.0-alpha.43] - 2025-11-17
-
-### Added
-
-- Image attachment support in Discord messages
-- Voice transcription via Whisper API
-  ...
+### Security
+- Updated dependency X to patch CVE-YYYY-XXXXX
 ```
 
-**Categories:**
+**Categories (use as section headers):**
 
 - **Added** - New features
 - **Changed** - Changes to existing functionality
@@ -143,6 +136,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Removed** - Removed features
 - **Fixed** - Bug fixes
 - **Security** - Security fixes
+
+**Creating a Release:**
+
+```bash
+# Use gh CLI to create releases
+gh release create v3.0.0-alpha.50 \
+  --title "v3.0.0-alpha.50 - Feature Name" \
+  --notes "$(cat <<'EOF'
+## What's Changed
+
+### Added
+- Feature description here
+
+### Fixed
+- Bug fix description here
+
+**Full Changelog**: https://github.com/lbds137/tzurot/compare/v3.0.0-alpha.49...v3.0.0-alpha.50
+EOF
+)"
+```
 
 ### CLAUDE.md
 
@@ -204,7 +217,7 @@ docs/
 
 **Root documentation rules:**
 
-- **ONLY these files belong in root:** README.md, CHANGELOG.md, CLAUDE.md, CURRENT_WORK.md
+- **ONLY these files belong in root:** README.md, CLAUDE.md, CURRENT_WORK.md, ROADMAP.md
 - Everything else goes in `docs/`
 
 ## Documentation Best Practices
@@ -417,7 +430,6 @@ Update CURRENT_WORK.md at session end.
 Before ending a session, verify:
 
 - [ ] CURRENT_WORK.md reflects actual current state
-- [ ] CHANGELOG.md includes merged PRs (if any)
 - [ ] Obsolete docs deleted
 - [ ] New docs follow naming conventions
 - [ ] Documentation timestamps updated (YYYY-MM-DD format)
