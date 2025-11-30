@@ -92,6 +92,23 @@ describe('ModelCapabilityChecker', () => {
         expect(result).toBe(true);
       });
 
+      it('should match models stored with :free suffix in Redis', async () => {
+        // OpenRouter may store free models WITH the :free suffix
+        const models = [createMockModel('google/gemma-3-27b-it:free', ['text', 'image'])];
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+        // Should match when querying with suffix (exact match)
+        expect(await modelSupportsVision('google/gemma-3-27b-it:free', mockRedis)).toBe(true);
+
+        // Clear cache to test the normalized query path
+        clearCapabilityCache();
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+        // Should also match when querying without suffix
+        // (the find() checks both normalizedId and original modelId)
+        expect(await modelSupportsVision('google/gemma-3-27b-it', mockRedis)).toBe(true);
+      });
+
       it('should cache results in memory', async () => {
         const models = [createMockModel('openai/gpt-4o', ['text', 'image'])];
         vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
