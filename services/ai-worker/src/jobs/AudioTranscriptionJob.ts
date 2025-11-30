@@ -41,7 +41,7 @@ export async function processAudioTranscriptionJob(
     throw new Error(`Audio transcription job validation failed: ${validation.error.message}`);
   }
 
-  const { requestId, attachment } = job.data;
+  const { requestId, attachment, sourceReferenceNumber } = job.data;
 
   logger.info(
     {
@@ -85,6 +85,9 @@ export async function processAudioTranscriptionJob(
       requestId,
       success: true,
       content: result.value,
+      attachmentUrl: attachment.url,
+      attachmentName: attachment.name,
+      sourceReferenceNumber,
       metadata: {
         processingTimeMs: result.totalTimeMs,
         duration: attachment.duration,
@@ -102,6 +105,9 @@ export async function processAudioTranscriptionJob(
       requestId,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      attachmentUrl: attachment.url,
+      attachmentName: attachment.name,
+      sourceReferenceNumber,
       metadata: {
         processingTimeMs,
         duration: attachment.duration,

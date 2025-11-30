@@ -80,6 +80,8 @@ describe('AudioTranscriptionJob', () => {
         requestId: 'test-req-audio-0',
         success: true,
         content: 'Mocked transcription text',
+        attachmentUrl: 'https://example.com/audio.ogg',
+        attachmentName: 'audio.ogg',
         metadata: {
           processingTimeMs: 1000,
           duration: 10,

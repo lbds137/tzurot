@@ -53,7 +53,7 @@ export class LLMGenerationHandler {
     // Reset preprocessing results for this job BEFORE checking dependencies
     // This prevents stale data from a previous job leaking into this one
     // (handlers may be reused across jobs by BullMQ)
-    this.preprocessingResults = { processedAttachments: [], transcriptions: [] };
+    this.preprocessingResults = { processedAttachments: [], transcriptions: [], referenceAttachments: {} };
 
     // Validate job payload against schema (contract testing)
     const validation = llmGenerationJobDataSchema.safeParse(job.data);
@@ -85,7 +85,8 @@ export class LLMGenerationHandler {
   private preprocessingResults: {
     processedAttachments: ProcessedAttachment[];
     transcriptions: string[];
-  } = { processedAttachments: [], transcriptions: [] };
+    referenceAttachments: Record<number, ProcessedAttachment[]>;
+  } = { processedAttachments: [], transcriptions: [], referenceAttachments: {} };
 
   /**
    * Fetch and merge preprocessing results (audio transcriptions, image descriptions)
@@ -110,10 +111,22 @@ export class LLMGenerationHandler {
     // Fetch dependency results from Redis
     const { redisService } = await import('../../redis.js');
 
-    // Collect all audio transcriptions
-    const transcriptions: string[] = [];
-    // Collect all image descriptions
-    const imageDescriptions: { url: string; description: string }[] = [];
+    // Collect audio transcriptions with URL info, separated by source
+    interface AudioInfo {
+      url: string;
+      name: string;
+      content: string;
+      sourceReferenceNumber?: number;
+    }
+    const audioTranscriptions: AudioInfo[] = [];
+
+    // Collect image descriptions, separated by source
+    interface ImageInfo {
+      url: string;
+      description: string;
+      sourceReferenceNumber?: number;
+    }
+    const imageDescriptions: ImageInfo[] = [];
 
     for (const dep of dependencies) {
       try {
@@ -127,9 +140,14 @@ export class LLMGenerationHandler {
             result.content !== undefined &&
             result.content.length > 0
           ) {
-            transcriptions.push(result.content);
+            audioTranscriptions.push({
+              url: result.attachmentUrl ?? '',
+              name: result.attachmentName ?? 'audio',
+              content: result.content,
+              sourceReferenceNumber: result.sourceReferenceNumber,
+            });
             logger.debug(
-              { jobId: dep.jobId, key },
+              { jobId: dep.jobId, key, sourceRef: result.sourceReferenceNumber },
               '[LLMGenerationHandler] Retrieved audio transcription'
             );
           } else {
@@ -145,9 +163,14 @@ export class LLMGenerationHandler {
             result.descriptions !== undefined &&
             result.descriptions.length > 0
           ) {
-            imageDescriptions.push(...result.descriptions);
+            // Add sourceReferenceNumber to each description
+            const descriptionsWithSource = result.descriptions.map(d => ({
+              ...d,
+              sourceReferenceNumber: result.sourceReferenceNumber,
+            }));
+            imageDescriptions.push(...descriptionsWithSource);
             logger.debug(
-              { jobId: dep.jobId, key, count: result.descriptions.length },
+              { jobId: dep.jobId, key, count: result.descriptions.length, sourceRef: result.sourceReferenceNumber },
               '[LLMGenerationHandler] Retrieved image descriptions'
             );
           } else {
@@ -165,32 +188,78 @@ export class LLMGenerationHandler {
       }
     }
 
-    // Convert image descriptions to ProcessedAttachment format for RAG service
-    // This avoids duplicate vision API calls - the descriptions are already computed
-    const processedAttachments: ProcessedAttachment[] = imageDescriptions.map(img => ({
-      type: AttachmentType.Image,
-      description: img.description,
-      originalUrl: img.url,
-      // Minimal metadata - full metadata not needed since description is already computed
-      metadata: {
-        url: img.url,
-        name: img.url.split('/').pop() ?? 'image',
-        contentType: 'image/unknown',
-        size: 0,
-      },
-    }));
+    // Convert to ProcessedAttachment format, separating direct vs. referenced
+    const directAttachments: ProcessedAttachment[] = [];
+    const referenceAttachments: Record<number, ProcessedAttachment[]> = {};
+
+    // Process images
+    for (const img of imageDescriptions) {
+      const attachment: ProcessedAttachment = {
+        type: AttachmentType.Image,
+        description: img.description,
+        originalUrl: img.url,
+        metadata: {
+          url: img.url,
+          name: img.url.split('/').pop() ?? 'image',
+          contentType: 'image/unknown',
+          size: 0,
+        },
+      };
+
+      if (img.sourceReferenceNumber !== undefined) {
+        // Referenced message attachment
+        referenceAttachments[img.sourceReferenceNumber] ??= [];
+        referenceAttachments[img.sourceReferenceNumber].push(attachment);
+      } else {
+        // Direct attachment
+        directAttachments.push(attachment);
+      }
+    }
+
+    // Process audio
+    for (const audio of audioTranscriptions) {
+      const attachment: ProcessedAttachment = {
+        type: AttachmentType.Audio,
+        description: audio.content,
+        originalUrl: audio.url,
+        metadata: {
+          url: audio.url,
+          name: audio.name,
+          contentType: 'audio/unknown',
+          size: 0,
+        },
+      };
+
+      if (audio.sourceReferenceNumber !== undefined) {
+        // Referenced message attachment
+        referenceAttachments[audio.sourceReferenceNumber] ??= [];
+        referenceAttachments[audio.sourceReferenceNumber].push(attachment);
+      } else {
+        // Direct attachment
+        directAttachments.push(attachment);
+      }
+    }
 
     // Store results for use by generateResponse
+    // Note: transcriptions kept as separate array for backward compatibility (direct only)
     this.preprocessingResults = {
-      processedAttachments,
-      transcriptions,
+      processedAttachments: directAttachments,
+      transcriptions: audioTranscriptions
+        .filter(a => a.sourceReferenceNumber === undefined)
+        .map(a => a.content),
+      referenceAttachments,
     };
+
+    const refCount = Object.keys(referenceAttachments).length;
+    const refAttachmentCount = Object.values(referenceAttachments).reduce((sum, arr) => sum + arr.length, 0);
 
     logger.info(
       {
         jobId: job.id,
-        transcriptionCount: transcriptions.length,
-        imageCount: processedAttachments.length,
+        directAttachmentCount: directAttachments.length,
+        referencedMessageCount: refCount,
+        referencedAttachmentCount: refAttachmentCount,
+        totalPreprocessed: directAttachments.length + refAttachmentCount,
       },
       '[LLMGenerationHandler] Fetched preprocessing results from dependency jobs'
     );
@@ -463,6 +532,12 @@ export class LLMGenerationHandler {
           preprocessedAttachments:
             this.preprocessingResults.processedAttachments.length > 0
               ? this.preprocessingResults.processedAttachments
+              : undefined,
+          // Use preprocessed reference attachments from dependency jobs if available
+          // This avoids inline vision API calls that cause timeouts
+          preprocessedReferenceAttachments:
+            Object.keys(this.preprocessingResults.referenceAttachments).length > 0
+              ? this.preprocessingResults.referenceAttachments
               : undefined,
           environment: context.environment,
           referencedMessages: context.referencedMessages,

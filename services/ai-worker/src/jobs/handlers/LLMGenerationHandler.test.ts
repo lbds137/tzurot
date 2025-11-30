@@ -279,6 +279,8 @@ describe('LLMGenerationHandler', () => {
           .mockResolvedValueOnce({
             success: true,
             content: 'Audio transcript here.',
+            attachmentUrl: 'https://example.com/audio.ogg',
+            attachmentName: 'audio.ogg',
           })
           .mockResolvedValueOnce({
             success: true,
@@ -292,12 +294,16 @@ describe('LLMGenerationHandler', () => {
         expect(result.success).toBe(true);
         expect(mockGetJobResult).toHaveBeenCalledTimes(2);
 
-        // Verify preprocessedAttachments contains the image description
+        // Verify preprocessedAttachments contains both image and audio
         const ragCall = mockRAGService.generateResponse.mock.calls[0];
         const context = ragCall[2];
         expect(context.preprocessedAttachments).toBeDefined();
-        expect(context.preprocessedAttachments).toHaveLength(1);
+        expect(context.preprocessedAttachments).toHaveLength(2);
+        // Image comes first in the array, then audio
         expect(context.preprocessedAttachments[0].description).toBe('Image description here.');
+        expect(context.preprocessedAttachments[0].type).toBe('image');
+        expect(context.preprocessedAttachments[1].description).toBe('Audio transcript here.');
+        expect(context.preprocessedAttachments[1].type).toBe('audio');
       });
 
       it('should handle failed dependency gracefully', async () => {

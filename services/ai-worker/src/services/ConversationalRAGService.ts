@@ -109,6 +109,9 @@ export interface ConversationContext {
   attachments?: AttachmentMetadata[];
   // Pre-processed attachments from dependency jobs (avoids duplicate vision API calls)
   preprocessedAttachments?: ProcessedAttachment[];
+  // Pre-processed attachments for referenced messages (keyed by reference number)
+  // Avoids inline vision API calls that cause timeouts
+  preprocessedReferenceAttachments?: Record<number, ProcessedAttachment[]>;
   // Discord environment context (DMs vs guild, channel info, etc)
   environment?: DiscordEnvironment;
   // Referenced messages (from replies and message links)
@@ -204,12 +207,14 @@ export class ConversationalRAGService {
 
       // Format referenced messages (with vision/transcription) BEFORE memory retrieval
       // This processes attachments once and uses the result for both LTM search and the prompt
+      // If preprocessedReferenceAttachments are provided, uses them instead of inline API calls
       const referencedMessagesDescriptions =
         context.referencedMessages && context.referencedMessages.length > 0
           ? await this.referencedMessageFormatter.formatReferencedMessages(
               context.referencedMessages,
               personality,
-              isGuestMode
+              isGuestMode,
+              context.preprocessedReferenceAttachments
             )
           : undefined;
 
