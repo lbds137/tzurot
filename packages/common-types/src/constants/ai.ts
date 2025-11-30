@@ -85,7 +85,10 @@ export const MODEL_DEFAULTS = {
 
   // Specialized models
   WHISPER: 'whisper-1',
+  /** Vision fallback for BYOK users (paid) */
   VISION_FALLBACK: 'qwen/qwen3-vl-235b-a22b-instruct',
+  /** Vision fallback for free tier users (no BYOK) */
+  VISION_FALLBACK_FREE: 'google/gemma-3-27b-it:free',
   EMBEDDING: 'text-embedding-3-small',
 } as const;
 
