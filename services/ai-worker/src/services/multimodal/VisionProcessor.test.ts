@@ -94,6 +94,19 @@ describe('VisionProcessor', () => {
       });
     });
 
+    describe('Google Gemma 3 models', () => {
+      it('should detect gemma-3 models as having vision', () => {
+        expect(hasVisionSupport('google/gemma-3-27b-it')).toBe(true);
+        expect(hasVisionSupport('google/gemma-3-27b-it:free')).toBe(true);
+        expect(hasVisionSupport('gemma-3-12b')).toBe(true);
+      });
+
+      it('should NOT detect older gemma models without vision', () => {
+        expect(hasVisionSupport('gemma-2-27b')).toBe(false);
+        expect(hasVisionSupport('gemma-7b')).toBe(false);
+      });
+    });
+
     describe('Llama models', () => {
       it('should detect llama vision models', () => {
         expect(hasVisionSupport('llama-3-vision')).toBe(true);
