@@ -52,9 +52,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   personalityTraits: 'Helpful, friendly',
 };
 
-function createValidJobData(
-  overrides: Partial<LLMGenerationJobData> = {}
-): LLMGenerationJobData {
+function createValidJobData(overrides: Partial<LLMGenerationJobData> = {}): LLMGenerationJobData {
   return {
     requestId: 'test-req-001',
     jobType: JobType.LLMGeneration,
@@ -151,7 +149,9 @@ describe('DependencyStep', () => {
 
       expect(result.preprocessing?.processedAttachments).toHaveLength(1);
       expect(result.preprocessing?.processedAttachments[0].type).toBe(AttachmentType.Audio);
-      expect(result.preprocessing?.processedAttachments[0].description).toBe('Transcribed text here');
+      expect(result.preprocessing?.processedAttachments[0].description).toBe(
+        'Transcribed text here'
+      );
       expect(result.preprocessing?.transcriptions).toContain('Transcribed text here');
     });
 
@@ -159,9 +159,7 @@ describe('DependencyStep', () => {
       const imageResult: ImageDescriptionResult = {
         requestId: 'test-req',
         success: true,
-        descriptions: [
-          { url: 'https://example.com/image.png', description: 'A beautiful sunset' },
-        ],
+        descriptions: [{ url: 'https://example.com/image.png', description: 'A beautiful sunset' }],
       };
 
       mockGetJobResult.mockResolvedValueOnce(imageResult);
@@ -190,9 +188,7 @@ describe('DependencyStep', () => {
       const imageResult: ImageDescriptionResult = {
         requestId: 'test-req',
         success: true,
-        descriptions: [
-          { url: 'https://example.com/image.png', description: 'Referenced image' },
-        ],
+        descriptions: [{ url: 'https://example.com/image.png', description: 'Referenced image' }],
         sourceReferenceNumber: 1,
       };
 
@@ -230,9 +226,7 @@ describe('DependencyStep', () => {
       const imageResult: ImageDescriptionResult = {
         requestId: 'test-req',
         success: true,
-        descriptions: [
-          { url: 'https://example.com/image.png', description: 'Image content' },
-        ],
+        descriptions: [{ url: 'https://example.com/image.png', description: 'Image content' }],
       };
 
       mockGetJobResult.mockResolvedValueOnce(audioResult);

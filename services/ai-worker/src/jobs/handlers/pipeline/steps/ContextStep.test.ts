@@ -48,9 +48,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   personalityTraits: 'Helpful, friendly',
 };
 
-function createValidJobData(
-  overrides: Partial<LLMGenerationJobData> = {}
-): LLMGenerationJobData {
+function createValidJobData(overrides: Partial<LLMGenerationJobData> = {}): LLMGenerationJobData {
   return {
     requestId: 'test-req-001',
     jobType: JobType.LLMGeneration,
@@ -155,17 +153,11 @@ describe('ContextStep', () => {
 
       step.process(context);
 
-      expect(mockExtractParticipants).toHaveBeenCalledWith(
-        conversationHistory,
-        'bot-1',
-        'TestBot'
-      );
+      expect(mockExtractParticipants).toHaveBeenCalledWith(conversationHistory, 'bot-1', 'TestBot');
     });
 
     it('should call convertConversationHistory with personality name', () => {
-      const conversationHistory = [
-        { role: 'user', content: 'Hello' },
-      ];
+      const conversationHistory = [{ role: 'user', content: 'Hello' }];
 
       const config: ResolvedConfig = {
         effectivePersonality: TEST_PERSONALITY,
@@ -256,9 +248,7 @@ describe('ContextStep', () => {
         job: createMockJob({
           context: {
             userId: 'user-456',
-            mentionedPersonas: [
-              { personaId: 'bot-2', personaName: 'OtherBot' },
-            ],
+            mentionedPersonas: [{ personaId: 'bot-2', personaName: 'OtherBot' }],
           },
         }),
         startTime: Date.now(),
