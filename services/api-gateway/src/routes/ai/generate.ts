@@ -6,7 +6,7 @@
 import { Router, type Request, type Response } from 'express';
 import { randomUUID } from 'crypto';
 import { createLogger, generateRequestSchema, JobStatus } from '@tzurot/common-types';
-import { deduplicationCache } from '../../utils/deduplicationCache.js';
+import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
 import { createJobChain } from '../../utils/jobChainOrchestrator.js';
 import type { GenerateResponse } from '../../types.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -56,7 +56,8 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       const personalityName = request.personality.name;
 
       // Check for duplicate requests
-      const duplicate = deduplicationCache.checkDuplicate(request);
+      const deduplicationCache = getDeduplicationCache();
+      const duplicate = await deduplicationCache.checkDuplicate(request);
       if (duplicate !== null) {
         const response: GenerateResponse = {
           jobId: duplicate.jobId,
@@ -106,13 +107,14 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
           },
           responseDestination: {
             type: 'api' as const,
-            // TODO: Add callback URL support
+            // Callback URL support: If needed, add callbackUrl field from request
+            // and implement webhook delivery in ai-worker result handling
           },
           userApiKey: request.userApiKey,
         });
 
         // Cache request to prevent duplicates
-        deduplicationCache.cacheRequest(request, requestId, jobId);
+        await deduplicationCache.cacheRequest(request, requestId, jobId);
 
         const creationTime = Date.now() - startTime;
 

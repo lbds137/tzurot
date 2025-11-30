@@ -1,617 +1,141 @@
 /**
  * LLM Generation Handler
  *
- * Handles LLM generation jobs including preprocessing dependency merging.
+ * Handles LLM generation jobs using a Pipeline Pattern for thread safety
+ * and separation of concerns.
  *
  * BYOK Security Model:
  * - API keys are NEVER passed through BullMQ jobs in plaintext
  * - Keys are resolved at runtime using ApiKeyResolver
  * - Keys are decrypted only in ai-worker, stored encrypted in DB
+ *
+ * Pipeline Pattern:
+ * This handler uses a stateless pipeline where each step receives a context
+ * object and returns an updated context. This ensures:
+ * - Thread safety: No instance state, no race conditions
+ * - Testability: Each step can be tested independently
+ * - Extensibility: New steps can be added without modifying existing code
  */
 
 import { Job } from 'bullmq';
+import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
-  ConversationalRAGService,
-  type RAGResponse,
-} from '../../services/ConversationalRAGService.js';
-import {
-  MessageContent,
   createLogger,
-  REDIS_KEY_PREFIXES,
-  AIProvider,
-  GUEST_MODE,
-  isFreeModel,
-  AttachmentType,
-  JobType,
   type LLMGenerationJobData,
   type LLMGenerationResult,
-  type AudioTranscriptionResult,
-  type ImageDescriptionResult,
-  llmGenerationJobDataSchema,
 } from '@tzurot/common-types';
-import type { ProcessedAttachment } from '../../services/MultimodalProcessor.js';
-import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import { LlmConfigResolver } from '../../services/LlmConfigResolver.js';
+import {
+  type IPipelineStep,
+  type GenerationContext,
+  ValidationStep,
+  DependencyStep,
+  ConfigStep,
+  AuthStep,
+  ContextStep,
+  GenerationStep,
+} from './pipeline/index.js';
 
 const logger = createLogger('LLMGenerationHandler');
 
 /**
  * Handler for LLM generation jobs
- * Processes dependencies (audio transcriptions, image descriptions) and generates AI responses
  *
- * IMPORTANT: Instance Reuse Warning
- * BullMQ may reuse handler instances across multiple jobs for performance.
- * This means instance properties can persist between jobs. To prevent
- * cross-job state leakage:
- * - Always reset mutable state at the START of processJob() (before any async ops)
- * - Never rely on constructor initialization for per-job state
- * - The preprocessingResults object is explicitly reset in processJob()
+ * Uses the Pipeline Pattern to process jobs through discrete steps:
+ * 1. ValidationStep - Validates job data against schema
+ * 2. DependencyStep - Fetches preprocessing results (audio/image) from Redis
+ * 3. ConfigStep - Resolves LLM config with user overrides
+ * 4. AuthStep - Resolves API key (BYOK) and handles guest mode
+ * 5. ContextStep - Prepares conversation history and participants
+ * 6. GenerationStep - Calls RAG service to generate response
  *
- * See: https://docs.bullmq.io/patterns/best-practices
+ * Each step is stateless - context flows through as function arguments,
+ * ensuring thread safety when handling concurrent jobs.
  */
 export class LLMGenerationHandler {
+  private readonly pipeline: IPipelineStep[];
+
   constructor(
-    private readonly ragService: ConversationalRAGService,
-    private readonly apiKeyResolver?: ApiKeyResolver,
-    private readonly configResolver?: LlmConfigResolver
-  ) {}
+    ragService: ConversationalRAGService,
+    apiKeyResolver?: ApiKeyResolver,
+    configResolver?: LlmConfigResolver
+  ) {
+    // Build the pipeline with all steps
+    // Order matters: each step may depend on results from previous steps
+    this.pipeline = [
+      new ValidationStep(),
+      new DependencyStep(),
+      new ConfigStep(configResolver),
+      new AuthStep(apiKeyResolver, configResolver),
+      new ContextStep(),
+      new GenerationStep(ragService),
+    ];
+  }
 
   /**
-   * Process LLM generation job (may depend on preprocessing jobs)
+   * Process LLM generation job through the pipeline
    */
   async processJob(job: Job<LLMGenerationJobData>): Promise<LLMGenerationResult> {
-    // Reset preprocessing results for this job BEFORE checking dependencies
-    // This prevents stale data from a previous job leaking into this one
-    // (handlers may be reused across jobs by BullMQ)
-    this.preprocessingResults = {
-      processedAttachments: [],
-      transcriptions: [],
-      referenceAttachments: {},
-    };
-
-    // Validate job payload against schema (contract testing)
-    const validation = llmGenerationJobDataSchema.safeParse(job.data);
-    if (!validation.success) {
-      logger.error(
-        {
-          jobId: job.id,
-          errors: validation.error.format(),
-        },
-        '[LLMGenerationHandler] Job validation failed'
-      );
-      throw new Error(`LLM generation job validation failed: ${validation.error.message}`);
-    }
-
-    const { dependencies } = job.data;
-
-    // If there are dependencies, fetch their results and merge into context
-    if (dependencies && dependencies.length > 0) {
-      await this.processDependencies(job);
-    }
-
-    // Now perform LLM generation
-    return this.generateResponse(job);
-  }
-
-  /**
-   * Preprocessing results returned from dependency jobs
-   */
-  private preprocessingResults: {
-    processedAttachments: ProcessedAttachment[];
-    transcriptions: string[];
-    referenceAttachments: Record<number, ProcessedAttachment[]>;
-  } = { processedAttachments: [], transcriptions: [], referenceAttachments: {} };
-
-  /**
-   * Fetch and merge preprocessing results (audio transcriptions, image descriptions)
-   * Returns structured data for use by RAG service instead of orphaned string
-   */
-  private async processDependencies(job: Job<LLMGenerationJobData>): Promise<void> {
-    const { dependencies } = job.data;
-
-    // Note: preprocessingResults is already reset in processJob() before this is called
-    if (!dependencies || dependencies.length === 0) {
-      return;
-    }
-
-    logger.info(
-      {
-        jobId: job.id,
-        dependencyCount: dependencies.length,
-      },
-      '[LLMGenerationHandler] LLM job has dependencies - fetching preprocessing results'
-    );
-
-    // Fetch dependency results from Redis
-    const { redisService } = await import('../../redis.js');
-
-    // Collect audio transcriptions with URL info, separated by source
-    interface AudioInfo {
-      url: string;
-      name: string;
-      content: string;
-      sourceReferenceNumber?: number;
-    }
-    const audioTranscriptions: AudioInfo[] = [];
-
-    // Collect image descriptions, separated by source
-    interface ImageInfo {
-      url: string;
-      description: string;
-      sourceReferenceNumber?: number;
-    }
-    const imageDescriptions: ImageInfo[] = [];
-
-    for (const dep of dependencies) {
-      try {
-        // Extract key from resultKey (strip REDIS_KEY_PREFIXES.JOB_RESULT prefix)
-        const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
-
-        if (dep.type === JobType.AudioTranscription) {
-          const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
-          if (
-            result?.success === true &&
-            result.content !== undefined &&
-            result.content.length > 0
-          ) {
-            audioTranscriptions.push({
-              url: result.attachmentUrl ?? '',
-              name: result.attachmentName ?? 'audio',
-              content: result.content,
-              sourceReferenceNumber: result.sourceReferenceNumber,
-            });
-            logger.debug(
-              { jobId: dep.jobId, key, sourceRef: result.sourceReferenceNumber },
-              '[LLMGenerationHandler] Retrieved audio transcription'
-            );
-          } else {
-            logger.warn(
-              { jobId: dep.jobId, key },
-              '[LLMGenerationHandler] Audio transcription job failed or has no result'
-            );
-          }
-        } else if (dep.type === JobType.ImageDescription) {
-          const result = await redisService.getJobResult<ImageDescriptionResult>(key);
-          if (
-            result?.success === true &&
-            result.descriptions !== undefined &&
-            result.descriptions.length > 0
-          ) {
-            // Add sourceReferenceNumber to each description
-            const descriptionsWithSource = result.descriptions.map(d => ({
-              ...d,
-              sourceReferenceNumber: result.sourceReferenceNumber,
-            }));
-            imageDescriptions.push(...descriptionsWithSource);
-            logger.debug(
-              {
-                jobId: dep.jobId,
-                key,
-                count: result.descriptions.length,
-                sourceRef: result.sourceReferenceNumber,
-              },
-              '[LLMGenerationHandler] Retrieved image descriptions'
-            );
-          } else {
-            logger.warn(
-              { jobId: dep.jobId, key },
-              '[LLMGenerationHandler] Image description job failed or has no result'
-            );
-          }
-        }
-      } catch (error) {
-        logger.error(
-          { err: error, jobId: dep.jobId, type: dep.type },
-          '[LLMGenerationHandler] Failed to fetch dependency result - continuing without it'
-        );
-      }
-    }
-
-    // Convert to ProcessedAttachment format, separating direct vs. referenced
-    const directAttachments: ProcessedAttachment[] = [];
-    const referenceAttachments: Record<number, ProcessedAttachment[]> = {};
-
-    // Process images
-    for (const img of imageDescriptions) {
-      const attachment: ProcessedAttachment = {
-        type: AttachmentType.Image,
-        description: img.description,
-        originalUrl: img.url,
-        metadata: {
-          url: img.url,
-          name: img.url.split('/').pop() ?? 'image',
-          contentType: 'image/unknown',
-          size: 0,
-        },
-      };
-
-      if (img.sourceReferenceNumber !== undefined) {
-        // Referenced message attachment
-        referenceAttachments[img.sourceReferenceNumber] ??= [];
-        referenceAttachments[img.sourceReferenceNumber].push(attachment);
-      } else {
-        // Direct attachment
-        directAttachments.push(attachment);
-      }
-    }
-
-    // Process audio
-    for (const audio of audioTranscriptions) {
-      const attachment: ProcessedAttachment = {
-        type: AttachmentType.Audio,
-        description: audio.content,
-        originalUrl: audio.url,
-        metadata: {
-          url: audio.url,
-          name: audio.name,
-          contentType: 'audio/unknown',
-          size: 0,
-        },
-      };
-
-      if (audio.sourceReferenceNumber !== undefined) {
-        // Referenced message attachment
-        referenceAttachments[audio.sourceReferenceNumber] ??= [];
-        referenceAttachments[audio.sourceReferenceNumber].push(attachment);
-      } else {
-        // Direct attachment
-        directAttachments.push(attachment);
-      }
-    }
-
-    // Store results for use by generateResponse
-    // Note: transcriptions kept as separate array for backward compatibility (direct only)
-    this.preprocessingResults = {
-      processedAttachments: directAttachments,
-      transcriptions: audioTranscriptions
-        .filter(a => a.sourceReferenceNumber === undefined)
-        .map(a => a.content),
-      referenceAttachments,
-    };
-
-    const refCount = Object.keys(referenceAttachments).length;
-    const refAttachmentCount = Object.values(referenceAttachments).reduce(
-      (sum, arr) => sum + arr.length,
-      0
-    );
-
-    logger.info(
-      {
-        jobId: job.id,
-        directAttachmentCount: directAttachments.length,
-        referencedMessageCount: refCount,
-        referencedAttachmentCount: refAttachmentCount,
-        totalPreprocessed: directAttachments.length + refAttachmentCount,
-      },
-      '[LLMGenerationHandler] Fetched preprocessing results from dependency jobs'
-    );
-  }
-
-  /**
-   * Generate AI response using RAG service
-   */
-  private async generateResponse(job: Job<LLMGenerationJobData>): Promise<LLMGenerationResult> {
     const startTime = Date.now();
-    const { requestId, personality, message, context } = job.data;
+
+    // Initialize context - this is the only state, and it's scoped to this call
+    let context: GenerationContext = {
+      job,
+      startTime,
+    };
+
+    // Run validation first (outside try/catch so validation errors propagate)
+    // Validation errors indicate programming errors and should fail the job
+    const validationStep = this.pipeline[0];
+    context = await validationStep.process(context);
 
     logger.info(
-      `[LLMGenerationHandler] Processing LLM generation job ${job.id} (${requestId}) for ${personality.name}`
-    );
-
-    // Resolve LLM config with user overrides
-    // Hierarchy: user-personality > user-default > personality default
-    let effectivePersonality = personality;
-    let configSource: 'personality' | 'user-personality' | 'user-default' = 'personality';
-
-    if (this.configResolver) {
-      try {
-        const configResult = await this.configResolver.resolveConfig(
-          context.userId,
-          personality.id,
-          personality
-        );
-
-        configSource = configResult.source;
-
-        // If user has an override, apply it to the personality
-        if (configResult.source !== 'personality') {
-          effectivePersonality = {
-            ...personality,
-            model: configResult.config.model,
-            visionModel: configResult.config.visionModel ?? personality.visionModel,
-            temperature: configResult.config.temperature ?? personality.temperature,
-            topP: configResult.config.topP ?? personality.topP,
-            topK: configResult.config.topK ?? personality.topK,
-            frequencyPenalty: configResult.config.frequencyPenalty ?? personality.frequencyPenalty,
-            presencePenalty: configResult.config.presencePenalty ?? personality.presencePenalty,
-            repetitionPenalty:
-              configResult.config.repetitionPenalty ?? personality.repetitionPenalty,
-            maxTokens: configResult.config.maxTokens ?? personality.maxTokens,
-            memoryScoreThreshold:
-              configResult.config.memoryScoreThreshold ?? personality.memoryScoreThreshold,
-            memoryLimit: configResult.config.memoryLimit ?? personality.memoryLimit,
-            contextWindowTokens:
-              configResult.config.contextWindowTokens ?? personality.contextWindowTokens,
-          };
-
-          logger.info(
-            {
-              userId: context.userId,
-              personalityId: personality.id,
-              source: configResult.source,
-              configName: configResult.configName,
-              model: effectivePersonality.model,
-            },
-            '[LLMGenerationHandler] Applied user config override'
-          );
-        }
-      } catch (error) {
-        logger.warn(
-          { err: error, userId: context.userId },
-          '[LLMGenerationHandler] Failed to resolve user config, using personality default'
-        );
-      }
-    }
-
-    // BYOK: Resolve API key from database using ApiKeyResolver
-    // The key is NEVER passed through BullMQ - we look it up here using userId
-    let resolvedApiKey: string | undefined;
-    let resolvedProvider: string | undefined;
-    let isGuestMode = false;
-
-    if (this.apiKeyResolver) {
-      try {
-        const keyResult = await this.apiKeyResolver.resolveApiKey(
-          context.userId,
-          AIProvider.OpenRouter // Default provider - could be determined from personality.model
-        );
-        resolvedApiKey = keyResult.apiKey;
-        resolvedProvider = keyResult.provider;
-        isGuestMode = keyResult.isGuestMode;
-
-        logger.debug(
-          {
-            userId: context.userId,
-            source: keyResult.source,
-            provider: resolvedProvider,
-            isGuestMode,
-          },
-          '[LLMGenerationHandler] Resolved API key'
-        );
-
-        // Guest Mode: Enforce free-model-only
-        if (isGuestMode) {
-          const currentModel = effectivePersonality.model;
-
-          // If current model is not free, override to guest default
-          if (!isFreeModel(currentModel)) {
-            // Try to get free default from database first, fall back to hardcoded
-            let guestModel: string = GUEST_MODE.DEFAULT_MODEL;
-            if (this.configResolver) {
-              try {
-                const freeConfig = await this.configResolver.getFreeDefaultConfig();
-                if (freeConfig !== null) {
-                  guestModel = freeConfig.model;
-                  logger.debug(
-                    { model: guestModel },
-                    '[LLMGenerationHandler] Using database free default config'
-                  );
-                }
-              } catch (error) {
-                logger.warn(
-                  { err: error },
-                  '[LLMGenerationHandler] Failed to get free default config, using hardcoded fallback'
-                );
-              }
-            }
-
-            logger.info(
-              {
-                userId: context.userId,
-                originalModel: currentModel,
-                guestModel,
-              },
-              '[LLMGenerationHandler] Guest mode: overriding paid model with free model'
-            );
-
-            effectivePersonality = {
-              ...effectivePersonality,
-              model: guestModel,
-              // Clear vision model if not free - guest mode may not support vision on all models
-              visionModel:
-                effectivePersonality.visionModel !== undefined &&
-                effectivePersonality.visionModel.length > 0 &&
-                isFreeModel(effectivePersonality.visionModel)
-                  ? effectivePersonality.visionModel
-                  : undefined,
-            };
-          }
-
-          logger.info(
-            { userId: context.userId, model: effectivePersonality.model },
-            '[LLMGenerationHandler] Guest mode active - using free model'
-          );
-        }
-      } catch (error) {
-        // Log but don't fail - guest mode can still work
-        logger.warn(
-          { err: error, userId: context.userId },
-          '[LLMGenerationHandler] Failed to resolve API key, falling back to guest mode'
-        );
-        isGuestMode = true;
-
-        // Apply guest mode model override
-        if (!isFreeModel(effectivePersonality.model)) {
-          // Try to get free default from database, fall back to hardcoded
-          let guestModel: string = GUEST_MODE.DEFAULT_MODEL;
-          if (this.configResolver) {
-            try {
-              const freeConfig = await this.configResolver.getFreeDefaultConfig();
-              if (freeConfig !== null) {
-                guestModel = freeConfig.model;
-              }
-            } catch {
-              // Silently fall back to hardcoded - we're already in error recovery
-            }
-          }
-          effectivePersonality = {
-            ...effectivePersonality,
-            model: guestModel,
-          };
-        }
-      }
-    }
-
-    // Debug: Check if referencedMessages exists in job data
-    logger.info(
-      `[LLMGenerationHandler] Job data context inspection: ` +
-        `hasReferencedMessages=${context.referencedMessages !== undefined && context.referencedMessages !== null}, ` +
-        `count=${context.referencedMessages?.length ?? 0}, ` +
-        `type=${typeof context.referencedMessages}, ` +
-        `contextKeys=[${Object.keys(context).join(', ')}]`
+      { jobId: job.id, requestId: job.data.requestId, personality: job.data.personality?.name },
+      '[LLMGenerationHandler] Processing job through pipeline'
     );
 
     try {
-      // Calculate oldest timestamp from conversation history (for LTM deduplication)
-      let oldestHistoryTimestamp: number | undefined;
-      if (context.conversationHistory && context.conversationHistory.length > 0) {
-        const timestamps = context.conversationHistory
-          .map(msg =>
-            msg.createdAt !== undefined && msg.createdAt.length > 0
-              ? new Date(msg.createdAt).getTime()
-              : null
-          )
-          .filter((t): t is number => t !== null);
-
-        if (timestamps.length > 0) {
-          oldestHistoryTimestamp = Math.min(...timestamps);
-          logger.debug(
-            `[LLMGenerationHandler] Oldest conversation message: ${new Date(oldestHistoryTimestamp).toISOString()}`
-          );
-        }
+      // Execute remaining pipeline steps in order (skip validation, already done)
+      for (let i = 1; i < this.pipeline.length; i++) {
+        const step = this.pipeline[i];
+        logger.debug(
+          { jobId: job.id, step: step.name },
+          '[LLMGenerationHandler] Executing pipeline step'
+        );
+        context = await step.process(context);
       }
 
-      // Extract unique participants BEFORE converting to BaseMessage
-      const participants = extractParticipants(
-        context.conversationHistory ?? [],
-        context.activePersonaId,
-        context.activePersonaName
-      );
-
-      // Add mentioned personas to participants (if not already present)
-      let allParticipants = participants;
-      if (context.mentionedPersonas && context.mentionedPersonas.length > 0) {
-        const existingIds = new Set(participants.map(p => p.personaId));
-        const mentionedParticipants = context.mentionedPersonas
-          .filter(mentioned => !existingIds.has(mentioned.personaId))
-          .map(mentioned => ({
-            personaId: mentioned.personaId,
-            personaName: mentioned.personaName,
-            isActive: false,
-          }));
-
-        if (mentionedParticipants.length > 0) {
-          allParticipants = [...participants, ...mentionedParticipants];
-          for (const p of mentionedParticipants) {
-            logger.debug(
-              `[LLMGenerationHandler] Added mentioned persona to participants: ${p.personaName}`
-            );
-          }
-        }
+      // Verify we have a result
+      if (!context.result) {
+        throw new Error('Pipeline completed but no result was generated');
       }
-
-      // Convert conversation history to BaseMessage format
-      const conversationHistory = convertConversationHistory(
-        context.conversationHistory ?? [],
-        personality.name
-      );
-
-      // Generate response using RAG
-      // Note: resolvedApiKey comes from ApiKeyResolver (BYOK) or is undefined (system key fallback)
-      // Note: effectivePersonality has user config overrides applied (if any)
-      // Note: isGuestMode determines which vision fallback model to use
-      // Note: preprocessedAttachments from dependency jobs avoids duplicate vision API calls
-      const response: RAGResponse = await this.ragService.generateResponse(
-        effectivePersonality,
-        message as MessageContent,
-        {
-          userId: context.userId,
-          userName: context.userName,
-          userTimezone: context.userTimezone,
-          channelId: context.channelId,
-          serverId: context.serverId,
-          sessionId: context.sessionId,
-          isProxyMessage: context.isProxyMessage,
-          activePersonaId: context.activePersonaId,
-          activePersonaName: context.activePersonaName,
-          conversationHistory,
-          rawConversationHistory: context.conversationHistory,
-          oldestHistoryTimestamp,
-          participants: allParticipants,
-          attachments: context.attachments,
-          // Use preprocessed attachments from dependency jobs if available
-          // This avoids duplicate vision API calls
-          preprocessedAttachments:
-            this.preprocessingResults.processedAttachments.length > 0
-              ? this.preprocessingResults.processedAttachments
-              : undefined,
-          // Use preprocessed reference attachments from dependency jobs if available
-          // This avoids inline vision API calls that cause timeouts
-          preprocessedReferenceAttachments:
-            Object.keys(this.preprocessingResults.referenceAttachments).length > 0
-              ? this.preprocessingResults.referenceAttachments
-              : undefined,
-          environment: context.environment,
-          referencedMessages: context.referencedMessages,
-          referencedChannels: context.referencedChannels,
-        },
-        resolvedApiKey,
-        isGuestMode
-      );
 
       const processingTimeMs = Date.now() - startTime;
+      logger.info(
+        { jobId: job.id, processingTimeMs, success: context.result.success },
+        '[LLMGenerationHandler] Job completed'
+      );
 
-      logger.info(`[LLMGenerationHandler] Job ${job.id} completed in ${processingTimeMs}ms`);
-
-      const jobResult: LLMGenerationResult = {
-        requestId,
-        success: true,
-        content: response.content,
-        attachmentDescriptions: response.attachmentDescriptions,
-        referencedMessagesDescriptions: response.referencedMessagesDescriptions,
-        metadata: {
-          retrievedMemories: response.retrievedMemories,
-          tokensIn: response.tokensIn,
-          tokensOut: response.tokensOut,
-          processingTimeMs,
-          modelUsed: response.modelUsed,
-          providerUsed: resolvedProvider,
-          configSource, // 'personality' | 'user-personality' | 'user-default'
-          isGuestMode, // True if using free model (no API key)
-        },
-      };
-
-      logger.debug({ jobResult }, '[LLMGenerationHandler] Returning job result');
-
-      return jobResult;
+      return context.result;
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
 
-      logger.error({ err: error }, `[LLMGenerationHandler] Job ${job.id} failed`);
+      logger.error(
+        { err: error, jobId: job.id, processingTimeMs },
+        '[LLMGenerationHandler] Pipeline failed'
+      );
 
-      const jobResult: LLMGenerationResult = {
-        requestId,
+      // Return error result
+      return {
+        requestId: job.data.requestId,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        // Include personality's custom error message for webhook response
-        personalityErrorMessage: personality.errorMessage,
+        personalityErrorMessage: job.data.personality.errorMessage,
         metadata: {
           processingTimeMs,
         },
       };
-
-      return jobResult;
     }
   }
 }

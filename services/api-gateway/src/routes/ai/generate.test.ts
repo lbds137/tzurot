@@ -10,9 +10,11 @@ import { JobStatus } from '@tzurot/common-types';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 
 // Mock dependencies
-vi.mock('../../utils/requestDeduplication.js', () => ({
-  checkDuplicate: vi.fn().mockReturnValue(null),
-  cacheRequest: vi.fn(),
+vi.mock('../../utils/deduplicationCache.js', () => ({
+  getDeduplicationCache: vi.fn(() => ({
+    checkDuplicate: vi.fn().mockResolvedValue(null),
+    cacheRequest: vi.fn().mockResolvedValue(undefined),
+  })),
 }));
 vi.mock('../../utils/jobChainOrchestrator.js', () => ({
   createJobChain: vi.fn().mockResolvedValue('llm-req-123'),

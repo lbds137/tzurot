@@ -402,9 +402,11 @@
   - Add punctuation and formatting to transcriptions
   - Use cheap model (Claude Haiku)
   - Makes bot feel "smarter" immediately
-- [ ] **Task 5.2**: Custom error messages (use Personality.errorMessage)
-  - Already migrated in Sprint 2, just wire it up
-  - Replace generic "no job result" error with personality-specific messages
+- [x] **Task 5.2**: Custom error messages (use Personality.errorMessage) ✅
+  - Already migrated in Sprint 2, wiring complete
+  - LLMGenerationHandler passes `personalityErrorMessage` on errors
+  - MessageHandler uses it for webhook error responses
+  - **Completed**: 2025-11-30
 - [ ] **Task 5.3**: Birthday awareness (use Personality.birthday)
   - Personalities can reference their birthday in responses
   - Time-aware responses using User.timezone
