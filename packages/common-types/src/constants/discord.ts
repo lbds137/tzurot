@@ -12,6 +12,8 @@ export const TEXT_LIMITS = {
   LOG_PREVIEW: 150,
   /** Characters for persona preview in logs */
   LOG_PERSONA_PREVIEW: 100,
+  /** Characters for URL preview in logs (shows start of URL for debugging) */
+  URL_LOG_PREVIEW: 60,
   /** Character limit before truncating full prompt in logs */
   LOG_FULL_PROMPT: 2000,
   /** Summary truncation in admin commands */

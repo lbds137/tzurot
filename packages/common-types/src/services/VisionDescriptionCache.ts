@@ -10,9 +10,10 @@
  * avoiding duplicate API calls for the same image across different contexts.
  */
 
+import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { createLogger } from '../utils/logger.js';
-import { REDIS_KEY_PREFIXES, INTERVALS } from '../constants/index.js';
+import { REDIS_KEY_PREFIXES, INTERVALS, TEXT_LIMITS } from '../constants/index.js';
 
 const logger = createLogger('VisionDescriptionCache');
 
@@ -34,7 +35,7 @@ export class VisionDescriptionCache {
       const key = this.getCacheKey(imageUrl);
       await this.redis.setex(key, ttlSeconds, description);
       logger.debug(
-        { urlPrefix: imageUrl.substring(0, 60) },
+        { urlPrefix: imageUrl.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW) },
         '[VisionDescriptionCache] Stored description'
       );
     } catch (error) {
@@ -54,13 +55,16 @@ export class VisionDescriptionCache {
 
       if (description !== null && description.length > 0) {
         logger.info(
-          { urlPrefix: imageUrl.substring(0, 60) },
+          { urlPrefix: imageUrl.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW) },
           '[VisionDescriptionCache] Cache HIT - avoiding duplicate vision API call'
         );
         return description;
       }
 
-      logger.debug({ urlPrefix: imageUrl.substring(0, 60) }, '[VisionDescriptionCache] Cache MISS');
+      logger.debug(
+        { urlPrefix: imageUrl.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW) },
+        '[VisionDescriptionCache] Cache MISS'
+      );
       return null;
     } catch (error) {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to get description');
@@ -70,9 +74,10 @@ export class VisionDescriptionCache {
 
   /**
    * Generate cache key from image URL
-   * Uses URL hash to handle long URLs
+   * Uses SHA-256 hash to handle long URLs and avoid special character issues
    */
   private getCacheKey(imageUrl: string): string {
-    return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}${imageUrl}`;
+    const urlHash = createHash('sha256').update(imageUrl).digest('hex');
+    return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}${urlHash}`;
   }
 }

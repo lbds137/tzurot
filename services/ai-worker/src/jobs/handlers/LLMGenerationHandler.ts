@@ -39,6 +39,16 @@ const logger = createLogger('LLMGenerationHandler');
 /**
  * Handler for LLM generation jobs
  * Processes dependencies (audio transcriptions, image descriptions) and generates AI responses
+ *
+ * IMPORTANT: Instance Reuse Warning
+ * BullMQ may reuse handler instances across multiple jobs for performance.
+ * This means instance properties can persist between jobs. To prevent
+ * cross-job state leakage:
+ * - Always reset mutable state at the START of processJob() (before any async ops)
+ * - Never rely on constructor initialization for per-job state
+ * - The preprocessingResults object is explicitly reset in processJob()
+ *
+ * See: https://docs.bullmq.io/patterns/best-practices
  */
 export class LLMGenerationHandler {
   constructor(
