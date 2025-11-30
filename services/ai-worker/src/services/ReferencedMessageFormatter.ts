@@ -186,7 +186,14 @@ export class ReferencedMessageFormatter {
 
     // Create promises for all attachments that need processing
     const processingPromises = attachments.map((attachment, index) =>
-      this.processSingleAttachment(attachment, index, referenceNumber, personality, isGuestMode, preprocessedAttachments)
+      this.processSingleAttachment(
+        attachment,
+        index,
+        referenceNumber,
+        personality,
+        isGuestMode,
+        preprocessedAttachments
+      )
     );
 
     // Process all attachments in parallel

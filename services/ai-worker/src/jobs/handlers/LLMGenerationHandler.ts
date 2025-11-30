@@ -53,7 +53,11 @@ export class LLMGenerationHandler {
     // Reset preprocessing results for this job BEFORE checking dependencies
     // This prevents stale data from a previous job leaking into this one
     // (handlers may be reused across jobs by BullMQ)
-    this.preprocessingResults = { processedAttachments: [], transcriptions: [], referenceAttachments: {} };
+    this.preprocessingResults = {
+      processedAttachments: [],
+      transcriptions: [],
+      referenceAttachments: {},
+    };
 
     // Validate job payload against schema (contract testing)
     const validation = llmGenerationJobDataSchema.safeParse(job.data);
@@ -170,7 +174,12 @@ export class LLMGenerationHandler {
             }));
             imageDescriptions.push(...descriptionsWithSource);
             logger.debug(
-              { jobId: dep.jobId, key, count: result.descriptions.length, sourceRef: result.sourceReferenceNumber },
+              {
+                jobId: dep.jobId,
+                key,
+                count: result.descriptions.length,
+                sourceRef: result.sourceReferenceNumber,
+              },
               '[LLMGenerationHandler] Retrieved image descriptions'
             );
           } else {
@@ -251,7 +260,10 @@ export class LLMGenerationHandler {
     };
 
     const refCount = Object.keys(referenceAttachments).length;
-    const refAttachmentCount = Object.values(referenceAttachments).reduce((sum, arr) => sum + arr.length, 0);
+    const refAttachmentCount = Object.values(referenceAttachments).reduce(
+      (sum, arr) => sum + arr.length,
+      0
+    );
 
     logger.info(
       {
