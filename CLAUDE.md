@@ -364,6 +364,24 @@ railway run psql
 1. **Lint all**: `pnpm lint`
 2. **Fix issues**: `pnpm lint:fix`
 
+**🚨 CRITICAL: ESLint Configuration**
+
+This project uses **ESLint 9 flat config** (`eslint.config.js`), NOT legacy `.eslintrc.*` files.
+
+- ✅ **Active config**: `eslint.config.js` (flat config format)
+- ❌ **No `.eslintrc.json`**: Deleted to prevent confusion - ESLint 9 ignores it anyway
+
+**DO NOT:**
+- Create `.eslintrc.json`, `.eslintrc.js`, or any legacy config files
+- Add `overrides` sections (that's legacy syntax)
+- Reference `.eslintrc.*` patterns in documentation
+- Use `ignorePatterns` (use `ignores` array in flat config instead)
+
+**DO:**
+- Edit `eslint.config.js` for all ESLint configuration changes
+- Use flat config syntax (array of config objects with `files` and `rules`)
+- Test files ARE linted with the same rules as production code
+
 ### Type Checking
 
 1. **Check all**: `pnpm typecheck`
