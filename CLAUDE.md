@@ -431,10 +431,15 @@ this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
 **✅ Alternatives for Cleanup/Scheduled Tasks**:
 
 1. **BullMQ Repeatable Jobs** (preferred for this codebase):
+
    ```typescript
-   await queue.add('cleanup-cache', {}, {
-     repeat: { every: 60000 }  // Every minute
-   });
+   await queue.add(
+     'cleanup-cache',
+     {},
+     {
+       repeat: { every: 60000 }, // Every minute
+     }
+   );
    ```
 
 2. **Redis-based coordination** (for distributed locks)
@@ -442,6 +447,7 @@ this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
 3. **External scheduler** (Railway cron, etc.)
 
 **Current Known Scaling Blockers** (tracked for future migration):
+
 - `LlmConfigResolver.ts` - cache cleanup interval
 - `WebhookManager.ts` - webhook cleanup interval
 - `DatabaseNotificationListener.ts` - reconnection timeout
