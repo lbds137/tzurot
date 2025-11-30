@@ -17,6 +17,7 @@ import {
   AI_DEFAULTS,
   TIMEOUTS,
   AI_ENDPOINTS,
+  MODEL_DEFAULTS,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -81,16 +82,23 @@ export async function describeImage(
     return describeWithVisionModel(attachment, personality, personality.model);
   }
 
-  // Priority 3: Use default vision model (Qwen3-VL)
+  // Priority 3: Use fallback vision model
+  // Free users (model ends with :free) use Gemma 3 27b, BYOK users use Qwen3-VL
+  const isFreeUser = personality.model.endsWith(':free');
+  const fallbackModel = isFreeUser
+    ? MODEL_DEFAULTS.VISION_FALLBACK_FREE
+    : config.VISION_FALLBACK_MODEL;
+
   logger.info(
-    { mainModel: personality.model },
-    'Using default vision model (Qwen3-VL) - main LLM lacks vision support'
+    { mainModel: personality.model, fallbackModel, isFreeUser },
+    'Using fallback vision model - main LLM lacks vision support'
   );
   return describeWithFallbackVision(
     attachment,
     personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
       ? personality.systemPrompt
-      : ''
+      : '',
+    fallbackModel
   );
 }
 
@@ -180,15 +188,16 @@ async function describeWithVisionModel(
 }
 
 /**
- * Describe image using uncensored Qwen3-VL fallback model
+ * Describe image using fallback vision model
+ * Uses Gemma 3 27b for free users, Qwen3-VL for BYOK users
  */
 async function describeWithFallbackVision(
   attachment: AttachmentMetadata,
-  systemPrompt: string
+  systemPrompt: string,
+  fallbackModelName: string
 ): Promise<string> {
-  // Use Qwen3-VL-235B-A22B-Instruct - state-of-the-art, jailbreak-friendly
   const model = new ChatOpenAI({
-    modelName: config.VISION_FALLBACK_MODEL,
+    modelName: fallbackModelName,
     apiKey: config.OPENROUTER_API_KEY,
     configuration: {
       baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
@@ -204,7 +213,10 @@ async function describeWithFallbackVision(
   }
 
   // Use direct URL (attachment is already downloaded and resized by api-gateway)
-  logger.info({ url: attachment.url }, 'Using direct attachment URL for fallback vision model');
+  logger.info(
+    { url: attachment.url, fallbackModelName },
+    'Using direct attachment URL for fallback vision model'
+  );
 
   messages.push(
     new HumanMessage({
@@ -224,10 +236,7 @@ async function describeWithFallbackVision(
   );
 
   try {
-    logger.info(
-      { model: config.VISION_FALLBACK_MODEL },
-      'Invoking fallback vision model with 90s timeout'
-    );
+    logger.info({ model: fallbackModelName }, 'Invoking fallback vision model with 90s timeout');
     // Timeout must be passed to invoke(), not constructor (LangChain requirement)
     const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
     return typeof response.content === 'string'
@@ -235,7 +244,7 @@ async function describeWithFallbackVision(
       : JSON.stringify(response.content);
   } catch (error) {
     const context: Record<string, unknown> = {
-      modelName: config.VISION_FALLBACK_MODEL,
+      modelName: fallbackModelName,
       apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 15) + '...',
     };
 
