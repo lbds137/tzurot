@@ -7,7 +7,10 @@ import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
 import { GenerationStep } from './GenerationStep.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
-import type { ConversationalRAGService, RAGResponse } from '../../../../services/ConversationalRAGService.js';
+import type {
+  ConversationalRAGService,
+  RAGResponse,
+} from '../../../../services/ConversationalRAGService.js';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -110,7 +113,9 @@ describe('GenerationStep', () => {
         // No config
       };
 
-      await expect(step.process(context)).rejects.toThrow('ConfigStep must run before GenerationStep');
+      await expect(step.process(context)).rejects.toThrow(
+        'ConfigStep must run before GenerationStep'
+      );
     });
 
     it('should throw error if auth is missing', async () => {
@@ -122,7 +127,9 @@ describe('GenerationStep', () => {
         // No auth
       };
 
-      await expect(step.process(context)).rejects.toThrow('AuthStep must run before GenerationStep');
+      await expect(step.process(context)).rejects.toThrow(
+        'AuthStep must run before GenerationStep'
+      );
     });
 
     it('should throw error if preparedContext is missing', async () => {
@@ -134,7 +141,9 @@ describe('GenerationStep', () => {
         // No preparedContext
       };
 
-      await expect(step.process(context)).rejects.toThrow('ContextStep must run before GenerationStep');
+      await expect(step.process(context)).rejects.toThrow(
+        'ContextStep must run before GenerationStep'
+      );
     });
 
     it('should generate response successfully', async () => {
@@ -246,7 +255,12 @@ describe('GenerationStep', () => {
               type: 'image' as const,
               description: 'A sunset',
               originalUrl: 'https://example.com/image.png',
-              metadata: { url: 'https://example.com/image.png', name: 'image.png', contentType: 'image/png', size: 1000 },
+              metadata: {
+                url: 'https://example.com/image.png',
+                name: 'image.png',
+                contentType: 'image/png',
+                size: 1000,
+              },
             },
           ],
           transcriptions: [],
@@ -329,7 +343,9 @@ describe('GenerationStep', () => {
 
       const result = await step.process(context);
 
-      expect(result.result?.referencedMessagesDescriptions).toBe('[Referenced Message 1]: Previous context');
+      expect(result.result?.referencedMessagesDescriptions).toBe(
+        '[Referenced Message 1]: Previous context'
+      );
     });
 
     it('should pass provider from auth to result metadata', async () => {

@@ -13,7 +13,10 @@ import {
 } from '@tzurot/common-types';
 import { AuthStep } from './AuthStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
-import type { ApiKeyResolver, ApiKeyResolutionResult } from '../../../../services/ApiKeyResolver.js';
+import type {
+  ApiKeyResolver,
+  ApiKeyResolutionResult,
+} from '../../../../services/ApiKeyResolver.js';
 import type { LlmConfigResolver } from '../../../../services/LlmConfigResolver.js';
 
 // Mock common-types logger and isFreeModel

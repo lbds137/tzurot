@@ -38,7 +38,10 @@ vi.mock('@tzurot/common-types', () => ({
 vi.mock('../../utils/errorResponses.js', () => ({
   ErrorResponses: {
     validationError: vi.fn((message: string) => ({ error: 'Validation Error', message })),
-    notFound: vi.fn((resource: string) => ({ error: 'Not Found', message: `${resource} not found` })),
+    notFound: vi.fn((resource: string) => ({
+      error: 'Not Found',
+      message: `${resource} not found`,
+    })),
     internalError: vi.fn((message: string) => ({ error: 'Internal Error', message })),
   },
 }));
@@ -123,10 +126,7 @@ describe('Avatar Routes', () => {
       expect(response.headers['cache-control']).toContain('max-age=604800');
 
       // Should cache to filesystem
-      expect(mockWriteFile).toHaveBeenCalledWith(
-        '/data/avatars/testbot.png',
-        avatarBuffer
-      );
+      expect(mockWriteFile).toHaveBeenCalledWith('/data/avatars/testbot.png', avatarBuffer);
     });
 
     it('should handle database error gracefully', async () => {
