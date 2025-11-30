@@ -77,11 +77,13 @@ export class ReferencedMessageFormatter {
    *
    * @param references - Referenced messages to format
    * @param personality - Personality configuration for vision/transcription models
+   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @returns Formatted string ready for prompt
    */
   async formatReferencedMessages(
     references: ReferencedMessage[],
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    isGuestMode = false
   ): Promise<string> {
     const lines: string[] = [];
     lines.push('## Referenced Messages\n');
@@ -118,7 +120,8 @@ export class ReferencedMessageFormatter {
         const attachmentLines = await this.processAttachmentsParallel(
           ref.attachments,
           ref.referenceNumber,
-          personality
+          personality,
+          isGuestMode
         );
 
         lines.push(...attachmentLines);
@@ -158,12 +161,14 @@ export class ReferencedMessageFormatter {
    * @param attachments - Attachments to process
    * @param referenceNumber - Reference number for logging
    * @param personality - Personality configuration
+   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @returns Array of formatted attachment lines
    */
   private async processAttachmentsParallel(
     attachments: ReferencedMessage['attachments'],
     referenceNumber: number,
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    isGuestMode: boolean
   ): Promise<string[]> {
     if (!attachments || attachments.length === 0) {
       return [];
@@ -171,7 +176,7 @@ export class ReferencedMessageFormatter {
 
     // Create promises for all attachments that need processing
     const processingPromises = attachments.map((attachment, index) =>
-      this.processSingleAttachment(attachment, index, referenceNumber, personality)
+      this.processSingleAttachment(attachment, index, referenceNumber, personality, isGuestMode)
     );
 
     // Process all attachments in parallel
@@ -206,13 +211,15 @@ export class ReferencedMessageFormatter {
    * @param index - Index in the attachments array
    * @param referenceNumber - Reference number for logging
    * @param personality - Personality configuration
+   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @returns Processed attachment result
    */
   private async processSingleAttachment(
     attachment: NonNullable<ReferencedMessage['attachments']>[0],
     index: number,
     referenceNumber: number,
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    isGuestMode: boolean
   ): Promise<ProcessedAttachmentResult> {
     // Handle voice messages - transcribe them for AI context
     if (attachment.isVoiceMessage === true) {
@@ -265,7 +272,7 @@ export class ReferencedMessageFormatter {
           '[ReferencedMessageFormatter] Processing image in referenced message through vision model'
         );
 
-        const result = await withRetry(() => describeImage(attachment, personality), {
+        const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
           maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
           logger,
           operationName: `Image description (reference ${referenceNumber})`,

@@ -44,10 +44,16 @@ export async function hasVisionSupport(modelName: string): Promise<boolean> {
  * Describe an image using vision model
  * Uses personality's model if it has vision, otherwise uses uncensored fallback
  * Throws errors to allow retry logic to handle them
+ *
+ * @param attachment - Image attachment to describe
+ * @param personality - Personality configuration for vision model selection
+ * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
+ *                      Guest users use free vision models, BYOK users use paid models
  */
 export async function describeImage(
   attachment: AttachmentMetadata,
-  personality: LoadedPersonality
+  personality: LoadedPersonality,
+  isGuestMode = false
 ): Promise<string> {
   logger.info(
     {
@@ -83,14 +89,13 @@ export async function describeImage(
   }
 
   // Priority 3: Use fallback vision model
-  // Free users (model ends with :free) use Gemma 3 27b, BYOK users use Qwen3-VL
-  const isFreeUser = personality.model.endsWith(':free');
-  const fallbackModel = isFreeUser
+  // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
+  const fallbackModel = isGuestMode
     ? MODEL_DEFAULTS.VISION_FALLBACK_FREE
     : config.VISION_FALLBACK_MODEL;
 
   logger.info(
-    { mainModel: personality.model, fallbackModel, isFreeUser },
+    { mainModel: personality.model, fallbackModel, isGuestMode },
     'Using fallback vision model - main LLM lacks vision support'
   );
   return describeWithFallbackVision(
@@ -189,7 +194,7 @@ async function describeWithVisionModel(
 
 /**
  * Describe image using fallback vision model
- * Uses Gemma 3 27b for free users, Qwen3-VL for BYOK users
+ * Uses Gemma 3 27b for guest users (no BYOK), Qwen3-VL for BYOK users
  */
 async function describeWithFallbackVision(
   attachment: AttachmentMetadata,

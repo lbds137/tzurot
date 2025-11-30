@@ -148,12 +148,19 @@ export class ConversationalRAGService {
 
   /**
    * Generate a response using conversational RAG
+   *
+   * @param personality - Personality configuration
+   * @param message - User's message content
+   * @param context - Conversation context (history, environment, etc.)
+   * @param userApiKey - Optional BYOK API key
+   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    */
   async generateResponse(
     personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
-    userApiKey?: string
+    userApiKey?: string,
+    isGuestMode = false
   ): Promise<RAGResponse> {
     try {
       // ARCHITECTURAL DECISION: Process attachments BEFORE AI generation
@@ -190,7 +197,8 @@ export class ConversationalRAGService {
         context.referencedMessages && context.referencedMessages.length > 0
           ? await this.referencedMessageFormatter.formatReferencedMessages(
               context.referencedMessages,
-              personality
+              personality,
+              isGuestMode
             )
           : undefined;
 

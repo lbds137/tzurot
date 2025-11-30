@@ -11,20 +11,26 @@ import {
   createLogger,
   CONTENT_TYPES,
   RETRY_CONFIG,
+  AIProvider,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
   imageDescriptionJobDataSchema,
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
+import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
 
 /**
  * Process image description job
+ *
+ * @param job - BullMQ job with image description data
+ * @param apiKeyResolver - Optional resolver for determining guest mode status
  */
 export async function processImageDescriptionJob(
-  job: Job<ImageDescriptionJobData>
+  job: Job<ImageDescriptionJobData>,
+  apiKeyResolver?: ApiKeyResolver
 ): Promise<ImageDescriptionResult> {
   const startTime = Date.now();
 
@@ -41,7 +47,27 @@ export async function processImageDescriptionJob(
     throw new Error(`Image description job validation failed: ${validation.error.message}`);
   }
 
-  const { requestId, attachments, personality } = job.data;
+  const { requestId, attachments, personality, context } = job.data;
+
+  // Resolve guest mode status via BYOK lookup
+  let isGuestMode = false;
+  if (apiKeyResolver) {
+    try {
+      const keyResult = await apiKeyResolver.resolveApiKey(context.userId, AIProvider.OpenRouter);
+      isGuestMode = keyResult.isGuestMode;
+      logger.debug(
+        { userId: context.userId, isGuestMode },
+        '[ImageDescriptionJob] Resolved guest mode status'
+      );
+    } catch (error) {
+      // If resolution fails, default to guest mode (use free vision model)
+      isGuestMode = true;
+      logger.warn(
+        { err: error, userId: context.userId },
+        '[ImageDescriptionJob] Failed to resolve API key, defaulting to guest mode'
+      );
+    }
+  }
 
   logger.info(
     {
@@ -64,7 +90,7 @@ export async function processImageDescriptionJob(
     // Process all images in parallel with graceful degradation (partial failures allowed)
     const descriptionPromises = attachments.map(async attachment => {
       try {
-        const result = await withRetry(() => describeImage(attachment, personality), {
+        const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
           maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
           logger,
           operationName: `Image description (${attachment.name})`,
