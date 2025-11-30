@@ -395,6 +395,57 @@ This project uses **ESLint 9 flat config** (`eslint.config.js`), NOT legacy `.es
 
 **Note**: This project uses pnpm workspaces, NOT npm. Never use npm commands in this project.
 
+### Timer Patterns (`setTimeout`/`setInterval`)
+
+**⚠️ HORIZONTAL SCALING CONCERN**: `setInterval` creates in-memory state that prevents horizontal scaling. Multiple service instances would each run their own intervals.
+
+**✅ OK Patterns** (use freely):
+
+```typescript
+// 1. Request timeouts with AbortController
+const controller = new AbortController();
+const timeout = setTimeout(() => controller.abort(), 30000);
+try {
+  const response = await fetch(url, { signal: controller.signal });
+} finally {
+  clearTimeout(timeout);
+}
+
+// 2. One-time delays (retry backoff, startup delays)
+await new Promise(resolve => setTimeout(resolve, delayMs));
+
+// 3. Test utilities
+await vi.advanceTimersByTimeAsync(1000);
+```
+
+**❌ Scaling Blockers** (avoid or migrate):
+
+```typescript
+// BAD: Persistent cleanup intervals
+this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+
+// BAD: Reconnection timers without coordination
+this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
+```
+
+**✅ Alternatives for Cleanup/Scheduled Tasks**:
+
+1. **BullMQ Repeatable Jobs** (preferred for this codebase):
+   ```typescript
+   await queue.add('cleanup-cache', {}, {
+     repeat: { every: 60000 }  // Every minute
+   });
+   ```
+
+2. **Redis-based coordination** (for distributed locks)
+
+3. **External scheduler** (Railway cron, etc.)
+
+**Current Known Scaling Blockers** (tracked for future migration):
+- `LlmConfigResolver.ts` - cache cleanup interval
+- `WebhookManager.ts` - webhook cleanup interval
+- `DatabaseNotificationListener.ts` - reconnection timeout
+
 **DO NOT USE**:
 
 - Different grep patterns or flags
