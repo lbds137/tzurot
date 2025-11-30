@@ -128,16 +128,11 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 
 ### Why This Order Matters
 
-**Phase 1 MUST come first**:
-
-- Without BYOK, can't invite public users (bankruptcy risk)
-- Without encrypted API keys, no revenue model
-- Without usage tracking, can't prevent infrastructure abuse
-- This is THE blocker for public launch
+**Phase 1 is complete** - BYOK enabled public beta launch.
 
 **Phase 2 builds on Phase 1**:
 
-- Voice features expensive → Users need their own API keys first
+- Voice features expensive → Users have their own API keys now
 - V2 feature parity → Retention requires stable billing model
 - Polish features → Need production usage data to know what to polish
 
@@ -149,15 +144,14 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 
 **DON'T**:
 
-- ❌ Start OpenMemory before BYOK is done
+- ❌ Start OpenMemory before Phase 2 is done
 - ❌ Design sophisticated architectures before basic features work
 - ❌ Optimize before you have users
-- ❌ Build "nice to have" features while public launch is blocked
+- ❌ Build "nice to have" features when quick wins remain
 
 **DO**:
 
 - ✅ Follow the roadmap order strictly
-- ✅ Complete Phase 1 before thinking about Phase 2
 - ✅ Ship early, iterate based on user feedback
 - ✅ Write tests as safety net before refactoring
 
