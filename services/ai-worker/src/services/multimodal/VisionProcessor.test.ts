@@ -14,8 +14,16 @@ const mockChatOpenAIInvoke = vi.fn().mockResolvedValue({
 // Mock the checkModelVisionSupport function from redis.ts
 const mockCheckModelVisionSupport = vi.fn();
 
+// Mock the visionDescriptionCache from redis.ts
+const mockVisionCacheGet = vi.fn().mockResolvedValue(null); // Default: cache miss
+const mockVisionCacheStore = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('../../redis.js', () => ({
   checkModelVisionSupport: (modelId: string) => mockCheckModelVisionSupport(modelId),
+  visionDescriptionCache: {
+    get: (url: string) => mockVisionCacheGet(url),
+    store: (url: string, description: string) => mockVisionCacheStore(url, description),
+  },
 }));
 
 // Mock dependencies
@@ -34,6 +42,9 @@ describe('VisionProcessor', () => {
     });
     // Default mock behavior - return false unless specified
     mockCheckModelVisionSupport.mockResolvedValue(false);
+    // Default cache behavior - miss (null)
+    mockVisionCacheGet.mockResolvedValue(null);
+    mockVisionCacheStore.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -336,6 +347,85 @@ describe('VisionProcessor', () => {
 
         expect(textContent.text).toContain('detailed');
         expect(textContent.text).toContain('objective description');
+      });
+    });
+
+    describe('caching', () => {
+      it('should return cached description on cache hit', async () => {
+        const cachedDescription = 'Previously cached image description';
+        mockVisionCacheGet.mockResolvedValue(cachedDescription);
+
+        const personality: LoadedPersonality = {
+          id: 'test',
+          name: 'Test',
+          slug: 'test',
+          systemPrompt: 'Test',
+          model: 'gpt-4o',
+          visionModel: null,
+          temperature: 0.7,
+          maxTokens: 1000,
+        };
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe(cachedDescription);
+        expect(mockVisionCacheGet).toHaveBeenCalledWith(mockAttachment.url);
+        // Should NOT call the vision API
+        expect(mockChatOpenAIInvoke).not.toHaveBeenCalled();
+        // Should NOT store in cache (already cached)
+        expect(mockVisionCacheStore).not.toHaveBeenCalled();
+      });
+
+      it('should call vision API and cache result on cache miss', async () => {
+        mockVisionCacheGet.mockResolvedValue(null); // Cache miss
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality: LoadedPersonality = {
+          id: 'test',
+          name: 'Test',
+          slug: 'test',
+          systemPrompt: 'Test',
+          model: 'gpt-4o',
+          visionModel: null,
+          temperature: 0.7,
+          maxTokens: 1000,
+        };
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('Mocked image description');
+        expect(mockVisionCacheGet).toHaveBeenCalledWith(mockAttachment.url);
+        expect(mockChatOpenAIInvoke).toHaveBeenCalledTimes(1);
+        expect(mockVisionCacheStore).toHaveBeenCalledWith(
+          mockAttachment.url,
+          'Mocked image description'
+        );
+      });
+
+      it('should not cache on vision API error', async () => {
+        mockVisionCacheGet.mockResolvedValue(null);
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockChatOpenAIInvoke.mockRejectedValue(new Error('Vision API error'));
+
+        const personality: LoadedPersonality = {
+          id: 'test',
+          name: 'Test',
+          slug: 'test',
+          systemPrompt: 'Test',
+          model: 'gpt-4o',
+          visionModel: null,
+          temperature: 0.7,
+          maxTokens: 1000,
+        };
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(
+          'Vision API error'
+        );
+
+        // Should have checked cache
+        expect(mockVisionCacheGet).toHaveBeenCalledWith(mockAttachment.url);
+        // Should NOT have stored anything (API failed)
+        expect(mockVisionCacheStore).not.toHaveBeenCalled();
       });
     });
   });

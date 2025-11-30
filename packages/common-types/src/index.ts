@@ -61,3 +61,4 @@ export * from './services/CacheInvalidationService.js';
 export * from './services/ApiKeyCacheInvalidationService.js';
 export * from './services/LlmConfigCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
+export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';

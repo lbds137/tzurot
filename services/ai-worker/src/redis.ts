@@ -17,6 +17,7 @@ import {
   parseRedisUrl,
   createBullMQRedisConfig,
   VoiceTranscriptCache,
+  VisionDescriptionCache,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 import { modelSupportsVision, clearCapabilityCache } from './services/ModelCapabilityChecker.js';
@@ -88,6 +89,9 @@ export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
+
+// Export singleton VisionDescriptionCache instance
+export const visionDescriptionCache = new VisionDescriptionCache(redis);
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.

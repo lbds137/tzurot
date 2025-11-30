@@ -50,6 +50,11 @@ export class LLMGenerationHandler {
    * Process LLM generation job (may depend on preprocessing jobs)
    */
   async processJob(job: Job<LLMGenerationJobData>): Promise<LLMGenerationResult> {
+    // Reset preprocessing results for this job BEFORE checking dependencies
+    // This prevents stale data from a previous job leaking into this one
+    // (handlers may be reused across jobs by BullMQ)
+    this.preprocessingResults = { processedAttachments: [], transcriptions: [] };
+
     // Validate job payload against schema (contract testing)
     const validation = llmGenerationJobDataSchema.safeParse(job.data);
     if (!validation.success) {
@@ -89,9 +94,7 @@ export class LLMGenerationHandler {
   private async processDependencies(job: Job<LLMGenerationJobData>): Promise<void> {
     const { dependencies } = job.data;
 
-    // Reset for this job
-    this.preprocessingResults = { processedAttachments: [], transcriptions: [] };
-
+    // Note: preprocessingResults is already reset in processJob() before this is called
     if (!dependencies || dependencies.length === 0) {
       return;
     }
