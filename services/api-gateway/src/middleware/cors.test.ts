@@ -2,12 +2,16 @@
  * CORS Middleware Tests
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { createCorsMiddleware } from './cors.js';
 
 describe('CORS Middleware', () => {
   const mockNext: NextFunction = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   function createMockRequest(origin?: string, method = 'GET'): Partial<Request> {
     return {
