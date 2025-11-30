@@ -611,6 +611,370 @@ describe('ReferencedMessageFormatter', () => {
     });
   });
 
+  describe('preprocessed attachments', () => {
+    it('should use preprocessed image descriptions instead of calling vision API', async () => {
+      const { describeImage } = await import('./MultimodalProcessor.js');
+      const mockDescribeImage = vi.mocked(describeImage);
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Check this image',
+          embeds: '',
+          timestamp: '2025-11-30T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/image.png',
+              contentType: 'image/png',
+              name: 'photo.png',
+              size: 1000,
+            },
+          ],
+        },
+      ];
+
+      // Provide preprocessed data
+      const preprocessedAttachments = {
+        1: [
+          {
+            type: 'image' as const,
+            description: 'Preprocessed: A beautiful landscape',
+            originalUrl: 'https://example.com/image.png',
+            metadata: {
+              url: 'https://example.com/image.png',
+              name: 'photo.png',
+              contentType: 'image/png',
+              size: 1000,
+            },
+          },
+        ],
+      };
+
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false, // isGuestMode
+        preprocessedAttachments
+      );
+
+      // Should use preprocessed description
+      expect(result).toContain('- Image (photo.png): Preprocessed: A beautiful landscape');
+
+      // Should NOT call vision API
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('should use preprocessed voice transcriptions instead of calling Whisper API', async () => {
+      const { transcribeAudio } = await import('./MultimodalProcessor.js');
+      const mockTranscribeAudio = vi.mocked(transcribeAudio);
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Listen to this',
+          embeds: '',
+          timestamp: '2025-11-30T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/voice.ogg',
+              contentType: 'audio/ogg',
+              name: 'voice.ogg',
+              size: 5000,
+              isVoiceMessage: true,
+              duration: 10,
+            },
+          ],
+        },
+      ];
+
+      // Provide preprocessed transcription
+      const preprocessedAttachments = {
+        1: [
+          {
+            type: 'audio' as const,
+            description: 'Preprocessed: Hello, this is a test message',
+            originalUrl: 'https://example.com/voice.ogg',
+            metadata: {
+              url: 'https://example.com/voice.ogg',
+              name: 'voice.ogg',
+              contentType: 'audio/ogg',
+              size: 5000,
+              isVoiceMessage: true,
+              duration: 10,
+            },
+          },
+        ],
+      };
+
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false,
+        preprocessedAttachments
+      );
+
+      // Should use preprocessed transcription
+      expect(result).toContain(
+        '- Voice Message (10s): "Preprocessed: Hello, this is a test message"'
+      );
+
+      // Should NOT call Whisper API
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to inline processing when no preprocessed data exists', async () => {
+      const { describeImage } = await import('./MultimodalProcessor.js');
+      const mockDescribeImage = vi.mocked(describeImage);
+      mockDescribeImage.mockResolvedValue('Inline processed description');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Check this',
+          embeds: '',
+          timestamp: '2025-11-30T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/image.png',
+              contentType: 'image/png',
+              name: 'photo.png',
+              size: 1000,
+            },
+          ],
+        },
+      ];
+
+      // No preprocessed data provided (undefined)
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false,
+        undefined
+      );
+
+      // Should fall back to inline processing
+      expect(result).toContain('- Image (photo.png): Inline processed description');
+      expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall back when preprocessed data has wrong URL', async () => {
+      const { describeImage } = await import('./MultimodalProcessor.js');
+      const mockDescribeImage = vi.mocked(describeImage);
+      mockDescribeImage.mockResolvedValue('Inline fallback description');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Check this',
+          embeds: '',
+          timestamp: '2025-11-30T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/actual-image.png',
+              contentType: 'image/png',
+              name: 'photo.png',
+              size: 1000,
+            },
+          ],
+        },
+      ];
+
+      // Preprocessed data has different URL
+      const preprocessedAttachments = {
+        1: [
+          {
+            type: 'image' as const,
+            description: 'Different image description',
+            originalUrl: 'https://example.com/different-image.png', // Different URL!
+            metadata: {
+              url: 'https://example.com/different-image.png',
+              name: 'other.png',
+              contentType: 'image/png',
+              size: 2000,
+            },
+          },
+        ],
+      };
+
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false,
+        preprocessedAttachments
+      );
+
+      // Should fall back since URL doesn't match
+      expect(result).toContain('- Image (photo.png): Inline fallback description');
+      expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle multiple referenced messages with separate preprocessed data', async () => {
+      const { describeImage } = await import('./MultimodalProcessor.js');
+      const mockDescribeImage = vi.mocked(describeImage);
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-1',
+          discordUserId: 'user-1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'First image',
+          embeds: '',
+          timestamp: '2025-11-30T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/image1.png',
+              contentType: 'image/png',
+              name: 'image1.png',
+              size: 1000,
+            },
+          ],
+        },
+        {
+          referenceNumber: 2,
+          discordMessageId: 'msg-2',
+          discordUserId: 'user-2',
+          authorUsername: 'user2',
+          authorDisplayName: 'User Two',
+          content: 'Second image',
+          embeds: '',
+          timestamp: '2025-11-30T00:01:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/image2.png',
+              contentType: 'image/png',
+              name: 'image2.png',
+              size: 2000,
+            },
+          ],
+        },
+      ];
+
+      // Each referenced message has its own preprocessed data
+      const preprocessedAttachments = {
+        1: [
+          {
+            type: 'image' as const,
+            description: 'Description for reference 1',
+            originalUrl: 'https://example.com/image1.png',
+            metadata: {
+              url: 'https://example.com/image1.png',
+              name: 'image1.png',
+              contentType: 'image/png',
+              size: 1000,
+            },
+          },
+        ],
+        2: [
+          {
+            type: 'image' as const,
+            description: 'Description for reference 2',
+            originalUrl: 'https://example.com/image2.png',
+            metadata: {
+              url: 'https://example.com/image2.png',
+              name: 'image2.png',
+              contentType: 'image/png',
+              size: 2000,
+            },
+          },
+        ],
+      };
+
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false,
+        preprocessedAttachments
+      );
+
+      // Both should use their respective preprocessed descriptions
+      expect(result).toContain('- Image (image1.png): Description for reference 1');
+      expect(result).toContain('- Image (image2.png): Description for reference 2');
+
+      // No inline API calls
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+    });
+
+    it('should skip preprocessed data with empty description', async () => {
+      const { describeImage } = await import('./MultimodalProcessor.js');
+      const mockDescribeImage = vi.mocked(describeImage);
+      mockDescribeImage.mockResolvedValue('Inline description');
+
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Image',
+          embeds: '',
+          timestamp: '2025-11-30T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+          attachments: [
+            {
+              url: 'https://example.com/image.png',
+              contentType: 'image/png',
+              name: 'photo.png',
+              size: 1000,
+            },
+          ],
+        },
+      ];
+
+      // Preprocessed data has empty description
+      const preprocessedAttachments = {
+        1: [
+          {
+            type: 'image' as const,
+            description: '', // Empty!
+            originalUrl: 'https://example.com/image.png',
+            metadata: {
+              url: 'https://example.com/image.png',
+              name: 'photo.png',
+              contentType: 'image/png',
+              size: 1000,
+            },
+          },
+        ],
+      };
+
+      const result = await formatter.formatReferencedMessages(
+        references,
+        mockPersonality,
+        false,
+        preprocessedAttachments
+      );
+
+      // Should fall back to inline processing since description is empty
+      expect(result).toContain('- Image (photo.png): Inline description');
+      expect(mockDescribeImage).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('extractTextForSearch', () => {
     it('should extract plain text content from formatted references', () => {
       const formatted = `## Referenced Messages

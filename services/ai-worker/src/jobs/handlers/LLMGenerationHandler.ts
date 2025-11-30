@@ -22,6 +22,7 @@ import {
   GUEST_MODE,
   isFreeModel,
   AttachmentType,
+  JobType,
   type LLMGenerationJobData,
   type LLMGenerationResult,
   type AudioTranscriptionResult,
@@ -137,7 +138,7 @@ export class LLMGenerationHandler {
         // Extract key from resultKey (strip REDIS_KEY_PREFIXES.JOB_RESULT prefix)
         const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
 
-        if ((dep.type as string) === 'audio-transcription') {
+        if (dep.type === JobType.AudioTranscription) {
           const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
           if (
             result?.success === true &&
@@ -160,7 +161,7 @@ export class LLMGenerationHandler {
               '[LLMGenerationHandler] Audio transcription job failed or has no result'
             );
           }
-        } else if ((dep.type as string) === 'image-description') {
+        } else if (dep.type === JobType.ImageDescription) {
           const result = await redisService.getJobResult<ImageDescriptionResult>(key);
           if (
             result?.success === true &&

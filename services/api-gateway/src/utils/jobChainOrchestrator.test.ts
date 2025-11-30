@@ -505,4 +505,298 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
       });
     });
   });
+
+  describe('referenced message attachment preprocessing', () => {
+    // Helper to create valid referenced message
+    const createReferencedMessage = (
+      referenceNumber: number,
+      overrides: Partial<{
+        content: string;
+        attachments: any[];
+      }> = {}
+    ) => ({
+      referenceNumber,
+      discordMessageId: `discord-msg-${referenceNumber}`,
+      discordUserId: `discord-user-${referenceNumber}`,
+      authorDisplayName: `Test User ${referenceNumber}`,
+      authorUsername: `testuser${referenceNumber}`,
+      timestamp: '2025-11-30T00:00:00Z',
+      locationContext: 'Test Guild > #general',
+      content: overrides.content ?? 'Test content',
+      embeds: '', // Required field
+      attachments: overrides.attachments,
+    });
+
+    it('should create image preprocessing job for referenced message images', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        referencedMessages: [
+          createReferencedMessage(1, {
+            content: 'Check out this image!',
+            attachments: [
+              {
+                url: 'https://example.com/ref-image.png',
+                name: 'ref-image.png',
+                contentType: CONTENT_TYPES.IMAGE_PNG,
+                size: 2048,
+              },
+            ],
+          }),
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-ref-img',
+        personality: mockPersonality,
+        message: 'What is in this image?',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Should have 1 image child job for referenced message
+      expect(flowCall.children).toHaveLength(1);
+      expect(flowCall.children[0].name).toBe(JobType.ImageDescription);
+      expect(flowCall.children[0].data.sourceReferenceNumber).toBe(1);
+      expect(flowCall.children[0].data.attachments).toHaveLength(1);
+
+      // LLM parent should have dependency with sourceReferenceNumber tracking
+      expect(flowCall.data.dependencies).toHaveLength(1);
+    });
+
+    it('should create audio preprocessing job for referenced message voice messages', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        referencedMessages: [
+          createReferencedMessage(1, {
+            content: 'Listen to this!',
+            attachments: [
+              {
+                url: 'https://example.com/ref-voice.ogg',
+                name: 'ref-voice.ogg',
+                contentType: CONTENT_TYPES.AUDIO_OGG,
+                size: 1024,
+                isVoiceMessage: true,
+                duration: 5,
+              },
+            ],
+          }),
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-ref-audio',
+        personality: mockPersonality,
+        message: 'What did they say?',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Should have 1 audio child job for referenced message
+      expect(flowCall.children).toHaveLength(1);
+      expect(flowCall.children[0].name).toBe(JobType.AudioTranscription);
+      expect(flowCall.children[0].data.sourceReferenceNumber).toBe(1);
+      expect(flowCall.children[0].data.attachment.isVoiceMessage).toBe(true);
+    });
+
+    it('should create multiple preprocessing jobs for referenced message with mixed attachments', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        referencedMessages: [
+          createReferencedMessage(1, {
+            content: 'Check this out!',
+            attachments: [
+              {
+                url: 'https://example.com/ref-image.png',
+                name: 'ref-image.png',
+                contentType: CONTENT_TYPES.IMAGE_PNG,
+                size: 2048,
+              },
+              {
+                url: 'https://example.com/ref-voice.ogg',
+                name: 'ref-voice.ogg',
+                contentType: CONTENT_TYPES.AUDIO_OGG,
+                size: 1024,
+                isVoiceMessage: true,
+                duration: 3,
+              },
+            ],
+          }),
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-ref-mixed',
+        personality: mockPersonality,
+        message: 'What is this about?',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Should have 2 children: 1 audio + 1 image (both from same referenced message)
+      expect(flowCall.children).toHaveLength(2);
+
+      const audioJob = flowCall.children.find((c: any) => c.name === JobType.AudioTranscription);
+      const imageJob = flowCall.children.find((c: any) => c.name === JobType.ImageDescription);
+
+      expect(audioJob).toBeDefined();
+      expect(audioJob.data.sourceReferenceNumber).toBe(1);
+      expect(imageJob).toBeDefined();
+      expect(imageJob.data.sourceReferenceNumber).toBe(1);
+    });
+
+    it('should handle multiple referenced messages with attachments', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        referencedMessages: [
+          createReferencedMessage(1, {
+            content: 'First image',
+            attachments: [
+              {
+                url: 'https://example.com/ref1-image.png',
+                name: 'ref1-image.png',
+                contentType: CONTENT_TYPES.IMAGE_PNG,
+                size: 2048,
+              },
+            ],
+          }),
+          createReferencedMessage(2, {
+            content: 'Second image',
+            attachments: [
+              {
+                url: 'https://example.com/ref2-image.png',
+                name: 'ref2-image.png',
+                contentType: CONTENT_TYPES.IMAGE_PNG,
+                size: 1024,
+              },
+            ],
+          }),
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-multi-ref',
+        personality: mockPersonality,
+        message: 'Compare these images',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Should have 2 image child jobs (one per referenced message)
+      expect(flowCall.children).toHaveLength(2);
+      expect(flowCall.children.every((c: any) => c.name === JobType.ImageDescription)).toBe(true);
+
+      // Verify different sourceReferenceNumbers
+      const ref1Job = flowCall.children.find((c: any) => c.data.sourceReferenceNumber === 1);
+      const ref2Job = flowCall.children.find((c: any) => c.data.sourceReferenceNumber === 2);
+      expect(ref1Job).toBeDefined();
+      expect(ref2Job).toBeDefined();
+    });
+
+    it('should not create child jobs for referenced messages without attachments', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        referencedMessages: [
+          createReferencedMessage(1, {
+            content: 'Just text, no attachments',
+            attachments: [], // Empty
+          }),
+          createReferencedMessage(2, {
+            content: 'Also just text',
+            // attachments undefined
+          }),
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-no-ref-attach',
+        personality: mockPersonality,
+        message: 'What about these?',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Should have no children
+      expect(flowCall.children).toBeUndefined();
+      expect(flowCall.data.dependencies).toBeUndefined();
+    });
+
+    it('should combine direct attachments with referenced message attachments', async () => {
+      const context: JobContext = {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        // Direct attachments from user's message
+        attachments: [
+          {
+            url: 'https://example.com/direct-image.png',
+            name: 'direct-image.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 2048,
+          },
+        ],
+        // Referenced message with its own attachment
+        referencedMessages: [
+          createReferencedMessage(1, {
+            content: 'Referenced image',
+            attachments: [
+              {
+                url: 'https://example.com/ref-image.png',
+                name: 'ref-image.png',
+                contentType: CONTENT_TYPES.IMAGE_PNG,
+                size: 1024,
+              },
+            ],
+          }),
+        ],
+      };
+
+      await createJobChain({
+        requestId: 'req-combined',
+        personality: mockPersonality,
+        message: 'Compare my image with the referenced one',
+        context,
+        responseDestination: mockResponseDestination,
+      });
+
+      expect(flowProducer.add).toHaveBeenCalledTimes(1);
+      const flowCall = (flowProducer.add as any).mock.calls[0][0];
+
+      // Should have 2 image child jobs: 1 direct + 1 referenced
+      expect(flowCall.children).toHaveLength(2);
+
+      // Direct attachment job should NOT have sourceReferenceNumber
+      const directJob = flowCall.children.find(
+        (c: any) => c.data.sourceReferenceNumber === undefined
+      );
+      expect(directJob).toBeDefined();
+      expect(directJob.name).toBe(JobType.ImageDescription);
+
+      // Referenced attachment job should have sourceReferenceNumber = 1
+      const refJob = flowCall.children.find((c: any) => c.data.sourceReferenceNumber === 1);
+      expect(refJob).toBeDefined();
+      expect(refJob.name).toBe(JobType.ImageDescription);
+
+      // LLM parent should have 2 dependencies
+      expect(flowCall.data.dependencies).toHaveLength(2);
+    });
+  });
 });

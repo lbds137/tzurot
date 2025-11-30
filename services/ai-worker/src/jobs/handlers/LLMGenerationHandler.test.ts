@@ -377,6 +377,217 @@ describe('LLMGenerationHandler', () => {
       });
     });
 
+    describe('referenced message attachment routing', () => {
+      it('should route image with sourceReferenceNumber to referenceAttachments', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'ref-image-job-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref-image-001`,
+            },
+          ],
+        });
+        const job = { id: 'job-ref-image', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValue({
+          success: true,
+          descriptions: [
+            { url: 'https://example.com/ref-img.png', description: 'Referenced image description.' },
+          ],
+          sourceReferenceNumber: 1, // This indicates it's from referenced message 1
+        });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+
+        // Verify it went to preprocessedReferenceAttachments, NOT preprocessedAttachments
+        const ragCall = mockRAGService.generateResponse.mock.calls[0];
+        const context = ragCall[2];
+
+        // Direct attachments should be empty/undefined
+        expect(context.preprocessedAttachments).toBeUndefined();
+
+        // Referenced attachments should have the image
+        expect(context.preprocessedReferenceAttachments).toBeDefined();
+        expect(context.preprocessedReferenceAttachments[1]).toBeDefined();
+        expect(context.preprocessedReferenceAttachments[1]).toHaveLength(1);
+        expect(context.preprocessedReferenceAttachments[1][0].description).toBe(
+          'Referenced image description.'
+        );
+      });
+
+      it('should route audio with sourceReferenceNumber to referenceAttachments', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'ref-audio-job-001',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref-audio-001`,
+            },
+          ],
+        });
+        const job = { id: 'job-ref-audio', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult.mockResolvedValue({
+          success: true,
+          content: 'Referenced audio transcription.',
+          attachmentUrl: 'https://example.com/ref-audio.ogg',
+          attachmentName: 'ref-audio.ogg',
+          sourceReferenceNumber: 2, // From referenced message 2
+        });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+
+        const ragCall = mockRAGService.generateResponse.mock.calls[0];
+        const context = ragCall[2];
+
+        // Direct attachments should be empty/undefined
+        expect(context.preprocessedAttachments).toBeUndefined();
+
+        // Referenced attachments should have the audio
+        expect(context.preprocessedReferenceAttachments).toBeDefined();
+        expect(context.preprocessedReferenceAttachments[2]).toBeDefined();
+        expect(context.preprocessedReferenceAttachments[2]).toHaveLength(1);
+        expect(context.preprocessedReferenceAttachments[2][0].description).toBe(
+          'Referenced audio transcription.'
+        );
+        expect(context.preprocessedReferenceAttachments[2][0].type).toBe('audio');
+      });
+
+      it('should route mixed direct and referenced attachments to correct destinations', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'direct-image-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}direct-image`,
+            },
+            {
+              jobId: 'ref-image-001',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref-image`,
+            },
+            {
+              jobId: 'direct-audio-001',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}direct-audio`,
+            },
+            {
+              jobId: 'ref-audio-001',
+              type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref-audio`,
+            },
+          ],
+        });
+        const job = { id: 'job-mixed-routing', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult
+          // Direct image (no sourceReferenceNumber)
+          .mockResolvedValueOnce({
+            success: true,
+            descriptions: [
+              { url: 'https://example.com/direct.png', description: 'Direct image.' },
+            ],
+          })
+          // Referenced image (sourceReferenceNumber: 1)
+          .mockResolvedValueOnce({
+            success: true,
+            descriptions: [{ url: 'https://example.com/ref.png', description: 'Referenced image.' }],
+            sourceReferenceNumber: 1,
+          })
+          // Direct audio (no sourceReferenceNumber)
+          .mockResolvedValueOnce({
+            success: true,
+            content: 'Direct audio.',
+            attachmentUrl: 'https://example.com/direct.ogg',
+            attachmentName: 'direct.ogg',
+          })
+          // Referenced audio (sourceReferenceNumber: 1)
+          .mockResolvedValueOnce({
+            success: true,
+            content: 'Referenced audio.',
+            attachmentUrl: 'https://example.com/ref.ogg',
+            attachmentName: 'ref.ogg',
+            sourceReferenceNumber: 1,
+          });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+
+        const ragCall = mockRAGService.generateResponse.mock.calls[0];
+        const context = ragCall[2];
+
+        // Direct attachments should have 2 items (image + audio)
+        expect(context.preprocessedAttachments).toBeDefined();
+        expect(context.preprocessedAttachments).toHaveLength(2);
+        expect(context.preprocessedAttachments[0].description).toBe('Direct image.');
+        expect(context.preprocessedAttachments[1].description).toBe('Direct audio.');
+
+        // Referenced attachments should have 2 items under reference 1
+        expect(context.preprocessedReferenceAttachments).toBeDefined();
+        expect(context.preprocessedReferenceAttachments[1]).toHaveLength(2);
+        expect(context.preprocessedReferenceAttachments[1][0].description).toBe('Referenced image.');
+        expect(context.preprocessedReferenceAttachments[1][1].description).toBe('Referenced audio.');
+      });
+
+      it('should handle multiple reference numbers correctly', async () => {
+        const jobData = createValidJobData({
+          dependencies: [
+            {
+              jobId: 'ref1-image',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref1-img`,
+            },
+            {
+              jobId: 'ref2-image',
+              type: JobType.ImageDescription,
+              status: JobStatus.Completed,
+              resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}ref2-img`,
+            },
+          ],
+        });
+        const job = { id: 'job-multi-refs', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockGetJobResult
+          .mockResolvedValueOnce({
+            success: true,
+            descriptions: [{ url: 'https://example.com/ref1.png', description: 'Ref 1 image.' }],
+            sourceReferenceNumber: 1,
+          })
+          .mockResolvedValueOnce({
+            success: true,
+            descriptions: [{ url: 'https://example.com/ref2.png', description: 'Ref 2 image.' }],
+            sourceReferenceNumber: 2,
+          });
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(true);
+
+        const ragCall = mockRAGService.generateResponse.mock.calls[0];
+        const context = ragCall[2];
+
+        // Should have separate entries for each reference number
+        expect(context.preprocessedReferenceAttachments).toBeDefined();
+        expect(context.preprocessedReferenceAttachments[1]).toHaveLength(1);
+        expect(context.preprocessedReferenceAttachments[1][0].description).toBe('Ref 1 image.');
+        expect(context.preprocessedReferenceAttachments[2]).toHaveLength(1);
+        expect(context.preprocessedReferenceAttachments[2][0].description).toBe('Ref 2 image.');
+      });
+    });
+
     describe('RAG service integration', () => {
       it('should pass correct parameters to RAG service', async () => {
         const jobData = createValidJobData({
