@@ -165,6 +165,8 @@ Use relative paths from the current doc location.
 These docs remain in the project root for visibility:
 
 - `README.md` - Project overview and quick start
-- `CHANGELOG.md` - Version history
 - `CLAUDE.md` - Claude Code instructions
 - `CURRENT_WORK.md` - Current work status
+- `ROADMAP.md` - Project roadmap and sprint planning
+
+**Version History:** See [GitHub Releases](https://github.com/lbds137/tzurot/releases)

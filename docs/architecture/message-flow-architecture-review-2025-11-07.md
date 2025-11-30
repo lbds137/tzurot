@@ -440,7 +440,6 @@ await memoryManager.addMemory({
   - [ ] PluralKit delay explanation
   - [ ] Attachment processing requirement
 - [ ] Verify all tests pass
-- [ ] Update CHANGELOG.md
 
 ---
 
