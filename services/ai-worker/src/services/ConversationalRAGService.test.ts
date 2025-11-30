@@ -643,6 +643,50 @@ describe('ConversationalRAGService', () => {
 
       expect(processAttachments).not.toHaveBeenCalled();
     });
+
+    it('should use preprocessed attachments instead of calling processAttachments', async () => {
+      // Preprocessed attachments from dependency jobs (ImageDescriptionJob)
+      // should be used directly, avoiding duplicate vision API calls
+      const preprocessedAttachments = [
+        {
+          type: AttachmentType.Image,
+          description: 'A scenic mountain landscape from preprocessing job',
+          originalUrl: 'https://example.com/image.png',
+          metadata: {
+            url: 'https://example.com/image.png',
+            name: 'image.png',
+            contentType: CONTENT_TYPES.IMAGE_PREFIX + '/png',
+            size: 1000,
+          },
+        },
+      ];
+
+      const context = createMockContext({
+        attachments: [
+          {
+            url: 'https://example.com/image.png',
+            name: 'image.png',
+            contentType: CONTENT_TYPES.IMAGE_PREFIX + '/png',
+            size: 1000,
+          },
+        ],
+        preprocessedAttachments,
+      });
+      const personality = createMockPersonality();
+
+      await service.generateResponse(personality, 'Check this image', context);
+
+      // Should NOT call processAttachments when preprocessedAttachments is provided
+      expect(processAttachments).not.toHaveBeenCalled();
+
+      // Verify the preprocessed description is used in prompt building
+      expect(mockPromptBuilderInstance.buildSearchQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        preprocessedAttachments,
+        undefined,
+        undefined
+      );
+    });
   });
 
   describe('censored response retry behavior in full RAG flow', () => {

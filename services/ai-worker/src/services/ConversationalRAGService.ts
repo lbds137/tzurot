@@ -107,6 +107,8 @@ export interface ConversationContext {
   participants?: ParticipantPersona[];
   // Multimodal support
   attachments?: AttachmentMetadata[];
+  // Pre-processed attachments from dependency jobs (avoids duplicate vision API calls)
+  preprocessedAttachments?: ProcessedAttachment[];
   // Discord environment context (DMs vs guild, channel info, etc)
   environment?: DiscordEnvironment;
   // Referenced messages (from replies and message links)
@@ -179,12 +181,21 @@ export class ConversationalRAGService {
       // Note: This is why we can't do "atomic user message storage" (save before AI call)
       // without two-phase processing - attachment descriptions come from AI worker.
 
+      // Use pre-processed attachments from dependency jobs if available
+      // This avoids duplicate vision API calls (preprocessing already ran in ImageDescriptionJob)
       let processedAttachments: ProcessedAttachment[] = [];
-      if (context.attachments && context.attachments.length > 0) {
+      if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
+        processedAttachments = context.preprocessedAttachments;
+        logger.info(
+          { count: processedAttachments.length },
+          'Using pre-processed attachments from dependency jobs'
+        );
+      } else if (context.attachments && context.attachments.length > 0) {
+        // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
         processedAttachments = await processAttachments(context.attachments, personality);
         logger.info(
           { count: processedAttachments.length },
-          'Processed attachments to text descriptions'
+          'Processed attachments to text descriptions (inline fallback)'
         );
       }
 
