@@ -13,10 +13,7 @@ const mockRedis = {
 } as unknown as Redis;
 
 // Sample OpenRouter model data
-const createMockModel = (
-  id: string,
-  inputModalities: string[]
-): OpenRouterModel =>
+const createMockModel = (id: string, inputModalities: string[]): OpenRouterModel =>
   ({
     id,
     canonical_slug: id,
