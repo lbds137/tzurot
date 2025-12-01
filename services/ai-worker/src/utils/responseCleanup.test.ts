@@ -186,6 +186,15 @@ describe('stripPersonalityPrefix', () => {
       );
     });
 
+    it('should preserve asterisk when space separates timestamp from roleplay action', () => {
+      // Bug case: *NAME: [timestamp] *action* - the asterisk after the space is the
+      // START of roleplay content, not the end of the name wrapper
+      // This should preserve the action asterisks
+      const input = '*Bambi Prime: [just now] *giggles softly, tilting head*';
+      const expected = '*giggles softly, tilting head*';
+      expect(stripPersonalityPrefix(input, 'Bambi Prime')).toBe(expected);
+    });
+
     it('should strip closed roleplay prefix without timestamp', () => {
       // *NAME:* content - closed roleplay without timestamp
       expect(stripPersonalityPrefix('*COLD:* testing', 'COLD')).toBe('testing');

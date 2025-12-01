@@ -53,15 +53,28 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
   );
 
   // Pattern 1b-i: Closed roleplay asterisk around name - strip entirely
-  // When the prefix has BOTH leading and trailing asterisks, the roleplay is complete
+  // When the prefix has BOTH leading and trailing asterisks WITH NO SPACE between them
   // Example: "*COLD: [timestamp]*content" → "content"
   // Example: "*COLD: [timestamp]**roleplay*" → "*roleplay*"
+  // IMPORTANT: No \s* before closing \* - if there's a space, the asterisk is
+  // the START of roleplay content, not the end of the name wrapper
+  // Example: "*Name: [timestamp] *giggles*" → the space+* is start of action
   const closedRoleplayNamePattern = new RegExp(
-    `^\\*${escapedName}:\\s*(?:\\[[^\\]]+?\\])?\\s*\\*`,
+    `^\\*${escapedName}:\\s*(?:\\[[^\\]]+?\\])?\\*`,
     'i'
   );
 
-  // Pattern 1b-ii: Open roleplay asterisk before name - preserve the asterisk
+  // Pattern 1b-ii: Space-separated roleplay prefix followed by content asterisk
+  // When space separates prefix from content AND content starts with its own asterisk,
+  // the asterisks are separate elements - strip prefix entirely (including its asterisk)
+  // Example: "*Name: [ts] *giggles*" → "*giggles*"
+  // Uses positive lookahead (?=\\*) to match without consuming the content asterisk
+  const spaceSeparatedRoleplayPattern = new RegExp(
+    `^\\*${escapedName}:\\s*(?:\\[[^\\]]+?\\])?\\s+(?=\\*)`,
+    'i'
+  );
+
+  // Pattern 1b-iii: Open roleplay asterisk before name - preserve the asterisk
   // When only the leading asterisk exists, it continues into the content
   // Example: "*COLD: content" → "*content"
   const openRoleplayNamePattern = new RegExp(
@@ -96,7 +109,15 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
       continue;
     }
 
-    // 2b. Open roleplay asterisk (*NAME:) - preserve the asterisk
+    // 2b. Space-separated roleplay (*NAME: *content) - strip prefix entirely
+    // Must come before open pattern since it's more specific
+    cleaned = cleaned.replace(spaceSeparatedRoleplayPattern, '').trim();
+    if (cleaned !== beforeStrip) {
+      strippedCount++;
+      continue;
+    }
+
+    // 2c. Open roleplay asterisk (*NAME:) - preserve the asterisk
     cleaned = cleaned.replace(openRoleplayNamePattern, '$1').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
