@@ -1,0 +1,19 @@
+{
+  "name": "@tzurot/scripts",
+  "version": "3.0.0-beta.6",
+  "private": true,
+  "type": "module",
+  "description": "Utility scripts for Tzurot development and operations",
+  "scripts": {
+    "db:check-drift": "tsx src/db/check-migration-drift.ts",
+    "db:fix-drift": "tsx src/db/fix-migration-drift.ts"
+  },
+  "dependencies": {
+    "@tzurot/common-types": "workspace:*",
+    "tsx": "^4.21.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
+  }
+}
