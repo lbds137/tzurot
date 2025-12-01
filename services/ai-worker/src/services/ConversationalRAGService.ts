@@ -356,18 +356,18 @@ export class ConversationalRAGService {
 
       // Store to LTM (conversation_history will be created by bot-client after Discord send)
       // Resolve personaId for LTM storage
-      const personaId = await this.memoryRetriever.getUserPersonaForPersonality(
+      const personaResult = await this.memoryRetriever.getUserPersonaForPersonality(
         context.userId,
         personality.id
       );
 
-      if (personaId !== null && personaId.length > 0) {
+      if (personaResult !== null) {
         await this.longTermMemory.storeInteraction(
           personality,
           contentForStorage,
           content,
           context,
-          personaId
+          personaResult.personaId
         );
       } else {
         logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
