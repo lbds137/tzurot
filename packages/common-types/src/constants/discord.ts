@@ -42,6 +42,8 @@ export const DISCORD_LIMITS = {
   WEBHOOK_CACHE_SIZE: 100,
   /** Maximum number of autocomplete choices Discord allows */
   AUTOCOMPLETE_MAX_CHOICES: 25,
+  /** Maximum length for modal text input (paragraph style) */
+  MODAL_INPUT_MAX_LENGTH: 4000,
 } as const;
 
 /**
