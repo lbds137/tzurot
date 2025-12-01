@@ -71,7 +71,10 @@ vi.mock('./MemoryRetriever.js', () => ({
   MemoryRetriever: class MockMemoryRetriever {
     retrieveRelevantMemories = vi.fn().mockResolvedValue([]);
     getAllParticipantPersonas = vi.fn().mockResolvedValue(new Map());
-    getUserPersonaForPersonality = vi.fn().mockResolvedValue('persona-123');
+    getUserPersonaForPersonality = vi.fn().mockResolvedValue({
+      personaId: 'persona-123',
+      shareLtmAcrossPersonalities: false,
+    });
     constructor() {
       mockMemoryRetrieverInstance = this;
     }
@@ -328,7 +331,7 @@ describe('ConversationalRAGService', () => {
     it('should store interaction to LTM when persona exists', async () => {
       mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi
         .fn()
-        .mockResolvedValue('persona-123');
+        .mockResolvedValue({ personaId: 'persona-123', shareLtmAcrossPersonalities: false });
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -355,15 +358,24 @@ describe('ConversationalRAGService', () => {
       expect(mockLongTermMemoryInstance.storeInteraction).not.toHaveBeenCalled();
     });
 
-    it('should skip LTM storage when persona is empty string', async () => {
-      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi.fn().mockResolvedValue('');
+    it('should store LTM with shareLtmAcrossPersonalities enabled', async () => {
+      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi
+        .fn()
+        .mockResolvedValue({ personaId: 'persona-456', shareLtmAcrossPersonalities: true });
 
       const personality = createMockPersonality();
       const context = createMockContext();
 
       await service.generateResponse(personality, 'Test', context);
 
-      expect(mockLongTermMemoryInstance.storeInteraction).not.toHaveBeenCalled();
+      // Should still store to LTM - the sharing flag is handled in MemoryRetriever
+      expect(mockLongTermMemoryInstance.storeInteraction).toHaveBeenCalledWith(
+        personality,
+        'content for storage',
+        'AI response',
+        context,
+        'persona-456'
+      );
     });
 
     it('should return userMessageContent for bot-client storage', async () => {
