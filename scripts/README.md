@@ -90,9 +90,30 @@ Scripts in `_archive/` are **not maintained** and may not work with current v3 a
 - **qdrant/** - v2 used Qdrant, v3 uses pgvector
 - **v2-migration/** - One-time migrations already complete
 
-### TypeScript Scripts
+### TypeScript Scripts (New Standard)
 
-TypeScript scripts (.ts) require `tsx` to run:
+Scripts are now a proper pnpm workspace package (`@tzurot/scripts`). All new scripts should be written in TypeScript in `src/` and run via pnpm:
+
+```bash
+# Run database scripts
+pnpm --filter @tzurot/scripts run db:check-drift   # Check for migration drift
+pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>  # Fix drifted migrations
+
+# Or use the tsx runner directly for ad-hoc scripts
+pnpm --filter @tzurot/scripts exec tsx src/db/check-migration-drift.ts
+```
+
+**Why this approach?**
+- Uses `tsx` which handles ESM/CJS interop automatically
+- Proper workspace dependency on `@tzurot/common-types` for Prisma access
+- TypeScript provides type safety and better AI assistance
+- No more `.mjs` vs `.cjs` vs `.js` confusion
+
+**Writing new scripts:** See `src/db/check-migration-drift.ts` for the template pattern.
+
+### Legacy TypeScript Scripts
+
+Some older `.ts` scripts may still use the direct tsx approach:
 
 ```bash
 npx tsx scripts/data/rebuild-memories-from-history.ts

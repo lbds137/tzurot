@@ -461,6 +461,32 @@ this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
 
 If you need something beyond these commands, ask first or add it as a new pnpm script in package.json.
 
+### Scripts (Database & Utility Operations)
+
+The `scripts/` folder is a pnpm workspace package (`@tzurot/scripts`). All new scripts should be TypeScript in `scripts/src/`:
+
+**Database Operations:**
+
+```bash
+# Check for migration drift (checksums don't match)
+pnpm --filter @tzurot/scripts run db:check-drift
+
+# Fix drifted migrations
+pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name> [<migration_name> ...]
+```
+
+**Why this approach:**
+- Uses `tsx` which handles ESM/CJS interop automatically (no more `.mjs` vs `.cjs` confusion)
+- Proper workspace dependency on `@tzurot/common-types` for Prisma access
+- TypeScript provides type safety and better AI assistance
+
+**Writing new scripts:** Use `scripts/src/db/check-migration-drift.ts` as a template:
+1. Import from `@tzurot/common-types` (e.g., `getPrismaClient`, `disconnectPrisma`)
+2. Use async/await with proper error handling
+3. Always call `disconnectPrisma()` in `finally` block
+
+**Note:** Legacy scripts in subdirectories (`git/`, `deployment/`, etc.) still use shell scripts or older patterns.
+
 ## Architecture
 
 ### Microservices Flow
