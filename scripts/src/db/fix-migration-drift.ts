@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   const migrationsDir = path.join(__dirname, '..', '..', '..', 'prisma', 'migrations');
 
   // Get migration names from CLI args (filter out -- separator)
-  const migrationNames = process.argv.slice(2).filter((arg) => arg !== '--');
+  const migrationNames = process.argv.slice(2).filter(arg => arg !== '--');
 
   if (migrationNames.length === 0) {
     console.log('Usage: pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name> [...]');
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 }
 
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error('❌ Error:', e);
     process.exit(1);
   })
