@@ -79,13 +79,20 @@ describe('MemoryRetriever', () => {
       mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue({
         personaId: 'override-persona-123',
       });
+      // Mock persona settings lookup
+      mockPrismaClient.persona.findUnique.mockResolvedValue({
+        shareLtmAcrossPersonalities: false,
+      });
 
       const result = await retriever.getUserPersonaForPersonality(
         'discord-id-123',
         'personality-123'
       );
 
-      expect(result).toBe('override-persona-123');
+      expect(result).toEqual({
+        personaId: 'override-persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
       // Verify user lookup by Discord ID
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith({
         where: { discordId: 'discord-id-123' },
@@ -115,13 +122,44 @@ describe('MemoryRetriever', () => {
         },
       });
       mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      // Mock persona settings lookup
+      mockPrismaClient.persona.findUnique.mockResolvedValue({
+        shareLtmAcrossPersonalities: false,
+      });
 
       const result = await retriever.getUserPersonaForPersonality(
         'discord-id-123',
         'personality-123'
       );
 
-      expect(result).toBe('default-persona-456');
+      expect(result).toEqual({
+        personaId: 'default-persona-456',
+        shareLtmAcrossPersonalities: false,
+      });
+    });
+
+    it('should return shareLtmAcrossPersonalities true when enabled on persona', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'internal-uuid-123',
+        defaultPersonaLink: {
+          personaId: 'default-persona-456',
+        },
+      });
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      // Mock persona with sharing enabled
+      mockPrismaClient.persona.findUnique.mockResolvedValue({
+        shareLtmAcrossPersonalities: true,
+      });
+
+      const result = await retriever.getUserPersonaForPersonality(
+        'discord-id-123',
+        'personality-123'
+      );
+
+      expect(result).toEqual({
+        personaId: 'default-persona-456',
+        shareLtmAcrossPersonalities: true,
+      });
     });
 
     it('should return null if user not found by Discord ID', async () => {
