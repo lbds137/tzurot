@@ -43,7 +43,7 @@ export async function handleShareLtmSetting(
     if (user === null) {
       await interaction.reply({
         content:
-          '❌ You don\'t have an account yet. Send a message to any personality to create one!',
+          "❌ You don't have an account yet. Send a message to any personality to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -53,8 +53,7 @@ export async function handleShareLtmSetting(
 
     if (personaId === null || personaId === undefined) {
       await interaction.reply({
-        content:
-          '❌ You don\'t have a persona set up yet. Use `/persona edit` to create one first!',
+        content: "❌ You don't have a persona set up yet. Use `/persona edit` to create one first!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -87,7 +86,7 @@ export async function handleShareLtmSetting(
       ? '✅ **LTM sharing enabled!**\n\nYour memories will now be shared across all personalities. ' +
         'When you tell one personality something, all others will remember it too.'
       : '✅ **LTM sharing disabled!**\n\nYour memories will now be kept separate per personality. ' +
-        'Each personality will only remember conversations you\'ve had with them specifically.';
+        "Each personality will only remember conversations you've had with them specifically.";
 
     await interaction.reply({
       content: responseText,
@@ -99,7 +98,10 @@ export async function handleShareLtmSetting(
       '[Persona] Updated shareLtmAcrossPersonalities setting'
     );
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to update LTM sharing setting');
+    logger.error(
+      { err: error, userId: discordId },
+      '[Persona] Failed to update LTM sharing setting'
+    );
     await interaction.reply({
       content: '❌ Failed to update LTM sharing setting. Please try again later.',
       flags: MessageFlags.Ephemeral,

@@ -104,6 +104,7 @@ pnpm --filter @tzurot/scripts exec tsx src/db/check-migration-drift.ts
 ```
 
 **Why this approach?**
+
 - Uses `tsx` which handles ESM/CJS interop automatically
 - Proper workspace dependency on `@tzurot/common-types` for Prisma access
 - TypeScript provides type safety and better AI assistance

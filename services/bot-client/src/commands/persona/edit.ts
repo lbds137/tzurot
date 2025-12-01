@@ -48,9 +48,7 @@ export async function handleEditPersona(interaction: ChatInputCommandInteraction
     const persona = user?.defaultPersonaLink?.persona;
 
     // Build the modal
-    const modal = new ModalBuilder()
-      .setCustomId('persona-edit')
-      .setTitle('Edit Your Persona');
+    const modal = new ModalBuilder().setCustomId('persona-edit').setTitle('Edit Your Persona');
 
     // Preferred Name input
     const nameInput = new TextInputBuilder()

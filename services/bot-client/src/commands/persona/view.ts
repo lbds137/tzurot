@@ -48,7 +48,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     if (user === null) {
       await interaction.reply({
         content:
-          '❌ You don\'t have an account yet. Send a message to any personality to create one!',
+          "❌ You don't have an account yet. Send a message to any personality to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -58,8 +58,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     if (persona === null || persona === undefined) {
       await interaction.reply({
-        content:
-          '❌ You don\'t have a persona set up yet. Use `/persona edit` to create one!',
+        content: "❌ You don't have a persona set up yet. Use `/persona edit` to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;

@@ -32,9 +32,8 @@ export async function createTestApp(deps: TestAppDependencies): Promise<Express>
 
   // Import and mount routers dynamically
   const { createAIRouter } = await import('../../../services/api-gateway/src/routes/ai/index.js');
-  const { createAdminRouter } = await import(
-    '../../../services/api-gateway/src/routes/admin/index.js'
-  );
+  const { createAdminRouter } =
+    await import('../../../services/api-gateway/src/routes/admin/index.js');
 
   // Create routers with dependencies
   // Note: Some routes may require additional dependencies (queue, redis, etc.)

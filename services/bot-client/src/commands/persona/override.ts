@@ -5,7 +5,13 @@
  * This enables per-personality customization while keeping a default persona.
  */
 
-import { MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
+import {
+  MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+} from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
 
@@ -62,7 +68,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     if (user === null) {
       await interaction.reply({
         content:
-          '❌ You don\'t have an account yet. Send a message to any personality to create one!',
+          "❌ You don't have an account yet. Send a message to any personality to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -246,7 +252,10 @@ export async function handleOverrideModalSubmit(
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId, personalityId }, '[Persona] Failed to save override');
+    logger.error(
+      { err: error, userId: discordId, personalityId },
+      '[Persona] Failed to save override'
+    );
     await interaction.reply({
       content: '❌ Failed to save persona override. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -300,7 +309,7 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
     if (user === null) {
       await interaction.reply({
         content:
-          '❌ You don\'t have an account yet. Send a message to any personality to create one!',
+          "❌ You don't have an account yet. Send a message to any personality to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
