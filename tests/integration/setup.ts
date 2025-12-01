@@ -129,6 +129,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       content TEXT NOT NULL,
       preferred_name VARCHAR(255),
       pronouns VARCHAR(100),
+      share_ltm_across_personalities BOOLEAN DEFAULT FALSE,
       owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
