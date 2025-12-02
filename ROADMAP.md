@@ -608,7 +608,7 @@
 **Ongoing**: These don't block features but improve quality of life.
 
 - [ ] Consolidate `scripts/data/import-personality/` - Currently a separate workspace package with its own node_modules. Options: absorb into api-gateway, move to packages/, or document as intentionally standalone.
-- [ ] Investigate npm warning: "Unknown project config public-hoist-pattern" (pnpm/npm compat)
+- [x] ~~Investigate npm warning: "Unknown project config public-hoist-pattern"~~ FIXED: Moved pnpm config to package.json
 - [ ] Full schema consistency review - naming conventions, missing fields, type alignment
 - [x] ~~Migrate embedding to native @db.Vector~~ INVALID: Prisma 7.0.0 does NOT support @db.Vector type
 - [ ] Investigate Atlas (atlasgo.io) for composite schema management - prevents Prisma pgvector index drift by allowing manual SQL + Prisma schema to coexist
