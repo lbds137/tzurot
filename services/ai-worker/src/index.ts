@@ -24,6 +24,7 @@ import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  PersonaCacheInvalidationService,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -33,6 +34,7 @@ import {
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
 import { LlmConfigResolver } from './services/LlmConfigResolver.js';
+import { PersonaResolver } from './services/resolvers/index.js';
 import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
 
 const logger = createLogger('ai-worker');
@@ -151,6 +153,23 @@ async function main(): Promise<void> {
   });
   logger.info('[AIWorker] Subscribed to LLM config cache invalidation events');
 
+  // Create PersonaResolver for persona-based memory retrieval
+  const personaResolver = new PersonaResolver(prisma);
+  logger.info('[AIWorker] PersonaResolver initialized for persona-based memory retrieval');
+
+  // Subscribe to persona cache invalidation events
+  const personaCacheInvalidation = new PersonaCacheInvalidationService(cacheRedis);
+  await personaCacheInvalidation.subscribe(event => {
+    if (event.type === 'all') {
+      personaResolver.clearCache();
+      logger.info('[AIWorker] Cleared all persona cache entries');
+    } else {
+      personaResolver.invalidateUserCache(event.discordId);
+      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated persona cache for user');
+    }
+  });
+  logger.info('[AIWorker] Subscribed to persona cache invalidation events');
+
   // Initialize vector memory manager (pgvector)
   let memoryManager: PgvectorMemoryAdapter | undefined;
 
@@ -182,13 +201,14 @@ async function main(): Promise<void> {
 
   // Initialize job processor with injected dependencies
   // Note: third param is ragService (undefined = use default), fourth is apiKeyResolver,
-  // fifth is llmConfigResolver
+  // fifth is llmConfigResolver, sixth is personaResolver
   const jobProcessor = new AIJobProcessor(
     prisma,
     memoryManager,
     undefined,
     apiKeyResolver,
-    llmConfigResolver
+    llmConfigResolver,
+    personaResolver
   );
 
   // Create BullMQ worker
@@ -327,6 +347,8 @@ async function main(): Promise<void> {
     await pendingMemoryProcessor.disconnect();
     await cacheInvalidationService.unsubscribe();
     await apiKeyCacheInvalidation.unsubscribe();
+    await llmConfigCacheInvalidation.unsubscribe();
+    await personaCacheInvalidation.unsubscribe();
     cacheRedis.disconnect();
     logger.info('[AIWorker] All workers and connections closed');
     process.exit(0);

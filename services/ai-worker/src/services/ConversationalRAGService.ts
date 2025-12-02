@@ -36,6 +36,7 @@ import { MemoryRetriever } from './MemoryRetriever.js';
 import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
+import { PersonaResolver } from './resolvers/index.js';
 
 const logger = createLogger('ConversationalRAGService');
 
@@ -142,9 +143,9 @@ export class ConversationalRAGService {
   private referencedMessageFormatter: ReferencedMessageFormatter;
   private contextWindowManager: ContextWindowManager;
 
-  constructor(memoryManager?: PgvectorMemoryAdapter) {
+  constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
     this.llmInvoker = new LLMInvoker();
-    this.memoryRetriever = new MemoryRetriever(memoryManager);
+    this.memoryRetriever = new MemoryRetriever(memoryManager, personaResolver);
     this.promptBuilder = new PromptBuilder();
     this.longTermMemory = new LongTermMemoryService(memoryManager);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
