@@ -352,18 +352,18 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
       });
     }
 
-    await interaction.reply({
-      content: `✅ **Persona override cleared for ${personalityName}!**\n\nYour default persona will now be used when talking to ${personalityName}.`,
-      flags: MessageFlags.Ephemeral,
-    });
-
     logger.info(
       { userId: discordId, personalityId: personality.id },
       '[Persona] Cleared persona override'
     );
 
-    // Broadcast cache invalidation
+    // Broadcast cache invalidation BEFORE replying to ensure consistency
     await personaCacheInvalidationService.invalidateUserPersona(discordId);
+
+    await interaction.reply({
+      content: `✅ **Persona override cleared for ${personalityName}!**\n\nYour default persona will now be used when talking to ${personalityName}.`,
+      flags: MessageFlags.Ephemeral,
+    });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Persona] Failed to clear override');
     await interaction.reply({
