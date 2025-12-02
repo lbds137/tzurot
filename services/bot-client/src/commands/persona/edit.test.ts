@@ -14,6 +14,7 @@ const mockPrismaClient = {
     update: vi.fn(),
   },
   persona: {
+    findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
@@ -60,7 +61,8 @@ describe('handleEditPersona', () => {
 
   it('should show modal with empty fields for user with no persona', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersona: null,
+      id: 'user-uuid',
+      defaultPersonaId: null,
     });
 
     await handleEditPersona(createMockInteraction());
@@ -69,47 +71,76 @@ describe('handleEditPersona', () => {
     expect(mockReply).not.toHaveBeenCalled();
   });
 
-  it('should show modal with existing persona values', async () => {
+  it('should show modal with existing persona values when editing default', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersona: {
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'I love coding',
-      },
+      id: 'user-uuid',
+      defaultPersonaId: 'persona-123',
+    });
+    mockPrismaClient.persona.findFirst.mockResolvedValue({
+      id: 'persona-123',
+      name: 'My Persona',
+      preferredName: 'Alice',
+      pronouns: 'she/her',
+      content: 'I love coding',
     });
 
     await handleEditPersona(createMockInteraction());
 
+    expect(mockPrismaClient.persona.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'persona-123',
+        ownerId: 'user-uuid',
+      },
+      select: {
+        id: true,
+        name: true,
+        preferredName: true,
+        pronouns: true,
+        content: true,
+      },
+    });
     expect(mockShowModal).toHaveBeenCalled();
   });
 
-  it('should handle null persona fields gracefully', async () => {
+  it('should show modal for specific persona when personaId provided', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersona: {
-        preferredName: null,
-        pronouns: null,
-        content: null,
-      },
+      id: 'user-uuid',
+      defaultPersonaId: 'persona-123',
+    });
+    mockPrismaClient.persona.findFirst.mockResolvedValue({
+      id: 'specific-persona',
+      name: 'Work Persona',
+      preferredName: 'Bob',
+      pronouns: 'he/him',
+      content: 'Work stuff',
     });
 
-    await handleEditPersona(createMockInteraction());
+    await handleEditPersona(createMockInteraction(), 'specific-persona');
 
+    expect(mockPrismaClient.persona.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'specific-persona',
+        ownerId: 'user-uuid',
+      },
+      select: expect.any(Object),
+    });
     expect(mockShowModal).toHaveBeenCalled();
   });
 
-  it('should handle long content in pre-fill', async () => {
-    const longContent = 'x'.repeat(5000); // Exceeds modal limit
+  it('should show error when specific persona not found', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersona: {
-        preferredName: 'Bob',
-        pronouns: 'he/him',
-        content: longContent,
-      },
+      id: 'user-uuid',
+      defaultPersonaId: 'persona-123',
     });
+    mockPrismaClient.persona.findFirst.mockResolvedValue(null);
 
-    await handleEditPersona(createMockInteraction());
+    await handleEditPersona(createMockInteraction(), 'nonexistent-persona');
 
-    expect(mockShowModal).toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Persona not found'),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(mockShowModal).not.toHaveBeenCalled();
   });
 
   it('should handle database errors gracefully', async () => {
@@ -155,19 +186,26 @@ describe('handleEditModalSubmit', () => {
       id: 'user-uuid',
       defaultPersonaId: 'persona-123',
     });
+    mockPrismaClient.persona.findFirst.mockResolvedValue({
+      id: 'persona-123',
+      name: 'Old Name',
+    });
     mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
+        personaName: 'My Persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I love coding',
-      })
+      }),
+      'persona-123'
     );
 
     expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
       where: { id: 'persona-123' },
       data: {
+        name: 'My Persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I love coding',
@@ -180,7 +218,7 @@ describe('handleEditModalSubmit', () => {
     });
   });
 
-  it('should create new persona for user without one', async () => {
+  it('should create new persona when personaId is "new"', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-uuid',
       defaultPersonaId: null,
@@ -190,21 +228,24 @@ describe('handleEditModalSubmit', () => {
 
     await handleEditModalSubmit(
       createMockModalInteraction({
+        personaName: 'New Persona',
         preferredName: 'Bob',
         pronouns: 'he/him',
         content: 'Test content',
-      })
+      }),
+      'new'
     );
 
     expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
       data: {
-        name: "testuser's Persona",
+        name: 'New Persona',
         preferredName: 'Bob',
         pronouns: 'he/him',
         content: 'Test content',
         ownerId: 'user-uuid',
       },
     });
+    // Should set as default since user had no default
     expect(mockPrismaClient.user.update).toHaveBeenCalledWith({
       where: { id: 'user-uuid' },
       data: { defaultPersonaId: 'new-persona-123' },
@@ -222,10 +263,12 @@ describe('handleEditModalSubmit', () => {
 
     await handleEditModalSubmit(
       createMockModalInteraction({
+        personaName: 'First Persona',
         preferredName: 'NewUser',
         pronouns: '',
         content: '',
-      })
+      }),
+      'new'
     );
 
     expect(mockPrismaClient.user.create).toHaveBeenCalledWith({
@@ -240,34 +283,57 @@ describe('handleEditModalSubmit', () => {
     });
   });
 
-  it('should handle empty fields by setting them to null', async () => {
+  it('should handle empty optional fields', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-uuid',
       defaultPersonaId: 'persona-123',
     });
+    mockPrismaClient.persona.findFirst.mockResolvedValue({ id: 'persona-123' });
     mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
+        personaName: 'My Persona',
         preferredName: '',
         pronouns: '',
         content: '',
-      })
+      }),
+      'persona-123'
     );
 
     expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
       where: { id: 'persona-123' },
       data: {
+        name: 'My Persona',
         preferredName: null,
         pronouns: null,
         content: '',
         updatedAt: expect.any(Date),
       },
     });
+  });
+
+  it('should require persona name', async () => {
+    mockPrismaClient.user.findUnique.mockResolvedValue({
+      id: 'user-uuid',
+      defaultPersonaId: 'persona-123',
+    });
+
+    await handleEditModalSubmit(
+      createMockModalInteraction({
+        personaName: '',
+        preferredName: 'Alice',
+        pronouns: '',
+        content: '',
+      }),
+      'persona-123'
+    );
+
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('All fields cleared'),
+      content: expect.stringContaining('Persona name is required'),
       flags: MessageFlags.Ephemeral,
     });
+    expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
   });
 
   it('should trim whitespace from fields', async () => {
@@ -275,19 +341,23 @@ describe('handleEditModalSubmit', () => {
       id: 'user-uuid',
       defaultPersonaId: 'persona-123',
     });
+    mockPrismaClient.persona.findFirst.mockResolvedValue({ id: 'persona-123' });
     mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
+        personaName: '  My Persona  ',
         preferredName: '  Alice  ',
         pronouns: ' she/her ',
         content: '  content with spaces  ',
-      })
+      }),
+      'persona-123'
     );
 
     expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
       where: { id: 'persona-123' },
       data: {
+        name: 'My Persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'content with spaces',
@@ -296,42 +366,46 @@ describe('handleEditModalSubmit', () => {
     });
   });
 
-  it('should truncate long content in response message', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
-    });
-    mockPrismaClient.persona.update.mockResolvedValue({});
-
-    const longContent = 'x'.repeat(200);
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        preferredName: 'Test',
-        pronouns: '',
-        content: longContent,
-      })
-    );
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('...'),
-      flags: MessageFlags.Ephemeral,
-    });
-  });
-
   it('should handle database errors gracefully', async () => {
     mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
 
     await handleEditModalSubmit(
       createMockModalInteraction({
+        personaName: 'Test',
         preferredName: 'Test',
         pronouns: '',
         content: '',
-      })
+      }),
+      'persona-123'
     );
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to save'),
       flags: MessageFlags.Ephemeral,
     });
+  });
+
+  it('should error if trying to update non-owned persona', async () => {
+    mockPrismaClient.user.findUnique.mockResolvedValue({
+      id: 'user-uuid',
+      defaultPersonaId: 'persona-123',
+    });
+    mockPrismaClient.persona.findFirst.mockResolvedValue(null); // Not found = not owned
+
+    await handleEditModalSubmit(
+      createMockModalInteraction({
+        personaName: 'Test',
+        preferredName: '',
+        pronouns: '',
+        content: '',
+      }),
+      'other-persona-id'
+    );
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Persona not found'),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
   });
 });

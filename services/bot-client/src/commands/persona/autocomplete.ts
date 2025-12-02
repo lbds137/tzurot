@@ -1,12 +1,17 @@
 /**
  * Persona Command Autocomplete Handler
- * Provides autocomplete suggestions for personality selection
+ * Provides autocomplete suggestions for personality and persona selection
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('persona-autocomplete');
+
+/**
+ * Special value for "Create new persona" option in autocomplete
+ */
+export const CREATE_NEW_PERSONA_VALUE = '__create_new__';
 
 /**
  * Handle personality autocomplete for /persona override commands
@@ -56,6 +61,89 @@ export async function handlePersonalityAutocomplete(
       { err: error, query, userId: interaction.user.id },
       '[Persona] Autocomplete error'
     );
+    await interaction.respond([]);
+  }
+}
+
+/**
+ * Handle persona autocomplete for /persona commands
+ * Lists user's personas with option to create new
+ *
+ * @param includeCreateNew - Whether to include "Create new persona..." option
+ */
+export async function handlePersonaAutocomplete(
+  interaction: AutocompleteInteraction,
+  includeCreateNew = false
+): Promise<void> {
+  const focusedOption = interaction.options.getFocused(true);
+
+  if (focusedOption.name !== 'persona') {
+    await interaction.respond([]);
+    return;
+  }
+
+  const query = focusedOption.value.toLowerCase();
+  const discordId = interaction.user.id;
+
+  try {
+    const prisma = getPrismaClient();
+
+    // Get user with their personas
+    const user = await prisma.user.findUnique({
+      where: { discordId },
+      select: {
+        defaultPersonaId: true,
+        ownedPersonas: {
+          where: query
+            ? {
+                OR: [
+                  { name: { contains: query, mode: 'insensitive' } },
+                  { preferredName: { contains: query, mode: 'insensitive' } },
+                ],
+              }
+            : undefined,
+          select: {
+            id: true,
+            name: true,
+            preferredName: true,
+          },
+          orderBy: { name: 'asc' },
+          // Leave room for "Create new" option
+          take: includeCreateNew
+            ? DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES - 1
+            : DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES,
+        },
+      },
+    });
+
+    const choices: { name: string; value: string }[] = [];
+
+    // Add user's personas
+    if (user?.ownedPersonas) {
+      for (const persona of user.ownedPersonas) {
+        const isDefault = persona.id === user.defaultPersonaId;
+        const displayName = persona.preferredName ?? persona.name;
+        choices.push({
+          name: isDefault ? `${displayName} ⭐ (default)` : displayName,
+          value: persona.id,
+        });
+      }
+    }
+
+    // Add "Create new persona" option at the end if requested and query matches
+    if (includeCreateNew) {
+      const createNewLabel = '➕ Create new persona...';
+      if (query === '' || createNewLabel.toLowerCase().includes(query)) {
+        choices.push({
+          name: createNewLabel,
+          value: CREATE_NEW_PERSONA_VALUE,
+        });
+      }
+    }
+
+    await interaction.respond(choices);
+  } catch (error) {
+    logger.error({ err: error, query, userId: discordId }, '[Persona] Persona autocomplete error');
     await interaction.respond([]);
   }
 }

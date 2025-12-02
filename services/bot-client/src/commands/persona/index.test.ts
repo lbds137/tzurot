@@ -16,6 +16,19 @@ vi.mock('./edit.js', () => ({
   handleEditModalSubmit: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('./create.js', () => ({
+  handleCreatePersona: vi.fn().mockResolvedValue(undefined),
+  handleCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./list.js', () => ({
+  handleListPersonas: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./default.js', () => ({
+  handleSetDefaultPersona: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('./settings.js', () => ({
   handleShareLtmSetting: vi.fn().mockResolvedValue(undefined),
 }));
@@ -23,11 +36,12 @@ vi.mock('./settings.js', () => ({
 vi.mock('./override.js', () => ({
   handleOverrideSet: vi.fn().mockResolvedValue(undefined),
   handleOverrideClear: vi.fn().mockResolvedValue(undefined),
-  handleOverrideModalSubmit: vi.fn().mockResolvedValue(undefined),
+  handleOverrideCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./autocomplete.js', () => ({
   handlePersonalityAutocomplete: vi.fn().mockResolvedValue(undefined),
+  handlePersonaAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock logger
@@ -52,10 +66,10 @@ describe('Persona Command Index', () => {
   describe('command data', () => {
     it('should have correct name and description', () => {
       expect(data.name).toBe('persona');
-      expect(data.description).toBe('Manage your persona for AI interactions');
+      expect(data.description).toBe('Manage your personas for AI interactions');
     });
 
-    it('should have view and edit subcommands', () => {
+    it('should have all subcommands', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -65,9 +79,12 @@ describe('Persona Command Index', () => {
 
       expect(subcommandNames).toContain('view');
       expect(subcommandNames).toContain('edit');
+      expect(subcommandNames).toContain('create');
+      expect(subcommandNames).toContain('list');
+      expect(subcommandNames).toContain('default');
     });
 
-    it('should have settings subcommand group', () => {
+    it('should have settings and override subcommand groups', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -106,13 +123,83 @@ describe('Persona Command Index', () => {
         options: {
           getSubcommandGroup: () => null,
           getSubcommand: () => 'edit',
+          getString: () => null, // No persona specified
         },
         user: { id: '123' },
       } as any;
 
       await execute(interaction);
 
-      expect(handleEditPersona).toHaveBeenCalledWith(interaction);
+      expect(handleEditPersona).toHaveBeenCalledWith(interaction, null);
+    });
+
+    it('should pass persona ID to edit handler when specified', async () => {
+      const { handleEditPersona } = await import('./edit.js');
+
+      const interaction = {
+        isModalSubmit: () => false,
+        options: {
+          getSubcommandGroup: () => null,
+          getSubcommand: () => 'edit',
+          getString: () => 'persona-123',
+        },
+        user: { id: '123' },
+      } as any;
+
+      await execute(interaction);
+
+      expect(handleEditPersona).toHaveBeenCalledWith(interaction, 'persona-123');
+    });
+
+    it('should route to create handler for /persona create', async () => {
+      const { handleCreatePersona } = await import('./create.js');
+
+      const interaction = {
+        isModalSubmit: () => false,
+        options: {
+          getSubcommandGroup: () => null,
+          getSubcommand: () => 'create',
+        },
+        user: { id: '123' },
+      } as any;
+
+      await execute(interaction);
+
+      expect(handleCreatePersona).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route to list handler for /persona list', async () => {
+      const { handleListPersonas } = await import('./list.js');
+
+      const interaction = {
+        isModalSubmit: () => false,
+        options: {
+          getSubcommandGroup: () => null,
+          getSubcommand: () => 'list',
+        },
+        user: { id: '123' },
+      } as any;
+
+      await execute(interaction);
+
+      expect(handleListPersonas).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route to default handler for /persona default', async () => {
+      const { handleSetDefaultPersona } = await import('./default.js');
+
+      const interaction = {
+        isModalSubmit: () => false,
+        options: {
+          getSubcommandGroup: () => null,
+          getSubcommand: () => 'default',
+        },
+        user: { id: '123' },
+      } as any;
+
+      await execute(interaction);
+
+      expect(handleSetDefaultPersona).toHaveBeenCalledWith(interaction);
     });
 
     it('should route to settings handler for /persona settings share-ltm', async () => {
@@ -168,41 +255,109 @@ describe('Persona Command Index', () => {
   });
 
   describe('execute - modal routing', () => {
-    it('should route persona-edit modal to edit handler', async () => {
+    it('should route persona-create modal to create handler', async () => {
+      const { handleCreateModalSubmit } = await import('./create.js');
+
+      const interaction = {
+        isModalSubmit: () => true,
+        customId: 'persona-create',
+      } as any;
+
+      await execute(interaction);
+
+      expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route persona-edit-new modal to edit handler', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'persona-edit',
+        customId: 'persona-edit-new',
       } as any;
 
       await execute(interaction);
 
-      expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction);
+      expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
     });
 
-    it('should route persona-override modal to override handler', async () => {
-      const { handleOverrideModalSubmit } = await import('./override.js');
+    it('should route persona-edit-{id} modal to edit handler with ID', async () => {
+      const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'persona-override-personality-uuid-123',
+        customId: 'persona-edit-persona-uuid-123',
       } as any;
 
       await execute(interaction);
 
-      expect(handleOverrideModalSubmit).toHaveBeenCalledWith(interaction, 'personality-uuid-123');
+      expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'persona-uuid-123');
+    });
+
+    it('should route persona-override-create modal to override create handler', async () => {
+      const { handleOverrideCreateModalSubmit } = await import('./override.js');
+
+      const interaction = {
+        isModalSubmit: () => true,
+        customId: 'persona-override-create-personality-uuid-123',
+      } as any;
+
+      await execute(interaction);
+
+      expect(handleOverrideCreateModalSubmit).toHaveBeenCalledWith(
+        interaction,
+        'personality-uuid-123'
+      );
     });
   });
 
   describe('autocomplete', () => {
-    it('should route to personality autocomplete handler', async () => {
+    it('should route personality option to personality autocomplete', async () => {
       const { handlePersonalityAutocomplete } = await import('./autocomplete.js');
 
-      const interaction = {} as any;
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'personality', value: '' }),
+          getSubcommandGroup: () => 'override',
+          getSubcommand: () => 'set',
+        },
+      } as any;
+
       await autocomplete(interaction);
 
       expect(handlePersonalityAutocomplete).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route persona option to persona autocomplete without create option', async () => {
+      const { handlePersonaAutocomplete } = await import('./autocomplete.js');
+
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'persona', value: '' }),
+          getSubcommandGroup: () => null,
+          getSubcommand: () => 'edit',
+        },
+      } as any;
+
+      await autocomplete(interaction);
+
+      expect(handlePersonaAutocomplete).toHaveBeenCalledWith(interaction, false);
+    });
+
+    it('should route persona option in override set to autocomplete with create option', async () => {
+      const { handlePersonaAutocomplete } = await import('./autocomplete.js');
+
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'persona', value: '' }),
+          getSubcommandGroup: () => 'override',
+          getSubcommand: () => 'set',
+        },
+      } as any;
+
+      await autocomplete(interaction);
+
+      expect(handlePersonaAutocomplete).toHaveBeenCalledWith(interaction, true);
     });
   });
 });
