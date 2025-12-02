@@ -3,6 +3,8 @@
  *
  * Handles long-term memory queries, persona lookups, and memory deduplication logic.
  * Extracted from ConversationalRAGService for better modularity and testability.
+ *
+ * Uses PersonaResolver for consistent persona resolution with caching and auto-defaulting.
  */
 
 import { PgvectorMemoryAdapter, MemoryQueryOptions } from './PgvectorMemoryAdapter.js';
@@ -14,16 +16,19 @@ import {
   formatMemoryTimestamp,
   type LoadedPersonality,
 } from '@tzurot/common-types';
-import { logAndReturnFallback } from '../utils/errorHandling.js';
 import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
+import { PersonaResolver } from './resolvers/index.js';
 
 const logger = createLogger('MemoryRetriever');
 
 export class MemoryRetriever {
   private memoryManager?: PgvectorMemoryAdapter;
+  private personaResolver: PersonaResolver;
 
-  constructor(memoryManager?: PgvectorMemoryAdapter) {
+  constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
     this.memoryManager = memoryManager;
+    // Create default PersonaResolver if not provided (for backwards compatibility)
+    this.personaResolver = personaResolver ?? new PersonaResolver(getPrismaClient());
   }
 
   /**
@@ -49,8 +54,11 @@ export class MemoryRetriever {
       );
     }
 
-    // Resolve user's personaId for this personality
-    const personaResult = await this.getUserPersonaForPersonality(context.userId, personality.id);
+    // Resolve user's personaId for this personality using PersonaResolver
+    const personaResult = await this.personaResolver.resolveForMemory(
+      context.userId,
+      personality.id
+    );
 
     if (personaResult === null) {
       logger.warn(
@@ -173,154 +181,24 @@ export class MemoryRetriever {
 
   /**
    * Get persona content by personaId
-   * This fetches the ACTIVE persona (which might be a personality-specific override)
+   * Delegates to PersonaResolver for consistent content formatting
    */
   async getPersonaContent(personaId: string): Promise<string | null> {
-    try {
-      const prisma = getPrismaClient();
-
-      const persona = await prisma.persona.findUnique({
-        where: { id: personaId },
-        select: {
-          preferredName: true,
-          pronouns: true,
-          content: true,
-        },
-      });
-
-      if (persona === null) {
-        return null;
-      }
-
-      // Build persona context with structured fields
-      const parts: string[] = [];
-
-      if (persona.preferredName !== null && persona.preferredName.length > 0) {
-        parts.push(`Name: ${persona.preferredName}`);
-      }
-
-      if (persona.pronouns !== null && persona.pronouns.length > 0) {
-        parts.push(`Pronouns: ${persona.pronouns}`);
-      }
-
-      if (persona.content !== null && persona.content.length > 0) {
-        parts.push(persona.content);
-      }
-
-      return parts.length > 0 ? parts.join('\n') : null;
-    } catch (error) {
-      return logAndReturnFallback(
-        logger,
-        `[MemoryRetriever] Failed to fetch persona ${personaId}`,
-        error,
-        null
-      );
-    }
+    return this.personaResolver.getPersonaContentForPrompt(personaId);
   }
 
   /**
-   * Result of persona lookup for memory retrieval
-   */
-  private async getPersonaSettings(personaId: string): Promise<{ shareLtm: boolean } | null> {
-    try {
-      const prisma = getPrismaClient();
-      const persona = await prisma.persona.findUnique({
-        where: { id: personaId },
-        select: { shareLtmAcrossPersonalities: true },
-      });
-      return persona !== null ? { shareLtm: persona.shareLtmAcrossPersonalities } : null;
-    } catch (error) {
-      logger.error(
-        { err: error },
-        `[MemoryRetriever] Failed to get persona settings for ${personaId}`
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Get user's persona ID for a specific personality
-   * Checks for personality-specific override first, then falls back to default persona
+   * Resolve user's persona for memory operations (LTM storage/retrieval)
+   * Exposes PersonaResolver's resolution for external callers.
    *
-   * @param discordUserId - The user's Discord ID (snowflake), NOT their internal UUID
+   * @param discordUserId - The user's Discord ID (snowflake)
    * @param personalityId - The personality UUID
    * @returns Object with personaId and shareLtmAcrossPersonalities flag, or null if not found
    */
-  async getUserPersonaForPersonality(
+  async resolvePersonaForMemory(
     discordUserId: string,
     personalityId: string
   ): Promise<{ personaId: string; shareLtmAcrossPersonalities: boolean } | null> {
-    try {
-      const prisma = getPrismaClient();
-
-      // First lookup user by Discord ID to get their internal UUID
-      // (userId parameter is Discord ID, not internal UUID)
-      const user = await prisma.user.findUnique({
-        where: { discordId: discordUserId },
-        select: {
-          id: true,
-          defaultPersonaLink: {
-            select: { personaId: true },
-          },
-        },
-      });
-
-      if (user === null) {
-        logger.warn({}, `[MemoryRetriever] No user found for Discord ID ${discordUserId}`);
-        return null;
-      }
-
-      const internalUserId = user.id;
-
-      // Check if user has a personality-specific persona override
-      const userPersonalityConfig = await prisma.userPersonalityConfig.findFirst({
-        where: {
-          userId: internalUserId, // Use internal UUID, not Discord ID
-          personalityId,
-          personaId: { not: null }, // Has a persona override
-        },
-        select: { personaId: true },
-      });
-
-      let personaId: string | null = null;
-
-      if (
-        userPersonalityConfig?.personaId !== undefined &&
-        userPersonalityConfig.personaId !== null &&
-        userPersonalityConfig.personaId.length > 0
-      ) {
-        logger.debug(
-          `[MemoryRetriever] Using personality-specific persona override for user ${discordUserId}, personality ${personalityId}`
-        );
-        personaId = userPersonalityConfig.personaId;
-      } else {
-        // Fall back to user's default persona (already loaded above)
-        personaId = user.defaultPersonaLink?.personaId ?? null;
-        if (personaId !== null && personaId.length > 0) {
-          logger.debug(`[MemoryRetriever] Using default persona for user ${discordUserId}`);
-        } else {
-          logger.warn({}, `[MemoryRetriever] No persona found for user ${discordUserId}`);
-          return null;
-        }
-      }
-
-      // Get persona settings including shareLtmAcrossPersonalities flag
-      const settings = await this.getPersonaSettings(personaId);
-      const shareLtmAcrossPersonalities = settings?.shareLtm ?? false;
-
-      if (shareLtmAcrossPersonalities) {
-        logger.info(
-          `[MemoryRetriever] User ${discordUserId} has shareLtmAcrossPersonalities enabled - will search across all personalities`
-        );
-      }
-
-      return { personaId, shareLtmAcrossPersonalities };
-    } catch (error) {
-      logger.error(
-        { err: error },
-        `[MemoryRetriever] Failed to resolve persona for user ${discordUserId}`
-      );
-      return null;
-    }
+    return this.personaResolver.resolveForMemory(discordUserId, personalityId);
   }
 }

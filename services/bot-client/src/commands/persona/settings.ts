@@ -27,14 +27,10 @@ export async function handleShareLtmSetting(
       where: { discordId },
       select: {
         id: true,
-        defaultPersonaLink: {
+        defaultPersonaId: true,
+        defaultPersona: {
           select: {
-            personaId: true,
-            persona: {
-              select: {
-                shareLtmAcrossPersonalities: true,
-              },
-            },
+            shareLtmAcrossPersonalities: true,
           },
         },
       },
@@ -49,7 +45,7 @@ export async function handleShareLtmSetting(
       return;
     }
 
-    const personaId = user.defaultPersonaLink?.personaId;
+    const personaId = user.defaultPersonaId;
 
     if (personaId === null || personaId === undefined) {
       await interaction.reply({
@@ -59,7 +55,7 @@ export async function handleShareLtmSetting(
       return;
     }
 
-    const currentSetting = user.defaultPersonaLink?.persona?.shareLtmAcrossPersonalities ?? false;
+    const currentSetting = user.defaultPersona?.shareLtmAcrossPersonalities ?? false;
 
     // Check if already in desired state
     if (currentSetting === enabled) {
