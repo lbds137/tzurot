@@ -31,21 +31,17 @@ export async function handleEditPersona(interaction: ChatInputCommandInteraction
     const user = await prisma.user.findUnique({
       where: { discordId },
       select: {
-        defaultPersonaLink: {
+        defaultPersona: {
           select: {
-            persona: {
-              select: {
-                preferredName: true,
-                pronouns: true,
-                content: true,
-              },
-            },
+            preferredName: true,
+            pronouns: true,
+            content: true,
           },
         },
       },
     });
 
-    const persona = user?.defaultPersonaLink?.persona;
+    const persona = user?.defaultPersona;
 
     // Build the modal
     const modal = new ModalBuilder().setCustomId('persona-edit').setTitle('Edit Your Persona');
@@ -132,11 +128,7 @@ export async function handleEditModalSubmit(interaction: ModalSubmitInteraction)
       where: { discordId },
       select: {
         id: true,
-        defaultPersonaLink: {
-          select: {
-            personaId: true,
-          },
-        },
+        defaultPersonaId: true,
       },
     });
 
@@ -148,15 +140,11 @@ export async function handleEditModalSubmit(interaction: ModalSubmitInteraction)
       },
       select: {
         id: true,
-        defaultPersonaLink: {
-          select: {
-            personaId: true,
-          },
-        },
+        defaultPersonaId: true,
       },
     });
 
-    const existingPersonaId = user.defaultPersonaLink?.personaId;
+    const existingPersonaId = user.defaultPersonaId;
 
     if (existingPersonaId !== null && existingPersonaId !== undefined) {
       // Update existing persona
@@ -175,7 +163,7 @@ export async function handleEditModalSubmit(interaction: ModalSubmitInteraction)
         '[Persona] Updated existing persona'
       );
     } else {
-      // Create new persona and link it
+      // Create new persona and set it as default
       const newPersona = await prisma.persona.create({
         data: {
           name: `${interaction.user.username}'s Persona`,
@@ -186,17 +174,15 @@ export async function handleEditModalSubmit(interaction: ModalSubmitInteraction)
         },
       });
 
-      // Create the default persona link
-      await prisma.userDefaultPersona.create({
-        data: {
-          userId: user.id,
-          personaId: newPersona.id,
-        },
+      // Set as user's default persona
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { defaultPersonaId: newPersona.id },
       });
 
       logger.info(
         { userId: discordId, personaId: newPersona.id },
-        '[Persona] Created new persona and linked as default'
+        '[Persona] Created new persona and set as default'
       );
     }
 

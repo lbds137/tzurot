@@ -71,7 +71,7 @@ vi.mock('./MemoryRetriever.js', () => ({
   MemoryRetriever: class MockMemoryRetriever {
     retrieveRelevantMemories = vi.fn().mockResolvedValue([]);
     getAllParticipantPersonas = vi.fn().mockResolvedValue(new Map());
-    getUserPersonaForPersonality = vi.fn().mockResolvedValue({
+    resolvePersonaForMemory = vi.fn().mockResolvedValue({
       personaId: 'persona-123',
       shareLtmAcrossPersonalities: false,
     });
@@ -348,7 +348,7 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should skip LTM storage when no persona found', async () => {
-      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi.fn().mockResolvedValue(null);
+      mockMemoryRetrieverInstance.resolvePersonaForMemory = vi.fn().mockResolvedValue(null);
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -359,7 +359,7 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should store LTM with shareLtmAcrossPersonalities enabled', async () => {
-      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi
+      mockMemoryRetrieverInstance.resolvePersonaForMemory = vi
         .fn()
         .mockResolvedValue({ personaId: 'persona-456', shareLtmAcrossPersonalities: true });
 

@@ -27,19 +27,15 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       where: { discordId },
       select: {
         id: true,
-        defaultPersonaLink: {
+        defaultPersona: {
           select: {
-            persona: {
-              select: {
-                id: true,
-                name: true,
-                preferredName: true,
-                pronouns: true,
-                content: true,
-                description: true,
-                shareLtmAcrossPersonalities: true,
-              },
-            },
+            id: true,
+            name: true,
+            preferredName: true,
+            pronouns: true,
+            content: true,
+            description: true,
+            shareLtmAcrossPersonalities: true,
           },
         },
       },
@@ -54,7 +50,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       return;
     }
 
-    const persona = user.defaultPersonaLink?.persona;
+    const persona = user.defaultPersona;
 
     if (persona === null || persona === undefined) {
       await interaction.reply({

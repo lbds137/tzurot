@@ -47,7 +47,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
 
   // Create tables in dependency order (referenced tables first)
 
-  // Users table (no dependencies)
+  // Users table (no dependencies on other tables, but has FKs added later)
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -55,6 +55,8 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
       username VARCHAR(255) NOT NULL,
       timezone VARCHAR(50) DEFAULT 'UTC',
       is_superuser BOOLEAN DEFAULT FALSE,
+      default_llm_config_id UUID,
+      default_persona_id UUID,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
@@ -272,14 +274,7 @@ async function initializePGliteSchema(prisma: PrismaClient): Promise<void> {
     )
   `);
 
-  // User default personas
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS user_default_personas (
-      user_id UUID PRIMARY KEY UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-      persona_id UUID NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )
-  `);
+  // Note: user_default_personas table removed - now using users.default_persona_id FK
 
   // Personality owners
   await prisma.$executeRawUnsafe(`

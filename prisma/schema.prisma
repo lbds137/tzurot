@@ -16,21 +16,23 @@ model User {
   timezone             String                  @default("UTC") @db.VarChar(50)
   isSuperuser          Boolean                 @default(false) @map("is_superuser")
   defaultLlmConfigId   String?                 @map("default_llm_config_id") @db.Uuid
+  defaultPersonaId     String?                 @map("default_persona_id") @db.Uuid
   createdAt            DateTime                @default(now()) @map("created_at")
   updatedAt            DateTime                @updatedAt @map("updated_at")
   apiKeys              UserApiKey[]
   usageLogs            UsageLog[]
   activatedChannels    ActivatedChannel[]
   defaultLlmConfig     LlmConfig?              @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
+  defaultPersona       Persona?                @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: SetNull)
   ownedLlmConfigs      LlmConfig[]             @relation("LlmConfigOwner")
   ownedPersonalities   Personality[]           @relation("PersonalityOwner")
   personalityOwners    PersonalityOwner[]
   ownedPersonas        Persona[]               @relation("PersonaOwner")
-  defaultPersonaLink   UserDefaultPersona?
   personalityConfigs   UserPersonalityConfig[]
 
   @@index([discordId])
   @@index([defaultLlmConfigId])
+  @@index([defaultPersonaId])
   @@map("users")
 }
 
@@ -78,36 +80,25 @@ model UserApiKey {
 }
 
 model Persona {
-  id                    String                  @id @default(uuid()) @db.Uuid
-  name                  String                  @db.VarChar(255)
-  description           String?
-  content               String
-  preferredName         String?                 @map("preferred_name") @db.VarChar(255)
-  pronouns              String?                 @db.VarChar(100)
-  shareLtmAcrossPersonalities Boolean           @default(false) @map("share_ltm_across_personalities")
-  ownerId               String                  @map("owner_id") @db.Uuid
-  createdAt             DateTime                @default(now()) @map("created_at")
-  updatedAt             DateTime                @updatedAt @map("updated_at")
-  conversationHistory   ConversationHistory[]
-  memories              Memory[]
-  owner                 User                    @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  shapesPersonaMappings ShapesPersonaMapping[]
-  usersUsingAsDefault   UserDefaultPersona[]
-  personalityConfigs    UserPersonalityConfig[]
+  id                          String                  @id @default(uuid()) @db.Uuid
+  name                        String                  @db.VarChar(255)
+  description                 String?
+  content                     String
+  preferredName               String?                 @map("preferred_name") @db.VarChar(255)
+  pronouns                    String?                 @db.VarChar(100)
+  shareLtmAcrossPersonalities Boolean                 @default(false) @map("share_ltm_across_personalities")
+  ownerId                     String                  @map("owner_id") @db.Uuid
+  createdAt                   DateTime                @default(now()) @map("created_at")
+  updatedAt                   DateTime                @updatedAt @map("updated_at")
+  conversationHistory         ConversationHistory[]
+  memories                    Memory[]
+  owner                       User                    @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usersWithAsDefault          User[]                  @relation("UserDefaultPersona")
+  shapesPersonaMappings       ShapesPersonaMapping[]
+  personalityConfigs          UserPersonalityConfig[]
 
   @@index([ownerId])
   @@map("personas")
-}
-
-model UserDefaultPersona {
-  userId    String   @id @unique @map("user_id") @db.Uuid
-  personaId String   @map("persona_id") @db.Uuid
-  updatedAt DateTime @updatedAt @map("updated_at")
-  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([personaId])
-  @@map("user_default_personas")
 }
 
 model SystemPrompt {

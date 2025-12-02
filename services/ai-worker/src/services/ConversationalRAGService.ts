@@ -356,7 +356,7 @@ export class ConversationalRAGService {
 
       // Store to LTM (conversation_history will be created by bot-client after Discord send)
       // Resolve personaId for LTM storage
-      const personaResult = await this.memoryRetriever.getUserPersonaForPersonality(
+      const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
         context.userId,
         personality.id
       );
