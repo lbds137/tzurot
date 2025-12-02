@@ -17,6 +17,16 @@ import type {
 import { MessageRole, CONTENT_TYPES, MESSAGE_LIMITS } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 
+// Mock PersonaResolver
+const mockPersonaResolver = {
+  resolve: vi.fn(),
+  resolveForMemory: vi.fn(),
+  getPersonaContentForPrompt: vi.fn(),
+  invalidateUserCache: vi.fn(),
+  clearCache: vi.fn(),
+  stopCleanup: vi.fn(),
+};
+
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -27,7 +37,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     },
     UserService: class {
       getOrCreateUser = vi.fn();
-      getPersonaForUser = vi.fn();
       getPersonaName = vi.fn();
       getUserTimezone = vi.fn();
     },
@@ -89,12 +98,24 @@ describe('MessageContextBuilder', () => {
     // Create mock Prisma client
     mockPrisma = {} as PrismaClient;
 
-    // Create builder instance
-    builder = new MessageContextBuilder(mockPrisma);
+    // Create builder instance with mock PersonaResolver
+    builder = new MessageContextBuilder(mockPrisma, mockPersonaResolver as any);
 
     // Get service instances to access mocks
     mockHistoryService = (builder as any).conversationHistory;
     mockUserService = (builder as any).userService;
+
+    // Default mock for PersonaResolver.resolve
+    mockPersonaResolver.resolve.mockResolvedValue({
+      config: {
+        personaId: 'persona-123',
+        preferredName: 'Test Persona',
+        pronouns: null,
+        content: '',
+        shareLtmAcrossPersonalities: false,
+      },
+      source: 'user-default',
+    });
 
     // Mock personality
     mockPersonality = {
@@ -167,8 +188,8 @@ describe('MessageContextBuilder', () => {
     it('should build complete context with user lookup and history', async () => {
       // Setup mocks
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([
         {
           id: 'history-1',
@@ -194,11 +215,11 @@ describe('MessageContextBuilder', () => {
         'testuser',
         'Test Display Name'
       );
-      expect(mockUserService.getPersonaForUser).toHaveBeenCalledWith(
-        'user-uuid-123',
+      // PersonaResolver uses Discord ID (not internal UUID)
+      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
+        'user-123', // Discord ID
         'personality-123'
       );
-      expect(mockUserService.getPersonaName).toHaveBeenCalledWith('persona-123');
 
       // Verify history retrieval
       expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
@@ -237,8 +258,17 @@ describe('MessageContextBuilder', () => {
       (mockMessage.author as any).globalName = null;
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue(null);
+      // Override to return null preferredName
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: {
+          personaId: 'persona-123',
+          preferredName: null,
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
+        source: 'user-default',
+      });
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -257,8 +287,8 @@ describe('MessageContextBuilder', () => {
 
     it('should handle empty conversation history', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -288,8 +318,8 @@ describe('MessageContextBuilder', () => {
       ];
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: mockReferences,
@@ -315,8 +345,8 @@ describe('MessageContextBuilder', () => {
 
     it('should extract conversation history message IDs for deduplication', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([
         {
           id: 'history-1',
@@ -363,8 +393,8 @@ describe('MessageContextBuilder', () => {
       ];
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -386,8 +416,8 @@ describe('MessageContextBuilder', () => {
       };
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -403,8 +433,8 @@ describe('MessageContextBuilder', () => {
 
     it('should handle empty content with fallback', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -451,8 +481,8 @@ describe('MessageContextBuilder', () => {
       } as any;
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([
         {
           id: 'history-1',
@@ -483,8 +513,8 @@ describe('MessageContextBuilder', () => {
 
     it('should not include referencedMessages in context when empty', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -507,8 +537,8 @@ describe('MessageContextBuilder', () => {
       (mockMessage.mentions.users as Map<string, User>).set('123456', mockMentionedUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -556,8 +586,8 @@ describe('MessageContextBuilder', () => {
 
     it('should not include mentionedPersonas when no mentions resolved', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('Test Persona');
+      // PersonaResolver.resolve is already mocked in beforeEach
+      // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],

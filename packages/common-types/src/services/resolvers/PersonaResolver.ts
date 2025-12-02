@@ -14,7 +14,8 @@
  * the user's first owned persona becomes their default.
  */
 
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger } from '../../utils/logger.js';
+import type { PrismaClient } from '../prisma.js';
 import { BaseConfigResolver, type ResolutionResult } from './BaseConfigResolver.js';
 
 const logger = createLogger('PersonaResolver');

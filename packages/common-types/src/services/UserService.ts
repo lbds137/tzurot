@@ -13,11 +13,9 @@ const logger = createLogger('UserService');
 
 export class UserService {
   private userCache: Map<string, string>; // discordId -> userId (UUID)
-  private personaCache: Map<string, string>; // userId:personalityId -> personaId
 
   constructor(private prisma: PrismaClient) {
     this.userCache = new Map();
-    this.personaCache = new Map();
   }
 
   /**
@@ -223,72 +221,4 @@ export class UserService {
     }
   }
 
-  /**
-   * Get the personaId for a user when interacting with a specific personality
-   * Checks for personality-specific persona override, falls back to default persona
-   *
-   * @param userId User's UUID
-   * @param personalityId Personality's UUID
-   * @returns PersonaId to use for this interaction
-   */
-  async getPersonaForUser(userId: string, personalityId: string): Promise<string> {
-    // Check cache first
-    const cacheKey = `${userId}:${personalityId}`;
-    const cached = this.personaCache.get(cacheKey);
-    if (cached !== undefined && cached.length > 0) {
-      return cached;
-    }
-
-    try {
-      // 1. Check for personality-specific persona override
-      const userConfig = await this.prisma.userPersonalityConfig.findUnique({
-        where: {
-          userId_personalityId: {
-            userId,
-            personalityId,
-          },
-        },
-        select: {
-          personaId: true,
-        },
-      });
-
-      if (
-        userConfig?.personaId !== null &&
-        userConfig?.personaId !== undefined &&
-        userConfig.personaId.length > 0
-      ) {
-        logger.debug(
-          `Using personality-specific persona for user ${userId.substring(0, 8)}... with personality ${personalityId.substring(0, 8)}...`
-        );
-        this.personaCache.set(cacheKey, userConfig.personaId);
-        return userConfig.personaId;
-      }
-
-      // 2. Fall back to user's default persona
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { defaultPersonaId: true },
-      });
-
-      if (
-        user?.defaultPersonaId === null ||
-        user?.defaultPersonaId === undefined ||
-        user?.defaultPersonaId.length === 0
-      ) {
-        // This should never happen since we create default personas in getOrCreateUser
-        throw new Error(`No default persona found for user ${userId}`);
-      }
-
-      logger.debug(`Using default persona for user ${userId.substring(0, 8)}...`);
-      this.personaCache.set(cacheKey, user.defaultPersonaId);
-      return user.defaultPersonaId;
-    } catch (error) {
-      logger.error(
-        { err: error },
-        `Failed to get persona for user ${userId} with personality ${personalityId}`
-      );
-      throw error;
-    }
-  }
 }

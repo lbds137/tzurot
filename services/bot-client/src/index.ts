@@ -5,6 +5,8 @@ import {
   PersonalityService,
   CacheInvalidationService,
   UserService,
+  PersonaResolver,
+  PersonaCacheInvalidationService,
   disconnectPrisma,
   getPrismaClient,
   getConfig,
@@ -69,8 +71,10 @@ interface Services {
   resultsListener: ResultsListener;
   webhookManager: WebhookManager;
   personalityService: PersonalityService;
+  personaResolver: PersonaResolver;
   cacheRedis: Redis;
   cacheInvalidationService: CacheInvalidationService;
+  personaCacheInvalidationService: PersonaCacheInvalidationService;
 }
 
 /**
@@ -105,12 +109,16 @@ function createServices(): Services {
   const personalityIdCache = new PersonalityIdCache(personalityService); // Optimizes name→ID lookups
   const userService = new UserService(prisma);
 
+  // Persona resolution with proper cache invalidation via Redis pub/sub
+  const personaResolver = new PersonaResolver(prisma, { enableCleanup: true });
+  const personaCacheInvalidationService = new PersonaCacheInvalidationService(cacheRedis);
+
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
-  const contextBuilder = new MessageContextBuilder(prisma);
+  const contextBuilder = new MessageContextBuilder(prisma, personaResolver);
   const persistence = new ConversationPersistence(prisma);
   const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
-  const referenceEnricher = new ReferenceEnrichmentService(userService);
+  const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
   const replyResolver = new ReplyResolutionService(personalityIdCache);
 
   // Personality message handler (used by multiple processors)
@@ -142,8 +150,10 @@ function createServices(): Services {
     resultsListener,
     webhookManager,
     personalityService,
+    personaResolver,
     cacheRedis,
     cacheInvalidationService,
+    personaCacheInvalidationService,
   };
 }
 
@@ -199,6 +209,8 @@ process.on('SIGINT', () => {
   void services.resultsListener.stop();
   services.webhookManager.destroy();
   void services.cacheInvalidationService.unsubscribe();
+  void services.personaCacheInvalidationService.unsubscribe();
+  services.personaResolver.stopCleanup();
   services.cacheRedis.disconnect();
   void closeRedis();
   void client.destroy();
@@ -249,6 +261,19 @@ async function start(): Promise<void> {
     // Subscribe to cache invalidation events
     await services.cacheInvalidationService.subscribe();
     logger.info('[Bot] Subscribed to personality cache invalidation events');
+
+    // Subscribe to persona cache invalidation events
+    // When a user edits their persona, this invalidates the local cache
+    await services.personaCacheInvalidationService.subscribe(event => {
+      if (event.type === 'user') {
+        services.personaResolver.invalidateUserCache(event.discordId);
+        logger.debug({ discordId: event.discordId }, '[Bot] Invalidated persona cache for user');
+      } else if (event.type === 'all') {
+        services.personaResolver.clearCache();
+        logger.debug('[Bot] Invalidated all persona caches');
+      }
+    });
+    logger.info('[Bot] Subscribed to persona cache invalidation events');
 
     // Health check gateway
     logger.info('[Bot] Checking gateway health...');

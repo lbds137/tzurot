@@ -64,3 +64,6 @@ export * from './services/LlmConfigCacheInvalidationService.js';
 export * from './services/PersonaCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
 export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
+
+// Export resolvers (cascading configuration resolution)
+export * from './services/resolvers/index.js';

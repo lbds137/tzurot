@@ -5,7 +5,7 @@
  * Handles attachments, references, environment, and conversation history.
  */
 
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, PersonaResolver } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,
@@ -59,11 +59,16 @@ export class MessageContextBuilder {
   private conversationHistory: ConversationHistoryService;
   private userService: UserService;
   private mentionResolver: MentionResolver;
+  private personaResolver: PersonaResolver;
 
-  constructor(private prisma: PrismaClient) {
+  constructor(
+    private prisma: PrismaClient,
+    personaResolver: PersonaResolver
+  ) {
     this.conversationHistory = new ConversationHistoryService(prisma);
     this.userService = new UserService(prisma);
-    this.mentionResolver = new MentionResolver(prisma);
+    this.mentionResolver = new MentionResolver(prisma, personaResolver);
+    this.personaResolver = personaResolver;
   }
 
   /**
@@ -96,8 +101,10 @@ export class MessageContextBuilder {
     const discordUserId = message.author.id;
 
     // Get persona for this user + personality combination
-    const personaId = await this.userService.getPersonaForUser(internalUserId, personality.id);
-    const personaName = await this.userService.getPersonaName(personaId);
+    // Uses PersonaResolver with proper cache invalidation via Redis pub/sub
+    const personaResult = await this.personaResolver.resolve(discordUserId, personality.id);
+    const personaId = personaResult.config.personaId;
+    const personaName = personaResult.config.preferredName;
 
     // Get user's timezone preference
     const userTimezone = await this.userService.getUserTimezone(internalUserId);

@@ -51,7 +51,9 @@
  * @see PersonaResolver - Switch strategy implementation
  */
 
-import { createLogger, INTERVALS, type PrismaClient } from '@tzurot/common-types';
+import { createLogger } from '../../utils/logger.js';
+import { INTERVALS } from '../../constants/index.js';
+import type { PrismaClient } from '../prisma.js';
 
 const logger = createLogger('BaseConfigResolver');
 
