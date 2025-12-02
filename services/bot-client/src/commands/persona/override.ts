@@ -71,6 +71,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     }
 
     // Get existing override persona values if any
+    // Note: personalityConfigs is filtered by personalityId in the query, so there's at most one
     const existingConfig = user.personalityConfigs[0];
     const existingPersona = existingConfig?.persona;
 
@@ -78,7 +79,9 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     const personalityName = personality.displayName ?? personality.name;
     const modal = new ModalBuilder()
       .setCustomId(`persona-override-${personality.id}`)
-      .setTitle(`Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`);
+      .setTitle(
+        `Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
+      );
 
     const inputFields = buildPersonaInputFields(existingPersona, {
       namePlaceholder: `What should ${personalityName} call you?`,
