@@ -177,7 +177,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       // Persist as default for future lookups (lazy initialization)
       await this.setUserDefault(user.id, firstPersona.id);
 
-      logger.info(
+      logger.debug(
         { discordUserId, personaId: firstPersona.id },
         'Auto-defaulted to first owned persona'
       );
