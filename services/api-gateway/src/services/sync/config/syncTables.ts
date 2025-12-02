@@ -16,7 +16,6 @@ export interface TableSyncConfig {
 export type SyncTableName =
   | 'users'
   | 'personas'
-  | 'user_default_personas'
   | 'system_prompts'
   | 'llm_configs'
   | 'personalities'
@@ -37,7 +36,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'default_llm_config_id'],
+    uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
   },
   personas: {
@@ -46,12 +45,6 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
-  },
-  user_default_personas: {
-    pk: 'user_id',
-    updatedAt: 'updated_at',
-    uuidColumns: ['user_id', 'persona_id'],
-    timestampColumns: ['updated_at'],
   },
   system_prompts: {
     pk: 'id',
