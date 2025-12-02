@@ -76,7 +76,7 @@ export class LlmConfigCacheInvalidationService extends BaseCacheInvalidationServ
       'LlmConfigCacheInvalidationService',
       isValidLlmConfigInvalidationEvent,
       {
-        getLogContext: (event) => {
+        getLogContext: event => {
           if (event.type === 'user') {
             return { discordId: event.discordId };
           }
@@ -85,7 +85,7 @@ export class LlmConfigCacheInvalidationService extends BaseCacheInvalidationServ
           }
           return {};
         },
-        getEventDescription: (event) => {
+        getEventDescription: event => {
           if (event.type === 'all') {
             return 'ALL caches';
           }

@@ -58,7 +58,11 @@ export function buildPersonaInputFields(
     .setMaxLength(255)
     .setRequired(false);
 
-  if (existingData?.preferredName !== null && existingData?.preferredName !== undefined && existingData.preferredName.length > 0) {
+  if (
+    existingData?.preferredName !== null &&
+    existingData?.preferredName !== undefined &&
+    existingData.preferredName.length > 0
+  ) {
     nameInput.setValue(existingData.preferredName);
   }
 
@@ -71,7 +75,11 @@ export function buildPersonaInputFields(
     .setMaxLength(100)
     .setRequired(false);
 
-  if (existingData?.pronouns !== null && existingData?.pronouns !== undefined && existingData.pronouns.length > 0) {
+  if (
+    existingData?.pronouns !== null &&
+    existingData?.pronouns !== undefined &&
+    existingData.pronouns.length > 0
+  ) {
     pronounsInput.setValue(existingData.pronouns);
   }
 
@@ -84,7 +92,11 @@ export function buildPersonaInputFields(
     .setMaxLength(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH)
     .setRequired(false);
 
-  if (existingData?.content !== null && existingData?.content !== undefined && existingData.content.length > 0) {
+  if (
+    existingData?.content !== null &&
+    existingData?.content !== undefined &&
+    existingData.content.length > 0
+  ) {
     // Discord modals have a max length for pre-filled values - truncate if needed
     const truncatedContent =
       existingData.content.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH
