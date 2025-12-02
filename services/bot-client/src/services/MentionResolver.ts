@@ -12,7 +12,7 @@
  * - Returns info for LTM scoping and context
  */
 
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, PersonaResolver } from '@tzurot/common-types';
 import type { Collection, User, Guild, Message } from 'discord.js';
 import {
   UserService,
@@ -88,9 +88,14 @@ export interface FullMentionResolutionResult extends MentionResolutionResult {
  */
 export class MentionResolver {
   private userService: UserService;
+  private personaResolver: PersonaResolver;
 
-  constructor(private prisma: PrismaClient) {
+  constructor(
+    private prisma: PrismaClient,
+    personaResolver: PersonaResolver
+  ) {
     this.userService = new UserService(prisma);
+    this.personaResolver = personaResolver;
   }
 
   /**
@@ -227,8 +232,10 @@ export class MentionResolver {
       );
 
       // Get persona for this user + personality combination
-      const personaId = await this.userService.getPersonaForUser(userId, personalityId);
-      const personaName = await this.userService.getPersonaName(personaId);
+      // Uses PersonaResolver with proper cache invalidation via Redis pub/sub
+      const personaResult = await this.personaResolver.resolve(discordUser.id, personalityId);
+      const personaId = personaResult.config.personaId;
+      const personaName = personaResult.config.preferredName;
 
       return {
         discordId: discordUser.id,
@@ -264,8 +271,10 @@ export class MentionResolver {
       }
 
       // Get their persona for this personality
-      const personaId = await this.userService.getPersonaForUser(user.id, personalityId);
-      const personaName = await this.userService.getPersonaName(personaId);
+      // Uses PersonaResolver with proper cache invalidation via Redis pub/sub
+      const personaResult = await this.personaResolver.resolve(discordId, personalityId);
+      const personaId = personaResult.config.personaId;
+      const personaName = personaResult.config.preferredName;
 
       return {
         discordId,

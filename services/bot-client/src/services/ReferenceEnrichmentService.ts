@@ -6,7 +6,7 @@
  */
 
 import { UserService, createLogger } from '@tzurot/common-types';
-import type { ConversationMessage, ReferencedMessage } from '@tzurot/common-types';
+import type { ConversationMessage, ReferencedMessage, PersonaResolver } from '@tzurot/common-types';
 import { redisService } from '../redis.js';
 
 const logger = createLogger('ReferenceEnrichmentService');
@@ -15,7 +15,10 @@ const logger = createLogger('ReferenceEnrichmentService');
  * Enriches references with persona information
  */
 export class ReferenceEnrichmentService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly personaResolver: PersonaResolver
+  ) {}
 
   /**
    * Enrich referenced messages with persona names
@@ -131,7 +134,12 @@ export class ReferenceEnrichmentService {
       );
 
       // Get the persona for this user when interacting with this personality
-      personaId = await this.userService.getPersonaForUser(userId, personalityId);
+      // Uses PersonaResolver with proper cache invalidation via Redis pub/sub
+      const personaResult = await this.personaResolver.resolve(
+        reference.discordUserId,
+        personalityId
+      );
+      personaId = personaResult.config.personaId;
 
       // Check if this persona appears in conversation history (fast path)
       let personaName = personaNameMap.get(personaId);

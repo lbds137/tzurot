@@ -15,6 +15,16 @@ const VALID_ROLE_ID_2 = '456789012345678901';
 const VALID_USER_ID = '567890123456789012';
 const VALID_USER_ID_2 = '678901234567890123';
 
+// Mock PersonaResolver
+const mockPersonaResolver = {
+  resolve: vi.fn(),
+  resolveForMemory: vi.fn(),
+  getPersonaContentForPrompt: vi.fn(),
+  invalidateUserCache: vi.fn(),
+  clearCache: vi.fn(),
+  stopCleanup: vi.fn(),
+};
+
 // Mock dependencies - use synchronous mock to ensure DISCORD_MENTIONS is available at module load
 vi.mock('@tzurot/common-types', () => ({
   // Constants must be provided synchronously
@@ -30,7 +40,6 @@ vi.mock('@tzurot/common-types', () => ({
   },
   UserService: class {
     getOrCreateUser = vi.fn();
-    getPersonaForUser = vi.fn();
     getPersonaName = vi.fn();
   },
   createLogger: () => ({
@@ -62,14 +71,26 @@ describe('MentionResolver', () => {
       },
     } as unknown as PrismaClient;
 
-    // Create resolver instance
-    resolver = new MentionResolver(mockPrisma);
+    // Create resolver instance with mock PersonaResolver
+    resolver = new MentionResolver(mockPrisma, mockPersonaResolver as any);
 
     // Get service instance to access mocks
     mockUserService = (resolver as any).userService;
 
     // Create mock mentioned users Collection
     mockMentionedUsers = new Map();
+
+    // Default mock for PersonaResolver.resolve
+    mockPersonaResolver.resolve.mockResolvedValue({
+      config: {
+        personaId: 'persona-123',
+        preferredName: 'Test Persona',
+        pronouns: null,
+        content: '',
+        shareLtmAcrossPersonalities: false,
+      },
+      source: 'user-default',
+    });
   });
 
   /**
@@ -100,8 +121,7 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('123456', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+      // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
         'Hey <@123456>, how are you?',
@@ -109,13 +129,13 @@ describe('MentionResolver', () => {
         'personality-123'
       );
 
-      expect(result.processedContent).toBe('Hey @TestPersona, how are you?');
+      expect(result.processedContent).toBe('Hey @Test Persona, how are you?');
       expect(result.mentionedUsers).toHaveLength(1);
       expect(result.mentionedUsers[0]).toEqual({
         discordId: '123456',
         userId: 'user-uuid-123',
-        personaId: 'persona-uuid-123',
-        personaName: 'TestPersona',
+        personaId: 'persona-123',
+        personaName: 'Test Persona',
       });
 
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
@@ -123,8 +143,9 @@ describe('MentionResolver', () => {
         'testuser',
         'Test User'
       );
-      expect(mockUserService.getPersonaForUser).toHaveBeenCalledWith(
-        'user-uuid-123',
+      // PersonaResolver uses Discord ID directly
+      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
+        '123456', // Discord ID
         'personality-123'
       );
     });
@@ -134,8 +155,7 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('123456', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+      // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
         'Hey <@!123456>, how are you?',
@@ -143,7 +163,7 @@ describe('MentionResolver', () => {
         'personality-123'
       );
 
-      expect(result.processedContent).toBe('Hey @TestPersona, how are you?');
+      expect(result.processedContent).toBe('Hey @Test Persona, how are you?');
       expect(result.mentionedUsers).toHaveLength(1);
     });
 
@@ -152,8 +172,7 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('123456', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+      // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
         'Hey <@123456>! I was just talking to <@123456> about you, <@123456>',
@@ -162,7 +181,7 @@ describe('MentionResolver', () => {
       );
 
       expect(result.processedContent).toBe(
-        'Hey @TestPersona! I was just talking to @TestPersona about you, @TestPersona'
+        'Hey @Test Persona! I was just talking to @Test Persona about you, @Test Persona'
       );
       expect(result.mentionedUsers).toHaveLength(1); // Only one entry
 
@@ -179,12 +198,15 @@ describe('MentionResolver', () => {
       vi.mocked(mockUserService.getOrCreateUser)
         .mockResolvedValueOnce('alice-uuid')
         .mockResolvedValueOnce('bob-uuid');
-      vi.mocked(mockUserService.getPersonaForUser)
-        .mockResolvedValueOnce('alice-persona')
-        .mockResolvedValueOnce('bob-persona');
-      vi.mocked(mockUserService.getPersonaName)
-        .mockResolvedValueOnce('AlicePersona')
-        .mockResolvedValueOnce('BobPersona');
+      mockPersonaResolver.resolve
+        .mockResolvedValueOnce({
+          config: { personaId: 'alice-persona', preferredName: 'AlicePersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+          source: 'user-default',
+        })
+        .mockResolvedValueOnce({
+          config: { personaId: 'bob-persona', preferredName: 'BobPersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+          source: 'user-default',
+        });
 
       const result = await resolver.resolveMentions(
         'Hey <@111111> and <@222222>, lets chat!',
@@ -202,8 +224,10 @@ describe('MentionResolver', () => {
       // User not in Discord mentions, but exists in our database
       const mockDbUser = { id: 'db-user-uuid', username: 'existinguser' };
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(mockDbUser as any);
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('db-persona-uuid');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('ExistingPersona');
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: { personaId: 'db-persona-uuid', preferredName: 'ExistingPersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        source: 'user-default',
+      });
 
       const result = await resolver.resolveMentions(
         'Talking about <@999999> who is not online',
@@ -245,8 +269,10 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('123456', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue(null);
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: { personaId: 'persona-uuid-123', preferredName: null, pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        source: 'user-default',
+      });
 
       const result = await resolver.resolveMentions(
         'Hey <@123456>!',
@@ -301,8 +327,10 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('111111', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('alice-persona');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('AlicePersona');
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: { personaId: 'alice-persona', preferredName: 'AlicePersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        source: 'user-default',
+      });
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
 
       const result = await resolver.resolveMentions(
@@ -322,8 +350,10 @@ describe('MentionResolver', () => {
         id: 'db-user-uuid',
         username: 'dbusername',
       } as any);
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue(null);
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: { personaId: 'persona-uuid', preferredName: null, pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        source: 'user-default',
+      });
 
       const result = await resolver.resolveMentions(
         'Hey <@123456>!',
@@ -341,8 +371,7 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('123456', mockUser);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('persona-uuid-123');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('TestPersona');
+      // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
         'Hey <@123456>! I was talking to <@!123456> about you, <@123456>',
@@ -352,11 +381,11 @@ describe('MentionResolver', () => {
 
       // All mention formats should be replaced
       expect(result.processedContent).toBe(
-        'Hey @TestPersona! I was talking to @TestPersona about you, @TestPersona'
+        'Hey @Test Persona! I was talking to @Test Persona about you, @Test Persona'
       );
       // Only one user entry (deduplicated)
       expect(result.mentionedUsers).toHaveLength(1);
-      expect(result.mentionedUsers[0].personaName).toBe('TestPersona');
+      expect(result.mentionedUsers[0].personaName).toBe('Test Persona');
 
       // Service should only be called once (deduplication)
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledTimes(1);
@@ -372,13 +401,16 @@ describe('MentionResolver', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockImplementation(async discordId => {
         return `uuid-${discordId}`;
       });
-      vi.mocked(mockUserService.getPersonaForUser).mockImplementation(async userId => {
-        return `persona-${userId}`;
-      });
-      vi.mocked(mockUserService.getPersonaName).mockImplementation(async personaId => {
-        const match = personaId.match(/persona-uuid-(\d+)/);
-        return match ? `Persona${match[1]}` : 'Unknown';
-      });
+      mockPersonaResolver.resolve.mockImplementation(async (discordId: string) => ({
+        config: {
+          personaId: `persona-${discordId}`,
+          preferredName: `Persona${discordId}`,
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false
+        },
+        source: 'user-default' as const,
+      }));
 
       // Build a message with 15 mentions
       const mentions = Array.from({ length: 15 }, (_, i) => `<@${i + 1}>`).join(' ');
@@ -616,8 +648,10 @@ describe('MentionResolver', () => {
       );
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
-      vi.mocked(mockUserService.getPersonaForUser).mockResolvedValue('alice-persona');
-      vi.mocked(mockUserService.getPersonaName).mockResolvedValue('AlicePersona');
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: { personaId: 'alice-persona', preferredName: 'AlicePersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        source: 'user-default',
+      });
 
       const result = await resolver.resolveAllMentions(
         `Hey <@${VALID_USER_ID}>! Check <#${VALID_CHANNEL_ID}> or ask <@&${VALID_ROLE_ID}>`,
