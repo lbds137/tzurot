@@ -8,14 +8,14 @@ import { buildPersonaModalFields } from './modalBuilder.js';
 
 describe('buildPersonaModalFields', () => {
   describe('default behavior', () => {
-    it('should return 4 action rows by default (with name field)', () => {
+    it('should return 5 action rows by default (with name field)', () => {
       const rows = buildPersonaModalFields();
-      expect(rows).toHaveLength(4);
+      expect(rows).toHaveLength(5);
     });
 
-    it('should return 3 action rows when name field is excluded', () => {
+    it('should return 4 action rows when name field is excluded', () => {
       const rows = buildPersonaModalFields(null, { includeNameField: false });
-      expect(rows).toHaveLength(3);
+      expect(rows).toHaveLength(4);
     });
 
     it('should create fields with correct customIds', () => {
@@ -26,6 +26,7 @@ describe('buildPersonaModalFields', () => {
       const customIds = components.map(c => c.data.custom_id);
 
       expect(customIds).toContain('personaName');
+      expect(customIds).toContain('description');
       expect(customIds).toContain('preferredName');
       expect(customIds).toContain('pronouns');
       expect(customIds).toContain('content');
@@ -72,6 +73,7 @@ describe('buildPersonaModalFields', () => {
     it('should pre-fill all fields from existing data', () => {
       const existingData = {
         name: 'Work Persona',
+        description: 'My work persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I am a professional',
@@ -81,14 +83,16 @@ describe('buildPersonaModalFields', () => {
       const values = rows.map(row => row.components[0].data.value);
 
       expect(values[0]).toBe('Work Persona');
-      expect(values[1]).toBe('Alice');
-      expect(values[2]).toBe('she/her');
-      expect(values[3]).toBe('I am a professional');
+      expect(values[1]).toBe('My work persona');
+      expect(values[2]).toBe('Alice');
+      expect(values[3]).toBe('she/her');
+      expect(values[4]).toBe('I am a professional');
     });
 
     it('should handle null values in existing data', () => {
       const existingData = {
         name: 'My Persona',
+        description: null,
         preferredName: null,
         pronouns: null,
         content: null,
@@ -101,6 +105,7 @@ describe('buildPersonaModalFields', () => {
       expect(values[1]).toBeUndefined();
       expect(values[2]).toBeUndefined();
       expect(values[3]).toBeUndefined();
+      expect(values[4]).toBeUndefined();
     });
 
     it('should truncate long content to modal max length', () => {
@@ -158,7 +163,7 @@ describe('buildPersonaModalFields', () => {
         preferredNameLabel: 'What should Lilith call you?',
       });
 
-      const preferredNameInput = rows[1].components[0];
+      const preferredNameInput = rows[2].components[0];
       expect(preferredNameInput.data.label).toBe('What should Lilith call you?');
     });
 
@@ -167,7 +172,7 @@ describe('buildPersonaModalFields', () => {
         preferredNamePlaceholder: 'Enter your name for Lilith',
       });
 
-      const preferredNameInput = rows[1].components[0];
+      const preferredNameInput = rows[2].components[0];
       expect(preferredNameInput.data.placeholder).toBe('Enter your name for Lilith');
     });
 
@@ -198,7 +203,7 @@ describe('buildPersonaModalFields', () => {
       });
 
       expect(rows[0].components[0].data.placeholder).toBe('Custom name');
-      expect(rows[1].components[0].data.label).toBe('Custom preferred label');
+      expect(rows[2].components[0].data.label).toBe('Custom preferred label');
       expect(rows[rows.length - 1].components[0].data.label).toBe('Custom content label');
       expect(rows[rows.length - 1].components[0].data.placeholder).toBe(
         'Custom content placeholder'
@@ -212,15 +217,16 @@ describe('buildPersonaModalFields', () => {
 
       const customIds = rows.map(row => row.components[0].data.custom_id);
       expect(customIds).not.toContain('personaName');
+      expect(customIds).toContain('description');
       expect(customIds).toContain('preferredName');
       expect(customIds).toContain('pronouns');
       expect(customIds).toContain('content');
     });
 
-    it('should have preferredName as first field when name excluded', () => {
+    it('should have description as first field when name excluded', () => {
       const rows = buildPersonaModalFields(null, { includeNameField: false });
 
-      expect(rows[0].components[0].data.custom_id).toBe('preferredName');
+      expect(rows[0].components[0].data.custom_id).toBe('description');
     });
   });
 });

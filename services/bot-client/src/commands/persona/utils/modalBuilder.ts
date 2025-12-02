@@ -13,6 +13,7 @@ import { DISCORD_LIMITS } from '@tzurot/common-types';
  */
 export interface PersonaModalData {
   name?: string | null;
+  description?: string | null;
   preferredName?: string | null;
   pronouns?: string | null;
   content?: string | null;
@@ -26,6 +27,10 @@ export interface PersonaModalOptions {
   includeNameField?: boolean;
   /** Custom placeholder for persona name */
   namePlaceholder?: string;
+  /** Custom label for description field */
+  descriptionLabel?: string;
+  /** Custom placeholder for description field */
+  descriptionPlaceholder?: string;
   /** Custom placeholder for preferred name */
   preferredNamePlaceholder?: string;
   /** Custom label for preferred name field */
@@ -39,6 +44,8 @@ export interface PersonaModalOptions {
 const DEFAULT_OPTIONS: Required<PersonaModalOptions> = {
   includeNameField: true,
   namePlaceholder: 'A name for this persona (e.g., Default, Work, Creative)',
+  descriptionLabel: 'Description (for your reference)',
+  descriptionPlaceholder: 'A short note to help you remember this persona',
   preferredNamePlaceholder: 'What should AI call you?',
   preferredNameLabel: 'Preferred Name (what AI calls you)',
   contentLabel: 'About You',
@@ -82,6 +89,25 @@ export function buildPersonaModalFields(
 
     rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput));
   }
+
+  // Description input (short note for user's reference)
+  const descriptionInput = new TextInputBuilder()
+    .setCustomId('description')
+    .setLabel(opts.descriptionLabel)
+    .setPlaceholder(opts.descriptionPlaceholder)
+    .setStyle(TextInputStyle.Short)
+    .setMaxLength(255)
+    .setRequired(false);
+
+  if (
+    existingData?.description !== null &&
+    existingData?.description !== undefined &&
+    existingData.description.length > 0
+  ) {
+    descriptionInput.setValue(existingData.description);
+  }
+
+  rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput));
 
   // Preferred Name input
   const preferredNameInput = new TextInputBuilder()
