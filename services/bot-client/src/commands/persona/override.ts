@@ -7,7 +7,7 @@
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
 import { buildPersonaInputFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
@@ -78,7 +78,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     const personalityName = personality.displayName ?? personality.name;
     const modal = new ModalBuilder()
       .setCustomId(`persona-override-${personality.id}`)
-      .setTitle(`Persona for ${personalityName.substring(0, 30)}`);
+      .setTitle(`Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`);
 
     const inputFields = buildPersonaInputFields(existingPersona, {
       namePlaceholder: `What should ${personalityName} call you?`,
