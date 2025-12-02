@@ -44,6 +44,10 @@ export const DISCORD_LIMITS = {
   AUTOCOMPLETE_MAX_CHOICES: 25,
   /** Maximum length for modal text input (paragraph style) */
   MODAL_INPUT_MAX_LENGTH: 4000,
+  /** Discord modal title character limit */
+  MODAL_TITLE_MAX_LENGTH: 45,
+  /** Safe length for dynamic content in modal title (accounting for prefix like "Persona for ") */
+  MODAL_TITLE_DYNAMIC_CONTENT: 30,
 } as const;
 
 /**
