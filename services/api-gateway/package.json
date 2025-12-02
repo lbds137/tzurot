@@ -21,7 +21,7 @@
     "@prisma/adapter-pg": "^7.0.0",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.64.1",
-    "express": "^5.1.0",
+    "express": "^5.2.0",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.8.2",
     "pg": "^8.16.3",
