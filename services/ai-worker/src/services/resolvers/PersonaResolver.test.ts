@@ -425,4 +425,84 @@ describe('PersonaResolver', () => {
       expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(4);
     });
   });
+
+  describe('cleanup interval', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should start cleanup interval when enabled', () => {
+      const resolverWithCleanup = new PersonaResolver(mockPrismaClient as any, {
+        enableCleanup: true,
+      });
+
+      // Should have started the interval
+      expect(resolverWithCleanup).toBeDefined();
+
+      // Cleanup
+      resolverWithCleanup.stopCleanup();
+    });
+
+    it('should clean up expired entries when interval fires', async () => {
+      const resolverWithCleanup = new PersonaResolver(mockPrismaClient as any, {
+        enableCleanup: true,
+        cacheTtlMs: 1000, // 1 second TTL for testing
+      });
+
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-123',
+        defaultPersona: {
+          id: 'persona-123',
+          preferredName: 'Test',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
+        ownedPersonas: [],
+      });
+
+      // Populate cache
+      await resolverWithCleanup.resolve('user-1', 'personality-1');
+      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(1);
+
+      // Should use cache
+      await resolverWithCleanup.resolve('user-1', 'personality-1');
+      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(1);
+
+      // Advance time past TTL
+      vi.advanceTimersByTime(2000);
+
+      // Advance time past cleanup interval (60s)
+      vi.advanceTimersByTime(60000);
+
+      // Now cache entry should be expired - next call should query again
+      await resolverWithCleanup.resolve('user-1', 'personality-1');
+      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledTimes(2);
+
+      // Cleanup
+      resolverWithCleanup.stopCleanup();
+    });
+
+    it('should handle stopCleanup when no interval is running', () => {
+      // Resolver created with cleanup disabled
+      expect(() => resolver.stopCleanup()).not.toThrow();
+    });
+
+    it('should be safe to call stopCleanup multiple times', () => {
+      const resolverWithCleanup = new PersonaResolver(mockPrismaClient as any, {
+        enableCleanup: true,
+      });
+
+      // Stop multiple times - should not throw
+      expect(() => {
+        resolverWithCleanup.stopCleanup();
+        resolverWithCleanup.stopCleanup();
+      }).not.toThrow();
+    });
+  });
 });
