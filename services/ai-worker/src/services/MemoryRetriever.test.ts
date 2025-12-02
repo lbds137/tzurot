@@ -1,5 +1,8 @@
 /**
  * Tests for Memory Retriever
+ *
+ * Note: MemoryRetriever now delegates persona resolution to PersonaResolver.
+ * These tests mock PersonaResolver to test MemoryRetriever's own logic.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -7,19 +10,16 @@ import { MemoryRetriever } from './MemoryRetriever.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGService.js';
+import type { PersonaResolver } from './resolvers/PersonaResolver.js';
 
-// Mock getPrismaClient
-const mockPrismaClient = {
-  persona: {
-    findUnique: vi.fn(),
-  },
-  userPersonalityConfig: {
-    findFirst: vi.fn(),
-  },
-  user: {
-    findUnique: vi.fn(),
-  },
+// Mock PersonaResolver
+const mockPersonaResolver = {
+  resolveForMemory: vi.fn(),
+  getPersonaContentForPrompt: vi.fn(),
 };
+
+// Mock getPrismaClient (still needed for PersonaResolver's default construction)
+const mockPrismaClient = {};
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -28,6 +28,11 @@ vi.mock('@tzurot/common-types', async () => {
     getPrismaClient: vi.fn(() => mockPrismaClient),
   };
 });
+
+// Mock PersonaResolver constructor
+vi.mock('./resolvers/index.js', () => ({
+  PersonaResolver: vi.fn().mockImplementation(() => mockPersonaResolver),
+}));
 
 describe('MemoryRetriever', () => {
   let retriever: MemoryRetriever;
@@ -56,199 +61,69 @@ describe('MemoryRetriever', () => {
     conversationalExamples: undefined,
   };
 
+  const baseContext: ConversationContext = {
+    userId: 'discord-user-123',
+  };
+
   beforeEach(() => {
     mockMemoryManager = {
       queryMemories: vi.fn().mockResolvedValue([]),
+      queryMemoriesWithChannelScoping: vi.fn().mockResolvedValue([]),
       addMemory: vi.fn().mockResolvedValue(undefined),
     } as any;
 
-    retriever = new MemoryRetriever(mockMemoryManager);
+    // Inject mock PersonaResolver via constructor
+    retriever = new MemoryRetriever(
+      mockMemoryManager,
+      mockPersonaResolver as unknown as PersonaResolver
+    );
     vi.clearAllMocks();
   });
 
-  describe('getUserPersonaForPersonality', () => {
-    // Note: The function receives Discord ID (snowflake) and must first look up
-    // the internal user UUID before querying userPersonalityConfig
+  describe('resolvePersonaForMemory', () => {
+    // Tests that delegation to PersonaResolver works correctly
 
-    it('should return personality-specific persona override if exists', async () => {
-      // First lookup returns user with internal UUID
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'internal-uuid-123',
-        defaultPersonaLink: null,
-      });
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue({
-        personaId: 'override-persona-123',
-      });
-      // Mock persona settings lookup
-      mockPrismaClient.persona.findUnique.mockResolvedValue({
+    it('should delegate to PersonaResolver.resolveForMemory', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
       });
 
-      const result = await retriever.getUserPersonaForPersonality(
-        'discord-id-123',
+      const result = await retriever.resolvePersonaForMemory('discord-123', 'personality-123');
+
+      expect(mockPersonaResolver.resolveForMemory).toHaveBeenCalledWith(
+        'discord-123',
         'personality-123'
       );
-
       expect(result).toEqual({
-        personaId: 'override-persona-123',
-        shareLtmAcrossPersonalities: false,
-      });
-      // Verify user lookup by Discord ID
-      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith({
-        where: { discordId: 'discord-id-123' },
-        select: {
-          id: true,
-          defaultPersonaLink: {
-            select: { personaId: true },
-          },
-        },
-      });
-      // Verify config lookup uses internal UUID, not Discord ID
-      expect(mockPrismaClient.userPersonalityConfig.findFirst).toHaveBeenCalledWith({
-        where: {
-          userId: 'internal-uuid-123', // Internal UUID, not Discord ID
-          personalityId: 'personality-123',
-          personaId: { not: null },
-        },
-        select: { personaId: true },
-      });
-    });
-
-    it('should fall back to default persona if no override exists', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'internal-uuid-123',
-        defaultPersonaLink: {
-          personaId: 'default-persona-456',
-        },
-      });
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      // Mock persona settings lookup
-      mockPrismaClient.persona.findUnique.mockResolvedValue({
-        shareLtmAcrossPersonalities: false,
-      });
-
-      const result = await retriever.getUserPersonaForPersonality(
-        'discord-id-123',
-        'personality-123'
-      );
-
-      expect(result).toEqual({
-        personaId: 'default-persona-456',
+        personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
       });
     });
 
-    it('should return shareLtmAcrossPersonalities true when enabled on persona', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'internal-uuid-123',
-        defaultPersonaLink: {
-          personaId: 'default-persona-456',
-        },
-      });
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      // Mock persona with sharing enabled
-      mockPrismaClient.persona.findUnique.mockResolvedValue({
-        shareLtmAcrossPersonalities: true,
-      });
+    it('should return null when PersonaResolver returns null', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue(null);
 
-      const result = await retriever.getUserPersonaForPersonality(
-        'discord-id-123',
-        'personality-123'
-      );
-
-      expect(result).toEqual({
-        personaId: 'default-persona-456',
-        shareLtmAcrossPersonalities: true,
-      });
-    });
-
-    it('should return null if user not found by Discord ID', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue(null);
-
-      const result = await retriever.getUserPersonaForPersonality(
-        'unknown-discord-id',
-        'personality-123'
-      );
-
-      expect(result).toBeNull();
-      // Should not attempt to query userPersonalityConfig if user not found
-      expect(mockPrismaClient.userPersonalityConfig.findFirst).not.toHaveBeenCalled();
-    });
-
-    it('should return null if no persona found', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'internal-uuid-123',
-        defaultPersonaLink: null,
-      });
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-
-      const result = await retriever.getUserPersonaForPersonality(
-        'discord-id-123',
-        'personality-123'
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null on database error', async () => {
-      mockPrismaClient.user.findUnique.mockRejectedValue(new Error('Database connection failed'));
-
-      const result = await retriever.getUserPersonaForPersonality(
-        'discord-id-123',
-        'personality-123'
-      );
+      const result = await retriever.resolvePersonaForMemory('discord-123', 'personality-123');
 
       expect(result).toBeNull();
     });
   });
 
   describe('getPersonaContent', () => {
-    it('should return formatted persona content with all fields', async () => {
-      mockPrismaClient.persona.findUnique.mockResolvedValue({
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'A friendly person who loves coding',
-      });
+    it('should delegate to PersonaResolver.getPersonaContentForPrompt', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValue(
+        'Name: Alice\nPronouns: she/her\nA friendly person who loves coding'
+      );
 
       const result = await retriever.getPersonaContent('persona-123');
 
+      expect(mockPersonaResolver.getPersonaContentForPrompt).toHaveBeenCalledWith('persona-123');
       expect(result).toBe('Name: Alice\nPronouns: she/her\nA friendly person who loves coding');
     });
 
-    it('should return content without optional fields', async () => {
-      mockPrismaClient.persona.findUnique.mockResolvedValue({
-        preferredName: null,
-        pronouns: null,
-        content: 'Just a person',
-      });
-
-      const result = await retriever.getPersonaContent('persona-123');
-
-      expect(result).toBe('Just a person');
-    });
-
-    it('should return null if persona not found', async () => {
-      mockPrismaClient.persona.findUnique.mockResolvedValue(null);
-
-      const result = await retriever.getPersonaContent('persona-123');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null if all fields are empty', async () => {
-      mockPrismaClient.persona.findUnique.mockResolvedValue({
-        preferredName: null,
-        pronouns: null,
-        content: null,
-      });
-
-      const result = await retriever.getPersonaContent('persona-123');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null on database error', async () => {
-      mockPrismaClient.persona.findUnique.mockRejectedValue(new Error('DB error'));
+    it('should return null when PersonaResolver returns null', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValue(null);
 
       const result = await retriever.getPersonaContent('persona-123');
 
@@ -268,93 +143,64 @@ describe('MemoryRetriever', () => {
       expect(result.size).toBe(0);
     });
 
-    it('should fetch content for all participants', async () => {
-      mockPrismaClient.persona.findUnique
-        .mockResolvedValueOnce({
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'Person 1',
-        })
-        .mockResolvedValueOnce({
-          preferredName: 'Bob',
-          pronouns: 'he/him',
-          content: 'Person 2',
-        });
+    it('should return empty map if participants is undefined', async () => {
+      const context: ConversationContext = {
+        userId: 'user-123',
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context);
+
+      expect(result.size).toBe(0);
+    });
+
+    it('should fetch content for each participant', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt
+        .mockResolvedValueOnce('Persona 1 content')
+        .mockResolvedValueOnce('Persona 2 content');
 
       const context: ConversationContext = {
         userId: 'user-123',
         participants: [
-          {
-            personaId: 'persona-1',
-            personaName: 'Alice',
-            isActive: true,
-          },
-          {
-            personaId: 'persona-2',
-            personaName: 'Bob',
-            isActive: false,
-          },
+          { personaId: 'persona-1', personaName: 'User One', isActive: true },
+          { personaId: 'persona-2', personaName: 'User Two', isActive: false },
         ],
       };
 
       const result = await retriever.getAllParticipantPersonas(context);
 
       expect(result.size).toBe(2);
-      expect(result.get('Alice')).toEqual({
-        content: 'Name: Alice\nPronouns: she/her\nPerson 1',
-        isActive: true,
-      });
-      expect(result.get('Bob')).toEqual({
-        content: 'Name: Bob\nPronouns: he/him\nPerson 2',
-        isActive: false,
-      });
+      expect(result.get('User One')).toEqual({ content: 'Persona 1 content', isActive: true });
+      expect(result.get('User Two')).toEqual({ content: 'Persona 2 content', isActive: false });
     });
 
     it('should skip participants with no content', async () => {
-      mockPrismaClient.persona.findUnique
-        .mockResolvedValueOnce({
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'Person 1',
-        })
-        .mockResolvedValueOnce(null); // No content for second persona
+      mockPersonaResolver.getPersonaContentForPrompt
+        .mockResolvedValueOnce('Has content')
+        .mockResolvedValueOnce(null);
 
       const context: ConversationContext = {
         userId: 'user-123',
         participants: [
-          {
-            personaId: 'persona-1',
-            personaName: 'Alice',
-            isActive: true,
-          },
-          {
-            personaId: 'persona-2',
-            personaName: 'Bob',
-            isActive: false,
-          },
+          { personaId: 'persona-1', personaName: 'Has Content', isActive: true },
+          { personaId: 'persona-2', personaName: 'No Content', isActive: false },
         ],
       };
 
       const result = await retriever.getAllParticipantPersonas(context);
 
       expect(result.size).toBe(1);
-      expect(result.has('Alice')).toBe(true);
-      expect(result.has('Bob')).toBe(false);
+      expect(result.get('Has Content')).toEqual({ content: 'Has content', isActive: true });
+      expect(result.has('No Content')).toBe(false);
     });
   });
 
   describe('retrieveRelevantMemories', () => {
     const context: ConversationContext = {
-      userId: 'user-123',
-      channelId: 'channel-456',
+      userId: 'discord-user-123',
     };
 
-    it('should return empty array if no persona found', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
-        defaultPersonaLink: null,
-      });
+    it('should return empty array if persona not found', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue(null);
 
       const result = await retriever.retrieveRelevantMemories(
         mockPersonality,
@@ -367,14 +213,14 @@ describe('MemoryRetriever', () => {
     });
 
     it('should return empty array if memory manager not available', async () => {
-      const retrieverWithoutMemory = new MemoryRetriever(undefined);
+      const retrieverWithoutMemory = new MemoryRetriever(
+        undefined,
+        mockPersonaResolver as unknown as PersonaResolver
+      );
 
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
-        defaultPersonaLink: {
-          personaId: 'persona-123',
-        },
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
       });
 
       const result = await retrieverWithoutMemory.retrieveRelevantMemories(
@@ -387,12 +233,9 @@ describe('MemoryRetriever', () => {
     });
 
     it('should query memories with correct parameters', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
-        defaultPersonaLink: {
-          personaId: 'persona-123',
-        },
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
       });
 
       const mockMemories = [
@@ -434,12 +277,9 @@ describe('MemoryRetriever', () => {
     });
 
     it('should apply STM/LTM deduplication buffer', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
-        defaultPersonaLink: {
-          personaId: 'persona-123',
-        },
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
       });
 
       const oldestTimestamp = Date.now() - 3600000; // 1 hour ago
@@ -461,12 +301,9 @@ describe('MemoryRetriever', () => {
     });
 
     it('should use session context if provided', async () => {
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-123',
-        defaultPersonaLink: {
-          personaId: 'persona-123',
-        },
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
       });
 
       const contextWithSession: ConversationContext = {
@@ -482,6 +319,48 @@ describe('MemoryRetriever', () => {
           sessionId: 'session-789',
         })
       );
+    });
+
+    it('should exclude personalityId when shareLtmAcrossPersonalities is true', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: true,
+      });
+
+      await retriever.retrieveRelevantMemories(mockPersonality, 'test', context);
+
+      expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          personaId: 'persona-123',
+          personalityId: undefined, // Not filtered by personality when sharing
+        })
+      );
+    });
+
+    it('should use channel-scoped retrieval when channels are referenced', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const contextWithChannels: ConversationContext = {
+        ...context,
+        referencedChannels: [
+          { channelId: 'channel-1', channelName: '#general' },
+          { channelId: 'channel-2', channelName: '#random' },
+        ],
+      };
+
+      await retriever.retrieveRelevantMemories(mockPersonality, 'test', contextWithChannels);
+
+      expect(mockMemoryManager.queryMemoriesWithChannelScoping).toHaveBeenCalledWith(
+        'test',
+        expect.objectContaining({
+          channelIds: ['channel-1', 'channel-2'],
+        })
+      );
+      expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
   });
 });

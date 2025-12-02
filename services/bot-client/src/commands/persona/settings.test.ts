@@ -64,7 +64,8 @@ describe('handleShareLtmSetting', () => {
   it('should show error when user has no persona', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: null,
+      defaultPersonaId: null,
+      defaultPersona: null,
     });
 
     await handleShareLtmSetting(createMockInteraction('enable'));
@@ -78,11 +79,9 @@ describe('handleShareLtmSetting', () => {
   it('should show info message when already in desired state (enable)', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: {
-        personaId: 'persona-123',
-        persona: {
-          shareLtmAcrossPersonalities: true,
-        },
+      defaultPersonaId: 'persona-123',
+      defaultPersona: {
+        shareLtmAcrossPersonalities: true,
       },
     });
 
@@ -98,11 +97,9 @@ describe('handleShareLtmSetting', () => {
   it('should show info message when already in desired state (disable)', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: {
-        personaId: 'persona-123',
-        persona: {
-          shareLtmAcrossPersonalities: false,
-        },
+      defaultPersonaId: 'persona-123',
+      defaultPersona: {
+        shareLtmAcrossPersonalities: false,
       },
     });
 
@@ -118,11 +115,9 @@ describe('handleShareLtmSetting', () => {
   it('should enable LTM sharing', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: {
-        personaId: 'persona-123',
-        persona: {
-          shareLtmAcrossPersonalities: false,
-        },
+      defaultPersonaId: 'persona-123',
+      defaultPersona: {
+        shareLtmAcrossPersonalities: false,
       },
     });
     mockPrismaClient.persona.update.mockResolvedValue({});
@@ -145,11 +140,9 @@ describe('handleShareLtmSetting', () => {
   it('should disable LTM sharing', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: {
-        personaId: 'persona-123',
-        persona: {
-          shareLtmAcrossPersonalities: true,
-        },
+      defaultPersonaId: 'persona-123',
+      defaultPersona: {
+        shareLtmAcrossPersonalities: true,
       },
     });
     mockPrismaClient.persona.update.mockResolvedValue({});

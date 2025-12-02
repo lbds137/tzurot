@@ -20,12 +20,9 @@ describe('UserService', () => {
     user: {
       findUnique: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
     persona: {
-      findUnique: ReturnType<typeof vi.fn>;
-      create: ReturnType<typeof vi.fn>;
-    };
-    userDefaultPersona: {
       findUnique: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
     };
@@ -40,12 +37,9 @@ describe('UserService', () => {
       user: {
         findUnique: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
       },
       persona: {
-        findUnique: vi.fn(),
-        create: vi.fn(),
-      },
-      userDefaultPersona: {
         findUnique: vi.fn(),
         create: vi.fn(),
       },
@@ -97,12 +91,10 @@ describe('UserService', () => {
           const mockTx = {
             user: {
               create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
             },
             persona: {
               create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-            userDefaultPersona: {
-              create: vi.fn().mockResolvedValue({}),
             },
           };
           await callback(mockTx);
@@ -136,12 +128,10 @@ describe('UserService', () => {
                 capturedUserData = data;
                 return Promise.resolve({ id: 'test-user-uuid' });
               }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
             },
             persona: {
               create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-            userDefaultPersona: {
-              create: vi.fn().mockResolvedValue({}),
             },
           };
           await callback(mockTx);
@@ -173,12 +163,10 @@ describe('UserService', () => {
                 capturedUserData = data;
                 return Promise.resolve({ id: 'test-user-uuid' });
               }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
             },
             persona: {
               create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-            userDefaultPersona: {
-              create: vi.fn().mockResolvedValue({}),
             },
           };
           await callback(mockTx);

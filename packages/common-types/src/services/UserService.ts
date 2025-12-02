@@ -130,24 +130,21 @@ export class UserService {
               throw personaError;
             }
 
-            // Link persona as user's default
-            logger.debug({ userId, personaId }, '[UserService] Creating userDefaultPersona link');
+            // Set persona as user's default
+            logger.debug({ userId, personaId }, '[UserService] Setting user defaultPersonaId');
             try {
-              await tx.userDefaultPersona.create({
-                data: {
-                  userId: userId,
-                  personaId: personaId,
-                  updatedAt: new Date(),
-                },
+              await tx.user.update({
+                where: { id: userId },
+                data: { defaultPersonaId: personaId },
               });
               logger.debug(
                 { userId, personaId },
-                '[UserService] UserDefaultPersona link created successfully'
+                '[UserService] User defaultPersonaId set successfully'
               );
             } catch (linkError) {
               logger.error(
                 { err: linkError, userId, personaId },
-                '[UserService] FAILED to create userDefaultPersona link'
+                '[UserService] FAILED to set user defaultPersonaId'
               );
               throw linkError;
             }
@@ -269,27 +266,23 @@ export class UserService {
       }
 
       // 2. Fall back to user's default persona
-      const defaultPersona = await this.prisma.userDefaultPersona.findUnique({
-        where: {
-          userId,
-        },
-        select: {
-          personaId: true,
-        },
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { defaultPersonaId: true },
       });
 
       if (
-        defaultPersona?.personaId === null ||
-        defaultPersona?.personaId === undefined ||
-        defaultPersona?.personaId.length === 0
+        user?.defaultPersonaId === null ||
+        user?.defaultPersonaId === undefined ||
+        user?.defaultPersonaId.length === 0
       ) {
         // This should never happen since we create default personas in getOrCreateUser
         throw new Error(`No default persona found for user ${userId}`);
       }
 
       logger.debug(`Using default persona for user ${userId.substring(0, 8)}...`);
-      this.personaCache.set(cacheKey, defaultPersona.personaId);
-      return defaultPersona.personaId;
+      this.personaCache.set(cacheKey, user.defaultPersonaId);
+      return user.defaultPersonaId;
     } catch (error) {
       logger.error(
         { err: error },

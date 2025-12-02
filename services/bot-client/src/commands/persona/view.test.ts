@@ -55,7 +55,7 @@ describe('handleViewPersona', () => {
   it('should show error when user has no persona', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: null,
+      defaultPersona: null,
     });
 
     await handleViewPersona(createMockInteraction());
@@ -69,16 +69,14 @@ describe('handleViewPersona', () => {
   it('should display persona with all fields', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: {
-        persona: {
-          id: 'persona-123',
-          name: 'Test Persona',
-          preferredName: 'TestUser',
-          pronouns: 'they/them',
-          content: 'I am a test user who loves programming',
-          description: 'Test description',
-          shareLtmAcrossPersonalities: false,
-        },
+      defaultPersona: {
+        id: 'persona-123',
+        name: 'Test Persona',
+        preferredName: 'TestUser',
+        pronouns: 'they/them',
+        content: 'I am a test user who loves programming',
+        description: 'Test description',
+        shareLtmAcrossPersonalities: false,
       },
     });
 
@@ -99,16 +97,14 @@ describe('handleViewPersona', () => {
   it('should show LTM sharing enabled when flag is true', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      defaultPersonaLink: {
-        persona: {
-          id: 'persona-123',
-          name: 'Test Persona',
-          preferredName: null,
-          pronouns: null,
-          content: '',
-          description: null,
-          shareLtmAcrossPersonalities: true,
-        },
+      defaultPersona: {
+        id: 'persona-123',
+        name: 'Test Persona',
+        preferredName: null,
+        pronouns: null,
+        content: '',
+        description: null,
+        shareLtmAcrossPersonalities: true,
       },
     });
 
