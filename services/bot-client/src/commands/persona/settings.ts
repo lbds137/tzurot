@@ -7,6 +7,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import { personaCacheInvalidationService } from '../../redis.js';
 
 const logger = createLogger('persona-settings');
 
@@ -93,6 +94,9 @@ export async function handleShareLtmSetting(
       { userId: discordId, personaId, enabled },
       '[Persona] Updated shareLtmAcrossPersonalities setting'
     );
+
+    // Broadcast cache invalidation to all ai-worker instances
+    await personaCacheInvalidationService.invalidateUserPersona(discordId);
   } catch (error) {
     logger.error(
       { err: error, userId: discordId },

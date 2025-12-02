@@ -448,7 +448,7 @@ this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
 
 **Current Known Scaling Blockers** (tracked for future migration):
 
-- `LlmConfigResolver.ts` - cache cleanup interval
+- `BaseConfigResolver.ts` - cache cleanup interval (used by LlmConfigResolver and PersonaResolver)
 - `WebhookManager.ts` - webhook cleanup interval
 - `DatabaseNotificationListener.ts` - reconnection timeout
 

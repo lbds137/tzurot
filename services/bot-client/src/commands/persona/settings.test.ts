@@ -30,6 +30,14 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+// Mock redis module to provide personaCacheInvalidationService
+vi.mock('../../redis.js', () => ({
+  personaCacheInvalidationService: {
+    invalidateUserPersona: vi.fn().mockResolvedValue(undefined),
+    invalidateAll: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 describe('handleShareLtmSetting', () => {
   const mockReply = vi.fn();
 
