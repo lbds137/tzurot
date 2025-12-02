@@ -16,6 +16,7 @@ import {
   parseRedisUrl,
   createBullMQRedisConfig,
   VoiceTranscriptCache,
+  PersonaCacheInvalidationService,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 
@@ -86,6 +87,10 @@ export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
+
+// Export singleton PersonaCacheInvalidationService instance
+// Used by persona commands to broadcast cache invalidation events to ai-worker instances
+export const personaCacheInvalidationService = new PersonaCacheInvalidationService(redis);
 
 // Export close function for graceful shutdown
 export async function closeRedis(): Promise<void> {

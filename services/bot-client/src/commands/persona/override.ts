@@ -5,15 +5,11 @@
  * This enables per-personality customization while keeping a default persona.
  */
 
-import {
-  MessageFlags,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-} from 'discord.js';
+import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import { buildPersonaInputFields } from './utils/modalBuilder.js';
+import { personaCacheInvalidationService } from '../../redis.js';
 
 const logger = createLogger('persona-override');
 
@@ -78,61 +74,18 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     const existingConfig = user.personalityConfigs[0];
     const existingPersona = existingConfig?.persona;
 
-    // Build the modal
+    // Build the modal with personality-specific labels
     const personalityName = personality.displayName ?? personality.name;
     const modal = new ModalBuilder()
       .setCustomId(`persona-override-${personality.id}`)
       .setTitle(`Persona for ${personalityName.substring(0, 30)}`);
 
-    // Preferred Name input
-    const nameInput = new TextInputBuilder()
-      .setCustomId('preferredName')
-      .setLabel('Preferred Name')
-      .setPlaceholder(`What should ${personalityName} call you?`)
-      .setStyle(TextInputStyle.Short)
-      .setMaxLength(255)
-      .setRequired(false);
-
-    if (existingPersona?.preferredName !== null && existingPersona?.preferredName !== undefined) {
-      nameInput.setValue(existingPersona.preferredName);
-    }
-
-    // Pronouns input
-    const pronounsInput = new TextInputBuilder()
-      .setCustomId('pronouns')
-      .setLabel('Pronouns')
-      .setPlaceholder('e.g., she/her, he/him, they/them')
-      .setStyle(TextInputStyle.Short)
-      .setMaxLength(100)
-      .setRequired(false);
-
-    if (existingPersona?.pronouns !== null && existingPersona?.pronouns !== undefined) {
-      pronounsInput.setValue(existingPersona.pronouns);
-    }
-
-    // Content input
-    const contentInput = new TextInputBuilder()
-      .setCustomId('content')
-      .setLabel(`About You (for ${personalityName})`)
-      .setPlaceholder(`Tell ${personalityName} specific things about yourself...`)
-      .setStyle(TextInputStyle.Paragraph)
-      .setMaxLength(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH)
-      .setRequired(false);
-
-    if (existingPersona?.content !== null && existingPersona?.content !== undefined) {
-      const truncatedContent =
-        existingPersona.content.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH
-          ? existingPersona.content.substring(0, DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH)
-          : existingPersona.content;
-      contentInput.setValue(truncatedContent);
-    }
-
-    // Add inputs to action rows
-    const nameRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput);
-    const pronounsRow = new ActionRowBuilder<TextInputBuilder>().addComponents(pronounsInput);
-    const contentRow = new ActionRowBuilder<TextInputBuilder>().addComponents(contentInput);
-
-    modal.addComponents(nameRow, pronounsRow, contentRow);
+    const inputFields = buildPersonaInputFields(existingPersona, {
+      namePlaceholder: `What should ${personalityName} call you?`,
+      contentLabel: `About You (for ${personalityName})`,
+      contentPlaceholder: `Tell ${personalityName} specific things about yourself...`,
+    });
+    modal.addComponents(...inputFields);
 
     await interaction.showModal(modal);
     logger.info(
@@ -212,6 +165,9 @@ export async function handleOverrideModalSubmit(
         { userId: discordId, personalityId, personaId: existingConfig.personaId },
         '[Persona] Updated override persona'
       );
+
+      // Broadcast cache invalidation to all ai-worker instances
+      await personaCacheInvalidationService.invalidateUserPersona(discordId);
     } else {
       // Create new override persona and link it
       const newPersona = await prisma.persona.create({
@@ -245,6 +201,9 @@ export async function handleOverrideModalSubmit(
         { userId: discordId, personalityId, personaId: newPersona.id },
         '[Persona] Created new override persona'
       );
+
+      // Broadcast cache invalidation to all ai-worker instances
+      await personaCacheInvalidationService.invalidateUserPersona(discordId);
     }
 
     await interaction.reply({
@@ -351,6 +310,9 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
       { userId: discordId, personalityId: personality.id },
       '[Persona] Cleared persona override'
     );
+
+    // Broadcast cache invalidation to all ai-worker instances
+    await personaCacheInvalidationService.invalidateUserPersona(discordId);
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Persona] Failed to clear override');
     await interaction.reply({

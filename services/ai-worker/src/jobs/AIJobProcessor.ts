@@ -11,6 +11,7 @@ import { ConversationalRAGService } from '../services/ConversationalRAGService.j
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import { LlmConfigResolver } from '../services/LlmConfigResolver.js';
+import { PersonaResolver } from '../services/resolvers/index.js';
 import {
   createLogger,
   type LoadedPersonality,
@@ -151,10 +152,12 @@ export class AIJobProcessor {
     memoryManager?: PgvectorMemoryAdapter,
     ragService?: ConversationalRAGService,
     apiKeyResolver?: ApiKeyResolver,
-    configResolver?: LlmConfigResolver
+    configResolver?: LlmConfigResolver,
+    personaResolver?: PersonaResolver
   ) {
     // Use provided RAGService (for testing) or create new one (for production)
-    this.ragService = ragService ?? new ConversationalRAGService(memoryManager);
+    // Note: PersonaResolver is passed through to MemoryRetriever for persona-based memory retrieval
+    this.ragService = ragService ?? new ConversationalRAGService(memoryManager, personaResolver);
 
     // Use provided ApiKeyResolver (for testing) or create new one (for production)
     // ApiKeyResolver handles BYOK - looking up and decrypting user API keys
