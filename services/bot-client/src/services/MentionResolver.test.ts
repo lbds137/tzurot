@@ -200,11 +200,23 @@ describe('MentionResolver', () => {
         .mockResolvedValueOnce('bob-uuid');
       mockPersonaResolver.resolve
         .mockResolvedValueOnce({
-          config: { personaId: 'alice-persona', preferredName: 'AlicePersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+          config: {
+            personaId: 'alice-persona',
+            preferredName: 'AlicePersona',
+            pronouns: null,
+            content: '',
+            shareLtmAcrossPersonalities: false,
+          },
           source: 'user-default',
         })
         .mockResolvedValueOnce({
-          config: { personaId: 'bob-persona', preferredName: 'BobPersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+          config: {
+            personaId: 'bob-persona',
+            preferredName: 'BobPersona',
+            pronouns: null,
+            content: '',
+            shareLtmAcrossPersonalities: false,
+          },
           source: 'user-default',
         });
 
@@ -225,7 +237,13 @@ describe('MentionResolver', () => {
       const mockDbUser = { id: 'db-user-uuid', username: 'existinguser' };
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(mockDbUser as any);
       mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'db-persona-uuid', preferredName: 'ExistingPersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        config: {
+          personaId: 'db-persona-uuid',
+          preferredName: 'ExistingPersona',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
         source: 'user-default',
       });
 
@@ -270,7 +288,13 @@ describe('MentionResolver', () => {
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'persona-uuid-123', preferredName: null, pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        config: {
+          personaId: 'persona-uuid-123',
+          preferredName: null,
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
         source: 'user-default',
       });
 
@@ -328,7 +352,13 @@ describe('MentionResolver', () => {
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
       mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'alice-persona', preferredName: 'AlicePersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        config: {
+          personaId: 'alice-persona',
+          preferredName: 'AlicePersona',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
         source: 'user-default',
       });
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
@@ -351,7 +381,13 @@ describe('MentionResolver', () => {
         username: 'dbusername',
       } as any);
       mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'persona-uuid', preferredName: null, pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        config: {
+          personaId: 'persona-uuid',
+          preferredName: null,
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
         source: 'user-default',
       });
 
@@ -407,7 +443,7 @@ describe('MentionResolver', () => {
           preferredName: `Persona${discordId}`,
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false
+          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default' as const,
       }));
@@ -649,7 +685,13 @@ describe('MentionResolver', () => {
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
       mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'alice-persona', preferredName: 'AlicePersona', pronouns: null, content: '', shareLtmAcrossPersonalities: false },
+        config: {
+          personaId: 'alice-persona',
+          preferredName: 'AlicePersona',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
         source: 'user-default',
       });
 
