@@ -77,6 +77,11 @@
     "overridesComments": {
       "body-parser": "CVE-2025-13466: DoS when url encoding is used (affects <2.2.1)",
       "tmp": "CVE-2025-54798: Arbitrary file write via symbolic link dir parameter (affects <0.2.4)"
-    }
+    },
+    "publicHoistPattern": [
+      "*debug*",
+      "*eslint*",
+      "@prisma/client-runtime-utils"
+    ]
   }
 }
