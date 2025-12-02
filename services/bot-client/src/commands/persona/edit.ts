@@ -72,7 +72,7 @@ export async function handleEditPersona(
       // If persona ID was specified but not found, error out
       if (persona === null && personaId !== null && personaId !== undefined) {
         await interaction.reply({
-          content: '❌ Persona not found. Make sure you select one of your own personas.',
+          content: '❌ Persona not found. Use `/persona list` to see your personas.',
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -203,7 +203,7 @@ export async function handleEditModalSubmit(
 
       if (existingPersona === null) {
         await interaction.reply({
-          content: '❌ Persona not found or you do not own it.',
+          content: '❌ Persona not found or you do not own it. Use `/persona list` to see your personas.',
           flags: MessageFlags.Ephemeral,
         });
         return;

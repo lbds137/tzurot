@@ -225,6 +225,9 @@ export abstract class BaseConfigResolver<T> {
 
   /**
    * Start periodic cleanup of expired cache entries
+   *
+   * NOTE: This setInterval is a known horizontal scaling blocker (see CLAUDE.md).
+   * TODO: Migrate to BullMQ repeatable jobs for multi-instance deployments.
    */
   private startCleanupInterval(): void {
     this.cleanupInterval = setInterval(() => {

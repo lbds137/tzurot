@@ -56,7 +56,7 @@ export async function handleSetDefaultPersona(
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Persona not found. Make sure you select one of your own personas.',
+        content: '❌ Persona not found. Use `/persona list` to see your personas.',
         flags: MessageFlags.Ephemeral,
       });
       return;
