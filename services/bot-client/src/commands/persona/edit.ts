@@ -203,7 +203,8 @@ export async function handleEditModalSubmit(
 
       if (existingPersona === null) {
         await interaction.reply({
-          content: '❌ Persona not found or you do not own it. Use `/persona list` to see your personas.',
+          content:
+            '❌ Persona not found or you do not own it. Use `/persona list` to see your personas.',
           flags: MessageFlags.Ephemeral,
         });
         return;
