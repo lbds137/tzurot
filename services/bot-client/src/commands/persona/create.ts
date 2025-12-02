@@ -54,6 +54,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
   try {
     // Get values from modal
     const personaName = interaction.fields.getTextInputValue('personaName').trim();
+    const description = interaction.fields.getTextInputValue('description').trim() || null;
     const preferredName = interaction.fields.getTextInputValue('preferredName').trim() || null;
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
     const content = interaction.fields.getTextInputValue('content').trim() || null;
@@ -92,6 +93,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     const newPersona = await prisma.persona.create({
       data: {
         name: personaName,
+        description,
         preferredName,
         pronouns,
         content: content ?? '',
@@ -122,6 +124,9 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     // Build response
     const details: string[] = [];
+    if (description !== null) {
+      details.push(`📋 Description: ${description}`);
+    }
     if (preferredName !== null) {
       details.push(`📛 Name: ${preferredName}`);
     }

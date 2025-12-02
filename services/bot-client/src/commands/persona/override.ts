@@ -179,6 +179,7 @@ export async function handleOverrideCreateModalSubmit(
   try {
     // Get values from modal
     const personaName = interaction.fields.getTextInputValue('personaName').trim();
+    const description = interaction.fields.getTextInputValue('description').trim() || null;
     const preferredName = interaction.fields.getTextInputValue('preferredName').trim() || null;
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
     const content = interaction.fields.getTextInputValue('content').trim() || null;
@@ -217,6 +218,7 @@ export async function handleOverrideCreateModalSubmit(
     const newPersona = await prisma.persona.create({
       data: {
         name: personaName,
+        description,
         preferredName,
         pronouns,
         content: content ?? '',

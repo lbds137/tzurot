@@ -79,6 +79,7 @@ describe('handleEditPersona', () => {
     mockPrismaClient.persona.findFirst.mockResolvedValue({
       id: 'persona-123',
       name: 'My Persona',
+      description: 'My main persona',
       preferredName: 'Alice',
       pronouns: 'she/her',
       content: 'I love coding',
@@ -94,6 +95,7 @@ describe('handleEditPersona', () => {
       select: {
         id: true,
         name: true,
+        description: true,
         preferredName: true,
         pronouns: true,
         content: true,
@@ -195,6 +197,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: 'My Persona',
+        description: 'Main persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I love coding',
@@ -206,6 +209,7 @@ describe('handleEditModalSubmit', () => {
       where: { id: 'persona-123' },
       data: {
         name: 'My Persona',
+        description: 'Main persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I love coding',
@@ -229,6 +233,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: 'New Persona',
+        description: 'Brand new',
         preferredName: 'Bob',
         pronouns: 'he/him',
         content: 'Test content',
@@ -239,6 +244,7 @@ describe('handleEditModalSubmit', () => {
     expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
       data: {
         name: 'New Persona',
+        description: 'Brand new',
         preferredName: 'Bob',
         pronouns: 'he/him',
         content: 'Test content',
@@ -264,6 +270,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: 'First Persona',
+        description: '',
         preferredName: 'NewUser',
         pronouns: '',
         content: '',
@@ -294,6 +301,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: 'My Persona',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -305,6 +313,7 @@ describe('handleEditModalSubmit', () => {
       where: { id: 'persona-123' },
       data: {
         name: 'My Persona',
+        description: null,
         preferredName: null,
         pronouns: null,
         content: '',
@@ -322,6 +331,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: '',
+        description: '',
         preferredName: 'Alice',
         pronouns: '',
         content: '',
@@ -347,6 +357,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: '  My Persona  ',
+        description: '  Main persona  ',
         preferredName: '  Alice  ',
         pronouns: ' she/her ',
         content: '  content with spaces  ',
@@ -358,6 +369,7 @@ describe('handleEditModalSubmit', () => {
       where: { id: 'persona-123' },
       data: {
         name: 'My Persona',
+        description: 'Main persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'content with spaces',
@@ -372,6 +384,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: 'Test',
+        description: '',
         preferredName: 'Test',
         pronouns: '',
         content: '',
@@ -395,6 +408,7 @@ describe('handleEditModalSubmit', () => {
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: 'Test',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',

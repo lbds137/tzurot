@@ -45,6 +45,7 @@ export async function handleEditPersona(
     let persona: {
       id: string;
       name: string;
+      description: string | null;
       preferredName: string | null;
       pronouns: string | null;
       content: string | null;
@@ -63,6 +64,7 @@ export async function handleEditPersona(
         select: {
           id: true,
           name: true,
+          description: true,
           preferredName: true,
           pronouns: true,
           content: true,
@@ -123,6 +125,7 @@ export async function handleEditModalSubmit(
   try {
     // Get values from modal
     const personaName = interaction.fields.getTextInputValue('personaName').trim();
+    const description = interaction.fields.getTextInputValue('description').trim() || null;
     const preferredName = interaction.fields.getTextInputValue('preferredName').trim() || null;
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
     const content = interaction.fields.getTextInputValue('content').trim() || null;
@@ -161,6 +164,7 @@ export async function handleEditModalSubmit(
       const newPersona = await prisma.persona.create({
         data: {
           name: personaName,
+          description,
           preferredName,
           pronouns,
           content: content ?? '',
@@ -214,6 +218,7 @@ export async function handleEditModalSubmit(
         where: { id: personaId },
         data: {
           name: personaName,
+          description,
           preferredName,
           pronouns,
           content: content ?? '',
@@ -231,6 +236,9 @@ export async function handleEditModalSubmit(
       // Build response message
       const changes: string[] = [];
       changes.push(`📝 Name: ${personaName}`);
+      if (description !== null) {
+        changes.push(`📋 Description: ${description}`);
+      }
       if (preferredName !== null) {
         changes.push(`📛 Preferred Name: ${preferredName}`);
       }

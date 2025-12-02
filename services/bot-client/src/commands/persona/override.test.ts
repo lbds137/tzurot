@@ -242,6 +242,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'Lilith Persona',
+        description: 'For Lilith only',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'Special content for Lilith',
@@ -252,6 +253,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
       data: {
         name: 'Lilith Persona',
+        description: 'For Lilith only',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'Special content for Lilith',

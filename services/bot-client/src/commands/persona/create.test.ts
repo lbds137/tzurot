@@ -103,6 +103,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'Work Persona',
+        description: 'For work stuff',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I am professional',
@@ -112,6 +113,7 @@ describe('handleCreateModalSubmit', () => {
     expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
       data: {
         name: 'Work Persona',
+        description: 'For work stuff',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I am professional',
@@ -137,6 +139,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'First Persona',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -165,6 +168,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'My Persona',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -187,6 +191,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: '',
+        description: '',
         preferredName: 'Alice',
         pronouns: '',
         content: '',
@@ -210,6 +215,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'Minimal Persona',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -219,6 +225,7 @@ describe('handleCreateModalSubmit', () => {
     expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
       data: {
         name: 'Minimal Persona',
+        description: null,
         preferredName: null,
         pronouns: null,
         content: '',
@@ -237,6 +244,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: '  Work Persona  ',
+        description: '  For work  ',
         preferredName: '  Alice  ',
         pronouns: '  she/her  ',
         content: '  content  ',
@@ -246,6 +254,7 @@ describe('handleCreateModalSubmit', () => {
     expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
       data: {
         name: 'Work Persona',
+        description: 'For work',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'content',
@@ -260,6 +269,7 @@ describe('handleCreateModalSubmit', () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'Test',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
