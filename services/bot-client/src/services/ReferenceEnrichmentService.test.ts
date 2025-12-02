@@ -6,6 +6,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 import type { ConversationMessage, ReferencedMessage } from '@tzurot/common-types';
 
+// Mock PersonaResolver
+const mockPersonaResolver = {
+  resolve: vi.fn(),
+  resolveForMemory: vi.fn(),
+  getPersonaContentForPrompt: vi.fn(),
+  invalidateUserCache: vi.fn(),
+  clearCache: vi.fn(),
+  stopCleanup: vi.fn(),
+};
+
 // Mock dependencies
 vi.mock('../redis.js', () => ({
   redisService: {
@@ -30,7 +40,6 @@ describe('ReferenceEnrichmentService', () => {
   let service: ReferenceEnrichmentService;
   let mockUserService: {
     getOrCreateUser: ReturnType<typeof vi.fn>;
-    getPersonaForUser: ReturnType<typeof vi.fn>;
     getPersonaName: ReturnType<typeof vi.fn>;
   };
 
@@ -39,11 +48,22 @@ describe('ReferenceEnrichmentService', () => {
 
     mockUserService = {
       getOrCreateUser: vi.fn(),
-      getPersonaForUser: vi.fn(),
       getPersonaName: vi.fn(),
     };
 
-    service = new ReferenceEnrichmentService(mockUserService as any);
+    service = new ReferenceEnrichmentService(mockUserService as any, mockPersonaResolver as any);
+
+    // Default mock for PersonaResolver.resolve
+    mockPersonaResolver.resolve.mockResolvedValue({
+      config: {
+        personaId: 'persona-123',
+        preferredName: 'Test Persona',
+        pronouns: null,
+        content: '',
+        shareLtmAcrossPersonalities: false,
+      },
+      source: 'user-default',
+    });
   });
 
   describe('enrichWithPersonaNames', () => {
@@ -79,7 +99,7 @@ describe('ReferenceEnrichmentService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
+      // PersonaResolver.resolve is already mocked in beforeEach with persona-123
 
       await service.enrichWithPersonaNames(references, conversationHistory, 'personality-123');
 
@@ -105,12 +125,22 @@ describe('ReferenceEnrichmentService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-456');
+      // Override persona resolver to return persona-456
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: {
+          personaId: 'persona-456',
+          preferredName: 'Resolved Name',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
+        source: 'user-default',
+      });
       mockUserService.getPersonaName.mockResolvedValue('Database Johnny');
 
       await service.enrichWithPersonaNames(references, conversationHistory, 'personality-123');
 
-      // Should fetch from database
+      // Should fetch from database since not in history
       expect(mockUserService.getPersonaName).toHaveBeenCalledWith('persona-456');
       expect(references[0].authorDisplayName).toBe('Database Johnny');
     });
@@ -206,9 +236,28 @@ describe('ReferenceEnrichmentService', () => {
       mockUserService.getOrCreateUser
         .mockResolvedValueOnce('user-1')
         .mockResolvedValueOnce('user-2');
-      mockUserService.getPersonaForUser
-        .mockResolvedValueOnce('persona-1')
-        .mockResolvedValueOnce('persona-2');
+      // Override persona resolver to return different personas for each user
+      mockPersonaResolver.resolve
+        .mockResolvedValueOnce({
+          config: {
+            personaId: 'persona-1',
+            preferredName: 'Alicia',
+            pronouns: null,
+            content: '',
+            shareLtmAcrossPersonalities: false,
+          },
+          source: 'user-default',
+        })
+        .mockResolvedValueOnce({
+          config: {
+            personaId: 'persona-2',
+            preferredName: 'Bobby',
+            pronouns: null,
+            content: '',
+            shareLtmAcrossPersonalities: false,
+          },
+          source: 'user-default',
+        });
 
       await service.enrichWithPersonaNames(references, conversationHistory, 'personality-123');
 
@@ -231,7 +280,7 @@ describe('ReferenceEnrichmentService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
+      // PersonaResolver.resolve returns persona-123 by default (from beforeEach)
       mockUserService.getPersonaName.mockResolvedValue(null);
 
       await service.enrichWithPersonaNames(references, [], 'personality-123');
@@ -302,7 +351,7 @@ describe('ReferenceEnrichmentService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-123');
+      // PersonaResolver.resolve returns persona-123 by default (from beforeEach)
       mockUserService.getPersonaName.mockResolvedValue('Johnny');
 
       await service.enrichWithPersonaNames(references, [], 'personality-123');
@@ -349,7 +398,17 @@ describe('ReferenceEnrichmentService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser.mockResolvedValue('user-123');
-      mockUserService.getPersonaForUser.mockResolvedValue('persona-1');
+      // Override persona resolver to return persona-1 which is in the conversation history
+      mockPersonaResolver.resolve.mockResolvedValue({
+        config: {
+          personaId: 'persona-1',
+          preferredName: 'Johnny',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
+        source: 'user-default',
+      });
 
       await service.enrichWithPersonaNames(references, conversationHistory, 'personality-123');
 
