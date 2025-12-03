@@ -6,7 +6,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { parseApiError, ApiError, shouldRetryError, getErrorLogContext } from './apiErrorParser.js';
-import { ApiErrorType, ApiErrorCategory, ERROR_MESSAGES } from '@tzurot/common-types';
+import {
+  ApiErrorType,
+  ApiErrorCategory,
+  ERROR_MESSAGES,
+  MAX_ERROR_MESSAGE_LENGTH,
+} from '@tzurot/common-types';
 
 describe('parseApiError', () => {
   describe('HTTP status code extraction', () => {
@@ -347,7 +352,8 @@ describe('getErrorLogContext', () => {
     expect(context.statusCode).toBe(429);
     expect(context.shouldRetry).toBe(true);
     expect(context.referenceId).toBeDefined();
-    expect(context.requestId).toBe('req-abc');
+    // Uses explicit naming to distinguish from internal job requestId
+    expect(context.openRouterRequestId).toBe('req-abc');
   });
 
   it('should truncate long technical messages', () => {
@@ -355,7 +361,7 @@ describe('getErrorLogContext', () => {
     const error = new Error(longMessage);
     const context = getErrorLogContext(error);
 
-    expect(context.technicalMessage.length).toBeLessThanOrEqual(500);
+    expect(context.technicalMessage.length).toBeLessThanOrEqual(MAX_ERROR_MESSAGE_LENGTH);
   });
 
   it('should not include sensitive data', () => {
