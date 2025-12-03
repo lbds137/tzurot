@@ -9,6 +9,8 @@
  * - Error messages containing status info
  * - Network errors (ECONNRESET, ETIMEDOUT, etc.)
  * - OpenRouter-specific error patterns (quota, rate limit, etc.)
+ *
+ * @see https://openrouter.ai/docs/errors - OpenRouter error codes reference
  */
 
 import {
@@ -17,6 +19,7 @@ import {
   USER_ERROR_MESSAGES,
   TransientErrorCode,
   ERROR_MESSAGES,
+  MAX_ERROR_MESSAGE_LENGTH,
   generateErrorReferenceId,
   classifyHttpStatus,
   isPermanentError,
@@ -112,9 +115,11 @@ function extractStatusCode(error: unknown): number | undefined {
   }
 
   // Parse status from error message (e.g., "Request failed with status code 429")
+  // Cap message length to prevent ReDoS on very long error messages
   if (error instanceof Error) {
+    const messageToSearch = error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH);
     const statusPattern = /status(?:\s+code)?\s*[=:]?\s*(\d{3})/i;
-    const statusMatch = statusPattern.exec(error.message);
+    const statusMatch = statusPattern.exec(messageToSearch);
     if (statusMatch !== null) {
       return parseInt(statusMatch[1], 10);
     }
@@ -349,8 +354,9 @@ export function getErrorLogContext(error: unknown): Record<string, unknown> {
     statusCode: info.statusCode,
     shouldRetry: info.shouldRetry,
     referenceId: info.referenceId,
-    requestId: info.requestId,
-    // Truncate technical message for logs
-    technicalMessage: info.technicalMessage.substring(0, 500),
+    // Explicit naming to distinguish from internal job requestId
+    openRouterRequestId: info.requestId,
+    // Truncate technical message for logs (prevents log flooding)
+    technicalMessage: info.technicalMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH),
   };
 }
