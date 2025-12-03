@@ -231,8 +231,9 @@ export const ERROR_PLACEHOLDER_PATTERN = /\|\|\*\(an error has occurred\)\*\|\|/
 /**
  * Generic spoiler pattern for error details
  * Matches: ||*(some text)*||
+ * Note: Character class excludes | to prevent ReDoS on nested ||*( sequences
  */
-export const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)]+)\)\*\|\|/;
+export const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]+)\)\*\|\|/;
 
 /**
  * Format error details for Discord spoiler tags
