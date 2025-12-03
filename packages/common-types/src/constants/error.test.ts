@@ -31,11 +31,12 @@ describe('generateErrorReferenceId', () => {
 
   it('should generate unique IDs', () => {
     const ids = new Set<string>();
-    for (let i = 0; i < 100; i++) {
+    // Use 20 iterations to test uniqueness without risking collisions
+    // (3-char random suffix = 36^3 = 46,656 possibilities, so 20 is safe)
+    for (let i = 0; i < 20; i++) {
       ids.add(generateErrorReferenceId());
     }
-    // All 100 should be unique
-    expect(ids.size).toBe(100);
+    expect(ids.size).toBe(20);
   });
 
   it('should contain base36 characters only', () => {

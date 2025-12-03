@@ -266,18 +266,21 @@ export function formatPersonalityErrorMessage(
 ): string {
   const spoilerContent = formatErrorSpoiler(category, referenceId);
 
+  // Cap message length before regex to prevent ReDoS on malicious input
+  const safeMessage = personalityMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+
   // Check for the specific placeholder pattern
-  if (personalityMessage.includes('||*(an error has occurred)*||')) {
-    return personalityMessage.replace(ERROR_PLACEHOLDER_PATTERN, spoilerContent);
+  if (safeMessage.includes('||*(an error has occurred)*||')) {
+    return safeMessage.replace(ERROR_PLACEHOLDER_PATTERN, spoilerContent);
   }
 
   // Check for any existing spoiler pattern and add reference
-  if (ERROR_SPOILER_PATTERN.test(personalityMessage)) {
-    return personalityMessage.replace(ERROR_SPOILER_PATTERN, (_, content) => {
+  if (ERROR_SPOILER_PATTERN.test(safeMessage)) {
+    return safeMessage.replace(ERROR_SPOILER_PATTERN, (_, content) => {
       return `||*(${content}; reference: ${referenceId})*||`;
     });
   }
 
   // No existing pattern - append spoiler
-  return `${personalityMessage} ${spoilerContent}`;
+  return `${safeMessage} ${spoilerContent}`;
 }
