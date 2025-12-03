@@ -7,7 +7,12 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, type LLMGenerationResult } from '@tzurot/common-types';
+import {
+  createLogger,
+  type LLMGenerationResult,
+  formatPersonalityErrorMessage,
+  USER_ERROR_MESSAGES,
+} from '@tzurot/common-types';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
@@ -95,14 +100,12 @@ export class MessageHandler {
     // Handle explicit failure from ai-worker (success: false)
     if (result.success === false) {
       logger.error(
-        { jobId, error: result.error },
+        { jobId, error: result.error, errorInfo: result.errorInfo },
         '[MessageHandler] Job failed with error from ai-worker'
       );
 
-      // Use personality's custom error message if available, otherwise generic
-      const errorContent =
-        result.personalityErrorMessage ??
-        'Sorry, I encountered an error generating a response. Please try again later.';
+      // Build error content with dynamic details
+      const errorContent = this.buildErrorContent(result);
 
       // Send error via personality webhook (not parent bot)
       try {
@@ -140,10 +143,8 @@ export class MessageHandler {
         '[MessageHandler] Job result missing or invalid content field'
       );
 
-      // Use personality's custom error message if available
-      const errorContent =
-        result.personalityErrorMessage ??
-        'Sorry, I encountered an error generating a response. Please try again later.';
+      // Build error content with dynamic details
+      const errorContent = this.buildErrorContent(result);
 
       // Send error via personality webhook
       try {
@@ -199,9 +200,7 @@ export class MessageHandler {
       logger.error({ err: error, jobId }, '[MessageHandler] Error handling job result');
 
       // Try to notify user of the error via webhook (don't throw - we don't want to crash the listener)
-      const errorContent =
-        result.personalityErrorMessage ??
-        'Sorry, I encountered an error while processing your request.';
+      const errorContent = this.buildErrorContent(result);
 
       try {
         await this.responseSender.sendResponse({
@@ -219,5 +218,43 @@ export class MessageHandler {
         });
       }
     }
+  }
+
+  /**
+   * Build error content for user display
+   *
+   * If the result has structured error info and a personality error message,
+   * formats the message to include error details in Discord spoiler tags.
+   * This allows users to see what went wrong while keeping the error message
+   * in the personality's voice.
+   *
+   * Example with placeholder:
+   *   Input: "Oops! Something went wrong ||*(an error has occurred)*||"
+   *   Output: "Oops! Something went wrong ||*(quota exceeded; ref: m5abc123)*||"
+   *
+   * Example without placeholder:
+   *   Input: "I'm having trouble thinking right now..."
+   *   Output: "I'm having trouble thinking right now... ||*(quota exceeded; ref: m5abc123)*||"
+   */
+  private buildErrorContent(result: LLMGenerationResult): string {
+    const DEFAULT_ERROR =
+      'Sorry, I encountered an error generating a response. Please try again later.';
+
+    // If we have structured error info, use it for dynamic messaging
+    if (result.errorInfo) {
+      const { category, referenceId } = result.errorInfo;
+
+      // If personality has a custom error message, format it with error details
+      if (result.personalityErrorMessage !== undefined && result.personalityErrorMessage !== '') {
+        return formatPersonalityErrorMessage(result.personalityErrorMessage, category, referenceId);
+      }
+
+      // No personality message - use the category-specific user message
+      const userMessage = USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
+      return `${userMessage} ||*(reference: ${referenceId})*||`;
+    }
+
+    // No error info available - fall back to basic error message
+    return result.personalityErrorMessage ?? DEFAULT_ERROR;
   }
 }

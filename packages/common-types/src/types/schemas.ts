@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { MessageRole } from '../constants/index.js';
+import { MessageRole, ApiErrorType, ApiErrorCategory } from '../constants/index.js';
 
 /**
  * Discord environment context schema
@@ -214,6 +214,29 @@ export const generateRequestSchema = z.object({
 });
 
 /**
+ * Error Info Schema
+ *
+ * Structured error information for LLM generation failures.
+ * Includes classification for retry logic and user-friendly messages.
+ */
+export const errorInfoSchema = z.object({
+  /** Error type for retry logic (transient, permanent, unknown) */
+  type: z.nativeEnum(ApiErrorType),
+  /** Specific error category for user messaging */
+  category: z.nativeEnum(ApiErrorCategory),
+  /** HTTP status code if available */
+  statusCode: z.number().optional(),
+  /** User-friendly error message */
+  userMessage: z.string(),
+  /** Unique reference ID for support */
+  referenceId: z.string(),
+  /** Whether this error should have been retried */
+  shouldRetry: z.boolean(),
+  /** OpenRouter request ID for support (from x-request-id header) */
+  requestId: z.string().optional(),
+});
+
+/**
  * Generation Payload Schema
  *
  * SINGLE SOURCE OF TRUTH for the core AI generation result payload.
@@ -265,11 +288,14 @@ export const llmGenerationResultSchema = generationPayloadSchema.extend({
   content: z.string().optional(),
   // Custom error message from personality (for webhook response on failures)
   personalityErrorMessage: z.string().optional(),
+  // Structured error info for retry logic and user messaging
+  errorInfo: errorInfoSchema.optional(),
 });
 
 // Infer TypeScript types from schemas
 export type CustomFields = z.infer<typeof customFieldsSchema>;
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
+export type ErrorInfo = z.infer<typeof errorInfoSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;

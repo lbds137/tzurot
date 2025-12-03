@@ -52,7 +52,26 @@ export {
 } from './discord.js';
 
 // Error constants
-export { TransientErrorCode, ERROR_NAMES, ERROR_MESSAGES } from './error.js';
+export {
+  TransientErrorCode,
+  ERROR_NAMES,
+  ERROR_MESSAGES,
+  ApiErrorType,
+  ApiErrorCategory,
+  USER_ERROR_MESSAGES,
+  HTTP_STATUS_TO_CATEGORY,
+  PERMANENT_ERROR_CATEGORIES,
+  TRANSIENT_ERROR_CATEGORIES,
+  ERROR_PLACEHOLDER_PATTERN,
+  ERROR_SPOILER_PATTERN,
+  generateErrorReferenceId,
+  classifyHttpStatus,
+  isPermanentError,
+  isTransientError,
+  formatErrorSpoiler,
+  formatPersonalityErrorMessage,
+  type ApiErrorInfo,
+} from './error.js';
 
 // Media constants
 export {
