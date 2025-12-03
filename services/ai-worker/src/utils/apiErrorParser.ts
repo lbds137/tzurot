@@ -75,42 +75,38 @@ const ERROR_PATTERNS = {
 };
 
 /**
+ * Type guard to check if value is a non-null object
+ * Provides proper type narrowing instead of unsafe type assertions
+ */
+function isErrorObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
  * Extract HTTP status code from various error object structures
  * LangChain errors may have status in different places
  */
 function extractStatusCode(error: unknown): number | undefined {
-  if (error === null || error === undefined) {
+  if (!isErrorObject(error)) {
     return undefined;
   }
 
-  const errorObj = error as Record<string, unknown>;
-
   // Direct status property
-  if (typeof errorObj.status === 'number') {
-    return errorObj.status;
+  if (typeof error.status === 'number') {
+    return error.status;
   }
 
   // Response object with status
-  if (
-    errorObj.response !== null &&
-    errorObj.response !== undefined &&
-    typeof errorObj.response === 'object'
-  ) {
-    const response = errorObj.response as Record<string, unknown>;
-    if (typeof response.status === 'number') {
-      return response.status;
+  if (isErrorObject(error.response)) {
+    if (typeof error.response.status === 'number') {
+      return error.response.status;
     }
   }
 
   // Status in cause
-  if (
-    errorObj.cause !== null &&
-    errorObj.cause !== undefined &&
-    typeof errorObj.cause === 'object'
-  ) {
-    const cause = errorObj.cause as Record<string, unknown>;
-    if (typeof cause.status === 'number') {
-      return cause.status;
+  if (isErrorObject(error.cause)) {
+    if (typeof error.cause.status === 'number') {
+      return error.cause.status;
     }
   }
 
@@ -132,30 +128,17 @@ function extractStatusCode(error: unknown): number | undefined {
  * Extract OpenRouter request ID from error headers for support
  */
 function extractRequestId(error: unknown): string | undefined {
-  if (error === null || error === undefined) {
+  if (!isErrorObject(error)) {
     return undefined;
   }
 
-  const errorObj = error as Record<string, unknown>;
-
   // Check headers in response
-  if (
-    errorObj.response !== null &&
-    errorObj.response !== undefined &&
-    typeof errorObj.response === 'object'
-  ) {
-    const response = errorObj.response as Record<string, unknown>;
-    if (
-      response.headers !== null &&
-      response.headers !== undefined &&
-      typeof response.headers === 'object'
-    ) {
-      const headers = response.headers as Record<string, unknown>;
-      // OpenRouter uses x-request-id header
-      const requestId = headers['x-request-id'] ?? headers['X-Request-Id'];
-      if (typeof requestId === 'string') {
-        return requestId;
-      }
+  if (isErrorObject(error.response) && isErrorObject(error.response.headers)) {
+    const headers = error.response.headers;
+    // OpenRouter uses x-request-id header
+    const requestId = headers['x-request-id'] ?? headers['X-Request-Id'];
+    if (typeof requestId === 'string') {
+      return requestId;
     }
   }
 
@@ -198,12 +181,11 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
  * Check if error is a network error based on error code
  */
 function isNetworkError(error: unknown): boolean {
-  if (error === null || error === undefined) {
+  if (!isErrorObject(error)) {
     return false;
   }
 
-  const errorObj = error as Record<string, unknown>;
-  const code = errorObj.code;
+  const code = error.code;
 
   if (typeof code === 'string') {
     return Object.values(TransientErrorCode).includes(code as TransientErrorCode);
