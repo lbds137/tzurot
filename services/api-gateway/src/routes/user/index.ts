@@ -8,6 +8,10 @@
  * - GET /user/timezone/list - List common timezones
  * - GET /user/usage - Get token usage statistics
  * - GET /user/personality - List personalities (for autocomplete)
+ * - GET /user/personality/:slug - Get a single personality
+ * - POST /user/personality - Create a new personality
+ * - PUT /user/personality/:slug - Update an owned personality
+ * - PATCH /user/personality/:slug/visibility - Toggle visibility
  * - GET /user/llm-config - List LLM configs
  * - POST /user/llm-config - Create user LLM config
  * - DELETE /user/llm-config/:id - Delete user LLM config
