@@ -56,6 +56,7 @@ export {
   TransientErrorCode,
   ERROR_NAMES,
   ERROR_MESSAGES,
+  MAX_ERROR_MESSAGE_LENGTH,
   ApiErrorType,
   ApiErrorCategory,
   USER_ERROR_MESSAGES,

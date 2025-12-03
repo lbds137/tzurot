@@ -47,6 +47,12 @@ export const ERROR_MESSAGES = {
 } as const;
 
 /**
+ * Maximum length of error messages in logs
+ * Prevents log flooding and stays within Railway log size limits
+ */
+export const MAX_ERROR_MESSAGE_LENGTH = 500;
+
+/**
  * Classification of API errors for retry logic
  */
 export enum ApiErrorType {
