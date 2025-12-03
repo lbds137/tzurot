@@ -6,7 +6,7 @@
 
 import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
-import { SYNC_CONFIG } from './sync/config/syncTables.js';
+import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
 
 const logger = createLogger('db-sync');
@@ -49,8 +49,9 @@ export class DatabaseSyncService {
       const stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }> = {};
       const warnings: string[] = [...configWarnings];
 
-      // Sync each table
-      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+      // Sync each table in FK-dependency order
+      for (const tableName of SYNC_TABLE_ORDER) {
+        const config = SYNC_CONFIG[tableName];
         logger.info({ table: tableName }, '[Sync] Syncing table');
 
         // Special handling for llm_configs: resolve singleton flags before syncing

@@ -3,6 +3,9 @@
  *
  * Defines which tables to sync and their metadata for bidirectional sync.
  * NOTE: Column names must match database schema (snake_case), not Prisma model fields (camelCase)
+ *
+ * IMPORTANT: Tables must be synced in an order that respects foreign key constraints.
+ * Use SYNC_TABLE_ORDER for iteration, not Object.keys(SYNC_CONFIG).
  */
 
 export interface TableSyncConfig {
@@ -124,3 +127,44 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
   },
   // NOTE: pending_memories is skipped - transient queue data doesn't need syncing
 } as const;
+
+/**
+ * Sync order that respects foreign key dependencies.
+ *
+ * Key dependencies:
+ * - personas: no required FK deps
+ * - system_prompts: no FK deps
+ * - llm_configs: owner_id → users (nullable)
+ * - users: default_persona_id → personas, default_llm_config_id → llm_configs
+ * - personalities: system_prompt_id → system_prompts, owner_id → users (nullable)
+ * - personality_default_configs: personality_id → personalities, llm_config_id → llm_configs
+ * - personality_owners: personality_id → personalities, user_id → users
+ * - personality_aliases: personality_id → personalities
+ * - user_personality_configs: user_id → users, personality_id → personalities, etc.
+ * - conversation_history: persona_id → personas, personality_id → personalities
+ * - activated_channels: personality_id → personalities, created_by → users
+ * - memories: persona_id → personas, personality_id → personalities
+ * - shapes_persona_mappings: persona_id → personas, mapped_by → users
+ *
+ * CRITICAL: personas must come before users because users.default_persona_id references personas.id
+ */
+export const SYNC_TABLE_ORDER: SyncTableName[] = [
+  // Base tables with no required FK deps
+  'personas',
+  'system_prompts',
+  'llm_configs',
+  // Users depends on personas (default_persona_id) and llm_configs (default_llm_config_id)
+  'users',
+  // Personalities depends on system_prompts and optionally users
+  'personalities',
+  // Junction/config tables that depend on the above
+  'personality_default_configs',
+  'personality_owners',
+  'personality_aliases',
+  'user_personality_configs',
+  // Data tables
+  'conversation_history',
+  'activated_channels',
+  'memories',
+  'shapes_persona_mappings',
+];
