@@ -8,6 +8,8 @@ import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
   SlashCommandBuilder,
 } from 'discord.js';
 import type {
@@ -62,4 +64,8 @@ export interface Command {
   ) => Promise<void>;
   /** Optional autocomplete handler for commands with autocomplete options */
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+  /** Optional select menu handler for commands with select menus */
+  handleSelectMenu?: (interaction: StringSelectMenuInteraction) => Promise<void>;
+  /** Optional button handler for commands with buttons */
+  handleButton?: (interaction: ButtonInteraction) => Promise<void>;
 }
