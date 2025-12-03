@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
+import { SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock Prisma clients
@@ -971,6 +972,115 @@ describe('DatabaseSyncService', () => {
       // Should NOT have executed any updates in dry-run mode
       expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
       expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Foreign Key Ordering', () => {
+    /**
+     * This test verifies that tables are synced in FK-dependency order.
+     * The original bug was that Object.entries(SYNC_CONFIG) iterated in definition order,
+     * causing users to sync before personas - which fails because
+     * users.default_persona_id references personas.id.
+     */
+    beforeEach(() => {
+      // Mock schema version and validation queries
+      devClient.$queryRaw.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('_prisma_migrations')) {
+          return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        if (queryStr.includes('information_schema')) {
+          return [
+            { table_name: 'users', column_name: 'id' },
+            { table_name: 'personas', column_name: 'id' },
+          ];
+        }
+        return [];
+      });
+
+      prodClient.$queryRaw.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('_prisma_migrations')) {
+          return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        return [];
+      });
+    });
+
+    it('should sync tables in SYNC_TABLE_ORDER order', async () => {
+      // Track the order of table syncs by capturing SELECT queries
+      const syncedTables: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        // Match SELECT * FROM "tablename" pattern
+        const match = queryStr.match(/FROM "([^"]+)"/);
+        if (match && !queryStr.includes('is_default')) {
+          syncedTables.push(match[1]);
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+
+      await service.sync({ dryRun: true });
+
+      // The tables should be synced in SYNC_TABLE_ORDER order
+      // Filter out only the tables that are in SYNC_TABLE_ORDER (ignore validation queries)
+      const syncedInOrder = syncedTables.filter(t =>
+        SYNC_TABLE_ORDER.includes(t as (typeof SYNC_TABLE_ORDER)[number])
+      );
+
+      // Verify order matches SYNC_TABLE_ORDER
+      expect(syncedInOrder).toEqual(SYNC_TABLE_ORDER);
+    });
+
+    it('should sync personas before users to prevent FK constraint violation', async () => {
+      const syncedTables: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        const match = queryStr.match(/FROM "([^"]+)"/);
+        if (match && !queryStr.includes('is_default')) {
+          syncedTables.push(match[1]);
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+
+      await service.sync({ dryRun: true });
+
+      const personasIndex = syncedTables.indexOf('personas');
+      const usersIndex = syncedTables.indexOf('users');
+
+      // Both tables should have been synced
+      expect(personasIndex).toBeGreaterThanOrEqual(0);
+      expect(usersIndex).toBeGreaterThanOrEqual(0);
+
+      // personas must come before users (users.default_persona_id -> personas.id)
+      expect(
+        personasIndex,
+        'personas must be synced before users to satisfy FK constraint (users.default_persona_id)'
+      ).toBeLessThan(usersIndex);
+    });
+
+    it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {
+      devClient.$queryRawUnsafe.mockResolvedValue([]);
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+
+      const result = await service.sync({ dryRun: true });
+
+      // Every table in SYNC_TABLE_ORDER should have stats
+      for (const tableName of SYNC_TABLE_ORDER) {
+        expect(
+          result.stats[tableName],
+          `Stats missing for table "${tableName}"`
+        ).toBeDefined();
+        expect(result.stats[tableName]).toHaveProperty('devToProd');
+        expect(result.stats[tableName]).toHaveProperty('prodToDev');
+        expect(result.stats[tableName]).toHaveProperty('conflicts');
+      }
     });
   });
 });
