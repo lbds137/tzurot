@@ -226,7 +226,17 @@ export class PersonalityLoader {
   }
 
   /**
-   * Load all personalities from database
+   * Load all personalities from database (internal operations only)
+   *
+   * WARNING: This method has no access control - it returns ALL personalities
+   * including private ones. Only use for internal operations like:
+   * - Startup verification (counting personalities)
+   * - Admin operations
+   * - Cache warming
+   *
+   * For user-facing operations that need to list personalities,
+   * use the API gateway endpoints which enforce access control.
+   *
    * @returns Array of DatabasePersonality objects
    */
   async loadAllFromDatabase(): Promise<DatabasePersonality[]> {
