@@ -37,7 +37,13 @@ export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
-export { PersonalityCache, type PersonalityCacheOptions } from './utils/PersonalityCache.js';
+export {
+  TTLCache,
+  type TTLCacheOptions,
+  // Backwards-compatible aliases
+  PersonalityCache,
+  type PersonalityCacheOptions,
+} from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
 export {
   encryptApiKey,
