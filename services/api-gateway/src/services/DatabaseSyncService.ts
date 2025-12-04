@@ -603,7 +603,7 @@ export class DatabaseSyncService {
   }
 
   /**
-   * Update a single FK column for a specific row
+   * Update a single FK column for a specific row (pass 2 of two-pass sync)
    */
   private async updateFkColumn(
     client: PrismaClient,
@@ -622,6 +622,14 @@ export class DatabaseSyncService {
       WHERE ${whereClause}
     `;
 
-    await client.$executeRawUnsafe(query, value, ...pkValues);
+    try {
+      await client.$executeRawUnsafe(query, value, ...pkValues);
+    } catch (error) {
+      logger.error(
+        { tableName, fkColumn, value, pkValues, error },
+        '[Sync] FK update failed - referenced row may not exist'
+      );
+      throw error;
+    }
   }
 }
