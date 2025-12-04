@@ -2,11 +2,10 @@
  * TTLCache Unit Tests
  *
  * Tests the TTLCache wrapper around lru-cache.
- * Uses PersonalityCache alias to verify backwards compatibility.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TTLCache, PersonalityCache } from './TTLCache.js';
+import { TTLCache } from './TTLCache.js';
 
 describe('TTLCache', () => {
   beforeEach(() => {
@@ -19,12 +18,12 @@ describe('TTLCache', () => {
 
   describe('constructor', () => {
     it('should create cache with default options', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       expect(cache.size()).toBe(0);
     });
 
     it('should create cache with custom options', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 10000,
         maxSize: 50,
       });
@@ -34,7 +33,7 @@ describe('TTLCache', () => {
 
   describe('get/set', () => {
     it('should store and retrieve values', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       cache.set('key1', 'value1');
 
       expect(cache.get('key1')).toBe('value1');
@@ -42,12 +41,12 @@ describe('TTLCache', () => {
     });
 
     it('should return null for non-existent keys', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       expect(cache.get('nonexistent')).toBeNull();
     });
 
     it('should update existing values', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       cache.set('key1', 'value1');
       cache.set('key1', 'value2');
 
@@ -61,7 +60,7 @@ describe('TTLCache', () => {
         age: number;
       }
 
-      const cache = new PersonalityCache<TestObject>();
+      const cache = new TTLCache<TestObject>();
       const obj = { name: 'Alice', age: 30 };
 
       cache.set('user1', obj);
@@ -71,7 +70,7 @@ describe('TTLCache', () => {
 
   describe('TTL expiration', () => {
     it('should expire entries after TTL', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 5000, // 5 seconds
         now: () => Date.now(), // Use Date.now() for fake timer compatibility
       });
@@ -87,7 +86,7 @@ describe('TTLCache', () => {
     });
 
     it('should not expire entries before TTL', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 5000,
         now: () => Date.now(),
       });
@@ -102,7 +101,7 @@ describe('TTLCache', () => {
     });
 
     it('should update last access time on get', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 5000,
         now: () => Date.now(),
       });
@@ -124,7 +123,7 @@ describe('TTLCache', () => {
 
   describe('LRU eviction', () => {
     it('should evict least recently used entry when cache is full', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         maxSize: 3,
         ttl: 60000, // Long TTL to focus on LRU
         now: () => Date.now(),
@@ -153,7 +152,7 @@ describe('TTLCache', () => {
     });
 
     it('should evict based on access time, not set time', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         maxSize: 3,
         ttl: 60000,
         now: () => Date.now(),
@@ -182,7 +181,7 @@ describe('TTLCache', () => {
     });
 
     it('should not evict when updating existing key', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         maxSize: 3,
       });
 
@@ -202,19 +201,19 @@ describe('TTLCache', () => {
 
   describe('has', () => {
     it('should return true for existing keys', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       cache.set('key1', 'value1');
 
       expect(cache.has('key1')).toBe(true);
     });
 
     it('should return false for non-existent keys', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       expect(cache.has('nonexistent')).toBe(false);
     });
 
     it('should return false for expired keys', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 5000,
         now: () => Date.now(),
       });
@@ -227,7 +226,7 @@ describe('TTLCache', () => {
     });
 
     it('should clean up expired entries when checking', () => {
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 5000,
         now: () => Date.now(),
       });
@@ -247,7 +246,7 @@ describe('TTLCache', () => {
 
   describe('delete', () => {
     it('should delete entries', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       cache.set('key1', 'value1');
       cache.set('key2', 'value2');
 
@@ -258,14 +257,14 @@ describe('TTLCache', () => {
     });
 
     it('should return false when deleting non-existent keys', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       expect(cache.delete('nonexistent')).toBe(false);
     });
   });
 
   describe('clear', () => {
     it('should clear all entries', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       cache.set('key1', 'value1');
       cache.set('key2', 'value2');
       cache.set('key3', 'value3');
@@ -283,7 +282,7 @@ describe('TTLCache', () => {
 
   describe('size', () => {
     it('should return correct cache size', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
 
       expect(cache.size()).toBe(0);
 
@@ -303,13 +302,13 @@ describe('TTLCache', () => {
 
   describe('edge cases', () => {
     it('should handle empty string keys', () => {
-      const cache = new PersonalityCache<string>();
+      const cache = new TTLCache<string>();
       cache.set('', 'empty-key-value');
       expect(cache.get('')).toBe('empty-key-value');
     });
 
     it('should handle arrays and objects', () => {
-      const cache = new PersonalityCache<string[] | Record<string, number>>();
+      const cache = new TTLCache<string[] | Record<string, number>>();
 
       cache.set('array-key', ['a', 'b', 'c']);
       cache.set('object-key', { x: 1, y: 2 });
@@ -319,7 +318,7 @@ describe('TTLCache', () => {
     });
 
     it('should handle rapid successive sets', () => {
-      const cache = new PersonalityCache<number>();
+      const cache = new TTLCache<number>();
 
       for (let i = 0; i < 1000; i++) {
         cache.set(`key${i}`, i);
@@ -331,7 +330,7 @@ describe('TTLCache', () => {
 
     it('should handle very short TTL gracefully', () => {
       // Note: TTL of 0 means "no TTL" in lru-cache, so we use 1ms instead
-      const cache = new PersonalityCache<string>({
+      const cache = new TTLCache<string>({
         ttl: 1,
         now: () => Date.now(),
       });
