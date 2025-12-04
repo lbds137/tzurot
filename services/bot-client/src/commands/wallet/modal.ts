@@ -234,27 +234,13 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
           'Get your key at: https://openrouter.ai/keys'
         );
       }
-      break;
+      return null;
 
-    case AIProvider.OpenAI:
-      // OpenAI keys start with 'sk-'
-      if (!apiKey.startsWith(API_KEY_FORMATS.OPENAI_PREFIX)) {
-        return (
-          '❌ **Invalid OpenAI Key Format**\n\n' +
-          `OpenAI API keys should start with \`${API_KEY_FORMATS.OPENAI_PREFIX}\`.\n` +
-          'Get your key at: https://platform.openai.com/api-keys'
-        );
-      }
-      // But shouldn't be OpenRouter keys
-      if (apiKey.startsWith(API_KEY_FORMATS.OPENROUTER_PREFIX)) {
-        return (
-          '❌ **Wrong Provider**\n\n' +
-          `This looks like an OpenRouter key (starts with \`${API_KEY_FORMATS.OPENROUTER_PREFIX}\`).\n` +
-          'Use `/wallet set provider:OpenRouter` instead.'
-        );
-      }
-      break;
+    default: {
+      // Type guard for exhaustive check - add new providers above
+      const _exhaustive: never = provider;
+      void _exhaustive;
+      return null;
+    }
   }
-
-  return null;
 }
