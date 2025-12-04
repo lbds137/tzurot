@@ -239,5 +239,4 @@ export class KeyValidationService {
       throw error;
     }
   }
-
 }
