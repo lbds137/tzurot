@@ -1,27 +1,34 @@
 /**
- * Personality Import Subcommand
- * Handles /personality import
+ * Character Import Subcommand
+ * Handles /character import (owner only)
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import {
-  getConfig,
   createLogger,
   CONTENT_TYPES,
   DISCORD_LIMITS,
   DISCORD_COLORS,
+  requireBotOwner,
+  type EnvConfig,
 } from '@tzurot/common-types';
 
-const logger = createLogger('personality-import');
+const logger = createLogger('character-import');
 
 /**
- * Handle /personality import subcommand
+ * Handle /character import subcommand
+ * Owner-only - imports a character from JSON file
  */
 export async function handleImport(
   interaction: ChatInputCommandInteraction,
-  config: ReturnType<typeof getConfig>
+  config: EnvConfig
 ): Promise<void> {
+  // Owner-only check
+  if (!(await requireBotOwner(interaction))) {
+    return;
+  }
+
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
@@ -43,7 +50,7 @@ export async function handleImport(
     }
 
     // Download and parse JSON
-    let personalityData: Record<string, unknown>;
+    let characterData: Record<string, unknown>;
     try {
       const response = await fetch(fileAttachment.url);
       if (!response.ok) {
@@ -51,13 +58,14 @@ export async function handleImport(
       }
 
       const text = await response.text();
-      personalityData = JSON.parse(text) as Record<string, unknown>;
+      characterData = JSON.parse(text) as Record<string, unknown>;
 
       logger.info(
-        `[Personality Import] Downloaded JSON: ${fileAttachment.name} (${(text.length / 1024).toFixed(2)} KB)`
+        { filename: fileAttachment.name, sizeKb: (text.length / 1024).toFixed(2) },
+        '[Character/Import] Downloaded JSON'
       );
     } catch (error) {
-      logger.error({ err: error }, 'Failed to download or parse JSON');
+      logger.error({ err: error }, '[Character/Import] Failed to download or parse JSON');
       await interaction.editReply(
         '❌ Failed to parse JSON file.\n' + 'Make sure the file is valid JSON format.'
       );
@@ -68,9 +76,9 @@ export async function handleImport(
     const requiredFields = ['name', 'slug', 'characterInfo', 'personalityTraits'];
     const missingFields = requiredFields.filter(
       field =>
-        personalityData[field] === undefined ||
-        personalityData[field] === null ||
-        personalityData[field] === ''
+        characterData[field] === undefined ||
+        characterData[field] === null ||
+        characterData[field] === ''
     );
 
     if (missingFields.length > 0) {
@@ -82,7 +90,7 @@ export async function handleImport(
     }
 
     // Validate slug format
-    const slug = personalityData.slug as string;
+    const slug = characterData.slug as string;
     if (!/^[a-z0-9-]+$/.test(slug)) {
       await interaction.editReply(
         '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
@@ -93,24 +101,24 @@ export async function handleImport(
 
     // Build payload for API
     const payload = {
-      name: personalityData.name,
-      slug: personalityData.slug,
-      characterInfo: personalityData.characterInfo,
-      personalityTraits: personalityData.personalityTraits,
-      displayName: personalityData.displayName ?? undefined,
-      personalityTone: personalityData.personalityTone ?? undefined,
-      personalityAge: personalityData.personalityAge ?? undefined,
-      personalityAppearance: personalityData.personalityAppearance ?? undefined,
-      personalityLikes: personalityData.personalityLikes ?? undefined,
-      personalityDislikes: personalityData.personalityDislikes ?? undefined,
-      conversationalGoals: personalityData.conversationalGoals ?? undefined,
-      conversationalExamples: personalityData.conversationalExamples ?? undefined,
-      customFields: personalityData.customFields ?? undefined,
-      avatarData: personalityData.avatarData ?? undefined,
+      name: characterData.name,
+      slug: characterData.slug,
+      characterInfo: characterData.characterInfo,
+      personalityTraits: characterData.personalityTraits,
+      displayName: characterData.displayName ?? undefined,
+      personalityTone: characterData.personalityTone ?? undefined,
+      personalityAge: characterData.personalityAge ?? undefined,
+      personalityAppearance: characterData.personalityAppearance ?? undefined,
+      personalityLikes: characterData.personalityLikes ?? undefined,
+      personalityDislikes: characterData.personalityDislikes ?? undefined,
+      conversationalGoals: characterData.conversationalGoals ?? undefined,
+      conversationalExamples: characterData.conversationalExamples ?? undefined,
+      customFields: characterData.customFields ?? undefined,
+      avatarData: characterData.avatarData ?? undefined,
       ownerId: interaction.user.id,
     };
 
-    // Call API Gateway to create personality
+    // Call API Gateway to create character
     const gatewayUrl = config.GATEWAY_URL;
     const response = await fetch(`${gatewayUrl}/admin/personality`, {
       method: 'POST',
@@ -124,19 +132,22 @@ export async function handleImport(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, 'Failed to import personality');
+      logger.error(
+        { status: response.status, error: errorText },
+        '[Character/Import] Failed to import'
+      );
 
       // Check for common errors
       if (response.status === 409) {
         await interaction.editReply(
-          `❌ A personality with the slug \`${slug}\` already exists.\n` +
-            'Either change the slug in the JSON file or delete the existing personality first.'
+          `❌ A character with the slug \`${slug}\` already exists.\n` +
+            'Either change the slug in the JSON file or delete the existing character first.'
         );
         return;
       }
 
       await interaction.editReply(
-        `❌ Failed to import personality (HTTP ${response.status}):\n` +
+        `❌ Failed to import character (HTTP ${response.status}):\n` +
           `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
       );
       return;
@@ -147,8 +158,8 @@ export async function handleImport(
     // Build success embed
     const embed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.SUCCESS)
-      .setTitle('✅ Personality Imported Successfully')
-      .setDescription(`Imported personality: **${String(payload.name)}** (\`${slug}\`)`)
+      .setTitle('Character Imported Successfully')
+      .setDescription(`Imported character: **${String(payload.name)}** (\`${slug}\`)`)
       .setTimestamp();
 
     // Show what was imported
@@ -194,11 +205,14 @@ export async function handleImport(
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info(`[Personality Import] Imported personality: ${slug} by ${interaction.user.tag}`);
+    logger.info(
+      { slug, userId: interaction.user.id },
+      '[Character/Import] Character imported successfully'
+    );
   } catch (error) {
-    logger.error({ err: error }, 'Error importing personality');
+    logger.error({ err: error }, '[Character/Import] Error importing character');
     await interaction.editReply(
-      '❌ An unexpected error occurred while importing the personality.\n' +
+      '❌ An unexpected error occurred while importing the character.\n' +
         'Check bot logs for details.'
     );
   }
