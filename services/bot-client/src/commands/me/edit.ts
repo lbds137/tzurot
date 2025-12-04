@@ -1,5 +1,5 @@
 /**
- * Profile Edit Handler
+ * Me Edit Handler
  *
  * Allows users to edit their profile information via a Discord modal:
  * - Profile name (identifier for the profile)
@@ -17,10 +17,10 @@ import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-ty
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('profile-edit');
+const logger = createLogger('me-edit');
 
 /**
- * Handle /profile edit [profile] command - shows modal
+ * Handle /me edit [profile] command - shows modal
  *
  * @param interaction - The command interaction
  * @param personaId - Optional profile ID from autocomplete. If null, edit default profile.
@@ -74,7 +74,7 @@ export async function handleEditPersona(
       // If profile ID was specified but not found, error out
       if (persona === null && personaId !== null && personaId !== undefined) {
         await interaction.reply({
-          content: '❌ Profile not found. Use `/profile list` to see your profiles.',
+          content: '❌ Profile not found. Use `/me list` to see your profiles.',
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -83,7 +83,7 @@ export async function handleEditPersona(
 
     // Build the modal
     // Store profile ID in customId if editing existing, or 'new' if creating
-    const modalCustomId = persona !== null ? `profile-edit-${persona.id}` : 'profile-edit-new';
+    const modalCustomId = persona !== null ? `me-edit-${persona.id}` : 'me-edit-new';
 
     const modalTitle =
       persona !== null
@@ -98,10 +98,10 @@ export async function handleEditPersona(
     await interaction.showModal(modal);
     logger.info(
       { userId: discordId, personaId: persona?.id ?? 'new' },
-      '[Profile] Showed edit modal'
+      '[Me] Showed edit modal'
     );
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Profile] Failed to show edit modal');
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to show edit modal');
     await interaction.reply({
       content: '❌ Failed to open edit dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -183,7 +183,7 @@ export async function handleEditModalSubmit(
 
       logger.info(
         { userId: discordId, personaId: newPersona.id, personaName },
-        '[Profile] Created new profile from edit'
+        '[Me] Created new profile from edit'
       );
 
       await personaCacheInvalidationService.invalidateUserPersona(discordId);
@@ -208,7 +208,7 @@ export async function handleEditModalSubmit(
       if (existingPersona === null) {
         await interaction.reply({
           content:
-            '❌ Profile not found or you do not own it. Use `/profile list` to see your profiles.',
+            '❌ Profile not found or you do not own it. Use `/me list` to see your profiles.',
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -228,7 +228,7 @@ export async function handleEditModalSubmit(
 
       logger.info(
         { userId: discordId, personaId, personaName },
-        '[Profile] Updated existing profile'
+        '[Me] Updated existing profile'
       );
 
       await personaCacheInvalidationService.invalidateUserPersona(discordId);
@@ -262,7 +262,7 @@ export async function handleEditModalSubmit(
       });
     }
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Profile] Failed to save profile');
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to save profile');
     await interaction.reply({
       content: '❌ Failed to save your profile. Please try again later.',
       flags: MessageFlags.Ephemeral,

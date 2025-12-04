@@ -1,11 +1,11 @@
 /**
- * Profile Override Handlers
+ * Me Override Handlers
  *
  * Allows users to set different profiles for specific personalities.
  * This enables per-personality customization while keeping a default profile.
  *
  * Flow:
- * - /profile override set <personality> <profile> - Set existing profile or create new
+ * - /me override set <personality> <profile> - Set existing profile or create new
  * - If user selects "Create new profile..." option, shows a modal
  * - Otherwise, directly assigns the selected profile
  */
@@ -17,10 +17,10 @@ import { CREATE_NEW_PERSONA_VALUE } from './autocomplete.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('profile-override');
+const logger = createLogger('me-override');
 
 /**
- * Handle /profile override set <personality> <profile> command
+ * Handle /me override set <personality> <profile> command
  *
  * If profile is CREATE_NEW_PERSONA_VALUE, shows modal to create new profile.
  * Otherwise, directly sets the selected profile as override.
@@ -73,7 +73,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     if (personaId === CREATE_NEW_PERSONA_VALUE) {
       // Show modal to create new profile for this personality
       const modal = new ModalBuilder()
-        .setCustomId(`profile-override-create-${personality.id}`)
+        .setCustomId(`me-override-create-${personality.id}`)
         .setTitle(
           `New Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
         );
@@ -90,7 +90,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
       await interaction.showModal(modal);
       logger.info(
         { userId: discordId, personalityId: personality.id },
-        '[Profile] Showed create-for-override modal'
+        '[Me] Showed create-for-override modal'
       );
       return;
     }
@@ -110,7 +110,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Profile not found. Use `/profile list` to see your profiles.',
+        content: '❌ Profile not found. Use `/me list` to see your profiles.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -149,7 +149,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     const displayName = persona.preferredName ?? persona.name;
     logger.info(
       { userId: discordId, personalityId: personality.id, personaId: persona.id },
-      '[Profile] Set override profile'
+      '[Me] Set override profile'
     );
 
     await interaction.reply({
@@ -157,7 +157,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Profile] Failed to set override');
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to set override');
     await interaction.reply({
       content: '❌ Failed to set profile override. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -167,7 +167,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
 
 /**
  * Handle modal submission for creating a new profile during override
- * Modal customId format: profile-override-create-{personalityId}
+ * Modal customId format: me-override-create-{personalityId}
  */
 export async function handleOverrideCreateModalSubmit(
   interaction: ModalSubmitInteraction,
@@ -253,7 +253,7 @@ export async function handleOverrideCreateModalSubmit(
 
     logger.info(
       { userId: discordId, personalityId, personaId: newPersona.id, personaName },
-      '[Profile] Created new profile and set as override'
+      '[Me] Created new profile and set as override'
     );
 
     // Broadcast cache invalidation
@@ -263,13 +263,13 @@ export async function handleOverrideCreateModalSubmit(
       content:
         `✅ **Profile "${personaName}" created and set as override for ${personalityName}!**\n\n` +
         `This profile will be used when talking to ${personalityName}.\n\n` +
-        `Use \`/profile list\` to see all your profiles.`,
+        `Use \`/me list\` to see all your profiles.`,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
     logger.error(
       { err: error, userId: discordId, personalityId },
-      '[Profile] Failed to create override profile'
+      '[Me] Failed to create override profile'
     );
     await interaction.reply({
       content: '❌ Failed to create profile. Please try again later.',
@@ -279,7 +279,7 @@ export async function handleOverrideCreateModalSubmit(
 }
 
 /**
- * Handle /profile override clear <personality> - Remove override
+ * Handle /me override clear <personality> - Remove override
  */
 export async function handleOverrideClear(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -356,7 +356,7 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
 
     logger.info(
       { userId: discordId, personalityId: personality.id },
-      '[Profile] Cleared profile override'
+      '[Me] Cleared profile override'
     );
 
     // Broadcast cache invalidation BEFORE replying to ensure consistency
@@ -367,7 +367,7 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Profile] Failed to clear override');
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to clear override');
     await interaction.reply({
       content: '❌ Failed to clear profile override. Please try again later.',
       flags: MessageFlags.Ephemeral,

@@ -1,5 +1,5 @@
 /**
- * Profile Settings Handler
+ * Me Settings Handler
  *
  * Manages profile settings like LTM (Long-Term Memory) sharing across personalities.
  */
@@ -9,10 +9,10 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('profile-settings');
+const logger = createLogger('me-settings');
 
 /**
- * Handle /profile settings share-ltm command
+ * Handle /me settings share-ltm command
  */
 export async function handleShareLtmSetting(
   interaction: ChatInputCommandInteraction
@@ -50,7 +50,7 @@ export async function handleShareLtmSetting(
 
     if (personaId === null || personaId === undefined) {
       await interaction.reply({
-        content: "❌ You don't have a profile set up yet. Use `/profile edit` to create one first!",
+        content: "❌ You don't have a profile set up yet. Use `/me edit` to create one first!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -92,7 +92,7 @@ export async function handleShareLtmSetting(
 
     logger.info(
       { userId: discordId, personaId, enabled },
-      '[Profile] Updated shareLtmAcrossPersonalities setting'
+      '[Me] Updated shareLtmAcrossPersonalities setting'
     );
 
     // Broadcast cache invalidation to all ai-worker instances
@@ -100,7 +100,7 @@ export async function handleShareLtmSetting(
   } catch (error) {
     logger.error(
       { err: error, userId: discordId },
-      '[Profile] Failed to update LTM sharing setting'
+      '[Me] Failed to update LTM sharing setting'
     );
     await interaction.reply({
       content: '❌ Failed to update LTM sharing setting. Please try again later.',

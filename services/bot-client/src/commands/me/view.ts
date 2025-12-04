@@ -1,5 +1,5 @@
 /**
- * Profile View Handler
+ * Me View Handler
  *
  * Displays the user's current profile information including:
  * - Preferred name
@@ -12,10 +12,10 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 
-const logger = createLogger('profile-view');
+const logger = createLogger('me-view');
 
 /**
- * Handle /profile view command
+ * Handle /me view command
  */
 export async function handleViewPersona(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -54,7 +54,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     if (persona === null || persona === undefined) {
       await interaction.reply({
-        content: "❌ You don't have a profile set up yet. Use `/profile edit` to create one!",
+        content: "❌ You don't have a profile set up yet. Use `/me edit` to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -91,14 +91,14 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     } else {
       embed.addFields({
         name: '📝 Content',
-        value: '*No content set. Use `/profile edit` to add information about yourself.*',
+        value: '*No content set. Use `/me edit` to add information about yourself.*',
         inline: false,
       });
     }
 
     // Footer with help
     embed.setFooter({
-      text: 'Use /profile edit to update • /profile settings to change options',
+      text: 'Use /me edit to update • /me settings to change options',
     });
 
     await interaction.reply({
@@ -106,9 +106,9 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       flags: MessageFlags.Ephemeral,
     });
 
-    logger.info({ userId: discordId }, '[Profile] User viewed their profile');
+    logger.info({ userId: discordId }, '[Me] User viewed their profile');
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Profile] Failed to view profile');
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to view profile');
     await interaction.reply({
       content: '❌ Failed to retrieve your profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
