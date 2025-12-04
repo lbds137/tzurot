@@ -83,7 +83,8 @@ export async function handleEditPersona(
 
     // Build the modal
     // Store profile ID in customId if editing existing, or 'new' if creating
-    const modalCustomId = persona !== null ? `me-profile-edit-${persona.id}` : 'me-profile-edit-new';
+    const modalCustomId =
+      persona !== null ? `me-profile-edit-${persona.id}` : 'me-profile-edit-new';
 
     const modalTitle =
       persona !== null
@@ -96,7 +97,10 @@ export async function handleEditPersona(
     modal.addComponents(...inputFields);
 
     await interaction.showModal(modal);
-    logger.info({ userId: discordId, personaId: persona?.id ?? 'new' }, '[Me/Profile] Showed edit modal');
+    logger.info(
+      { userId: discordId, personaId: persona?.id ?? 'new' },
+      '[Me/Profile] Showed edit modal'
+    );
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me/Profile] Failed to show edit modal');
     await interaction.reply({
@@ -223,7 +227,10 @@ export async function handleEditModalSubmit(
         },
       });
 
-      logger.info({ userId: discordId, personaId, personaName }, '[Me/Profile] Updated existing profile');
+      logger.info(
+        { userId: discordId, personaId, personaName },
+        '[Me/Profile] Updated existing profile'
+      );
 
       await personaCacheInvalidationService.invalidateUserPersona(discordId);
 

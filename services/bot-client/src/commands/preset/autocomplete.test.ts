@@ -45,6 +45,7 @@ describe('handleAutocomplete', () => {
       options: {
         getFocused: vi.fn(),
         getSubcommand: vi.fn().mockReturnValue('delete'),
+        getSubcommandGroup: vi.fn().mockReturnValue(null),
       },
       respond: vi.fn().mockResolvedValue(undefined),
     } as unknown as AutocompleteInteraction;

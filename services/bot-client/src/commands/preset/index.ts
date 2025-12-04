@@ -1,20 +1,29 @@
 /**
  * Preset Command Group
- * Manage user model presets
+ * Manage user model presets and global presets (owner only)
  *
  * Commands:
  * - /preset list - Show available presets
  * - /preset create - Create a new preset
  * - /preset delete - Delete your preset
+ * - /preset global create - Create global preset (owner only)
+ * - /preset global edit - Edit global preset (owner only)
+ * - /preset global set-default - Set system default (owner only)
+ * - /preset global set-free-default - Set free tier default (owner only)
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
+import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import { createLogger, DISCORD_PROVIDER_CHOICES, requireBotOwner } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
 import { handleAutocomplete } from './autocomplete.js';
+import { handleGlobalCreate } from './global/create.js';
+import { handleGlobalEdit } from './global/edit.js';
+import { handleGlobalSetDefault } from './global/set-default.js';
+import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
 
 const logger = createLogger('preset-command');
 
@@ -70,12 +79,102 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .setAutocomplete(true)
       )
+  )
+  .addSubcommandGroup(group =>
+    group
+      .setName('global')
+      .setDescription('Manage global presets (Owner only)')
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('create')
+          .setDescription('Create a new global preset (Owner only)')
+          .addStringOption(option =>
+            option.setName('name').setDescription('Preset name').setRequired(true)
+          )
+          .addStringOption(option =>
+            option
+              .setName('model')
+              .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
+              .setRequired(true)
+          )
+          .addStringOption(option =>
+            option
+              .setName('provider')
+              .setDescription('AI provider')
+              .setRequired(false)
+              .addChoices(...DISCORD_PROVIDER_CHOICES)
+          )
+          .addStringOption(option =>
+            option.setName('description').setDescription('Optional description').setRequired(false)
+          )
+          .addStringOption(option =>
+            option
+              .setName('vision-model')
+              .setDescription('Vision model (optional)')
+              .setRequired(false)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('edit')
+          .setDescription('Edit a global preset (Owner only)')
+          .addStringOption(option =>
+            option
+              .setName('config')
+              .setDescription('Global preset to edit')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(option =>
+            option.setName('name').setDescription('New preset name').setRequired(false)
+          )
+          .addStringOption(option =>
+            option.setName('model').setDescription('New model ID').setRequired(false)
+          )
+          .addStringOption(option =>
+            option
+              .setName('provider')
+              .setDescription('New AI provider')
+              .setRequired(false)
+              .addChoices(...DISCORD_PROVIDER_CHOICES)
+          )
+          .addStringOption(option =>
+            option.setName('description').setDescription('New description').setRequired(false)
+          )
+          .addStringOption(option =>
+            option.setName('vision-model').setDescription('New vision model').setRequired(false)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('set-default')
+          .setDescription('Set a global preset as the system default (Owner only)')
+          .addStringOption(option =>
+            option
+              .setName('config')
+              .setDescription('Global preset to set as default')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('set-free-default')
+          .setDescription('Set a global preset as the free tier default (Owner only)')
+          .addStringOption(option =>
+            option
+              .setName('config')
+              .setDescription('Global preset to set as free tier default')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
   );
 
 /**
- * Command execution router
+ * Create user preset router
  */
-export const execute = createSubcommandRouter(
+const userRouter = createSubcommandRouter(
   {
     list: handleList,
     create: handleCreate,
@@ -85,9 +184,42 @@ export const execute = createSubcommandRouter(
 );
 
 /**
+ * Create global preset router (owner only)
+ */
+const globalRouter = createSubcommandRouter(
+  {
+    create: handleGlobalCreate,
+    edit: handleGlobalEdit,
+    'set-default': handleGlobalSetDefault,
+    'set-free-default': handleGlobalSetFreeDefault,
+  },
+  { logger, logPrefix: '[Preset/Global]' }
+);
+
+/**
+ * Command execution router
+ */
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const group = interaction.options.getSubcommandGroup(false);
+
+  if (group === 'global') {
+    // Owner-only check for global subcommand group
+    if (!(await requireBotOwner(interaction))) {
+      return;
+    }
+    await globalRouter(interaction);
+  } else {
+    // User preset commands (no special permissions)
+    await userRouter(interaction);
+  }
+}
+
+/**
  * Autocomplete handler for preset options
  */
-export const autocomplete = handleAutocomplete;
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  await handleAutocomplete(interaction);
+}
 
 /**
  * Category for this command
