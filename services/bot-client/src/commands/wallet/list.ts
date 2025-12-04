@@ -55,9 +55,7 @@ export async function handleListKeys(interaction: ChatInputCommandInteraction): 
         )
         .addFields({
           name: '🚀 Getting Started',
-          value:
-            '**OpenRouter** (recommended): Get a key at https://openrouter.ai/keys\n' +
-            '**OpenAI**: Get a key at https://platform.openai.com/api-keys',
+          value: '**OpenRouter**: Get a key at https://openrouter.ai/keys',
           inline: false,
         })
         .setFooter({ text: 'BYOK = Bring Your Own Key' })
