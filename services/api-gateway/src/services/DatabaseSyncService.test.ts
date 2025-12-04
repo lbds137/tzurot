@@ -1035,7 +1035,10 @@ describe('DatabaseSyncService', () => {
       expect(syncedInOrder).toEqual(SYNC_TABLE_ORDER);
     });
 
-    it('should sync personas before users to prevent FK constraint violation', async () => {
+    it('should sync users before personas (personas.owner_id FK - NOT NULL)', async () => {
+      // Circular FK dependency between users and personas:
+      // - users.default_persona_id -> personas.id (NULLABLE - deferred to pass 2)
+      // - personas.owner_id -> users.id (NOT NULL - must sync users first)
       const syncedTables: string[] = [];
 
       devClient.$queryRawUnsafe.mockImplementation(async query => {
@@ -1058,11 +1061,83 @@ describe('DatabaseSyncService', () => {
       expect(personasIndex).toBeGreaterThanOrEqual(0);
       expect(usersIndex).toBeGreaterThanOrEqual(0);
 
-      // personas must come before users (users.default_persona_id -> personas.id)
+      // users must come before personas (personas.owner_id -> users.id is NOT NULL)
+      // users.default_persona_id is handled via two-pass deferred FK approach
       expect(
-        personasIndex,
-        'personas must be synced before users to satisfy FK constraint (users.default_persona_id)'
-      ).toBeLessThan(usersIndex);
+        usersIndex,
+        'users must be synced before personas to satisfy FK constraint (personas.owner_id is NOT NULL)'
+      ).toBeLessThan(personasIndex);
+    });
+
+    it('should defer FK columns during pass 1 and update them in pass 2', async () => {
+      // Track all queries to both clients to verify two-pass behavior
+      const devQueries: string[] = [];
+      const prodQueries: string[] = [];
+      const userId = '00000000-0000-5000-a000-000000000001';
+      const personaId = '00000000-0000-5000-a000-000000000002';
+
+      // Mock dev client to return a user with default_persona_id set
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        devQueries.push(queryStr);
+
+        // Return user data with default_persona_id
+        if (queryStr.includes('FROM "users"') && !queryStr.includes('UPDATE')) {
+          return [
+            {
+              id: userId,
+              discord_id: '123456789',
+              default_persona_id: personaId, // This should be deferred
+              default_llm_config_id: null,
+              created_at: new Date('2024-01-01'),
+              updated_at: new Date('2024-01-02'),
+              timezone: 'UTC',
+              preferences: {},
+            },
+          ];
+        }
+
+        // Return persona data
+        if (queryStr.includes('FROM "personas"') && !queryStr.includes('UPDATE')) {
+          return [
+            {
+              id: personaId,
+              name: 'default',
+              owner_id: userId,
+              created_at: new Date('2024-01-01'),
+              updated_at: new Date('2024-01-02'),
+            },
+          ];
+        }
+
+        return [];
+      });
+
+      // Track prod client SELECT queries
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        prodQueries.push(queryStr);
+        return [];
+      });
+
+      // Track prod client INSERT/UPDATE queries (via $executeRawUnsafe)
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        const queryStr = String(query);
+        prodQueries.push(queryStr);
+        return { count: 1 };
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Check that users INSERT/UPSERT was called on prod (pass 1)
+      const usersUpsertQuery = prodQueries.find(q => q.includes('INSERT') && q.includes('"users"'));
+      expect(usersUpsertQuery).toBeDefined();
+
+      // Check that there's an UPDATE for deferred FK columns on prod (pass 2)
+      const updateDeferredQuery = prodQueries.find(
+        q => q.includes('UPDATE') && q.includes('"users"') && q.includes('default_persona_id')
+      );
+      expect(updateDeferredQuery).toBeDefined();
     });
 
     it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {
@@ -1073,10 +1148,7 @@ describe('DatabaseSyncService', () => {
 
       // Every table in SYNC_TABLE_ORDER should have stats
       for (const tableName of SYNC_TABLE_ORDER) {
-        expect(
-          result.stats[tableName],
-          `Stats missing for table "${tableName}"`
-        ).toBeDefined();
+        expect(result.stats[tableName], `Stats missing for table "${tableName}"`).toBeDefined();
         expect(result.stats[tableName]).toHaveProperty('devToProd');
         expect(result.stats[tableName]).toHaveProperty('prodToDev');
         expect(result.stats[tableName]).toHaveProperty('conflicts');

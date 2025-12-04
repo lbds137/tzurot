@@ -14,6 +14,15 @@ export interface TableSyncConfig {
   updatedAt?: string; // Update timestamp field (if exists)
   uuidColumns: string[]; // Columns that contain UUIDs (for validation)
   timestampColumns: string[]; // Columns that contain timestamps (for validation)
+  /**
+   * FK columns that participate in circular dependencies.
+   * These columns are set to NULL during initial sync, then updated in a second pass
+   * after all referenced tables have been synced.
+   *
+   * Example: users.default_persona_id creates a circular dependency with personas.owner_id
+   * Solution: Sync users with default_persona_id=NULL first, then update after personas sync
+   */
+  deferredFkColumns?: string[];
 }
 
 export type SyncTableName =
@@ -41,6 +50,9 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
+    // default_persona_id creates circular dependency: users ↔ personas
+    // Deferred: sync users first with NULL, then update after personas sync
+    deferredFkColumns: ['default_persona_id'],
   },
   personas: {
     pk: 'id',
@@ -131,11 +143,18 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
 /**
  * Sync order that respects foreign key dependencies.
  *
- * Key dependencies:
- * - personas: no required FK deps
+ * CIRCULAR DEPENDENCY: users ↔ personas
+ * - personas.owner_id → users.id (REQUIRED, NOT NULL)
+ * - users.default_persona_id → personas.id (NULLABLE)
+ *
+ * Solution: Two-pass sync
+ * 1. Users synced first with default_persona_id deferred (set to NULL)
+ * 2. Personas synced (can now reference users via owner_id)
+ * 3. Deferred FK columns updated after all tables synced
+ *
+ * Other dependencies:
  * - system_prompts: no FK deps
  * - llm_configs: owner_id → users (nullable)
- * - users: default_persona_id → personas, default_llm_config_id → llm_configs
  * - personalities: system_prompt_id → system_prompts, owner_id → users (nullable)
  * - personality_default_configs: personality_id → personalities, llm_config_id → llm_configs
  * - personality_owners: personality_id → personalities, user_id → users
@@ -145,16 +164,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * - activated_channels: personality_id → personalities, created_by → users
  * - memories: persona_id → personas, personality_id → personalities
  * - shapes_persona_mappings: persona_id → personas, mapped_by → users
- *
- * CRITICAL: personas must come before users because users.default_persona_id references personas.id
  */
 export const SYNC_TABLE_ORDER: SyncTableName[] = [
-  // Base tables with no required FK deps
-  'personas',
+  // Base tables - users first because personas.owner_id is REQUIRED
   'system_prompts',
   'llm_configs',
-  // Users depends on personas (default_persona_id) and llm_configs (default_llm_config_id)
-  'users',
+  'users', // Synced with default_persona_id=NULL (deferred)
+  'personas', // Can now reference users via owner_id
   // Personalities depends on system_prompts and optionally users
   'personalities',
   // Junction/config tables that depend on the above
