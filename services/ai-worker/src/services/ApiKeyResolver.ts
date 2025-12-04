@@ -195,10 +195,12 @@ export class ApiKeyResolver {
     switch (provider) {
       case AIProvider.OpenRouter:
         return config.OPENROUTER_API_KEY ?? null;
-      case AIProvider.OpenAI:
-        return config.OPENAI_API_KEY ?? null;
-      default:
+      default: {
+        // Type guard for exhaustive check - add new providers above
+        const _exhaustive: never = provider;
+        void _exhaustive;
         return null;
+      }
     }
   }
 

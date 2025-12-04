@@ -20,13 +20,10 @@ vi.mock('@tzurot/common-types', async () => {
     getConfig: () => ({
       API_KEY_ENCRYPTION_KEY: 'test-encryption-key-32-bytes-long!',
       OPENROUTER_API_KEY: 'system-openrouter-key',
-      OPENAI_API_KEY: 'system-openai-key',
     }),
     decryptApiKey: vi.fn(),
     AIProvider: {
       OpenRouter: 'openrouter',
-      OpenAI: 'openai',
-      Gemini: 'gemini',
     },
   };
 });
@@ -123,29 +120,6 @@ describe('ApiKeyResolver', () => {
       expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
     });
 
-    it('should return OpenAI system key with guest mode for OpenAI provider', async () => {
-      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
-
-      const result = await resolver.resolveApiKey('user-123', AIProvider.OpenAI);
-
-      expect(result).toEqual({
-        apiKey: 'system-openai-key',
-        source: 'system',
-        provider: AIProvider.OpenAI,
-        userId: 'user-123',
-        isGuestMode: true, // Guest mode - restricted to free models
-      });
-    });
-
-    it('should throw error when no key available for provider', async () => {
-      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
-
-      // Gemini has no system key in our mock config - should throw error
-      await expect(resolver.resolveApiKey('user-123', AIProvider.Gemini)).rejects.toThrow(
-        'No API key available for provider gemini'
-      );
-    });
-
     it('should fall back to system key with guest mode on decryption error', async () => {
       mockPrisma.userApiKey.findFirst.mockResolvedValue({
         iv: 'test-iv',
@@ -219,28 +193,6 @@ describe('ApiKeyResolver', () => {
 
       expect(result1.apiKey).toBe('user1-key');
       expect(result2.apiKey).toBe('user2-key');
-      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(2);
-    });
-
-    it('should cache different providers separately', async () => {
-      mockPrisma.userApiKey.findFirst
-        .mockResolvedValueOnce({
-          iv: 'iv',
-          content: 'encrypted-or',
-          tag: 'tag',
-        })
-        .mockResolvedValueOnce({
-          iv: 'iv',
-          content: 'encrypted-oai',
-          tag: 'tag',
-        });
-      mockDecryptApiKey.mockReturnValueOnce('openrouter-key').mockReturnValueOnce('openai-key');
-
-      const result1 = await resolver.resolveApiKey('user-123', AIProvider.OpenRouter);
-      const result2 = await resolver.resolveApiKey('user-123', AIProvider.OpenAI);
-
-      expect(result1.provider).toBe(AIProvider.OpenRouter);
-      expect(result2.provider).toBe(AIProvider.OpenAI);
       expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(2);
     });
 
@@ -357,30 +309,6 @@ describe('ApiKeyResolver', () => {
         userId: 'user-123',
         isGuestMode: true, // Guest mode - restricted to free models
       });
-    });
-  });
-
-  describe('no API key available', () => {
-    it('should throw error when no user key and no system key', async () => {
-      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
-
-      // Gemini has no system key configured - should throw error
-      await expect(resolver.resolveApiKey('user-456', AIProvider.Gemini)).rejects.toThrow(
-        'No API key available for provider gemini'
-      );
-    });
-
-    it('should not cache error results', async () => {
-      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
-
-      // First call - throws error
-      await expect(resolver.resolveApiKey('user-123', AIProvider.Gemini)).rejects.toThrow();
-
-      // Second call - should still throw (no caching of errors)
-      await expect(resolver.resolveApiKey('user-123', AIProvider.Gemini)).rejects.toThrow();
-
-      // Both calls should have checked the database
-      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(2);
     });
   });
 });

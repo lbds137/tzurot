@@ -67,17 +67,14 @@ function getProviderInfo(provider: AIProvider): {
         placeholder: API_KEY_FORMATS.OPENROUTER_PLACEHOLDER,
         helpUrl: 'https://openrouter.ai/keys',
       };
-    case AIProvider.OpenAI:
+    default: {
+      // Type guard for exhaustive check - add new providers above
+      const _exhaustive: never = provider;
       return {
-        displayName: 'OpenAI',
-        placeholder: API_KEY_FORMATS.OPENAI_PLACEHOLDER,
-        helpUrl: 'https://platform.openai.com/api-keys',
-      };
-    default:
-      return {
-        displayName: provider,
+        displayName: _exhaustive,
         placeholder: 'Your API key',
         helpUrl: '',
       };
+    }
   }
 }

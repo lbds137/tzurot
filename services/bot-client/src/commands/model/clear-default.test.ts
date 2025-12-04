@@ -108,10 +108,9 @@ describe('handleClearDefault', () => {
 
     await handleClearDefault(createMockInteraction());
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      expect.anything(),
-      error,
-      { userId: '123456789', command: 'Model Clear-Default' }
-    );
+    expect(mockHandleCommandError).toHaveBeenCalledWith(expect.anything(), error, {
+      userId: '123456789',
+      command: 'Model Clear-Default',
+    });
   });
 });

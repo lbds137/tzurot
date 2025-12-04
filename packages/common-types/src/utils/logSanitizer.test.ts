@@ -216,10 +216,7 @@ describe('logSanitizer', () => {
     it('should sanitize object bindings', async () => {
       const { sanitizeLogHook } = await import('./logSanitizer.js');
 
-      const args: unknown[] = [
-        { apiKey: 'sk-1234567890abcdefghijklmnop' },
-        'Log message',
-      ];
+      const args: unknown[] = [{ apiKey: 'sk-1234567890abcdefghijklmnop' }, 'Log message'];
       const method = vi.fn();
 
       sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);
@@ -232,9 +229,7 @@ describe('logSanitizer', () => {
     it('should sanitize string messages', async () => {
       const { sanitizeLogHook } = await import('./logSanitizer.js');
 
-      const args: unknown[] = [
-        'API key: sk-1234567890abcdefghijklmnop',
-      ];
+      const args: unknown[] = ['API key: sk-1234567890abcdefghijklmnop'];
       const method = vi.fn();
 
       sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);
@@ -247,10 +242,7 @@ describe('logSanitizer', () => {
     it('should sanitize additional string arguments', async () => {
       const { sanitizeLogHook } = await import('./logSanitizer.js');
 
-      const args: unknown[] = [
-        { level: 'info' },
-        'Message with key sk-1234567890abcdefghijklmnop',
-      ];
+      const args: unknown[] = [{ level: 'info' }, 'Message with key sk-1234567890abcdefghijklmnop'];
       const method = vi.fn();
 
       sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);

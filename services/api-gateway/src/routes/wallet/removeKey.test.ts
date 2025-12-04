@@ -124,13 +124,6 @@ describe('DELETE /wallet/:provider', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should accept valid OpenAI provider', async () => {
-      const { req, res } = createMockReqRes(AIProvider.OpenAI);
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
   });
 
   describe('user lookup', () => {
@@ -222,13 +215,13 @@ describe('DELETE /wallet/:provider', () => {
     });
 
     it('should include provider in success message', async () => {
-      const { req, res } = createMockReqRes(AIProvider.OpenAI);
+      const { req, res } = createMockReqRes(AIProvider.OpenRouter);
 
       await callHandler(mockPrisma, req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining(AIProvider.OpenAI),
+          message: expect.stringContaining(AIProvider.OpenRouter),
         })
       );
     });

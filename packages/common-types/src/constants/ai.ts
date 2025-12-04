@@ -105,9 +105,12 @@ export type DefaultModelName = (typeof MODEL_DEFAULTS)[keyof typeof MODEL_DEFAUL
 
 /**
  * AI provider identifiers
+ *
+ * Note: Only OpenRouter is supported for user-facing BYOK. The system still uses
+ * OPENAI_API_KEY internally for embeddings and Whisper transcription, but users
+ * cannot select OpenAI as a provider for chat/generation.
  */
 export enum AIProvider {
-  OpenAI = 'openai',
   OpenRouter = 'openrouter',
 }
 

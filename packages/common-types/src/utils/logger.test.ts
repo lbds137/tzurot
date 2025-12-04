@@ -63,9 +63,12 @@ describe('createLogger', () => {
 
     // Create a writable stream to capture output
     const output: string[] = [];
-    const testLogger = logger.child({}, {
-      // Intercept log output
-    });
+    const testLogger = logger.child(
+      {},
+      {
+        // Intercept log output
+      }
+    );
 
     // The sanitization happens in the serializer, which is tested indirectly
     expect(testLogger).toBeDefined();

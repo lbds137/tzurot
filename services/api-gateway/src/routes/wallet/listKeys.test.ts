@@ -209,7 +209,7 @@ describe('GET /wallet/list', () => {
 
       mockPrisma.userApiKey.findMany.mockResolvedValue([
         {
-          provider: AIProvider.OpenAI,
+          provider: AIProvider.OpenRouter,
           isActive: true,
           createdAt,
           lastUsedAt: null,
@@ -224,7 +224,7 @@ describe('GET /wallet/list', () => {
         expect.objectContaining({
           keys: [
             {
-              provider: AIProvider.OpenAI,
+              provider: AIProvider.OpenRouter,
               isActive: true,
               createdAt: createdAt.toISOString(),
               lastUsedAt: null,
@@ -246,7 +246,7 @@ describe('GET /wallet/list', () => {
           lastUsedAt: null,
         },
         {
-          provider: AIProvider.OpenAI,
+          provider: AIProvider.OpenRouter,
           isActive: false,
           createdAt: date2,
           lastUsedAt: null,
@@ -261,7 +261,7 @@ describe('GET /wallet/list', () => {
         expect.objectContaining({
           keys: [
             expect.objectContaining({ provider: AIProvider.OpenRouter }),
-            expect.objectContaining({ provider: AIProvider.OpenAI }),
+            expect.objectContaining({ provider: AIProvider.OpenRouter }),
           ],
         })
       );

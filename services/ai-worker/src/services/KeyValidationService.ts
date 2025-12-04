@@ -123,12 +123,15 @@ export class KeyValidationService {
       switch (provider) {
         case AIProvider.OpenRouter:
           return await this.validateOpenRouterKey(apiKey);
-        case AIProvider.OpenAI:
-          return await this.validateOpenAIKey(apiKey);
-        default:
-          logger.warn({ provider }, '[KeyValidationService] Unsupported provider for validation');
+        default: {
+          const _exhaustive: never = provider;
+          logger.warn(
+            { provider: _exhaustive },
+            '[KeyValidationService] Unsupported provider for validation'
+          );
           // For unsupported providers, return valid=true (optimistic)
-          return { valid: true, provider };
+          return { valid: true, provider: _exhaustive };
+        }
       }
     } catch (error) {
       logger.error(
@@ -237,71 +240,4 @@ export class KeyValidationService {
     }
   }
 
-  /**
-   * Validate OpenAI API key
-   * Uses the /models endpoint which is a lightweight read-only call
-   */
-  private async validateOpenAIKey(apiKey: string): Promise<KeyValidationResult> {
-    const provider = AIProvider.OpenAI;
-
-    try {
-      // OpenAI doesn't have a dedicated auth check endpoint
-      // Use /models which is lightweight and read-only
-      const response = await withTimeout(
-        signal =>
-          fetch('https://api.openai.com/v1/models', {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
-            signal,
-          }),
-        VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
-        'OpenAI key validation'
-      );
-
-      if (response.status === 401) {
-        throw new InvalidApiKeyError(provider, 'Key rejected by OpenAI (401 Unauthorized)');
-      }
-
-      if (response.status === 429) {
-        // Rate limited could mean quota exceeded or too many requests
-        const errorData = (await response.json().catch(() => ({}))) as {
-          error?: { message?: string };
-        };
-        const message = errorData?.error?.message ?? 'Rate limited';
-
-        if (message.toLowerCase().includes('quota') || message.toLowerCase().includes('billing')) {
-          throw new QuotaExceededError(provider, message);
-        }
-
-        // Temporary rate limit - key is still valid
-        logger.warn(
-          { message },
-          '[KeyValidationService] OpenAI rate limited but key appears valid'
-        );
-        return { valid: true, provider };
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        throw new InvalidApiKeyError(provider, `HTTP ${response.status}: ${errorText}`);
-      }
-
-      logger.info('[KeyValidationService] OpenAI key validated successfully');
-
-      return {
-        valid: true,
-        provider,
-        metadata: {
-          modelsAvailable: true,
-        },
-      };
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('timed out')) {
-        throw new ValidationTimeoutError(provider);
-      }
-      throw error;
-    }
-  }
 }
