@@ -1,7 +1,7 @@
 /**
- * Persona List Handler
+ * Profile List Handler
  *
- * Lists all personas owned by the user.
+ * Lists all profiles owned by the user.
  * Shows which one is the default and basic info about each.
  */
 
@@ -9,10 +9,10 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
 
-const logger = createLogger('persona-list');
+const logger = createLogger('profile-list');
 
 /**
- * Handle /persona list command
+ * Handle /profile list command
  */
 export async function handleListPersonas(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -40,18 +40,18 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
     if (user === null || user.ownedPersonas.length === 0) {
       await interaction.reply({
         content:
-          "📋 **You don't have any personas yet.**\n\n" +
-          'Use `/persona create` to create your first persona, or `/persona edit` to set up your default persona.',
+          "📋 **You don't have any profiles yet.**\n\n" +
+          'Use `/profile create` to create your first profile, or `/profile edit` to set up your default profile.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('📋 Your Personas')
+      .setTitle('📋 Your Profiles')
       .setColor(DISCORD_COLORS.BLURPLE)
       .setDescription(
-        `You have **${user.ownedPersonas.length}** persona${user.ownedPersonas.length === 1 ? '' : 's'}.`
+        `You have **${user.ownedPersonas.length}** profile${user.ownedPersonas.length === 1 ? '' : 's'}.`
       );
 
     for (const persona of user.ownedPersonas) {
@@ -78,7 +78,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
     }
 
     embed.setFooter({
-      text: 'Use /persona edit <persona> to edit • /persona default <persona> to change default',
+      text: 'Use /profile edit <profile> to edit • /profile default <profile> to change default',
     });
 
     await interaction.reply({
@@ -88,12 +88,12 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
 
     logger.info(
       { userId: discordId, personaCount: user.ownedPersonas.length },
-      '[Persona] Listed personas'
+      '[Profile] Listed profiles'
     );
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to list personas');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to list profiles');
     await interaction.reply({
-      content: '❌ Failed to load your personas. Please try again later.',
+      content: '❌ Failed to load your profiles. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }

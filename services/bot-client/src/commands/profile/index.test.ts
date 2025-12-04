@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Command Index
+ * Tests for Profile Command Index
  * Tests command routing and modal handling
  */
 
@@ -58,15 +58,15 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-describe('Persona Command Index', () => {
+describe('Profile Command Index', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('command data', () => {
     it('should have correct name and description', () => {
-      expect(data.name).toBe('persona');
-      expect(data.description).toBe('Manage your personas for AI interactions');
+      expect(data.name).toBe('profile');
+      expect(data.description).toBe('Manage your profiles for AI interactions');
     });
 
     it('should have all subcommands', () => {
@@ -98,7 +98,7 @@ describe('Persona Command Index', () => {
   });
 
   describe('execute - subcommand routing', () => {
-    it('should route to view handler for /persona view', async () => {
+    it('should route to view handler for /profile view', async () => {
       const { handleViewPersona } = await import('./view.js');
 
       const interaction = {
@@ -115,7 +115,7 @@ describe('Persona Command Index', () => {
       expect(handleViewPersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to edit handler for /persona edit', async () => {
+    it('should route to edit handler for /profile edit', async () => {
       const { handleEditPersona } = await import('./edit.js');
 
       const interaction = {
@@ -133,7 +133,7 @@ describe('Persona Command Index', () => {
       expect(handleEditPersona).toHaveBeenCalledWith(interaction, null);
     });
 
-    it('should pass persona ID to edit handler when specified', async () => {
+    it('should pass profile ID to edit handler when specified', async () => {
       const { handleEditPersona } = await import('./edit.js');
 
       const interaction = {
@@ -151,7 +151,7 @@ describe('Persona Command Index', () => {
       expect(handleEditPersona).toHaveBeenCalledWith(interaction, 'persona-123');
     });
 
-    it('should route to create handler for /persona create', async () => {
+    it('should route to create handler for /profile create', async () => {
       const { handleCreatePersona } = await import('./create.js');
 
       const interaction = {
@@ -168,7 +168,7 @@ describe('Persona Command Index', () => {
       expect(handleCreatePersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to list handler for /persona list', async () => {
+    it('should route to list handler for /profile list', async () => {
       const { handleListPersonas } = await import('./list.js');
 
       const interaction = {
@@ -185,7 +185,7 @@ describe('Persona Command Index', () => {
       expect(handleListPersonas).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to default handler for /persona default', async () => {
+    it('should route to default handler for /profile default', async () => {
       const { handleSetDefaultPersona } = await import('./default.js');
 
       const interaction = {
@@ -202,7 +202,7 @@ describe('Persona Command Index', () => {
       expect(handleSetDefaultPersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to settings handler for /persona settings share-ltm', async () => {
+    it('should route to settings handler for /profile settings share-ltm', async () => {
       const { handleShareLtmSetting } = await import('./settings.js');
 
       const interaction = {
@@ -219,7 +219,7 @@ describe('Persona Command Index', () => {
       expect(handleShareLtmSetting).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to override set handler for /persona override set', async () => {
+    it('should route to override set handler for /profile override set', async () => {
       const { handleOverrideSet } = await import('./override.js');
 
       const interaction = {
@@ -236,7 +236,7 @@ describe('Persona Command Index', () => {
       expect(handleOverrideSet).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to override clear handler for /persona override clear', async () => {
+    it('should route to override clear handler for /profile override clear', async () => {
       const { handleOverrideClear } = await import('./override.js');
 
       const interaction = {
@@ -255,12 +255,12 @@ describe('Persona Command Index', () => {
   });
 
   describe('execute - modal routing', () => {
-    it('should route persona-create modal to create handler', async () => {
+    it('should route profile-create modal to create handler', async () => {
       const { handleCreateModalSubmit } = await import('./create.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'persona-create',
+        customId: 'profile-create',
       } as any;
 
       await execute(interaction);
@@ -268,12 +268,12 @@ describe('Persona Command Index', () => {
       expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route persona-edit-new modal to edit handler', async () => {
+    it('should route profile-edit-new modal to edit handler', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'persona-edit-new',
+        customId: 'profile-edit-new',
       } as any;
 
       await execute(interaction);
@@ -281,12 +281,12 @@ describe('Persona Command Index', () => {
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
     });
 
-    it('should route persona-edit-{id} modal to edit handler with ID', async () => {
+    it('should route profile-edit-{id} modal to edit handler with ID', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'persona-edit-persona-uuid-123',
+        customId: 'profile-edit-persona-uuid-123',
       } as any;
 
       await execute(interaction);
@@ -294,12 +294,12 @@ describe('Persona Command Index', () => {
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'persona-uuid-123');
     });
 
-    it('should route persona-override-create modal to override create handler', async () => {
+    it('should route profile-override-create modal to override create handler', async () => {
       const { handleOverrideCreateModalSubmit } = await import('./override.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'persona-override-create-personality-uuid-123',
+        customId: 'profile-override-create-personality-uuid-123',
       } as any;
 
       await execute(interaction);
@@ -328,12 +328,12 @@ describe('Persona Command Index', () => {
       expect(handlePersonalityAutocomplete).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route persona option to persona autocomplete without create option', async () => {
+    it('should route profile option to profile autocomplete without create option', async () => {
       const { handlePersonaAutocomplete } = await import('./autocomplete.js');
 
       const interaction = {
         options: {
-          getFocused: () => ({ name: 'persona', value: '' }),
+          getFocused: () => ({ name: 'profile', value: '' }),
           getSubcommandGroup: () => null,
           getSubcommand: () => 'edit',
         },
@@ -344,12 +344,12 @@ describe('Persona Command Index', () => {
       expect(handlePersonaAutocomplete).toHaveBeenCalledWith(interaction, false);
     });
 
-    it('should route persona option in override set to autocomplete with create option', async () => {
+    it('should route profile option in override set to autocomplete with create option', async () => {
       const { handlePersonaAutocomplete } = await import('./autocomplete.js');
 
       const interaction = {
         options: {
-          getFocused: () => ({ name: 'persona', value: '' }),
+          getFocused: () => ({ name: 'profile', value: '' }),
           getSubcommandGroup: () => 'override',
           getSubcommand: () => 'set',
         },

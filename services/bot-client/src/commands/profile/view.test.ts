@@ -1,5 +1,5 @@
 /**
- * Tests for Persona View Handler
+ * Tests for Profile View Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -52,7 +52,7 @@ describe('handleViewPersona', () => {
     });
   });
 
-  it('should show error when user has no persona', async () => {
+  it('should show error when user has no profile', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
       defaultPersona: null,
@@ -61,17 +61,17 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockInteraction());
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a persona"),
+      content: expect.stringContaining("don't have a profile"),
       flags: MessageFlags.Ephemeral,
     });
   });
 
-  it('should display persona with all fields', async () => {
+  it('should display profile with all fields', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
       defaultPersona: {
         id: 'persona-123',
-        name: 'Test Persona',
+        name: 'Test Profile',
         preferredName: 'TestUser',
         pronouns: 'they/them',
         content: 'I am a test user who loves programming',
@@ -86,7 +86,7 @@ describe('handleViewPersona', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '🎭 Your Persona',
+            title: '🎭 Your Profile',
           }),
         }),
       ],
@@ -99,7 +99,7 @@ describe('handleViewPersona', () => {
       id: 'user-123',
       defaultPersona: {
         id: 'persona-123',
-        name: 'Test Persona',
+        name: 'Test Profile',
         preferredName: null,
         pronouns: null,
         content: '',

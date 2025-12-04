@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Modal Builder
+ * Tests for Profile Modal Builder
  */
 
 import { describe, it, expect } from 'vitest';

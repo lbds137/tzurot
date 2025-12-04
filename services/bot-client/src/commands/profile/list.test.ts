@@ -1,5 +1,5 @@
 /**
- * Tests for Persona List Handler
+ * Tests for Profile List Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -41,7 +41,7 @@ describe('handleListPersonas', () => {
     } as any;
   }
 
-  it('should show empty state when user has no personas', async () => {
+  it('should show empty state when user has no profiles', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       defaultPersonaId: null,
       ownedPersonas: [],
@@ -50,7 +50,7 @@ describe('handleListPersonas', () => {
     await handleListPersonas(createMockInteraction());
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have any personas yet"),
+      content: expect.stringContaining("don't have any profiles yet"),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -61,7 +61,7 @@ describe('handleListPersonas', () => {
     await handleListPersonas(createMockInteraction());
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have any personas yet"),
+      content: expect.stringContaining("don't have any profiles yet"),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -95,7 +95,7 @@ describe('handleListPersonas', () => {
       embeds: expect.arrayContaining([
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '📋 Your Personas',
+            title: '📋 Your Profiles',
           }),
         }),
       ]),
@@ -165,7 +165,7 @@ describe('handleListPersonas', () => {
     const call = mockReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     expect(embed.description).toContain('3');
-    expect(embed.description).toContain('personas');
+    expect(embed.description).toContain('profiles');
   });
 
   it('should handle database errors gracefully', async () => {

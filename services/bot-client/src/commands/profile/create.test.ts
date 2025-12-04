@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Create Handler
+ * Tests for Profile Create Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -121,7 +121,7 @@ describe('handleCreateModalSubmit', () => {
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona "Work Persona" created'),
+      content: expect.stringContaining('Profile "Work Persona" created'),
       flags: MessageFlags.Ephemeral,
     });
     // Should NOT set as default since user already has one
@@ -187,7 +187,7 @@ describe('handleCreateModalSubmit', () => {
     });
   });
 
-  it('should require persona name', async () => {
+  it('should require profile name', async () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: '',
@@ -199,7 +199,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona name is required'),
+      content: expect.stringContaining('Profile name is required'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockPrismaClient.persona.create).not.toHaveBeenCalled();
@@ -277,7 +277,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create persona'),
+      content: expect.stringContaining('Failed to create profile'),
       flags: MessageFlags.Ephemeral,
     });
   });
