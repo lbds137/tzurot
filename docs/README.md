@@ -99,6 +99,15 @@ Reusable document templates.
 
 - `MIGRATION_TEMPLATE.md` - Template for migration procedures
 
+### 📏 [standards/](standards/)
+
+Coding standards and UX patterns.
+
+**Key docs:**
+
+- `FOLDER_STRUCTURE.md` - File and folder organization standards
+- `SLASH_COMMAND_UX.md` - Discord slash command UX patterns and best practices
+
 ---
 
 ## Quick Links
@@ -138,6 +147,7 @@ Reusable document templates.
 | Improvement proposal  | `improvements/` | Not-yet-implemented enhancements  |
 | Operational procedure | `operations/`   | Backups, monitoring, incidents    |
 | Reference doc         | `reference/`    | CLI references, API docs          |
+| Coding standard       | `standards/`    | UX patterns, file organization    |
 | Template              | `templates/`    | Reusable document templates       |
 | One-time/completed    | `archive/`      | Historical records                |
 

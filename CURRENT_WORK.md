@@ -1,10 +1,98 @@
 # Current Work
 
-> Last updated: 2025-11-30
+> Last updated: 2025-12-03
 
-## Status: Redis Client Migration Complete
+## Status: Slash Command UX Cleanup
 
 **Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
+
+---
+
+## Active Work: Slash Command Restructuring
+
+### Problem Statement
+
+Current command structure (9 top-level commands) is confusing with overlapping concepts:
+
+| Command        | Purpose                       | Issues                                              |
+| -------------- | ----------------------------- | --------------------------------------------------- |
+| `/admin`       | Bot owner tools               | OK - keep separate                                  |
+| `/character`   | AI characters (dashboard)     | Overlaps with `/personality`                        |
+| `/personality` | AI characters (owner-only)    | Redundant with `/character`                         |
+| `/llm-config`  | LLM config definitions        | Overlaps with `/model`                              |
+| `/model`       | Model override assignments    | Overlaps with `/llm-config` and `/profile override` |
+| `/profile`     | User personas + overrides     | Override feature duplicates `/model`                |
+| `/settings`    | User settings (only timezone) | Too thin, should merge with `/profile`              |
+| `/utility`     | ping, help                    | `/help` should be top-level                         |
+| `/wallet`      | BYOK API keys                 | OK - keep distinct (sensitive)                      |
+
+### Proposed Restructuring (Gemini-Assisted Design)
+
+**Goal**: Reduce from 9 commands to 5-6, group by user intent not database schema.
+
+#### New Structure
+
+1. **`/help`** - Promote to top-level (currently buried under `/utility help`)
+
+2. **`/character`** - Unified AI character management
+   - Absorb `/personality` (use permission checks, not separate commands)
+   - Keep dashboard pattern (create, edit, view, list, avatar)
+   - Add model assignment as a field in character edit (not separate command)
+
+3. **`/preset`** - Rename `/llm-config` for clarity
+   - "Presets" are definitions (GPT-4 Turbo config, Claude config, etc.)
+   - `list`, `create`, `delete`
+   - Remove abstract `/model` command entirely
+
+4. **`/me`** - Unified user settings
+   - Merge `/profile` + `/settings`
+   - `persona` (view, edit, create, list, default)
+   - `settings` (timezone, preferred model preset)
+   - `overrides` (per-character model overrides - move from `/model`)
+
+5. **`/wallet`** - Keep as-is (sensitive BYOK operations)
+
+6. **`/admin`** - Keep as-is (owner-only server management)
+
+#### Key Changes
+
+| Old                  | New                            | Notes                                          |
+| -------------------- | ------------------------------ | ---------------------------------------------- |
+| `/personality`       | DELETE                         | Merge into `/character` with permission checks |
+| `/llm-config`        | `/preset`                      | Rename for clarity                             |
+| `/model set/reset`   | `/me overrides`                | Move to user-centric location                  |
+| `/model set-default` | `/me settings preferred-model` | Part of user settings                          |
+| `/model list`        | `/me overrides list`           | Shows user's overrides                         |
+| `/settings timezone` | `/me settings timezone`        | Consolidate under `/me`                        |
+| `/profile *`         | `/me persona *`                | Rename for clarity                             |
+| `/utility help`      | `/help`                        | Promote to top-level                           |
+| `/utility ping`      | `/admin ping` or keep          | Low priority                                   |
+
+#### Implementation Order
+
+1. **Phase 1**: Promote `/help` to top-level (quick win)
+2. **Phase 2**: Rename `/llm-config` → `/preset`
+3. **Phase 3**: Merge `/profile` + `/settings` → `/me`
+4. **Phase 4**: Move `/model` overrides → `/me overrides`
+5. **Phase 5**: Merge `/personality` → `/character` (with permission checks)
+6. **Cleanup**: Delete deprecated commands after transition period
+
+#### Deprecation Strategy
+
+- Mark old commands as `(Deprecated)` in description
+- Old commands reply with "Please use `/new-command` instead"
+- Keep deprecated commands for 2-4 weeks before removal
+
+---
+
+## Recent Work (2025-12-03)
+
+**Test Coverage Improvements**:
+
+- Added `config.test.ts` (18 tests) - env schema validation
+- Added `ModalFactory.test.ts` (21 tests) - dashboard modal building
+- Expanded `settings/index.test.ts` (+6 autocomplete tests)
+- Coverage: common-types 77.36%, bot-client 76.10%
 
 ---
 
