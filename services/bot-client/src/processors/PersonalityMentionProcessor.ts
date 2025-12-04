@@ -23,11 +23,14 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
 
   async process(message: Message): Promise<boolean> {
     // Check for personality mentions (e.g., "@personality hello")
+    // Pass userId for access control - only matches accessible personalities
     const config = getConfig();
+    const userId = message.author.id;
     const mentionMatch = await findPersonalityMention(
       message.content,
       config.BOT_MENTION_CHAR,
-      this.personalityService
+      this.personalityService,
+      userId
     );
 
     if (!mentionMatch) {
@@ -35,18 +38,23 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
     }
 
     logger.debug(
-      { personalityName: mentionMatch.personalityName },
+      { personalityName: mentionMatch.personalityName, userId },
       '[PersonalityMentionProcessor] Processing personality mention'
     );
 
     // Load personality from database (PersonalityService has internal cache)
-    const personality = await this.personalityService.loadPersonality(mentionMatch.personalityName);
+    // Access control already applied in findPersonalityMention, but we load with userId
+    // to ensure consistency and get the full personality object
+    const personality = await this.personalityService.loadPersonality(
+      mentionMatch.personalityName,
+      userId
+    );
 
     if (!personality) {
-      // Unknown personality - silently ignore (likely typo or non-bot mention)
+      // Unknown personality or no access - silently ignore
       logger.debug(
-        { personalityName: mentionMatch.personalityName },
-        '[PersonalityMentionProcessor] Unknown personality mentioned'
+        { personalityName: mentionMatch.personalityName, userId },
+        '[PersonalityMentionProcessor] Personality not found or access denied'
       );
       return false; // Continue to next processor
     }

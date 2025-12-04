@@ -118,7 +118,7 @@ describe('PersonalityMentionProcessor', () => {
 
       const result = await processor.process(message);
 
-      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith');
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith', 'user-123');
       expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
         message,
         mockLilithPersonality,
@@ -137,7 +137,7 @@ describe('PersonalityMentionProcessor', () => {
 
       const result = await processor.process(message);
 
-      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('unknown');
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('unknown', 'user-123');
       expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
       expect(result).toBe(false); // Should continue (unknown personality)
     });
@@ -194,7 +194,12 @@ describe('PersonalityMentionProcessor', () => {
 
       await processor.process(message);
 
-      expect(findPersonalityMention).toHaveBeenCalledWith('!lilith hello', '!', expect.anything());
+      expect(findPersonalityMention).toHaveBeenCalledWith(
+        '!lilith hello',
+        '!',
+        expect.anything(),
+        'user-123'
+      );
     });
   });
 });
