@@ -107,6 +107,9 @@ export interface DatabasePersonality {
   name: string;
   displayName: string | null;
   slug: string;
+  // Access control fields
+  isPublic: boolean;
+  ownerId: string | null;
   systemPrompt: {
     content: string;
   } | null;

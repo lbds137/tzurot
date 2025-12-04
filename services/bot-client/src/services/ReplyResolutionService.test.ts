@@ -47,7 +47,7 @@ describe('ReplyResolutionService', () => {
     it('should return null when message has no reference', async () => {
       const message = createMockMessage({ reference: null });
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBeNull();
     });
@@ -57,7 +57,7 @@ describe('ReplyResolutionService', () => {
         reference: { messageId: null } as any,
       });
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBeNull();
     });
@@ -74,7 +74,7 @@ describe('ReplyResolutionService', () => {
         fetchedReferencedMessage: referencedMessage,
       });
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBeNull();
     });
@@ -93,7 +93,7 @@ describe('ReplyResolutionService', () => {
         clientUserId: 'current-bot-789',
       });
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBeNull();
     });
@@ -127,10 +127,11 @@ describe('ReplyResolutionService', () => {
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue('lilith');
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(redisService.getWebhookPersonality).toHaveBeenCalledWith('ref-123');
-      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith');
+      // Access control: loadPersonality is called with userId
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith', 'user-123');
       expect(result).toBe(mockPersonality);
     });
 
@@ -163,10 +164,14 @@ describe('ReplyResolutionService', () => {
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       // Should extract "Sarcastic Bot" from "Sarcastic Bot | Tzurot"
-      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('Sarcastic Bot');
+      // Access control: loadPersonality is called with userId
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
+        'Sarcastic Bot',
+        'user-123'
+      );
       expect(result).toBe(mockPersonality);
     });
 
@@ -186,7 +191,7 @@ describe('ReplyResolutionService', () => {
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBeNull();
     });
@@ -206,7 +211,7 @@ describe('ReplyResolutionService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
       expect(result).toBeNull();
@@ -218,7 +223,7 @@ describe('ReplyResolutionService', () => {
         fetchWillFail: true,
       });
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBeNull();
     });
@@ -252,7 +257,7 @@ describe('ReplyResolutionService', () => {
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBe(mockPersonality);
     });
@@ -287,7 +292,7 @@ describe('ReplyResolutionService', () => {
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
 
-      const result = await service.resolvePersonality(message);
+      const result = await service.resolvePersonality(message, 'user-123');
 
       expect(result).toBe(mockPersonality);
     });

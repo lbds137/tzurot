@@ -14,7 +14,23 @@ const logger = createLogger('PersonalityLoader');
  * Prisma query select object for personality queries
  * Extracted as constant to ensure consistency across loadPersonality and loadAllPersonalities
  */
-const PERSONALITY_INCLUDE = {
+const PERSONALITY_SELECT = {
+  id: true,
+  name: true,
+  displayName: true,
+  slug: true,
+  isPublic: true,
+  ownerId: true,
+  characterInfo: true,
+  personalityTraits: true,
+  personalityTone: true,
+  personalityAge: true,
+  personalityAppearance: true,
+  personalityLikes: true,
+  personalityDislikes: true,
+  conversationalGoals: true,
+  conversationalExamples: true,
+  errorMessage: true,
   systemPrompt: {
     select: { content: true },
   },
@@ -43,6 +59,26 @@ export class PersonalityLoader {
   constructor(private prisma: PrismaClient) {}
 
   /**
+   * Build access control filter for personality queries
+   *
+   * @param userId - Discord user ID requesting access (optional)
+   * @returns Prisma where clause for access control, or undefined if no filtering needed
+   */
+  private buildAccessFilter(
+    userId?: string
+  ): { OR: ({ isPublic: boolean } | { ownerId: string })[] } | undefined {
+    if (userId === undefined || userId === '') {
+      // No access control - internal operations
+      return undefined;
+    }
+
+    // User must have access: personality is public OR user is owner
+    return {
+      OR: [{ isPublic: true }, { ownerId: userId }],
+    };
+  }
+
+  /**
    * Load a personality by name, ID, slug, or alias from database
    *
    * Lookup order:
@@ -51,24 +87,39 @@ export class PersonalityLoader {
    * 3. Slug (lowercase)
    * 4. Alias (case-insensitive) - falls back to PersonalityAlias table
    *
+   * Access Control:
+   * When userId is provided, only returns personalities that are:
+   * - Public (isPublic = true), OR
+   * - Owned by the requesting user (ownerId = userId)
+   *
    * @param nameOrId - Personality name, UUID, slug, or alias
-   * @returns DatabasePersonality or null if not found
+   * @param userId - Discord user ID for access control (optional - omit for internal operations)
+   * @returns DatabasePersonality or null if not found or access denied
    */
-  async loadFromDatabase(nameOrId: string): Promise<DatabasePersonality | null> {
+  async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
     // Check if nameOrId is a valid UUID
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
+
+    // Build access control filter
+    const accessFilter = this.buildAccessFilter(userId);
 
     try {
       // Step 1: Try direct lookup by ID, name, or slug
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
-          OR: [
-            ...(isUUID ? [{ id: nameOrId }] : []),
-            { name: { equals: nameOrId, mode: 'insensitive' } },
-            { slug: nameOrId.toLowerCase() },
+          AND: [
+            {
+              OR: [
+                ...(isUUID ? [{ id: nameOrId }] : []),
+                { name: { equals: nameOrId, mode: 'insensitive' } },
+                { slug: nameOrId.toLowerCase() },
+              ],
+            },
+            // Apply access filter if userId provided
+            ...(accessFilter ? [accessFilter] : []),
           ],
         },
-        include: PERSONALITY_INCLUDE,
+        select: PERSONALITY_SELECT,
       });
 
       if (dbPersonality) {
@@ -89,14 +140,28 @@ export class PersonalityLoader {
           '[PersonalityLoader] Found personality via alias'
         );
 
-        // Load the personality by its ID
-        const personalityByAlias = await this.prisma.personality.findUnique({
-          where: { id: aliasMatch.personalityId },
-          include: PERSONALITY_INCLUDE,
+        // Load the personality by its ID (with access control)
+        const personalityByAlias = await this.prisma.personality.findFirst({
+          where: {
+            AND: [
+              { id: aliasMatch.personalityId },
+              // Apply access filter if userId provided
+              ...(accessFilter ? [accessFilter] : []),
+            ],
+          },
+          select: PERSONALITY_SELECT,
         });
 
         if (personalityByAlias) {
           return personalityByAlias as DatabasePersonality;
+        }
+
+        // Personality exists but user doesn't have access
+        if (userId !== undefined && userId !== '') {
+          logger.debug(
+            { alias: nameOrId, personalityId: aliasMatch.personalityId, userId },
+            '[PersonalityLoader] Personality exists but user lacks access'
+          );
         }
       }
 
@@ -167,7 +232,7 @@ export class PersonalityLoader {
   async loadAllFromDatabase(): Promise<DatabasePersonality[]> {
     try {
       const dbPersonalities = await this.prisma.personality.findMany({
-        include: PERSONALITY_INCLUDE,
+        select: PERSONALITY_SELECT,
       });
 
       logger.info(`Loaded ${dbPersonalities.length} personalities from database`);

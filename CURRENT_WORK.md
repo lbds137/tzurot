@@ -1,8 +1,8 @@
 # Current Work
 
-> Last updated: 2025-12-03
+> Last updated: 2025-12-04
 
-## Status: Slash Command UX Cleanup
+## Status: Personality Access Control Implemented
 
 **Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
 
@@ -82,6 +82,21 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 - Mark old commands as `(Deprecated)` in description
 - Old commands reply with "Please use `/new-command` instead"
 - Keep deprecated commands for 2-4 weeks before removal
+
+---
+
+## Recent Work (2025-12-04)
+
+**Personality Access Control** - COMPLETE:
+
+- Added `isPublic` and `ownerId` fields to `DatabasePersonality` type
+- Updated `PersonalityLoader` with access control filter: `isPublic = true OR ownerId = userId`
+- Fixed "Reply Loophole" security issue - replies to private personality messages now check access
+- Updated all processors to pass `userId` for access validation (PersonalityMentionProcessor, ReplyMessageProcessor)
+- Rewrote `BotMentionProcessor` to show help message instead of loading non-existent "default" personality
+  - When users @mention the bot directly, they now get guidance on how to interact with personalities
+- Added "Personality Access Allowlist" feature to Icebox in ROADMAP.md for future enhancement
+- All 3,039 tests passing
 
 ---
 
