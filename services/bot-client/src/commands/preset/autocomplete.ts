@@ -4,7 +4,13 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS, type LlmConfigSummary } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  TIMEOUTS,
+  TTLCache,
+  type LlmConfigSummary,
+} from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import {
@@ -14,6 +20,33 @@ import {
 } from '../../utils/modelAutocomplete.js';
 
 const logger = createLogger('preset-autocomplete');
+
+/**
+ * Cached global config entry for autocomplete
+ */
+interface GlobalConfigEntry {
+  id: string;
+  name: string;
+  model: string;
+  isGlobal: boolean;
+  isDefault: boolean;
+  isFreeDefault?: boolean;
+}
+
+/**
+ * Cache for global configs to avoid API calls on every keystroke
+ * Uses TTLCache with single key - global configs change infrequently
+ * Lazy-initialized to avoid issues with mocking in tests
+ */
+let globalConfigCache: TTLCache<GlobalConfigEntry[]> | null = null;
+
+function getGlobalConfigCache(): TTLCache<GlobalConfigEntry[]> {
+  globalConfigCache ??= new TTLCache<GlobalConfigEntry[]>({
+    ttl: TIMEOUTS.CACHE_TTL, // 60 seconds
+    maxSize: 1, // Only one entry needed
+  });
+  return globalConfigCache;
+}
 
 /**
  * Handle autocomplete for /preset commands
@@ -124,6 +157,38 @@ async function handleVisionModelAutocomplete(
   await interaction.respond(choices);
 }
 
+/** Cache key for global configs (only one set of configs) */
+const GLOBAL_CONFIG_CACHE_KEY = 'global-configs';
+
+/**
+ * Fetch global configs from API or cache
+ */
+async function fetchGlobalConfigs(): Promise<GlobalConfigEntry[] | null> {
+  const cache = getGlobalConfigCache();
+
+  // Check cache first
+  const cached = cache.get(GLOBAL_CONFIG_CACHE_KEY);
+  if (cached !== null) {
+    logger.debug('[Preset] Using cached global configs');
+    return cached;
+  }
+
+  // Cache miss - fetch from API
+  const response = await adminFetch('/admin/llm-config');
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as { configs: GlobalConfigEntry[] };
+
+  // Store in cache
+  cache.set(GLOBAL_CONFIG_CACHE_KEY, data.configs);
+  logger.debug(`[Preset] Cached ${data.configs.length} global configs`);
+
+  return data.configs;
+}
+
 /**
  * Handle global config autocomplete for /preset global commands (owner only)
  * @param freeOnly - If true, only show free models (those with :free in model name)
@@ -134,26 +199,15 @@ async function handleGlobalConfigAutocomplete(
   freeOnly = false
 ): Promise<void> {
   try {
-    const response = await adminFetch('/admin/llm-config');
+    const configs = await fetchGlobalConfigs();
 
-    if (!response.ok) {
+    if (configs === null) {
       await interaction.respond([]);
       return;
     }
 
-    const data = (await response.json()) as {
-      configs: {
-        id: string;
-        name: string;
-        model: string;
-        isGlobal: boolean;
-        isDefault: boolean;
-        isFreeDefault?: boolean;
-      }[];
-    };
-
     const queryLower = query.toLowerCase();
-    const filtered = data.configs
+    const filtered = configs
       .filter(c => {
         // Must be global
         if (!c.isGlobal) {
