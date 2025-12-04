@@ -34,21 +34,32 @@ export class PersonalityService {
   /**
    * Load a personality by name or ID
    * Cache is always keyed by ID for consistency
+   *
+   * Access Control:
+   * When userId is provided, only returns personalities that are:
+   * - Public (isPublic = true), OR
+   * - Owned by the requesting user (ownerId = userId)
+   *
+   * @param nameOrId - Personality name, UUID, slug, or alias
+   * @param userId - Discord user ID for access control (optional - omit for internal operations)
+   * @returns LoadedPersonality or null if not found or access denied
    */
-  async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
+  async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {
     // Check if nameOrId is a valid UUID
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
 
-    // If it's a UUID, check cache by ID first
-    if (isUUID) {
+    // If it's a UUID and no userId filter, check cache by ID first
+    // Note: We only use cache when no access control is needed (internal operations)
+    // This ensures access control is always enforced for user requests
+    if (isUUID && (userId === undefined || userId === '')) {
       const cached = this.cache.get(nameOrId);
       if (cached) {
         return cached;
       }
     }
 
-    // Load from database
-    const dbPersonality = await this.loader.loadFromDatabase(nameOrId);
+    // Load from database (with access control if userId provided)
+    const dbPersonality = await this.loader.loadFromDatabase(nameOrId, userId);
     if (!dbPersonality) {
       return null;
     }
@@ -63,6 +74,7 @@ export class PersonalityService {
     const personality = mapToPersonality(dbPersonality, globalDefaultConfig, logger);
 
     // Cache by ID only for clean, normalized cache keys
+    // Note: Cache stores personality data, access control is re-checked on each load
     this.cache.set(personality.id, personality);
 
     logger.info(

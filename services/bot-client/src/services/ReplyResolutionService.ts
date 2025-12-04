@@ -22,10 +22,16 @@ export class ReplyResolutionService {
   /**
    * Resolve which personality a reply is targeting
    *
+   * Access Control:
+   * When userId is provided, only returns personalities that the user has access to
+   * (public personalities or ones they own). This prevents the "Reply Loophole"
+   * where User B could reply to User A's private personality messages.
+   *
    * @param message - Message that is a reply (message.reference must not be null)
-   * @returns LoadedPersonality if reply targets a known personality, null otherwise
+   * @param userId - Discord user ID for access control
+   * @returns LoadedPersonality if reply targets an accessible personality, null otherwise
    */
-  async resolvePersonality(message: Message): Promise<LoadedPersonality | null> {
+  async resolvePersonality(message: Message, userId: string): Promise<LoadedPersonality | null> {
     try {
       if (
         message.reference?.messageId === undefined ||
@@ -104,19 +110,21 @@ export class ReplyResolutionService {
         return null;
       }
 
-      // Load the personality from database
-      const personality = await this.personalityService.loadPersonality(personalityName);
+      // Load the personality from database with access control
+      // This prevents the "Reply Loophole" - users can't interact with
+      // private personalities by replying to messages from other users
+      const personality = await this.personalityService.loadPersonality(personalityName, userId);
 
       if (!personality) {
-        logger.warn(
-          { personalityName },
-          '[ReplyResolutionService] Personality not found in database'
+        logger.debug(
+          { personalityName, userId },
+          '[ReplyResolutionService] Personality not found or access denied'
         );
         return null;
       }
 
       logger.info(
-        { personalityName: personality.displayName },
+        { personalityName: personality.displayName, userId },
         '[ReplyResolutionService] Resolved personality from reply'
       );
 

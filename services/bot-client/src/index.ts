@@ -137,7 +137,7 @@ function createServices(): Services {
     new VoiceMessageProcessor(voiceTranscription, personalityIdCache),
     new ReplyMessageProcessor(replyResolver, personalityHandler),
     new PersonalityMentionProcessor(personalityIdCache, personalityHandler),
-    new BotMentionProcessor(personalityIdCache, personalityHandler),
+    new BotMentionProcessor(),
   ];
 
   // Create MessageHandler with full dependency injection

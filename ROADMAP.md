@@ -589,6 +589,13 @@
   - Currently hardcoded: MAX_CHANNELS_PER_MESSAGE (5), MAX_ROLES_PER_MESSAGE (5), CHANNEL_MEMORY_BUDGET_RATIO (0.5)
   - Allows tuning for different use cases without code changes
 
+**From Access Control Implementation (2025-12-04)**:
+
+- Personality Access Allowlist - Let personality owners grant access to specific users via slash command
+  - Enables sharing private personalities with trusted users
+  - `/character allowlist add @user` / `/character allowlist remove @user`
+  - Requires new database table: `PersonalityAccessGrant(personalityId, userId, grantedBy, grantedAt)`
+
 **Original Ideas**:
 
 - Streaming responses (real-time message updates)
