@@ -1,5 +1,5 @@
 /**
- * Model Command Autocomplete Handler
+ * Me Model Command Autocomplete Handler
  * Provides autocomplete suggestions for personality and config options
  */
 
@@ -12,7 +12,7 @@ import {
   type LlmConfigSummary,
   type AIProvider,
 } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 /**
  * Special value for the "Unlock All Models" upsell option
@@ -27,10 +27,10 @@ interface WalletListResponse {
   }[];
 }
 
-const logger = createLogger('model-autocomplete');
+const logger = createLogger('me-model-autocomplete');
 
 /**
- * Handle autocomplete for /model commands
+ * Handle autocomplete for /me model commands
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
@@ -55,7 +55,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand: interaction.options.getSubcommand(false),
       },
-      '[Model] Autocomplete error'
+      '[Me/Model] Autocomplete error'
     );
     await interaction.respond([]);
   }
@@ -75,7 +75,7 @@ async function handlePersonalityAutocomplete(
   );
 
   if (!result.ok) {
-    logger.warn({ userId, error: result.error }, '[Model] Failed to fetch personalities');
+    logger.warn({ userId, error: result.error }, '[Me/Model] Failed to fetch personalities');
     await interaction.respond([]);
     return;
   }
@@ -114,7 +114,7 @@ async function handleConfigAutocomplete(
   ]);
 
   if (!configResult.ok) {
-    logger.warn({ userId, error: configResult.error }, '[Model] Failed to fetch configs');
+    logger.warn({ userId, error: configResult.error }, '[Me/Model] Failed to fetch configs');
     await interaction.respond([]);
     return;
   }

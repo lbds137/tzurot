@@ -1,19 +1,23 @@
 /**
- * Model Clear-Default Handler
- * Handles /model clear-default subcommand
+ * Me Model Clear-Default Handler
+ * Handles /me model clear-default subcommand
  * Clears the user's global default LLM config
  */
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import {
+  deferEphemeral,
+  replyWithError,
+  handleCommandError,
+} from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('model-clear-default');
+const logger = createLogger('me-model-clear-default');
 
 /**
- * Handle /model clear-default
+ * Handle /me model clear-default
  */
 export async function handleClearDefault(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -27,7 +31,7 @@ export async function handleClearDefault(interaction: ChatInputCommandInteractio
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Model] Failed to clear default');
+      logger.warn({ userId, status: result.status }, '[Me/Model] Failed to clear default');
       await replyWithError(interaction, `Failed to clear default: ${result.error}`);
       return;
     }
@@ -43,7 +47,7 @@ export async function handleClearDefault(interaction: ChatInputCommandInteractio
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId }, '[Model] Cleared default config');
+    logger.info({ userId }, '[Me/Model] Cleared default config');
   } catch (error) {
     await handleCommandError(interaction, error, { userId, command: 'Model Clear-Default' });
   }

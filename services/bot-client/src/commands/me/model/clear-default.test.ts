@@ -6,19 +6,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleClearDefault } from './clear-default.js';
 
 // Mock userGatewayClient
-vi.mock('../../utils/userGatewayClient.js', () => ({
+vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
 // Mock commandHelpers
-vi.mock('../../utils/commandHelpers.js', () => ({
+vi.mock('../../../utils/commandHelpers.js', () => ({
   deferEphemeral: vi.fn().mockResolvedValue(undefined),
   replyWithError: vi.fn().mockResolvedValue(undefined),
   handleCommandError: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import {
+  deferEphemeral,
+  replyWithError,
+  handleCommandError,
+} from '../../../utils/commandHelpers.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {

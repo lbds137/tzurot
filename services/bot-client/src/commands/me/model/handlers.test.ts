@@ -23,7 +23,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 // Mock userGatewayClient
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
+vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
@@ -32,7 +32,7 @@ const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: 'Success' } });
-vi.mock('../../utils/commandHelpers.js', () => ({
+vi.mock('../../../utils/commandHelpers.js', () => ({
   deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),

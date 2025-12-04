@@ -96,10 +96,7 @@ export async function handleEditPersona(
     modal.addComponents(...inputFields);
 
     await interaction.showModal(modal);
-    logger.info(
-      { userId: discordId, personaId: persona?.id ?? 'new' },
-      '[Me] Showed edit modal'
-    );
+    logger.info({ userId: discordId, personaId: persona?.id ?? 'new' }, '[Me] Showed edit modal');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to show edit modal');
     await interaction.reply({
@@ -226,10 +223,7 @@ export async function handleEditModalSubmit(
         },
       });
 
-      logger.info(
-        { userId: discordId, personaId, personaName },
-        '[Me] Updated existing profile'
-      );
+      logger.info({ userId: discordId, personaId, personaName }, '[Me] Updated existing profile');
 
       await personaCacheInvalidationService.invalidateUserPersona(discordId);
 
