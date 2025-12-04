@@ -1,5 +1,5 @@
 /**
- * Tests for LLM Config Command Group
+ * Tests for Preset Command Group
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -29,7 +29,7 @@ import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
 
-describe('LLM Config Command', () => {
+describe('Preset Command', () => {
   const mockReply = vi.fn();
 
   beforeEach(() => {
