@@ -110,7 +110,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Profile not found. Use `/me list` to see your profiles.',
+        content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -263,7 +263,7 @@ export async function handleOverrideCreateModalSubmit(
       content:
         `✅ **Profile "${personaName}" created and set as override for ${personalityName}!**\n\n` +
         `This profile will be used when talking to ${personalityName}.\n\n` +
-        `Use \`/me list\` to see all your profiles.`,
+        `Use \`/me profile list\` to see all your profiles.`,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {

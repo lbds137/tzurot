@@ -50,7 +50,7 @@ export async function handleShareLtmSetting(
 
     if (personaId === null || personaId === undefined) {
       await interaction.reply({
-        content: "❌ You don't have a profile set up yet. Use `/me edit` to create one first!",
+        content: "❌ You don't have a profile set up yet. Use `/me profile edit` to create one first!",
         flags: MessageFlags.Ephemeral,
       });
       return;

@@ -3,11 +3,11 @@
  * Manage your personal settings and profile for AI interactions
  *
  * Commands:
- * - /me view - View your current profile
- * - /me edit [profile] - Edit a profile via modal (default: your default profile)
- * - /me create - Create a new profile
- * - /me list - List all your profiles
- * - /me default <profile> - Set a profile as your default
+ * - /me profile view - View your current profile
+ * - /me profile edit [profile] - Edit a profile via modal (default: your default profile)
+ * - /me profile create - Create a new profile
+ * - /me profile list - List all your profiles
+ * - /me profile default <profile> - Set a profile as your default
  * - /me settings share-ltm <enable|disable> - Toggle LTM sharing across personalities
  * - /me timezone set <timezone> - Set your timezone
  * - /me timezone get - Show your current timezone
@@ -56,33 +56,42 @@ const logger = createLogger('me-command');
 export const data = new SlashCommandBuilder()
   .setName('me')
   .setDescription('Manage your personal settings and profile')
-  .addSubcommand(subcommand =>
-    subcommand.setName('view').setDescription('View your current profile')
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('edit')
-      .setDescription('Edit a profile (default: your default profile)')
-      .addStringOption(option =>
-        option
-          .setName('profile')
-          .setDescription('Which profile to edit (optional, defaults to your default)')
-          .setRequired(false)
-          .setAutocomplete(true)
+  .addSubcommandGroup(group =>
+    group
+      .setName('profile')
+      .setDescription('Manage your profiles')
+      .addSubcommand(subcommand =>
+        subcommand.setName('view').setDescription('View your current profile')
       )
-  )
-  .addSubcommand(subcommand => subcommand.setName('create').setDescription('Create a new profile'))
-  .addSubcommand(subcommand => subcommand.setName('list').setDescription('List all your profiles'))
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('default')
-      .setDescription('Set a profile as your default')
-      .addStringOption(option =>
-        option
-          .setName('profile')
-          .setDescription('The profile to set as default')
-          .setRequired(true)
-          .setAutocomplete(true)
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('edit')
+          .setDescription('Edit a profile (default: your default profile)')
+          .addStringOption(option =>
+            option
+              .setName('profile')
+              .setDescription('Which profile to edit (optional, defaults to your default)')
+              .setRequired(false)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand.setName('create').setDescription('Create a new profile')
+      )
+      .addSubcommand(subcommand =>
+        subcommand.setName('list').setDescription('List all your profiles')
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('default')
+          .setDescription('Set a profile as your default')
+          .addStringOption(option =>
+            option
+              .setName('profile')
+              .setDescription('The profile to set as default')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
       )
   )
   .addSubcommandGroup(group =>
@@ -217,15 +226,15 @@ export const data = new SlashCommandBuilder()
   );
 
 /**
- * Top-level subcommand handlers (view, create, list use simple router)
+ * Profile subcommand router
  */
-const simpleTopLevelRouter = createSubcommandRouter(
+const profileRouter = createSubcommandRouter(
   {
     view: handleViewPersona,
     create: handleCreatePersona,
     list: handleListPersonas,
   },
-  { logger, logPrefix: '[Me]' }
+  { logger, logPrefix: '[Me/Profile]' }
 );
 
 /**
@@ -284,12 +293,12 @@ export async function execute(
   if (interaction.isModalSubmit()) {
     const customId = interaction.customId;
 
-    if (customId === 'me-create') {
+    if (customId === 'me-profile-create') {
       // Create new profile modal
       await handleCreateModalSubmit(interaction);
-    } else if (customId.startsWith('me-edit-')) {
-      // Edit profile modal: me-edit-{personaId} or me-edit-new
-      const personaId = customId.replace('me-edit-', '');
+    } else if (customId.startsWith('me-profile-edit-')) {
+      // Edit profile modal: me-profile-edit-{personaId} or me-profile-edit-new
+      const personaId = customId.replace('me-profile-edit-', '');
       await handleEditModalSubmit(interaction, personaId);
     } else if (customId.startsWith('me-override-create-')) {
       // Create profile for override: me-override-create-{personalityId}
@@ -304,8 +313,8 @@ export async function execute(
   const group = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
 
-  if (group === null) {
-    // Top-level subcommands
+  if (group === 'profile') {
+    // Profile management subcommands
     if (subcommand === 'edit') {
       // Edit needs special handling to pass profile ID
       const personaId = interaction.options.getString('profile');
@@ -314,8 +323,8 @@ export async function execute(
       // Default needs the profile ID
       await handleSetDefaultPersona(interaction);
     } else {
-      // view, create, list use simple router
-      await simpleTopLevelRouter(interaction);
+      // view, create, list use profile router
+      await profileRouter(interaction);
     }
   } else if (group === 'settings') {
     await settingsRouter(interaction);
@@ -352,7 +361,7 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
     await handleModelAutocomplete(interaction);
   } else if (focusedOption.name === 'profile') {
     // Profile autocomplete
-    // Include "Create new" option only for override set
+    // Include "Create new" option only for override set (not for profile commands)
     const includeCreateNew = subcommandGroup === 'override' && subcommand === 'set';
     await handlePersonaAutocomplete(interaction, includeCreateNew);
   } else if (focusedOption.name === 'timezone') {

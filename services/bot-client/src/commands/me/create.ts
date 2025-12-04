@@ -15,14 +15,14 @@ import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('me-create');
+const logger = createLogger('me-profile-create');
 
 /**
- * Handle /me create command - shows modal
+ * Handle /me profile create command - shows modal
  */
 export async function handleCreatePersona(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const modal = new ModalBuilder().setCustomId('me-create').setTitle('Create New Profile');
+    const modal = new ModalBuilder().setCustomId('me-profile-create').setTitle('Create New Profile');
 
     const inputFields = buildPersonaModalFields(null, {
       namePlaceholder: 'e.g., Work Mode, Casual, Creative Writing',
@@ -31,9 +31,9 @@ export async function handleCreatePersona(interaction: ChatInputCommandInteracti
     modal.addComponents(...inputFields);
 
     await interaction.showModal(modal);
-    logger.info({ userId: interaction.user.id }, '[Me] Showed create modal');
+    logger.info({ userId: interaction.user.id }, '[Me/Profile] Showed create modal');
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, '[Me] Failed to show create modal');
+    logger.error({ err: error, userId: interaction.user.id }, '[Me/Profile] Failed to show create modal');
     await interaction.reply({
       content: '❌ Failed to open create dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -100,7 +100,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     logger.info(
       { userId: discordId, personaId: newPersona.id, personaName },
-      '[Me] Created new profile'
+      '[Me/Profile] Created new profile'
     );
 
     // If this is the user's first profile and they don't have a default, set it
@@ -112,7 +112,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       });
       logger.info(
         { userId: discordId, personaId: newPersona.id },
-        '[Me] Set as default (first profile)'
+        '[Me/Profile] Set as default (first profile)'
       );
     }
 
@@ -141,14 +141,14 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     if (setAsDefault) {
       response += '\n\n⭐ This profile has been set as your default.';
     }
-    response += '\n\nUse `/me list` to see all your profiles.';
+    response += '\n\nUse `/me profile list` to see all your profiles.';
 
     await interaction.reply({
       content: response,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Me] Failed to create profile');
+    logger.error({ err: error, userId: discordId }, '[Me/Profile] Failed to create profile');
     await interaction.reply({
       content: '❌ Failed to create profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
