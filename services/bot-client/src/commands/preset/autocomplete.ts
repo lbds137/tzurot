@@ -33,6 +33,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       await handleVisionModelAutocomplete(interaction, focusedOption.value);
     } else if (focusedOption.name === 'config' && subcommandGroup === 'global') {
       // Global config autocomplete (for owner-only commands)
+      // Note: 'config' option is currently only used in the 'global' subcommand group.
+      // If future subcommands also use 'config', this condition will need updating.
       const freeOnly = subcommand === 'set-free-default';
       await handleGlobalConfigAutocomplete(interaction, focusedOption.value, freeOnly);
     } else {
