@@ -1154,5 +1154,46 @@ describe('DatabaseSyncService', () => {
         expect(result.stats[tableName]).toHaveProperty('conflicts');
       }
     });
+
+    it('should handle composite primary keys correctly (personality_owners)', async () => {
+      // personality_owners has composite PK: ['personality_id', 'user_id']
+      const personalityId = '00000000-0000-5000-a000-000000000001';
+      const userId = '00000000-0000-5000-a000-000000000002';
+      const prodQueries: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+
+        if (queryStr.includes('FROM "personality_owners"')) {
+          return [
+            {
+              personality_id: personalityId,
+              user_id: userId,
+              created_at: new Date('2024-01-01'),
+            },
+          ];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        prodQueries.push(String(query));
+        return { count: 1 };
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Find the INSERT query for personality_owners
+      const insertQuery = prodQueries.find(
+        q => q.includes('INSERT') && q.includes('"personality_owners"')
+      );
+      expect(insertQuery).toBeDefined();
+
+      // Verify the ON CONFLICT clause uses BOTH columns of the composite PK
+      expect(insertQuery).toContain('"personality_id"');
+      expect(insertQuery).toContain('"user_id"');
+      expect(insertQuery).toContain('ON CONFLICT');
+    });
   });
 });

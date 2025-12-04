@@ -165,6 +165,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * - memories: persona_id → personas, personality_id → personalities
  * - shapes_persona_mappings: persona_id → personas, mapped_by → users
  */
+/**
+ * CRITICAL: users MUST come before personas because:
+ * - personas.owner_id -> users.id is NOT NULL (required FK, cannot defer)
+ * - users.default_persona_id -> personas.id is NULLABLE (can defer to pass 2)
+ *
+ * If you change this order, sync will fail with FK constraint violations!
+ */
 export const SYNC_TABLE_ORDER: SyncTableName[] = [
   // Base tables - users first because personas.owner_id is REQUIRED
   'system_prompts',
