@@ -1,16 +1,18 @@
 /**
- * Profile Command Group
- * Manages user profiles (personas) for AI interactions
+ * Me Command Group
+ * Manage your personal settings and profile for AI interactions
  *
  * Commands:
- * - /profile view - View your current profile
- * - /profile edit [profile] - Edit a profile via modal (default: your default profile)
- * - /profile create - Create a new profile
- * - /profile list - List all your profiles
- * - /profile default <profile> - Set a profile as your default
- * - /profile settings share-ltm <enable|disable> - Toggle LTM sharing across personalities
- * - /profile override set <personality> <profile> - Override profile for specific personality
- * - /profile override clear <personality> - Clear profile override for personality
+ * - /me view - View your current profile
+ * - /me edit [profile] - Edit a profile via modal (default: your default profile)
+ * - /me create - Create a new profile
+ * - /me list - List all your profiles
+ * - /me default <profile> - Set a profile as your default
+ * - /me settings share-ltm <enable|disable> - Toggle LTM sharing across personalities
+ * - /me timezone set <timezone> - Set your timezone
+ * - /me timezone get - Show your current timezone
+ * - /me override set <personality> <profile> - Override profile for specific personality
+ * - /me override clear <personality> - Clear profile override for personality
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -19,7 +21,7 @@ import type {
   ModalSubmitInteraction,
   AutocompleteInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleViewPersona } from './view.js';
 import { handleEditPersona, handleEditModalSubmit } from './edit.js';
@@ -27,6 +29,7 @@ import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { handleListPersonas } from './list.js';
 import { handleSetDefaultPersona } from './default.js';
 import { handleShareLtmSetting } from './settings.js';
+import { handleTimezoneSet, handleTimezoneGet } from './timezone.js';
 import {
   handleOverrideSet,
   handleOverrideClear,
@@ -34,14 +37,14 @@ import {
 } from './override.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 
-const logger = createLogger('profile-command');
+const logger = createLogger('me-command');
 
 /**
  * Slash command definition
  */
 export const data = new SlashCommandBuilder()
-  .setName('profile')
-  .setDescription('Manage your profiles for AI interactions')
+  .setName('me')
+  .setDescription('Manage your personal settings and profile')
   .addSubcommand(subcommand =>
     subcommand.setName('view').setDescription('View your current profile')
   )
@@ -93,6 +96,26 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommandGroup(group =>
     group
+      .setName('timezone')
+      .setDescription('Manage your timezone')
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('set')
+          .setDescription('Set your timezone')
+          .addStringOption(option =>
+            option
+              .setName('timezone')
+              .setDescription('Your timezone (e.g., America/New_York)')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand.setName('get').setDescription('Show your current timezone')
+      )
+  )
+  .addSubcommandGroup(group =>
+    group
       .setName('override')
       .setDescription('Set profile overrides for specific personalities')
       .addSubcommand(subcommand =>
@@ -137,7 +160,7 @@ const simpleTopLevelRouter = createSubcommandRouter(
     create: handleCreatePersona,
     list: handleListPersonas,
   },
-  { logger, logPrefix: '[Profile]' }
+  { logger, logPrefix: '[Me]' }
 );
 
 /**
@@ -147,7 +170,18 @@ const settingsRouter = createSubcommandRouter(
   {
     'share-ltm': handleShareLtmSetting,
   },
-  { logger, logPrefix: '[Profile/Settings]' }
+  { logger, logPrefix: '[Me/Settings]' }
+);
+
+/**
+ * Timezone subcommand router
+ */
+const timezoneRouter = createSubcommandRouter(
+  {
+    set: handleTimezoneSet,
+    get: handleTimezoneGet,
+  },
+  { logger, logPrefix: '[Me/Timezone]' }
 );
 
 /**
@@ -158,7 +192,7 @@ const overrideRouter = createSubcommandRouter(
     set: handleOverrideSet,
     clear: handleOverrideClear,
   },
-  { logger, logPrefix: '[Profile/Override]' }
+  { logger, logPrefix: '[Me/Override]' }
 );
 
 /**
@@ -171,19 +205,19 @@ export async function execute(
   if (interaction.isModalSubmit()) {
     const customId = interaction.customId;
 
-    if (customId === 'profile-create') {
+    if (customId === 'me-create') {
       // Create new profile modal
       await handleCreateModalSubmit(interaction);
-    } else if (customId.startsWith('profile-edit-')) {
-      // Edit profile modal: profile-edit-{personaId} or profile-edit-new
-      const personaId = customId.replace('profile-edit-', '');
+    } else if (customId.startsWith('me-edit-')) {
+      // Edit profile modal: me-edit-{personaId} or me-edit-new
+      const personaId = customId.replace('me-edit-', '');
       await handleEditModalSubmit(interaction, personaId);
-    } else if (customId.startsWith('profile-override-create-')) {
-      // Create profile for override: profile-override-create-{personalityId}
-      const personalityId = customId.replace('profile-override-create-', '');
+    } else if (customId.startsWith('me-override-create-')) {
+      // Create profile for override: me-override-create-{personalityId}
+      const personalityId = customId.replace('me-override-create-', '');
       await handleOverrideCreateModalSubmit(interaction, personalityId);
     } else {
-      logger.warn({ customId }, '[Profile] Unknown modal customId');
+      logger.warn({ customId }, '[Me] Unknown modal customId');
     }
     return;
   }
@@ -206,15 +240,17 @@ export async function execute(
     }
   } else if (group === 'settings') {
     await settingsRouter(interaction);
+  } else if (group === 'timezone') {
+    await timezoneRouter(interaction);
   } else if (group === 'override') {
     await overrideRouter(interaction);
   } else {
-    logger.warn({ group }, '[Profile] Unknown subcommand group');
+    logger.warn({ group }, '[Me] Unknown subcommand group');
   }
 }
 
 /**
- * Autocomplete handler for personality and persona options
+ * Autocomplete handler for personality, persona, and timezone options
  */
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
@@ -229,7 +265,29 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
     // Include "Create new" option only for override set
     const includeCreateNew = subcommandGroup === 'override' && subcommand === 'set';
     await handlePersonaAutocomplete(interaction, includeCreateNew);
+  } else if (focusedOption.name === 'timezone') {
+    // Timezone autocomplete
+    const query = focusedOption.value.toLowerCase();
+
+    const filtered = TIMEZONE_OPTIONS.filter(
+      tz =>
+        tz.value.toLowerCase().includes(query) ||
+        tz.label.toLowerCase().includes(query) ||
+        tz.offset.toLowerCase().includes(query)
+    ).slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
+
+    const choices = filtered.map(tz => ({
+      name: `${tz.label} (${tz.value}) - ${tz.offset}`,
+      value: tz.value,
+    }));
+
+    await interaction.respond(choices);
   } else {
     await interaction.respond([]);
   }
 }
+
+/**
+ * Category for this command
+ */
+export const category = 'Me';

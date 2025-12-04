@@ -1,12 +1,12 @@
 /**
- * Profile Command Autocomplete Handler
+ * Me Command Autocomplete Handler
  * Provides autocomplete suggestions for personality and profile selection
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
 
-const logger = createLogger('profile-autocomplete');
+const logger = createLogger('me-autocomplete');
 
 /**
  * Special value for "Create new profile" option in autocomplete
@@ -14,7 +14,7 @@ const logger = createLogger('profile-autocomplete');
 export const CREATE_NEW_PERSONA_VALUE = '__create_new__';
 
 /**
- * Handle personality autocomplete for /profile override commands
+ * Handle personality autocomplete for /me override commands
  */
 export async function handlePersonalityAutocomplete(
   interaction: AutocompleteInteraction
@@ -59,14 +59,14 @@ export async function handlePersonalityAutocomplete(
   } catch (error) {
     logger.error(
       { err: error, query, userId: interaction.user.id },
-      '[Profile] Autocomplete error'
+      '[Me] Autocomplete error'
     );
     await interaction.respond([]);
   }
 }
 
 /**
- * Handle profile autocomplete for /profile commands
+ * Handle profile autocomplete for /me commands
  * Lists user's profiles with option to create new
  *
  * @param includeCreateNew - Whether to include "Create new profile..." option
@@ -143,7 +143,7 @@ export async function handlePersonaAutocomplete(
 
     await interaction.respond(choices);
   } catch (error) {
-    logger.error({ err: error, query, userId: discordId }, '[Profile] Profile autocomplete error');
+    logger.error({ err: error, query, userId: discordId }, '[Me] Profile autocomplete error');
     await interaction.respond([]);
   }
 }

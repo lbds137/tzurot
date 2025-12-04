@@ -1,5 +1,5 @@
 /**
- * Profile Default Handler
+ * Me Default Handler
  *
  * Sets a profile as the user's default profile.
  * The default profile is used when no personality-specific override is set.
@@ -10,10 +10,10 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('profile-default');
+const logger = createLogger('me-default');
 
 /**
- * Handle /profile default <profile> command
+ * Handle /me default <profile> command
  */
 export async function handleSetDefaultPersona(
   interaction: ChatInputCommandInteraction
@@ -56,7 +56,7 @@ export async function handleSetDefaultPersona(
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Profile not found. Use `/profile list` to see your profiles.',
+        content: '❌ Profile not found. Use `/me list` to see your profiles.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -84,7 +84,7 @@ export async function handleSetDefaultPersona(
     const displayName = persona.preferredName ?? persona.name;
     logger.info(
       { userId: discordId, personaId, personaName: persona.name },
-      '[Profile] Set default profile'
+      '[Me] Set default profile'
     );
 
     await interaction.reply({
@@ -92,7 +92,7 @@ export async function handleSetDefaultPersona(
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Profile] Failed to set default profile');
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to set default profile');
     await interaction.reply({
       content: '❌ Failed to set default profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
