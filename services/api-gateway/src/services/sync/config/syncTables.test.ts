@@ -274,5 +274,51 @@ describe('syncTables Configuration', () => {
       const usersConfig = SYNC_CONFIG.users;
       expect(usersConfig.uuidColumns).toContain('default_persona_id');
     });
+
+    it('should only defer known nullable FK columns (schema drift guard)', () => {
+      // This test prevents accidentally deferring non-nullable FKs which would cause
+      // NOT NULL constraint violations. If schema changes, update this mapping.
+      const knownNullableFks: Record<string, string[]> = {
+        users: ['default_persona_id', 'default_llm_config_id'], // Both nullable in schema
+        // Add other tables here if they ever need deferred FKs
+      };
+
+      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+        const deferredFks = config.deferredFkColumns ?? [];
+        const allowedNullableFks = knownNullableFks[tableName] ?? [];
+
+        for (const fkColumn of deferredFks) {
+          expect(
+            allowedNullableFks,
+            `Table "${tableName}" defers "${fkColumn}" but it's not in knownNullableFks. ` +
+              `If this FK is nullable, add it to knownNullableFks. If not, remove it from deferredFkColumns.`
+          ).toContain(fkColumn);
+        }
+      }
+    });
+
+    it('should warn about potential issues with non-nullable FK deferral attempts', () => {
+      // This documents which FKs CANNOT be deferred due to NOT NULL constraints
+      const nonNullableFks: Record<string, string[]> = {
+        personas: ['owner_id'], // Required FK - forces users-before-personas order
+        personality_owners: ['personality_id', 'user_id'], // Composite PK, both required
+        personality_aliases: ['personality_id'], // Required FK
+        // Most junction tables have required FKs
+      };
+
+      // Verify none of these are in deferredFkColumns
+      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+        const deferredFks = config.deferredFkColumns ?? [];
+        const notAllowed = nonNullableFks[tableName] ?? [];
+
+        for (const fkColumn of deferredFks) {
+          expect(
+            notAllowed,
+            `Table "${tableName}" attempts to defer "${fkColumn}" but it's NOT NULL. ` +
+              `This would cause constraint violations. Remove from deferredFkColumns.`
+          ).not.toContain(fkColumn);
+        }
+      }
+    });
   });
 });
