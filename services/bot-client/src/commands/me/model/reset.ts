@@ -1,22 +1,22 @@
 /**
- * Model Reset Handler
- * Handles /model reset subcommand
+ * Me Model Reset Handler
+ * Handles /me model reset subcommand
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import {
   deferEphemeral,
   replyWithError,
   handleCommandError,
   createSuccessEmbed,
-} from '../../utils/commandHelpers.js';
+} from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('model-reset');
+const logger = createLogger('me-model-reset');
 
 /**
- * Handle /model reset
+ * Handle /me model reset
  */
 export async function handleReset(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -33,7 +33,7 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
     if (!result.ok) {
       logger.warn(
         { userId, status: result.status, personalityId },
-        '[Model] Failed to reset override'
+        '[Me/Model] Failed to reset override'
       );
       await replyWithError(interaction, `Failed to reset model: ${result.error}`);
       return;
@@ -45,7 +45,7 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
     );
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId }, '[Model] Reset override');
+    logger.info({ userId, personalityId }, '[Me/Model] Reset override');
   } catch (error) {
     await handleCommandError(interaction, error, { userId, command: 'Model Reset' });
   }

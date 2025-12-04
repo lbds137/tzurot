@@ -13,6 +13,11 @@
  * - /me timezone get - Show your current timezone
  * - /me override set <personality> <profile> - Override profile for specific personality
  * - /me override clear <personality> - Clear profile override for personality
+ * - /me model list - Show your model overrides
+ * - /me model set <personality> <config> - Override model for a personality
+ * - /me model reset <personality> - Remove model override
+ * - /me model set-default <config> - Set your global default config
+ * - /me model clear-default - Clear your global default config
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -36,6 +41,12 @@ import {
   handleOverrideCreateModalSubmit,
 } from './override.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
+import { handleListOverrides as handleModelList } from './model/list.js';
+import { handleSet as handleModelSet } from './model/set.js';
+import { handleReset as handleModelReset } from './model/reset.js';
+import { handleSetDefault as handleModelSetDefault } from './model/set-default.js';
+import { handleClearDefault as handleModelClearDefault } from './model/clear-default.js';
+import { handleAutocomplete as handleModelAutocomplete } from './model/autocomplete.js';
 
 const logger = createLogger('me-command');
 
@@ -149,6 +160,60 @@ export const data = new SlashCommandBuilder()
               .setAutocomplete(true)
           )
       )
+  )
+  .addSubcommandGroup(group =>
+    group
+      .setName('model')
+      .setDescription('Override which model a personality uses')
+      .addSubcommand(subcommand =>
+        subcommand.setName('list').setDescription('Show your model overrides')
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('set')
+          .setDescription('Override model for a personality')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('The personality to override')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(option =>
+            option
+              .setName('config')
+              .setDescription('The LLM config to use')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('reset')
+          .setDescription('Remove model override for a personality')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('The personality to reset')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('set-default')
+          .setDescription('Set your global default LLM config')
+          .addStringOption(option =>
+            option
+              .setName('config')
+              .setDescription('The LLM config to use as default')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand.setName('clear-default').setDescription('Clear your global default LLM config')
+      )
   );
 
 /**
@@ -193,6 +258,20 @@ const overrideRouter = createSubcommandRouter(
     clear: handleOverrideClear,
   },
   { logger, logPrefix: '[Me/Override]' }
+);
+
+/**
+ * Model subcommand router
+ */
+const modelRouter = createSubcommandRouter(
+  {
+    list: handleModelList,
+    set: handleModelSet,
+    reset: handleModelReset,
+    'set-default': handleModelSetDefault,
+    'clear-default': handleModelClearDefault,
+  },
+  { logger, logPrefix: '[Me/Model]' }
 );
 
 /**
@@ -244,6 +323,8 @@ export async function execute(
     await timezoneRouter(interaction);
   } else if (group === 'override') {
     await overrideRouter(interaction);
+  } else if (group === 'model') {
+    await modelRouter(interaction);
   } else {
     logger.warn({ group }, '[Me] Unknown subcommand group');
   }
@@ -258,8 +339,17 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
   const subcommand = interaction.options.getSubcommand();
 
   if (focusedOption.name === 'personality') {
-    // Personality autocomplete (for override commands)
-    await handlePersonalityAutocomplete(interaction);
+    // Personality autocomplete (for override and model commands)
+    if (subcommandGroup === 'model') {
+      // Model subcommands use their own personality autocomplete
+      await handleModelAutocomplete(interaction);
+    } else {
+      // Override subcommands use profile's personality autocomplete
+      await handlePersonalityAutocomplete(interaction);
+    }
+  } else if (focusedOption.name === 'config') {
+    // Config autocomplete (for model commands)
+    await handleModelAutocomplete(interaction);
   } else if (focusedOption.name === 'profile') {
     // Profile autocomplete
     // Include "Create new" option only for override set

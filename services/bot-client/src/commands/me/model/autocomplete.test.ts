@@ -21,11 +21,11 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 // Mock the gateway client
-vi.mock('../../utils/userGatewayClient.js', () => ({
+vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 // Helper to mock both config and wallet APIs for config autocomplete tests

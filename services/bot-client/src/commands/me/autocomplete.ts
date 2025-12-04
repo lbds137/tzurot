@@ -57,10 +57,7 @@ export async function handlePersonalityAutocomplete(
 
     await interaction.respond(choices);
   } catch (error) {
-    logger.error(
-      { err: error, query, userId: interaction.user.id },
-      '[Me] Autocomplete error'
-    );
+    logger.error({ err: error, query, userId: interaction.user.id }, '[Me] Autocomplete error');
     await interaction.respond([]);
   }
 }
