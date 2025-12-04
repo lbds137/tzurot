@@ -123,7 +123,6 @@ describe('DELETE /wallet/:provider', () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
-
   });
 
   describe('user lookup', () => {
