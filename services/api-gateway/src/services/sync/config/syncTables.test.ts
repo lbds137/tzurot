@@ -17,7 +17,10 @@ describe('syncTables Configuration', () => {
 
       // Every table in SYNC_CONFIG must be in SYNC_TABLE_ORDER
       for (const table of configTables) {
-        expect(orderTables.has(table), `Table "${table}" is in SYNC_CONFIG but missing from SYNC_TABLE_ORDER`).toBe(true);
+        expect(
+          orderTables.has(table),
+          `Table "${table}" is in SYNC_CONFIG but missing from SYNC_TABLE_ORDER`
+        ).toBe(true);
       }
     });
 
@@ -39,7 +42,10 @@ describe('syncTables Configuration', () => {
       const configTables = new Set(Object.keys(SYNC_CONFIG));
 
       for (const table of SYNC_TABLE_ORDER) {
-        expect(configTables.has(table), `Table "${table}" is in SYNC_TABLE_ORDER but not in SYNC_CONFIG`).toBe(true);
+        expect(
+          configTables.has(table),
+          `Table "${table}" is in SYNC_TABLE_ORDER but not in SYNC_CONFIG`
+        ).toBe(true);
       }
     });
 
@@ -61,21 +67,30 @@ describe('syncTables Configuration', () => {
     /**
      * Assert that parent table comes before child table in sync order
      */
-    function assertParentBeforeChild(parent: SyncTableName, child: SyncTableName, fkColumn: string): void {
+    function assertParentBeforeChild(
+      parent: SyncTableName,
+      child: SyncTableName,
+      fkColumn: string
+    ): void {
       const parentIndex = getTableIndex(parent);
       const childIndex = getTableIndex(child);
 
       expect(
         parentIndex,
         `FK constraint violation: "${parent}" must be synced before "${child}" ` +
-        `(${child}.${fkColumn} references ${parent}.id)`
+          `(${child}.${fkColumn} references ${parent}.id)`
       ).toBeLessThan(childIndex);
     }
 
-    // Critical FK constraint that caused the original bug:
-    // users.default_persona_id -> personas.id
-    it('should sync personas before users (users.default_persona_id FK)', () => {
-      assertParentBeforeChild('personas', 'users', 'default_persona_id');
+    // Circular FK dependency between users and personas:
+    // - users.default_persona_id -> personas.id (NULLABLE - can be deferred)
+    // - personas.owner_id -> users.id (NOT NULL - cannot be deferred)
+    //
+    // Solution: users synced BEFORE personas with default_persona_id set to NULL (pass 1),
+    // then default_persona_id updated after personas exist (pass 2).
+    // This test verifies personas.owner_id FK is satisfied (users first).
+    it('should sync users before personas (personas.owner_id FK - NOT NULL)', () => {
+      assertParentBeforeChild('users', 'personas', 'owner_id');
     });
 
     // users.default_llm_config_id -> llm_configs.id
@@ -183,31 +198,81 @@ describe('syncTables Configuration', () => {
 
         // pk should be string or array of strings
         if (typeof config.pk === 'string') {
-          expect(config.pk.length, `Table "${tableName}" pk string cannot be empty`).toBeGreaterThan(0);
+          expect(
+            config.pk.length,
+            `Table "${tableName}" pk string cannot be empty`
+          ).toBeGreaterThan(0);
         } else {
-          expect(Array.isArray(config.pk), `Table "${tableName}" pk must be string or array`).toBe(true);
-          expect(config.pk.length, `Table "${tableName}" pk array cannot be empty`).toBeGreaterThan(0);
+          expect(Array.isArray(config.pk), `Table "${tableName}" pk must be string or array`).toBe(
+            true
+          );
+          expect(config.pk.length, `Table "${tableName}" pk array cannot be empty`).toBeGreaterThan(
+            0
+          );
         }
       }
     });
 
     it('should have uuidColumns array for all tables', () => {
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
-        expect(Array.isArray(config.uuidColumns), `Table "${tableName}" must have uuidColumns array`).toBe(true);
+        expect(
+          Array.isArray(config.uuidColumns),
+          `Table "${tableName}" must have uuidColumns array`
+        ).toBe(true);
       }
     });
 
     it('should have timestampColumns array for all tables', () => {
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
-        expect(Array.isArray(config.timestampColumns), `Table "${tableName}" must have timestampColumns array`).toBe(true);
+        expect(
+          Array.isArray(config.timestampColumns),
+          `Table "${tableName}" must have timestampColumns array`
+        ).toBe(true);
       }
     });
 
     it('should have at least createdAt or updatedAt for timestamp comparison', () => {
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
         const hasTimestamp = config.createdAt !== undefined || config.updatedAt !== undefined;
-        expect(hasTimestamp, `Table "${tableName}" must have createdAt or updatedAt for timestamp comparison`).toBe(true);
+        expect(
+          hasTimestamp,
+          `Table "${tableName}" must have createdAt or updatedAt for timestamp comparison`
+        ).toBe(true);
       }
+    });
+  });
+
+  describe('Deferred FK columns (two-pass sync)', () => {
+    it('should have users.default_persona_id as a deferred FK column', () => {
+      // This is critical for the circular dependency between users and personas
+      const usersConfig = SYNC_CONFIG.users;
+      expect(usersConfig.deferredFkColumns).toBeDefined();
+      expect(usersConfig.deferredFkColumns).toContain('default_persona_id');
+    });
+
+    it('should only defer nullable FK columns', () => {
+      // Deferred FK columns must be nullable because they're set to NULL in pass 1
+      // Currently only users.default_persona_id is deferred
+      const usersConfig = SYNC_CONFIG.users;
+      expect(usersConfig.deferredFkColumns).toEqual(['default_persona_id']);
+    });
+
+    it('should have deferredFkColumns as array or undefined for all tables', () => {
+      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+        if (config.deferredFkColumns !== undefined) {
+          expect(
+            Array.isArray(config.deferredFkColumns),
+            `Table "${tableName}" deferredFkColumns must be an array`
+          ).toBe(true);
+        }
+      }
+    });
+
+    it('should include deferred FK columns in uuidColumns if they reference UUIDs', () => {
+      // Deferred FK columns that reference UUID primary keys should also be in uuidColumns
+      // for proper UUID format handling
+      const usersConfig = SYNC_CONFIG.users;
+      expect(usersConfig.uuidColumns).toContain('default_persona_id');
     });
   });
 });
