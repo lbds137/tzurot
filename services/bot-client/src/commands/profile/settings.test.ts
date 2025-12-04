@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Settings Handler
+ * Tests for Profile Settings Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -69,7 +69,7 @@ describe('handleShareLtmSetting', () => {
     });
   });
 
-  it('should show error when user has no persona', async () => {
+  it('should show error when user has no profile', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-123',
       defaultPersonaId: null,
@@ -79,7 +79,7 @@ describe('handleShareLtmSetting', () => {
     await handleShareLtmSetting(createMockInteraction('enable'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a persona"),
+      content: expect.stringContaining("don't have a profile"),
       flags: MessageFlags.Ephemeral,
     });
   });

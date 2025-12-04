@@ -1,7 +1,7 @@
 /**
- * Persona Settings Handler
+ * Profile Settings Handler
  *
- * Manages persona settings like LTM (Long-Term Memory) sharing across personalities.
+ * Manages profile settings like LTM (Long-Term Memory) sharing across personalities.
  */
 
 import { MessageFlags } from 'discord.js';
@@ -9,10 +9,10 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('persona-settings');
+const logger = createLogger('profile-settings');
 
 /**
- * Handle /persona settings share-ltm command
+ * Handle /profile settings share-ltm command
  */
 export async function handleShareLtmSetting(
   interaction: ChatInputCommandInteraction
@@ -23,7 +23,7 @@ export async function handleShareLtmSetting(
   const enabled = enabledValue === 'enable';
 
   try {
-    // Find user and their default persona
+    // Find user and their default profile
     const user = await prisma.user.findUnique({
       where: { discordId },
       select: {
@@ -50,7 +50,7 @@ export async function handleShareLtmSetting(
 
     if (personaId === null || personaId === undefined) {
       await interaction.reply({
-        content: "❌ You don't have a persona set up yet. Use `/persona edit` to create one first!",
+        content: "❌ You don't have a profile set up yet. Use `/profile edit` to create one first!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -92,7 +92,7 @@ export async function handleShareLtmSetting(
 
     logger.info(
       { userId: discordId, personaId, enabled },
-      '[Persona] Updated shareLtmAcrossPersonalities setting'
+      '[Profile] Updated shareLtmAcrossPersonalities setting'
     );
 
     // Broadcast cache invalidation to all ai-worker instances
@@ -100,7 +100,7 @@ export async function handleShareLtmSetting(
   } catch (error) {
     logger.error(
       { err: error, userId: discordId },
-      '[Persona] Failed to update LTM sharing setting'
+      '[Profile] Failed to update LTM sharing setting'
     );
     await interaction.reply({
       content: '❌ Failed to update LTM sharing setting. Please try again later.',

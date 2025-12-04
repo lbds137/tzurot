@@ -231,5 +231,158 @@ describe('UserService', () => {
       // Cleanup
       delete process.env.BOT_OWNER_ID;
     });
+
+    it('should throw and log error when transaction fails', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$transaction.mockRejectedValue(new Error('Transaction failed'));
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
+        'Transaction failed'
+      );
+    });
+
+    it('should throw and log error on database error', async () => {
+      mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
+        'Database error'
+      );
+    });
+
+    it('should use display name for persona preferredName', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      let capturedPersonaData: { preferredName?: string } | undefined;
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+            },
+            persona: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedPersonaData = data;
+                return Promise.resolve({ id: 'test-persona-uuid' });
+              }),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
+
+      await userService.getOrCreateUser('123456', 'testuser', 'Test User Display');
+
+      expect(capturedPersonaData?.preferredName).toBe('Test User Display');
+    });
+
+    it('should use bio for persona content', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      let capturedPersonaData: { content?: string } | undefined;
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+            },
+            persona: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedPersonaData = data;
+                return Promise.resolve({ id: 'test-persona-uuid' });
+              }),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
+
+      await userService.getOrCreateUser('123456', 'testuser', undefined, 'My bio text');
+
+      expect(capturedPersonaData?.content).toBe('My bio text');
+    });
+  });
+
+  describe('getUserTimezone', () => {
+    it('should return user timezone when set', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ timezone: 'America/New_York' });
+
+      const result = await userService.getUserTimezone('user-123');
+
+      expect(result).toBe('America/New_York');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        select: { timezone: true },
+      });
+    });
+
+    it('should return UTC when user has no timezone set', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ timezone: null });
+
+      const result = await userService.getUserTimezone('user-123');
+
+      expect(result).toBe('UTC');
+    });
+
+    it('should return UTC when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      const result = await userService.getUserTimezone('user-123');
+
+      expect(result).toBe('UTC');
+    });
+
+    it('should return UTC on database error', async () => {
+      mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
+
+      const result = await userService.getUserTimezone('user-123');
+
+      expect(result).toBe('UTC');
+    });
+  });
+
+  describe('getPersonaName', () => {
+    it('should return preferredName when set', async () => {
+      mockPrisma.persona.findUnique.mockResolvedValue({
+        name: 'testuser',
+        preferredName: 'Test User',
+      });
+
+      const result = await userService.getPersonaName('persona-123');
+
+      expect(result).toBe('Test User');
+      expect(mockPrisma.persona.findUnique).toHaveBeenCalledWith({
+        where: { id: 'persona-123' },
+        select: { name: true, preferredName: true },
+      });
+    });
+
+    it('should return name when preferredName is null', async () => {
+      mockPrisma.persona.findUnique.mockResolvedValue({
+        name: 'testuser',
+        preferredName: null,
+      });
+
+      const result = await userService.getPersonaName('persona-123');
+
+      expect(result).toBe('testuser');
+    });
+
+    it('should return null when persona not found', async () => {
+      mockPrisma.persona.findUnique.mockResolvedValue(null);
+
+      const result = await userService.getPersonaName('persona-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on database error', async () => {
+      mockPrisma.persona.findUnique.mockRejectedValue(new Error('Database error'));
+
+      const result = await userService.getPersonaName('persona-123');
+
+      expect(result).toBeNull();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
 
 describe('logSanitizer', () => {
@@ -165,6 +165,110 @@ describe('logSanitizer', () => {
         },
       }) as { err: { message: string } };
       expect(result.err.message).toContain('sk-[REDACTED]');
+    });
+  });
+
+  describe('createSanitizedSerializers', () => {
+    it('should return object with req and res serializers', async () => {
+      const { createSanitizedSerializers } = await import('./logSanitizer.js');
+      const serializers = createSanitizedSerializers();
+
+      expect(serializers).toHaveProperty('req');
+      expect(serializers).toHaveProperty('res');
+      expect(typeof serializers.req).toBe('function');
+      expect(typeof serializers.res).toBe('function');
+    });
+
+    it('should sanitize request objects', async () => {
+      const { createSanitizedSerializers } = await import('./logSanitizer.js');
+      const serializers = createSanitizedSerializers();
+
+      const req = {
+        headers: {
+          authorization: 'Bearer secret-token',
+        },
+        url: '/api/test',
+      };
+
+      const result = serializers.req(req) as { headers: { authorization: string }; url: string };
+      expect(result.headers.authorization).toBe('[REDACTED]');
+      expect(result.url).toBe('/api/test');
+    });
+
+    it('should sanitize response objects', async () => {
+      const { createSanitizedSerializers } = await import('./logSanitizer.js');
+      const serializers = createSanitizedSerializers();
+
+      const res = {
+        body: {
+          apiKey: 'sk-1234567890abcdefghijklmnop',
+        },
+        statusCode: 200,
+      };
+
+      const result = serializers.res(res) as { body: { apiKey: string }; statusCode: number };
+      expect(result.body.apiKey).toBe('[REDACTED]');
+      expect(result.statusCode).toBe(200);
+    });
+  });
+
+  describe('sanitizeLogHook', () => {
+    it('should sanitize object bindings', async () => {
+      const { sanitizeLogHook } = await import('./logSanitizer.js');
+
+      const args: unknown[] = [
+        { apiKey: 'sk-1234567890abcdefghijklmnop' },
+        'Log message',
+      ];
+      const method = vi.fn();
+
+      sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);
+
+      expect(method).toHaveBeenCalled();
+      const calledArgs = method.mock.calls[0] as unknown[];
+      expect((calledArgs[0] as { apiKey: string }).apiKey).toBe('[REDACTED]');
+    });
+
+    it('should sanitize string messages', async () => {
+      const { sanitizeLogHook } = await import('./logSanitizer.js');
+
+      const args: unknown[] = [
+        'API key: sk-1234567890abcdefghijklmnop',
+      ];
+      const method = vi.fn();
+
+      sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);
+
+      expect(method).toHaveBeenCalled();
+      const calledArgs = method.mock.calls[0] as unknown[];
+      expect(calledArgs[0]).toBe('API key: sk-[REDACTED]');
+    });
+
+    it('should sanitize additional string arguments', async () => {
+      const { sanitizeLogHook } = await import('./logSanitizer.js');
+
+      const args: unknown[] = [
+        { level: 'info' },
+        'Message with key sk-1234567890abcdefghijklmnop',
+      ];
+      const method = vi.fn();
+
+      sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);
+
+      expect(method).toHaveBeenCalled();
+      const calledArgs = method.mock.calls[0] as unknown[];
+      expect(calledArgs[1]).toBe('Message with key sk-[REDACTED]');
+    });
+
+    it('should handle empty args', async () => {
+      const { sanitizeLogHook } = await import('./logSanitizer.js');
+
+      const args: unknown[] = [];
+      const method = vi.fn();
+
+      sanitizeLogHook.call({}, args as Parameters<typeof Function.prototype.apply>, method);
+
+      expect(method).toHaveBeenCalled();
     });
   });
 });

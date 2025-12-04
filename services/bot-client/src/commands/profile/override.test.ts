@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Override Handlers
+ * Tests for Profile Override Handlers
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -68,7 +68,7 @@ describe('handleOverrideSet', () => {
       options: {
         getString: (name: string) => {
           if (name === 'personality') return personalitySlug;
-          if (name === 'persona') return personaId;
+          if (name === 'profile') return personaId;
           return null;
         },
       },
@@ -104,7 +104,7 @@ describe('handleOverrideSet', () => {
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona override set'),
+      content: expect.stringContaining('Profile override set'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -179,7 +179,7 @@ describe('handleOverrideSet', () => {
     });
   });
 
-  it('should error if persona not owned by user', async () => {
+  it('should error if profile not owned by user', async () => {
     mockPrismaClient.personality.findUnique.mockResolvedValue({
       id: 'personality-uuid',
       name: 'Lilith',
@@ -193,7 +193,7 @@ describe('handleOverrideSet', () => {
     await handleOverrideSet(createMockInteraction('lilith', 'other-persona'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona not found'),
+      content: expect.stringContaining('Profile not found'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -204,7 +204,7 @@ describe('handleOverrideSet', () => {
     await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to set persona override'),
+      content: expect.stringContaining('Failed to set profile override'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -268,12 +268,12 @@ describe('handleOverrideCreateModalSubmit', () => {
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona "Lilith Persona" created'),
+      content: expect.stringContaining('Profile "Lilith Persona" created'),
       flags: MessageFlags.Ephemeral,
     });
   });
 
-  it('should require persona name', async () => {
+  it('should require profile name', async () => {
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
         personaName: '',
@@ -285,7 +285,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona name is required'),
+      content: expect.stringContaining('Profile name is required'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockPrismaClient.persona.create).not.toHaveBeenCalled();
@@ -324,7 +324,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create persona'),
+      content: expect.stringContaining('Failed to create profile'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -374,7 +374,7 @@ describe('handleOverrideClear', () => {
       where: { id: 'config-uuid' },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona override cleared'),
+      content: expect.stringContaining('Profile override cleared'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -426,7 +426,7 @@ describe('handleOverrideClear', () => {
     await handleOverrideClear(createMockInteraction('lilith'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a persona override"),
+      content: expect.stringContaining("don't have a profile override"),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -464,7 +464,7 @@ describe('handleOverrideClear', () => {
     await handleOverrideClear(createMockInteraction('lilith'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to clear persona override'),
+      content: expect.stringContaining('Failed to clear profile override'),
       flags: MessageFlags.Ephemeral,
     });
   });

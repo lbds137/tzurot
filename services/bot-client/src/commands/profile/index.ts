@@ -1,16 +1,16 @@
 /**
- * Persona Command Group
- * Manages user personas for AI interactions
+ * Profile Command Group
+ * Manages user profiles (personas) for AI interactions
  *
  * Commands:
- * - /persona view - View your current persona
- * - /persona edit [persona] - Edit a persona via modal (default: your default persona)
- * - /persona create - Create a new persona
- * - /persona list - List all your personas
- * - /persona default <persona> - Set a persona as your default
- * - /persona settings share-ltm <enable|disable> - Toggle LTM sharing across personalities
- * - /persona override set <personality> <persona> - Override persona for specific personality
- * - /persona override clear <personality> - Clear persona override for personality
+ * - /profile view - View your current profile
+ * - /profile edit [profile] - Edit a profile via modal (default: your default profile)
+ * - /profile create - Create a new profile
+ * - /profile list - List all your profiles
+ * - /profile default <profile> - Set a profile as your default
+ * - /profile settings share-ltm <enable|disable> - Toggle LTM sharing across personalities
+ * - /profile override set <personality> <profile> - Override profile for specific personality
+ * - /profile override clear <personality> - Clear profile override for personality
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -34,39 +34,39 @@ import {
 } from './override.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 
-const logger = createLogger('persona-command');
+const logger = createLogger('profile-command');
 
 /**
  * Slash command definition
  */
 export const data = new SlashCommandBuilder()
-  .setName('persona')
-  .setDescription('Manage your personas for AI interactions')
+  .setName('profile')
+  .setDescription('Manage your profiles for AI interactions')
   .addSubcommand(subcommand =>
-    subcommand.setName('view').setDescription('View your current persona')
+    subcommand.setName('view').setDescription('View your current profile')
   )
   .addSubcommand(subcommand =>
     subcommand
       .setName('edit')
-      .setDescription('Edit a persona (default: your default persona)')
+      .setDescription('Edit a profile (default: your default profile)')
       .addStringOption(option =>
         option
-          .setName('persona')
-          .setDescription('Which persona to edit (optional, defaults to your default)')
+          .setName('profile')
+          .setDescription('Which profile to edit (optional, defaults to your default)')
           .setRequired(false)
           .setAutocomplete(true)
       )
   )
-  .addSubcommand(subcommand => subcommand.setName('create').setDescription('Create a new persona'))
-  .addSubcommand(subcommand => subcommand.setName('list').setDescription('List all your personas'))
+  .addSubcommand(subcommand => subcommand.setName('create').setDescription('Create a new profile'))
+  .addSubcommand(subcommand => subcommand.setName('list').setDescription('List all your profiles'))
   .addSubcommand(subcommand =>
     subcommand
       .setName('default')
-      .setDescription('Set a persona as your default')
+      .setDescription('Set a profile as your default')
       .addStringOption(option =>
         option
-          .setName('persona')
-          .setDescription('The persona to set as default')
+          .setName('profile')
+          .setDescription('The profile to set as default')
           .setRequired(true)
           .setAutocomplete(true)
       )
@@ -74,7 +74,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommandGroup(group =>
     group
       .setName('settings')
-      .setDescription('Manage persona settings')
+      .setDescription('Manage profile settings')
       .addSubcommand(subcommand =>
         subcommand
           .setName('share-ltm')
@@ -94,11 +94,11 @@ export const data = new SlashCommandBuilder()
   .addSubcommandGroup(group =>
     group
       .setName('override')
-      .setDescription('Set persona overrides for specific personalities')
+      .setDescription('Set profile overrides for specific personalities')
       .addSubcommand(subcommand =>
         subcommand
           .setName('set')
-          .setDescription('Set a different persona for a specific personality')
+          .setDescription('Set a different profile for a specific personality')
           .addStringOption(option =>
             option
               .setName('personality')
@@ -108,8 +108,8 @@ export const data = new SlashCommandBuilder()
           )
           .addStringOption(option =>
             option
-              .setName('persona')
-              .setDescription('The persona to use (or create new)')
+              .setName('profile')
+              .setDescription('The profile to use (or create new)')
               .setRequired(true)
               .setAutocomplete(true)
           )
@@ -117,7 +117,7 @@ export const data = new SlashCommandBuilder()
       .addSubcommand(subcommand =>
         subcommand
           .setName('clear')
-          .setDescription('Clear persona override for a specific personality')
+          .setDescription('Clear profile override for a specific personality')
           .addStringOption(option =>
             option
               .setName('personality')
@@ -137,7 +137,7 @@ const simpleTopLevelRouter = createSubcommandRouter(
     create: handleCreatePersona,
     list: handleListPersonas,
   },
-  { logger, logPrefix: '[Persona]' }
+  { logger, logPrefix: '[Profile]' }
 );
 
 /**
@@ -147,7 +147,7 @@ const settingsRouter = createSubcommandRouter(
   {
     'share-ltm': handleShareLtmSetting,
   },
-  { logger, logPrefix: '[Persona/Settings]' }
+  { logger, logPrefix: '[Profile/Settings]' }
 );
 
 /**
@@ -158,7 +158,7 @@ const overrideRouter = createSubcommandRouter(
     set: handleOverrideSet,
     clear: handleOverrideClear,
   },
-  { logger, logPrefix: '[Persona/Override]' }
+  { logger, logPrefix: '[Profile/Override]' }
 );
 
 /**
@@ -171,19 +171,19 @@ export async function execute(
   if (interaction.isModalSubmit()) {
     const customId = interaction.customId;
 
-    if (customId === 'persona-create') {
-      // Create new persona modal
+    if (customId === 'profile-create') {
+      // Create new profile modal
       await handleCreateModalSubmit(interaction);
-    } else if (customId.startsWith('persona-edit-')) {
-      // Edit persona modal: persona-edit-{personaId} or persona-edit-new
-      const personaId = customId.replace('persona-edit-', '');
+    } else if (customId.startsWith('profile-edit-')) {
+      // Edit profile modal: profile-edit-{personaId} or profile-edit-new
+      const personaId = customId.replace('profile-edit-', '');
       await handleEditModalSubmit(interaction, personaId);
-    } else if (customId.startsWith('persona-override-create-')) {
-      // Create persona for override: persona-override-create-{personalityId}
-      const personalityId = customId.replace('persona-override-create-', '');
+    } else if (customId.startsWith('profile-override-create-')) {
+      // Create profile for override: profile-override-create-{personalityId}
+      const personalityId = customId.replace('profile-override-create-', '');
       await handleOverrideCreateModalSubmit(interaction, personalityId);
     } else {
-      logger.warn({ customId }, '[Persona] Unknown modal customId');
+      logger.warn({ customId }, '[Profile] Unknown modal customId');
     }
     return;
   }
@@ -194,11 +194,11 @@ export async function execute(
   if (group === null) {
     // Top-level subcommands
     if (subcommand === 'edit') {
-      // Edit needs special handling to pass persona ID
-      const personaId = interaction.options.getString('persona');
+      // Edit needs special handling to pass profile ID
+      const personaId = interaction.options.getString('profile');
       await handleEditPersona(interaction, personaId);
     } else if (subcommand === 'default') {
-      // Default needs the persona ID
+      // Default needs the profile ID
       await handleSetDefaultPersona(interaction);
     } else {
       // view, create, list use simple router
@@ -209,7 +209,7 @@ export async function execute(
   } else if (group === 'override') {
     await overrideRouter(interaction);
   } else {
-    logger.warn({ group }, '[Persona] Unknown subcommand group');
+    logger.warn({ group }, '[Profile] Unknown subcommand group');
   }
 }
 
@@ -224,8 +224,8 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
   if (focusedOption.name === 'personality') {
     // Personality autocomplete (for override commands)
     await handlePersonalityAutocomplete(interaction);
-  } else if (focusedOption.name === 'persona') {
-    // Persona autocomplete
+  } else if (focusedOption.name === 'profile') {
+    // Profile autocomplete
     // Include "Create new" option only for override set
     const includeCreateNew = subcommandGroup === 'override' && subcommand === 'set';
     await handlePersonaAutocomplete(interaction, includeCreateNew);

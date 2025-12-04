@@ -1,20 +1,20 @@
 /**
- * Persona Command Autocomplete Handler
- * Provides autocomplete suggestions for personality and persona selection
+ * Profile Command Autocomplete Handler
+ * Provides autocomplete suggestions for personality and profile selection
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
 
-const logger = createLogger('persona-autocomplete');
+const logger = createLogger('profile-autocomplete');
 
 /**
- * Special value for "Create new persona" option in autocomplete
+ * Special value for "Create new profile" option in autocomplete
  */
 export const CREATE_NEW_PERSONA_VALUE = '__create_new__';
 
 /**
- * Handle personality autocomplete for /persona override commands
+ * Handle personality autocomplete for /profile override commands
  */
 export async function handlePersonalityAutocomplete(
   interaction: AutocompleteInteraction
@@ -59,17 +59,17 @@ export async function handlePersonalityAutocomplete(
   } catch (error) {
     logger.error(
       { err: error, query, userId: interaction.user.id },
-      '[Persona] Autocomplete error'
+      '[Profile] Autocomplete error'
     );
     await interaction.respond([]);
   }
 }
 
 /**
- * Handle persona autocomplete for /persona commands
- * Lists user's personas with option to create new
+ * Handle profile autocomplete for /profile commands
+ * Lists user's profiles with option to create new
  *
- * @param includeCreateNew - Whether to include "Create new persona..." option
+ * @param includeCreateNew - Whether to include "Create new profile..." option
  */
 export async function handlePersonaAutocomplete(
   interaction: AutocompleteInteraction,
@@ -77,7 +77,7 @@ export async function handlePersonaAutocomplete(
 ): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
 
-  if (focusedOption.name !== 'persona') {
+  if (focusedOption.name !== 'profile') {
     await interaction.respond([]);
     return;
   }
@@ -130,9 +130,9 @@ export async function handlePersonaAutocomplete(
       }
     }
 
-    // Add "Create new persona" option at the end if requested and query matches
+    // Add "Create new profile" option at the end if requested and query matches
     if (includeCreateNew) {
-      const createNewLabel = '➕ Create new persona...';
+      const createNewLabel = '➕ Create new profile...';
       if (query === '' || createNewLabel.toLowerCase().includes(query)) {
         choices.push({
           name: createNewLabel,
@@ -143,7 +143,7 @@ export async function handlePersonaAutocomplete(
 
     await interaction.respond(choices);
   } catch (error) {
-    logger.error({ err: error, query, userId: discordId }, '[Persona] Persona autocomplete error');
+    logger.error({ err: error, query, userId: discordId }, '[Profile] Profile autocomplete error');
     await interaction.respond([]);
   }
 }

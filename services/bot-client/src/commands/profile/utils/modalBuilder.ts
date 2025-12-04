@@ -1,7 +1,7 @@
 /**
- * Persona Modal Builder Utilities
+ * Profile Modal Builder Utilities
  *
- * Shared utilities for building persona modals across commands.
+ * Shared utilities for building profile modals across commands.
  * Used by: create, edit, and override commands.
  */
 
@@ -9,7 +9,7 @@ import { TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types';
 
 /**
- * Existing persona data for pre-filling modal fields
+ * Existing profile data for pre-filling modal fields
  */
 export interface PersonaModalData {
   name?: string | null;
@@ -23,9 +23,9 @@ export interface PersonaModalData {
  * Options for customizing modal field labels and placeholders
  */
 export interface PersonaModalOptions {
-  /** Whether to include the persona name field (default: true) */
+  /** Whether to include the profile name field (default: true) */
   includeNameField?: boolean;
-  /** Custom placeholder for persona name */
+  /** Custom placeholder for profile name */
   namePlaceholder?: string;
   /** Custom label for description field */
   descriptionLabel?: string;
@@ -43,9 +43,9 @@ export interface PersonaModalOptions {
 
 const DEFAULT_OPTIONS: Required<PersonaModalOptions> = {
   includeNameField: true,
-  namePlaceholder: 'A name for this persona (e.g., Default, Work, Creative)',
+  namePlaceholder: 'A name for this profile (e.g., Default, Work, Creative)',
   descriptionLabel: 'Description (for your reference)',
-  descriptionPlaceholder: 'A short note to help you remember this persona',
+  descriptionPlaceholder: 'A short note to help you remember this profile',
   preferredNamePlaceholder: 'What should AI call you?',
   preferredNameLabel: 'Preferred Name (what AI calls you)',
   contentLabel: 'About You',
@@ -53,12 +53,12 @@ const DEFAULT_OPTIONS: Required<PersonaModalOptions> = {
 };
 
 /**
- * Build persona modal input fields
+ * Build profile modal input fields
  *
- * Creates standardized input fields for persona modals with optional pre-filling.
- * Ensures consistent field IDs across all persona-related modals.
+ * Creates standardized input fields for profile modals with optional pre-filling.
+ * Ensures consistent field IDs across all profile-related modals.
  *
- * @param existingData - Existing persona data to pre-fill (optional)
+ * @param existingData - Existing profile data to pre-fill (optional)
  * @param options - Customization options for labels/placeholders
  * @returns Array of ActionRowBuilder components ready to add to a modal
  */
@@ -69,11 +69,11 @@ export function buildPersonaModalFields(
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const rows: ActionRowBuilder<TextInputBuilder>[] = [];
 
-  // Persona Name input (optional, but required when included)
+  // Profile Name input (optional, but required when included)
   if (opts.includeNameField) {
     const nameInput = new TextInputBuilder()
       .setCustomId('personaName')
-      .setLabel('Persona Name')
+      .setLabel('Profile Name')
       .setPlaceholder(opts.namePlaceholder)
       .setStyle(TextInputStyle.Short)
       .setMaxLength(100)
