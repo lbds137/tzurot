@@ -30,13 +30,12 @@ export const data = new SlashCommandBuilder()
  */
 const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: '🎭', order: 1 },
-  Profile: { emoji: '👤', order: 2 },
+  Me: { emoji: '👤', order: 2 },
   Model: { emoji: '🤖', order: 3 },
   Preset: { emoji: '⚙️', order: 4 },
   Wallet: { emoji: '🔑', order: 5 },
-  Settings: { emoji: '⚙️', order: 6 },
-  Admin: { emoji: '🛡️', order: 7 },
-  Help: { emoji: '❓', order: 8 },
+  Admin: { emoji: '🛡️', order: 6 },
+  Help: { emoji: '❓', order: 7 },
   Other: { emoji: '📦', order: 99 },
 };
 

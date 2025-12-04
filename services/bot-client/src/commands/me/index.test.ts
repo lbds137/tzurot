@@ -1,5 +1,5 @@
 /**
- * Tests for Profile Command Index
+ * Tests for Me Command Index
  * Tests command routing and modal handling
  */
 
@@ -58,15 +58,15 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-describe('Profile Command Index', () => {
+describe('Me Command Index', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('command data', () => {
     it('should have correct name and description', () => {
-      expect(data.name).toBe('profile');
-      expect(data.description).toBe('Manage your profiles for AI interactions');
+      expect(data.name).toBe('me');
+      expect(data.description).toBe('Manage your personal settings and profile');
     });
 
     it('should have all subcommands', () => {
@@ -98,7 +98,7 @@ describe('Profile Command Index', () => {
   });
 
   describe('execute - subcommand routing', () => {
-    it('should route to view handler for /profile view', async () => {
+    it('should route to view handler for /me view', async () => {
       const { handleViewPersona } = await import('./view.js');
 
       const interaction = {
@@ -115,7 +115,7 @@ describe('Profile Command Index', () => {
       expect(handleViewPersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to edit handler for /profile edit', async () => {
+    it('should route to edit handler for /me edit', async () => {
       const { handleEditPersona } = await import('./edit.js');
 
       const interaction = {
@@ -151,7 +151,7 @@ describe('Profile Command Index', () => {
       expect(handleEditPersona).toHaveBeenCalledWith(interaction, 'persona-123');
     });
 
-    it('should route to create handler for /profile create', async () => {
+    it('should route to create handler for /me create', async () => {
       const { handleCreatePersona } = await import('./create.js');
 
       const interaction = {
@@ -168,7 +168,7 @@ describe('Profile Command Index', () => {
       expect(handleCreatePersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to list handler for /profile list', async () => {
+    it('should route to list handler for /me list', async () => {
       const { handleListPersonas } = await import('./list.js');
 
       const interaction = {
@@ -185,7 +185,7 @@ describe('Profile Command Index', () => {
       expect(handleListPersonas).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to default handler for /profile default', async () => {
+    it('should route to default handler for /me default', async () => {
       const { handleSetDefaultPersona } = await import('./default.js');
 
       const interaction = {
@@ -202,7 +202,7 @@ describe('Profile Command Index', () => {
       expect(handleSetDefaultPersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to settings handler for /profile settings share-ltm', async () => {
+    it('should route to settings handler for /me settings share-ltm', async () => {
       const { handleShareLtmSetting } = await import('./settings.js');
 
       const interaction = {
@@ -219,7 +219,7 @@ describe('Profile Command Index', () => {
       expect(handleShareLtmSetting).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to override set handler for /profile override set', async () => {
+    it('should route to override set handler for /me override set', async () => {
       const { handleOverrideSet } = await import('./override.js');
 
       const interaction = {
@@ -236,7 +236,7 @@ describe('Profile Command Index', () => {
       expect(handleOverrideSet).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to override clear handler for /profile override clear', async () => {
+    it('should route to override clear handler for /me override clear', async () => {
       const { handleOverrideClear } = await import('./override.js');
 
       const interaction = {
@@ -255,12 +255,12 @@ describe('Profile Command Index', () => {
   });
 
   describe('execute - modal routing', () => {
-    it('should route profile-create modal to create handler', async () => {
+    it('should route me-create modal to create handler', async () => {
       const { handleCreateModalSubmit } = await import('./create.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'profile-create',
+        customId: 'me-create',
       } as any;
 
       await execute(interaction);
@@ -268,12 +268,12 @@ describe('Profile Command Index', () => {
       expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route profile-edit-new modal to edit handler', async () => {
+    it('should route me-edit-new modal to edit handler', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'profile-edit-new',
+        customId: 'me-edit-new',
       } as any;
 
       await execute(interaction);
@@ -281,12 +281,12 @@ describe('Profile Command Index', () => {
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
     });
 
-    it('should route profile-edit-{id} modal to edit handler with ID', async () => {
+    it('should route me-edit-{id} modal to edit handler with ID', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'profile-edit-persona-uuid-123',
+        customId: 'me-edit-persona-uuid-123',
       } as any;
 
       await execute(interaction);
@@ -294,12 +294,12 @@ describe('Profile Command Index', () => {
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'persona-uuid-123');
     });
 
-    it('should route profile-override-create modal to override create handler', async () => {
+    it('should route me-override-create modal to override create handler', async () => {
       const { handleOverrideCreateModalSubmit } = await import('./override.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'profile-override-create-personality-uuid-123',
+        customId: 'me-override-create-personality-uuid-123',
       } as any;
 
       await execute(interaction);
