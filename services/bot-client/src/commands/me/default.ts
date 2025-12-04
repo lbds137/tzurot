@@ -13,7 +13,7 @@ import { personaCacheInvalidationService } from '../../redis.js';
 const logger = createLogger('me-default');
 
 /**
- * Handle /me default <profile> command
+ * Handle /me profile default <profile> command
  */
 export async function handleSetDefaultPersona(
   interaction: ChatInputCommandInteraction
@@ -56,7 +56,7 @@ export async function handleSetDefaultPersona(
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Profile not found. Use `/me list` to see your profiles.',
+        content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
         flags: MessageFlags.Ephemeral,
       });
       return;

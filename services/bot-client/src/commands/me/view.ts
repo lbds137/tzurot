@@ -15,7 +15,7 @@ import { createLogger, getPrismaClient } from '@tzurot/common-types';
 const logger = createLogger('me-view');
 
 /**
- * Handle /me view command
+ * Handle /me profile view command
  */
 export async function handleViewPersona(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -54,7 +54,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     if (persona === null || persona === undefined) {
       await interaction.reply({
-        content: "❌ You don't have a profile set up yet. Use `/me edit` to create one!",
+        content: "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -91,14 +91,14 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     } else {
       embed.addFields({
         name: '📝 Content',
-        value: '*No content set. Use `/me edit` to add information about yourself.*',
+        value: '*No content set. Use `/me profile edit` to add information about yourself.*',
         inline: false,
       });
     }
 
     // Footer with help
     embed.setFooter({
-      text: 'Use /me edit to update • /me settings to change options',
+      text: 'Use /me profile edit to update • /me settings to change options',
     });
 
     await interaction.reply({

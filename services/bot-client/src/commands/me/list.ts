@@ -12,7 +12,7 @@ import { createLogger, getPrismaClient, DISCORD_COLORS, TEXT_LIMITS } from '@tzu
 const logger = createLogger('me-list');
 
 /**
- * Handle /me list command
+ * Handle /me profile list command
  */
 export async function handleListPersonas(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -41,7 +41,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       await interaction.reply({
         content:
           "📋 **You don't have any profiles yet.**\n\n" +
-          'Use `/me create` to create your first profile, or `/me edit` to set up your default profile.',
+          'Use `/me profile create` to create your first profile, or `/me profile edit` to set up your default profile.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -78,7 +78,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
     }
 
     embed.setFooter({
-      text: 'Use /me edit <profile> to edit • /me default <profile> to change default',
+      text: 'Use /me profile edit <profile> to edit • /me profile default <profile> to change default',
     });
 
     await interaction.reply({
