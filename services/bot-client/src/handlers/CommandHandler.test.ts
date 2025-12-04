@@ -168,21 +168,21 @@ describe('CommandHandler', () => {
       });
     });
 
-    it('should pass commands collection to utility command', async () => {
-      const mockUtilityCommand: Command = {
+    it('should pass commands collection to help command', async () => {
+      const mockHelpCommand: Command = {
         data: {
-          name: 'utility',
-          description: 'Utility commands',
+          name: 'help',
+          description: 'Show all available commands',
         },
         execute: vi.fn().mockResolvedValue(undefined),
       };
 
-      handler.getCommands().set('utility', mockUtilityCommand);
+      handler.getCommands().set('help', mockHelpCommand);
 
       const mockInteraction = {
         isChatInputCommand: () => true,
         isModalSubmit: () => false,
-        commandName: 'utility',
+        commandName: 'help',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
         replied: false,
@@ -192,10 +192,7 @@ describe('CommandHandler', () => {
       await handler.handleInteraction(mockInteraction);
 
       // Should pass commands collection as second argument
-      expect(mockUtilityCommand.execute).toHaveBeenCalledWith(
-        mockInteraction,
-        handler.getCommands()
-      );
+      expect(mockHelpCommand.execute).toHaveBeenCalledWith(mockInteraction, handler.getCommands());
     });
 
     it('should handle command execution error with reply', async () => {

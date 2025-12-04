@@ -140,8 +140,8 @@ export class CommandHandler {
         `[CommandHandler] Executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`
       );
 
-      // Pass commands collection to utility command (for help subcommand)
-      if (commandName === 'utility' && interaction.isChatInputCommand()) {
+      // Pass commands collection to help command
+      if (commandName === 'help' && interaction.isChatInputCommand()) {
         await command.execute(interaction, this.commands);
       } else {
         await command.execute(interaction);

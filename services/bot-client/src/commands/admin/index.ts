@@ -14,6 +14,7 @@ import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
 
 // Import subcommand handlers
+import { handlePing } from './ping.js';
 import { handleDbSync } from './db-sync.js';
 import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
@@ -31,6 +32,9 @@ const logger = createLogger('admin-command');
 export const data = new SlashCommandBuilder()
   .setName('admin')
   .setDescription('Admin commands (Owner only)')
+  .addSubcommand(subcommand =>
+    subcommand.setName('ping').setDescription('Check bot responsiveness and latency')
+  )
   .addSubcommand(subcommand =>
     subcommand
       .setName('db-sync')
@@ -172,6 +176,7 @@ export const data = new SlashCommandBuilder()
 function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Promise<void> {
   return createSubcommandRouter(
     {
+      ping: handlePing,
       'db-sync': handleDbSync,
       servers: handleServers,
       kick: handleKick,
