@@ -589,6 +589,13 @@
   - Currently hardcoded: MAX_CHANNELS_PER_MESSAGE (5), MAX_ROLES_PER_MESSAGE (5), CHANNEL_MEMORY_BUDGET_RATIO (0.5)
   - Allows tuning for different use cases without code changes
 
+**From Command Structure Phase 2 PR Review (2025-12-04)**:
+
+- Extract modal customIds to constants
+  - Currently hardcoded strings like `create_character_modal`, `create_preset_modal_step1`, etc.
+  - Extract to `DISCORD_CUSTOM_IDS` or similar constants object in common-types
+  - Benefits: DRY, centralized, easier to find all modal handlers
+
 **From Access Control Implementation (2025-12-04)**:
 
 - Personality Access Allowlist - Let personality owners grant access to specific users via slash command
