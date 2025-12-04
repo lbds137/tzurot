@@ -1,7 +1,6 @@
 /**
- * Model Set-Default Handler
- * Handles /model set-default subcommand
- * Sets the user's global default LLM config (applies to all personalities)
+ * Me Model Set Handler
+ * Handles /me model set subcommand
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -13,16 +12,22 @@ import {
   type AIProvider,
   type LlmConfigSummary,
 } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import {
+  deferEphemeral,
+  replyWithError,
+  handleCommandError,
+} from '../../../utils/commandHelpers.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
-const logger = createLogger('model-set-default');
+const logger = createLogger('me-model-set');
 
-interface SetDefaultResponse {
-  default: {
-    configId: string;
-    configName: string;
+interface SetResponse {
+  override: {
+    personalityId: string;
+    personalityName: string;
+    configId: string | null;
+    configName: string | null;
   };
 }
 
@@ -38,10 +43,11 @@ interface ConfigListResponse {
 }
 
 /**
- * Handle /model set-default
+ * Handle /me model set
  */
-export async function handleSetDefault(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleSet(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
+  const personalityId = interaction.options.getString('personality', true);
   const configId = interaction.options.getString('config', true);
 
   await deferEphemeral(interaction);
@@ -62,7 +68,7 @@ export async function handleSetDefault(interaction: ChatInputCommandInteraction)
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
-    logger.info({ userId }, '[Model] User clicked unlock models upsell');
+    logger.info({ userId }, '[Me/Model] User clicked unlock models upsell');
     return;
   }
 
@@ -90,49 +96,58 @@ export async function handleSetDefault(interaction: ChatInputCommandInteraction)
               'In **Guest Mode**, you can only use configs with free models (marked with 🆓).\n\n' +
               'Use `/wallet set` to add your own API key for full model access.'
           )
-          .setFooter({ text: 'Use /llm-config list to see available free configs' })
+          .setFooter({ text: 'Use /preset list to see available free configs' })
           .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
         logger.info(
           { userId, configId, configName: selectedConfig.name, isGuestMode },
-          '[Model] Guest mode user tried to set premium model as default'
+          '[Me/Model] Guest mode user tried to set premium model'
         );
         return;
       }
     }
 
-    const result = await callGatewayApi<SetDefaultResponse>('/user/model-override/default', {
+    const result = await callGatewayApi<SetResponse>('/user/model-override', {
       method: 'PUT',
       userId,
-      body: { configId },
+      body: { personalityId, configId },
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, configId }, '[Model] Failed to set default');
-      await replyWithError(interaction, `Failed to set default: ${result.error}`);
+      logger.warn(
+        { userId, status: result.status, personalityId, configId },
+        '[Me/Model] Failed to set override'
+      );
+      await replyWithError(interaction, `Failed to set model: ${result.error}`);
       return;
     }
 
     const data = result.data;
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Default Config Set')
+      .setTitle('✅ Model Override Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default LLM config is now **${data.default.configName}**.\n\n` +
-          'This will be used for all personalities unless you have a specific override.'
+        `**${data.override.personalityName}** will now use the **${data.override.configName}** config.`
       )
-      .setFooter({ text: 'Use /model clear-default to remove this setting' })
+      .setFooter({ text: 'Use /me model reset to remove this override' })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, configId, configName: data.default.configName },
-      '[Model] Set default config'
+      {
+        userId,
+        personalityId,
+        personalityName: data.override.personalityName,
+        configId,
+        configName: data.override.configName,
+        isGuestMode,
+      },
+      '[Me/Model] Set override'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Model Set-Default' });
+    await handleCommandError(interaction, error, { userId, command: 'Model Set' });
   }
 }

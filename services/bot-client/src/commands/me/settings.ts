@@ -98,10 +98,7 @@ export async function handleShareLtmSetting(
     // Broadcast cache invalidation to all ai-worker instances
     await personaCacheInvalidationService.invalidateUserPersona(discordId);
   } catch (error) {
-    logger.error(
-      { err: error, userId: discordId },
-      '[Me] Failed to update LTM sharing setting'
-    );
+    logger.error({ err: error, userId: discordId }, '[Me] Failed to update LTM sharing setting');
     await interaction.reply({
       content: '❌ Failed to update LTM sharing setting. Please try again later.',
       flags: MessageFlags.Ephemeral,
