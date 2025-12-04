@@ -102,8 +102,3 @@ export class TTLCache<T extends NonNullable<unknown>> {
   }
 }
 
-/**
- * @deprecated Use TTLCache instead. PersonalityCache is an alias for backwards compatibility.
- */
-export { TTLCache as PersonalityCache };
-export type { TTLCacheOptions as PersonalityCacheOptions };
