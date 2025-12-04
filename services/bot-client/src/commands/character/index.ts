@@ -38,6 +38,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { characterDashboardConfig, characterSeedFields, type CharacterData } from './config.js';
 import { handleAutocomplete } from './autocomplete.js';
+import { handleImport } from './import.js';
 
 const logger = createLogger('character-command');
 
@@ -90,6 +91,17 @@ export const data = new SlashCommandBuilder()
         option
           .setName('image')
           .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('import')
+      .setDescription('Import a character from JSON file (owner only)')
+      .addAttachmentOption(option =>
+        option
+          .setName('file')
+          .setDescription('JSON file containing character data')
           .setRequired(true)
       )
   );
@@ -345,6 +357,7 @@ function createCharacterRouter(
       view: interaction => handleView(interaction, config),
       list: interaction => handleList(interaction, config),
       avatar: interaction => handleAvatar(interaction, config),
+      import: interaction => handleImport(interaction, config),
     },
     { logger, logPrefix: '[Character]' }
   );
