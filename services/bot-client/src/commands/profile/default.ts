@@ -1,8 +1,8 @@
 /**
- * Persona Default Handler
+ * Profile Default Handler
  *
- * Sets a persona as the user's default persona.
- * The default persona is used when no personality-specific override is set.
+ * Sets a profile as the user's default profile.
+ * The default profile is used when no personality-specific override is set.
  */
 
 import { MessageFlags } from 'discord.js';
@@ -10,17 +10,17 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('persona-default');
+const logger = createLogger('profile-default');
 
 /**
- * Handle /persona default <persona> command
+ * Handle /profile default <profile> command
  */
 export async function handleSetDefaultPersona(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
   const prisma = getPrismaClient();
   const discordId = interaction.user.id;
-  const personaId = interaction.options.getString('persona', true);
+  const personaId = interaction.options.getString('profile', true);
 
   try {
     // Find user
@@ -41,7 +41,7 @@ export async function handleSetDefaultPersona(
       return;
     }
 
-    // Verify the persona belongs to this user
+    // Verify the profile belongs to this user
     const persona = await prisma.persona.findFirst({
       where: {
         id: personaId,
@@ -56,7 +56,7 @@ export async function handleSetDefaultPersona(
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Persona not found. Use `/persona list` to see your personas.',
+        content: '❌ Profile not found. Use `/profile list` to see your profiles.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -66,13 +66,13 @@ export async function handleSetDefaultPersona(
     if (user.defaultPersonaId === personaId) {
       const displayName = persona.preferredName ?? persona.name;
       await interaction.reply({
-        content: `ℹ️ **${displayName}** is already your default persona.`,
+        content: `ℹ️ **${displayName}** is already your default profile.`,
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Update default persona
+    // Update default profile
     await prisma.user.update({
       where: { id: user.id },
       data: { defaultPersonaId: personaId },
@@ -84,17 +84,17 @@ export async function handleSetDefaultPersona(
     const displayName = persona.preferredName ?? persona.name;
     logger.info(
       { userId: discordId, personaId, personaName: persona.name },
-      '[Persona] Set default persona'
+      '[Profile] Set default profile'
     );
 
     await interaction.reply({
-      content: `⭐ **${displayName}** is now your default persona.\n\nThis persona will be used when talking to personalities that don't have a specific override set.`,
+      content: `⭐ **${displayName}** is now your default profile.\n\nThis profile will be used when talking to personalities that don't have a specific override set.`,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to set default persona');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to set default profile');
     await interaction.reply({
-      content: '❌ Failed to set default persona. Please try again later.',
+      content: '❌ Failed to set default profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }

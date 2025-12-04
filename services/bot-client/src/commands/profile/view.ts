@@ -1,7 +1,7 @@
 /**
- * Persona View Handler
+ * Profile View Handler
  *
- * Displays the user's current persona information including:
+ * Displays the user's current profile information including:
  * - Preferred name
  * - Pronouns
  * - Content/description
@@ -12,17 +12,17 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 
-const logger = createLogger('persona-view');
+const logger = createLogger('profile-view');
 
 /**
- * Handle /persona view command
+ * Handle /profile view command
  */
 export async function handleViewPersona(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
-    // Find user and their default persona
+    // Find user and their default profile
     const user = await prisma.user.findUnique({
       where: { discordId },
       select: {
@@ -54,15 +54,15 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     if (persona === null || persona === undefined) {
       await interaction.reply({
-        content: "❌ You don't have a persona set up yet. Use `/persona edit` to create one!",
+        content: "❌ You don't have a profile set up yet. Use `/profile edit` to create one!",
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Build embed with persona information
+    // Build embed with profile information
     const embed = new EmbedBuilder()
-      .setTitle('🎭 Your Persona')
+      .setTitle('🎭 Your Profile')
       .setColor(0x5865f2) // Discord blurple
       .setTimestamp();
 
@@ -91,14 +91,14 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     } else {
       embed.addFields({
         name: '📝 Content',
-        value: '*No content set. Use `/persona edit` to add information about yourself.*',
+        value: '*No content set. Use `/profile edit` to add information about yourself.*',
         inline: false,
       });
     }
 
     // Footer with help
     embed.setFooter({
-      text: 'Use /persona edit to update • /persona settings to change options',
+      text: 'Use /profile edit to update • /profile settings to change options',
     });
 
     await interaction.reply({
@@ -106,11 +106,11 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       flags: MessageFlags.Ephemeral,
     });
 
-    logger.info({ userId: discordId }, '[Persona] User viewed their persona');
+    logger.info({ userId: discordId }, '[Profile] User viewed their profile');
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to view persona');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to view profile');
     await interaction.reply({
-      content: '❌ Failed to retrieve your persona. Please try again later.',
+      content: '❌ Failed to retrieve your profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }

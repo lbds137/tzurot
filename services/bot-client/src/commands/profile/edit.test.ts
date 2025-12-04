@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Edit Handler
+ * Tests for Profile Edit Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -129,7 +129,7 @@ describe('handleEditPersona', () => {
     expect(mockShowModal).toHaveBeenCalled();
   });
 
-  it('should show error when specific persona not found', async () => {
+  it('should show error when specific profile not found', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-uuid',
       defaultPersonaId: 'persona-123',
@@ -139,7 +139,7 @@ describe('handleEditPersona', () => {
     await handleEditPersona(createMockInteraction(), 'nonexistent-persona');
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona not found'),
+      content: expect.stringContaining('Profile not found'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockShowModal).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe('handleEditModalSubmit', () => {
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona updated'),
+      content: expect.stringContaining('Profile updated'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -322,7 +322,7 @@ describe('handleEditModalSubmit', () => {
     });
   });
 
-  it('should require persona name', async () => {
+  it('should require profile name', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-uuid',
       defaultPersonaId: 'persona-123',
@@ -340,7 +340,7 @@ describe('handleEditModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona name is required'),
+      content: expect.stringContaining('Profile name is required'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
@@ -398,7 +398,7 @@ describe('handleEditModalSubmit', () => {
     });
   });
 
-  it('should error if trying to update non-owned persona', async () => {
+  it('should error if trying to update non-owned profile', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-uuid',
       defaultPersonaId: 'persona-123',
@@ -417,7 +417,7 @@ describe('handleEditModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona not found'),
+      content: expect.stringContaining('Profile not found'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();

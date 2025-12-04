@@ -1,12 +1,12 @@
 /**
- * Persona Create Handler
+ * Profile Create Handler
  *
- * Allows users to create new named personas via a Discord modal.
- * Each persona can have:
- * - Name (required) - identifier for the persona
+ * Allows users to create new named profiles via a Discord modal.
+ * Each profile can have:
+ * - Name (required) - identifier for the profile
  * - Preferred Name - what AI should call the user
  * - Pronouns
- * - Content/description - what AI should know about this persona
+ * - Content/description - what AI should know about this profile
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
@@ -15,14 +15,14 @@ import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('persona-create');
+const logger = createLogger('profile-create');
 
 /**
- * Handle /persona create command - shows modal
+ * Handle /profile create command - shows modal
  */
 export async function handleCreatePersona(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const modal = new ModalBuilder().setCustomId('persona-create').setTitle('Create New Persona');
+    const modal = new ModalBuilder().setCustomId('profile-create').setTitle('Create New Profile');
 
     const inputFields = buildPersonaModalFields(null, {
       namePlaceholder: 'e.g., Work Mode, Casual, Creative Writing',
@@ -31,11 +31,11 @@ export async function handleCreatePersona(interaction: ChatInputCommandInteracti
     modal.addComponents(...inputFields);
 
     await interaction.showModal(modal);
-    logger.info({ userId: interaction.user.id }, '[Persona] Showed create modal');
+    logger.info({ userId: interaction.user.id }, '[Profile] Showed create modal');
   } catch (error) {
     logger.error(
       { err: error, userId: interaction.user.id },
-      '[Persona] Failed to show create modal'
+      '[Profile] Failed to show create modal'
     );
     await interaction.reply({
       content: '❌ Failed to open create dialog. Please try again later.',
@@ -45,7 +45,7 @@ export async function handleCreatePersona(interaction: ChatInputCommandInteracti
 }
 
 /**
- * Handle modal submission for persona creation
+ * Handle modal submission for profile creation
  */
 export async function handleCreateModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -59,10 +59,10 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
     const content = interaction.fields.getTextInputValue('content').trim() || null;
 
-    // Persona name is required
+    // Profile name is required
     if (personaName.length === 0) {
       await interaction.reply({
-        content: '❌ Persona name is required.',
+        content: '❌ Profile name is required.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -103,10 +103,10 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     logger.info(
       { userId: discordId, personaId: newPersona.id, personaName },
-      '[Persona] Created new persona'
+      '[Profile] Created new profile'
     );
 
-    // If this is the user's first persona and they don't have a default, set it
+    // If this is the user's first profile and they don't have a default, set it
     const setAsDefault = user.defaultPersonaId === null;
     if (setAsDefault) {
       await prisma.user.update({
@@ -115,7 +115,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       });
       logger.info(
         { userId: discordId, personaId: newPersona.id },
-        '[Persona] Set as default (first persona)'
+        '[Profile] Set as default (first profile)'
       );
     }
 
@@ -137,23 +137,23 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       details.push(`📝 Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`);
     }
 
-    let response = `✅ **Persona "${personaName}" created!**`;
+    let response = `✅ **Profile "${personaName}" created!**`;
     if (details.length > 0) {
       response += `\n\n${details.join('\n')}`;
     }
     if (setAsDefault) {
-      response += '\n\n⭐ This persona has been set as your default.';
+      response += '\n\n⭐ This profile has been set as your default.';
     }
-    response += '\n\nUse `/persona list` to see all your personas.';
+    response += '\n\nUse `/profile list` to see all your profiles.';
 
     await interaction.reply({
       content: response,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to create persona');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to create profile');
     await interaction.reply({
-      content: '❌ Failed to create persona. Please try again later.',
+      content: '❌ Failed to create profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }

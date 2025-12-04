@@ -1,5 +1,5 @@
 /**
- * Tests for Persona Default Handler
+ * Tests for Profile Default Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -51,7 +51,7 @@ describe('handleSetDefaultPersona', () => {
       user: { id: '123456789', username: 'testuser' },
       options: {
         getString: (name: string, required: boolean) => {
-          if (name === 'persona') return personaId;
+          if (name === 'profile') return personaId;
           return null;
         },
       },
@@ -119,7 +119,7 @@ describe('handleSetDefaultPersona', () => {
     expect(mockPrismaClient.user.update).not.toHaveBeenCalled();
   });
 
-  it('should error if persona not found or not owned', async () => {
+  it('should error if profile not found or not owned', async () => {
     mockPrismaClient.user.findUnique.mockResolvedValue({
       id: 'user-uuid',
       defaultPersonaId: 'old-persona',
@@ -129,7 +129,7 @@ describe('handleSetDefaultPersona', () => {
     await handleSetDefaultPersona(createMockInteraction('nonexistent-persona'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona not found'),
+      content: expect.stringContaining('Profile not found'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockPrismaClient.user.update).not.toHaveBeenCalled();

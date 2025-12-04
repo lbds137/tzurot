@@ -1,14 +1,14 @@
 /**
- * Persona Edit Handler
+ * Profile Edit Handler
  *
- * Allows users to edit their persona information via a Discord modal:
- * - Persona name (identifier for the persona)
+ * Allows users to edit their profile information via a Discord modal:
+ * - Profile name (identifier for the profile)
  * - Preferred name (what AI calls the user)
  * - Pronouns
  * - Content/description (what AI should know about them)
  *
- * If no persona is specified, edits the user's default persona.
- * If user has no default persona, creates one.
+ * If no profile is specified, edits the user's default profile.
+ * If user has no default profile, creates one.
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
@@ -17,13 +17,13 @@ import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-ty
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('persona-edit');
+const logger = createLogger('profile-edit');
 
 /**
- * Handle /persona edit [persona] command - shows modal
+ * Handle /profile edit [profile] command - shows modal
  *
  * @param interaction - The command interaction
- * @param personaId - Optional persona ID from autocomplete. If null, edit default persona.
+ * @param personaId - Optional profile ID from autocomplete. If null, edit default profile.
  */
 export async function handleEditPersona(
   interaction: ChatInputCommandInteraction,
@@ -71,10 +71,10 @@ export async function handleEditPersona(
         },
       });
 
-      // If persona ID was specified but not found, error out
+      // If profile ID was specified but not found, error out
       if (persona === null && personaId !== null && personaId !== undefined) {
         await interaction.reply({
-          content: '❌ Persona not found. Use `/persona list` to see your personas.',
+          content: '❌ Profile not found. Use `/profile list` to see your profiles.',
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -82,13 +82,13 @@ export async function handleEditPersona(
     }
 
     // Build the modal
-    // Store persona ID in customId if editing existing, or 'new' if creating
-    const modalCustomId = persona !== null ? `persona-edit-${persona.id}` : 'persona-edit-new';
+    // Store profile ID in customId if editing existing, or 'new' if creating
+    const modalCustomId = persona !== null ? `profile-edit-${persona.id}` : 'profile-edit-new';
 
     const modalTitle =
       persona !== null
         ? `Edit: ${persona.name.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
-        : 'Create Your Persona';
+        : 'Create Your Profile';
 
     const modal = new ModalBuilder().setCustomId(modalCustomId).setTitle(modalTitle);
 
@@ -98,10 +98,10 @@ export async function handleEditPersona(
     await interaction.showModal(modal);
     logger.info(
       { userId: discordId, personaId: persona?.id ?? 'new' },
-      '[Persona] Showed edit modal'
+      '[Profile] Showed edit modal'
     );
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to show edit modal');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to show edit modal');
     await interaction.reply({
       content: '❌ Failed to open edit dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -110,10 +110,10 @@ export async function handleEditPersona(
 }
 
 /**
- * Handle modal submission for persona edit
+ * Handle modal submission for profile edit
  *
  * @param interaction - The modal submit interaction
- * @param personaId - Persona ID from modal customId, or 'new' for creating
+ * @param personaId - Profile ID from modal customId, or 'new' for creating
  */
 export async function handleEditModalSubmit(
   interaction: ModalSubmitInteraction,
@@ -130,10 +130,10 @@ export async function handleEditModalSubmit(
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
     const content = interaction.fields.getTextInputValue('content').trim() || null;
 
-    // Persona name is required
+    // Profile name is required
     if (personaName.length === 0) {
       await interaction.reply({
-        content: '❌ Persona name is required.',
+        content: '❌ Profile name is required.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -160,7 +160,7 @@ export async function handleEditModalSubmit(
     });
 
     if (personaId === 'new') {
-      // Create new persona
+      // Create new profile
       const newPersona = await prisma.persona.create({
         data: {
           name: personaName,
@@ -183,21 +183,21 @@ export async function handleEditModalSubmit(
 
       logger.info(
         { userId: discordId, personaId: newPersona.id, personaName },
-        '[Persona] Created new persona from edit'
+        '[Profile] Created new profile from edit'
       );
 
       await personaCacheInvalidationService.invalidateUserPersona(discordId);
 
-      let response = `✅ **Persona "${personaName}" created!**`;
+      let response = `✅ **Profile "${personaName}" created!**`;
       if (setAsDefault) {
-        response += '\n\n⭐ This persona has been set as your default.';
+        response += '\n\n⭐ This profile has been set as your default.';
       }
       await interaction.reply({
         content: response,
         flags: MessageFlags.Ephemeral,
       });
     } else {
-      // Update existing persona (verify ownership)
+      // Update existing profile (verify ownership)
       const existingPersona = await prisma.persona.findFirst({
         where: {
           id: personaId,
@@ -208,7 +208,7 @@ export async function handleEditModalSubmit(
       if (existingPersona === null) {
         await interaction.reply({
           content:
-            '❌ Persona not found or you do not own it. Use `/persona list` to see your personas.',
+            '❌ Profile not found or you do not own it. Use `/profile list` to see your profiles.',
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -228,7 +228,7 @@ export async function handleEditModalSubmit(
 
       logger.info(
         { userId: discordId, personaId, personaName },
-        '[Persona] Updated existing persona'
+        '[Profile] Updated existing profile'
       );
 
       await personaCacheInvalidationService.invalidateUserPersona(discordId);
@@ -253,8 +253,8 @@ export async function handleEditModalSubmit(
 
       const responseContent =
         changes.length > 0
-          ? `✅ **Persona updated!**\n\n${changes.join('\n')}`
-          : '✅ **Persona saved!** (All optional fields cleared)';
+          ? `✅ **Profile updated!**\n\n${changes.join('\n')}`
+          : '✅ **Profile saved!** (All optional fields cleared)';
 
       await interaction.reply({
         content: responseContent,
@@ -262,9 +262,9 @@ export async function handleEditModalSubmit(
       });
     }
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to save persona');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to save profile');
     await interaction.reply({
-      content: '❌ Failed to save your persona. Please try again later.',
+      content: '❌ Failed to save your profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }

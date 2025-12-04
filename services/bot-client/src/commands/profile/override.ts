@@ -1,13 +1,13 @@
 /**
- * Persona Override Handlers
+ * Profile Override Handlers
  *
- * Allows users to set different personas for specific personalities.
- * This enables per-personality customization while keeping a default persona.
+ * Allows users to set different profiles for specific personalities.
+ * This enables per-personality customization while keeping a default profile.
  *
  * Flow:
- * - /persona override set <personality> <persona> - Set existing persona or create new
- * - If user selects "Create new persona..." option, shows a modal
- * - Otherwise, directly assigns the selected persona
+ * - /profile override set <personality> <profile> - Set existing profile or create new
+ * - If user selects "Create new profile..." option, shows a modal
+ * - Otherwise, directly assigns the selected profile
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
@@ -17,19 +17,19 @@ import { CREATE_NEW_PERSONA_VALUE } from './autocomplete.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
 
-const logger = createLogger('persona-override');
+const logger = createLogger('profile-override');
 
 /**
- * Handle /persona override set <personality> <persona> command
+ * Handle /profile override set <personality> <profile> command
  *
- * If persona is CREATE_NEW_PERSONA_VALUE, shows modal to create new persona.
- * Otherwise, directly sets the selected persona as override.
+ * If profile is CREATE_NEW_PERSONA_VALUE, shows modal to create new profile.
+ * Otherwise, directly sets the selected profile as override.
  */
 export async function handleOverrideSet(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
   const discordId = interaction.user.id;
   const personalitySlug = interaction.options.getString('personality', true);
-  const personaId = interaction.options.getString('persona', true);
+  const personaId = interaction.options.getString('profile', true);
 
   try {
     // Find personality by slug
@@ -69,11 +69,11 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
 
     const personalityName = personality.displayName ?? personality.name;
 
-    // Check if user wants to create a new persona
+    // Check if user wants to create a new profile
     if (personaId === CREATE_NEW_PERSONA_VALUE) {
-      // Show modal to create new persona for this personality
+      // Show modal to create new profile for this personality
       const modal = new ModalBuilder()
-        .setCustomId(`persona-override-create-${personality.id}`)
+        .setCustomId(`profile-override-create-${personality.id}`)
         .setTitle(
           `New Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
         );
@@ -90,12 +90,12 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
       await interaction.showModal(modal);
       logger.info(
         { userId: discordId, personalityId: personality.id },
-        '[Persona] Showed create-for-override modal'
+        '[Profile] Showed create-for-override modal'
       );
       return;
     }
 
-    // User selected an existing persona - verify ownership
+    // User selected an existing profile - verify ownership
     const persona = await prisma.persona.findFirst({
       where: {
         id: personaId,
@@ -110,7 +110,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
 
     if (persona === null) {
       await interaction.reply({
-        content: '❌ Persona not found. Use `/persona list` to see your personas.',
+        content: '❌ Profile not found. Use `/profile list` to see your profiles.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -149,25 +149,25 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     const displayName = persona.preferredName ?? persona.name;
     logger.info(
       { userId: discordId, personalityId: personality.id, personaId: persona.id },
-      '[Persona] Set override persona'
+      '[Profile] Set override profile'
     );
 
     await interaction.reply({
-      content: `✅ **Persona override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis persona will be used when talking to ${personalityName} instead of your default persona.`,
+      content: `✅ **Profile override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis profile will be used when talking to ${personalityName} instead of your default profile.`,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to set override');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to set override');
     await interaction.reply({
-      content: '❌ Failed to set persona override. Please try again later.',
+      content: '❌ Failed to set profile override. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }
 }
 
 /**
- * Handle modal submission for creating a new persona during override
- * Modal customId format: persona-override-create-{personalityId}
+ * Handle modal submission for creating a new profile during override
+ * Modal customId format: profile-override-create-{personalityId}
  */
 export async function handleOverrideCreateModalSubmit(
   interaction: ModalSubmitInteraction,
@@ -184,10 +184,10 @@ export async function handleOverrideCreateModalSubmit(
     const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
     const content = interaction.fields.getTextInputValue('content').trim() || null;
 
-    // Persona name is required
+    // Profile name is required
     if (personaName.length === 0) {
       await interaction.reply({
-        content: '❌ Persona name is required.',
+        content: '❌ Profile name is required.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -214,7 +214,7 @@ export async function handleOverrideCreateModalSubmit(
     });
     const personalityName = personality?.displayName ?? personality?.name ?? 'Unknown';
 
-    // Create the new persona
+    // Create the new profile
     const newPersona = await prisma.persona.create({
       data: {
         name: personaName,
@@ -253,7 +253,7 @@ export async function handleOverrideCreateModalSubmit(
 
     logger.info(
       { userId: discordId, personalityId, personaId: newPersona.id, personaName },
-      '[Persona] Created new persona and set as override'
+      '[Profile] Created new profile and set as override'
     );
 
     // Broadcast cache invalidation
@@ -261,25 +261,25 @@ export async function handleOverrideCreateModalSubmit(
 
     await interaction.reply({
       content:
-        `✅ **Persona "${personaName}" created and set as override for ${personalityName}!**\n\n` +
-        `This persona will be used when talking to ${personalityName}.\n\n` +
-        `Use \`/persona list\` to see all your personas.`,
+        `✅ **Profile "${personaName}" created and set as override for ${personalityName}!**\n\n` +
+        `This profile will be used when talking to ${personalityName}.\n\n` +
+        `Use \`/profile list\` to see all your profiles.`,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
     logger.error(
       { err: error, userId: discordId, personalityId },
-      '[Persona] Failed to create override persona'
+      '[Profile] Failed to create override profile'
     );
     await interaction.reply({
-      content: '❌ Failed to create persona. Please try again later.',
+      content: '❌ Failed to create profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }
 }
 
 /**
- * Handle /persona override clear <personality> - Remove override
+ * Handle /profile override clear <personality> - Remove override
  */
 export async function handleOverrideClear(interaction: ChatInputCommandInteraction): Promise<void> {
   const prisma = getPrismaClient();
@@ -335,13 +335,13 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
 
     if (existingConfig?.personaId === null || existingConfig?.personaId === undefined) {
       await interaction.reply({
-        content: `ℹ️ You don't have a persona override set for ${personalityName}.`,
+        content: `ℹ️ You don't have a profile override set for ${personalityName}.`,
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Clear the persona override
+    // Clear the profile override
     // If config has llmConfigId, just clear personaId; otherwise delete the config
     if (existingConfig.llmConfigId !== null) {
       await prisma.userPersonalityConfig.update({
@@ -356,20 +356,20 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
 
     logger.info(
       { userId: discordId, personalityId: personality.id },
-      '[Persona] Cleared persona override'
+      '[Profile] Cleared profile override'
     );
 
     // Broadcast cache invalidation BEFORE replying to ensure consistency
     await personaCacheInvalidationService.invalidateUserPersona(discordId);
 
     await interaction.reply({
-      content: `✅ **Persona override cleared for ${personalityName}!**\n\nYour default persona will now be used when talking to ${personalityName}.`,
+      content: `✅ **Profile override cleared for ${personalityName}!**\n\nYour default profile will now be used when talking to ${personalityName}.`,
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to clear override');
+    logger.error({ err: error, userId: discordId }, '[Profile] Failed to clear override');
     await interaction.reply({
-      content: '❌ Failed to clear persona override. Please try again later.',
+      content: '❌ Failed to clear profile override. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }
