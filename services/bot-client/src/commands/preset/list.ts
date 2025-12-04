@@ -1,6 +1,6 @@
 /**
- * LLM Config List Handler
- * Handles /llm-config list subcommand
+ * Preset List Handler
+ * Handles /preset list subcommand
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -15,7 +15,7 @@ import {
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
-const logger = createLogger('llm-config-list');
+const logger = createLogger('preset-list');
 
 interface ListResponse {
   configs: LlmConfigSummary[];
@@ -29,7 +29,7 @@ interface WalletListResponse {
 }
 
 /**
- * Handle /llm-config list
+ * Handle /preset list
  */
 export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -37,19 +37,19 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
   await deferEphemeral(interaction);
 
   try {
-    // Fetch configs and wallet status in parallel
-    const [configResult, walletResult] = await Promise.all([
+    // Fetch presets and wallet status in parallel
+    const [presetResult, walletResult] = await Promise.all([
       callGatewayApi<ListResponse>('/user/llm-config', { userId }),
       callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
     ]);
 
-    if (!configResult.ok) {
-      logger.warn({ userId, status: configResult.status }, '[LlmConfig] Failed to list configs');
-      await replyWithError(interaction, 'Failed to get configs. Please try again later.');
+    if (!presetResult.ok) {
+      logger.warn({ userId, status: presetResult.status }, '[Preset] Failed to list presets');
+      await replyWithError(interaction, 'Failed to get presets. Please try again later.');
       return;
     }
 
-    const data = configResult.data;
+    const data = presetResult.data;
 
     // Check if user is in guest mode (no active wallet keys)
     const hasActiveWallet =
@@ -57,7 +57,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     const isGuestMode = !hasActiveWallet;
 
     const embed = new EmbedBuilder()
-      .setTitle('🔧 LLM Configurations')
+      .setTitle('🔧 Model Presets')
       .setColor(isGuestMode ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
       .setTimestamp();
 
@@ -70,33 +70,33 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       );
     }
 
-    // Separate global and user configs
-    const globalConfigs = data.configs.filter(c => c.isGlobal);
-    const userConfigs = data.configs.filter(c => c.isOwned);
+    // Separate global and user presets
+    const globalPresets = data.configs.filter(c => c.isGlobal);
+    const userPresets = data.configs.filter(c => c.isOwned);
 
-    // Helper to format config with badges
-    const formatConfig = (c: LlmConfigSummary): string => {
+    // Helper to format preset with badges
+    const formatPreset = (c: LlmConfigSummary): string => {
       const defaultBadge = c.isDefault ? ' ⭐' : '';
       const freeBadge = isFreeModel(c.model) ? ' 🆓' : '';
       const shortModel = c.model.includes('/') ? c.model.split('/').pop() : c.model;
-      // In guest mode, dim paid configs
+      // In guest mode, dim paid presets
       const nameStyle = isGuestMode && !isFreeModel(c.model) ? `~~${c.name}~~` : `**${c.name}**`;
       return `${nameStyle}${defaultBadge}${freeBadge}\n└ ${shortModel}`;
     };
 
-    if (globalConfigs.length > 0) {
-      const lines = globalConfigs.map(formatConfig);
+    if (globalPresets.length > 0) {
+      const lines = globalPresets.map(formatPreset);
       embed.addFields({
-        name: '🌐 Global Configs',
+        name: '🌐 Global Presets',
         value: lines.join('\n\n'),
         inline: false,
       });
     }
 
-    if (userConfigs.length > 0) {
-      const lines = userConfigs.map(formatConfig);
+    if (userPresets.length > 0) {
+      const lines = userPresets.map(formatPreset);
       embed.addFields({
-        name: '👤 Your Configs',
+        name: '👤 Your Presets',
         value: lines.join('\n\n'),
         inline: false,
       });
@@ -104,22 +104,22 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
     if (data.configs.length === 0) {
       const description = isGuestMode
-        ? embed.data.description + '\n\nNo configurations available.'
-        : 'No configurations available.\n\nUse `/llm-config create` to create your own!';
+        ? embed.data.description + '\n\nNo presets available.'
+        : 'No presets available.\n\nUse `/preset create` to create your own!';
       embed.setDescription(description);
     } else {
       const freeCount = data.configs.filter(c => isFreeModel(c.model)).length;
       embed.setFooter({
         text: isGuestMode
-          ? `${freeCount} free configs available • 🆓 = free model`
-          : `${globalConfigs.length} global, ${userConfigs.length} personal configs`,
+          ? `${freeCount} free presets available • 🆓 = free model`
+          : `${globalPresets.length} global, ${userPresets.length} personal presets`,
       });
     }
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId, count: data.configs.length, isGuestMode }, '[LlmConfig] Listed configs');
+    logger.info({ userId, count: data.configs.length, isGuestMode }, '[Preset] Listed presets');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'LlmConfig List' });
+    await handleCommandError(interaction, error, { userId, command: 'Preset List' });
   }
 }

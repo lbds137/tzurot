@@ -1,5 +1,5 @@
 /**
- * Tests for LLM Config Create Handler
+ * Tests for Preset Create Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -57,7 +57,7 @@ describe('handleCreate', () => {
         getString: (name: string, _required?: boolean) => {
           switch (name) {
             case 'name':
-              return options.name ?? 'MyConfig';
+              return options.name ?? 'MyPreset';
             case 'model':
               return options.model ?? 'anthropic/claude-sonnet-4';
             case 'description':
@@ -75,13 +75,13 @@ describe('handleCreate', () => {
     } as unknown as Parameters<typeof handleCreate>[0];
   }
 
-  it('should create config successfully', async () => {
+  it('should create preset successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
         config: {
           id: 'cfg-123',
-          name: 'MyConfig',
+          name: 'MyPreset',
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
         },
@@ -96,7 +96,7 @@ describe('handleCreate', () => {
       method: 'POST',
       userId: '123456789',
       body: {
-        name: 'MyConfig',
+        name: 'MyPreset',
         model: 'anthropic/claude-sonnet-4',
         description: null,
         provider: 'openrouter',
@@ -107,8 +107,8 @@ describe('handleCreate', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '✅ Config Created',
-            description: expect.stringContaining('MyConfig'),
+            title: '✅ Preset Created',
+            description: expect.stringContaining('MyPreset'),
           }),
         }),
       ],
@@ -121,7 +121,7 @@ describe('handleCreate', () => {
       data: {
         config: {
           id: 'cfg-123',
-          name: 'GeminiConfig',
+          name: 'GeminiPreset',
           model: 'gemini-2.0-flash',
           provider: 'gemini',
         },
@@ -129,7 +129,7 @@ describe('handleCreate', () => {
     });
 
     const interaction = createMockInteraction({
-      name: 'GeminiConfig',
+      name: 'GeminiPreset',
       model: 'gemini-2.0-flash',
       provider: 'gemini',
     });
@@ -154,7 +154,7 @@ describe('handleCreate', () => {
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
-      'Failed to create config: Name already exists'
+      'Failed to create preset: Name already exists'
     );
   });
 
@@ -167,7 +167,7 @@ describe('handleCreate', () => {
 
     expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
       userId: '123456789',
-      command: 'LlmConfig Create',
+      command: 'Preset Create',
     });
   });
 });

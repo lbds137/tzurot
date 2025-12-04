@@ -32,12 +32,11 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: '🎭', order: 1 },
   Profile: { emoji: '👤', order: 2 },
   Model: { emoji: '🤖', order: 3 },
-  'Llm-config': { emoji: '⚙️', order: 4 },
+  Preset: { emoji: '⚙️', order: 4 },
   Wallet: { emoji: '🔑', order: 5 },
   Settings: { emoji: '⚙️', order: 6 },
   Admin: { emoji: '🛡️', order: 7 },
-  Utility: { emoji: '🔧', order: 8 },
-  Help: { emoji: '❓', order: 9 },
+  Help: { emoji: '❓', order: 8 },
   Other: { emoji: '📦', order: 99 },
 };
 

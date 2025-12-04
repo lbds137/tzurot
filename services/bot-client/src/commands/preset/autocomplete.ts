@@ -1,6 +1,6 @@
 /**
- * LLM Config Command Autocomplete Handler
- * Provides autocomplete suggestions for config and model options
+ * Preset Command Autocomplete Handler
+ * Provides autocomplete suggestions for preset and model options
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
@@ -12,18 +12,18 @@ import {
   formatModelChoice,
 } from '../../utils/modelAutocomplete.js';
 
-const logger = createLogger('llm-config-autocomplete');
+const logger = createLogger('preset-autocomplete');
 
 /**
- * Handle autocomplete for /llm-config commands
+ * Handle autocomplete for /preset commands
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
   const userId = interaction.user.id;
 
   try {
-    if (focusedOption.name === 'config') {
-      await handleConfigAutocomplete(interaction, focusedOption.value, userId);
+    if (focusedOption.name === 'preset') {
+      await handlePresetAutocomplete(interaction, focusedOption.value, userId);
     } else if (focusedOption.name === 'model') {
       await handleModelAutocomplete(interaction, focusedOption.value);
     } else if (focusedOption.name === 'vision-model') {
@@ -42,16 +42,16 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand: interaction.options.getSubcommand(false),
       },
-      '[LlmConfig] Autocomplete error'
+      '[Preset] Autocomplete error'
     );
     await interaction.respond([]);
   }
 }
 
 /**
- * Handle config autocomplete - only shows user-owned configs for delete
+ * Handle preset autocomplete - only shows user-owned presets for delete
  */
-async function handleConfigAutocomplete(
+async function handlePresetAutocomplete(
   interaction: AutocompleteInteraction,
   query: string,
   userId: string
@@ -61,12 +61,12 @@ async function handleConfigAutocomplete(
   });
 
   if (!result.ok) {
-    logger.warn({ userId, error: result.error }, '[LlmConfig] Failed to fetch configs');
+    logger.warn({ userId, error: result.error }, '[Preset] Failed to fetch presets');
     await interaction.respond([]);
     return;
   }
 
-  // For delete command, only show user-owned configs (not global)
+  // For delete command, only show user-owned presets (not global)
   const queryLower = query.toLowerCase();
   const filtered = result.data.configs
     .filter(
