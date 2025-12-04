@@ -22,7 +22,9 @@ const logger = createLogger('me-profile-create');
  */
 export async function handleCreatePersona(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const modal = new ModalBuilder().setCustomId('me-profile-create').setTitle('Create New Profile');
+    const modal = new ModalBuilder()
+      .setCustomId('me-profile-create')
+      .setTitle('Create New Profile');
 
     const inputFields = buildPersonaModalFields(null, {
       namePlaceholder: 'e.g., Work Mode, Casual, Creative Writing',
@@ -33,7 +35,10 @@ export async function handleCreatePersona(interaction: ChatInputCommandInteracti
     await interaction.showModal(modal);
     logger.info({ userId: interaction.user.id }, '[Me/Profile] Showed create modal');
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, '[Me/Profile] Failed to show create modal');
+    logger.error(
+      { err: error, userId: interaction.user.id },
+      '[Me/Profile] Failed to show create modal'
+    );
     await interaction.reply({
       content: '❌ Failed to open create dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
