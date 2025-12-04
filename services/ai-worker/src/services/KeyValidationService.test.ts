@@ -168,7 +168,6 @@ describe('KeyValidationService', () => {
         expect(result.error).toBeInstanceOf(ValidationTimeoutError);
       });
     });
-
   });
 
   describe('error classes', () => {
