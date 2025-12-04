@@ -1,11 +1,11 @@
 /**
- * LLM Config Command Group
- * Manage user LLM configurations
+ * Preset Command Group
+ * Manage user model presets
  *
  * Commands:
- * - /llm-config list - Show available configs
- * - /llm-config create - Create a new config
- * - /llm-config delete - Delete your config
+ * - /preset list - Show available presets
+ * - /preset create - Create a new preset
+ * - /preset delete - Delete your preset
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -16,23 +16,23 @@ import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
 import { handleAutocomplete } from './autocomplete.js';
 
-const logger = createLogger('llm-config-command');
+const logger = createLogger('preset-command');
 
 /**
  * Slash command definition
  */
 export const data = new SlashCommandBuilder()
-  .setName('llm-config')
-  .setDescription('Manage your LLM configurations')
+  .setName('preset')
+  .setDescription('Manage your model presets')
   .addSubcommand(subcommand =>
-    subcommand.setName('list').setDescription('Show all available LLM configs')
+    subcommand.setName('list').setDescription('Show all available model presets')
   )
   .addSubcommand(subcommand =>
     subcommand
       .setName('create')
-      .setDescription('Create a new LLM config')
+      .setDescription('Create a new model preset')
       .addStringOption(option =>
-        option.setName('name').setDescription('Config name (unique to you)').setRequired(true)
+        option.setName('name').setDescription('Preset name (unique to you)').setRequired(true)
       )
       .addStringOption(option =>
         option
@@ -62,11 +62,11 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('delete')
-      .setDescription('Delete one of your LLM configs')
+      .setDescription('Delete one of your model presets')
       .addStringOption(option =>
         option
-          .setName('config')
-          .setDescription('Config ID to delete')
+          .setName('preset')
+          .setDescription('Preset to delete')
           .setRequired(true)
           .setAutocomplete(true)
       )
@@ -81,10 +81,15 @@ export const execute = createSubcommandRouter(
     create: handleCreate,
     delete: handleDelete,
   },
-  { logger, logPrefix: '[LlmConfig]' }
+  { logger, logPrefix: '[Preset]' }
 );
 
 /**
- * Autocomplete handler for config options
+ * Autocomplete handler for preset options
  */
 export const autocomplete = handleAutocomplete;
+
+/**
+ * Category for this command
+ */
+export const category = 'Preset';

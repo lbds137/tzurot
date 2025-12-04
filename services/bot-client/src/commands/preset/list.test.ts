@@ -1,5 +1,5 @@
 /**
- * Tests for LLM Config List Handler
+ * Tests for Preset List Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -49,7 +49,7 @@ describe('handleList', () => {
     } as unknown as Parameters<typeof handleList>[0];
   }
 
-  it('should list configs with global and user configs', async () => {
+  it('should list presets with global and user presets', async () => {
     // Mock responses based on API path
     mockCallGatewayApi.mockImplementation((path: string) => {
       if (path === '/user/llm-config') {
@@ -75,7 +75,7 @@ describe('handleList', () => {
               },
               {
                 id: '3',
-                name: 'MyConfig',
+                name: 'MyPreset',
                 model: 'anthropic/claude-opus-4',
                 isGlobal: false,
                 isDefault: false,
@@ -104,10 +104,10 @@ describe('handleList', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '🔧 LLM Configurations',
+            title: '🔧 Model Presets',
             fields: expect.arrayContaining([
-              expect.objectContaining({ name: '🌐 Global Configs' }),
-              expect.objectContaining({ name: '👤 Your Configs' }),
+              expect.objectContaining({ name: '🌐 Global Presets' }),
+              expect.objectContaining({ name: '👤 Your Presets' }),
             ]),
           }),
         }),
@@ -115,7 +115,7 @@ describe('handleList', () => {
     });
   });
 
-  it('should show message when no configs exist', async () => {
+  it('should show message when no presets exist', async () => {
     // Mock responses based on API path
     mockCallGatewayApi.mockImplementation((path: string) => {
       if (path === '/user/llm-config') {
@@ -140,7 +140,7 @@ describe('handleList', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            description: expect.stringContaining('No configurations available'),
+            description: expect.stringContaining('No presets available'),
           }),
         }),
       ],
@@ -159,7 +159,7 @@ describe('handleList', () => {
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
-      'Failed to get configs. Please try again later.'
+      'Failed to get presets. Please try again later.'
     );
   });
 
@@ -172,7 +172,7 @@ describe('handleList', () => {
 
     expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
       userId: '123456789',
-      command: 'LlmConfig List',
+      command: 'Preset List',
     });
   });
 });

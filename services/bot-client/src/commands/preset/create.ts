@@ -1,6 +1,6 @@
 /**
- * LLM Config Create Handler
- * Handles /llm-config create subcommand
+ * Preset Create Handler
+ * Handles /preset create subcommand
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -9,7 +9,7 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
-const logger = createLogger('llm-config-create');
+const logger = createLogger('preset-create');
 
 interface CreateResponse {
   config: {
@@ -21,7 +21,7 @@ interface CreateResponse {
 }
 
 /**
- * Handle /llm-config create
+ * Handle /preset create
  */
 export async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -41,8 +41,8 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, name }, '[LlmConfig] Failed to create config');
-      await replyWithError(interaction, `Failed to create config: ${result.error}`);
+      logger.warn({ userId, status: result.status, name }, '[Preset] Failed to create preset');
+      await replyWithError(interaction, `Failed to create preset: ${result.error}`);
       return;
     }
 
@@ -53,20 +53,20 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
       : data.config.model;
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Config Created')
+      .setTitle('✅ Preset Created')
       .setColor(DISCORD_COLORS.SUCCESS)
-      .setDescription(`Your LLM config **${data.config.name}** has been created.`)
+      .setDescription(`Your preset **${data.config.name}** has been created.`)
       .addFields(
         { name: 'Provider', value: data.config.provider, inline: true },
         { name: 'Model', value: shortModel ?? data.config.model, inline: true }
       )
-      .setFooter({ text: 'Use /model set to apply this config to a personality' })
+      .setFooter({ text: 'Use /model set to apply this preset to a personality' })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId, configId: data.config.id, name }, '[LlmConfig] Created config');
+    logger.info({ userId, configId: data.config.id, name }, '[Preset] Created preset');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'LlmConfig Create' });
+    await handleCommandError(interaction, error, { userId, command: 'Preset Create' });
   }
 }

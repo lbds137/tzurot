@@ -1,5 +1,5 @@
 /**
- * Tests for LLM Config Delete Handler
+ * Tests for Preset Delete Handler
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -29,7 +29,7 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
-const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: '🗑️ Config Deleted' } });
+const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: '🗑️ Preset Deleted' } });
 vi.mock('../../utils/commandHelpers.js', () => ({
   deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
@@ -44,12 +44,12 @@ describe('handleDelete', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(configId: string = 'cfg-123') {
+  function createMockInteraction(presetId: string = 'cfg-123') {
     return {
       user: { id: '123456789' },
       options: {
         getString: (name: string) => {
-          if (name === 'config') return configId;
+          if (name === 'preset') return presetId;
           return null;
         },
       },
@@ -57,7 +57,7 @@ describe('handleDelete', () => {
     } as unknown as Parameters<typeof handleDelete>[0];
   }
 
-  it('should delete config successfully', async () => {
+  it('should delete preset successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true });
 
     const interaction = createMockInteraction('cfg-123');
@@ -69,8 +69,8 @@ describe('handleDelete', () => {
       userId: '123456789',
     });
     expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
-      '🗑️ Config Deleted',
-      'Your LLM config has been deleted.'
+      '🗑️ Preset Deleted',
+      'Your preset has been deleted.'
     );
     expect(mockEditReply).toHaveBeenCalled();
   });
@@ -79,7 +79,7 @@ describe('handleDelete', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       status: 404,
-      error: 'Config not found',
+      error: 'Preset not found',
     });
 
     const interaction = createMockInteraction('non-existent');
@@ -87,15 +87,15 @@ describe('handleDelete', () => {
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
-      'Failed to delete config: Config not found'
+      'Failed to delete preset: Preset not found'
     );
   });
 
-  it('should handle config in use error', async () => {
+  it('should handle preset in use error', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       status: 400,
-      error: 'Cannot delete: config is in use by 2 personality override(s)',
+      error: 'Cannot delete: preset is in use by 2 personality override(s)',
     });
 
     const interaction = createMockInteraction('cfg-in-use');
@@ -103,7 +103,7 @@ describe('handleDelete', () => {
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
-      expect.stringContaining('config is in use')
+      expect.stringContaining('preset is in use')
     );
   });
 
@@ -116,7 +116,7 @@ describe('handleDelete', () => {
 
     expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
       userId: '123456789',
-      command: 'LlmConfig Delete',
+      command: 'Preset Delete',
     });
   });
 });
