@@ -6,25 +6,25 @@
  * - PersonalityLoader: Database queries
  * - PersonalityValidator: Zod schemas and validation
  * - PersonalityDefaults: Config merging and placeholder replacement
- * - PersonalityCache: In-memory caching with TTL
+ * - TTLCache: In-memory caching with TTL (via lru-cache)
  */
 
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { TIMEOUTS } from '../../constants/index.js';
 import type { LoadedPersonality } from '../../types/schemas.js';
-import { PersonalityCache } from '../../utils/PersonalityCache.js';
+import { TTLCache } from '../../utils/TTLCache.js';
 import { PersonalityLoader } from './PersonalityLoader.js';
 import { mapToPersonality } from './PersonalityDefaults.js';
 
 const logger = createLogger('PersonalityService');
 
 export class PersonalityService {
-  private cache: PersonalityCache<LoadedPersonality>;
+  private cache: TTLCache<LoadedPersonality>;
   private loader: PersonalityLoader;
 
   constructor(prisma: PrismaClient) {
-    this.cache = new PersonalityCache({
+    this.cache = new TTLCache({
       ttl: TIMEOUTS.CACHE_TTL,
       maxSize: 100, // Maximum personalities to cache
     });
