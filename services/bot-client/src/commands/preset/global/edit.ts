@@ -1,21 +1,25 @@
 /**
- * Admin LLM Config Edit Handler
- * Handles /admin llm-config-edit subcommand
- * Edits an existing global LLM config
+ * Preset Global Edit Handler
+ * Handles /preset global edit subcommand
+ * Edits an existing global LLM config (owner only)
  */
 
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
-import { adminPutJson } from '../../utils/adminApiClient.js';
+import {
+  deferEphemeral,
+  replyWithError,
+  handleCommandError,
+} from '../../../utils/commandHelpers.js';
+import { adminPutJson } from '../../../utils/adminApiClient.js';
 
-const logger = createLogger('admin-llm-config-edit');
+const logger = createLogger('preset-global-edit');
 
 /**
- * Handle /admin llm-config-edit
+ * Handle /preset global edit
  */
-export async function handleLlmConfigEdit(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleGlobalEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   const configId = interaction.options.getString('config', true);
   const name = interaction.options.getString('name');
   const model = interaction.options.getString('model');
@@ -64,7 +68,7 @@ export async function handleLlmConfigEdit(interaction: ChatInputCommandInteracti
     const updatedFields = Object.keys(updateBody).join(', ');
 
     const embed = new EmbedBuilder()
-      .setTitle('Global LLM Config Updated')
+      .setTitle('Global Preset Updated')
       .setColor(DISCORD_COLORS.SUCCESS)
       .addFields(
         { name: 'Name', value: data.config.name, inline: true },
@@ -75,11 +79,11 @@ export async function handleLlmConfigEdit(interaction: ChatInputCommandInteracti
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ configId, updates: updatedFields }, '[Admin] Updated global LLM config');
+    logger.info({ configId, updates: updatedFields }, '[Preset/Global] Updated global preset');
   } catch (error) {
     await handleCommandError(interaction, error, {
       userId: interaction.user.id,
-      command: 'Admin LLM Config Edit',
+      command: 'Preset Global Edit',
     });
   }
 }
