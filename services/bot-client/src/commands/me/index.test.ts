@@ -69,22 +69,26 @@ describe('Me Command Index', () => {
       expect(data.description).toBe('Manage your personal settings and profile');
     });
 
-    it('should have all subcommands', () => {
+    it('should have profile subcommand group with all subcommands', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
-      // Find subcommands (type 1)
-      const subcommands = options.filter((opt: { type: number }) => opt.type === 1);
-      const subcommandNames = subcommands.map((s: { name: string }) => s.name);
+      // Find subcommand groups (type 2)
+      const groups = options.filter((opt: { type: number }) => opt.type === 2);
+      const profileGroup = groups.find((g: { name: string }) => g.name === 'profile');
 
-      expect(subcommandNames).toContain('view');
-      expect(subcommandNames).toContain('edit');
-      expect(subcommandNames).toContain('create');
-      expect(subcommandNames).toContain('list');
-      expect(subcommandNames).toContain('default');
+      expect(profileGroup).toBeDefined();
+
+      // Check profile group has expected subcommands
+      const profileSubcommands = (profileGroup?.options ?? []).map((s: { name: string }) => s.name);
+      expect(profileSubcommands).toContain('view');
+      expect(profileSubcommands).toContain('edit');
+      expect(profileSubcommands).toContain('create');
+      expect(profileSubcommands).toContain('list');
+      expect(profileSubcommands).toContain('default');
     });
 
-    it('should have settings and override subcommand groups', () => {
+    it('should have settings, override, timezone, and model subcommand groups', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -92,19 +96,22 @@ describe('Me Command Index', () => {
       const groups = options.filter((opt: { type: number }) => opt.type === 2);
       const groupNames = groups.map((g: { name: string }) => g.name);
 
+      expect(groupNames).toContain('profile');
       expect(groupNames).toContain('settings');
+      expect(groupNames).toContain('timezone');
       expect(groupNames).toContain('override');
+      expect(groupNames).toContain('model');
     });
   });
 
   describe('execute - subcommand routing', () => {
-    it('should route to view handler for /me view', async () => {
+    it('should route to view handler for /me profile view', async () => {
       const { handleViewPersona } = await import('./view.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'view',
         },
         user: { id: '123' },
@@ -115,13 +122,13 @@ describe('Me Command Index', () => {
       expect(handleViewPersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to edit handler for /me edit', async () => {
+    it('should route to edit handler for /me profile edit', async () => {
       const { handleEditPersona } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'edit',
           getString: () => null, // No persona specified
         },
@@ -139,7 +146,7 @@ describe('Me Command Index', () => {
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'edit',
           getString: () => 'persona-123',
         },
@@ -151,13 +158,13 @@ describe('Me Command Index', () => {
       expect(handleEditPersona).toHaveBeenCalledWith(interaction, 'persona-123');
     });
 
-    it('should route to create handler for /me create', async () => {
+    it('should route to create handler for /me profile create', async () => {
       const { handleCreatePersona } = await import('./create.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'create',
         },
         user: { id: '123' },
@@ -168,13 +175,13 @@ describe('Me Command Index', () => {
       expect(handleCreatePersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to list handler for /me list', async () => {
+    it('should route to list handler for /me profile list', async () => {
       const { handleListPersonas } = await import('./list.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'list',
         },
         user: { id: '123' },
@@ -185,13 +192,13 @@ describe('Me Command Index', () => {
       expect(handleListPersonas).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to default handler for /me default', async () => {
+    it('should route to default handler for /me profile default', async () => {
       const { handleSetDefaultPersona } = await import('./default.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'default',
         },
         user: { id: '123' },
@@ -255,12 +262,12 @@ describe('Me Command Index', () => {
   });
 
   describe('execute - modal routing', () => {
-    it('should route me-create modal to create handler', async () => {
+    it('should route me-profile-create modal to create handler', async () => {
       const { handleCreateModalSubmit } = await import('./create.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-create',
+        customId: 'me-profile-create',
       } as any;
 
       await execute(interaction);
@@ -268,12 +275,12 @@ describe('Me Command Index', () => {
       expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route me-edit-new modal to edit handler', async () => {
+    it('should route me-profile-edit-new modal to edit handler', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-edit-new',
+        customId: 'me-profile-edit-new',
       } as any;
 
       await execute(interaction);
@@ -281,12 +288,12 @@ describe('Me Command Index', () => {
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
     });
 
-    it('should route me-edit-{id} modal to edit handler with ID', async () => {
+    it('should route me-profile-edit-{id} modal to edit handler with ID', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-edit-persona-uuid-123',
+        customId: 'me-profile-edit-persona-uuid-123',
       } as any;
 
       await execute(interaction);
@@ -334,7 +341,7 @@ describe('Me Command Index', () => {
       const interaction = {
         options: {
           getFocused: () => ({ name: 'profile', value: '' }),
-          getSubcommandGroup: () => null,
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'edit',
         },
       } as any;
