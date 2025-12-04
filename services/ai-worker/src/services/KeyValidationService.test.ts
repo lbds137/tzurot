@@ -169,99 +169,6 @@ describe('KeyValidationService', () => {
       });
     });
 
-    describe('OpenAI validation', () => {
-      it('should return valid=true for valid OpenAI key', async () => {
-        mockFetch.mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            data: [{ id: 'gpt-4' }, { id: 'gpt-3.5-turbo' }],
-          }),
-        });
-
-        const result = await service.validateKey('sk-valid-openai', AIProvider.OpenAI);
-
-        expect(result.valid).toBe(true);
-        expect(result.provider).toBe(AIProvider.OpenAI);
-        expect(result.metadata?.modelsAvailable).toBe(true);
-        expect(mockFetch).toHaveBeenCalledWith(
-          'https://api.openai.com/v1/models',
-          expect.objectContaining({
-            method: 'GET',
-            headers: {
-              Authorization: 'Bearer sk-valid-openai',
-            },
-          })
-        );
-      });
-
-      it('should throw InvalidApiKeyError for 401 response', async () => {
-        mockFetch.mockResolvedValue({
-          ok: false,
-          status: 401,
-        });
-
-        const result = await service.validateKey('sk-invalid-openai', AIProvider.OpenAI);
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toBeInstanceOf(InvalidApiKeyError);
-      });
-
-      it('should throw QuotaExceededError for 429 with quota message', async () => {
-        mockFetch.mockResolvedValue({
-          ok: false,
-          status: 429,
-          json: async () => ({
-            error: {
-              message: 'You exceeded your current quota',
-            },
-          }),
-        });
-
-        const result = await service.validateKey('sk-quota-openai', AIProvider.OpenAI);
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toBeInstanceOf(QuotaExceededError);
-      });
-
-      it('should return valid=true for temporary rate limit (no quota issue)', async () => {
-        mockFetch.mockResolvedValue({
-          ok: false,
-          status: 429,
-          json: async () => ({
-            error: {
-              message: 'Rate limit exceeded, please slow down',
-            },
-          }),
-        });
-
-        const result = await service.validateKey('sk-rate-limited', AIProvider.OpenAI);
-
-        // Temporary rate limit means key is still valid
-        expect(result.valid).toBe(true);
-      });
-
-      it('should handle timeout errors', async () => {
-        mockFetch.mockRejectedValue(new Error('TIMEOUT'));
-
-        const result = await service.validateKey('sk-slow-openai', AIProvider.OpenAI);
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toBeInstanceOf(ValidationTimeoutError);
-      });
-    });
-
-    describe('unsupported providers', () => {
-      it('should return valid=true for unsupported providers (optimistic)', async () => {
-        // Gemini is not yet supported
-        const result = await service.validateKey('gemini-key', AIProvider.Gemini);
-
-        expect(result.valid).toBe(true);
-        expect(result.provider).toBe(AIProvider.Gemini);
-        // Should not make any fetch calls
-        expect(mockFetch).not.toHaveBeenCalled();
-      });
-    });
   });
 
   describe('error classes', () => {
@@ -276,12 +183,12 @@ describe('KeyValidationService', () => {
     });
 
     it('QuotaExceededError should have correct properties', () => {
-      const error = new QuotaExceededError(AIProvider.OpenAI, 'no credits');
+      const error = new QuotaExceededError(AIProvider.OpenRouter, 'no credits');
 
       expect(error.name).toBe('QuotaExceededError');
-      expect(error.provider).toBe(AIProvider.OpenAI);
+      expect(error.provider).toBe(AIProvider.OpenRouter);
       expect(error.details).toBe('no credits');
-      expect(error.message).toContain('openai');
+      expect(error.message).toContain('openrouter');
     });
 
     it('QuotaExceededError should work without details', () => {

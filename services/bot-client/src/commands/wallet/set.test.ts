@@ -51,17 +51,6 @@ describe('handleSetKey', () => {
     expect(modal.data.title).toBe('Set OpenRouter API Key');
   });
 
-  it('should show modal for OpenAI provider', async () => {
-    const interaction = createMockInteraction('openai');
-    await handleSetKey(interaction);
-
-    expect(mockShowModal).toHaveBeenCalledTimes(1);
-    const modal = mockShowModal.mock.calls[0][0];
-
-    expect(modal.data.custom_id).toBe('wallet-set-openai');
-    expect(modal.data.title).toBe('Set OpenAI API Key');
-  });
-
   it('should include API key text input with correct configuration', async () => {
     const interaction = createMockInteraction('openrouter');
     await handleSetKey(interaction);
@@ -88,26 +77,5 @@ describe('handleSetKey', () => {
     const textInput = modal.components[0].components[0];
 
     expect(textInput.data.placeholder).toBe('sk-or-v1-xxxx...');
-  });
-
-  it('should use provider-specific placeholder for OpenAI', async () => {
-    const interaction = createMockInteraction('openai');
-    await handleSetKey(interaction);
-
-    const modal = mockShowModal.mock.calls[0][0];
-    const textInput = modal.components[0].components[0];
-
-    expect(textInput.data.placeholder).toBe('sk-xxxx...');
-  });
-
-  it('should handle unknown provider gracefully', async () => {
-    const interaction = createMockInteraction('unknown-provider');
-    await handleSetKey(interaction);
-
-    expect(mockShowModal).toHaveBeenCalledTimes(1);
-    const modal = mockShowModal.mock.calls[0][0];
-
-    expect(modal.data.custom_id).toBe('wallet-set-unknown-provider');
-    expect(modal.data.title).toBe('Set unknown-provider API Key');
   });
 });

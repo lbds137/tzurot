@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handlePersonalityAutocomplete, handlePersonaAutocomplete, CREATE_NEW_PERSONA_VALUE } from './autocomplete.js';
+import {
+  handlePersonalityAutocomplete,
+  handlePersonaAutocomplete,
+  CREATE_NEW_PERSONA_VALUE,
+} from './autocomplete.js';
 
 // Mock Prisma
 const mockPrismaClient = {

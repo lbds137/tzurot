@@ -26,11 +26,8 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 // Mock providers utility
 vi.mock('../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
-    const names: Record<string, string> = {
-      openrouter: 'OpenRouter',
-      openai: 'OpenAI',
-    };
-    return names[provider] ?? provider;
+    if (provider === 'openrouter') return 'OpenRouter';
+    return provider;
   },
 }));
 
@@ -101,22 +98,6 @@ describe('handleWalletModalSubmit', () => {
       expect(mockEditReply).toHaveBeenCalledWith(
         expect.stringContaining('Invalid OpenRouter Key Format')
       );
-    });
-
-    it('should reject OpenAI key with wrong format', async () => {
-      const interaction = createMockInteraction('wallet-set-openai', 'wrong-format');
-      await handleWalletModalSubmit(interaction);
-
-      expect(mockEditReply).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid OpenAI Key Format')
-      );
-    });
-
-    it('should detect OpenRouter key submitted for OpenAI', async () => {
-      const interaction = createMockInteraction('wallet-set-openai', 'sk-or-v1-some-key');
-      await handleWalletModalSubmit(interaction);
-
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Wrong Provider'));
     });
   });
 

@@ -96,60 +96,10 @@ export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValid
 }
 
 /**
- * Validate an OpenAI API key
- *
- * Uses the /models endpoint (lightweight, read-only) to check:
- * - Key validity (401 = invalid)
- * - Rate limit status (429 = may indicate quota issues)
- */
-export async function validateOpenAIKey(apiKey: string): Promise<ApiKeyValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/models', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (response.status === 401) {
-      return { valid: false, errorCode: 'INVALID_KEY', error: 'Invalid API key' };
-    }
-
-    if (response.status === 429) {
-      return { valid: false, errorCode: 'QUOTA_EXCEEDED', error: 'Rate limit exceeded' };
-    }
-
-    if (!response.ok) {
-      return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
-    }
-
-    return { valid: true };
-  } catch (error) {
-    clearTimeout(timeout);
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, errorCode: 'TIMEOUT', error: 'Validation request timed out' };
-    }
-
-    return {
-      valid: false,
-      errorCode: 'UNKNOWN',
-      error: error instanceof Error ? error.message : 'Validation failed',
-    };
-  }
-}
-
-/**
  * Validate an API key for any supported provider
  *
  * @param apiKey - The API key to validate
- * @param provider - The AI provider (openrouter, openai, etc.)
+ * @param provider - The AI provider (openrouter, etc.)
  * @returns Validation result with status and optional error details
  */
 export async function validateApiKey(
@@ -161,13 +111,13 @@ export async function validateApiKey(
   switch (provider) {
     case AIProvider.OpenRouter:
       return validateOpenRouterKey(apiKey);
-    case AIProvider.OpenAI:
-      return validateOpenAIKey(apiKey);
-    default:
+    default: {
+      const _exhaustive: never = provider;
       return {
         valid: false,
         errorCode: 'UNKNOWN',
-        error: `Unsupported provider: ${String(provider)}`,
+        error: `Unsupported provider: ${String(_exhaustive)}`,
       };
+    }
   }
 }

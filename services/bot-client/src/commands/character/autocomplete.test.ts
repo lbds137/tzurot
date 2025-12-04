@@ -67,17 +67,27 @@ describe('handleAutocomplete', () => {
       ok: true,
       data: {
         personalities: [
-          { slug: 'my-char', name: 'MyChar', displayName: 'My Character', isOwned: true, isPublic: false },
-          { slug: 'public-char', name: 'PublicChar', displayName: null, isOwned: false, isPublic: true },
+          {
+            slug: 'my-char',
+            name: 'MyChar',
+            displayName: 'My Character',
+            isOwned: true,
+            isPublic: false,
+          },
+          {
+            slug: 'public-char',
+            name: 'PublicChar',
+            displayName: null,
+            isOwned: false,
+            isPublic: true,
+          },
         ],
       },
     });
 
     await handleAutocomplete(createMockInteraction('character', '', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🔒 My Character', value: 'my-char' },
-    ]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 My Character', value: 'my-char' }]);
   });
 
   it('should return owned characters for avatar subcommand', async () => {
@@ -93,9 +103,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', '', 'avatar'));
 
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🌐 MyChar', value: 'my-char' },
-    ]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 MyChar', value: 'my-char' }]);
   });
 
   it('should return all characters for view subcommand', async () => {
@@ -104,7 +112,13 @@ describe('handleAutocomplete', () => {
       data: {
         personalities: [
           { slug: 'my-char', name: 'MyChar', displayName: null, isOwned: true, isPublic: false },
-          { slug: 'public-char', name: 'PublicChar', displayName: 'Public Bot', isOwned: false, isPublic: true },
+          {
+            slug: 'public-char',
+            name: 'PublicChar',
+            displayName: 'Public Bot',
+            isOwned: false,
+            isPublic: true,
+          },
         ],
       },
     });
@@ -130,9 +144,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', 'lun', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🌐 Luna', value: 'luna' },
-    ]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 Luna', value: 'luna' }]);
   });
 
   it('should filter by query matching slug', async () => {
@@ -148,9 +160,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', 'bot-123', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🔒 Bot', value: 'my-bot-123' },
-    ]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 Bot', value: 'my-bot-123' }]);
   });
 
   it('should filter by query matching displayName', async () => {
@@ -158,7 +168,13 @@ describe('handleAutocomplete', () => {
       ok: true,
       data: {
         personalities: [
-          { slug: 'char-1', name: 'Internal', displayName: 'Fancy Display Name', isOwned: true, isPublic: true },
+          {
+            slug: 'char-1',
+            name: 'Internal',
+            displayName: 'Fancy Display Name',
+            isOwned: true,
+            isPublic: true,
+          },
           { slug: 'char-2', name: 'Other', displayName: null, isOwned: true, isPublic: true },
         ],
       },
@@ -166,9 +182,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', 'fancy', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🌐 Fancy Display Name', value: 'char-1' },
-    ]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 Fancy Display Name', value: 'char-1' }]);
   });
 
   it('should handle case-insensitive query', async () => {
@@ -183,9 +197,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', 'LUNA', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🌐 Luna', value: 'luna' },
-    ]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 Luna', value: 'luna' }]);
   });
 
   it('should return empty array on API error', async () => {
@@ -233,9 +245,27 @@ describe('handleAutocomplete', () => {
       ok: true,
       data: {
         personalities: [
-          { slug: 'private-owned', name: 'Private', displayName: null, isOwned: true, isPublic: false },
-          { slug: 'public-owned', name: 'Public', displayName: null, isOwned: true, isPublic: true },
-          { slug: 'public-other', name: 'Other', displayName: null, isOwned: false, isPublic: true },
+          {
+            slug: 'private-owned',
+            name: 'Private',
+            displayName: null,
+            isOwned: true,
+            isPublic: false,
+          },
+          {
+            slug: 'public-owned',
+            name: 'Public',
+            displayName: null,
+            isOwned: true,
+            isPublic: true,
+          },
+          {
+            slug: 'public-other',
+            name: 'Other',
+            displayName: null,
+            isOwned: false,
+            isPublic: true,
+          },
         ],
       },
     });

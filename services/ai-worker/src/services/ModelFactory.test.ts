@@ -28,11 +28,9 @@ vi.mock('@tzurot/common-types', () => ({
     AI_PROVIDER: 'openrouter',
     DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
     OPENROUTER_API_KEY: 'test-openrouter-key',
-    OPENAI_API_KEY: 'test-openai-key',
   }),
   AIProvider: {
     OpenRouter: 'openrouter',
-    OpenAI: 'openai',
   },
   AI_ENDPOINTS: {
     OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',

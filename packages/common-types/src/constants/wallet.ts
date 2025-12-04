@@ -13,7 +13,7 @@ export const WALLET_ERROR_MESSAGES = {
 
   /** Invalid provider specified - shows valid options */
   INVALID_PROVIDER: (provider: string) =>
-    `Invalid provider: ${provider}. Supported providers: openrouter, openai`,
+    `Invalid provider: ${provider}. Supported providers: openrouter`,
 
   /** Generic invalid API key message */
   INVALID_API_KEY: 'Invalid API key',
@@ -33,6 +33,9 @@ export const WALLET_ERROR_MESSAGES = {
 
 /**
  * API key format patterns and placeholders
+ *
+ * Note: Only OpenRouter is supported for user-facing BYOK. Other prefixes are
+ * kept for log sanitization purposes (redacting leaked keys in error messages).
  */
 export const API_KEY_FORMATS = {
   /** OpenRouter API key prefix */
@@ -41,23 +44,11 @@ export const API_KEY_FORMATS = {
   /** OpenRouter v1 API key prefix */
   OPENROUTER_V1_PREFIX: 'sk-or-v1-',
 
-  /** OpenAI API key prefix */
-  OPENAI_PREFIX: 'sk-',
-
-  /** Anthropic API key prefix */
-  ANTHROPIC_PREFIX: 'sk-ant-',
-
-  /** Google/Gemini API key prefix */
-  GOOGLE_PREFIX: 'AIza',
-
   /** Placeholder for displaying masked keys */
   MASKED_KEY: '••••••••••••••••',
 
   /** Placeholder example for OpenRouter keys (for documentation/UI) */
   OPENROUTER_PLACEHOLDER: 'sk-or-v1-xxxx...',
-
-  /** Placeholder example for OpenAI keys (for documentation/UI) */
-  OPENAI_PLACEHOLDER: 'sk-xxxx...',
 } as const;
 
 /**
