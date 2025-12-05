@@ -11,15 +11,9 @@
 
 import type { ModalSubmitInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_COLORS,
-  AIProvider,
-  API_KEY_FORMATS,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../utils/providers.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('wallet-modal');
 
@@ -62,7 +56,6 @@ async function handleSetKeySubmit(
   // Defer reply immediately (ephemeral for security)
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const config = getConfig();
   const apiKey = interaction.fields.getTextInputValue('apiKey');
 
   // Basic validation
@@ -80,33 +73,24 @@ async function handleSetKeySubmit(
 
   try {
     // Send to api-gateway for validation and storage
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/wallet/set`, {
+    const result = await callGatewayApi<{ success: boolean }>('/wallet/set', {
       method: 'POST',
-      headers: {
-        'Content-Type': CONTENT_TYPES.JSON,
-        'X-User-Id': interaction.user.id,
-        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      },
-      body: JSON.stringify({
-        provider,
-        apiKey,
-      }),
+      userId: interaction.user.id,
+      body: { provider, apiKey },
     });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-      };
-
+    if (!result.ok) {
       logger.error(
-        { status: response.status, provider, userId: interaction.user.id, error: errorData.error },
+        { status: result.status, provider, userId: interaction.user.id, error: result.error },
         '[Wallet Modal] Failed to store API key'
       );
 
       // Handle specific error cases with user-friendly messages
-      const friendlyMessage = getErrorMessage(response.status, errorData, provider);
+      const friendlyMessage = getErrorMessage(
+        result.status,
+        { error: result.error },
+        provider
+      );
       await interaction.editReply(friendlyMessage);
       return;
     }

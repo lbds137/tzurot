@@ -39,6 +39,7 @@ import {
 import { characterDashboardConfig, characterSeedFields, type CharacterData } from './config.js';
 import { handleAutocomplete } from './autocomplete.js';
 import { handleImport } from './import.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('character-command');
 
@@ -790,30 +791,21 @@ interface PersonalityListResponse {
  */
 async function fetchCharacter(
   slugOrId: string,
-  config: EnvConfig,
-  userId?: string
+  _config: EnvConfig,
+  userId: string
 ): Promise<CharacterData | null> {
-  const endpoint = `${config.GATEWAY_URL}/user/personality/${slugOrId}`;
+  const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slugOrId}`, {
+    userId,
+  });
 
-  const headers: Record<string, string> = {
-    'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-  };
-
-  if (userId !== undefined) {
-    headers['X-Discord-User-Id'] = userId;
-  }
-
-  const response = await fetch(endpoint, { headers });
-
-  if (!response.ok) {
-    if (response.status === 404 || response.status === 403) {
+  if (!result.ok) {
+    if (result.status === 404 || result.status === 403) {
       return null;
     }
-    throw new Error(`Failed to fetch character: ${response.status}`);
+    throw new Error(`Failed to fetch character: ${result.status}`);
   }
 
-  const data = (await response.json()) as PersonalityResponse;
-  return data.personality;
+  return result.data.personality;
 }
 
 /**
@@ -822,22 +814,17 @@ async function fetchCharacter(
  */
 async function fetchAllCharacters(
   userId: string,
-  config: EnvConfig
+  _config: EnvConfig
 ): Promise<{ owned: CharacterData[]; publicOthers: CharacterData[] }> {
-  const endpoint = `${config.GATEWAY_URL}/user/personality`;
-
-  const response = await fetch(endpoint, {
-    headers: {
-      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      'X-Discord-User-Id': userId,
-    },
+  const result = await callGatewayApi<PersonalityListResponse>('/user/personality', {
+    userId,
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch characters: ${response.status}`);
+  if (!result.ok) {
+    throw new Error(`Failed to fetch characters: ${result.status}`);
   }
 
-  const data = (await response.json()) as PersonalityListResponse;
+  const data = result.data;
 
   // The list endpoint returns summaries, but we need full data for the dashboard
   // For now, just return the summaries cast to CharacterData (we'll fetch full data when editing)
@@ -933,25 +920,22 @@ async function createCharacter(
     personalityTraits: string;
   },
   userId: string,
-  config: EnvConfig
+  _config: EnvConfig
 ): Promise<CharacterData> {
-  const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      'X-Discord-User-Id': userId,
-    },
-    body: JSON.stringify(data),
-  });
+  const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
+    '/user/personality',
+    {
+      method: 'POST',
+      userId,
+      body: data,
+    }
+  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to create character: ${response.status} - ${errorText}`);
+  if (!result.ok) {
+    throw new Error(`Failed to create character: ${result.status} - ${result.error}`);
   }
 
-  const result = (await response.json()) as { success: boolean; personality: CharacterData };
-  return result.personality;
+  return result.data.personality;
 }
 
 /**
@@ -961,25 +945,22 @@ async function updateCharacter(
   slug: string,
   data: Partial<CharacterData>,
   userId: string,
-  config: EnvConfig
+  _config: EnvConfig
 ): Promise<CharacterData> {
-  const response = await fetch(`${config.GATEWAY_URL}/user/personality/${slug}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      'X-Discord-User-Id': userId,
-    },
-    body: JSON.stringify(data),
-  });
+  const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
+    `/user/personality/${slug}`,
+    {
+      method: 'PUT',
+      userId,
+      body: data,
+    }
+  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to update character: ${response.status} - ${errorText}`);
+  if (!result.ok) {
+    throw new Error(`Failed to update character: ${result.status} - ${result.error}`);
   }
 
-  const result = (await response.json()) as { success: boolean; personality: CharacterData };
-  return result.personality;
+  return result.data.personality;
 }
 
 /**
@@ -989,28 +970,22 @@ async function toggleVisibility(
   slug: string,
   isPublic: boolean,
   userId: string,
-  config: EnvConfig
+  _config: EnvConfig
 ): Promise<{ id: string; slug: string; isPublic: boolean }> {
-  const response = await fetch(`${config.GATEWAY_URL}/user/personality/${slug}/visibility`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      'X-Discord-User-Id': userId,
-    },
-    body: JSON.stringify({ isPublic }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to toggle visibility: ${response.status} - ${errorText}`);
-  }
-
-  const result = (await response.json()) as {
+  const result = await callGatewayApi<{
     success: boolean;
     personality: { id: string; slug: string; isPublic: boolean };
-  };
-  return result.personality;
+  }>(`/user/personality/${slug}/visibility`, {
+    method: 'PATCH',
+    userId,
+    body: { isPublic },
+  });
+
+  if (!result.ok) {
+    throw new Error(`Failed to toggle visibility: ${result.status} - ${result.error}`);
+  }
+
+  return result.data.personality;
 }
 
 /**
