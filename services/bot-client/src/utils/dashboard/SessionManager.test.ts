@@ -448,20 +448,20 @@ describe('Singleton functions', () => {
 describe('Dashboard types utilities', () => {
   describe('isDashboardInteraction', () => {
     it('should return true for matching entity type', () => {
-      expect(isDashboardInteraction('character-menu-abc123', 'character')).toBe(true);
-      expect(isDashboardInteraction('character-modal-abc123-identity', 'character')).toBe(true);
-      expect(isDashboardInteraction('character-close-abc123', 'character')).toBe(true);
+      expect(isDashboardInteraction('character::menu::abc123', 'character')).toBe(true);
+      expect(isDashboardInteraction('character::modal::abc123::identity', 'character')).toBe(true);
+      expect(isDashboardInteraction('character::close::abc123', 'character')).toBe(true);
     });
 
     it('should return false for non-matching entity type', () => {
-      expect(isDashboardInteraction('profile-menu-abc123', 'character')).toBe(false);
+      expect(isDashboardInteraction('profile::menu::abc123', 'character')).toBe(false);
       expect(isDashboardInteraction('other-action', 'character')).toBe(false);
     });
   });
 
   describe('parseDashboardCustomId', () => {
     it('should parse seed modal custom ID', () => {
-      const result = parseDashboardCustomId('character-seed');
+      const result = parseDashboardCustomId('character::seed');
       expect(result).toEqual({
         entityType: 'character',
         action: 'seed',
@@ -471,7 +471,7 @@ describe('Dashboard types utilities', () => {
     });
 
     it('should parse menu custom ID', () => {
-      const result = parseDashboardCustomId('character-menu-abc123');
+      const result = parseDashboardCustomId('character::menu::abc123');
       expect(result).toEqual({
         entityType: 'character',
         action: 'menu',
@@ -481,12 +481,23 @@ describe('Dashboard types utilities', () => {
     });
 
     it('should parse modal custom ID with section', () => {
-      const result = parseDashboardCustomId('character-modal-abc123-identity');
+      const result = parseDashboardCustomId('character::modal::abc123::identity');
       expect(result).toEqual({
         entityType: 'character',
         action: 'modal',
         entityId: 'abc123',
         sectionId: 'identity',
+      });
+    });
+
+    it('should correctly parse UUIDs in entityId', () => {
+      const uuid = 'abc12345-def6-7890-abcd-ef1234567890';
+      const result = parseDashboardCustomId(`character::menu::${uuid}`);
+      expect(result).toEqual({
+        entityType: 'character',
+        action: 'menu',
+        entityId: uuid,
+        sectionId: undefined,
       });
     });
 
@@ -498,25 +509,30 @@ describe('Dashboard types utilities', () => {
 
   describe('buildDashboardCustomId', () => {
     it('should build seed custom ID', () => {
-      expect(buildDashboardCustomId('character', 'seed')).toBe('character-seed');
+      expect(buildDashboardCustomId('character', 'seed')).toBe('character::seed');
     });
 
     it('should build menu custom ID', () => {
-      expect(buildDashboardCustomId('character', 'menu', 'abc123')).toBe('character-menu-abc123');
+      expect(buildDashboardCustomId('character', 'menu', 'abc123')).toBe('character::menu::abc123');
     });
 
     it('should build modal custom ID with section', () => {
       expect(buildDashboardCustomId('character', 'modal', 'abc123', 'identity')).toBe(
-        'character-modal-abc123-identity'
+        'character::modal::abc123::identity'
       );
     });
 
+    it('should correctly build with UUID entityId', () => {
+      const uuid = 'abc12345-def6-7890-abcd-ef1234567890';
+      expect(buildDashboardCustomId('character', 'menu', uuid)).toBe(`character::menu::${uuid}`);
+    });
+
     it('should skip empty entityId', () => {
-      expect(buildDashboardCustomId('character', 'seed', '')).toBe('character-seed');
+      expect(buildDashboardCustomId('character', 'seed', '')).toBe('character::seed');
     });
 
     it('should skip empty sectionId', () => {
-      expect(buildDashboardCustomId('character', 'menu', 'abc', '')).toBe('character-menu-abc');
+      expect(buildDashboardCustomId('character', 'menu', 'abc', '')).toBe('character::menu::abc');
     });
   });
 });

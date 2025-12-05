@@ -179,24 +179,30 @@ export interface DashboardRepository<T> {
 }
 
 /**
+ * Delimiter used for dashboard custom IDs
+ * Using :: because both UUIDs and slugs contain - which breaks simple splitting
+ */
+const CUSTOM_ID_DELIMITER = '::';
+
+/**
  * Type guard for checking if interaction is from a dashboard
  *
- * CustomId format: {entityType}-{action}-{entityId?}-{sectionId?}
+ * CustomId format: {entityType}::{action}::{entityId?}::{sectionId?}
  * This puts entityType first so Discord.js CommandHandler routes correctly
  */
 export function isDashboardInteraction(customId: string, entityType: string): boolean {
-  return customId.startsWith(`${entityType}-`);
+  return customId.startsWith(`${entityType}${CUSTOM_ID_DELIMITER}`);
 }
 
 /**
  * Parse dashboard custom ID to extract components
  *
- * Format: {entityType}-{action}-{entityId}-{sectionId}
+ * Format: {entityType}::{action}::{entityId}::{sectionId}
  * Examples:
- *   character-seed (seed modal)
- *   character-menu-abc123 (select menu)
- *   character-modal-abc123-identity (section modal)
- *   character-close-abc123 (close button)
+ *   character::seed (seed modal)
+ *   character::menu::abc12345-def6-7890-abcd-ef1234567890 (select menu with UUID)
+ *   character::modal::abc12345-def6-7890-abcd-ef1234567890::identity (section modal)
+ *   character::close::abc12345-def6-7890-abcd-ef1234567890 (close button)
  */
 export function parseDashboardCustomId(customId: string): {
   entityType: string;
@@ -204,7 +210,7 @@ export function parseDashboardCustomId(customId: string): {
   entityId?: string;
   sectionId?: string;
 } | null {
-  const parts = customId.split('-');
+  const parts = customId.split(CUSTOM_ID_DELIMITER);
   if (parts.length < 2) {
     return null;
   }
@@ -220,7 +226,7 @@ export function parseDashboardCustomId(customId: string): {
 /**
  * Build dashboard custom ID
  *
- * Format: {entityType}-{action}-{entityId?}-{sectionId?}
+ * Format: {entityType}::{action}::{entityId?}::{sectionId?}
  */
 export function buildDashboardCustomId(
   entityType: string,
@@ -235,5 +241,5 @@ export function buildDashboardCustomId(
   if (sectionId !== undefined && sectionId.length > 0) {
     parts.push(sectionId);
   }
-  return parts.join('-');
+  return parts.join(CUSTOM_ID_DELIMITER);
 }

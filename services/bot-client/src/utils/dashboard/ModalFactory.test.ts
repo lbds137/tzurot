@@ -43,7 +43,7 @@ describe('ModalFactory', () => {
       const modal = buildSectionModal(config, section, 'char-123', { name: 'Test' });
       const json = modal.toJSON();
 
-      expect(json.custom_id).toBe('character-modal-char-123-basic');
+      expect(json.custom_id).toBe('character::modal::char-123::basic');
       expect(json.title).toBe('Edit Basic Info'); // Emoji stripped
     });
 

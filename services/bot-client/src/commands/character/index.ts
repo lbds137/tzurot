@@ -39,6 +39,7 @@ import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
+  buildDashboardCustomId,
   buildSectionModal,
   extractModalValues,
   getSessionManager,
@@ -120,7 +121,9 @@ export const data = new SlashCommandBuilder()
  * Show the seed modal for character creation
  */
 async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
-  const modal = new ModalBuilder().setCustomId('character-seed').setTitle('Create New Character');
+  const modal = new ModalBuilder()
+    .setCustomId(buildDashboardCustomId('character', 'seed'))
+    .setTitle('Create New Character');
 
   for (const field of characterSeedFields) {
     const input = new TextInputBuilder()
@@ -547,14 +550,14 @@ async function handleModalSubmit(
   const customId = interaction.customId;
 
   // Handle seed modal (new character)
-  // Format: character-seed
-  if (customId === 'character-seed') {
+  // Format: character::seed
+  if (customId === buildDashboardCustomId('character', 'seed')) {
     await handleSeedModalSubmit(interaction, config);
     return;
   }
 
   // Handle section edit modals
-  // Format: character-modal-{entityId}-{sectionId}
+  // Format: character::modal::{entityId}::{sectionId}
   const parsed = parseDashboardCustomId(customId);
   if (
     parsed?.entityType === 'character' &&
