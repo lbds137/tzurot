@@ -304,17 +304,26 @@ const VIEW_PAGE_TITLES = [
   '💬 Conversation & Errors',
 ];
 
+/** Truncation suffix with length indicator */
+const TRUNCATION_SUFFIX = '…\n\n_(truncated)_';
+
 /**
- * Truncate text to Discord embed field limit with continuation indicator
+ * Truncate text to fit Discord embed field limit (1024 chars)
+ * Default maxLength accounts for suffix length to stay under limit
  */
-function truncateField(text: string | null | undefined, maxLength = 1000): string {
+function truncateField(
+  text: string | null | undefined,
+  maxLength = DISCORD_LIMITS.EMBED_FIELD - TRUNCATION_SUFFIX.length
+): string {
   if (text === null || text === undefined || text.length === 0) {
     return '_Not set_';
   }
-  if (text.length <= maxLength) {
+  // Ensure maxLength doesn't exceed Discord's limit minus suffix
+  const safeMax = Math.min(maxLength, DISCORD_LIMITS.EMBED_FIELD - TRUNCATION_SUFFIX.length);
+  if (text.length <= safeMax) {
     return text;
   }
-  return text.slice(0, maxLength - 20) + '\n\n*...continued on next page*';
+  return text.slice(0, safeMax) + TRUNCATION_SUFFIX;
 }
 
 /**
