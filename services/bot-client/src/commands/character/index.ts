@@ -34,6 +34,7 @@ import {
   type EnvConfig,
   DISCORD_LIMITS,
   DISCORD_COLORS,
+  CHARACTER_VIEW_LIMITS,
 } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import {
@@ -413,11 +414,11 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
 
     case 2: {
       // Details & Preferences page
-      const tone = truncateField(character.personalityTone, 500);
-      const age = truncateField(character.personalityAge, 200);
-      const appearance = truncateField(character.personalityAppearance, 500);
-      const likes = truncateField(character.personalityLikes, 500);
-      const dislikes = truncateField(character.personalityDislikes, 500);
+      const tone = truncateField(character.personalityTone, CHARACTER_VIEW_LIMITS.MEDIUM);
+      const age = truncateField(character.personalityAge, CHARACTER_VIEW_LIMITS.SHORT);
+      const appearance = truncateField(character.personalityAppearance, CHARACTER_VIEW_LIMITS.MEDIUM);
+      const likes = truncateField(character.personalityLikes, CHARACTER_VIEW_LIMITS.MEDIUM);
+      const dislikes = truncateField(character.personalityDislikes, CHARACTER_VIEW_LIMITS.MEDIUM);
       if (tone.wasTruncated) {
         truncatedFields.push('personalityTone');
       }
@@ -445,9 +446,9 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
 
     case 3: {
       // Conversation & Errors page
-      const goals = truncateField(character.conversationalGoals, 800);
-      const examples = truncateField(character.conversationalExamples, 800);
-      const errorMsg = truncateField(character.errorMessage, 500);
+      const goals = truncateField(character.conversationalGoals, CHARACTER_VIEW_LIMITS.LONG);
+      const examples = truncateField(character.conversationalExamples, CHARACTER_VIEW_LIMITS.LONG);
+      const errorMsg = truncateField(character.errorMessage, CHARACTER_VIEW_LIMITS.MEDIUM);
       if (goals.wasTruncated) {
         truncatedFields.push('conversationalGoals');
       }
@@ -792,8 +793,8 @@ async function handleExpandField(
       return;
     }
 
-    // Discord message limit is 2000 chars
-    const MAX_MESSAGE_LENGTH = 2000;
+    // Discord message limit
+    const MAX_MESSAGE_LENGTH = DISCORD_LIMITS.MESSAGE_LENGTH;
     const header = `${fieldInfo.label}\n\n`;
     const maxContentLength = MAX_MESSAGE_LENGTH - header.length;
 

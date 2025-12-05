@@ -41,6 +41,7 @@ export {
 // Discord constants
 export {
   TEXT_LIMITS,
+  CHARACTER_VIEW_LIMITS,
   DISCORD_LIMITS,
   DISCORD_COLORS,
   DISCORD_MENTIONS,
