@@ -11,11 +11,11 @@
 
 **Available Clients** (in `bot-client/src/utils/`):
 
-| Client                             | Purpose                     | When to Use                |
-| ---------------------------------- | --------------------------- | -------------------------- |
-| `callGatewayApi()`                 | User-authenticated requests | Any `/user/*` endpoint     |
-| `adminFetch()` / `adminPostJson()` | Admin-only requests         | Any `/admin/*` endpoint    |
-| `GatewayClient`                    | Internal service requests   | Service-to-service calls   |
+| Client                             | Purpose                     | When to Use              |
+| ---------------------------------- | --------------------------- | ------------------------ |
+| `callGatewayApi()`                 | User-authenticated requests | Any `/user/*` endpoint   |
+| `adminFetch()` / `adminPostJson()` | Admin-only requests         | Any `/admin/*` endpoint  |
+| `GatewayClient`                    | Internal service requests   | Service-to-service calls |
 
 **Correct Pattern:**
 
@@ -40,12 +40,13 @@ if (!result.ok) {
 const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
   headers: {
     'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-    'X-Discord-User-Id': userId,  // WRONG HEADER NAME!
+    'X-Discord-User-Id': userId, // WRONG HEADER NAME!
   },
 });
 ```
 
 **Why This Matters:**
+
 - Gateway clients set correct headers (`X-User-Id` not `X-Discord-User-Id`)
 - Gateway clients handle errors consistently
 - Gateway clients are tested and trusted
@@ -74,6 +75,7 @@ export async function handleButton(interaction: ButtonInteraction) {...}
 ```
 
 **Why This Matters:**
+
 - `CommandHandler.ts` collects these exports when loading commands
 - Missing exports = silent failures when users click buttons/menus
 - This has caused production bugs where dashboard interactions failed
@@ -97,16 +99,16 @@ field.setMaxLength(4000);
 
 **Available Constants:**
 
-| Constant                                   | Value | Use For                     |
-| ------------------------------------------ | ----- | --------------------------- |
-| `DISCORD_LIMITS.MESSAGE_LENGTH`            | 2000  | Message content limit       |
-| `DISCORD_LIMITS.EMBED_DESCRIPTION`         | 4096  | Embed description limit     |
-| `DISCORD_LIMITS.EMBED_FIELD`               | 1024  | Embed field value limit     |
-| `DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES`  | 25    | Max autocomplete results    |
-| `DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH`    | 4000  | Modal text input max        |
-| `DISCORD_LIMITS.MODAL_TITLE_MAX_LENGTH`    | 45    | Modal title limit           |
-| `DISCORD_COLORS.BLURPLE`                   | hex   | Discord brand color         |
-| `DISCORD_COLORS.SUCCESS/WARNING/ERROR`     | hex   | Status colors               |
+| Constant                                  | Value | Use For                  |
+| ----------------------------------------- | ----- | ------------------------ |
+| `DISCORD_LIMITS.MESSAGE_LENGTH`           | 2000  | Message content limit    |
+| `DISCORD_LIMITS.EMBED_DESCRIPTION`        | 4096  | Embed description limit  |
+| `DISCORD_LIMITS.EMBED_FIELD`              | 1024  | Embed field value limit  |
+| `DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES` | 25    | Max autocomplete results |
+| `DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH`   | 4000  | Modal text input max     |
+| `DISCORD_LIMITS.MODAL_TITLE_MAX_LENGTH`   | 45    | Modal title limit        |
+| `DISCORD_COLORS.BLURPLE`                  | hex   | Discord brand color      |
+| `DISCORD_COLORS.SUCCESS/WARNING/ERROR`    | hex   | Status colors            |
 
 ---
 
@@ -125,11 +127,11 @@ commands/
 
 **File Responsibilities:**
 
-| File               | Exports                                      |
-| ------------------ | -------------------------------------------- |
-| `index.ts`         | `data`, `execute`, `autocomplete?`, `handleSelectMenu?`, `handleButton?` |
-| `config.ts`        | Dashboard configuration object               |
-| `autocomplete.ts`  | Can export `handleAutocomplete` if complex   |
+| File              | Exports                                                                  |
+| ----------------- | ------------------------------------------------------------------------ |
+| `index.ts`        | `data`, `execute`, `autocomplete?`, `handleSelectMenu?`, `handleButton?` |
+| `config.ts`       | Dashboard configuration object                                           |
+| `autocomplete.ts` | Can export `handleAutocomplete` if complex                               |
 
 ---
 
@@ -143,19 +145,14 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 export const data = new SlashCommandBuilder()
   .setName('mycommand')
   .setDescription('Clear description of what this does')
+  .addSubcommand(sub => sub.setName('list').setDescription('List all items'))
   .addSubcommand(sub =>
-    sub.setName('list')
-       .setDescription('List all items')
-  )
-  .addSubcommand(sub =>
-    sub.setName('create')
-       .setDescription('Create a new item')
-       .addStringOption(opt =>
-         opt.setName('name')
-            .setDescription('Item name')
-            .setRequired(true)
-            .setAutocomplete(true)
-       )
+    sub
+      .setName('create')
+      .setDescription('Create a new item')
+      .addStringOption(opt =>
+        opt.setName('name').setDescription('Item name').setRequired(true).setAutocomplete(true)
+      )
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -191,8 +188,10 @@ interface MyResponse {
 
 const result = await callGatewayApi<MyResponse>('/user/myendpoint', {
   userId: interaction.user.id,
-  method: 'GET',  // or 'POST', 'PUT', 'DELETE'
-  body: { /* payload for POST/PUT */ },
+  method: 'GET', // or 'POST', 'PUT', 'DELETE'
+  body: {
+    /* payload for POST/PUT */
+  },
 });
 
 if (!result.ok) {
@@ -236,11 +235,13 @@ Use this format for component custom IDs:
 ```
 
 **Examples:**
+
 - `character-section-abc123` - Character section select
 - `wallet-confirm-delete` - Wallet delete confirmation
 - `dashboard-refresh-xyz789` - Dashboard refresh button
 
 **Why:**
+
 - `CommandHandler.ts` extracts command name from first segment
 - Allows routing to correct handler
 - Entity ID enables stateless handling
@@ -248,9 +249,7 @@ Use this format for component custom IDs:
 ### Select Menu Handler
 
 ```typescript
-export async function handleSelectMenu(
-  interaction: StringSelectMenuInteraction
-): Promise<void> {
+export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   const [commandName, action, entityId] = interaction.customId.split('-');
   const selectedValue = interaction.values[0];
 
@@ -266,9 +265,7 @@ export async function handleSelectMenu(
 ### Button Handler
 
 ```typescript
-export async function handleButton(
-  interaction: ButtonInteraction
-): Promise<void> {
+export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const [commandName, action, entityId] = interaction.customId.split('-');
 
   switch (action) {
