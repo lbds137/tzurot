@@ -20,7 +20,7 @@ const logger = createLogger('wallet-modal');
 
 /**
  * Handle wallet modal submissions
- * Routes based on customId pattern: wallet-set-{provider}
+ * Routes based on customId pattern: wallet::set::{provider}
  */
 export async function handleWalletModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   // Parse customId using centralized utilities

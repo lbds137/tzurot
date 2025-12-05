@@ -110,7 +110,7 @@ describe('Wallet Command', () => {
     it('should route modal submissions to handleWalletModalSubmit', async () => {
       const mockModalInteraction = {
         isModalSubmit: () => true,
-        customId: 'wallet-set-openrouter',
+        customId: 'wallet::set::openrouter',
       } as unknown as ModalSubmitInteraction;
 
       await execute(mockModalInteraction);

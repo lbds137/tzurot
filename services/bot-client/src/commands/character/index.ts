@@ -325,7 +325,10 @@ function truncateField(
     return { value: '_Not set_', wasTruncated: false, originalLength: 0 };
   }
   // Ensure maxLength doesn't exceed Discord's limit minus suffix
-  const safeMax = Math.min(maxLength, DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length);
+  const safeMax = Math.min(
+    maxLength,
+    DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length
+  );
   if (text.length <= safeMax) {
     return { value: text, wasTruncated: false, originalLength: text.length };
   }

@@ -245,21 +245,15 @@ export const PresetCustomIds = {
 // ============================================================================
 
 /**
- * Get the command name from any customId
+ * Get the command name from a customId
+ *
+ * All customIds use the `::` delimiter format: `command::action::param1::param2`
+ * Returns null if the customId doesn't contain the delimiter.
  */
 export function getCommandFromCustomId(customId: string): string | null {
   const delimiterIndex = customId.indexOf(CUSTOM_ID_DELIMITER);
   if (delimiterIndex === -1) {
-    // Legacy format with `-` delimiter - extract first segment
-    const dashIndex = customId.indexOf('-');
-    return dashIndex === -1 ? customId : customId.substring(0, dashIndex);
+    return null;
   }
   return customId.substring(0, delimiterIndex);
-}
-
-/**
- * Check if a customId uses the new `::` delimiter format
- */
-export function isNewCustomIdFormat(customId: string): boolean {
-  return customId.includes(CUSTOM_ID_DELIMITER);
 }

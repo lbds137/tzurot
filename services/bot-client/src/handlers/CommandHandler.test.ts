@@ -118,7 +118,7 @@ describe('CommandHandler', () => {
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
-        customId: 'test-create',
+        customId: 'test::create',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
         replied: false,
@@ -131,11 +131,11 @@ describe('CommandHandler', () => {
       expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
     });
 
-    it('should extract command name from modal customId', async () => {
+    it('should extract command name from modal customId using :: delimiter', async () => {
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
-        customId: 'test-edit',
+        customId: 'test::edit::entity-123',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
         replied: false,
@@ -144,7 +144,7 @@ describe('CommandHandler', () => {
 
       await handler.handleInteraction(mockInteraction);
 
-      // Should extract 'test' from 'test-edit'
+      // Should extract 'test' from 'test::edit::entity-123'
       const command = handler.getCommands().get('test');
       expect(command?.execute).toHaveBeenCalled();
     });
