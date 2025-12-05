@@ -106,7 +106,7 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
         select: { id: true },
       });
 
-      // Get public personalities
+      // Get public personalities (with owner's Discord ID for display)
       const publicPersonalities = await prisma.personality.findMany({
         where: { isPublic: true },
         select: {
@@ -116,6 +116,9 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
           slug: true,
           ownerId: true,
           isPublic: true,
+          owner: {
+            select: { discordId: true },
+          },
         },
         orderBy: { name: 'asc' },
       });
@@ -144,6 +147,9 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
             slug: true,
             ownerId: true,
             isPublic: true,
+            owner: {
+              select: { discordId: true },
+            },
           },
           orderBy: { name: 'asc' },
         });
@@ -161,6 +167,8 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
           slug: p.slug,
           isOwned: p.ownerId === userOwnerId,
           isPublic: p.isPublic,
+          ownerId: p.ownerId,
+          ownerDiscordId: p.owner?.discordId ?? null,
         })),
         // Add user-owned private personalities that aren't already in the public list
         ...userOwnedPersonalities
@@ -172,6 +180,8 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
             slug: p.slug,
             isOwned: true,
             isPublic: p.isPublic,
+            ownerId: p.ownerId,
+            ownerDiscordId: p.owner?.discordId ?? null,
           })),
       ];
 
