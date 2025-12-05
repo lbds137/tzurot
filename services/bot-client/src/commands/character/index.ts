@@ -239,8 +239,7 @@ function formatCharacterLine(
   const displayName = c.displayName ?? c.name;
 
   if (showCreator && creatorNames) {
-    const creatorName =
-      c.ownerId !== null ? (creatorNames.get(c.ownerId) ?? 'Unknown') : 'System';
+    const creatorName = c.ownerId !== null ? (creatorNames.get(c.ownerId) ?? 'Unknown') : 'System';
     return `${visibility} **${displayName}** (\`${c.slug}\`) — by ${creatorName}`;
   }
 
@@ -1009,7 +1008,7 @@ async function fetchAllCharacters(
       displayName: p.displayName,
       slug: p.slug,
       isPublic: p.isPublic,
-      ownerId: p.ownerDiscordId,  // Use Discord ID for fetching display names
+      ownerId: p.ownerDiscordId, // Use Discord ID for fetching display names
       // These fields are not in the list response, but needed for CharacterData interface
       characterInfo: '',
       personalityTraits: '',

@@ -86,11 +86,7 @@ async function handleSetKeySubmit(
       );
 
       // Handle specific error cases with user-friendly messages
-      const friendlyMessage = getErrorMessage(
-        result.status,
-        { error: result.error },
-        provider
-      );
+      const friendlyMessage = getErrorMessage(result.status, { error: result.error }, provider);
       await interaction.editReply(friendlyMessage);
       return;
     }
