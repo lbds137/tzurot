@@ -416,7 +416,10 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
       // Details & Preferences page
       const tone = truncateField(character.personalityTone, CHARACTER_VIEW_LIMITS.MEDIUM);
       const age = truncateField(character.personalityAge, CHARACTER_VIEW_LIMITS.SHORT);
-      const appearance = truncateField(character.personalityAppearance, CHARACTER_VIEW_LIMITS.MEDIUM);
+      const appearance = truncateField(
+        character.personalityAppearance,
+        CHARACTER_VIEW_LIMITS.MEDIUM
+      );
       const likes = truncateField(character.personalityLikes, CHARACTER_VIEW_LIMITS.MEDIUM);
       const dislikes = truncateField(character.personalityDislikes, CHARACTER_VIEW_LIMITS.MEDIUM);
       if (tone.wasTruncated) {
