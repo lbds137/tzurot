@@ -52,6 +52,9 @@ export const CharacterCustomIds = {
   /** Build view page info button customId (disabled) */
   viewInfo: (slug: string) => `character::view::${slug}::info` as const,
 
+  /** Build expand field button customId */
+  expand: (slug: string, fieldName: string) => `character::expand::${slug}::${fieldName}` as const,
+
   /** Parse character customId */
   parse: (
     customId: string
@@ -62,6 +65,7 @@ export const CharacterCustomIds = {
     sectionId?: string;
     page?: number;
     viewPage?: number;
+    fieldName?: string;
   } | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
     if (parts[0] !== 'character' || parts.length < 2) {
@@ -87,6 +91,12 @@ export const CharacterCustomIds = {
         if (parts[3] !== undefined && parts[3] !== 'info') {
           result.viewPage = parseInt(parts[3], 10);
         }
+      }
+    } else if (action === 'expand') {
+      // Format: character::expand::{slug}::{fieldName}
+      if (parts[2] !== undefined) {
+        result.characterId = parts[2];
+        result.fieldName = parts[3];
       }
     } else if (parts[2] !== undefined) {
       result.characterId = parts[2];
