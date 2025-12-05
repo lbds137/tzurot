@@ -98,6 +98,7 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 - Updated API to return owner Discord ID for fetching display names
 
 **Commits**:
+
 - `83c93bf1` fix(character): add pagination to list command to fix 2000 char limit
 
 ---
