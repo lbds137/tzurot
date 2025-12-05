@@ -27,6 +27,21 @@ export const TEXT_LIMITS = {
 } as const;
 
 /**
+ * Character view truncation limits
+ *
+ * These limits are used when displaying character details in paginated embeds.
+ * Each field type has a different limit based on typical content length.
+ */
+export const CHARACTER_VIEW_LIMITS = {
+  /** Short fields like age - concise single value */
+  SHORT: 200,
+  /** Medium fields like tone, appearance, likes, dislikes - brief descriptions */
+  MEDIUM: 500,
+  /** Long fields like conversational goals/examples, error messages - detailed content */
+  LONG: 800,
+} as const;
+
+/**
  * Discord API limits and constraints
  */
 export const DISCORD_LIMITS = {
