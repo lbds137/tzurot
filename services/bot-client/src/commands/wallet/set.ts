@@ -11,6 +11,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { createLogger, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
+import { WalletCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('wallet-set');
 
@@ -26,7 +27,7 @@ export async function handleSetKey(interaction: ChatInputCommandInteraction): Pr
 
   // Create modal with API key input
   const modal = new ModalBuilder()
-    .setCustomId(`wallet-set-${provider}`)
+    .setCustomId(WalletCustomIds.set(provider))
     .setTitle(`Set ${providerInfo.displayName} API Key`);
 
   // API Key input (required, single line for security)

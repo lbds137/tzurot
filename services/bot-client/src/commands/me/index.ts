@@ -47,6 +47,7 @@ import { handleReset as handleModelReset } from './model/reset.js';
 import { handleSetDefault as handleModelSetDefault } from './model/set-default.js';
 import { handleClearDefault as handleModelClearDefault } from './model/clear-default.js';
 import { handleAutocomplete as handleModelAutocomplete } from './model/autocomplete.js';
+import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-command');
 
@@ -293,19 +294,31 @@ export async function execute(
   if (interaction.isModalSubmit()) {
     const customId = interaction.customId;
 
-    if (customId === 'me-profile-create') {
-      // Create new profile modal
-      await handleCreateModalSubmit(interaction);
-    } else if (customId.startsWith('me-profile-edit-')) {
-      // Edit profile modal: me-profile-edit-{personaId} or me-profile-edit-new
-      const personaId = customId.replace('me-profile-edit-', '');
-      await handleEditModalSubmit(interaction, personaId);
-    } else if (customId.startsWith('me-override-create-')) {
-      // Create profile for override: me-override-create-{personalityId}
-      const personalityId = customId.replace('me-override-create-', '');
-      await handleOverrideCreateModalSubmit(interaction, personalityId);
-    } else {
+    // Parse using centralized customId utilities
+    const parsed = MeCustomIds.parse(customId);
+    if (parsed === null) {
       logger.warn({ customId }, '[Me] Unknown modal customId');
+      return;
+    }
+
+    if (parsed.group === 'profile') {
+      if (parsed.action === 'create') {
+        // Create new profile modal
+        await handleCreateModalSubmit(interaction);
+      } else if (parsed.action === 'edit') {
+        // Edit profile modal - entityId is personaId or 'new'
+        const personaId = parsed.entityId ?? 'new';
+        await handleEditModalSubmit(interaction, personaId);
+      } else {
+        logger.warn({ customId, parsed }, '[Me] Unknown profile action');
+      }
+    } else if (parsed.group === 'override') {
+      if (parsed.action === 'create' && parsed.entityId !== undefined) {
+        // Create profile for override - entityId is personalityId
+        await handleOverrideCreateModalSubmit(interaction, parsed.entityId);
+      } else {
+        logger.warn({ customId, parsed }, '[Me] Unknown override action');
+      }
     }
     return;
   }

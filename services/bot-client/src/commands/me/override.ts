@@ -16,6 +16,7 @@ import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-ty
 import { CREATE_NEW_PERSONA_VALUE } from './autocomplete.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
+import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-override');
 
@@ -73,7 +74,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
     if (personaId === CREATE_NEW_PERSONA_VALUE) {
       // Show modal to create new profile for this personality
       const modal = new ModalBuilder()
-        .setCustomId(`me-override-create-${personality.id}`)
+        .setCustomId(MeCustomIds.override.createForOverride(personality.id))
         .setTitle(
           `New Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
         );
