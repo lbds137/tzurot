@@ -228,6 +228,13 @@ async function handleView(
 const CHARACTERS_PER_PAGE = 15;
 
 /**
+ * Escape markdown special characters in a string
+ */
+function escapeMarkdown(text: string): string {
+  return text.replace(/\*/g, '\\*');
+}
+
+/**
  * Format a character line for the list
  */
 function formatCharacterLine(
@@ -236,7 +243,7 @@ function formatCharacterLine(
   showCreator = false
 ): string {
   const visibility = c.isPublic ? '🌐' : '🔒';
-  const displayName = c.displayName ?? c.name;
+  const displayName = escapeMarkdown(c.displayName ?? c.name);
 
   if (showCreator && creatorNames) {
     const creatorName = c.ownerId !== null ? (creatorNames.get(c.ownerId) ?? 'Unknown') : 'System';
