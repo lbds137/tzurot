@@ -25,7 +25,7 @@ import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
 } from 'discord.js';
-import { createLogger, getConfig, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, type EnvConfig, DISCORD_LIMITS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import {
   buildDashboardEmbed,
@@ -120,7 +120,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction): Promise<v
       .setPlaceholder(field.placeholder ?? '')
       .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setRequired(field.required ?? false)
-      .setMaxLength(field.maxLength ?? 4000);
+      .setMaxLength(field.maxLength ?? DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
 
     const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
     modal.addComponents(row);
@@ -782,6 +782,8 @@ interface PersonalityListResponse {
     slug: string;
     isOwned: boolean;
     isPublic: boolean;
+    ownerId: string | null;
+    ownerDiscordId: string | null;
   }[];
 }
 
@@ -838,7 +840,7 @@ async function fetchAllCharacters(
       displayName: p.displayName,
       slug: p.slug,
       isPublic: p.isPublic,
-      ownerId: p.isOwned ? userId : null,
+      ownerId: p.ownerDiscordId,  // Use Discord ID for fetching display names
       // These fields are not in the list response, but needed for CharacterData interface
       characterInfo: '',
       personalityTraits: '',
