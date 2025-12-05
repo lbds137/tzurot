@@ -75,6 +75,8 @@ export class CommandHandler {
           data: importedModule.data,
           execute: importedModule.execute,
           autocomplete: importedModule.autocomplete,
+          handleSelectMenu: importedModule.handleSelectMenu,
+          handleButton: importedModule.handleButton,
           category,
         };
 
