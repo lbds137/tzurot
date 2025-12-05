@@ -7,7 +7,7 @@
 
 import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, getConfig } from '@tzurot/common-types';
 import type { Command } from '../../types.js';
 
 const logger = createLogger('help-command');
@@ -55,11 +55,13 @@ export async function execute(
   }
 
   const specificCommand = interaction.options.getString('command');
+  const config = getConfig();
+  const mentionChar = config.BOT_MENTION_CHAR;
 
   if (specificCommand !== null && specificCommand !== '') {
     await showCommandDetails(interaction, commands, specificCommand);
   } else {
-    await showAllCommands(interaction, commands);
+    await showAllCommands(interaction, commands, mentionChar);
   }
 }
 
@@ -114,7 +116,8 @@ async function showCommandDetails(
  */
 async function showAllCommands(
   interaction: ChatInputCommandInteraction,
-  commands: Map<string, Command>
+  commands: Map<string, Command>,
+  mentionChar: string
 ): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.BLURPLE)
@@ -179,7 +182,7 @@ async function showAllCommands(
   embed.addFields({
     name: '💬 Personality Interactions',
     value:
-      '• `@PersonalityName your message` - Start a conversation\n' +
+      `• \`${mentionChar}PersonalityName your message\` - Start a conversation\n` +
       '• Reply to their messages to continue chatting',
     inline: false,
   });
