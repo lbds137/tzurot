@@ -202,7 +202,7 @@ async function handleEdit(
 }
 
 /**
- * Handle view subcommand - show character info without edit controls
+ * Handle view subcommand - show character info with pagination
  */
 async function handleView(
   interaction: ChatInputCommandInteraction,
@@ -219,9 +219,11 @@ async function handleView(
       return;
     }
 
-    // Just show the embed without edit controls
-    const embed = buildDashboardEmbed(characterDashboardConfig, character);
-    await interaction.editReply({ embeds: [embed] });
+    // Build paginated view starting at page 0
+    const embed = buildCharacterViewPage(character, 0);
+    const components = [buildViewPaginationButtons(slug, 0)];
+
+    await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to view character');
     await interaction.editReply('❌ Failed to load character. Please try again.');
@@ -282,6 +284,211 @@ function buildListPaginationButtons(
       .setLabel('Next ▶')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= totalPages - 1)
+  );
+
+  return row;
+}
+
+// ============================================================================
+// CHARACTER VIEW PAGINATION
+// ============================================================================
+
+/** Number of pages for character view */
+const VIEW_TOTAL_PAGES = 4;
+
+/** Page titles for character view */
+const VIEW_PAGE_TITLES = [
+  '📋 Overview',
+  '📖 Background',
+  '✨ Details & Preferences',
+  '💬 Conversation & Errors',
+];
+
+/**
+ * Truncate text to Discord embed field limit with continuation indicator
+ */
+function truncateField(text: string | null | undefined, maxLength = 1000): string {
+  if (text === null || text === undefined || text.length === 0) {
+    return '_Not set_';
+  }
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.slice(0, maxLength - 20) + '\n\n*...continued on next page*';
+}
+
+/**
+ * Build a single page of the character view embed
+ */
+function buildCharacterViewPage(character: CharacterData, page: number): EmbedBuilder {
+  const displayName = character.displayName ?? character.name;
+  const safePage = Math.max(0, Math.min(page, VIEW_TOTAL_PAGES - 1));
+
+  const embed = new EmbedBuilder()
+    .setTitle(`👁️ ${displayName} — ${VIEW_PAGE_TITLES[safePage]}`)
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTimestamp();
+
+  switch (safePage) {
+    case 0:
+      // Overview page
+      embed.setDescription(buildOverviewDescription(character));
+      embed.addFields(
+        {
+          name: '🏷️ Identity',
+          value:
+            `**Name:** ${character.name}\n` +
+            `**Display Name:** ${character.displayName ?? '_Not set_'}\n` +
+            `**Slug:** \`${character.slug}\``,
+          inline: false,
+        },
+        {
+          name: '⚙️ Settings',
+          value:
+            `**Visibility:** ${character.isPublic ? '🌐 Public' : '🔒 Private'}\n` +
+            `**Voice:** ${character.voiceEnabled ? '🎤 Enabled' : '❌ Disabled'}\n` +
+            `**Images:** ${character.imageEnabled ? '🖼️ Enabled' : '❌ Disabled'}`,
+          inline: false,
+        }
+      );
+      break;
+
+    case 1:
+      // Background page
+      embed.addFields(
+        {
+          name: '📝 Character Info',
+          value: truncateField(character.characterInfo),
+          inline: false,
+        },
+        {
+          name: '🎭 Personality Traits',
+          value: truncateField(character.personalityTraits),
+          inline: false,
+        }
+      );
+      break;
+
+    case 2:
+      // Details & Preferences page
+      embed.addFields(
+        {
+          name: '🎨 Tone',
+          value: truncateField(character.personalityTone, 500),
+          inline: true,
+        },
+        {
+          name: '📅 Age',
+          value: truncateField(character.personalityAge, 200),
+          inline: true,
+        },
+        {
+          name: '👤 Appearance',
+          value: truncateField(character.personalityAppearance, 500),
+          inline: false,
+        },
+        {
+          name: '❤️ Likes',
+          value: truncateField(character.personalityLikes, 500),
+          inline: false,
+        },
+        {
+          name: '💔 Dislikes',
+          value: truncateField(character.personalityDislikes, 500),
+          inline: false,
+        }
+      );
+      break;
+
+    case 3:
+      // Conversation & Errors page
+      embed.addFields(
+        {
+          name: '🎯 Conversational Goals',
+          value: truncateField(character.conversationalGoals, 800),
+          inline: false,
+        },
+        {
+          name: '💬 Example Dialogues',
+          value: truncateField(character.conversationalExamples, 800),
+          inline: false,
+        },
+        {
+          name: '⚠️ Error Message',
+          value: truncateField(character.errorMessage, 500),
+          inline: false,
+        }
+      );
+      break;
+  }
+
+  // Add footer with timestamps
+  const created = new Date(character.createdAt).toLocaleDateString();
+  const updated = new Date(character.updatedAt).toLocaleDateString();
+  embed.setFooter({ text: `Created: ${created} • Updated: ${updated}` });
+
+  return embed;
+}
+
+/**
+ * Build overview description for character view
+ */
+function buildOverviewDescription(character: CharacterData): string {
+  const lines: string[] = [];
+
+  // Quick summary of completion status
+  const filled: string[] = [];
+  if ((character.characterInfo?.length ?? 0) > 0) {
+    filled.push('Background');
+  }
+  if ((character.personalityTraits?.length ?? 0) > 0) {
+    filled.push('Traits');
+  }
+  if ((character.personalityTone?.length ?? 0) > 0) {
+    filled.push('Tone');
+  }
+  if ((character.conversationalGoals?.length ?? 0) > 0) {
+    filled.push('Goals');
+  }
+  if ((character.conversationalExamples?.length ?? 0) > 0) {
+    filled.push('Examples');
+  }
+
+  if (filled.length > 0) {
+    lines.push(`**Configured:** ${filled.join(', ')}`);
+  }
+
+  lines.push('');
+  lines.push('*Use the buttons below to navigate through all character details.*');
+
+  return lines.join('\n');
+}
+
+/**
+ * Build pagination buttons for character view
+ */
+function buildViewPaginationButtons(
+  slug: string,
+  currentPage: number
+): ActionRowBuilder<ButtonBuilder> {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(CharacterCustomIds.viewPage(slug, currentPage - 1))
+      .setLabel('◀ Previous')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage === 0),
+    new ButtonBuilder()
+      .setCustomId(CharacterCustomIds.viewInfo(slug))
+      .setLabel(`Page ${currentPage + 1} of ${VIEW_TOTAL_PAGES}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(CharacterCustomIds.viewPage(slug, currentPage + 1))
+      .setLabel('Next ▶')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(currentPage >= VIEW_TOTAL_PAGES - 1)
   );
 
   return row;
@@ -429,6 +636,40 @@ async function handleListPagination(
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, page }, 'Failed to load character list page');
+    // Keep existing content on error - user can try again
+  }
+}
+
+/**
+ * Handle view pagination button clicks
+ */
+async function handleViewPagination(
+  interaction: ButtonInteraction,
+  slug: string,
+  page: number,
+  config: EnvConfig
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  try {
+    // Fetch character data
+    const character = await fetchCharacter(slug, config, interaction.user.id);
+    if (!character) {
+      await interaction.editReply({
+        content: '❌ Character not found.',
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // Build requested page
+    const embed = buildCharacterViewPage(character, page);
+    const components = [buildViewPaginationButtons(slug, page)];
+
+    await interaction.editReply({ embeds: [embed], components });
+  } catch (error) {
+    logger.error({ err: error, slug, page }, 'Failed to load character view page');
     // Keep existing content on error - user can try again
   }
 }
@@ -796,6 +1037,22 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     }
 
     await handleListPagination(interaction, characterParsed.page, config);
+    return;
+  }
+
+  // Handle view pagination buttons
+  if (characterParsed?.action === 'view') {
+    // Info button is disabled, shouldn't be clickable
+    if (characterParsed.viewPage === undefined || characterParsed.characterId === undefined) {
+      return;
+    }
+
+    await handleViewPagination(
+      interaction,
+      characterParsed.characterId,
+      characterParsed.viewPage,
+      config
+    );
     return;
   }
 
