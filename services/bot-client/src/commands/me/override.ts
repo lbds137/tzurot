@@ -168,7 +168,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
 
 /**
  * Handle modal submission for creating a new profile during override
- * Modal customId format: me-override-create-{personalityId}
+ * Modal customId format: me::override::create::{personalityId}
  */
 export async function handleOverrideCreateModalSubmit(
   interaction: ModalSubmitInteraction,

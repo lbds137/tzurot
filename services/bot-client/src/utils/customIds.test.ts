@@ -13,7 +13,6 @@ import {
   WalletCustomIds,
   PresetCustomIds,
   getCommandFromCustomId,
-  isNewCustomIdFormat,
 } from './customIds.js';
 
 describe('customIds', () => {
@@ -405,36 +404,16 @@ describe('customIds', () => {
 
   describe('utility functions', () => {
     describe('getCommandFromCustomId', () => {
-      it('should extract command from new :: format', () => {
+      it('should extract command from :: format', () => {
         expect(getCommandFromCustomId('character::seed')).toBe('character');
         expect(getCommandFromCustomId('me::profile::create')).toBe('me');
         expect(getCommandFromCustomId('wallet::set::openrouter')).toBe('wallet');
       });
 
-      it('should extract command from legacy - format', () => {
-        expect(getCommandFromCustomId('character-list-5')).toBe('character');
-        expect(getCommandFromCustomId('me-profile-create')).toBe('me');
-      });
-
-      it('should return entire string if no delimiter', () => {
-        expect(getCommandFromCustomId('character')).toBe('character');
-        expect(getCommandFromCustomId('singleword')).toBe('singleword');
-      });
-    });
-
-    describe('isNewCustomIdFormat', () => {
-      it('should return true for :: format', () => {
-        expect(isNewCustomIdFormat('character::seed')).toBe(true);
-        expect(isNewCustomIdFormat('me::profile::create::123')).toBe(true);
-      });
-
-      it('should return false for legacy - format', () => {
-        expect(isNewCustomIdFormat('character-list-5')).toBe(false);
-        expect(isNewCustomIdFormat('me-profile-create')).toBe(false);
-      });
-
-      it('should return false for no delimiter', () => {
-        expect(isNewCustomIdFormat('character')).toBe(false);
+      it('should return null for invalid format without :: delimiter', () => {
+        expect(getCommandFromCustomId('character-list-5')).toBeNull();
+        expect(getCommandFromCustomId('character')).toBeNull();
+        expect(getCommandFromCustomId('singleword')).toBeNull();
       });
     });
   });
