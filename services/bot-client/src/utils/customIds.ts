@@ -80,16 +80,22 @@ export const CharacterCustomIds = {
 
     if (action === 'list') {
       if (parts[2] === 'info') {
-        // Info button
+        // Info button - no page number
       } else if (parts[2] !== undefined) {
-        result.page = parseInt(parts[2], 10);
+        const pageNum = parseInt(parts[2], 10);
+        if (!isNaN(pageNum)) {
+          result.page = pageNum;
+        }
       }
     } else if (action === 'view') {
       // Format: character::view::{slug}::{page|info}
       if (parts[2] !== undefined) {
         result.characterId = parts[2];
         if (parts[3] !== undefined && parts[3] !== 'info') {
-          result.viewPage = parseInt(parts[3], 10);
+          const pageNum = parseInt(parts[3], 10);
+          if (!isNaN(pageNum)) {
+            result.viewPage = pageNum;
+          }
         }
       }
     } else if (action === 'expand') {
