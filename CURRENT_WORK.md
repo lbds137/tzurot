@@ -1,8 +1,8 @@
 # Current Work
 
-> Last updated: 2025-12-04
+> Last updated: 2025-12-05
 
-## Status: Personality Access Control Implemented
+## Status: Character List Pagination Fix
 
 **Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
 
@@ -82,6 +82,23 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 - Mark old commands as `(Deprecated)` in description
 - Old commands reply with "Please use `/new-command` instead"
 - Keep deprecated commands for 2-4 weeks before removal
+
+---
+
+## Recent Work (2025-12-05)
+
+**Character List Pagination** - COMPLETE:
+
+- `/character list` was failing for users with many characters (67+) due to Discord's 2000 character message limit
+- Implemented pagination with embeds (4096 char limit) and Previous/Next buttons
+- 15 characters per page with page indicator button
+- Stateless pagination - re-fetches data on page change for freshness
+- Also fixed creator name display (was showing "System" for all - now shows actual Discord usernames)
+- Added `ownerId` and `ownerDiscordId` to `PersonalitySummary` type
+- Updated API to return owner Discord ID for fetching display names
+
+**Commits**:
+- `83c93bf1` fix(character): add pagination to list command to fix 2000 char limit
 
 ---
 
