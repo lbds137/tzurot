@@ -4,12 +4,13 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 
 /**
  * Handle /admin ping subcommand
  */
 export async function handlePing(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const latency = Date.now() - interaction.createdTimestamp;
   const wsLatency = interaction.client.ws.ping;

@@ -12,10 +12,10 @@ import { buildAdminUsageEmbed, type AdminUsageStats } from '../../utils/usageFor
 const logger = createLogger('admin-usage');
 
 export async function handleUsage(interaction: ChatInputCommandInteraction): Promise<void> {
-  const timeframeOption = interaction.options.getString('timeframe');
+  const periodOption = interaction.options.getString('period');
   const timeframe =
-    timeframeOption !== undefined && timeframeOption !== null && timeframeOption.length > 0
-      ? timeframeOption
+    periodOption !== undefined && periodOption !== null && periodOption.length > 0
+      ? periodOption
       : '7d';
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
