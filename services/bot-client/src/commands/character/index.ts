@@ -220,8 +220,8 @@ async function handleView(
     }
 
     // Build paginated view starting at page 0
-    const embed = buildCharacterViewPage(character, 0);
-    const components = [buildViewPaginationButtons(slug, 0)];
+    const { embed, truncatedFields } = buildCharacterViewPage(character, 0);
+    const components = buildViewComponents(slug, 0, truncatedFields);
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
@@ -307,31 +307,63 @@ const VIEW_PAGE_TITLES = [
 /** Truncation suffix with length indicator */
 const TRUNCATION_SUFFIX = '…\n\n_(truncated)_';
 
+/** Field info for tracking truncation */
+interface FieldInfo {
+  value: string;
+  wasTruncated: boolean;
+  originalLength: number;
+}
+
 /**
  * Truncate text to fit Discord embed field limit (1024 chars)
- * Default maxLength accounts for suffix length to stay under limit
+ * Returns info about whether truncation occurred
  */
 function truncateField(
   text: string | null | undefined,
   maxLength = DISCORD_LIMITS.EMBED_FIELD - TRUNCATION_SUFFIX.length
-): string {
+): FieldInfo {
   if (text === null || text === undefined || text.length === 0) {
-    return '_Not set_';
+    return { value: '_Not set_', wasTruncated: false, originalLength: 0 };
   }
   // Ensure maxLength doesn't exceed Discord's limit minus suffix
   const safeMax = Math.min(maxLength, DISCORD_LIMITS.EMBED_FIELD - TRUNCATION_SUFFIX.length);
   if (text.length <= safeMax) {
-    return text;
+    return { value: text, wasTruncated: false, originalLength: text.length };
   }
-  return text.slice(0, safeMax) + TRUNCATION_SUFFIX;
+  return {
+    value: text.slice(0, safeMax) + TRUNCATION_SUFFIX,
+    wasTruncated: true,
+    originalLength: text.length,
+  };
+}
+
+/** Map of field names to their display labels and character data keys */
+const EXPANDABLE_FIELDS: Record<string, { label: string; key: keyof CharacterData }> = {
+  characterInfo: { label: '📝 Character Info', key: 'characterInfo' },
+  personalityTraits: { label: '🎭 Personality Traits', key: 'personalityTraits' },
+  personalityTone: { label: '🎨 Tone', key: 'personalityTone' },
+  personalityAge: { label: '📅 Age', key: 'personalityAge' },
+  personalityAppearance: { label: '👤 Appearance', key: 'personalityAppearance' },
+  personalityLikes: { label: '❤️ Likes', key: 'personalityLikes' },
+  personalityDislikes: { label: '💔 Dislikes', key: 'personalityDislikes' },
+  conversationalGoals: { label: '🎯 Conversational Goals', key: 'conversationalGoals' },
+  conversationalExamples: { label: '💬 Example Dialogues', key: 'conversationalExamples' },
+  errorMessage: { label: '⚠️ Error Message', key: 'errorMessage' },
+};
+
+/** Result from building a view page */
+interface ViewPageResult {
+  embed: EmbedBuilder;
+  truncatedFields: string[];
 }
 
 /**
  * Build a single page of the character view embed
  */
-function buildCharacterViewPage(character: CharacterData, page: number): EmbedBuilder {
+function buildCharacterViewPage(character: CharacterData, page: number): ViewPageResult {
   const displayName = character.displayName ?? character.name;
   const safePage = Math.max(0, Math.min(page, VIEW_TOTAL_PAGES - 1));
+  const truncatedFields: string[] = [];
 
   const embed = new EmbedBuilder()
     .setTitle(`👁️ ${displayName} — ${VIEW_PAGE_TITLES[safePage]}`)
@@ -340,7 +372,7 @@ function buildCharacterViewPage(character: CharacterData, page: number): EmbedBu
 
   switch (safePage) {
     case 0:
-      // Overview page
+      // Overview page - no expandable fields
       embed.setDescription(buildOverviewDescription(character));
       embed.addFields(
         {
@@ -362,73 +394,76 @@ function buildCharacterViewPage(character: CharacterData, page: number): EmbedBu
       );
       break;
 
-    case 1:
+    case 1: {
       // Background page
+      const charInfo = truncateField(character.characterInfo);
+      const traits = truncateField(character.personalityTraits);
+      if (charInfo.wasTruncated) {
+        truncatedFields.push('characterInfo');
+      }
+      if (traits.wasTruncated) {
+        truncatedFields.push('personalityTraits');
+      }
       embed.addFields(
-        {
-          name: '📝 Character Info',
-          value: truncateField(character.characterInfo),
-          inline: false,
-        },
-        {
-          name: '🎭 Personality Traits',
-          value: truncateField(character.personalityTraits),
-          inline: false,
-        }
+        { name: '📝 Character Info', value: charInfo.value, inline: false },
+        { name: '🎭 Personality Traits', value: traits.value, inline: false }
       );
       break;
+    }
 
-    case 2:
+    case 2: {
       // Details & Preferences page
+      const tone = truncateField(character.personalityTone, 500);
+      const age = truncateField(character.personalityAge, 200);
+      const appearance = truncateField(character.personalityAppearance, 500);
+      const likes = truncateField(character.personalityLikes, 500);
+      const dislikes = truncateField(character.personalityDislikes, 500);
+      if (tone.wasTruncated) {
+        truncatedFields.push('personalityTone');
+      }
+      if (age.wasTruncated) {
+        truncatedFields.push('personalityAge');
+      }
+      if (appearance.wasTruncated) {
+        truncatedFields.push('personalityAppearance');
+      }
+      if (likes.wasTruncated) {
+        truncatedFields.push('personalityLikes');
+      }
+      if (dislikes.wasTruncated) {
+        truncatedFields.push('personalityDislikes');
+      }
       embed.addFields(
-        {
-          name: '🎨 Tone',
-          value: truncateField(character.personalityTone, 500),
-          inline: true,
-        },
-        {
-          name: '📅 Age',
-          value: truncateField(character.personalityAge, 200),
-          inline: true,
-        },
-        {
-          name: '👤 Appearance',
-          value: truncateField(character.personalityAppearance, 500),
-          inline: false,
-        },
-        {
-          name: '❤️ Likes',
-          value: truncateField(character.personalityLikes, 500),
-          inline: false,
-        },
-        {
-          name: '💔 Dislikes',
-          value: truncateField(character.personalityDislikes, 500),
-          inline: false,
-        }
+        { name: '🎨 Tone', value: tone.value, inline: true },
+        { name: '📅 Age', value: age.value, inline: true },
+        { name: '👤 Appearance', value: appearance.value, inline: false },
+        { name: '❤️ Likes', value: likes.value, inline: false },
+        { name: '💔 Dislikes', value: dislikes.value, inline: false }
       );
       break;
+    }
 
-    case 3:
+    case 3: {
       // Conversation & Errors page
+      const goals = truncateField(character.conversationalGoals, 800);
+      const examples = truncateField(character.conversationalExamples, 800);
+      const errorMsg = truncateField(character.errorMessage, 500);
+      if (goals.wasTruncated) {
+        truncatedFields.push('conversationalGoals');
+      }
+      if (examples.wasTruncated) {
+        truncatedFields.push('conversationalExamples');
+      }
+      if (errorMsg.wasTruncated) {
+        truncatedFields.push('errorMessage');
+      }
       embed.addFields(
-        {
-          name: '🎯 Conversational Goals',
-          value: truncateField(character.conversationalGoals, 800),
-          inline: false,
-        },
-        {
-          name: '💬 Example Dialogues',
-          value: truncateField(character.conversationalExamples, 800),
-          inline: false,
-        },
-        {
-          name: '⚠️ Error Message',
-          value: truncateField(character.errorMessage, 500),
-          inline: false,
-        }
+        { name: '🎯 Conversational Goals', value: goals.value, inline: false },
+        { name: '💬 Example Dialogues', value: examples.value, inline: false },
+        { name: '⚠️ Error Message', value: errorMsg.value, inline: false }
       );
       break;
+    }
   }
 
   // Add footer with timestamps
@@ -436,7 +471,7 @@ function buildCharacterViewPage(character: CharacterData, page: number): EmbedBu
   const updated = new Date(character.updatedAt).toLocaleDateString();
   embed.setFooter({ text: `Created: ${created} • Updated: ${updated}` });
 
-  return embed;
+  return { embed, truncatedFields };
 }
 
 /**
@@ -474,15 +509,19 @@ function buildOverviewDescription(character: CharacterData): string {
 }
 
 /**
- * Build pagination buttons for character view
+ * Build pagination and expand buttons for character view
+ * Returns array of action rows (pagination + expand buttons if needed)
  */
-function buildViewPaginationButtons(
+function buildViewComponents(
   slug: string,
-  currentPage: number
-): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
+  currentPage: number,
+  truncatedFields: string[]
+): ActionRowBuilder<ButtonBuilder>[] {
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
 
-  row.addComponents(
+  // Navigation row
+  const navRow = new ActionRowBuilder<ButtonBuilder>();
+  navRow.addComponents(
     new ButtonBuilder()
       .setCustomId(CharacterCustomIds.viewPage(slug, currentPage - 1))
       .setLabel('◀ Previous')
@@ -499,8 +538,45 @@ function buildViewPaginationButtons(
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= VIEW_TOTAL_PAGES - 1)
   );
+  rows.push(navRow);
 
-  return row;
+  // Add expand buttons for truncated fields (max 5 buttons per row, max 4 additional rows)
+  if (truncatedFields.length > 0) {
+    let expandRow = new ActionRowBuilder<ButtonBuilder>();
+    let buttonCount = 0;
+
+    for (const fieldName of truncatedFields) {
+      const fieldInfo = EXPANDABLE_FIELDS[fieldName];
+      if (fieldInfo === undefined) {
+        continue;
+      }
+
+      // Max 5 buttons per row
+      if (buttonCount >= 5) {
+        rows.push(expandRow);
+        expandRow = new ActionRowBuilder<ButtonBuilder>();
+        buttonCount = 0;
+        // Discord max 5 rows total, we used 1 for nav
+        if (rows.length >= 5) {
+          break;
+        }
+      }
+
+      expandRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(CharacterCustomIds.expand(slug, fieldName))
+          .setLabel(`📖 ${fieldInfo.label.replace(/^[^\s]+\s/, '')}`) // Remove emoji prefix
+          .setStyle(ButtonStyle.Primary)
+      );
+      buttonCount++;
+    }
+
+    if (buttonCount > 0 && rows.length < 5) {
+      rows.push(expandRow);
+    }
+  }
+
+  return rows;
 }
 
 /**
@@ -673,13 +749,89 @@ async function handleViewPagination(
     }
 
     // Build requested page
-    const embed = buildCharacterViewPage(character, page);
-    const components = [buildViewPaginationButtons(slug, page)];
+    const { embed, truncatedFields } = buildCharacterViewPage(character, page);
+    const components = buildViewComponents(slug, page, truncatedFields);
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, slug, page }, 'Failed to load character view page');
     // Keep existing content on error - user can try again
+  }
+}
+
+/**
+ * Handle expand field button - show full content in follow-up message
+ */
+async function handleExpandField(
+  interaction: ButtonInteraction,
+  slug: string,
+  fieldName: string,
+  config: EnvConfig
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // Fetch character data
+    const character = await fetchCharacter(slug, config, interaction.user.id);
+    if (!character) {
+      await interaction.editReply('❌ Character not found.');
+      return;
+    }
+
+    // Get field info
+    const fieldInfo = EXPANDABLE_FIELDS[fieldName];
+    if (fieldInfo === undefined) {
+      await interaction.editReply('❌ Unknown field.');
+      return;
+    }
+
+    // Get the full content
+    const content = character[fieldInfo.key] as string | null;
+    if (content === null || content === undefined || content.length === 0) {
+      await interaction.editReply(`${fieldInfo.label}\n\n_Not set_`);
+      return;
+    }
+
+    // Discord message limit is 2000 chars
+    const MAX_MESSAGE_LENGTH = 2000;
+    const header = `${fieldInfo.label}\n\n`;
+    const maxContentLength = MAX_MESSAGE_LENGTH - header.length;
+
+    if (content.length <= maxContentLength) {
+      // Content fits in one message
+      await interaction.editReply(`${header}${content}`);
+    } else {
+      // Split into multiple messages
+      const chunks: string[] = [];
+      let remaining = content;
+      let isFirst = true;
+
+      while (remaining.length > 0) {
+        const chunkHeader = isFirst ? header : `${fieldInfo.label} (continued)\n\n`;
+        const chunkMaxLength = MAX_MESSAGE_LENGTH - chunkHeader.length;
+        const chunk = remaining.slice(0, chunkMaxLength);
+        remaining = remaining.slice(chunkMaxLength);
+
+        chunks.push(chunkHeader + chunk);
+        isFirst = false;
+      }
+
+      // Send first chunk as reply
+      await interaction.editReply(chunks[0]);
+
+      // Send remaining chunks as follow-ups
+      for (let i = 1; i < chunks.length; i++) {
+        await interaction.followUp({
+          content: chunks[i],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
+
+    logger.info({ slug, fieldName }, 'Expanded field content shown');
+  } catch (error) {
+    logger.error({ err: error, slug, fieldName }, 'Failed to expand field');
+    await interaction.editReply('❌ Failed to load field content. Please try again.');
   }
 }
 
@@ -1060,6 +1212,21 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       interaction,
       characterParsed.characterId,
       characterParsed.viewPage,
+      config
+    );
+    return;
+  }
+
+  // Handle expand field buttons
+  if (characterParsed?.action === 'expand') {
+    if (characterParsed.characterId === undefined || characterParsed.fieldName === undefined) {
+      return;
+    }
+
+    await handleExpandField(
+      interaction,
+      characterParsed.characterId,
+      characterParsed.fieldName,
       config
     );
     return;
