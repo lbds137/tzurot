@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../types.js';
+import { getCommandFromCustomId } from '../utils/customIds.js';
 
 const logger = createLogger('CommandHandler');
 
@@ -121,9 +122,10 @@ export class CommandHandler {
   async handleInteraction(
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction
   ): Promise<void> {
-    // For modal submits, extract command name from customId (format: "commandName-modalType")
+    // For modal submits, extract command name from customId
+    // Supports both new "::" format and legacy "-" format
     const commandName = interaction.isModalSubmit()
-      ? interaction.customId.split('-')[0]
+      ? (getCommandFromCustomId(interaction.customId) ?? interaction.customId)
       : interaction.commandName;
 
     const command = this.commands.get(commandName);
@@ -202,15 +204,15 @@ export class CommandHandler {
   /**
    * Handle a component interaction (select menu or button)
    *
-   * Routes based on customId prefix (first segment before '-')
-   * Format: {commandName}-{action}-{...rest}
+   * Routes based on customId prefix.
+   * Supports both new "::" format (e.g., "character::menu::abc") and legacy "-" format.
    */
   async handleComponentInteraction(
     interaction: StringSelectMenuInteraction | ButtonInteraction
   ): Promise<void> {
-    // Extract command name from customId prefix
+    // Extract command name from customId prefix using utility that handles both formats
     const customId = interaction.customId;
-    const commandName = customId.split('-')[0];
+    const commandName = getCommandFromCustomId(customId) ?? customId;
 
     const command = this.commands.get(commandName);
 
