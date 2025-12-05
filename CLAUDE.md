@@ -537,6 +537,58 @@ OpenRouter/Gemini API
 - Conversation history management
 - Response generation
 
+### 🚨 Gateway Client Usage (CRITICAL)
+
+**NEVER use direct `fetch()` calls to the API gateway.** Always use the established gateway clients.
+
+**Why this matters**: Using direct fetch with wrong headers caused a major production regression where /character commands couldn't find any personalities. Tests didn't catch it because they mocked at too high a level.
+
+**Available Gateway Clients** (in `bot-client/src/utils/`):
+
+| Client | Purpose | Headers Added | When to Use |
+|--------|---------|---------------|-------------|
+| `callGatewayApi()` | User-authenticated requests | `X-User-Id`, `X-Service-Auth` | Any `/user/*` endpoint |
+| `adminFetch()` / `adminPostJson()` | Admin-only requests | `X-Service-Auth` | Any `/admin/*` endpoint (add `X-Owner-Id` header manually) |
+| `GatewayClient` | Internal service requests | `X-Service-Auth` | Service-to-service communication |
+
+**Examples:**
+
+```typescript
+// ✅ CORRECT - User endpoint
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+
+const result = await callGatewayApi<ResponseType>('/user/personality', {
+  userId: interaction.user.id,
+  method: 'POST',
+  body: data,
+});
+
+// ✅ CORRECT - Admin endpoint
+import { adminFetch } from '../../utils/adminApiClient.js';
+
+const response = await adminFetch('/admin/personality', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Owner-Id': interaction.user.id,
+  },
+  body: JSON.stringify(payload),
+});
+
+// ❌ WRONG - Direct fetch (caused production bug!)
+const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
+  headers: {
+    'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+    'X-Discord-User-Id': userId,  // WRONG HEADER NAME!
+  },
+});
+```
+
+**Header Reference:**
+- `X-User-Id` - Required for user-authenticated endpoints (NOT `X-Discord-User-Id`)
+- `X-Owner-Id` - Required for admin endpoints (bot owner verification)
+- `X-Service-Auth` - Required for all internal service calls
+
 ## Current Features (Development Deployment)
 
 ### ✅ Working in Dev Deployment
@@ -887,6 +939,44 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 - Verify API contracts remain unchanged
 - Check return value formats match exactly
 - Run full integration tests after refactors
+
+---
+
+### 2025-12-05 - Direct Fetch Calls Broke Character Commands
+
+**What Happened**: The /character commands (edit, view, list, create) couldn't find any personalities. Users got "character not found" for all their own characters.
+
+**Impact**:
+
+- All /character functionality broken in production
+- Users unable to manage their AI personalities
+- Confusion and frustration for users
+- Required emergency investigation and fix
+
+**Root Cause**:
+
+- Character commands used direct `fetch()` calls instead of the established `callGatewayApi` utility
+- Wrong header name: `X-Discord-User-Id` instead of `X-User-Id`
+- API gateway couldn't authenticate users → returned 403/empty results
+- Tests mocked at high level (`callGatewayApi`) so didn't catch the actual HTTP issues
+- No tests existed for the internal fetch functions
+
+**Why It Wasn't Caught**:
+
+- Autocomplete used `callGatewayApi` (correct) → worked fine, giving false confidence
+- Character CRUD used direct `fetch` (wrong) → silently failed auth
+- Unit tests mocked too broadly, never tested actual headers
+- No integration tests that verified HTTP headers
+
+**Prevention Measures Added**:
+
+1. Added "Gateway Client Usage (CRITICAL)" section to CLAUDE.md
+2. Documented the THREE gateway clients and when to use each
+3. Clear examples of ✅ correct vs ❌ wrong patterns
+4. Header reference: `X-User-Id` NOT `X-Discord-User-Id`
+5. Refactored character commands to use `callGatewayApi` (already tested)
+
+**Universal Lesson**: When established utilities exist, USE THEM. Don't reinvent direct calls.
 
 ---
 

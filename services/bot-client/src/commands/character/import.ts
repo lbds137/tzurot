@@ -13,6 +13,7 @@ import {
   requireBotOwner,
   type EnvConfig,
 } from '@tzurot/common-types';
+import { adminFetch } from '../../utils/adminApiClient.js';
 
 const logger = createLogger('character-import');
 
@@ -22,7 +23,7 @@ const logger = createLogger('character-import');
  */
 export async function handleImport(
   interaction: ChatInputCommandInteraction,
-  config: EnvConfig
+  _config: EnvConfig
 ): Promise<void> {
   // Owner-only check
   if (!(await requireBotOwner(interaction))) {
@@ -119,13 +120,11 @@ export async function handleImport(
     };
 
     // Call API Gateway to create character
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/admin/personality`, {
+    const response = await adminFetch('/admin/personality', {
       method: 'POST',
       headers: {
         'Content-Type': CONTENT_TYPES.JSON,
         'X-Owner-Id': interaction.user.id,
-        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
       },
       body: JSON.stringify(payload),
     });
