@@ -14,6 +14,7 @@ import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discor
 import { createLogger, getPrismaClient } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
+import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-profile-create');
 
@@ -23,7 +24,7 @@ const logger = createLogger('me-profile-create');
 export async function handleCreatePersona(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     const modal = new ModalBuilder()
-      .setCustomId('me-profile-create')
+      .setCustomId(MeCustomIds.profile.create())
       .setTitle('Create New Profile');
 
     const inputFields = buildPersonaModalFields(null, {

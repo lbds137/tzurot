@@ -48,6 +48,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { characterDashboardConfig, characterSeedFields, type CharacterData } from './config.js';
 import { handleAutocomplete } from './autocomplete.js';
+import { CharacterCustomIds } from '../../utils/customIds.js';
 import { handleImport } from './import.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
@@ -267,17 +268,17 @@ function buildListPaginationButtons(
 
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`character-list-${currentPage - 1}`)
+      .setCustomId(CharacterCustomIds.listPage(currentPage - 1))
       .setLabel('◀ Previous')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 0),
     new ButtonBuilder()
-      .setCustomId('character-list-info')
+      .setCustomId(CharacterCustomIds.listInfo())
       .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true),
     new ButtonBuilder()
-      .setCustomId(`character-list-${currentPage + 1}`)
+      .setCustomId(CharacterCustomIds.listPage(currentPage + 1))
       .setLabel('Next ▶')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= totalPages - 1)
@@ -786,20 +787,15 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   const config = getConfig();
   const customId = interaction.customId;
 
-  // Handle list pagination buttons (format: character-list-{page})
-  if (customId.startsWith('character-list-')) {
-    const pageStr = customId.replace('character-list-', '');
-    if (pageStr === 'info') {
-      // Info button is disabled, shouldn't be clickable
+  // Handle list pagination buttons using centralized customId parser
+  const characterParsed = CharacterCustomIds.parse(customId);
+  if (characterParsed?.action === 'list') {
+    // Info button is disabled, shouldn't be clickable
+    if (characterParsed.page === undefined) {
       return;
     }
 
-    const page = parseInt(pageStr, 10);
-    if (isNaN(page)) {
-      return;
-    }
-
-    await handleListPagination(interaction, page, config);
+    await handleListPagination(interaction, characterParsed.page, config);
     return;
   }
 
