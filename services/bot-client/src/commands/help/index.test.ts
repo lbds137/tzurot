@@ -8,6 +8,10 @@ import { execute, data } from './index.js';
 import type { Command } from '../../types.js';
 
 // Mock common-types
+const mockConfig = {
+  BOT_MENTION_CHAR: '@',
+};
+
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -18,6 +22,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    getConfig: () => mockConfig,
     DISCORD_COLORS: {
       BLURPLE: 0x5865f2,
     },
@@ -171,7 +176,7 @@ describe('Help Command', () => {
       expect(characterField?.value).toContain('2 subcommands');
     });
 
-    it('should include personality interaction info', async () => {
+    it('should include personality interaction info with configured mention char', async () => {
       const interaction = createMockInteraction(null);
       const commands = createMockCommands();
 
@@ -184,7 +189,28 @@ describe('Help Command', () => {
         f.name.includes('Personality')
       );
       expect(interactionField).toBeDefined();
-      expect(interactionField?.value).toContain('@PersonalityName');
+      expect(interactionField?.value).toContain(`${mockConfig.BOT_MENTION_CHAR}PersonalityName`);
+    });
+
+    it('should use custom mention char from config', async () => {
+      // Change mention char to dev mode
+      mockConfig.BOT_MENTION_CHAR = '&';
+
+      const interaction = createMockInteraction(null);
+      const commands = createMockCommands();
+
+      await execute(interaction, commands);
+
+      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const json = embed.toJSON();
+
+      const interactionField = json.fields.find((f: { name: string }) =>
+        f.name.includes('Personality')
+      );
+      expect(interactionField?.value).toContain('&PersonalityName');
+
+      // Reset to default
+      mockConfig.BOT_MENTION_CHAR = '@';
     });
 
     it('should sort categories by configured order', async () => {

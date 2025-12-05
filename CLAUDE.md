@@ -725,24 +725,36 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 
 **📚 See**: `tzurot-git-workflow` skill for complete PR workflow, rebase conflict handling, commit format details, and git safety protocol
 
-### Git Hooks
+### Git Hooks & Commit Strategy
 
-**🚨 CRITICAL: Pre-commit hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
+**🚨 CRITICAL: Hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
 
-- **Source-controlled location**: `./hooks/pre-commit` (tracked in git)
-- **Installed location**: `.git/hooks/pre-commit` (NOT tracked in git)
-- **ALWAYS update**: `./hooks/pre-commit` (the source-controlled version)
-- **NEVER edit**: `.git/hooks/pre-commit` directly (will not persist in repository)
+**Hook Philosophy**: Minimize per-commit overhead, validate thoroughly before push.
 
-**Installation script**: `./scripts/git/install-hooks.sh` copies hooks from `./hooks/` to `.git/hooks/`
+| Hook | When | What It Does | Speed |
+|------|------|--------------|-------|
+| **pre-commit** | Every commit | Migration safety checks only | Fast (~1s) |
+| **pre-push** | Before push | Format, lint, typecheck, tests | Slow (~60s) |
 
-When modifying pre-commit checks:
+**Batched Commit Workflow** (reduces hook runs, saves resources):
 
-1. Edit `./hooks/pre-commit` (source-controlled)
-2. Run `./scripts/git/install-hooks.sh` to install updated hook locally
-3. Commit and push `./hooks/pre-commit` changes
+1. **Work on a unit of work** (feature, fix, or refactor)
+2. **Commit frequently** (pre-commit is fast, just migration checks)
+3. **Push when the unit is complete** (triggers all quality checks once)
+4. **Don't push after every commit** - batch related commits together
 
-New developers should run `./scripts/git/install-hooks.sh` after cloning the repository.
+This approach means heavy checks (lint, typecheck, tests) run once per push instead of on every commit.
+
+**Source-controlled locations**:
+- `./hooks/pre-commit` - Minimal checks (tracked in git)
+- `./hooks/pre-push` - Full quality suite (tracked in git)
+
+**Installation**: Run `./scripts/git/install-hooks.sh` after cloning (copies to `.git/hooks/`)
+
+**When modifying hooks**:
+1. Edit files in `./hooks/` (source-controlled)
+2. Run `./scripts/git/install-hooks.sh` to install locally
+3. Commit and push the hook changes
 
 ## Environment Variables
 
