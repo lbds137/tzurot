@@ -262,12 +262,12 @@ describe('Me Command Index', () => {
   });
 
   describe('execute - modal routing', () => {
-    it('should route me-profile-create modal to create handler', async () => {
+    it('should route me::profile::create modal to create handler', async () => {
       const { handleCreateModalSubmit } = await import('./create.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-profile-create',
+        customId: 'me::profile::create',
       } as any;
 
       await execute(interaction);
@@ -275,12 +275,12 @@ describe('Me Command Index', () => {
       expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route me-profile-edit-new modal to edit handler', async () => {
+    it('should route me::profile::edit::new modal to edit handler', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-profile-edit-new',
+        customId: 'me::profile::edit::new',
       } as any;
 
       await execute(interaction);
@@ -288,32 +288,37 @@ describe('Me Command Index', () => {
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
     });
 
-    it('should route me-profile-edit-{id} modal to edit handler with ID', async () => {
+    it('should route me::profile::edit::{id} modal to edit handler with ID', async () => {
       const { handleEditModalSubmit } = await import('./edit.js');
 
+      // UUID can contain hyphens - the :: delimiter allows proper parsing
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-profile-edit-persona-uuid-123',
+        customId: 'me::profile::edit::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       } as any;
 
       await execute(interaction);
 
-      expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'persona-uuid-123');
+      expect(handleEditModalSubmit).toHaveBeenCalledWith(
+        interaction,
+        'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+      );
     });
 
-    it('should route me-override-create modal to override create handler', async () => {
+    it('should route me::override::create modal to override create handler', async () => {
       const { handleOverrideCreateModalSubmit } = await import('./override.js');
 
+      // UUID can contain hyphens - the :: delimiter allows proper parsing
       const interaction = {
         isModalSubmit: () => true,
-        customId: 'me-override-create-personality-uuid-123',
+        customId: 'me::override::create::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       } as any;
 
       await execute(interaction);
 
       expect(handleOverrideCreateModalSubmit).toHaveBeenCalledWith(
         interaction,
-        'personality-uuid-123'
+        'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
       );
     });
   });

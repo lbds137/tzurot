@@ -47,7 +47,7 @@ describe('handleSetKey', () => {
     expect(mockShowModal).toHaveBeenCalledTimes(1);
     const modal = mockShowModal.mock.calls[0][0];
 
-    expect(modal.data.custom_id).toBe('wallet-set-openrouter');
+    expect(modal.data.custom_id).toBe('wallet::set::openrouter');
     expect(modal.data.title).toBe('Set OpenRouter API Key');
   });
 

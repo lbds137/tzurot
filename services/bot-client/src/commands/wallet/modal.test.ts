@@ -71,8 +71,19 @@ describe('handleWalletModalSubmit', () => {
       });
     });
 
+    it('should reject wallet customId without provider', async () => {
+      // wallet::set without provider should fail
+      const interaction = createMockInteraction('wallet::set');
+      await handleWalletModalSubmit(interaction);
+
+      expect(mockReply).toHaveBeenCalledWith({
+        content: '❌ Unknown wallet modal submission',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
     it('should reject unknown wallet action', async () => {
-      const interaction = createMockInteraction('wallet-unknown-action');
+      const interaction = createMockInteraction('wallet::unknown::openrouter');
       await handleWalletModalSubmit(interaction);
 
       expect(mockReply).toHaveBeenCalledWith({
@@ -84,7 +95,7 @@ describe('handleWalletModalSubmit', () => {
 
   describe('API key validation', () => {
     it('should reject empty API key', async () => {
-      const interaction = createMockInteraction('wallet-set-openrouter', '   ');
+      const interaction = createMockInteraction('wallet::set::openrouter', '   ');
       await handleWalletModalSubmit(interaction);
 
       expect(mockDeferReply).toHaveBeenCalled();
@@ -92,7 +103,7 @@ describe('handleWalletModalSubmit', () => {
     });
 
     it('should reject OpenRouter key with wrong format', async () => {
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-wrong-format');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-wrong-format');
       await handleWalletModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith(
@@ -108,7 +119,7 @@ describe('handleWalletModalSubmit', () => {
         json: () => Promise.resolve({}),
       });
 
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-valid-key-here');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-or-valid-key-here');
       await handleWalletModalSubmit(interaction);
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -129,7 +140,7 @@ describe('handleWalletModalSubmit', () => {
         json: () => Promise.resolve({}),
       });
 
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-valid-key');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-or-valid-key');
       await handleWalletModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -150,7 +161,7 @@ describe('handleWalletModalSubmit', () => {
         json: () => Promise.resolve({ error: 'Invalid API key' }),
       });
 
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-invalid-key');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-or-invalid-key');
       await handleWalletModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Invalid API Key'));
@@ -163,7 +174,7 @@ describe('handleWalletModalSubmit', () => {
         json: () => Promise.resolve({ error: 'Insufficient credits' }),
       });
 
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-no-credits');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-or-no-credits');
       await handleWalletModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Insufficient Credits'));
@@ -176,7 +187,7 @@ describe('handleWalletModalSubmit', () => {
         json: () => Promise.resolve({ error: 'Internal error' }),
       });
 
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-valid-key');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-or-valid-key');
       await handleWalletModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Server Error'));
@@ -185,7 +196,7 @@ describe('handleWalletModalSubmit', () => {
     it('should handle network errors', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
-      const interaction = createMockInteraction('wallet-set-openrouter', 'sk-or-valid-key');
+      const interaction = createMockInteraction('wallet::set::openrouter', 'sk-or-valid-key');
       await handleWalletModalSubmit(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));

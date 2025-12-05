@@ -14,6 +14,7 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../utils/providers.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { WalletCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('wallet-modal');
 
@@ -22,10 +23,9 @@ const logger = createLogger('wallet-modal');
  * Routes based on customId pattern: wallet-set-{provider}
  */
 export async function handleWalletModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
-  // Parse customId to extract action and provider
-  // Format: wallet-set-{provider}
-  const parts = interaction.customId.split('-');
-  if (parts.length < 3 || parts[0] !== 'wallet') {
+  // Parse customId using centralized utilities
+  const parsed = WalletCustomIds.parse(interaction.customId);
+  if (parsed?.provider === undefined) {
     await interaction.reply({
       content: '❌ Unknown wallet modal submission',
       flags: MessageFlags.Ephemeral,
@@ -33,10 +33,9 @@ export async function handleWalletModalSubmit(interaction: ModalSubmitInteractio
     return;
   }
 
-  const action = parts[1];
-  const provider = parts.slice(2).join('-') as AIProvider;
+  const provider = parsed.provider as AIProvider;
 
-  if (action === 'set') {
+  if (parsed.action === 'set') {
     await handleSetKeySubmit(interaction, provider);
   } else {
     await interaction.reply({

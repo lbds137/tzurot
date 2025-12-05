@@ -16,6 +16,7 @@ import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discor
 import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { personaCacheInvalidationService } from '../../redis.js';
+import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-profile-edit');
 
@@ -84,7 +85,7 @@ export async function handleEditPersona(
     // Build the modal
     // Store profile ID in customId if editing existing, or 'new' if creating
     const modalCustomId =
-      persona !== null ? `me-profile-edit-${persona.id}` : 'me-profile-edit-new';
+      persona !== null ? MeCustomIds.profile.edit(persona.id) : MeCustomIds.profile.editNew();
 
     const modalTitle =
       persona !== null
