@@ -545,11 +545,11 @@ OpenRouter/Gemini API
 
 **Available Gateway Clients** (in `bot-client/src/utils/`):
 
-| Client | Purpose | Headers Added | When to Use |
-|--------|---------|---------------|-------------|
-| `callGatewayApi()` | User-authenticated requests | `X-User-Id`, `X-Service-Auth` | Any `/user/*` endpoint |
-| `adminFetch()` / `adminPostJson()` | Admin-only requests | `X-Service-Auth` | Any `/admin/*` endpoint (add `X-Owner-Id` header manually) |
-| `GatewayClient` | Internal service requests | `X-Service-Auth` | Service-to-service communication |
+| Client                             | Purpose                     | Headers Added                 | When to Use                                                |
+| ---------------------------------- | --------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `callGatewayApi()`                 | User-authenticated requests | `X-User-Id`, `X-Service-Auth` | Any `/user/*` endpoint                                     |
+| `adminFetch()` / `adminPostJson()` | Admin-only requests         | `X-Service-Auth`              | Any `/admin/*` endpoint (add `X-Owner-Id` header manually) |
+| `GatewayClient`                    | Internal service requests   | `X-Service-Auth`              | Service-to-service communication                           |
 
 **Examples:**
 
@@ -579,12 +579,13 @@ const response = await adminFetch('/admin/personality', {
 const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
   headers: {
     'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-    'X-Discord-User-Id': userId,  // WRONG HEADER NAME!
+    'X-Discord-User-Id': userId, // WRONG HEADER NAME!
   },
 });
 ```
 
 **Header Reference:**
+
 - `X-User-Id` - Required for user-authenticated endpoints (NOT `X-Discord-User-Id`)
 - `X-Owner-Id` - Required for admin endpoints (bot owner verification)
 - `X-Service-Auth` - Required for all internal service calls

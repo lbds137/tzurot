@@ -5,7 +5,7 @@
  * Organizes fields into logical sections that fit Discord's 5-field modal limit.
  */
 
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import {
   type DashboardConfig,
   type SectionDefinition,
@@ -112,7 +112,7 @@ const backgroundSection: SectionDefinition<CharacterData> = {
       placeholder: 'Background, history, and description...',
       required: true,
       style: 'paragraph',
-      maxLength: 4000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
     {
       id: 'personalityTraits',
@@ -120,7 +120,7 @@ const backgroundSection: SectionDefinition<CharacterData> = {
       placeholder: 'Key traits and behaviors...',
       required: true,
       style: 'paragraph',
-      maxLength: 4000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
   ],
   getStatus: (data: CharacterData) => {
@@ -265,7 +265,7 @@ const conversationSection: SectionDefinition<CharacterData> = {
       placeholder: 'Sample conversations to guide the AI...',
       required: false,
       style: 'paragraph',
-      maxLength: 4000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
   ],
   getStatus: (data: CharacterData) => {
