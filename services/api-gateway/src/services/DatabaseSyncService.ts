@@ -34,6 +34,11 @@ export class DatabaseSyncService {
    * Uses a two-pass approach to handle circular FK dependencies:
    * 1. First pass: Sync all tables, but defer circular FK columns (set to NULL)
    * 2. Second pass: Update deferred FK columns now that referenced rows exist
+   *
+   * Note: This operation is NOT transactional across both databases (cross-database
+   * transactions would require 2-phase commit). However, the operation is IDEMPOTENT -
+   * if interrupted, running sync again will complete any partial sync. Each individual
+   * upsert is atomic within its database.
    */
   async sync(options: SyncOptions): Promise<SyncResult> {
     try {

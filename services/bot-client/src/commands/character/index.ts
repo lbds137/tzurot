@@ -35,6 +35,7 @@ import {
   DISCORD_LIMITS,
   DISCORD_COLORS,
   CHARACTER_VIEW_LIMITS,
+  TEXT_LIMITS,
 } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import {
@@ -305,9 +306,6 @@ const VIEW_PAGE_TITLES = [
   '💬 Conversation & Errors',
 ];
 
-/** Truncation suffix with length indicator */
-const TRUNCATION_SUFFIX = '…\n\n_(truncated)_';
-
 /** Field info for tracking truncation */
 interface FieldInfo {
   value: string;
@@ -321,18 +319,18 @@ interface FieldInfo {
  */
 function truncateField(
   text: string | null | undefined,
-  maxLength = DISCORD_LIMITS.EMBED_FIELD - TRUNCATION_SUFFIX.length
+  maxLength = DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length
 ): FieldInfo {
   if (text === null || text === undefined || text.length === 0) {
     return { value: '_Not set_', wasTruncated: false, originalLength: 0 };
   }
   // Ensure maxLength doesn't exceed Discord's limit minus suffix
-  const safeMax = Math.min(maxLength, DISCORD_LIMITS.EMBED_FIELD - TRUNCATION_SUFFIX.length);
+  const safeMax = Math.min(maxLength, DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length);
   if (text.length <= safeMax) {
     return { value: text, wasTruncated: false, originalLength: text.length };
   }
   return {
-    value: text.slice(0, safeMax) + TRUNCATION_SUFFIX,
+    value: text.slice(0, safeMax) + TEXT_LIMITS.TRUNCATION_SUFFIX,
     wasTruncated: true,
     originalLength: text.length,
   };

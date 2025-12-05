@@ -24,6 +24,8 @@ export const TEXT_LIMITS = {
   PERSONALITY_PREVIEW: 200,
   /** Medium preview for referenced messages (500 chars) */
   REFERENCE_PREVIEW: 500,
+  /** Suffix appended when text is truncated (ellipsis + note) */
+  TRUNCATION_SUFFIX: '…\n\n_(truncated)_',
 } as const;
 
 /**
