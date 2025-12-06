@@ -316,6 +316,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
+      // SECURITY NOTE: Persona content is user-generated and will be injected into AI prompts.
+      // Prompt injection prevention is handled at the prompt building stage (ai-worker) using
+      // escapeXmlContent() which escapes protected XML tags. We don't sanitize here because:
+      // 1. Multiple content paths converge at PromptBuilder
+      // 2. Content may be transformed before reaching the prompt
+      // 3. Sanitization at prompt-building time ensures consistent protection
+
       // Extract optional fields
       const preferredNameValue = extractString(body.preferredName);
       const descriptionValue = extractString(body.description);
@@ -743,7 +750,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      // Find and update the config (set personaId to null, don't delete in case there's llmConfigId)
+      // Find the existing config to determine how to handle deletion
       const existing = await prisma.userPersonalityConfig.findUnique({
         where: {
           userId_personalityId: {
@@ -754,16 +761,25 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         select: { id: true, llmConfigId: true },
       });
 
-      if (existing?.llmConfigId !== null) {
-        // Either no config exists, or it has an LLM override - just clear the persona part
-        if (existing !== null) {
-          await prisma.userPersonalityConfig.update({
-            where: { id: existing.id },
-            data: { personaId: null },
-          });
-        }
+      // No config exists - nothing to delete
+      if (!existing) {
+        // Still return success - idempotent behavior
+        logger.info({ userId: user.id, personalitySlug }, '[Persona] No override to clear');
+        sendCustomSuccess(res, {
+          message: `No profile override exists for ${personality.displayName ?? personality.name}.`,
+          personalitySlug,
+        });
+        return;
+      }
+
+      // Config has both persona and LLM override - just clear the persona part
+      if (existing.llmConfigId !== null) {
+        await prisma.userPersonalityConfig.update({
+          where: { id: existing.id },
+          data: { personaId: null },
+        });
       } else {
-        // Config only had persona override, delete entirely
+        // Config only had persona override - delete the entire record
         await prisma.userPersonalityConfig.delete({
           where: { id: existing.id },
         });

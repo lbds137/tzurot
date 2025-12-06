@@ -25,8 +25,26 @@ export function truncateText(
   maxLength: number,
   ellipsis: string = DEFAULT_ELLIPSIS
 ): string {
-  // Defensive checks
+  // Defensive checks for text parameter
   if (!text || typeof text !== 'string') {
+    return '';
+  }
+
+  // Defensive checks for ellipsis parameter
+  if (typeof ellipsis !== 'string') {
+    ellipsis = DEFAULT_ELLIPSIS;
+  }
+
+  // Defensive checks for maxLength parameter
+  // Handle NaN, negative, and non-finite values
+  if (!Number.isFinite(maxLength) || maxLength < 0) {
+    return '';
+  }
+
+  // Ensure maxLength is an integer (floor it)
+  maxLength = Math.floor(maxLength);
+
+  if (maxLength === 0) {
     return '';
   }
 

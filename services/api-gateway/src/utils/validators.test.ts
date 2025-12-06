@@ -133,6 +133,64 @@ describe('validators', () => {
         expect(result.error.message).toContain('lowercase');
       }
     });
+
+    it('should reject reserved slug "admin"', () => {
+      const result = validateSlug('admin');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('reserved name');
+      }
+    });
+
+    it('should reject reserved slug "system"', () => {
+      const result = validateSlug('system');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('reserved name');
+      }
+    });
+
+    it('should reject reserved slug "default"', () => {
+      const result = validateSlug('default');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('reserved name');
+      }
+    });
+
+    it('should reject slug starting with hyphen', () => {
+      const result = validateSlug('-myslug');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('cannot start with a hyphen');
+      }
+    });
+
+    it('should reject slug ending with hyphen', () => {
+      const result = validateSlug('myslug-');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('cannot end with a hyphen');
+      }
+    });
+
+    it('should reject slug with consecutive hyphens', () => {
+      const result = validateSlug('my--slug');
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('consecutive hyphens');
+      }
+    });
+
+    it('should accept slug with non-reserved similar name', () => {
+      const result = validateSlug('admin-bot');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept slug with single hyphen in middle', () => {
+      const result = validateSlug('my-slug');
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe('validateCustomFields', () => {
