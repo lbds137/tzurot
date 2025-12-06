@@ -41,7 +41,7 @@ import {
   handleOverrideClear,
   handleOverrideCreateModalSubmit,
 } from './override.js';
-import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
+import { handleMePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 import { handleListOverrides as handleModelList } from './model/list.js';
 import { handleSet as handleModelSet } from './model/set.js';
 import { handleReset as handleModelReset } from './model/reset.js';
@@ -367,8 +367,8 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
       // Model subcommands use their own personality autocomplete
       await handleModelAutocomplete(interaction);
     } else {
-      // Override subcommands use profile's personality autocomplete
-      await handlePersonalityAutocomplete(interaction);
+      // Override subcommands use personality autocomplete with visibility icons
+      await handleMePersonalityAutocomplete(interaction);
     }
   } else if (focusedOption.name === 'config') {
     // Config autocomplete (for model commands)

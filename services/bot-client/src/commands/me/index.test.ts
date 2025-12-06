@@ -40,7 +40,7 @@ vi.mock('./override.js', () => ({
 }));
 
 vi.mock('./autocomplete.js', () => ({
-  handlePersonalityAutocomplete: vi.fn().mockResolvedValue(undefined),
+  handleMePersonalityAutocomplete: vi.fn().mockResolvedValue(undefined),
   handlePersonaAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -325,7 +325,7 @@ describe('Me Command Index', () => {
 
   describe('autocomplete', () => {
     it('should route personality option to personality autocomplete', async () => {
-      const { handlePersonalityAutocomplete } = await import('./autocomplete.js');
+      const { handleMePersonalityAutocomplete } = await import('./autocomplete.js');
 
       const interaction = {
         options: {
@@ -337,7 +337,7 @@ describe('Me Command Index', () => {
 
       await autocomplete(interaction);
 
-      expect(handlePersonalityAutocomplete).toHaveBeenCalledWith(interaction);
+      expect(handleMePersonalityAutocomplete).toHaveBeenCalledWith(interaction);
     });
 
     it('should route profile option to profile autocomplete without create option', async () => {
