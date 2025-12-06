@@ -18,6 +18,7 @@ import {
   DISCORD_COLORS,
   CHARACTER_VIEW_LIMITS,
   TEXT_LIMITS,
+  splitMessage,
 } from '@tzurot/common-types';
 import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -455,34 +456,31 @@ export async function handleExpandField(
     // Discord message limit
     const MAX_MESSAGE_LENGTH = DISCORD_LIMITS.MESSAGE_LENGTH;
     const header = `${fieldInfo.label}\n\n`;
-    const maxContentLength = MAX_MESSAGE_LENGTH - header.length;
+    const continuedHeader = `${fieldInfo.label} (continued)\n\n`;
+    // Use the longer header length to ensure all chunks fit
+    const maxHeaderLength = Math.max(header.length, continuedHeader.length);
+    const maxContentLength = MAX_MESSAGE_LENGTH - maxHeaderLength;
 
     if (content.length <= maxContentLength) {
       // Content fits in one message
       await interaction.editReply(`${header}${content}`);
     } else {
-      // Split into multiple messages
-      const chunks: string[] = [];
-      let remaining = content;
-      let isFirst = true;
+      // Use smart chunking that preserves paragraphs, sentences, and code blocks
+      const contentChunks = splitMessage(content, maxContentLength);
 
-      while (remaining.length > 0) {
-        const chunkHeader = isFirst ? header : `${fieldInfo.label} (continued)\n\n`;
-        const chunkMaxLength = MAX_MESSAGE_LENGTH - chunkHeader.length;
-        const chunk = remaining.slice(0, chunkMaxLength);
-        remaining = remaining.slice(chunkMaxLength);
-
-        chunks.push(chunkHeader + chunk);
-        isFirst = false;
-      }
+      // Add headers to each chunk
+      const messages = contentChunks.map((chunk, index) => {
+        const chunkHeader = index === 0 ? header : continuedHeader;
+        return chunkHeader + chunk;
+      });
 
       // Send first chunk as reply
-      await interaction.editReply(chunks[0]);
+      await interaction.editReply(messages[0]);
 
       // Send remaining chunks as follow-ups
-      for (let i = 1; i < chunks.length; i++) {
+      for (let i = 1; i < messages.length; i++) {
         await interaction.followUp({
-          content: chunks[i],
+          content: messages[i],
           flags: MessageFlags.Ephemeral,
         });
       }

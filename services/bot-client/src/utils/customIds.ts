@@ -135,6 +135,12 @@ export const MeCustomIds = {
     editNew: () => 'me::profile::edit::new' as const,
   },
 
+  // View actions
+  view: {
+    /** Expand content field button */
+    expand: (personaId: string, field: string) => `me::view::expand::${personaId}::${field}` as const,
+  },
+
   // Override actions
   override: {
     /** Create profile for override flow */
@@ -146,17 +152,29 @@ export const MeCustomIds = {
     customId: string
   ): {
     command: 'me';
-    group: 'profile' | 'override';
+    group: 'profile' | 'override' | 'view';
     action: string;
     entityId?: string;
+    field?: string;
   } | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
     if (parts[0] !== 'me' || parts.length < 3) {
       return null;
     }
 
-    const group = parts[1] as 'profile' | 'override';
+    const group = parts[1] as 'profile' | 'override' | 'view';
     const action = parts[2];
+
+    // For view::expand, format is me::view::expand::personaId::field
+    if (group === 'view' && action === 'expand') {
+      return {
+        command: 'me',
+        group,
+        action,
+        entityId: parts[3],
+        field: parts[4],
+      };
+    }
 
     return {
       command: 'me',

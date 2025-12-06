@@ -90,6 +90,7 @@ describe('handleViewPersona', () => {
           }),
         }),
       ],
+      components: [], // No expand button for short content
       flags: MessageFlags.Ephemeral,
     });
   });

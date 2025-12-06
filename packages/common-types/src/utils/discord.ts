@@ -5,10 +5,11 @@
 const DISCORD_MAX_MESSAGE_LENGTH = 2000;
 
 /**
- * Intelligently splits a message for Discord's 2000 character limit
- * Tries to split on natural boundaries (paragraphs, sentences, words)
+ * Internal helper: splits text at natural boundaries (paragraphs, sentences, words)
+ * This is an implementation detail - use splitMessage() for the public API
+ * @internal
  */
-export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
+function splitAtNaturalBoundaries(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
   if (content.length <= maxLength) {
     return [content];
   }
@@ -87,10 +88,17 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
 }
 
 /**
- * Formats code blocks for Discord
- * Ensures code blocks don't get split awkwardly
+ * Splits a message for Discord's character limit while preserving code blocks
+ *
+ * This is the main entry point for message splitting. It:
+ * 1. Preserves code blocks (``` ```) when possible
+ * 2. Falls back to natural boundary splitting (paragraphs, sentences, words)
+ * 3. Force-splits only when absolutely necessary
+ *
+ * @param content - The content to split
+ * @param maxLength - Maximum length per chunk (default: Discord's 2000 char limit)
  */
-export function preserveCodeBlocks(content: string): string[] {
+export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
   // Defensive check: handle undefined/null/non-string input
   // Utility functions should be robust to bad input
   if (!content || typeof content !== 'string') {
@@ -100,11 +108,12 @@ export function preserveCodeBlocks(content: string): string[] {
   const codeBlockRegex = /```[\s\S]*?```/g;
   const codeBlocks = content.match(codeBlockRegex) ?? [];
 
+  // No code blocks - use simple natural boundary splitting
   if (codeBlocks.length === 0) {
-    return splitMessage(content);
+    return splitAtNaturalBoundaries(content, maxLength);
   }
 
-  // Replace code blocks with placeholders
+  // Replace code blocks with placeholders to protect them during splitting
   let processedContent = content;
   const placeholders: string[] = [];
 
@@ -114,8 +123,8 @@ export function preserveCodeBlocks(content: string): string[] {
     processedContent = processedContent.replace(block, placeholder);
   });
 
-  // Split the content
-  const chunks = splitMessage(processedContent);
+  // Split the content with placeholders
+  const chunks = splitAtNaturalBoundaries(processedContent, maxLength);
 
   // Restore code blocks
   const restoredChunks = chunks.map(chunk => {
@@ -127,12 +136,12 @@ export function preserveCodeBlocks(content: string): string[] {
   });
 
   // Check if any restored chunks exceed the limit (can happen if code block is large)
-  // If so, re-split those chunks
+  // If so, re-split those chunks (code block will be split, but that's unavoidable)
   const finalChunks: string[] = [];
   for (const chunk of restoredChunks) {
-    if (chunk.length > DISCORD_MAX_MESSAGE_LENGTH) {
-      // Re-split this chunk normally (without code block preservation to avoid infinite loop)
-      finalChunks.push(...splitMessage(chunk));
+    if (chunk.length > maxLength) {
+      // Re-split this chunk at natural boundaries (code block protection disabled to avoid infinite loop)
+      finalChunks.push(...splitAtNaturalBoundaries(chunk, maxLength));
     } else {
       finalChunks.push(chunk);
     }

@@ -25,10 +25,11 @@ import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
+  ButtonInteraction,
 } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
-import { handleViewPersona } from './view.js';
+import { handleViewPersona, handleExpandContent } from './view.js';
 import { handleEditPersona, handleEditModalSubmit } from './edit.js';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { handleListPersonas } from './list.js';
@@ -396,6 +397,29 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
     await interaction.respond(choices);
   } else {
     await interaction.respond([]);
+  }
+}
+
+/**
+ * Handle button interactions for the me command
+ */
+export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const customId = interaction.customId;
+  const parsed = MeCustomIds.parse(customId);
+
+  if (parsed === null) {
+    logger.warn({ customId }, '[Me] Unknown button customId');
+    return;
+  }
+
+  if (parsed.group === 'view' && parsed.action === 'expand') {
+    if (parsed.entityId !== undefined && parsed.field !== undefined) {
+      await handleExpandContent(interaction, parsed.entityId, parsed.field);
+    } else {
+      logger.warn({ customId, parsed }, '[Me] Missing entityId or field for expand action');
+    }
+  } else {
+    logger.warn({ customId, parsed }, '[Me] Unknown button action');
   }
 }
 

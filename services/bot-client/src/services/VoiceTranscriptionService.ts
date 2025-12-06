@@ -7,7 +7,7 @@
 
 import type { Message } from 'discord.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
-import { preserveCodeBlocks, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
+import { splitMessage, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 
 const logger = createLogger('VoiceTranscriptionService');
@@ -154,7 +154,7 @@ export class VoiceTranscriptionService {
       }
 
       // Chunk the transcript (respecting 2000 char Discord limit)
-      const chunks = preserveCodeBlocks(response.content);
+      const chunks = splitMessage(response.content);
 
       logger.info(
         `[VoiceTranscriptionService] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`

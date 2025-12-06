@@ -7,7 +7,7 @@
 
 import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
-import { preserveCodeBlocks, createLogger, AI_ENDPOINTS, GUEST_MODE } from '@tzurot/common-types';
+import { splitMessage, createLogger, AI_ENDPOINTS, GUEST_MODE } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
@@ -119,7 +119,7 @@ export class DiscordResponseSender {
     content: string,
     chunkMessageIds: string[]
   ): Promise<void> {
-    const chunks = preserveCodeBlocks(content);
+    const chunks = splitMessage(content);
 
     for (const chunk of chunks) {
       const sentMessage = await this.webhookManager.sendAsPersonality(channel, personality, chunk);
@@ -143,7 +143,7 @@ export class DiscordResponseSender {
   ): Promise<void> {
     // Add personality prefix BEFORE chunking to respect 2000 char limit
     const dmContent = `**${personality.displayName}:** ${content}`;
-    const chunks = preserveCodeBlocks(dmContent);
+    const chunks = splitMessage(dmContent);
 
     for (const chunk of chunks) {
       const sentMessage = await message.reply(chunk);
