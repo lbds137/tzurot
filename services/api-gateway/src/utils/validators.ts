@@ -12,6 +12,29 @@ import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 export type ValidationResult = { valid: true } | { valid: false; error: ErrorResponse };
 
 /**
+ * UUID v4 regex pattern
+ * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validates a UUID v4 format
+ *
+ * @param id - The ID to validate
+ * @param fieldName - Name of the field for error message (default: 'ID')
+ * @returns Validation result with error if invalid
+ */
+export function validateUuid(id: string, fieldName = 'ID'): ValidationResult {
+  if (!UUID_REGEX.test(id)) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError(`Invalid ${fieldName} format`),
+    };
+  }
+  return { valid: true };
+}
+
+/**
  * Validates a personality slug format
  * Slug must contain only lowercase letters, numbers, and hyphens
  * Maximum length is 64 characters to prevent DoS attacks

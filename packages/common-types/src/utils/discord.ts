@@ -4,6 +4,45 @@
 
 const DISCORD_MAX_MESSAGE_LENGTH = 2000;
 
+/** Default ellipsis for truncated text */
+const DEFAULT_ELLIPSIS = '…';
+
+/**
+ * Truncates text to a maximum length, adding ellipsis if truncated.
+ *
+ * @param text - The text to truncate
+ * @param maxLength - Maximum length including ellipsis (must be > ellipsis length)
+ * @param ellipsis - String to append when truncated (default: '…')
+ * @returns The truncated text, or original if within limit
+ *
+ * @example
+ * truncateText('Hello World', 8) // 'Hello W…'
+ * truncateText('Hi', 8) // 'Hi' (no truncation needed)
+ * truncateText('Long text here', 10, '...') // 'Long te...'
+ */
+export function truncateText(
+  text: string,
+  maxLength: number,
+  ellipsis: string = DEFAULT_ELLIPSIS
+): string {
+  // Defensive checks
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+
+  if (maxLength <= ellipsis.length) {
+    // Can't fit anything useful, just return ellipsis truncated
+    return ellipsis.slice(0, maxLength);
+  }
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  // Truncate and add ellipsis
+  return text.slice(0, maxLength - ellipsis.length) + ellipsis;
+}
+
 /**
  * Internal helper: splits text at natural boundaries (paragraphs, sentences, words)
  * This is an implementation detail - use splitMessage() for the public API

@@ -24,6 +24,12 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    // Ensure truncateText is available (in case of build cache issues)
+    truncateText: (text: string, maxLength: number, ellipsis = '…') => {
+      if (!text) return '';
+      if (text.length <= maxLength) return text;
+      return text.slice(0, maxLength - ellipsis.length) + ellipsis;
+    },
   };
 });
 
