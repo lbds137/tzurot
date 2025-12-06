@@ -130,7 +130,7 @@ export async function handleExport(
     const contentParts: string[] = [`✅ Exported **${displayName}** (\`${slug}\`)`];
 
     // Add avatar as separate image file if it exists
-    if (character.avatarData) {
+    if (character.avatarData !== null && character.avatarData.length > 0) {
       try {
         const { extension } = detectImageFormat(character.avatarData);
         const avatarBuffer = Buffer.from(character.avatarData, 'base64');
@@ -158,7 +158,7 @@ export async function handleExport(
     });
 
     logger.info(
-      { slug, userId: interaction.user.id, hasAvatar: !!character.avatarData },
+      { slug, userId: interaction.user.id, hasAvatar: character.avatarData !== null },
       '[Character/Export] Character exported successfully'
     );
   } catch (error) {
