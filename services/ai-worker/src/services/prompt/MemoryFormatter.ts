@@ -9,7 +9,7 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { formatTimestampWithDelta } from '@tzurot/common-types';
+import { formatTimestampWithDelta, escapeXmlContent } from '@tzurot/common-types';
 import type { MemoryDocument } from '../ConversationalRAGService.js';
 
 /**
@@ -39,18 +39,21 @@ const MEMORY_ARCHIVE_INSTRUCTION =
  * @returns Formatted memory string
  */
 export function formatSingleMemory(doc: MemoryDocument, timezone?: string): string {
+  // Escape user-generated content to prevent prompt injection via XML tag breaking
+  const safeContent = escapeXmlContent(doc.pageContent);
+
   if (doc.metadata?.createdAt === undefined || doc.metadata.createdAt === null) {
-    return `- ${doc.pageContent}`;
+    return `- ${safeContent}`;
   }
 
   const { absolute, relative } = formatTimestampWithDelta(doc.metadata.createdAt, timezone);
 
   // If either is empty (invalid date), just return content
   if (absolute.length === 0 || relative.length === 0) {
-    return `- ${doc.pageContent}`;
+    return `- ${safeContent}`;
   }
 
-  return `- [${absolute} — ${relative}] ${doc.pageContent}`;
+  return `- [${absolute} — ${relative}] ${safeContent}`;
 }
 
 /**

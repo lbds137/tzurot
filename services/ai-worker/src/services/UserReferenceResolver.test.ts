@@ -131,14 +131,28 @@ describe('UserReferenceResolver', () => {
         expect(result.resolvedPersonas[0].personaName).toBe('fallback_name');
       });
 
-      it('should keep original text if mapping not found', async () => {
+      it('should fallback to username if mapping not found', async () => {
         const text = '@[unknown](user:00000000-0000-0000-0000-000000000000)';
 
         mockPrisma.shapesPersonaMapping.findUnique.mockResolvedValue(null);
 
         const result = await resolver.resolveUserReferences(text);
 
-        expect(result.processedText).toBe(text);
+        // Should fallback to the username from the reference
+        expect(result.processedText).toBe('unknown');
+        expect(result.resolvedPersonas).toHaveLength(0);
+      });
+
+      it('should fallback multiple unresolved references to their usernames', async () => {
+        const text =
+          '@[alice](user:11111111-1111-1111-1111-111111111111) and @[bob](user:22222222-2222-2222-2222-222222222222)';
+
+        mockPrisma.shapesPersonaMapping.findUnique.mockResolvedValue(null);
+
+        const result = await resolver.resolveUserReferences(text);
+
+        // Should fallback to usernames
+        expect(result.processedText).toBe('alice and bob');
         expect(result.resolvedPersonas).toHaveLength(0);
       });
     });
@@ -368,17 +382,156 @@ describe('UserReferenceResolver', () => {
       });
     });
 
+    describe('empty text handling', () => {
+      it('should return empty result for empty string', async () => {
+        const result = await resolver.resolveUserReferences('');
+
+        expect(result.processedText).toBe('');
+        expect(result.resolvedPersonas).toHaveLength(0);
+        // No DB calls should be made for empty text
+        expect(mockPrisma.shapesPersonaMapping.findUnique).not.toHaveBeenCalled();
+        expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+        expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+      });
+
+      it('should return empty result for undefined-like values', async () => {
+        // Test with null cast to string (edge case)
+        const result = await resolver.resolveUserReferences(null as unknown as string);
+
+        expect(result.processedText).toBe('');
+        expect(result.resolvedPersonas).toHaveLength(0);
+      });
+    });
+
     describe('error handling', () => {
-      it('should handle database errors gracefully', async () => {
+      it('should handle database errors gracefully by falling back to username', async () => {
         const text = '@[user](user:11111111-1111-1111-1111-111111111111)';
 
         mockPrisma.shapesPersonaMapping.findUnique.mockRejectedValue(new Error('DB error'));
 
         const result = await resolver.resolveUserReferences(text);
 
-        // Should return original text on error
-        expect(result.processedText).toBe(text);
+        // Should fallback to username on error (resolveByShapesUserId returns null on error)
+        expect(result.processedText).toBe('user');
         expect(result.resolvedPersonas).toHaveLength(0);
+      });
+    });
+
+    describe('self-reference handling', () => {
+      it('should replace self-reference but not add to participants list', async () => {
+        const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
+        const selfPersonaId = 'self-persona-uuid';
+        const text = `I am @[myself](user:${shapesUserId}) and I love talking about myself.`;
+
+        mockPrisma.shapesPersonaMapping.findUnique.mockResolvedValue({
+          persona: {
+            id: selfPersonaId,
+            name: 'myself',
+            preferredName: 'Lilith',
+            content: 'A magical being',
+          },
+        });
+
+        // Pass activePersonaId matching the resolved persona
+        const result = await resolver.resolveUserReferences(text, selfPersonaId);
+
+        // Text should still be replaced
+        expect(result.processedText).toBe('I am Lilith and I love talking about myself.');
+        // But persona should NOT be added to resolvedPersonas
+        expect(result.resolvedPersonas).toHaveLength(0);
+      });
+
+      it('should add non-self references but skip self-references', async () => {
+        const selfUuid = '11111111-1111-1111-1111-111111111111';
+        const otherUuid = '22222222-2222-2222-2222-222222222222';
+        const selfPersonaId = 'self-persona-uuid';
+        const text = `@[myself](user:${selfUuid}) and @[friend](user:${otherUuid}) are chatting`;
+
+        mockPrisma.shapesPersonaMapping.findUnique
+          .mockResolvedValueOnce({
+            persona: {
+              id: selfPersonaId,
+              name: 'myself',
+              preferredName: 'Lilith',
+              content: 'Self content',
+            },
+          })
+          .mockResolvedValueOnce({
+            persona: {
+              id: 'friend-persona-uuid',
+              name: 'friend',
+              preferredName: 'Alice',
+              content: 'Friend content',
+            },
+          });
+
+        const result = await resolver.resolveUserReferences(text, selfPersonaId);
+
+        // Both should be replaced
+        expect(result.processedText).toBe('Lilith and Alice are chatting');
+        // Only friend should be in resolvedPersonas (self is excluded)
+        expect(result.resolvedPersonas).toHaveLength(1);
+        expect(result.resolvedPersonas[0].personaId).toBe('friend-persona-uuid');
+        expect(result.resolvedPersonas[0].personaName).toBe('Alice');
+      });
+
+      it('should handle self-reference via Discord mention', async () => {
+        const discordId = '278863839632818186';
+        const selfPersonaId = 'self-persona-uuid';
+        const text = `I can be mentioned as <@${discordId}> in Discord`;
+
+        mockPrisma.user.findUnique.mockResolvedValue({
+          defaultPersona: {
+            id: selfPersonaId,
+            name: 'myself',
+            preferredName: 'Lilith',
+            content: 'Self content',
+          },
+        });
+
+        const result = await resolver.resolveUserReferences(text, selfPersonaId);
+
+        expect(result.processedText).toBe('I can be mentioned as Lilith in Discord');
+        expect(result.resolvedPersonas).toHaveLength(0);
+      });
+
+      it('should handle self-reference via simple username', async () => {
+        const selfPersonaId = 'self-persona-uuid';
+        const text = 'You can call me @lilith anytime';
+
+        mockPrisma.user.findFirst.mockResolvedValue({
+          defaultPersona: {
+            id: selfPersonaId,
+            name: 'lilith',
+            preferredName: 'Lilith',
+            content: 'Self content',
+          },
+        });
+
+        const result = await resolver.resolveUserReferences(text, selfPersonaId);
+
+        expect(result.processedText).toBe('You can call me Lilith anytime');
+        expect(result.resolvedPersonas).toHaveLength(0);
+      });
+
+      it('should work normally when no activePersonaId is provided', async () => {
+        const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
+        const text = `Hello @[user](user:${shapesUserId})`;
+
+        mockPrisma.shapesPersonaMapping.findUnique.mockResolvedValue({
+          persona: {
+            id: 'persona-uuid',
+            name: 'user',
+            preferredName: 'Alice',
+            content: 'User content',
+          },
+        });
+
+        // No activePersonaId - should add to participants as usual
+        const result = await resolver.resolveUserReferences(text);
+
+        expect(result.processedText).toBe('Hello Alice');
+        expect(result.resolvedPersonas).toHaveLength(1);
       });
     });
   });

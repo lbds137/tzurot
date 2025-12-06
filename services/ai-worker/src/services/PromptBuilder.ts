@@ -15,6 +15,7 @@ import {
   type LoadedPersonality,
   type MessageContent,
   countTextTokens,
+  escapeXmlContent,
 } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
@@ -204,7 +205,8 @@ export class PromptBuilder {
     );
 
     // Wrap persona in XML tags (START of prompt - primacy)
-    const personaSection = `<persona>\n${persona}\n</persona>`;
+    // Escape user-generated content to prevent prompt injection via XML tag breaking
+    const personaSection = `<persona>\n${escapeXmlContent(persona)}\n</persona>`;
 
     // Current date/time context
     // Use user's preferred timezone if available
@@ -244,7 +246,9 @@ export class PromptBuilder {
     }
 
     // Wrap protocol in XML tags (END of prompt - recency bias for highest impact)
-    const protocolSection = protocol.length > 0 ? `\n\n<protocol>\n${protocol}\n</protocol>` : '';
+    // Escape user-generated content to prevent prompt injection via XML tag breaking
+    const protocolSection =
+      protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 
     // Assemble in correct order for U-shaped attention optimization
     const fullSystemPrompt = `${personaSection}${dateContext}${environmentContext}${participantsContext}${memoryContext}${referencesContext}${protocolSection}`;
