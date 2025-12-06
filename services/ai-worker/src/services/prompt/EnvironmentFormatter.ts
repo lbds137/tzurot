@@ -5,7 +5,7 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, escapeXmlContent } from '@tzurot/common-types';
 import type { DiscordEnvironment } from '../ConversationalRAGService.js';
 
 const logger = createLogger('EnvironmentFormatter');
@@ -37,26 +37,28 @@ export function formatEnvironmentContext(environment: DiscordEnvironment): strin
     parts.push('## Conversation Location');
     parts.push('This conversation is taking place in a Discord server:\n');
 
-    // Guild name
+    // Guild name - escape to prevent prompt injection via malicious server names
     if (environment.guild !== undefined && environment.guild !== null) {
-      parts.push(`**Server**: ${environment.guild.name}`);
+      parts.push(`**Server**: ${escapeXmlContent(environment.guild.name)}`);
     }
 
-    // Category (if exists)
+    // Category (if exists) - escape to prevent prompt injection
     if (
       environment.category !== undefined &&
       environment.category !== null &&
       environment.category.name.length > 0
     ) {
-      parts.push(`**Category**: ${environment.category.name}`);
+      parts.push(`**Category**: ${escapeXmlContent(environment.category.name)}`);
     }
 
-    // Channel
-    parts.push(`**Channel**: #${environment.channel.name} (${environment.channel.type})`);
+    // Channel - escape to prevent prompt injection
+    parts.push(
+      `**Channel**: #${escapeXmlContent(environment.channel.name)} (${environment.channel.type})`
+    );
 
-    // Thread (if exists)
+    // Thread (if exists) - escape to prevent prompt injection
     if (environment.thread !== undefined && environment.thread !== null) {
-      parts.push(`**Thread**: ${environment.thread.name}`);
+      parts.push(`**Thread**: ${escapeXmlContent(environment.thread.name)}`);
     }
 
     content = parts.join('\n');
