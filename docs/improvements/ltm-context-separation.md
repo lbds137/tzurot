@@ -191,6 +191,18 @@ OpenRouter can route to different models, so caching implementation needs to be 
 
 ## Testing Plan
 
+> ⚠️ **CRITICAL**: This is a fundamental change to how prompts are structured. Every aspect of LLM behavior depends on prompt quality. **Thorough testing is mandatory before any merge to develop.**
+
+### Testing Priority
+
+This change affects the core behavior of all AI responses. We need:
+
+1. **100% unit test coverage** for all formatter changes
+2. **Integration tests** verifying complete prompt assembly
+3. **Behavioral tests** confirming XML structure is correct
+4. **Regression tests** ensuring existing functionality isn't broken
+5. **Manual testing** with real conversations before production rollout
+
 ### Unit Tests
 
 1. **`MemoryFormatter.test.ts`** - New tests:
@@ -223,10 +235,16 @@ OpenRouter can route to different models, so caching implementation needs to be 
 
 ### Integration Tests
 
-7. **Prompt Structure Integration** - New test file:
+7. **`PromptBuilder.integration.test.ts`** (new file in `services/ai-worker/src/services/`):
    - Full prompt assembly produces valid XML-like structure
-   - All sections present in correct order
+   - All sections present in correct order (identity → memories → situation → protocol)
    - No unclosed tags or malformed structure
+   - Character profile section contains expected personality data
+   - Memory archive section correctly wraps retrieved memories
+   - Response protocol is at END of prompt (critical for recency bias)
+   - Relative time deltas are calculated correctly for test fixtures
+   - Empty sections handled gracefully (no memories, no references, etc.)
+   - Special characters in content don't break XML structure (quotes, angle brackets, etc.)
 
 ### Manual Testing Checklist
 
@@ -239,6 +257,36 @@ After deployment to development:
 - [ ] Group conversations correctly identify active speaker
 - [ ] Referenced messages don't get confused with current message
 - [ ] No regression in response quality
+
+## Risk Assessment
+
+### High-Impact Risks
+
+| Risk                           | Likelihood | Impact | Mitigation                                                    |
+| ------------------------------ | ---------- | ------ | ------------------------------------------------------------- |
+| XML confuses certain models    | Low        | High   | Test with all supported models before rollout                 |
+| Response quality degrades      | Medium     | High   | Extensive manual testing, rollback plan ready                 |
+| Prompt becomes too long        | Low        | Medium | XML tags add ~200 chars; monitor token counts                 |
+| Cache hit rate lower than expected | Medium | Low    | Caching is Phase 4, optional; core feature works without it   |
+
+### Rollback Plan
+
+If issues are detected after deployment:
+
+1. Revert the commit on `develop`
+2. Railway will auto-redeploy previous working version
+3. Monitor logs for 15 minutes to confirm stability
+4. Document what went wrong for next attempt
+
+### Model Compatibility
+
+XML tag interpretation varies by model. Testing priority:
+
+1. **Claude 3.5 Sonnet** - Primary model, best XML understanding
+2. **Claude 3 Haiku** - Guest mode fallback
+3. **GPT-4o** - Alternative provider
+4. **Gemini models** - May handle XML differently
+5. **Llama/Mistral** - Lower priority, less predictable
 
 ## Rollout Strategy
 
