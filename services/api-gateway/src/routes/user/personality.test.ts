@@ -60,6 +60,9 @@ const mockPrisma = {
     findMany: vi.fn(),
     findUnique: vi.fn(),
   },
+  systemPrompt: {
+    findFirst: vi.fn(),
+  },
   llmConfig: {
     findFirst: vi.fn(),
   },
@@ -577,6 +580,131 @@ describe('/user/personality routes', () => {
           llmConfigId: 'default-config',
         },
       });
+    });
+
+    it('should set default system prompt if available', async () => {
+      mockPrisma.systemPrompt.findFirst.mockResolvedValue({
+        id: 'default-system-prompt',
+      });
+      mockPrisma.personality.create.mockResolvedValue({
+        id: 'new-personality',
+        name: 'New Character',
+        slug: 'new-char',
+        displayName: null,
+        isPublic: false,
+      });
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'New Character',
+        slug: 'new-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.systemPrompt.findFirst).toHaveBeenCalledWith({
+        where: { isDefault: true },
+        select: { id: true },
+      });
+      expect(mockPrisma.personality.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            systemPromptId: 'default-system-prompt',
+          }),
+        })
+      );
+    });
+
+    it('should set systemPromptId to null when no default system prompt exists', async () => {
+      mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
+      mockPrisma.personality.create.mockResolvedValue({
+        id: 'new-personality',
+        name: 'New Character',
+        slug: 'new-char',
+        displayName: null,
+        isPublic: false,
+      });
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'New Character',
+        slug: 'new-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            systemPromptId: null,
+          }),
+        })
+      );
+    });
+
+    it('should save errorMessage when provided', async () => {
+      mockPrisma.personality.create.mockResolvedValue({
+        id: 'new-personality',
+        name: 'New Character',
+        slug: 'new-char',
+        displayName: null,
+        isPublic: false,
+      });
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'New Character',
+        slug: 'new-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        errorMessage: 'Custom error message for this character',
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            errorMessage: 'Custom error message for this character',
+          }),
+        })
+      );
+    });
+
+    it('should set errorMessage to null when not provided', async () => {
+      mockPrisma.personality.create.mockResolvedValue({
+        id: 'new-personality',
+        name: 'New Character',
+        slug: 'new-char',
+        displayName: null,
+        isPublic: false,
+      });
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'New Character',
+        slug: 'new-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            errorMessage: null,
+          }),
+        })
+      );
     });
   });
 
