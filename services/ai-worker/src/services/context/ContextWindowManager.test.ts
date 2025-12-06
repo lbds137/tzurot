@@ -1,8 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextWindowManager } from './ContextWindowManager.js';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import type { ContextWindowInput } from './ContextWindowManager.js';
 import type { MemoryDocument } from './PromptContext.js';
+
+// Mock formatTimestampWithDelta used by MemoryFormatter
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    formatTimestampWithDelta: vi.fn((date: Date) => ({
+      absolute: 'Mon, Jan 15, 2024',
+      relative: '2 weeks ago',
+    })),
+  };
+});
 
 describe('ContextWindowManager', () => {
   let manager: ContextWindowManager;
