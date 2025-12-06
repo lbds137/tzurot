@@ -1,10 +1,14 @@
 /**
  * Me Command Autocomplete Handler
  * Provides autocomplete suggestions for personality and profile selection
+ *
+ * Uses gateway APIs for all data access (no direct Prisma).
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-autocomplete');
 
@@ -14,58 +18,49 @@ const logger = createLogger('me-autocomplete');
 export const CREATE_NEW_PERSONA_VALUE = '__create_new__';
 
 /**
- * Handle personality autocomplete for /me override commands
+ * Persona summary from gateway API
  */
-export async function handlePersonalityAutocomplete(
+interface PersonaSummary {
+  id: string;
+  name: string;
+  preferredName: string | null;
+  isDefault: boolean;
+}
+
+/**
+ * Handle personality autocomplete for /me override commands
+ *
+ * Uses the shared personality autocomplete utility with visibility indicators.
+ */
+export async function handleMePersonalityAutocomplete(
   interaction: AutocompleteInteraction
 ): Promise<void> {
-  const focusedOption = interaction.options.getFocused(true);
-
-  if (focusedOption.name !== 'personality') {
-    await interaction.respond([]);
-    return;
-  }
-
-  const query = focusedOption.value.toLowerCase();
-
   try {
-    const prisma = getPrismaClient();
-
-    // Fetch personalities matching the query
-    const personalities = await prisma.personality.findMany({
-      where: {
-        isPublic: true,
-        OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { displayName: { contains: query, mode: 'insensitive' } },
-          { slug: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      select: {
-        slug: true,
-        name: true,
-        displayName: true,
-      },
-      orderBy: { name: 'asc' },
-      take: DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES,
+    const handled = await handlePersonalityAutocomplete(interaction, {
+      optionName: 'personality',
+      ownedOnly: false, // Override can be set for any accessible personality
+      showVisibility: true,
     });
 
-    const choices = personalities.map(p => ({
-      name: p.displayName ?? p.name,
-      value: p.slug, // Use slug as value since that's what commands use
-    }));
-
-    await interaction.respond(choices);
+    if (!handled) {
+      await interaction.respond([]);
+    }
   } catch (error) {
-    logger.error({ err: error, query, userId: interaction.user.id }, '[Me] Autocomplete error');
+    logger.error(
+      { err: error, userId: interaction.user.id },
+      '[Me] Personality autocomplete error'
+    );
     await interaction.respond([]);
   }
 }
 
 /**
- * Handle profile autocomplete for /me commands
+ * Handle profile (persona) autocomplete for /me commands
  * Lists user's profiles with option to create new
  *
+ * Uses gateway API for data access.
+ *
+ * @param interaction - Discord autocomplete interaction
  * @param includeCreateNew - Whether to include "Create new profile..." option
  */
 export async function handlePersonaAutocomplete(
@@ -80,51 +75,47 @@ export async function handlePersonaAutocomplete(
   }
 
   const query = focusedOption.value.toLowerCase();
-  const discordId = interaction.user.id;
+  const userId = interaction.user.id;
 
   try {
-    const prisma = getPrismaClient();
-
-    // Get user with their personas
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        defaultPersonaId: true,
-        ownedPersonas: {
-          where: query
-            ? {
-                OR: [
-                  { name: { contains: query, mode: 'insensitive' } },
-                  { preferredName: { contains: query, mode: 'insensitive' } },
-                ],
-              }
-            : undefined,
-          select: {
-            id: true,
-            name: true,
-            preferredName: true,
-          },
-          orderBy: { name: 'asc' },
-          // Leave room for "Create new" option
-          take: includeCreateNew
-            ? DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES - 1
-            : DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES,
-        },
-      },
+    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
+      userId,
     });
+
+    if (!result.ok) {
+      logger.warn({ userId, error: result.error }, '[Me] Failed to fetch personas for autocomplete');
+      await interaction.respond([]);
+      return;
+    }
+
+    // Filter by query
+    const filtered = result.data.personas
+      .filter(p => {
+        if (query.length === 0) {
+          return true;
+        }
+        return (
+          p.name.toLowerCase().includes(query) ||
+          (p.preferredName?.toLowerCase().includes(query) ?? false)
+        );
+      })
+      // Leave room for "Create new" option if needed
+      .slice(
+        0,
+        includeCreateNew
+          ? DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES - 1
+          : DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES
+      );
 
     const choices: { name: string; value: string }[] = [];
 
     // Add user's personas
-    if (user?.ownedPersonas) {
-      for (const persona of user.ownedPersonas) {
-        const isDefault = persona.id === user.defaultPersonaId;
-        const displayName = persona.preferredName ?? persona.name;
-        choices.push({
-          name: isDefault ? `${displayName} ⭐ (default)` : displayName,
-          value: persona.id,
-        });
-      }
+    for (const persona of filtered) {
+      const displayName = persona.preferredName ?? persona.name;
+      choices.push({
+        name: persona.isDefault ? `${displayName} ⭐ (default)` : displayName,
+        value: persona.id,
+      });
     }
 
     // Add "Create new profile" option at the end if requested and query matches
@@ -140,7 +131,7 @@ export async function handlePersonaAutocomplete(
 
     await interaction.respond(choices);
   } catch (error) {
-    logger.error({ err: error, query, userId: discordId }, '[Me] Profile autocomplete error');
+    logger.error({ err: error, query, userId }, '[Me] Profile autocomplete error');
     await interaction.respond([]);
   }
 }

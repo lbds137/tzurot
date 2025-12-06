@@ -1,29 +1,31 @@
 /**
- * Tests for Profile Command Autocomplete Handler
+ * Tests for Me Command Autocomplete Handler
+ * Tests both personality and persona autocomplete using gateway APIs.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  handlePersonalityAutocomplete,
+  handleMePersonalityAutocomplete,
   handlePersonaAutocomplete,
   CREATE_NEW_PERSONA_VALUE,
 } from './autocomplete.js';
 
-// Mock Prisma
-const mockPrismaClient = {
-  personality: {
-    findMany: vi.fn(),
-  },
-  user: {
-    findUnique: vi.fn(),
-  },
-};
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
+
+// Mock the shared personality autocomplete utility
+const mockHandlePersonalityAutocomplete = vi.fn();
+vi.mock('../../utils/autocomplete/index.js', () => ({
+  handlePersonalityAutocomplete: (...args: unknown[]) => mockHandlePersonalityAutocomplete(...args),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -33,115 +35,55 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-describe('handlePersonalityAutocomplete', () => {
+describe('handleMePersonalityAutocomplete', () => {
   const mockRespond = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockRespond.mockResolvedValue(undefined);
+    mockHandlePersonalityAutocomplete.mockResolvedValue(true);
   });
 
-  function createMockInteraction(focusedName: string, focusedValue: string) {
+  function createMockInteraction() {
     return {
       user: { id: '123456789' },
       options: {
         getFocused: vi.fn().mockReturnValue({
-          name: focusedName,
-          value: focusedValue,
+          name: 'personality',
+          value: 'test',
         }),
       },
       respond: mockRespond,
     } as any;
   }
 
-  it('should return empty array for non-personality focused option', async () => {
-    await handlePersonalityAutocomplete(createMockInteraction('other-field', 'test'));
+  it('should call shared handlePersonalityAutocomplete with correct options', async () => {
+    const interaction = createMockInteraction();
+    await handleMePersonalityAutocomplete(interaction);
 
-    expect(mockRespond).toHaveBeenCalledWith([]);
-    expect(mockPrismaClient.personality.findMany).not.toHaveBeenCalled();
-  });
-
-  it('should return matching personalities', async () => {
-    mockPrismaClient.personality.findMany.mockResolvedValue([
-      { slug: 'lilith', name: 'Lilith', displayName: 'Lilith the Succubus' },
-      { slug: 'luna', name: 'Luna', displayName: null },
-    ]);
-
-    await handlePersonalityAutocomplete(createMockInteraction('personality', 'li'));
-
-    expect(mockPrismaClient.personality.findMany).toHaveBeenCalledWith({
-      where: {
-        isPublic: true,
-        OR: [
-          { name: { contains: 'li', mode: 'insensitive' } },
-          { displayName: { contains: 'li', mode: 'insensitive' } },
-          { slug: { contains: 'li', mode: 'insensitive' } },
-        ],
-      },
-      select: {
-        slug: true,
-        name: true,
-        displayName: true,
-      },
-      orderBy: { name: 'asc' },
-      take: 25, // DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES
+    expect(mockHandlePersonalityAutocomplete).toHaveBeenCalledWith(interaction, {
+      optionName: 'personality',
+      ownedOnly: false,
+      showVisibility: true,
     });
-
-    expect(mockRespond).toHaveBeenCalledWith([
-      { name: 'Lilith the Succubus', value: 'lilith' },
-      { name: 'Luna', value: 'luna' },
-    ]);
   });
 
-  it('should use name as fallback when displayName is null', async () => {
-    mockPrismaClient.personality.findMany.mockResolvedValue([
-      { slug: 'bot', name: 'TestBot', displayName: null },
-    ]);
+  it('should return empty array when shared utility returns false', async () => {
+    mockHandlePersonalityAutocomplete.mockResolvedValue(false);
+    const interaction = createMockInteraction();
 
-    await handlePersonalityAutocomplete(createMockInteraction('personality', 'test'));
+    await handleMePersonalityAutocomplete(interaction);
 
-    expect(mockRespond).toHaveBeenCalledWith([{ name: 'TestBot', value: 'bot' }]);
+    expect(interaction.respond).toHaveBeenCalledWith([]);
   });
 
-  it('should return empty array when no personalities match', async () => {
-    mockPrismaClient.personality.findMany.mockResolvedValue([]);
+  it('should handle errors gracefully', async () => {
+    mockHandlePersonalityAutocomplete.mockRejectedValue(new Error('Network error'));
+    const interaction = createMockInteraction();
 
-    await handlePersonalityAutocomplete(createMockInteraction('personality', 'xyz'));
+    await handleMePersonalityAutocomplete(interaction);
 
-    expect(mockRespond).toHaveBeenCalledWith([]);
-  });
-
-  it('should lowercase the query for case-insensitive search', async () => {
-    mockPrismaClient.personality.findMany.mockResolvedValue([]);
-
-    await handlePersonalityAutocomplete(createMockInteraction('personality', 'UPPER'));
-
-    expect(mockPrismaClient.personality.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          OR: expect.arrayContaining([{ name: { contains: 'upper', mode: 'insensitive' } }]),
-        }),
-      })
-    );
-  });
-
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.personality.findMany.mockRejectedValue(new Error('DB error'));
-
-    await handlePersonalityAutocomplete(createMockInteraction('personality', 'test'));
-
-    expect(mockRespond).toHaveBeenCalledWith([]);
-  });
-
-  it('should handle empty query string', async () => {
-    mockPrismaClient.personality.findMany.mockResolvedValue([
-      { slug: 'default', name: 'Default', displayName: 'Default Bot' },
-    ]);
-
-    await handlePersonalityAutocomplete(createMockInteraction('personality', ''));
-
-    expect(mockPrismaClient.personality.findMany).toHaveBeenCalled();
-    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Default Bot', value: 'default' }]);
+    expect(interaction.respond).toHaveBeenCalledWith([]);
   });
 });
 
@@ -170,16 +112,31 @@ describe('handlePersonaAutocomplete', () => {
     await handlePersonaAutocomplete(createMockInteraction('other-field', 'test'));
 
     expect(mockRespond).toHaveBeenCalledWith([]);
-    expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+  });
+
+  it('should call gateway API with user ID', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { personas: [] },
+    });
+
+    await handlePersonaAutocomplete(createMockInteraction('profile', ''));
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
+      userId: '123456789',
+    });
   });
 
   it('should return user profiles with preferredName as display', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [
-        { id: 'persona-1', name: 'Work', preferredName: 'Professional Me' },
-        { id: 'persona-2', name: 'Casual', preferredName: 'Relaxed Me' },
-      ],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'Work', preferredName: 'Professional Me', isDefault: false },
+          { id: 'persona-2', name: 'Casual', preferredName: 'Relaxed Me', isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
@@ -191,12 +148,14 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   it('should mark default profile with star indicator', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: 'persona-1',
-      ownedPersonas: [
-        { id: 'persona-1', name: 'Default', preferredName: 'My Default' },
-        { id: 'persona-2', name: 'Other', preferredName: null },
-      ],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'Default', preferredName: 'My Default', isDefault: true },
+          { id: 'persona-2', name: 'Other', preferredName: null, isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
@@ -208,9 +167,13 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   it('should use name as fallback when preferredName is null', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [{ id: 'persona-1', name: 'WorkProfile', preferredName: null }],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'WorkProfile', preferredName: null, isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
@@ -219,9 +182,13 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   it('should include "Create new profile" option when includeCreateNew is true', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [{ id: 'persona-1', name: 'Existing', preferredName: null }],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''), true);
@@ -233,9 +200,13 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   it('should not include "Create new profile" when includeCreateNew is false', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [{ id: 'persona-1', name: 'Existing', preferredName: null }],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''), false);
@@ -247,9 +218,9 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   it('should filter "Create new profile" option based on query', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { personas: [] },
     });
 
     // Query matches "create"
@@ -261,14 +232,18 @@ describe('handlePersonaAutocomplete', () => {
     vi.clearAllMocks();
 
     // Query doesn't match
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { personas: [] },
+    });
     await handlePersonaAutocomplete(createMockInteraction('profile', 'xyz'), true);
     expect(mockRespond).toHaveBeenCalledWith([]);
   });
 
   it('should return empty array when user has no profiles', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { personas: [] },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
@@ -276,16 +251,19 @@ describe('handlePersonaAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledWith([]);
   });
 
-  it('should return empty array when user not found', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
+  it('should return empty array when gateway API fails', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Gateway error',
+    });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
 
     expect(mockRespond).toHaveBeenCalledWith([]);
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handlePersonaAutocomplete(createMockInteraction('profile', 'test'));
 
@@ -293,84 +271,55 @@ describe('handlePersonaAutocomplete', () => {
   });
 
   it('should filter profiles based on query', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [{ id: 'persona-1', name: 'Work', preferredName: 'Professional' }],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'Work', preferredName: 'Professional', isDefault: false },
+          { id: 'persona-2', name: 'Personal', preferredName: 'Casual Me', isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', 'work'));
 
-    // Query is passed to Prisma, verify the call includes the filter
-    expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          ownedPersonas: expect.objectContaining({
-            where: {
-              OR: [
-                { name: { contains: 'work', mode: 'insensitive' } },
-                { preferredName: { contains: 'work', mode: 'insensitive' } },
-              ],
-            },
-          }),
-        }),
-      })
-    );
+    // Only 'Work' matches the query 'work'
+    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional', value: 'persona-1' }]);
   });
 
-  it('should not filter when query is empty', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [],
+  it('should filter by preferredName too', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'First', preferredName: 'Professional Me', isDefault: false },
+          { id: 'persona-2', name: 'Second', preferredName: 'Casual', isDefault: false },
+        ],
+      },
+    });
+
+    await handlePersonaAutocomplete(createMockInteraction('profile', 'prof'));
+
+    // 'Professional Me' matches the query 'prof'
+    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional Me', value: 'persona-1' }]);
+  });
+
+  it('should return all profiles when query is empty', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          { id: 'persona-1', name: 'Work', preferredName: null, isDefault: false },
+          { id: 'persona-2', name: 'Personal', preferredName: null, isDefault: false },
+        ],
+      },
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
 
-    expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          ownedPersonas: expect.objectContaining({
-            where: undefined,
-          }),
-        }),
-      })
-    );
-  });
-
-  it('should limit results to leave room for Create option when includeCreateNew is true', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [],
-    });
-
-    await handlePersonaAutocomplete(createMockInteraction('profile', ''), true);
-
-    expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          ownedPersonas: expect.objectContaining({
-            take: 24, // DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES - 1
-          }),
-        }),
-      })
-    );
-  });
-
-  it('should use full limit when includeCreateNew is false', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [],
-    });
-
-    await handlePersonaAutocomplete(createMockInteraction('profile', ''), false);
-
-    expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        select: expect.objectContaining({
-          ownedPersonas: expect.objectContaining({
-            take: 25, // DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES
-          }),
-        }),
-      })
-    );
+    expect(mockRespond).toHaveBeenCalledWith([
+      { name: 'Work', value: 'persona-1' },
+      { name: 'Personal', value: 'persona-2' },
+    ]);
   });
 });
