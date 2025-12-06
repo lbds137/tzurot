@@ -254,10 +254,14 @@ export class ConversationalRAGService {
 
       // Resolve user references in system prompt (shapes.inc format, @username, <@discord_id>)
       // This replaces references with persona names AND adds those personas to participants
+      // Pass personality.id to exclude self-references from participants list
       let processedPersonality = personality;
       if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
         const { processedText, resolvedPersonas } =
-          await this.userReferenceResolver.resolveUserReferences(personality.systemPrompt);
+          await this.userReferenceResolver.resolveUserReferences(
+            personality.systemPrompt,
+            personality.id
+          );
 
         if (resolvedPersonas.length > 0) {
           // Create a modified personality with the processed systemPrompt

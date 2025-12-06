@@ -14,6 +14,7 @@ import {
   TEXT_LIMITS,
   RETRY_CONFIG,
   formatTimestampWithDelta,
+  escapeXmlContent,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
@@ -121,11 +122,13 @@ export class ReferencedMessageFormatter {
       }
 
       if (ref.content) {
-        lines.push(`\nMessage Text:\n${ref.content}`);
+        // Escape user-generated content to prevent prompt injection via XML tag breaking
+        lines.push(`\nMessage Text:\n${escapeXmlContent(ref.content)}`);
       }
 
       if (ref.embeds) {
-        lines.push(`\nMessage Embeds (structured data from Discord):\n${ref.embeds}`);
+        // Escape embeds as they can contain user-generated content
+        lines.push(`\nMessage Embeds (structured data from Discord):\n${escapeXmlContent(ref.embeds)}`);
       }
 
       // Process attachments in parallel (or use preprocessed data if available)
