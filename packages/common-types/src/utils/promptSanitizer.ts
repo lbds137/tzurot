@@ -57,7 +57,7 @@ export function escapeXmlContent(content: string): string {
     // Escape opening tags: <tag> or <tag ...> -> &lt;tag&gt; or &lt;tag ...&gt;
     const openingTagRegex = new RegExp(`<\\s*${tag}(\\s[^>]*)?>`, 'gi');
     escaped = escaped.replace(openingTagRegex, match => {
-      return match.replace('<', '&lt;').replace('>', '&gt;');
+      return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     });
   }
 
