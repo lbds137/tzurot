@@ -21,7 +21,7 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    preserveCodeBlocks: vi.fn((content: string) => {
+    splitMessage: vi.fn((content: string) => {
       // Simple mock: split on 2000 char boundaries
       const chunks: string[] = [];
       for (let i = 0; i < content.length; i += 2000) {

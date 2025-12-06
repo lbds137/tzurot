@@ -8,11 +8,27 @@
  * - Settings (like LTM sharing)
  */
 
-import { MessageFlags, EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import {
+  MessageFlags,
+  EmbedBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
+  type MessageActionRowComponentBuilder,
+} from 'discord.js';
+import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import {
+  createLogger,
+  getPrismaClient,
+  DISCORD_LIMITS,
+  splitMessage,
+} from '@tzurot/common-types';
+import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-view');
+
+/** Maximum content length to show in embed before truncating */
+const CONTENT_PREVIEW_LENGTH = 1000;
 
 /**
  * Handle /me profile view command
@@ -82,12 +98,28 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     embed.addFields({ name: '🔗 LTM Sharing', value: ltmStatus, inline: false });
 
     // Content (truncate if too long)
+    const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+    const isTruncated =
+      persona.content !== null && persona.content.length > CONTENT_PREVIEW_LENGTH;
+
     if (persona.content !== null && persona.content.length > 0) {
-      const content =
-        persona.content.length > 1000
-          ? persona.content.substring(0, 1000) + '...'
-          : persona.content;
+      const content = isTruncated
+        ? persona.content.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
+        : persona.content;
       embed.addFields({ name: '📝 Content', value: content, inline: false });
+
+      // Add expand button if content is truncated
+      if (isTruncated) {
+        const expandButton = new ButtonBuilder()
+          .setCustomId(MeCustomIds.view.expand(persona.id, 'content'))
+          .setLabel('Show Full Content')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('📖');
+
+        components.push(
+          new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(expandButton)
+        );
+      }
     } else {
       embed.addFields({
         name: '📝 Content',
@@ -103,6 +135,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     await interaction.reply({
       embeds: [embed],
+      components,
       flags: MessageFlags.Ephemeral,
     });
 
@@ -113,5 +146,82 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       content: '❌ Failed to retrieve your profile. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
+  }
+}
+
+/**
+ * Handle expand button click to show full content
+ */
+export async function handleExpandContent(
+  interaction: ButtonInteraction,
+  personaId: string,
+  _field: string
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const prisma = getPrismaClient();
+  const discordId = interaction.user.id;
+
+  try {
+    // Verify user owns this persona
+    const persona = await prisma.persona.findFirst({
+      where: {
+        id: personaId,
+        owner: { discordId },
+      },
+      select: {
+        content: true,
+        name: true,
+      },
+    });
+
+    if (persona === null) {
+      await interaction.editReply('❌ Profile not found or access denied.');
+      return;
+    }
+
+    const content = persona.content;
+    if (content === null || content.length === 0) {
+      await interaction.editReply('📝 Content\n\n_Not set_');
+      return;
+    }
+
+    // Discord message limit
+    const MAX_MESSAGE_LENGTH = DISCORD_LIMITS.MESSAGE_LENGTH;
+    const header = '📝 Content\n\n';
+    const continuedHeader = '📝 Content (continued)\n\n';
+    // Use the longer header length to ensure all chunks fit
+    const maxHeaderLength = Math.max(header.length, continuedHeader.length);
+    const maxContentLength = MAX_MESSAGE_LENGTH - maxHeaderLength;
+
+    if (content.length <= maxContentLength) {
+      // Content fits in one message
+      await interaction.editReply(`${header}${content}`);
+    } else {
+      // Use smart chunking that preserves paragraphs, sentences, and code blocks
+      const contentChunks = splitMessage(content, maxContentLength);
+
+      // Add headers to each chunk
+      const messages = contentChunks.map((chunk, index) => {
+        const chunkHeader = index === 0 ? header : continuedHeader;
+        return chunkHeader + chunk;
+      });
+
+      // Send first chunk as reply
+      await interaction.editReply(messages[0]);
+
+      // Send remaining chunks as follow-ups
+      for (let i = 1; i < messages.length; i++) {
+        await interaction.followUp({
+          content: messages[i],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
+
+    logger.info({ userId: discordId, personaId }, '[Me] User expanded profile content');
+  } catch (error) {
+    logger.error({ err: error, personaId }, '[Me] Failed to expand profile content');
+    await interaction.editReply('❌ Failed to load content. Please try again.');
   }
 }

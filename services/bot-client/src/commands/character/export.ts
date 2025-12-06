@@ -6,17 +6,24 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, AttachmentBuilder } from 'discord.js';
-import { createLogger, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, type EnvConfig, getConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
 
 const logger = createLogger('character-export');
 
 /**
+ * Extended character data that includes hasAvatar flag from API
+ */
+interface ExportCharacterData extends Omit<CharacterData, 'avatarData'> {
+  hasAvatar: boolean;
+}
+
+/**
  * API response type for personality endpoint
  */
 interface PersonalityResponse {
-  personality: CharacterData;
+  personality: ExportCharacterData;
   canEdit: boolean;
 }
 
@@ -44,7 +51,7 @@ const EXPORT_FIELDS = [
  * Build exportable character data (matching import format)
  * Avatar is excluded - it's sent as a separate image file
  */
-function buildExportData(character: CharacterData): Record<string, unknown> {
+function buildExportData(character: ExportCharacterData): Record<string, unknown> {
   const exportData: Record<string, unknown> = {};
 
   for (const field of EXPORT_FIELDS) {
@@ -59,25 +66,27 @@ function buildExportData(character: CharacterData): Record<string, unknown> {
 }
 
 /**
- * Detect image format from base64 data
- * Returns file extension and MIME type
+ * Fetch avatar image from public endpoint
+ * Returns image buffer or null if not found
  */
-function detectImageFormat(base64Data: string): { extension: string; mimeType: string } {
-  // Check for common image format magic bytes in base64
-  if (base64Data.startsWith('/9j/')) {
-    return { extension: 'jpg', mimeType: 'image/jpeg' };
+async function fetchAvatarData(slug: string): Promise<Buffer | null> {
+  const config = getConfig();
+  const avatarUrl = `${config.GATEWAY_URL}/public/avatars/${slug}.png`;
+
+  try {
+    const response = await fetch(avatarUrl);
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Avatar fetch failed: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    logger.warn({ err: error, slug }, '[Character/Export] Failed to fetch avatar');
+    return null;
   }
-  if (base64Data.startsWith('iVBORw0KGgo')) {
-    return { extension: 'png', mimeType: 'image/png' };
-  }
-  if (base64Data.startsWith('R0lGOD')) {
-    return { extension: 'gif', mimeType: 'image/gif' };
-  }
-  if (base64Data.startsWith('UklGR')) {
-    return { extension: 'webp', mimeType: 'image/webp' };
-  }
-  // Default to PNG if unknown
-  return { extension: 'png', mimeType: 'image/png' };
 }
 
 /**
@@ -130,18 +139,16 @@ export async function handleExport(
     const contentParts: string[] = [`✅ Exported **${displayName}** (\`${slug}\`)`];
 
     // Add avatar as separate image file if it exists
-    if (character.avatarData !== null && character.avatarData.length > 0) {
-      try {
-        const { extension } = detectImageFormat(character.avatarData);
-        const avatarBuffer = Buffer.from(character.avatarData, 'base64');
+    if (character.hasAvatar) {
+      const avatarBuffer = await fetchAvatarData(slug);
+      if (avatarBuffer !== null) {
         const avatarAttachment = new AttachmentBuilder(avatarBuffer, {
-          name: `${slug}-avatar.${extension}`,
+          name: `${slug}-avatar.png`,
           description: `Avatar for ${displayName}`,
         });
         files.push(avatarAttachment);
         contentParts.push('🖼️ Avatar image included');
-      } catch (avatarError) {
-        logger.warn({ err: avatarError, slug }, '[Character/Export] Failed to export avatar');
+      } else {
         contentParts.push('⚠️ Avatar could not be exported');
       }
     }
@@ -158,7 +165,7 @@ export async function handleExport(
     });
 
     logger.info(
-      { slug, userId: interaction.user.id, hasAvatar: character.avatarData !== null },
+      { slug, userId: interaction.user.id, hasAvatar: character.hasAvatar },
       '[Character/Export] Character exported successfully'
     );
   } catch (error) {
