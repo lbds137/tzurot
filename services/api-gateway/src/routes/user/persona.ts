@@ -49,6 +49,53 @@ interface PersonaDetails extends PersonaSummary {
 }
 
 /**
+ * Request body for creating a persona
+ */
+interface CreatePersonaBody {
+  name: string;
+  preferredName?: string;
+  description?: string;
+  content: string;
+  pronouns?: string;
+}
+
+/**
+ * Request body for updating a persona
+ */
+interface UpdatePersonaBody {
+  name?: string;
+  preferredName?: string;
+  description?: string;
+  content?: string;
+  pronouns?: string;
+}
+
+/**
+ * Request body for settings update
+ */
+interface SettingsBody {
+  shareLtmAcrossPersonalities: boolean;
+}
+
+/**
+ * Request body for persona override
+ */
+interface OverrideBody {
+  personaId: string;
+}
+
+/**
+ * Helper to safely extract string from body with trim
+ */
+function extractString(value: unknown, allowEmpty = false): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return allowEmpty || trimmed.length > 0 ? trimmed : null;
+  }
+  return null;
+}
+
+/**
  * Persona override summary
  */
 interface PersonaOverrideSummary {
@@ -157,15 +204,21 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         },
       });
 
-      const response: PersonaOverrideSummary[] = overrides
-        .filter(o => o.persona !== null)
-        .map(o => ({
-          personalityId: o.personalityId,
-          personalitySlug: o.personality.slug,
-          personalityName: o.personality.displayName ?? o.personality.name,
-          personaId: o.personaId!,
-          personaName: o.persona!.name,
-        }));
+      const response: PersonaOverrideSummary[] = overrides.flatMap(o => {
+        // Skip entries without persona (type narrowing)
+        if (o.persona === null || o.personaId === null) {
+          return [];
+        }
+        return [
+          {
+            personalityId: o.personalityId,
+            personalitySlug: o.personality.slug,
+            personalityName: o.personality.displayName ?? o.personality.name,
+            personaId: o.personaId,
+            personaName: o.persona.name,
+          },
+        ];
+      });
 
       sendCustomSuccess(res, { overrides: response });
     })
@@ -230,20 +283,22 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const { name, preferredName, description, content, pronouns } = req.body;
+      const body = req.body as Partial<CreatePersonaBody>;
 
-      // Validation
-      if (typeof name !== 'string' || name.trim().length === 0) {
+      // Extract and validate required fields
+      const nameValue = extractString(body.name);
+      if (nameValue === null) {
         sendError(res, ErrorResponses.validationError('Name is required'));
         return;
       }
 
-      if (typeof content !== 'string' || content.trim().length === 0) {
+      const contentValue = extractString(body.content);
+      if (contentValue === null) {
         sendError(res, ErrorResponses.validationError('Content is required'));
         return;
       }
 
-      if (content.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
+      if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
         sendError(
           res,
           ErrorResponses.validationError(
@@ -253,15 +308,20 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
+      // Extract optional fields
+      const preferredNameValue = extractString(body.preferredName);
+      const descriptionValue = extractString(body.description);
+      const pronounsValue = extractString(body.pronouns);
+
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
       const persona = await prisma.persona.create({
         data: {
-          name: name.trim(),
-          preferredName: preferredName?.trim() || null,
-          description: description?.trim() || null,
-          content: content.trim(),
-          pronouns: pronouns?.trim() || null,
+          name: nameValue,
+          preferredName: preferredNameValue,
+          description: descriptionValue,
+          content: contentValue,
+          pronouns: pronounsValue,
           ownerId: user.id,
         },
         select: {
@@ -306,7 +366,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
       const { id } = req.params;
-      const { name, preferredName, description, content, pronouns } = req.body;
+      const body = req.body as Partial<UpdatePersonaBody>;
 
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
@@ -321,18 +381,33 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      // Validation
-      if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
-        sendError(res, ErrorResponses.validationError('Name cannot be empty'));
-        return;
+      // Validate and extract fields
+      const updateData: {
+        name?: string;
+        preferredName?: string | null;
+        description?: string | null;
+        content?: string;
+        pronouns?: string | null;
+      } = {};
+
+      // Name: required to be non-empty if provided
+      if (body.name !== undefined) {
+        const nameValue = extractString(body.name);
+        if (nameValue === null) {
+          sendError(res, ErrorResponses.validationError('Name cannot be empty'));
+          return;
+        }
+        updateData.name = nameValue;
       }
 
-      if (content !== undefined) {
-        if (typeof content !== 'string' || content.trim().length === 0) {
+      // Content: required to be non-empty if provided
+      if (body.content !== undefined) {
+        const contentValue = extractString(body.content);
+        if (contentValue === null) {
           sendError(res, ErrorResponses.validationError('Content cannot be empty'));
           return;
         }
-        if (content.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
+        if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
           sendError(
             res,
             ErrorResponses.validationError(
@@ -341,17 +416,23 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
           );
           return;
         }
+        updateData.content = contentValue;
+      }
+
+      // Optional fields (can be set to null)
+      if (body.preferredName !== undefined) {
+        updateData.preferredName = extractString(body.preferredName);
+      }
+      if (body.description !== undefined) {
+        updateData.description = extractString(body.description);
+      }
+      if (body.pronouns !== undefined) {
+        updateData.pronouns = extractString(body.pronouns);
       }
 
       const persona = await prisma.persona.update({
         where: { id },
-        data: {
-          ...(name !== undefined && { name: name.trim() }),
-          ...(preferredName !== undefined && { preferredName: preferredName?.trim() || null }),
-          ...(description !== undefined && { description: description?.trim() || null }),
-          ...(content !== undefined && { content: content.trim() }),
-          ...(pronouns !== undefined && { pronouns: pronouns?.trim() || null }),
-        },
+        data: updateData,
         select: {
           id: true,
           name: true,
@@ -412,7 +493,9 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       if (user.defaultPersonaId === id) {
         sendError(
           res,
-          ErrorResponses.validationError('Cannot delete your default persona. Set a different default first.')
+          ErrorResponses.validationError(
+            'Cannot delete your default persona. Set a different default first.'
+          )
         );
         return;
       }
@@ -473,17 +556,24 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const { shareLtmAcrossPersonalities } = req.body;
+      const body = req.body as Partial<SettingsBody>;
+      const { shareLtmAcrossPersonalities } = body;
 
       if (typeof shareLtmAcrossPersonalities !== 'boolean') {
-        sendError(res, ErrorResponses.validationError('shareLtmAcrossPersonalities must be a boolean'));
+        sendError(
+          res,
+          ErrorResponses.validationError('shareLtmAcrossPersonalities must be a boolean')
+        );
         return;
       }
 
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
       if (user.defaultPersonaId === null) {
-        sendError(res, ErrorResponses.validationError('No default persona set. Create a profile first.'));
+        sendError(
+          res,
+          ErrorResponses.validationError('No default persona set. Create a profile first.')
+        );
         return;
       }
 
@@ -516,9 +606,10 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
       const { personalitySlug } = req.params;
-      const { personaId } = req.body;
+      const body = req.body as Partial<OverrideBody>;
 
-      if (typeof personaId !== 'string' || personaId.trim().length === 0) {
+      const personaIdValue = extractString(body.personaId);
+      if (personaIdValue === null) {
         sendError(res, ErrorResponses.validationError('personaId is required'));
         return;
       }
@@ -527,7 +618,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
 
       // Verify persona ownership
       const persona = await prisma.persona.findFirst({
-        where: { id: personaId, ownerId: user.id },
+        where: { id: personaIdValue, ownerId: user.id },
         select: { id: true, name: true },
       });
 
@@ -558,22 +649,22 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         create: {
           userId: user.id,
           personalityId: personality.id,
-          personaId: personaId,
+          personaId: personaIdValue,
         },
         update: {
-          personaId: personaId,
+          personaId: personaIdValue,
         },
       });
 
       logger.info(
-        { userId: user.id, personalitySlug, personaId },
+        { userId: user.id, personalitySlug, personaId: personaIdValue },
         '[Persona] Set persona override'
       );
 
       sendCustomSuccess(res, {
         message: `Profile "${persona.name}" will be used when talking to ${personality.displayName ?? personality.name}`,
         personalitySlug,
-        personaId,
+        personaId: personaIdValue,
       });
     })
   );
@@ -613,7 +704,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         select: { id: true, llmConfigId: true },
       });
 
-      if (existing === null || existing.llmConfigId !== null) {
+      if (existing?.llmConfigId !== null) {
         // Either no config exists, or it has an LLM override - just clear the persona part
         if (existing !== null) {
           await prisma.userPersonalityConfig.update({
@@ -628,10 +719,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         });
       }
 
-      logger.info(
-        { userId: user.id, personalitySlug },
-        '[Persona] Cleared persona override'
-      );
+      logger.info({ userId: user.id, personalitySlug }, '[Persona] Cleared persona override');
 
       sendCustomSuccess(res, {
         message: `Profile override cleared for ${personality.displayName ?? personality.name}. Your default profile will be used.`,
