@@ -6,6 +6,8 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
+import { escapeXmlContent } from '@tzurot/common-types';
+
 /**
  * Format conversation participants with their personas
  *
@@ -25,7 +27,8 @@ export function formatParticipantsContext(
 
   for (const [personaName, { content }] of participantPersonas.entries()) {
     // No "current speaker" marker here - we'll clarify that right before the current message
-    participantsList.push(`### ${personaName}\n${content}`);
+    // Escape user-generated content to prevent prompt injection via XML tag breaking
+    participantsList.push(`### ${personaName}\n${escapeXmlContent(content)}`);
   }
 
   const pluralNote =

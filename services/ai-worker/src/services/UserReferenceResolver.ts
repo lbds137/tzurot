@@ -68,9 +68,20 @@ export class UserReferenceResolver {
    * looks up the user's default persona, and replaces references with persona names.
    *
    * @param text - Text containing user references
+   * @param activePersonaId - Optional ID of the currently active persona (for self-reference detection)
+   *                          If a reference resolves to this persona, the reference is replaced with the name
+   *                          but the persona is NOT added to resolvedPersonas (to avoid adding yourself to participants)
    * @returns Processed text and list of resolved personas
    */
-  async resolveUserReferences(text: string): Promise<UserReferenceResolutionResult> {
+  async resolveUserReferences(
+    text: string,
+    activePersonaId?: string
+  ): Promise<UserReferenceResolutionResult> {
+    // Early return for empty or undefined text
+    if (!text || text.length === 0) {
+      return { processedText: text ?? '', resolvedPersonas: [] };
+    }
+
     const resolvedPersonas: ResolvedPersona[] = [];
     const seenPersonaIds = new Set<string>();
     let processedText = text;
@@ -78,16 +89,33 @@ export class UserReferenceResolver {
     // 1. Resolve shapes.inc markdown format: @[username](user:uuid)
     const shapesMatches = [...text.matchAll(USER_REFERENCE_PATTERNS.SHAPES_MARKDOWN)];
     for (const match of shapesMatches) {
-      const [fullMatch, _username, shapesUserId] = match;
+      const [fullMatch, username, shapesUserId] = match;
       const persona = await this.resolveByShapesUserId(shapesUserId);
       if (persona !== null && !seenPersonaIds.has(persona.personaId)) {
         // Use replaceAll to handle duplicate references to the same user
         processedText = processedText.replaceAll(fullMatch, persona.personaName);
-        resolvedPersonas.push(persona);
         seenPersonaIds.add(persona.personaId);
+
+        // Skip adding self-references to participants list
+        if (persona.personaId === activePersonaId) {
+          logger.debug(
+            { shapesUserId, personaName: persona.personaName },
+            '[UserReferenceResolver] Resolved shapes.inc self-reference (not adding to participants)'
+          );
+        } else {
+          resolvedPersonas.push(persona);
+          logger.debug(
+            { shapesUserId, personaName: persona.personaName },
+            '[UserReferenceResolver] Resolved shapes.inc reference'
+          );
+        }
+      } else if (persona === null) {
+        // Fallback: if no mapping found, use the username from the reference
+        // This is better than leaving ugly @[username](user:uuid) in the prompt
+        processedText = processedText.replaceAll(fullMatch, username);
         logger.debug(
-          { shapesUserId, personaName: persona.personaName },
-          '[UserReferenceResolver] Resolved shapes.inc reference'
+          { shapesUserId, fallbackName: username },
+          '[UserReferenceResolver] No mapping found, falling back to username'
         );
       }
     }
@@ -100,12 +128,21 @@ export class UserReferenceResolver {
       if (persona !== null && !seenPersonaIds.has(persona.personaId)) {
         // Use replaceAll to handle duplicate references to the same user
         processedText = processedText.replaceAll(fullMatch, persona.personaName);
-        resolvedPersonas.push(persona);
         seenPersonaIds.add(persona.personaId);
-        logger.debug(
-          { discordId, personaName: persona.personaName },
-          '[UserReferenceResolver] Resolved Discord mention'
-        );
+
+        // Skip adding self-references to participants list
+        if (persona.personaId === activePersonaId) {
+          logger.debug(
+            { discordId, personaName: persona.personaName },
+            '[UserReferenceResolver] Resolved Discord self-reference (not adding to participants)'
+          );
+        } else {
+          resolvedPersonas.push(persona);
+          logger.debug(
+            { discordId, personaName: persona.personaName },
+            '[UserReferenceResolver] Resolved Discord mention'
+          );
+        }
       } else if (persona !== null) {
         // Already seen, just replace without adding to list
         processedText = processedText.replaceAll(fullMatch, persona.personaName);
@@ -120,12 +157,21 @@ export class UserReferenceResolver {
       if (persona !== null && !seenPersonaIds.has(persona.personaId)) {
         // Use replaceAll to handle duplicate references to the same user
         processedText = processedText.replaceAll(fullMatch, persona.personaName);
-        resolvedPersonas.push(persona);
         seenPersonaIds.add(persona.personaId);
-        logger.debug(
-          { username, personaName: persona.personaName },
-          '[UserReferenceResolver] Resolved username mention'
-        );
+
+        // Skip adding self-references to participants list
+        if (persona.personaId === activePersonaId) {
+          logger.debug(
+            { username, personaName: persona.personaName },
+            '[UserReferenceResolver] Resolved username self-reference (not adding to participants)'
+          );
+        } else {
+          resolvedPersonas.push(persona);
+          logger.debug(
+            { username, personaName: persona.personaName },
+            '[UserReferenceResolver] Resolved username mention'
+          );
+        }
       } else if (persona !== null) {
         // Already seen, just replace without adding to list
         processedText = processedText.replaceAll(fullMatch, persona.personaName);
