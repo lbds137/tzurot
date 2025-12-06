@@ -262,12 +262,12 @@ After deployment to development:
 
 ### High-Impact Risks
 
-| Risk                           | Likelihood | Impact | Mitigation                                                    |
-| ------------------------------ | ---------- | ------ | ------------------------------------------------------------- |
-| XML confuses certain models    | Low        | High   | Test with all supported models before rollout                 |
-| Response quality degrades      | Medium     | High   | Extensive manual testing, rollback plan ready                 |
-| Prompt becomes too long        | Low        | Medium | XML tags add ~200 chars; monitor token counts                 |
-| Cache hit rate lower than expected | Medium | Low    | Caching is Phase 4, optional; core feature works without it   |
+| Risk                               | Likelihood | Impact | Mitigation                                                  |
+| ---------------------------------- | ---------- | ------ | ----------------------------------------------------------- |
+| XML confuses certain models        | Low        | High   | Test with all supported models before rollout               |
+| Response quality degrades          | Medium     | High   | Extensive manual testing, rollback plan ready               |
+| Prompt becomes too long            | Low        | Medium | XML tags add ~200 chars; monitor token counts               |
+| Cache hit rate lower than expected | Medium     | Low    | Caching is Phase 4, optional; core feature works without it |
 
 ### Rollback Plan
 
