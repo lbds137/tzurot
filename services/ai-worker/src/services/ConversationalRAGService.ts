@@ -21,6 +21,7 @@ import {
   AI_DEFAULTS,
   TEXT_LIMITS,
   AttachmentType,
+  getPrismaClient,
   type LoadedPersonality,
   type AttachmentMetadata,
   type ReferencedMessage,
@@ -37,6 +38,7 @@ import { PromptBuilder } from './PromptBuilder.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { PersonaResolver } from './resolvers/index.js';
+import { UserReferenceResolver } from './UserReferenceResolver.js';
 
 const logger = createLogger('ConversationalRAGService');
 
@@ -142,6 +144,7 @@ export class ConversationalRAGService {
   private longTermMemory: LongTermMemoryService;
   private referencedMessageFormatter: ReferencedMessageFormatter;
   private contextWindowManager: ContextWindowManager;
+  private userReferenceResolver: UserReferenceResolver;
 
   constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
     this.llmInvoker = new LLMInvoker();
@@ -150,6 +153,7 @@ export class ConversationalRAGService {
     this.longTermMemory = new LongTermMemoryService(memoryManager);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
     this.contextWindowManager = new ContextWindowManager();
+    this.userReferenceResolver = new UserReferenceResolver(getPrismaClient());
   }
 
   /**
@@ -248,6 +252,40 @@ export class ConversationalRAGService {
         logger.debug(`[RAG] No participant personas found in conversation history`);
       }
 
+      // Resolve user references in system prompt (shapes.inc format, @username, <@discord_id>)
+      // This replaces references with persona names AND adds those personas to participants
+      let processedPersonality = personality;
+      if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
+        const { processedText, resolvedPersonas } =
+          await this.userReferenceResolver.resolveUserReferences(personality.systemPrompt);
+
+        if (resolvedPersonas.length > 0) {
+          // Create a modified personality with the processed systemPrompt
+          processedPersonality = {
+            ...personality,
+            systemPrompt: processedText,
+          };
+
+          // Add resolved personas to participants (so AI knows who they are)
+          for (const persona of resolvedPersonas) {
+            if (!participantPersonas.has(persona.personaName)) {
+              participantPersonas.set(persona.personaName, {
+                content: persona.content,
+                isActive: false, // These are referenced users, not the active speaker
+              });
+              logger.debug(
+                { personaName: persona.personaName },
+                '[RAG] Added referenced user to participants'
+              );
+            }
+          }
+
+          logger.info(
+            `[RAG] Resolved ${resolvedPersonas.length} user reference(s) in system prompt`
+          );
+        }
+      }
+
       // Query vector store for relevant memories using actual content
       logger.info(
         `[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
@@ -260,8 +298,9 @@ export class ConversationalRAGService {
 
       // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
       // Build system prompt and current message first
+      // Use processedPersonality which has user references resolved in systemPrompt
       const systemPrompt = this.promptBuilder.buildFullSystemPrompt(
-        personality,
+        processedPersonality,
         participantPersonas,
         relevantMemories,
         context,
