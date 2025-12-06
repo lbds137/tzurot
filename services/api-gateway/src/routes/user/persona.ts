@@ -226,6 +226,45 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
   );
 
   /**
+   * GET /user/persona/override/:personalitySlug
+   * Get personality info for override modal (when creating new persona for override)
+   * NOTE: Must be defined BEFORE /:id route to avoid being caught by parameter
+   */
+  router.get(
+    '/override/:personalitySlug',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const { personalitySlug } = req.params;
+
+      // Validate slug format
+      const slugValidation = validateSlug(personalitySlug);
+      if (!slugValidation.valid) {
+        sendError(res, slugValidation.error);
+        return;
+      }
+
+      // Find the personality
+      const personality = await prisma.personality.findUnique({
+        where: { slug: personalitySlug },
+        select: { id: true, name: true, displayName: true },
+      });
+
+      if (personality === null) {
+        sendError(res, ErrorResponses.notFound('Personality'));
+        return;
+      }
+
+      sendCustomSuccess(res, {
+        personality: {
+          id: personality.id,
+          name: personality.name,
+          displayName: personality.displayName,
+        },
+      });
+    })
+  );
+
+  /**
    * GET /user/persona/:id
    * Get a specific persona by ID
    */
@@ -669,7 +708,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       // Verify persona ownership
       const persona = await prisma.persona.findFirst({
         where: { id: personaIdValue, ownerId: user.id },
-        select: { id: true, name: true },
+        select: { id: true, name: true, preferredName: true },
       });
 
       if (persona === null) {
@@ -712,9 +751,17 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       );
 
       sendCustomSuccess(res, {
-        message: `Profile "${persona.name}" will be used when talking to ${personality.displayName ?? personality.name}`,
-        personalitySlug,
-        personaId: personaIdValue,
+        success: true,
+        personality: {
+          id: personality.id,
+          name: personality.name,
+          displayName: personality.displayName,
+        },
+        persona: {
+          id: persona.id,
+          name: persona.name,
+          preferredName: persona.preferredName,
+        },
       });
     })
   );

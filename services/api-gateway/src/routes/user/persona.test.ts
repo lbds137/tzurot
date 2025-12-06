@@ -548,11 +548,48 @@ describe('/user/persona routes', () => {
     });
   });
 
+  describe('GET /user/persona/override/:personalitySlug', () => {
+    it('should return personality info for override modal', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: MOCK_PERSONALITY_ID,
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+      });
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/override/:personalitySlug');
+
+      const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        personality: {
+          id: MOCK_PERSONALITY_ID,
+          name: 'Lilith',
+          displayName: 'Lilith the Succubus',
+        },
+      });
+    });
+
+    it('should return 404 for non-existent personality', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/override/:personalitySlug');
+
+      const { req, res } = createMockReqRes({}, { personalitySlug: 'nonexistent' });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+  });
+
   describe('PUT /user/persona/override/:personalitySlug', () => {
     it('should set persona override for personality', async () => {
       mockPrisma.persona.findFirst.mockResolvedValue({
         id: MOCK_PERSONA_ID_2,
         name: 'Work Persona',
+        preferredName: 'Worker',
       });
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: MOCK_PERSONALITY_ID,
@@ -571,13 +608,19 @@ describe('/user/persona routes', () => {
       await handler(req, res);
 
       expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalled();
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('Work Persona'),
-          personalitySlug: 'lilith',
-          personaId: MOCK_PERSONA_ID_2,
-        })
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        personality: {
+          id: MOCK_PERSONALITY_ID,
+          name: 'Lilith',
+          displayName: 'Lilith the Succubus',
+        },
+        persona: {
+          id: MOCK_PERSONA_ID_2,
+          name: 'Work Persona',
+          preferredName: 'Worker',
+        },
+      });
     });
 
     it('should return 404 for non-existent persona', async () => {
