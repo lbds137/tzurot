@@ -12,6 +12,18 @@ vi.mock('./MultimodalProcessor.js', () => ({
   transcribeAudio: vi.fn(),
 }));
 
+// Mock formatTimestampWithDelta for consistent test output
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    formatTimestampWithDelta: vi.fn(() => ({
+      absolute: 'Fri, Dec 6, 2025',
+      relative: 'just now',
+    })),
+  };
+});
+
 describe('ReferencedMessageFormatter', () => {
   let formatter: ReferencedMessageFormatter;
   let mockPersonality: LoadedPersonality;
@@ -124,6 +136,30 @@ describe('ReferencedMessageFormatter', () => {
       expect(contentIndex).toBeGreaterThan(openTagIndex);
       expect(contentIndex).toBeLessThan(closeTagIndex);
     });
+
+    it('should include relative time delta in timestamp', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Test content',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Should contain both absolute date and relative time with em dash separator
+      expect(result).toContain('Time:');
+      expect(result).toContain('—'); // Em dash separator
+      expect(result).toContain('Fri, Dec 6, 2025'); // Mocked absolute
+      expect(result).toContain('just now'); // Mocked relative
+    });
   });
 
   describe('formatReferencedMessages', () => {
@@ -148,7 +184,8 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('[Reference 1]');
       expect(result).toContain('From: Test User (@testuser)');
       expect(result).toContain('Location:\nTest Guild > #general');
-      expect(result).toContain('Time: 2025-11-04T00:00:00Z');
+      // Time now includes both absolute date and relative time (mocked)
+      expect(result).toContain('Time: Fri, Dec 6, 2025 — just now');
       expect(result).toContain('Message Text:\nHello world!');
     });
 

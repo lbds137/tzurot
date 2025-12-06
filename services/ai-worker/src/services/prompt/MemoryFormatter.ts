@@ -9,7 +9,7 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { formatMemoryTimestamp } from '@tzurot/common-types';
+import { formatTimestampWithDelta } from '@tzurot/common-types';
 import type { MemoryDocument } from '../ConversationalRAGService.js';
 
 /**
@@ -28,18 +28,29 @@ const MEMORY_ARCHIVE_INSTRUCTION =
  * Used by both MemoryFormatter (for prompt generation) and
  * ContextWindowManager (for token counting).
  *
- * Format: `- [timestamp] content` or `- content` (if no timestamp)
+ * Format: `- [absolute date — relative time] content` or `- content` (if no timestamp)
+ * Example: `- [Mon, Jan 15, 2025 — 2 weeks ago] content`
+ *
+ * The relative time helps LLMs understand temporal distance viscerally,
+ * reducing temporal confusion where old memories are treated as recent events.
  *
  * @param doc - Memory document to format
  * @param timezone - Optional IANA timezone for timestamp formatting. Defaults to server timezone.
  * @returns Formatted memory string
  */
 export function formatSingleMemory(doc: MemoryDocument, timezone?: string): string {
-  const timestamp =
-    doc.metadata?.createdAt !== undefined && doc.metadata.createdAt !== null
-      ? formatMemoryTimestamp(doc.metadata.createdAt, timezone)
-      : null;
-  return `- ${timestamp !== null && timestamp.length > 0 ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+  if (doc.metadata?.createdAt === undefined || doc.metadata.createdAt === null) {
+    return `- ${doc.pageContent}`;
+  }
+
+  const { absolute, relative } = formatTimestampWithDelta(doc.metadata.createdAt, timezone);
+
+  // If either is empty (invalid date), just return content
+  if (absolute.length === 0 || relative.length === 0) {
+    return `- ${doc.pageContent}`;
+  }
+
+  return `- [${absolute} — ${relative}] ${doc.pageContent}`;
 }
 
 /**

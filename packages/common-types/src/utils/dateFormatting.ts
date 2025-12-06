@@ -156,3 +156,132 @@ export function formatMemoryTimestamp(
     timeZone: tz,
   });
 }
+
+/**
+ * Format a human-readable relative time delta for LTM memories
+ *
+ * Unlike formatRelativeTime which is optimized for STM (short-term memory)
+ * and falls back to absolute dates after 7 days, this function always returns
+ * a relative description suitable for making temporal distance visceral to LLMs.
+ *
+ * Examples:
+ * - "just now"
+ * - "5 minutes ago"
+ * - "2 hours ago"
+ * - "yesterday"
+ * - "3 days ago"
+ * - "1 week ago"
+ * - "2 weeks ago"
+ * - "1 month ago"
+ * - "3 months ago"
+ * - "1 year ago"
+ * - "2 years ago"
+ *
+ * Used for:
+ * - LTM memory entries (helps LLM understand temporal distance)
+ * - Referenced message timestamps
+ *
+ * @param timestamp - Timestamp to calculate delta from
+ * @returns Human-readable relative time string
+ */
+export function formatRelativeTimeDelta(timestamp: Date | string | number): string {
+  const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
+
+  if (isNaN(date.getTime())) {
+    return '';
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+
+  // Handle future dates
+  if (diffMs < 0) {
+    return 'in the future';
+  }
+
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+  const diffYears = Math.floor(diffDays / 365);
+
+  // Within a minute
+  if (diffMinutes < 1) {
+    return 'just now';
+  }
+
+  // Within an hour
+  if (diffMinutes < 60) {
+    return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+  }
+
+  // Within a day
+  if (diffHours < 24) {
+    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+  }
+
+  // Yesterday
+  if (diffDays === 1) {
+    return 'yesterday';
+  }
+
+  // Within a week
+  if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  }
+
+  // Within a month (use weeks)
+  if (diffWeeks < 4) {
+    return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+  }
+
+  // Within a year (use months)
+  if (diffMonths < 12) {
+    return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
+  }
+
+  // Years
+  return diffYears === 1 ? '1 year ago' : `${diffYears} years ago`;
+}
+
+/**
+ * Result type for memory timestamp with delta
+ */
+export interface TimestampWithDelta {
+  /** Absolute date (e.g., "Mon, Jan 15, 2025") */
+  absolute: string;
+  /** Relative time delta (e.g., "2 weeks ago") */
+  relative: string;
+}
+
+/**
+ * Format a timestamp with both absolute date and relative time delta
+ *
+ * This is the recommended function for LTM memory formatting as it provides
+ * both the precise date and a human-readable temporal distance.
+ *
+ * Example:
+ * {
+ *   absolute: "Mon, Jan 15, 2025",
+ *   relative: "2 weeks ago"
+ * }
+ *
+ * Used for:
+ * - LTM memory entries in prompts
+ * - Referenced message formatting
+ *
+ * @param timestamp - Timestamp to format
+ * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE
+ * @returns Object with both absolute and relative formats
+ */
+export function formatTimestampWithDelta(
+  timestamp: Date | string | number,
+  timezone?: string
+): TimestampWithDelta {
+  return {
+    absolute: formatMemoryTimestamp(timestamp, timezone),
+    relative: formatRelativeTimeDelta(timestamp),
+  };
+}

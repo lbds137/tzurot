@@ -13,6 +13,7 @@ import {
   CONTENT_TYPES,
   TEXT_LIMITS,
   RETRY_CONFIG,
+  formatTimestampWithDelta,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
@@ -109,7 +110,15 @@ export class ReferencedMessageFormatter {
       }
 
       lines.push(`Location:\n${ref.locationContext}`);
-      lines.push(`Time: ${ref.timestamp}`);
+
+      // Format timestamp with both absolute date and relative time for better LLM understanding
+      const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
+      if (absolute.length > 0 && relative.length > 0) {
+        lines.push(`Time: ${absolute} — ${relative}`);
+      } else {
+        // Fallback to raw timestamp if formatting fails
+        lines.push(`Time: ${ref.timestamp}`);
+      }
 
       if (ref.content) {
         lines.push(`\nMessage Text:\n${ref.content}`);
