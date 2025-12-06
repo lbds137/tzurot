@@ -2,6 +2,7 @@
  * Referenced Message Formatter
  *
  * Formats referenced messages (from replies or message links) for inclusion in AI prompts.
+ * Wraps output in <contextual_references> XML tags for better LLM context separation.
  * Processes attachments (images, voice messages) in parallel for better performance.
  */
 
@@ -49,8 +50,10 @@ export class ReferencedMessageFormatter {
 
     for (const line of lines) {
       const trimmed = line.trim();
-      // Skip markdown headers, reference labels, metadata, and introductory text
+      // Skip XML tags, markdown headers, reference labels, metadata, and introductory text
       if (
+        trimmed.startsWith('<contextual_references') ||
+        trimmed.startsWith('</contextual_references') ||
         trimmed.startsWith('##') ||
         trimmed.startsWith('[Reference') ||
         trimmed.startsWith('From:') ||
@@ -156,7 +159,8 @@ export class ReferencedMessageFormatter {
       );
     }
 
-    return formattedText;
+    // Wrap in XML tags for clear LLM context separation
+    return `<contextual_references>\n${formattedText}\n</contextual_references>`;
   }
 
   /**

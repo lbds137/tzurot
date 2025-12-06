@@ -35,6 +35,97 @@ describe('ReferencedMessageFormatter', () => {
     vi.clearAllMocks();
   });
 
+  describe('XML wrapper', () => {
+    it('should wrap output in <contextual_references> tags', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Test content',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain('<contextual_references>');
+      expect(result).toContain('</contextual_references>');
+    });
+
+    it('should still wrap empty references in XML tags', async () => {
+      const result = await formatter.formatReferencedMessages([], mockPersonality);
+
+      expect(result).toContain('<contextual_references>');
+      expect(result).toContain('</contextual_references>');
+    });
+
+    it('should have properly closed XML tags', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'First message',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+        },
+        {
+          referenceNumber: 2,
+          discordMessageId: 'msg-456',
+          discordUserId: 'user-456',
+          authorUsername: 'user2',
+          authorDisplayName: 'User Two',
+          content: 'Second message',
+          embeds: '',
+          timestamp: '2025-12-06T00:01:00Z',
+          locationContext: 'Test Guild > #random',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Count opening and closing tags
+      const openTags = (result.match(/<contextual_references>/g) || []).length;
+      const closeTags = (result.match(/<\/contextual_references>/g) || []).length;
+      expect(openTags).toBe(1);
+      expect(closeTags).toBe(1);
+    });
+
+    it('should place content inside XML tags', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Unique test content XYZ123',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: 'Test Guild > #general',
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Content should be between the XML tags
+      const openTagIndex = result.indexOf('<contextual_references>');
+      const closeTagIndex = result.indexOf('</contextual_references>');
+      const contentIndex = result.indexOf('Unique test content XYZ123');
+
+      expect(contentIndex).toBeGreaterThan(openTagIndex);
+      expect(contentIndex).toBeLessThan(closeTagIndex);
+    });
+  });
+
   describe('formatReferencedMessages', () => {
     it('should format a simple text message', async () => {
       const references: ReferencedMessage[] = [
@@ -1005,6 +1096,32 @@ Some embed content here.`;
       expect(result).not.toContain('Location:');
       expect(result).not.toContain('Time:');
       expect(result).not.toContain('Message Text:');
+    });
+
+    it('should strip XML wrapper tags from formatted references', () => {
+      const formatted = `<contextual_references>
+## Referenced Messages
+
+The user is referencing the following messages:
+
+[Reference 1]
+From: Test User (@testuser)
+Location: Test Guild > #general
+Time: 2025-11-04 00:00:00 UTC
+
+Message Text:
+This is the actual content to search.
+
+</contextual_references>`;
+
+      const result = formatter.extractTextForSearch(formatted);
+
+      // Should include actual content
+      expect(result).toContain('This is the actual content to search.');
+
+      // Should NOT include XML tags
+      expect(result).not.toContain('<contextual_references>');
+      expect(result).not.toContain('</contextual_references>');
     });
 
     it('should extract image descriptions', () => {

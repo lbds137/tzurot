@@ -2,6 +2,7 @@
  * Participant Formatter
  *
  * Formats conversation participant personas for inclusion in system prompts.
+ * Wraps output in <participants> XML tags for better LLM context separation.
  * Extracted from PromptBuilder for better modularity.
  */
 
@@ -10,7 +11,7 @@
  *
  * @param participantPersonas - Map of participant names to their persona content
  * @param activePersonaName - Name of the currently active speaker (for group conversation note)
- * @returns Formatted participants context string, or empty string if no participants
+ * @returns Formatted participants context string wrapped in XML tags, or empty string if no participants
  */
 export function formatParticipantsContext(
   participantPersonas: Map<string, { content: string; isActive: boolean }>,
@@ -32,5 +33,8 @@ export function formatParticipantsContext(
       ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice'}: message") to show who said what.`
       : '';
 
-  return `\n\n## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
+  const content = `## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
+
+  // Wrap in XML tags for clear LLM context separation
+  return `\n\n<participants>\n${content}\n</participants>`;
 }
