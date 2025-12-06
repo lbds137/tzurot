@@ -387,9 +387,7 @@ describe('handlePersonalityAutocomplete', () => {
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction);
 
-      expect(mockRespond).toHaveBeenCalledWith([
-        { name: '🔒 Fallback Name', value: 'fallback' },
-      ]);
+      expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 Fallback Name', value: 'fallback' }]);
     });
 
     it('should omit visibility indicators when showVisibility is false', async () => {
