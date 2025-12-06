@@ -603,6 +603,14 @@
   - `/character allowlist add @user` / `/character allowlist remove @user`
   - Requires new database table: `PersonalityAccessGrant(personalityId, userId, grantedBy, grantedAt)`
 
+**From PR #318 Code Review (2025-12-06)**:
+
+- Investigate XML/sanitization libraries instead of rolling our own
+  - Current `escapeXmlContent()` is hand-rolled regex-based sanitization
+  - Consider established libraries: `he` (HTML entities), `xss`, `DOMPurify`, `sanitize-html`
+  - General principle: prefer battle-tested libraries over custom implementations for security-critical utilities
+  - Also applies to other utilities we write - check npm first before reinventing
+
 **Original Ideas**:
 
 - Streaming responses (real-time message updates)

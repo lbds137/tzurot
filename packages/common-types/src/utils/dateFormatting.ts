@@ -204,6 +204,9 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
   const diffWeeks = Math.floor(diffDays / 7);
+  // Note: Using fixed 30/365 day approximations is intentional for LLM context.
+  // Exact month/year calculations aren't needed - "about 2 months ago" is sufficient
+  // for making temporal distance visceral to the LLM. ±3-4 day variance is acceptable.
   const diffMonths = Math.floor(diffDays / 30);
   const diffYears = Math.floor(diffDays / 365);
 
