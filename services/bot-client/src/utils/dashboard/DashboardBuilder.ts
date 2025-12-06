@@ -58,6 +58,23 @@ export function buildDashboardEmbed<T>(config: DashboardConfig<T>, data: T): Emb
 }
 
 /**
+ * Extract emoji from the beginning of a label string
+ * Returns the emoji and the label without the emoji
+ */
+function extractLabelEmoji(label: string): { emoji: string | null; cleanLabel: string } {
+  // Match emoji at start of string (Unicode emoji or Discord custom emoji format)
+  const emojiRegex = /^([^\w\s]+)\s*/;
+  const emojiMatch = emojiRegex.exec(label);
+  if (emojiMatch !== null) {
+    return {
+      emoji: emojiMatch[1],
+      cleanLabel: label.replace(emojiRegex, ''),
+    };
+  }
+  return { emoji: null, cleanLabel: label };
+}
+
+/**
  * Build the edit selection menu for a dashboard
  */
 export function buildEditMenu<T>(
@@ -71,16 +88,23 @@ export function buildEditMenu<T>(
 
   // Add section options
   for (const section of config.sections) {
-    const status = section.getStatus(data);
-    const statusEmoji = STATUS_EMOJI[status];
+    // Extract the section's own emoji from its label (e.g., "🏷️ Identity & Basics" -> "🏷️")
+    const { emoji: sectionEmoji, cleanLabel } = extractLabelEmoji(section.label);
 
-    menu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(section.label.replace(/^[^\w\s]+\s*/, '')) // Remove leading emoji
-        .setValue(`edit-${section.id}`)
-        .setDescription(section.description ?? `Edit ${section.label.toLowerCase()}`)
-        .setEmoji(statusEmoji)
-    );
+    const option = new StringSelectMenuOptionBuilder()
+      .setLabel(cleanLabel)
+      .setValue(`edit-${section.id}`)
+      .setDescription(section.description ?? `Edit ${section.label.toLowerCase()}`);
+
+    // Use section emoji if available, otherwise fall back to status emoji
+    if (sectionEmoji !== null) {
+      option.setEmoji(sectionEmoji);
+    } else {
+      const status = section.getStatus(data);
+      option.setEmoji(STATUS_EMOJI[status]);
+    }
+
+    menu.addOptions(option);
   }
 
   // Add action options if defined
