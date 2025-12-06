@@ -595,6 +595,7 @@ const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
 **bot-client MUST NEVER use Prisma directly.** All database access goes through the api-gateway.
 
 **Why this matters**: The api-gateway is the single source of truth for data access. Direct Prisma calls from bot-client:
+
 - Bypass authorization checks implemented in gateway routes
 - Create duplicate code paths for the same operations
 - Make it harder to audit and secure data access
@@ -609,6 +610,7 @@ const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
 | `ai-worker`   | ✅ Yes        | Needs direct access for memory/conversation ops |
 
 **Current violations being fixed** (tracked in `docs/improvements/me-command-refactor.md`):
+
 - `/me` commands (autocomplete, create, edit, view, list, default, override, settings)
 - Root cause: No `/user/persona` gateway endpoints existed
 

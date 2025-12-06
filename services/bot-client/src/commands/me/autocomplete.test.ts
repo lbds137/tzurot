@@ -170,9 +170,7 @@ describe('handlePersonaAutocomplete', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        personas: [
-          { id: 'persona-1', name: 'WorkProfile', preferredName: null, isDefault: false },
-        ],
+        personas: [{ id: 'persona-1', name: 'WorkProfile', preferredName: null, isDefault: false }],
       },
     });
 
@@ -185,9 +183,7 @@ describe('handlePersonaAutocomplete', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        personas: [
-          { id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false },
-        ],
+        personas: [{ id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false }],
       },
     });
 
@@ -203,9 +199,7 @@ describe('handlePersonaAutocomplete', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        personas: [
-          { id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false },
-        ],
+        personas: [{ id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false }],
       },
     });
 
