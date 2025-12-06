@@ -1,0 +1,460 @@
+/**
+ * Tests for Shared Personality Autocomplete Utility
+ * Tests gateway API calls, filtering, visibility indicators, and error handling.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { handlePersonalityAutocomplete, getVisibilityIcon } from './personalityAutocomplete.js';
+import type { PersonalitySummary } from '@tzurot/common-types';
+
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
+
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+describe('handlePersonalityAutocomplete', () => {
+  const mockRespond = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRespond.mockResolvedValue(undefined);
+  });
+
+  function createMockInteraction(focusedName: string, focusedValue: string) {
+    return {
+      user: { id: '123456789' },
+      guildId: 'guild-123',
+      options: {
+        getFocused: vi.fn().mockReturnValue({
+          name: focusedName,
+          value: focusedValue,
+        }),
+      },
+      respond: mockRespond,
+    } as any;
+  }
+
+  function createMockPersonality(overrides: Partial<PersonalitySummary> = {}): PersonalitySummary {
+    return {
+      id: 'personality-1',
+      name: 'Test Personality',
+      slug: 'test-personality',
+      displayName: null,
+      isPublic: false,
+      isOwned: true,
+      ...overrides,
+    };
+  }
+
+  describe('option name matching', () => {
+    it('should return false for non-matching option names', async () => {
+      const interaction = createMockInteraction('other-option', 'test');
+
+      const handled = await handlePersonalityAutocomplete(interaction);
+
+      expect(handled).toBe(false);
+      expect(mockRespond).not.toHaveBeenCalled();
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    });
+
+    it('should return true for "personality" option name by default', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: [] },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      const handled = await handlePersonalityAutocomplete(interaction);
+
+      expect(handled).toBe(true);
+      expect(mockCallGatewayApi).toHaveBeenCalled();
+    });
+
+    it('should return true for "character" option name by default', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: [] },
+      });
+
+      const interaction = createMockInteraction('character', '');
+      const handled = await handlePersonalityAutocomplete(interaction);
+
+      expect(handled).toBe(true);
+      expect(mockCallGatewayApi).toHaveBeenCalled();
+    });
+
+    it('should match custom single option name', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: [] },
+      });
+
+      const interaction = createMockInteraction('ai-persona', '');
+      const handled = await handlePersonalityAutocomplete(interaction, {
+        optionName: 'ai-persona',
+      });
+
+      expect(handled).toBe(true);
+    });
+
+    it('should match custom array of option names', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: [] },
+      });
+
+      const interaction = createMockInteraction('bot', '');
+      const handled = await handlePersonalityAutocomplete(interaction, {
+        optionName: ['bot', 'ai', 'assistant'],
+      });
+
+      expect(handled).toBe(true);
+    });
+
+    it('should not match non-matching custom option name', async () => {
+      const interaction = createMockInteraction('personality', '');
+      const handled = await handlePersonalityAutocomplete(interaction, {
+        optionName: 'different-option',
+      });
+
+      expect(handled).toBe(false);
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('gateway API calls', () => {
+    it('should call gateway API with correct user ID', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: [] },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality', {
+        userId: '123456789',
+      });
+    });
+
+    it('should return empty array when gateway API fails', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        error: 'Gateway error',
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      const handled = await handlePersonalityAutocomplete(interaction);
+
+      expect(handled).toBe(true);
+      expect(mockRespond).toHaveBeenCalledWith([]);
+    });
+
+    it('should handle thrown errors gracefully', async () => {
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+      const interaction = createMockInteraction('personality', '');
+      const handled = await handlePersonalityAutocomplete(interaction);
+
+      expect(handled).toBe(true);
+      expect(mockRespond).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe('filtering by ownership', () => {
+    it('should return all personalities when ownedOnly is false', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            createMockPersonality({ id: '1', name: 'Owned', slug: 'owned', isOwned: true }),
+            createMockPersonality({
+              id: '2',
+              name: 'Not Owned',
+              slug: 'not-owned',
+              isOwned: false,
+              isPublic: true,
+            }),
+          ],
+        },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction, { ownedOnly: false });
+
+      expect(mockRespond).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ value: 'owned' }),
+          expect.objectContaining({ value: 'not-owned' }),
+        ])
+      );
+    });
+
+    it('should filter to only owned when ownedOnly is true', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            createMockPersonality({ id: '1', name: 'Owned', slug: 'owned', isOwned: true }),
+            createMockPersonality({
+              id: '2',
+              name: 'Not Owned',
+              slug: 'not-owned',
+              isOwned: false,
+              isPublic: true,
+            }),
+          ],
+        },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction, { ownedOnly: true });
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls).toHaveLength(1);
+      expect(calls[0].value).toBe('owned');
+    });
+  });
+
+  describe('filtering by query', () => {
+    const testPersonalities: PersonalitySummary[] = [
+      createMockPersonality({
+        id: '1',
+        name: 'Lilith',
+        slug: 'lilith',
+        displayName: 'Lilith the Dark',
+      }),
+      createMockPersonality({
+        id: '2',
+        name: 'Aria',
+        slug: 'aria-helper',
+        displayName: 'Aria Assistant',
+      }),
+      createMockPersonality({ id: '3', name: 'Zephyr', slug: 'zephyr', displayName: null }),
+    ];
+
+    beforeEach(() => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: testPersonalities },
+      });
+    });
+
+    it('should return all personalities when query is empty', async () => {
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction);
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls).toHaveLength(3);
+    });
+
+    it('should filter by name match', async () => {
+      const interaction = createMockInteraction('personality', 'lil');
+      await handlePersonalityAutocomplete(interaction);
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls).toHaveLength(1);
+      expect(calls[0].value).toBe('lilith');
+    });
+
+    it('should filter by slug match', async () => {
+      const interaction = createMockInteraction('personality', 'helper');
+      await handlePersonalityAutocomplete(interaction);
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls).toHaveLength(1);
+      expect(calls[0].value).toBe('aria-helper');
+    });
+
+    it('should filter by displayName match', async () => {
+      const interaction = createMockInteraction('personality', 'assistant');
+      await handlePersonalityAutocomplete(interaction);
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls).toHaveLength(1);
+      expect(calls[0].value).toBe('aria-helper');
+    });
+
+    it('should be case-insensitive', async () => {
+      const interaction = createMockInteraction('personality', 'ZEPHYR');
+      await handlePersonalityAutocomplete(interaction);
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls).toHaveLength(1);
+      expect(calls[0].value).toBe('zephyr');
+    });
+
+    it('should return empty when no matches', async () => {
+      const interaction = createMockInteraction('personality', 'nonexistent');
+      await handlePersonalityAutocomplete(interaction);
+
+      expect(mockRespond).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe('visibility indicators', () => {
+    it('should add visibility indicators by default', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            createMockPersonality({
+              name: 'Public Owned',
+              slug: 'public-owned',
+              isPublic: true,
+              isOwned: true,
+            }),
+            createMockPersonality({
+              name: 'Private Owned',
+              slug: 'private-owned',
+              isPublic: false,
+              isOwned: true,
+            }),
+            createMockPersonality({
+              name: 'Public Not Owned',
+              slug: 'public-not-owned',
+              isPublic: true,
+              isOwned: false,
+            }),
+          ],
+        },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction);
+
+      expect(mockRespond).toHaveBeenCalledWith([
+        { name: '🌐 Public Owned', value: 'public-owned' },
+        { name: '🔒 Private Owned', value: 'private-owned' },
+        { name: '📖 Public Not Owned', value: 'public-not-owned' },
+      ]);
+    });
+
+    it('should use displayName when available', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            createMockPersonality({
+              name: 'Internal Name',
+              slug: 'test',
+              displayName: 'Beautiful Display Name',
+              isPublic: true,
+              isOwned: true,
+            }),
+          ],
+        },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction);
+
+      expect(mockRespond).toHaveBeenCalledWith([
+        { name: '🌐 Beautiful Display Name', value: 'test' },
+      ]);
+    });
+
+    it('should fall back to name when displayName is null', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            createMockPersonality({
+              name: 'Fallback Name',
+              slug: 'fallback',
+              displayName: null,
+              isPublic: false,
+              isOwned: true,
+            }),
+          ],
+        },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction);
+
+      expect(mockRespond).toHaveBeenCalledWith([
+        { name: '🔒 Fallback Name', value: 'fallback' },
+      ]);
+    });
+
+    it('should omit visibility indicators when showVisibility is false', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            createMockPersonality({
+              name: 'Test',
+              slug: 'test',
+              isPublic: true,
+              isOwned: true,
+            }),
+          ],
+        },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction, { showVisibility: false });
+
+      expect(mockRespond).toHaveBeenCalledWith([{ name: 'Test', value: 'test' }]);
+    });
+  });
+
+  describe('Discord limits', () => {
+    it('should respect AUTOCOMPLETE_MAX_CHOICES limit', async () => {
+      // Create 30 personalities (more than the 25 limit)
+      const manyPersonalities = Array.from({ length: 30 }, (_, i) =>
+        createMockPersonality({
+          id: `p-${i}`,
+          name: `Personality ${i}`,
+          slug: `personality-${i}`,
+        })
+      );
+
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: manyPersonalities },
+      });
+
+      const interaction = createMockInteraction('personality', '');
+      await handlePersonalityAutocomplete(interaction, { showVisibility: false });
+
+      const calls = mockRespond.mock.calls[0][0];
+      expect(calls.length).toBeLessThanOrEqual(25);
+    });
+  });
+});
+
+describe('getVisibilityIcon', () => {
+  it('should return 🌐 for public and owned', () => {
+    expect(getVisibilityIcon(true, true)).toBe('🌐');
+  });
+
+  it('should return 🔒 for private and owned', () => {
+    expect(getVisibilityIcon(true, false)).toBe('🔒');
+  });
+
+  it('should return 📖 for not owned (public read-only)', () => {
+    expect(getVisibilityIcon(false, true)).toBe('📖');
+  });
+
+  it('should return 📖 for not owned even if private', () => {
+    // This case shouldn't happen in practice (private + not owned)
+    // but the function should still handle it
+    expect(getVisibilityIcon(false, false)).toBe('📖');
+  });
+});
