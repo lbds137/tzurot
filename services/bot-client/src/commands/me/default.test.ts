@@ -1,27 +1,22 @@
 /**
  * Tests for Profile Default Handler
+ * Tests gateway API calls for setting default profile.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleSetDefaultPersona } from './default.js';
 import { MessageFlags } from 'discord.js';
 
-// Mock Prisma
-const mockPrismaClient = {
-  user: {
-    findUnique: vi.fn(),
-    update: vi.fn(),
-  },
-  persona: {
-    findFirst: vi.fn(),
-  },
-};
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -30,14 +25,6 @@ vi.mock('@tzurot/common-types', async () => {
     }),
   };
 });
-
-// Mock redis
-vi.mock('../../redis.js', () => ({
-  personaCacheInvalidationService: {
-    invalidateUserPersona: vi.fn().mockResolvedValue(undefined),
-    invalidateAll: vi.fn().mockResolvedValue(undefined),
-  },
-}));
 
 describe('handleSetDefaultPersona', () => {
   const mockReply = vi.fn();
@@ -50,7 +37,7 @@ describe('handleSetDefaultPersona', () => {
     return {
       user: { id: '123456789', username: 'testuser' },
       options: {
-        getString: (name: string, required: boolean) => {
+        getString: (name: string) => {
           if (name === 'profile') return personaId;
           return null;
         },
@@ -60,22 +47,24 @@ describe('handleSetDefaultPersona', () => {
   }
 
   it('should set persona as default', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'old-persona',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'persona-123',
+          name: 'Work Persona',
+          preferredName: 'Alice',
+        },
+        alreadyDefault: false,
+      },
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'Work Persona',
-      preferredName: 'Alice',
-    });
-    mockPrismaClient.user.update.mockResolvedValue({});
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
-    expect(mockPrismaClient.user.update).toHaveBeenCalledWith({
-      where: { id: 'user-uuid' },
-      data: { defaultPersonaId: 'persona-123' },
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123/default', {
+      userId: '123456789',
+      method: 'PATCH',
     });
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Alice'),
@@ -88,16 +77,18 @@ describe('handleSetDefaultPersona', () => {
   });
 
   it('should use persona name if no preferredName', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'old-persona',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'persona-123',
+          name: 'Work Persona',
+          preferredName: null,
+        },
+        alreadyDefault: false,
+      },
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'Work Persona',
-      preferredName: null,
-    });
-    mockPrismaClient.user.update.mockResolvedValue({});
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
@@ -107,24 +98,11 @@ describe('handleSetDefaultPersona', () => {
     });
   });
 
-  it('should error if user not found', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
-
-    await handleSetDefaultPersona(createMockInteraction('persona-123'));
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have an account yet"),
-      flags: MessageFlags.Ephemeral,
+  it('should error if profile not found', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Persona not found',
     });
-    expect(mockPrismaClient.user.update).not.toHaveBeenCalled();
-  });
-
-  it('should error if profile not found or not owned', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'old-persona',
-    });
-    mockPrismaClient.persona.findFirst.mockResolvedValue(null);
 
     await handleSetDefaultPersona(createMockInteraction('nonexistent-persona'));
 
@@ -132,18 +110,20 @@ describe('handleSetDefaultPersona', () => {
       content: expect.stringContaining('Profile not found'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.user.update).not.toHaveBeenCalled();
   });
 
   it('should inform user if persona is already default', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
-    });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'My Persona',
-      preferredName: 'Alice',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'persona-123',
+          name: 'My Persona',
+          preferredName: 'Alice',
+        },
+        alreadyDefault: true,
+      },
     });
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
@@ -152,29 +132,24 @@ describe('handleSetDefaultPersona', () => {
       content: expect.stringContaining('already your default'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.user.update).not.toHaveBeenCalled();
   });
 
-  it('should verify persona ownership', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: null,
+  it('should handle gateway API errors gracefully', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Gateway error',
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue(null); // Not found = not owned
 
-    await handleSetDefaultPersona(createMockInteraction('other-users-persona'));
+    await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
-    expect(mockPrismaClient.persona.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: 'other-users-persona',
-        ownerId: 'user-uuid',
-      },
-      select: expect.any(Object),
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to set default'),
+      flags: MessageFlags.Ephemeral,
     });
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle network errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 

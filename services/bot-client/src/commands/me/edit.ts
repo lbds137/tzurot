@@ -9,16 +9,43 @@
  *
  * If no profile is specified, edits the user's default profile.
  * If user has no default profile, creates one.
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
-import { personaCacheInvalidationService } from '../../redis.js';
 import { MeCustomIds } from '../../utils/customIds.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-profile-edit');
+
+/** Response type for persona list */
+interface PersonaSummary {
+  id: string;
+  name: string;
+  preferredName: string | null;
+  isDefault: boolean;
+}
+
+/** Response type for persona details */
+interface PersonaDetails {
+  id: string;
+  name: string;
+  description: string | null;
+  preferredName: string | null;
+  pronouns: string | null;
+  content: string | null;
+}
+
+/** Response type for creating/updating a persona */
+interface SavePersonaResponse {
+  success: boolean;
+  persona: PersonaDetails;
+  setAsDefault?: boolean;
+}
 
 /**
  * Handle /me profile edit [profile] command - shows modal
@@ -30,55 +57,44 @@ export async function handleEditPersona(
   interaction: ChatInputCommandInteraction,
   personaId?: string | null
 ): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
-    // Get user with their default persona or the specified persona
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
-    });
+    let persona: PersonaDetails | null = null;
 
-    let persona: {
-      id: string;
-      name: string;
-      description: string | null;
-      preferredName: string | null;
-      pronouns: string | null;
-      content: string | null;
-    } | null = null;
-
-    // Determine which persona to edit
-    const targetPersonaId = personaId ?? user?.defaultPersonaId;
-
-    if (targetPersonaId !== null && targetPersonaId !== undefined) {
-      // Fetch the specific persona (verify ownership)
-      persona = await prisma.persona.findFirst({
-        where: {
-          id: targetPersonaId,
-          ownerId: user?.id,
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          preferredName: true,
-          pronouns: true,
-          content: true,
-        },
+    if (personaId !== null && personaId !== undefined) {
+      // Fetch specific persona via gateway
+      const result = await callGatewayApi<PersonaDetails>(`/user/persona/${personaId}`, {
+        userId: discordId,
       });
 
-      // If profile ID was specified but not found, error out
-      if (persona === null && personaId !== null && personaId !== undefined) {
+      if (!result.ok) {
         await interaction.reply({
           content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
           flags: MessageFlags.Ephemeral,
         });
         return;
+      }
+
+      persona = result.data;
+    } else {
+      // Find default persona from list
+      const listResult = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
+        userId: discordId,
+      });
+
+      if (listResult.ok) {
+        const defaultPersona = listResult.data.personas.find(p => p.isDefault);
+        if (defaultPersona !== undefined) {
+          // Fetch full details of default persona
+          const detailsResult = await callGatewayApi<PersonaDetails>(
+            `/user/persona/${defaultPersona.id}`,
+            { userId: discordId }
+          );
+          if (detailsResult.ok) {
+            persona = detailsResult.data;
+          }
+        }
       }
     }
 
@@ -121,7 +137,6 @@ export async function handleEditModalSubmit(
   interaction: ModalSubmitInteraction,
   personaId: string
 ): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
@@ -141,57 +156,42 @@ export async function handleEditModalSubmit(
       return;
     }
 
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
-    });
-
-    user ??= await prisma.user.create({
-      data: {
-        discordId,
-        username: interaction.user.username,
-      },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
-    });
-
     if (personaId === 'new') {
-      // Create new profile
-      const newPersona = await prisma.persona.create({
-        data: {
+      // Create new profile via gateway
+      const result = await callGatewayApi<SavePersonaResponse>('/user/persona', {
+        userId: discordId,
+        method: 'POST',
+        body: {
           name: personaName,
           description,
           preferredName,
           pronouns,
           content: content ?? '',
-          ownerId: user.id,
+          username: interaction.user.username,
         },
       });
 
-      // Set as default if user has no default
-      const setAsDefault = user.defaultPersonaId === null;
-      if (setAsDefault) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { defaultPersonaId: newPersona.id },
+      if (!result.ok) {
+        logger.warn(
+          { userId: discordId, error: result.error },
+          '[Me/Profile] Failed to create profile via gateway'
+        );
+        await interaction.reply({
+          content: '❌ Failed to create your profile. Please try again later.',
+          flags: MessageFlags.Ephemeral,
         });
+        return;
       }
 
+      const { persona, setAsDefault } = result.data;
+
       logger.info(
-        { userId: discordId, personaId: newPersona.id, personaName },
+        { userId: discordId, personaId: persona.id, personaName },
         '[Me/Profile] Created new profile from edit'
       );
 
-      await personaCacheInvalidationService.invalidateUserPersona(discordId);
-
       let response = `✅ **Profile "${personaName}" created!**`;
-      if (setAsDefault) {
+      if (setAsDefault === true) {
         response += '\n\n⭐ This profile has been set as your default.';
       }
       await interaction.reply({
@@ -199,41 +199,45 @@ export async function handleEditModalSubmit(
         flags: MessageFlags.Ephemeral,
       });
     } else {
-      // Update existing profile (verify ownership)
-      const existingPersona = await prisma.persona.findFirst({
-        where: {
-          id: personaId,
-          ownerId: user.id,
-        },
-      });
-
-      if (existingPersona === null) {
-        await interaction.reply({
-          content:
-            '❌ Profile not found or you do not own it. Use `/me profile list` to see your profiles.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      await prisma.persona.update({
-        where: { id: personaId },
-        data: {
+      // Update existing profile via gateway
+      const result = await callGatewayApi<SavePersonaResponse>(`/user/persona/${personaId}`, {
+        userId: discordId,
+        method: 'PUT',
+        body: {
           name: personaName,
           description,
           preferredName,
           pronouns,
           content: content ?? '',
-          updatedAt: new Date(),
         },
       });
+
+      if (!result.ok) {
+        // Handle specific error cases
+        if (result.error?.includes('not found') || result.error?.includes('Not found')) {
+          await interaction.reply({
+            content:
+              '❌ Profile not found or you do not own it. Use `/me profile list` to see your profiles.',
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        logger.warn(
+          { userId: discordId, personaId, error: result.error },
+          '[Me/Profile] Failed to update profile via gateway'
+        );
+        await interaction.reply({
+          content: '❌ Failed to save your profile. Please try again later.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
 
       logger.info(
         { userId: discordId, personaId, personaName },
         '[Me/Profile] Updated existing profile'
       );
-
-      await personaCacheInvalidationService.invalidateUserPersona(discordId);
 
       // Build response message
       const changes: string[] = [];
