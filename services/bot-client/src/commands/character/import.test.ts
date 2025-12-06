@@ -35,9 +35,14 @@ global.fetch = mockFetch;
 
 /**
  * Create a mock interaction for testing
+ * @param fileAttachment - Override for the required JSON file attachment
+ * @param avatarAttachment - Override for the optional avatar attachment (defaults to null)
  */
-function createMockInteraction(attachment?: Partial<Attachment>): ChatInputCommandInteraction {
-  const defaultAttachment: Attachment = {
+function createMockInteraction(
+  fileAttachment?: Partial<Attachment>,
+  avatarAttachment: Partial<Attachment> | null = null
+): ChatInputCommandInteraction {
+  const defaultFileAttachment: Attachment = {
     id: 'attachment-123',
     name: 'character.json',
     url: 'https://cdn.discordapp.com/attachments/123/456/character.json',
@@ -54,15 +59,41 @@ function createMockInteraction(attachment?: Partial<Attachment>): ChatInputComma
     title: null,
     spoiler: false,
     toJSON: () => ({}),
-    ...attachment,
+    ...fileAttachment,
   } as Attachment;
+
+  const avatarAttachmentData = avatarAttachment
+    ? ({
+        id: 'avatar-attachment-123',
+        name: 'avatar.png',
+        url: 'https://cdn.discordapp.com/attachments/123/456/avatar.png',
+        contentType: 'image/png',
+        size: 1024,
+        proxyURL: 'https://media.discordapp.net/attachments/123/456/avatar.png',
+        height: 256,
+        width: 256,
+        ephemeral: false,
+        description: null,
+        duration: null,
+        waveform: null,
+        flags: { bitfield: 0 } as any,
+        title: null,
+        spoiler: false,
+        toJSON: () => ({}),
+        ...avatarAttachment,
+      } as Attachment)
+    : null;
 
   return {
     user: { id: 'owner-123' },
     deferReply: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue(undefined),
     options: {
-      getAttachment: vi.fn().mockReturnValue(defaultAttachment),
+      getAttachment: vi.fn().mockImplementation((name: string, _required?: boolean) => {
+        if (name === 'file') return defaultFileAttachment;
+        if (name === 'avatar') return avatarAttachmentData;
+        return null;
+      }),
     },
   } as unknown as ChatInputCommandInteraction;
 }
@@ -143,7 +174,7 @@ describe('Character Import Constants', () => {
       expect(template).toHaveProperty('conversationalGoals');
       expect(template).toHaveProperty('conversationalExamples');
       expect(template).toHaveProperty('errorMessage');
-      expect(template).toHaveProperty('avatarData');
+      // avatarData is NOT in template - avatars are uploaded as separate image attachments
     });
 
     it('should have isPublic defaulting to false in template', () => {
