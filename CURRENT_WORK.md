@@ -24,6 +24,7 @@ The `/me` command has significant architectural issues discovered during PR #318
 ### Audit Findings
 
 **Files bypassing gateway (using `getPrismaClient`):**
+
 - `me/autocomplete.ts`, `me/create.ts`, `me/default.ts`, `me/edit.ts`
 - `me/list.ts`, `me/override.ts`, `me/settings.ts`, `me/view.ts`
 
