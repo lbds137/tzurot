@@ -152,24 +152,20 @@ OpenRouter can route to different models, so caching implementation needs to be 
 ### Core Prompt Building
 
 1. **`PromptBuilder.ts`** (`services/ai-worker/src/services/`)
-
    - Restructure `buildFullSystemPrompt()` to use XML containers
    - Move response protocol to end of prompt
    - Add cache breakpoint markers for Anthropic models
 
 2. **`MemoryFormatter.ts`** (`services/ai-worker/src/services/prompt/`)
-
    - Wrap in `<memory_archive>` with instruction
    - Add relative time delta to each memory entry
    - Calculate "X days/weeks/months ago"
 
 3. **`EnvironmentFormatter.ts`** (`services/ai-worker/src/services/prompt/`)
-
    - Wrap in `<current_situation>` tags
    - Include datetime with proper emphasis
 
 4. **`ParticipantFormatter.ts`** (`services/ai-worker/src/services/prompt/`)
-
    - Wrap participant info appropriately
    - Add `<active_speaker>` for group conversations
 
@@ -180,7 +176,6 @@ OpenRouter can route to different models, so caching implementation needs to be 
 ### Supporting Changes
 
 6. **`dateFormatting.ts`** (`packages/common-types/src/utils/`)
-
    - Add `formatRelativeTime()` function
    - Return both absolute and relative timestamps
 
@@ -199,31 +194,26 @@ OpenRouter can route to different models, so caching implementation needs to be 
 ### Unit Tests
 
 1. **`MemoryFormatter.test.ts`** - New tests:
-
    - Verify XML wrapper is present
    - Verify instruction text is included
    - Verify relative time delta is calculated correctly
    - Test edge cases: "just now", "1 hour ago", "yesterday", "2 weeks ago", "3 months ago"
 
 2. **`PromptBuilder.test.ts`** - New tests:
-
    - Verify XML structure in output
    - Verify section ordering (identity first, protocol last)
    - Verify response protocol contains output formatting rules
    - Test cache breakpoint markers (when targeting Anthropic)
 
 3. **`EnvironmentFormatter.test.ts`** - New tests:
-
    - Verify `<current_situation>` wrapper
    - Verify datetime emphasis
 
 4. **`ParticipantFormatter.test.ts`** - New tests:
-
    - Verify `<active_speaker>` for group conversations
    - Verify participant XML structure
 
 5. **`ReferencedMessageFormatter.test.ts`** - New tests:
-
    - Verify `<contextual_references>` wrapper
    - Verify relative time in references
 
