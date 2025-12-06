@@ -235,10 +235,13 @@ async function handleEdit(
 const CHARACTERS_PER_PAGE = 15;
 
 /**
- * Escape markdown special characters in a string
+ * Escape markdown special characters in a string.
+ * Escapes backslashes first to prevent double-escaping issues.
  */
 function escapeMarkdown(text: string): string {
-  return text.replace(/\*/g, '\\*');
+  return text
+    .replace(/\\/g, '\\\\') // Escape backslashes first
+    .replace(/\*/g, '\\*'); // Then escape asterisks
 }
 
 /**
