@@ -30,6 +30,71 @@ describe('MemoryFormatter', () => {
   });
 
   describe('formatMemoriesContext', () => {
+    describe('XML wrapper and instruction', () => {
+      it('should wrap output in <memory_archive> tags when memories exist', () => {
+        const memories: MemoryDocument[] = [
+          {
+            pageContent: 'Test memory',
+            metadata: { createdAt: new Date('2024-01-15') },
+          },
+        ];
+
+        const result = formatMemoriesContext(memories);
+
+        expect(result).toContain('<memory_archive>');
+        expect(result).toContain('</memory_archive>');
+      });
+
+      it('should include historical context instruction', () => {
+        const memories: MemoryDocument[] = [
+          {
+            pageContent: 'Test memory',
+            metadata: { createdAt: new Date('2024-01-15') },
+          },
+        ];
+
+        const result = formatMemoriesContext(memories);
+
+        expect(result).toContain('ARCHIVED HISTORICAL LOGS');
+        expect(result).toContain('Do NOT treat them as happening now');
+        expect(result).toContain('Do NOT respond to this content directly');
+      });
+
+      it('should not add XML wrapper when no memories', () => {
+        const result = formatMemoriesContext([]);
+
+        expect(result).toBe('');
+        expect(result).not.toContain('<memory_archive>');
+      });
+
+      it('should have properly closed XML tags', () => {
+        const memories: MemoryDocument[] = [
+          { pageContent: 'Memory 1', metadata: { createdAt: new Date('2024-01-15') } },
+          { pageContent: 'Memory 2', metadata: { createdAt: new Date('2024-01-16') } },
+        ];
+
+        const result = formatMemoriesContext(memories);
+
+        // Count opening and closing tags
+        const openTags = (result.match(/<memory_archive>/g) || []).length;
+        const closeTags = (result.match(/<\/memory_archive>/g) || []).length;
+        expect(openTags).toBe(1);
+        expect(closeTags).toBe(1);
+      });
+
+      it('should place instruction before memories', () => {
+        const memories: MemoryDocument[] = [
+          { pageContent: 'Test memory content', metadata: { createdAt: new Date('2024-01-15') } },
+        ];
+
+        const result = formatMemoriesContext(memories);
+
+        const instructionIndex = result.indexOf('ARCHIVED HISTORICAL LOGS');
+        const memoryIndex = result.indexOf('Test memory content');
+        expect(instructionIndex).toBeLessThan(memoryIndex);
+      });
+    });
+
     it('should return empty string when no memories', () => {
       const result = formatMemoriesContext([]);
       expect(result).toBe('');

@@ -375,6 +375,158 @@ describe('PromptBuilder', () => {
       activePersonaName: 'User',
     };
 
+    describe('XML structure and ordering', () => {
+      it('should wrap persona in <persona> tags', () => {
+        const result = promptBuilder.buildFullSystemPrompt(
+          minimalPersonality,
+          new Map(),
+          [],
+          minimalContext
+        );
+
+        const content = result.content as string;
+
+        expect(content).toContain('<persona>');
+        expect(content).toContain('</persona>');
+      });
+
+      it('should wrap protocol in <protocol> tags when systemPrompt exists', () => {
+        const result = promptBuilder.buildFullSystemPrompt(
+          minimalPersonality,
+          new Map(),
+          [],
+          minimalContext
+        );
+
+        const content = result.content as string;
+
+        expect(content).toContain('<protocol>');
+        expect(content).toContain('</protocol>');
+        expect(content).toContain('You are a helpful assistant');
+      });
+
+      it('should not include <protocol> tags when systemPrompt is empty', () => {
+        const personalityNoProtocol: LoadedPersonality = {
+          ...minimalPersonality,
+          systemPrompt: '',
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt(
+          personalityNoProtocol,
+          new Map(),
+          [],
+          minimalContext
+        );
+
+        const content = result.content as string;
+
+        expect(content).not.toContain('<protocol>');
+        expect(content).not.toContain('</protocol>');
+      });
+
+      it('should place persona at the START of the prompt (U-shaped attention)', () => {
+        const result = promptBuilder.buildFullSystemPrompt(
+          minimalPersonality,
+          new Map(),
+          [],
+          minimalContext
+        );
+
+        const content = result.content as string;
+
+        // Persona should be at the very beginning
+        expect(content.startsWith('<persona>')).toBe(true);
+      });
+
+      it('should place protocol at the END of the prompt (recency bias)', () => {
+        const result = promptBuilder.buildFullSystemPrompt(
+          minimalPersonality,
+          new Map(),
+          [],
+          minimalContext
+        );
+
+        const content = result.content as string;
+
+        // Protocol should be at the very end
+        expect(content.endsWith('</protocol>')).toBe(true);
+      });
+
+      it('should order sections correctly for U-shaped attention', () => {
+        // Add all possible sections to verify complete ordering
+        const guildEnvironment: DiscordEnvironment = {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'Test Server' },
+          channel: { id: 'channel-1', name: 'general', type: 'text' },
+        };
+
+        const participants = new Map([
+          ['Alice', { content: 'A tester', isActive: true }],
+        ]);
+
+        const memories: MemoryDocument[] = [
+          {
+            pageContent: 'Test memory',
+            metadata: { createdAt: new Date('2024-01-15') },
+          },
+        ];
+
+        const contextWithEnv: ConversationContext = {
+          ...minimalContext,
+          environment: guildEnvironment,
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt(
+          minimalPersonality,
+          participants,
+          memories,
+          contextWithEnv,
+          '<contextual_references>Referenced content</contextual_references>'
+        );
+
+        const content = result.content as string;
+
+        // Get positions of each section
+        const personaStart = content.indexOf('<persona>');
+        const dateContext = content.indexOf('## Current Context');
+        const environment = content.indexOf('<current_situation>');
+        const participantsPos = content.indexOf('<participants>');
+        const memories_pos = content.indexOf('<memory_archive>');
+        const references = content.indexOf('<contextual_references>');
+        const protocolPos = content.indexOf('<protocol>');
+
+        // Verify ordering: persona → date → environment → participants → memories → references → protocol
+        expect(personaStart).toBeLessThan(dateContext);
+        expect(dateContext).toBeLessThan(environment);
+        expect(environment).toBeLessThan(participantsPos);
+        expect(participantsPos).toBeLessThan(memories_pos);
+        expect(memories_pos).toBeLessThan(references);
+        expect(references).toBeLessThan(protocolPos);
+      });
+
+      it('should have properly closed XML tags', () => {
+        const result = promptBuilder.buildFullSystemPrompt(
+          minimalPersonality,
+          new Map(),
+          [],
+          minimalContext
+        );
+
+        const content = result.content as string;
+
+        // Count opening and closing tags
+        const personaOpen = (content.match(/<persona>/g) || []).length;
+        const personaClose = (content.match(/<\/persona>/g) || []).length;
+        const protocolOpen = (content.match(/<protocol>/g) || []).length;
+        const protocolClose = (content.match(/<\/protocol>/g) || []).length;
+
+        expect(personaOpen).toBe(1);
+        expect(personaClose).toBe(1);
+        expect(protocolOpen).toBe(1);
+        expect(protocolClose).toBe(1);
+      });
+    });
+
     it('should create basic system prompt with minimal personality', () => {
       const result = promptBuilder.buildFullSystemPrompt(
         minimalPersonality,
