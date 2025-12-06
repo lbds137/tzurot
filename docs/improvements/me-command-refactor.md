@@ -1,8 +1,9 @@
 # /me Command Refactor Plan
 
 **Created**: 2025-12-06
+**Completed**: 2025-12-06
 **Branch**: `refactor/me-commands-and-autocomplete`
-**Status**: In Progress
+**Status**: ✅ Complete
 
 ## Problem Statement
 
@@ -201,14 +202,35 @@ services/bot-client/src/commands/character/autocomplete.ts
 
 ## Success Criteria
 
-- [ ] All `/me` commands use gateway API (no direct Prisma)
-- [ ] Single shared personality autocomplete utility
-- [ ] Consistent visibility indicators across all commands
-- [ ] Consistent return value format (slug)
-- [ ] `/me profile` contains all profile-related subcommands
-- [ ] No orphaned single-command groups
-- [ ] All tests pass
-- [ ] No regressions in functionality
+- [x] All `/me` commands use gateway API (no direct Prisma)
+- [x] Single shared personality autocomplete utility
+- [x] Consistent visibility indicators across all commands
+- [x] Consistent return value format (slug)
+- [x] `/me profile` contains all profile-related subcommands
+- [x] No orphaned single-command groups
+- [x] All tests pass (3386 tests across 198 files)
+- [x] No regressions in functionality
+
+## Final File Structure
+
+```
+commands/me/
+├── index.ts, index.test.ts       # Command registration & routing
+├── autocomplete.ts, autocomplete.test.ts
+├── profile/                       # /me profile <subcommand>
+│   ├── view.ts, edit.ts, create.ts, list.ts, default.ts
+│   ├── share-ltm.ts              # Formerly /me settings share-ltm
+│   ├── override-set.ts           # Formerly /me override set
+│   ├── override-clear.ts         # Formerly /me override clear
+│   ├── utils/modalBuilder.ts     # Shared modal building (DRY)
+│   └── *.test.ts
+├── timezone/                      # /me timezone <subcommand>
+│   ├── set.ts, get.ts
+│   ├── utils.ts                  # Shared timezone helper (DRY)
+│   └── *.test.ts
+└── model/                         # /me model <subcommand> (unchanged)
+    └── ...
+```
 
 ## Estimated Effort
 
