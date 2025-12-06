@@ -196,27 +196,33 @@ async function handleEdit(
     }
 
     // Build and send dashboard
+    // Use slug as entityId (not UUID) because fetchCharacter expects slug
     const embed = buildDashboardEmbed(characterDashboardConfig, character);
-    const components = buildDashboardComponents(characterDashboardConfig, character.id, character, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      characterDashboardConfig,
+      character.slug,
+      character,
+      {
+        showClose: true,
+        showRefresh: true,
+      }
+    );
 
     const reply = await interaction.editReply({ embeds: [embed], components });
 
-    // Create session for tracking
+    // Create session for tracking (keyed by slug)
     const sessionManager = getSessionManager();
     sessionManager.set(
       interaction.user.id,
       'character',
-      character.id,
+      character.slug,
       character,
       reply.id,
       interaction.channelId
     );
 
     logger.info(
-      { userId: interaction.user.id, characterId: character.id },
+      { userId: interaction.user.id, slug: character.slug },
       'Character dashboard opened'
     );
   } catch (error) {
@@ -614,27 +620,33 @@ async function handleSeedModalSubmit(
     );
 
     // Build and send dashboard
+    // Use slug as entityId (not UUID) because fetchCharacter expects slug
     const embed = buildDashboardEmbed(characterDashboardConfig, character);
-    const components = buildDashboardComponents(characterDashboardConfig, character.id, character, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      characterDashboardConfig,
+      character.slug,
+      character,
+      {
+        showClose: true,
+        showRefresh: true,
+      }
+    );
 
     const reply = await interaction.editReply({ embeds: [embed], components });
 
-    // Create session
+    // Create session (keyed by slug)
     const sessionManager = getSessionManager();
     sessionManager.set(
       interaction.user.id,
       'character',
-      character.id,
+      character.slug,
       character,
       reply.id,
       interaction.channelId ?? ''
     );
 
     logger.info(
-      { userId: interaction.user.id, characterId: character.id },
+      { userId: interaction.user.id, slug: character.slug },
       'Character created via seed modal'
     );
   } catch (error) {
@@ -694,16 +706,21 @@ async function handleSectionModalSubmit(
       sessionManager.update<CharacterData>(interaction.user.id, 'character', entityId, updated);
     }
 
-    // Refresh dashboard
+    // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(characterDashboardConfig, updated);
-    const components = buildDashboardComponents(characterDashboardConfig, updated.id, updated, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      characterDashboardConfig,
+      updated.slug,
+      updated,
+      {
+        showClose: true,
+        showRefresh: true,
+      }
+    );
 
     await interaction.editReply({ embeds: [embed], components });
 
-    logger.info({ characterId: entityId, sectionId }, 'Character section updated');
+    logger.info({ slug: entityId, sectionId }, 'Character section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update character section');
     // Since we deferred update, we can't send a new error message easily
@@ -876,12 +893,17 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       interaction.channelId
     );
 
-    // Refresh dashboard
+    // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(characterDashboardConfig, character);
-    const components = buildDashboardComponents(characterDashboardConfig, character.id, character, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      characterDashboardConfig,
+      character.slug,
+      character,
+      {
+        showClose: true,
+        showRefresh: true,
+      }
+    );
 
     await interaction.editReply({ embeds: [embed], components });
     return;
@@ -923,20 +945,22 @@ async function handleAction(
       isPublic: result.isPublic,
     });
 
-    // Refresh dashboard
+    // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(characterDashboardConfig, updated);
-    const components = buildDashboardComponents(characterDashboardConfig, updated.id, updated, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      characterDashboardConfig,
+      updated.slug,
+      updated,
+      {
+        showClose: true,
+        showRefresh: true,
+      }
+    );
 
     await interaction.editReply({ embeds: [embed], components });
 
     const status = result.isPublic ? '🌐 Public' : '🔒 Private';
-    logger.info(
-      { characterId: entityId, isPublic: result.isPublic },
-      `Character visibility: ${status}`
-    );
+    logger.info({ slug: entityId, isPublic: result.isPublic }, `Character visibility: ${status}`);
     return;
   }
 
