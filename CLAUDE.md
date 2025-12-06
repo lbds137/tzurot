@@ -691,6 +691,23 @@ const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
 
 **📚 See**: `tzurot-constants` skill for when to create constants, domain organization details, and migration patterns
 
+**Error Message Patterns**:
+
+- **Gateway (api-gateway)**: Return clean error messages WITHOUT emojis
+  - Error responses are machine-readable and may be processed by multiple consumers
+  - Example: `sendError(res, ErrorResponses.notFound('Persona'))`
+  - Result: `{ "error": "NOT_FOUND", "message": "Persona not found" }`
+
+- **Bot client (bot-client)**: ADD emojis to user-facing messages
+  - ❌ for errors: `content: '❌ Profile not found.'`
+  - ✅ for success: `content: '✅ Profile override set successfully!'`
+  - ⚠️ for warnings: `content: '⚠️ This action cannot be undone.'`
+
+- **Why this separation**: Gateway is an API layer used by multiple services. Bot-client is the only service that renders messages to Discord users. Keeping emojis in bot-client allows:
+  - Consistent emoji usage across all user-facing commands
+  - Gateway responses remain clean for programmatic use
+  - Easy to change emoji style without touching API layer
+
 ## Folder Structure Standards
 
 > **📁 ALWAYS FOLLOW**: See [docs/standards/FOLDER_STRUCTURE.md](docs/standards/FOLDER_STRUCTURE.md) for comprehensive folder structure and file naming standards.

@@ -22,6 +22,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { validateUuid, validateSlug } from '../../utils/validators.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-persona');
@@ -235,6 +236,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       const discordUserId = req.userId;
       const { id } = req.params;
 
+      // Validate UUID format
+      const idValidation = validateUuid(id, 'persona ID');
+      if (!idValidation.valid) {
+        sendError(res, idValidation.error);
+        return;
+      }
+
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
       const persona = await prisma.persona.findFirst({
@@ -368,6 +376,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       const { id } = req.params;
       const body = req.body as Partial<UpdatePersonaBody>;
 
+      // Validate UUID format
+      const idValidation = validateUuid(id, 'persona ID');
+      if (!idValidation.valid) {
+        sendError(res, idValidation.error);
+        return;
+      }
+
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
       // Check ownership
@@ -476,6 +491,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       const discordUserId = req.userId;
       const { id } = req.params;
 
+      // Validate UUID format
+      const idValidation = validateUuid(id, 'persona ID');
+      if (!idValidation.valid) {
+        sendError(res, idValidation.error);
+        return;
+      }
+
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
       // Check ownership
@@ -518,6 +540,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
       const { id } = req.params;
+
+      // Validate UUID format
+      const idValidation = validateUuid(id, 'persona ID');
+      if (!idValidation.valid) {
+        sendError(res, idValidation.error);
+        return;
+      }
 
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 
@@ -608,9 +637,23 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       const { personalitySlug } = req.params;
       const body = req.body as Partial<OverrideBody>;
 
+      // Validate slug format
+      const slugValidation = validateSlug(personalitySlug);
+      if (!slugValidation.valid) {
+        sendError(res, slugValidation.error);
+        return;
+      }
+
       const personaIdValue = extractString(body.personaId);
       if (personaIdValue === null) {
         sendError(res, ErrorResponses.validationError('personaId is required'));
+        return;
+      }
+
+      // Validate persona ID format
+      const personaIdValidation = validateUuid(personaIdValue, 'persona ID');
+      if (!personaIdValidation.valid) {
+        sendError(res, personaIdValidation.error);
         return;
       }
 
@@ -679,6 +722,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
       const { personalitySlug } = req.params;
+
+      // Validate slug format
+      const slugValidation = validateSlug(personalitySlug);
+      if (!slugValidation.valid) {
+        sendError(res, slugValidation.error);
+        return;
+      }
 
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 

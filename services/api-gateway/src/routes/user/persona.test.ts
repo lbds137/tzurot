@@ -90,13 +90,20 @@ function getHandler(
 }
 
 describe('/user/persona routes', () => {
+  // Valid UUIDs for testing (required by route validation)
+  const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+  const MOCK_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
+  const MOCK_PERSONA_ID_2 = 'f6a7b8c9-d0e1-2345-f012-456789012345'; // Second persona for testing
+  const MOCK_PERSONALITY_ID = 'c3d4e5f6-a7b8-9012-cdef-123456789012';
+  const NONEXISTENT_UUID = 'd4e5f6a7-b8c9-0123-def0-234567890123'; // Valid format but doesn't exist
+
   const mockUser = {
-    id: 'user-uuid-123',
-    defaultPersonaId: 'persona-1',
+    id: MOCK_USER_ID,
+    defaultPersonaId: MOCK_PERSONA_ID,
   };
 
   const mockPersona = {
-    id: 'persona-1',
+    id: MOCK_PERSONA_ID,
     name: 'Test Persona',
     preferredName: 'Tester',
     description: 'A test persona',
@@ -164,7 +171,7 @@ describe('/user/persona routes', () => {
       expect(res.json).toHaveBeenCalledWith({
         personas: [
           expect.objectContaining({
-            id: 'persona-1',
+            id: MOCK_PERSONA_ID,
             name: 'Test Persona',
             isDefault: true,
           }),
@@ -195,8 +202,8 @@ describe('/user/persona routes', () => {
     it('should return list of persona overrides', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
         {
-          personalityId: 'personality-1',
-          personaId: 'persona-1',
+          personalityId: MOCK_PERSONALITY_ID,
+          personaId: MOCK_PERSONA_ID,
           personality: { slug: 'test-char', name: 'Test', displayName: 'Test Character' },
           persona: { name: 'My Persona' },
         },
@@ -211,10 +218,10 @@ describe('/user/persona routes', () => {
       expect(res.json).toHaveBeenCalledWith({
         overrides: [
           {
-            personalityId: 'personality-1',
+            personalityId: MOCK_PERSONALITY_ID,
             personalitySlug: 'test-char',
             personalityName: 'Test Character',
-            personaId: 'persona-1',
+            personaId: MOCK_PERSONA_ID,
             personaName: 'My Persona',
           },
         ],
@@ -240,12 +247,12 @@ describe('/user/persona routes', () => {
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/:id');
 
-      const { req, res } = createMockReqRes({}, { id: 'persona-1' });
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
       await handler(req, res);
 
       expect(res.json).toHaveBeenCalledWith({
         persona: expect.objectContaining({
-          id: 'persona-1',
+          id: MOCK_PERSONA_ID,
           name: 'Test Persona',
           content: 'I am a test persona for unit tests.',
           isDefault: true,
@@ -258,7 +265,7 @@ describe('/user/persona routes', () => {
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/:id');
 
-      const { req, res } = createMockReqRes({}, { id: 'nonexistent' });
+      const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
@@ -274,7 +281,7 @@ describe('/user/persona routes', () => {
     it('should create a new persona', async () => {
       mockPrisma.persona.create.mockResolvedValue({
         ...mockPersona,
-        id: 'new-persona',
+        id: 'e5f6a7b8-c9d0-1234-ef01-345678901234', // New UUID for created persona
       });
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
@@ -292,7 +299,7 @@ describe('/user/persona routes', () => {
           data: expect.objectContaining({
             name: 'New Persona',
             content: 'New persona content',
-            ownerId: 'user-uuid-123',
+            ownerId: MOCK_USER_ID,
           }),
         })
       );
@@ -345,7 +352,7 @@ describe('/user/persona routes', () => {
 
   describe('PUT /user/persona/:id', () => {
     it('should update persona', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-1' });
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
       mockPrisma.persona.update.mockResolvedValue({
         ...mockPersona,
         name: 'Updated Name',
@@ -354,7 +361,7 @@ describe('/user/persona routes', () => {
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:id');
 
-      const { req, res } = createMockReqRes({ name: 'Updated Name' }, { id: 'persona-1' });
+      const { req, res } = createMockReqRes({ name: 'Updated Name' }, { id: MOCK_PERSONA_ID });
       await handler(req, res);
 
       expect(mockPrisma.persona.update).toHaveBeenCalled();
@@ -369,19 +376,19 @@ describe('/user/persona routes', () => {
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:id');
 
-      const { req, res } = createMockReqRes({ name: 'Updated' }, { id: 'nonexistent' });
+      const { req, res } = createMockReqRes({ name: 'Updated' }, { id: NONEXISTENT_UUID });
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should reject empty name update', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-1' });
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:id');
 
-      const { req, res } = createMockReqRes({ name: '' }, { id: 'persona-1' });
+      const { req, res } = createMockReqRes({ name: '' }, { id: MOCK_PERSONA_ID });
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -391,26 +398,26 @@ describe('/user/persona routes', () => {
   describe('DELETE /user/persona/:id', () => {
     it('should delete persona', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123', defaultPersonaId: null });
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-1' });
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
       mockPrisma.persona.delete.mockResolvedValue({});
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:id');
 
-      const { req, res } = createMockReqRes({}, { id: 'persona-1' });
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
       await handler(req, res);
 
-      expect(mockPrisma.persona.delete).toHaveBeenCalledWith({ where: { id: 'persona-1' } });
+      expect(mockPrisma.persona.delete).toHaveBeenCalledWith({ where: { id: MOCK_PERSONA_ID } });
       expect(res.json).toHaveBeenCalledWith({ message: 'Persona deleted' });
     });
 
     it('should prevent deleting default persona', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-1' });
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:id');
 
-      const { req, res } = createMockReqRes({}, { id: 'persona-1' }); // persona-1 is default
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID }); // persona-1 is default
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
@@ -427,7 +434,7 @@ describe('/user/persona routes', () => {
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:id');
 
-      const { req, res } = createMockReqRes({}, { id: 'nonexistent' });
+      const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
@@ -436,25 +443,25 @@ describe('/user/persona routes', () => {
 
   describe('PATCH /user/persona/:id/default', () => {
     it('should set persona as default', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-2', name: 'Second' });
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID_2, name: 'Second' });
       mockPrisma.user.update.mockResolvedValue({});
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'patch', '/:id/default');
 
-      const { req, res } = createMockReqRes({}, { id: 'persona-2' });
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
       await handler(req, res);
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'user-uuid-123' },
-          data: { defaultPersonaId: 'persona-2' },
+          where: { id: MOCK_USER_ID },
+          data: { defaultPersonaId: MOCK_PERSONA_ID_2 },
         })
       );
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining('Second'),
-          personaId: 'persona-2',
+          personaId: MOCK_PERSONA_ID_2,
         })
       );
     });
@@ -465,7 +472,7 @@ describe('/user/persona routes', () => {
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'patch', '/:id/default');
 
-      const { req, res } = createMockReqRes({}, { id: 'nonexistent' });
+      const { req, res } = createMockReqRes({}, { id: NONEXISTENT_UUID });
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
@@ -484,7 +491,7 @@ describe('/user/persona routes', () => {
 
       expect(mockPrisma.persona.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'persona-1' },
+          where: { id: MOCK_PERSONA_ID },
           data: { shareLtmAcrossPersonalities: true },
         })
       );
@@ -543,9 +550,12 @@ describe('/user/persona routes', () => {
 
   describe('PUT /user/persona/override/:personalitySlug', () => {
     it('should set persona override for personality', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-2', name: 'Work Persona' });
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Work Persona',
+      });
       mockPrisma.personality.findUnique.mockResolvedValue({
-        id: 'personality-1',
+        id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
         displayName: 'Lilith the Succubus',
       });
@@ -555,7 +565,7 @@ describe('/user/persona routes', () => {
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes(
-        { personaId: 'persona-2' },
+        { personaId: MOCK_PERSONA_ID_2 },
         { personalitySlug: 'lilith' }
       );
       await handler(req, res);
@@ -565,7 +575,7 @@ describe('/user/persona routes', () => {
         expect.objectContaining({
           message: expect.stringContaining('Work Persona'),
           personalitySlug: 'lilith',
-          personaId: 'persona-2',
+          personaId: MOCK_PERSONA_ID_2,
         })
       );
     });
@@ -577,7 +587,7 @@ describe('/user/persona routes', () => {
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes(
-        { personaId: 'nonexistent' },
+        { personaId: NONEXISTENT_UUID },
         { personalitySlug: 'lilith' }
       );
       await handler(req, res);
@@ -586,14 +596,14 @@ describe('/user/persona routes', () => {
     });
 
     it('should return 404 for non-existent personality', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: 'persona-1', name: 'Test' });
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID, name: 'Test' });
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/override/:personalitySlug');
 
       const { req, res } = createMockReqRes(
-        { personaId: 'persona-1' },
+        { personaId: MOCK_PERSONA_ID },
         { personalitySlug: 'nonexistent' }
       );
       await handler(req, res);
@@ -615,7 +625,7 @@ describe('/user/persona routes', () => {
   describe('DELETE /user/persona/override/:personalitySlug', () => {
     it('should clear persona override and delete config if no llmConfigId', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
-        id: 'personality-1',
+        id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
         displayName: 'Lilith the Succubus',
       });
@@ -642,7 +652,7 @@ describe('/user/persona routes', () => {
 
     it('should only clear personaId if config has llmConfigId', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
-        id: 'personality-1',
+        id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
         displayName: null,
       });
@@ -681,7 +691,7 @@ describe('/user/persona routes', () => {
 
     it('should succeed even if no override exists', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
-        id: 'personality-1',
+        id: MOCK_PERSONALITY_ID,
         name: 'Lilith',
         displayName: 'Lilith',
       });

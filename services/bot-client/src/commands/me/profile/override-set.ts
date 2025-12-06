@@ -14,7 +14,7 @@
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS, truncateText } from '@tzurot/common-types';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { MeCustomIds } from '../../../utils/customIds.js';
@@ -119,7 +119,7 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
       const modal = new ModalBuilder()
         .setCustomId(MeCustomIds.override.createForOverride(personality.id))
         .setTitle(
-          `New Persona for ${personalityName.substring(0, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
+          `New Persona for ${truncateText(personalityName, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
         );
 
       const inputFields = buildPersonaModalFields(null, {
