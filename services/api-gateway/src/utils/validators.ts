@@ -34,10 +34,29 @@ export function validateUuid(id: string, fieldName = 'ID'): ValidationResult {
   return { valid: true };
 }
 
+/** Reserved slugs that cannot be used for personalities/personas */
+const RESERVED_SLUGS = new Set([
+  'admin',
+  'system',
+  'default',
+  'api',
+  'bot',
+  'help',
+  'settings',
+  'config',
+  'me',
+  'user',
+  'users',
+]);
+
 /**
  * Validates a personality slug format
- * Slug must contain only lowercase letters, numbers, and hyphens
- * Maximum length is 64 characters to prevent DoS attacks
+ * Slug must:
+ * - Contain only lowercase letters, numbers, and hyphens
+ * - Start and end with alphanumeric character (not hyphen)
+ * - Not have consecutive hyphens
+ * - Not be a reserved keyword
+ * - Maximum length is 64 characters to prevent DoS attacks
  *
  * @param slug - The slug to validate
  * @returns Validation result with error if invalid
@@ -51,6 +70,16 @@ export function validateSlug(slug: string): ValidationResult {
     };
   }
 
+  // Check for reserved slugs
+  if (RESERVED_SLUGS.has(slug.toLowerCase())) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError(
+        `"${slug}" is a reserved name and cannot be used as a slug.`
+      ),
+    };
+  }
+
   // Check format (lowercase letters, numbers, hyphens only)
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return {
@@ -58,6 +87,30 @@ export function validateSlug(slug: string): ValidationResult {
       error: ErrorResponses.validationError(
         'Invalid slug format. Use only lowercase letters, numbers, and hyphens.'
       ),
+    };
+  }
+
+  // Must start with alphanumeric (not hyphen)
+  if (slug.startsWith('-')) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug cannot start with a hyphen.'),
+    };
+  }
+
+  // Must end with alphanumeric (not hyphen)
+  if (slug.endsWith('-')) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug cannot end with a hyphen.'),
+    };
+  }
+
+  // No consecutive hyphens
+  if (slug.includes('--')) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug cannot contain consecutive hyphens.'),
     };
   }
 
