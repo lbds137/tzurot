@@ -83,7 +83,10 @@ export async function handlePersonaAutocomplete(
     });
 
     if (!result.ok) {
-      logger.warn({ userId, error: result.error }, '[Me] Failed to fetch personas for autocomplete');
+      logger.warn(
+        { userId, error: result.error },
+        '[Me] Failed to fetch personas for autocomplete'
+      );
       await interaction.respond([]);
       return;
     }
