@@ -128,7 +128,9 @@ export class ReferencedMessageFormatter {
 
       if (ref.embeds) {
         // Escape embeds as they can contain user-generated content
-        lines.push(`\nMessage Embeds (structured data from Discord):\n${escapeXmlContent(ref.embeds)}`);
+        lines.push(
+          `\nMessage Embeds (structured data from Discord):\n${escapeXmlContent(ref.embeds)}`
+        );
       }
 
       // Process attachments in parallel (or use preprocessed data if available)
