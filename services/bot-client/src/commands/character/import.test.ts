@@ -82,6 +82,36 @@ function createValidCharacterData(
   };
 }
 
+/**
+ * Mock callGatewayApi for create scenario (character doesn't exist)
+ * First call (GET) returns 404, second call (POST) returns success
+ */
+function mockCreateScenario(createResponse: { ok: boolean; data?: unknown; error?: string; status?: number }) {
+  (callGatewayApi as Mock)
+    .mockResolvedValueOnce({ ok: false, error: 'Not found', status: 404 }) // GET returns 404
+    .mockResolvedValueOnce(createResponse); // POST
+}
+
+/**
+ * Mock callGatewayApi for update scenario (character exists and user owns it)
+ */
+function mockUpdateScenario(
+  canEdit: boolean,
+  updateResponse?: { ok: boolean; data?: unknown; error?: string; status?: number }
+) {
+  const getResponse = {
+    ok: true,
+    data: { personality: { id: 'existing-id' }, canEdit },
+  };
+  if (updateResponse) {
+    (callGatewayApi as Mock)
+      .mockResolvedValueOnce(getResponse) // GET returns existing
+      .mockResolvedValueOnce(updateResponse); // PUT
+  } else {
+    (callGatewayApi as Mock).mockResolvedValueOnce(getResponse); // GET only (for canEdit: false case)
+  }
+}
+
 describe('Character Import Constants', () => {
   describe('CHARACTER_JSON_TEMPLATE', () => {
     it('should be a valid JSON string', () => {
@@ -147,10 +177,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -165,10 +192,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -198,10 +222,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -217,10 +238,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -247,10 +265,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -468,10 +483,7 @@ describe('handleImport', () => {
             )
           ),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -480,32 +492,30 @@ describe('handleImport', () => {
   });
 
   describe('API error handling', () => {
-    it('should handle 409 conflict (duplicate slug)', async () => {
+    it('should handle conflict when user does not own existing character', async () => {
       const interaction = createMockInteraction();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: false,
-        error: 'Slug already exists (409)',
-        status: 409,
-      });
+      // Character exists but user doesn't own it
+      mockUpdateScenario(false);
 
       await handleImport(interaction, mockConfig);
 
       const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('already exists');
+      expect(editReplyArg).toContain("don't own it");
       expect(editReplyArg).toContain('test-character');
     });
 
-    it('should handle other API errors', async () => {
+    it('should handle other API errors during create', async () => {
       const interaction = createMockInteraction();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
+      mockCreateScenario({
         ok: false,
         error: 'Internal server error',
         status: 500,
@@ -525,7 +535,7 @@ describe('handleImport', () => {
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       const longError = 'x'.repeat(2000);
-      (callGatewayApi as Mock).mockResolvedValue({
+      mockCreateScenario({
         ok: false,
         error: longError,
         status: 400,
@@ -550,10 +560,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(characterData)),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -574,10 +581,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -595,10 +599,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -631,10 +632,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(fullCharacter)),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -662,10 +660,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -687,10 +682,7 @@ describe('handleImport', () => {
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -721,10 +713,7 @@ describe('handleImport', () => {
             )
           ),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -755,10 +744,7 @@ describe('handleImport', () => {
             )
           ),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -785,10 +771,7 @@ describe('handleImport', () => {
             )
           ),
       });
-      (callGatewayApi as Mock).mockResolvedValue({
-        ok: true,
-        data: { id: 'new-id' },
-      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
       await handleImport(interaction, mockConfig);
 
@@ -819,6 +802,89 @@ describe('handleImport', () => {
         '❌ An unexpected error occurred while importing the character.\n' +
           'Check bot logs for details.'
       );
+    });
+  });
+
+  describe('update existing character (upsert)', () => {
+    it('should use PUT when character exists and user owns it', async () => {
+      const interaction = createMockInteraction();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
+
+      await handleImport(interaction, mockConfig);
+
+      // First call should be GET to check existence
+      expect(callGatewayApi).toHaveBeenNthCalledWith(1, '/user/personality/test-character', {
+        userId: 'owner-123',
+        method: 'GET',
+      });
+
+      // Second call should be PUT to update
+      expect(callGatewayApi).toHaveBeenNthCalledWith(2, '/user/personality/test-character', {
+        userId: 'owner-123',
+        method: 'PUT',
+        body: expect.objectContaining({
+          name: 'Test Character',
+          slug: 'test-character',
+        }),
+      });
+    });
+
+    it('should show "Updated" in success message when updating', async () => {
+      const interaction = createMockInteraction();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
+
+      await handleImport(interaction, mockConfig);
+
+      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embed = embedArg.embeds[0];
+      const json = embed.toJSON();
+      expect(json.title).toBe('Character Updated Successfully');
+      expect(json.description).toContain('Updated character');
+    });
+
+    it('should reject update when user does not own the character', async () => {
+      const interaction = createMockInteraction();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockUpdateScenario(false); // canEdit: false, no second call
+
+      await handleImport(interaction, mockConfig);
+
+      // Should only make one call (GET), not try to update
+      expect(callGatewayApi).toHaveBeenCalledTimes(1);
+
+      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      expect(editReplyArg).toContain('already exists');
+      expect(editReplyArg).toContain("don't own it");
+    });
+
+    it('should handle API errors during update', async () => {
+      const interaction = createMockInteraction();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockUpdateScenario(true, {
+        ok: false,
+        error: 'Database error',
+        status: 500,
+      });
+
+      await handleImport(interaction, mockConfig);
+
+      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      expect(editReplyArg).toContain('❌ Failed to update character');
+      expect(editReplyArg).toContain('Database error');
     });
   });
 });
