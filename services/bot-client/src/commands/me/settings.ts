@@ -2,14 +2,26 @@
  * Me Settings Handler
  *
  * Manages profile settings like LTM (Long-Term Memory) sharing across personalities.
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
-import { personaCacheInvalidationService } from '../../redis.js';
+import { createLogger } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-settings');
+
+/** Response type for updating settings */
+interface UpdateSettingsResponse {
+  success: boolean;
+  setting: {
+    shareLtmAcrossPersonalities: boolean;
+  };
+  previousValue: boolean;
+  unchanged?: boolean;
+}
 
 /**
  * Handle /me settings share-ltm command
@@ -17,50 +29,53 @@ const logger = createLogger('me-settings');
 export async function handleShareLtmSetting(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
   const enabledValue = interaction.options.getString('enabled', true);
   const enabled = enabledValue === 'enable';
 
   try {
-    // Find user and their default profile
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-        defaultPersona: {
-          select: {
-            shareLtmAcrossPersonalities: true,
-          },
-        },
+    // Update setting via gateway API
+    const result = await callGatewayApi<UpdateSettingsResponse>('/user/persona/settings', {
+      userId: discordId,
+      method: 'PATCH',
+      body: {
+        shareLtmAcrossPersonalities: enabled,
       },
     });
 
-    if (user === null) {
+    if (!result.ok) {
+      // Handle specific error cases
+      if (result.error?.includes('no account') || result.error?.includes('Not found')) {
+        await interaction.reply({
+          content:
+            "❌ You don't have an account yet. Send a message to any personality to create one!",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      if (result.error?.includes('no profile') || result.error?.includes('No default persona')) {
+        await interaction.reply({
+          content:
+            "❌ You don't have a profile set up yet. Use `/me profile edit` to create one first!",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      logger.warn(
+        { userId: discordId, enabled, error: result.error },
+        '[Me] Failed to update LTM sharing setting via gateway'
+      );
       await interaction.reply({
-        content:
-          "❌ You don't have an account yet. Send a message to any personality to create one!",
+        content: '❌ Failed to update LTM sharing setting. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
-
-    const personaId = user.defaultPersonaId;
-
-    if (personaId === null || personaId === undefined) {
-      await interaction.reply({
-        content:
-          "❌ You don't have a profile set up yet. Use `/me profile edit` to create one first!",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const currentSetting = user.defaultPersona?.shareLtmAcrossPersonalities ?? false;
 
     // Check if already in desired state
-    if (currentSetting === enabled) {
+    if (result.data.unchanged === true) {
       const statusText = enabled
         ? 'already sharing memories across all personalities'
         : 'already keeping memories separate per personality';
@@ -70,15 +85,6 @@ export async function handleShareLtmSetting(
       });
       return;
     }
-
-    // Update the setting
-    await prisma.persona.update({
-      where: { id: personaId },
-      data: {
-        shareLtmAcrossPersonalities: enabled,
-        updatedAt: new Date(),
-      },
-    });
 
     const responseText = enabled
       ? '✅ **LTM sharing enabled!**\n\nYour memories will now be shared across all personalities. ' +
@@ -91,13 +97,7 @@ export async function handleShareLtmSetting(
       flags: MessageFlags.Ephemeral,
     });
 
-    logger.info(
-      { userId: discordId, personaId, enabled },
-      '[Me] Updated shareLtmAcrossPersonalities setting'
-    );
-
-    // Broadcast cache invalidation to all ai-worker instances
-    await personaCacheInvalidationService.invalidateUserPersona(discordId);
+    logger.info({ userId: discordId, enabled }, '[Me] Updated shareLtmAcrossPersonalities setting');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to update LTM sharing setting');
     await interaction.reply({

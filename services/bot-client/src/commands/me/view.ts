@@ -6,6 +6,8 @@
  * - Pronouns
  * - Content/description
  * - Settings (like LTM sharing)
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import {
@@ -17,10 +19,27 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import { createLogger, getPrismaClient, DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
 import { MeCustomIds } from '../../utils/customIds.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-view');
+
+/** Response type for persona list */
+interface PersonaSummary {
+  id: string;
+  name: string;
+  preferredName: string | null;
+  description: string | null;
+  isDefault: boolean;
+  shareLtmAcrossPersonalities: boolean;
+}
+
+/** Response type for persona details */
+interface PersonaDetails extends PersonaSummary {
+  content: string;
+  pronouns: string | null;
+}
 
 /** Maximum content length to show in embed before truncating */
 const CONTENT_PREVIEW_LENGTH = 1000;
@@ -29,47 +48,60 @@ const CONTENT_PREVIEW_LENGTH = 1000;
  * Handle /me profile view command
  */
 export async function handleViewPersona(interaction: ChatInputCommandInteraction): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
-    // Find user and their default profile
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        defaultPersona: {
-          select: {
-            id: true,
-            name: true,
-            preferredName: true,
-            pronouns: true,
-            content: true,
-            description: true,
-            shareLtmAcrossPersonalities: true,
-          },
-        },
-      },
+    // Fetch user's personas via gateway API
+    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
+      userId: discordId,
     });
 
-    if (user === null) {
+    if (!result.ok) {
+      logger.warn({ userId: discordId, error: result.error }, '[Me] Failed to fetch personas');
       await interaction.reply({
-        content:
-          "❌ You don't have an account yet. Send a message to any personality to create one!",
+        content: '❌ Failed to retrieve your profile. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    const persona = user.defaultPersona;
+    // Find the default persona
+    const persona = result.data.personas.find(p => p.isDefault);
 
-    if (persona === null || persona === undefined) {
+    if (persona === undefined) {
+      // No personas at all, or no default set
+      if (result.data.personas.length === 0) {
+        await interaction.reply({
+          content: "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!",
+          flags: MessageFlags.Ephemeral,
+        });
+      } else {
+        await interaction.reply({
+          content: "❌ You don't have a default profile set. Use `/me profile default` to set one!",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      return;
+    }
+
+    // Fetch full persona details (including content) via gateway
+    const detailsResult = await callGatewayApi<PersonaDetails>(`/user/persona/${persona.id}`, {
+      userId: discordId,
+    });
+
+    if (!detailsResult.ok) {
+      logger.warn(
+        { userId: discordId, personaId: persona.id, error: detailsResult.error },
+        '[Me] Failed to fetch persona details'
+      );
       await interaction.reply({
-        content: "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!",
+        content: '❌ Failed to retrieve your profile. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
+
+    const personaDetails = detailsResult.data;
 
     // Build embed with profile information
     const embed = new EmbedBuilder()
@@ -78,34 +110,39 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       .setTimestamp();
 
     // Add fields
-    if (persona.preferredName !== null && persona.preferredName.length > 0) {
-      embed.addFields({ name: '📛 Preferred Name', value: persona.preferredName, inline: true });
+    if (personaDetails.preferredName !== null && personaDetails.preferredName.length > 0) {
+      embed.addFields({
+        name: '📛 Preferred Name',
+        value: personaDetails.preferredName,
+        inline: true,
+      });
     }
 
-    if (persona.pronouns !== null && persona.pronouns.length > 0) {
-      embed.addFields({ name: '🏷️ Pronouns', value: persona.pronouns, inline: true });
+    if (personaDetails.pronouns !== null && personaDetails.pronouns.length > 0) {
+      embed.addFields({ name: '🏷️ Pronouns', value: personaDetails.pronouns, inline: true });
     }
 
     // Settings
-    const ltmStatus = persona.shareLtmAcrossPersonalities
+    const ltmStatus = personaDetails.shareLtmAcrossPersonalities
       ? '✅ Enabled - Memories shared across all personalities'
       : '❌ Disabled - Memories kept per personality';
     embed.addFields({ name: '🔗 LTM Sharing', value: ltmStatus, inline: false });
 
     // Content (truncate if too long)
     const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
-    const isTruncated = persona.content !== null && persona.content.length > CONTENT_PREVIEW_LENGTH;
+    const isTruncated =
+      personaDetails.content !== null && personaDetails.content.length > CONTENT_PREVIEW_LENGTH;
 
-    if (persona.content !== null && persona.content.length > 0) {
+    if (personaDetails.content !== null && personaDetails.content.length > 0) {
       const content = isTruncated
-        ? persona.content.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
-        : persona.content;
+        ? personaDetails.content.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
+        : personaDetails.content;
       embed.addFields({ name: '📝 Content', value: content, inline: false });
 
       // Add expand button if content is truncated
       if (isTruncated) {
         const expandButton = new ButtonBuilder()
-          .setCustomId(MeCustomIds.view.expand(persona.id, 'content'))
+          .setCustomId(MeCustomIds.view.expand(personaDetails.id, 'content'))
           .setLabel('Show Full Content')
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('📖');
@@ -153,28 +190,24 @@ export async function handleExpandContent(
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
-    // Verify user owns this persona
-    const persona = await prisma.persona.findFirst({
-      where: {
-        id: personaId,
-        owner: { discordId },
-      },
-      select: {
-        content: true,
-        name: true,
-      },
+    // Fetch persona details via gateway (also verifies ownership)
+    const result = await callGatewayApi<PersonaDetails>(`/user/persona/${personaId}`, {
+      userId: discordId,
     });
 
-    if (persona === null) {
+    if (!result.ok) {
+      logger.warn(
+        { userId: discordId, personaId, error: result.error },
+        '[Me] Failed to fetch persona for expand'
+      );
       await interaction.editReply('❌ Profile not found or access denied.');
       return;
     }
 
-    const content = persona.content;
+    const content = result.data.content;
     if (content === null || content.length === 0) {
       await interaction.editReply('📝 Content\n\n_Not set_');
       return;

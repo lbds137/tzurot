@@ -7,16 +7,32 @@
  * - Preferred Name - what AI should call the user
  * - Pronouns
  * - Content/description - what AI should know about this profile
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
-import { personaCacheInvalidationService } from '../../redis.js';
 import { MeCustomIds } from '../../utils/customIds.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-profile-create');
+
+/** Response type for creating a persona */
+interface CreatePersonaResponse {
+  success: boolean;
+  persona: {
+    id: string;
+    name: string;
+    preferredName: string | null;
+    description: string | null;
+    pronouns: string | null;
+    content: string | null;
+  };
+  setAsDefault: boolean;
+}
 
 /**
  * Handle /me profile create command - shows modal
@@ -51,7 +67,6 @@ export async function handleCreatePersona(interaction: ChatInputCommandInteracti
  * Handle modal submission for profile creation
  */
 export async function handleCreateModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
@@ -71,73 +86,62 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       return;
     }
 
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
-    });
-
-    // Create user if they don't exist
-    user ??= await prisma.user.create({
-      data: {
-        discordId,
-        username: interaction.user.username,
-      },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
-    });
-
-    // Create the new persona
-    const newPersona = await prisma.persona.create({
-      data: {
+    // Create persona via gateway API
+    const result = await callGatewayApi<CreatePersonaResponse>('/user/persona', {
+      userId: discordId,
+      method: 'POST',
+      body: {
         name: personaName,
         description,
         preferredName,
         pronouns,
         content: content ?? '',
-        ownerId: user.id,
+        // Pass username for user creation if needed
+        username: interaction.user.username,
       },
     });
 
+    if (!result.ok) {
+      logger.warn(
+        { userId: discordId, error: result.error },
+        '[Me/Profile] Failed to create profile via gateway'
+      );
+      await interaction.reply({
+        content: '❌ Failed to create profile. Please try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const { persona, setAsDefault } = result.data;
+
     logger.info(
-      { userId: discordId, personaId: newPersona.id, personaName },
+      { userId: discordId, personaId: persona.id, personaName },
       '[Me/Profile] Created new profile'
     );
 
-    // If this is the user's first profile and they don't have a default, set it
-    const setAsDefault = user.defaultPersonaId === null;
     if (setAsDefault) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { defaultPersonaId: newPersona.id },
-      });
       logger.info(
-        { userId: discordId, personaId: newPersona.id },
+        { userId: discordId, personaId: persona.id },
         '[Me/Profile] Set as default (first profile)'
       );
     }
 
-    // Broadcast cache invalidation
-    await personaCacheInvalidationService.invalidateUserPersona(discordId);
-
     // Build response
     const details: string[] = [];
-    if (description !== null) {
-      details.push(`📋 Description: ${description}`);
+    if (persona.description !== null) {
+      details.push(`📋 Description: ${persona.description}`);
     }
-    if (preferredName !== null) {
-      details.push(`📛 Name: ${preferredName}`);
+    if (persona.preferredName !== null) {
+      details.push(`📛 Name: ${persona.preferredName}`);
     }
-    if (pronouns !== null) {
-      details.push(`🏷️ Pronouns: ${pronouns}`);
+    if (persona.pronouns !== null) {
+      details.push(`🏷️ Pronouns: ${persona.pronouns}`);
     }
-    if (content !== null) {
-      details.push(`📝 Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`);
+    if (persona.content !== null && persona.content.length > 0) {
+      details.push(
+        `📝 Content: ${persona.content.substring(0, 100)}${persona.content.length > 100 ? '...' : ''}`
+      );
     }
 
     let response = `✅ **Profile "${personaName}" created!**`;

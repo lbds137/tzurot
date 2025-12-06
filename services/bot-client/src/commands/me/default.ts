@@ -3,14 +3,27 @@
  *
  * Sets a profile as the user's default profile.
  * The default profile is used when no personality-specific override is set.
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getPrismaClient } from '@tzurot/common-types';
-import { personaCacheInvalidationService } from '../../redis.js';
+import { createLogger } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-default');
+
+/** Response type for setting default persona */
+interface SetDefaultResponse {
+  success: boolean;
+  persona: {
+    id: string;
+    name: string;
+    preferredName: string | null;
+  };
+  alreadyDefault?: boolean;
+}
 
 /**
  * Handle /me profile default <profile> command
@@ -18,53 +31,42 @@ const logger = createLogger('me-default');
 export async function handleSetDefaultPersona(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
   const personaId = interaction.options.getString('profile', true);
 
   try {
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
+    // Set default via gateway API
+    const result = await callGatewayApi<SetDefaultResponse>(`/user/persona/${personaId}/default`, {
+      userId: discordId,
+      method: 'PATCH',
     });
 
-    if (user === null) {
+    if (!result.ok) {
+      // Handle specific error cases
+      if (result.error?.includes('not found') || result.error?.includes('Not found')) {
+        await interaction.reply({
+          content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      logger.warn(
+        { userId: discordId, personaId, error: result.error },
+        '[Me] Failed to set default profile'
+      );
       await interaction.reply({
-        content:
-          "❌ You don't have an account yet. Send a message to any personality to create one!",
+        content: '❌ Failed to set default profile. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Verify the profile belongs to this user
-    const persona = await prisma.persona.findFirst({
-      where: {
-        id: personaId,
-        ownerId: user.id,
-      },
-      select: {
-        id: true,
-        name: true,
-        preferredName: true,
-      },
-    });
-
-    if (persona === null) {
-      await interaction.reply({
-        content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
+    const { persona, alreadyDefault } = result.data;
+    const displayName = persona.preferredName ?? persona.name;
 
     // Check if already default
-    if (user.defaultPersonaId === personaId) {
-      const displayName = persona.preferredName ?? persona.name;
+    if (alreadyDefault === true) {
       await interaction.reply({
         content: `ℹ️ **${displayName}** is already your default profile.`,
         flags: MessageFlags.Ephemeral,
@@ -72,16 +74,6 @@ export async function handleSetDefaultPersona(
       return;
     }
 
-    // Update default profile
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { defaultPersonaId: personaId },
-    });
-
-    // Broadcast cache invalidation
-    await personaCacheInvalidationService.invalidateUserPersona(discordId);
-
-    const displayName = persona.preferredName ?? persona.name;
     logger.info(
       { userId: discordId, personaId, personaName: persona.name },
       '[Me] Set default profile'

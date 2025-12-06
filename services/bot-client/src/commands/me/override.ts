@@ -8,17 +8,71 @@
  * - /me override set <personality> <profile> - Set existing profile or create new
  * - If user selects "Create new profile..." option, shows a modal
  * - Otherwise, directly assigns the selected profile
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { createLogger, getPrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import { CREATE_NEW_PERSONA_VALUE } from './autocomplete.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
-import { personaCacheInvalidationService } from '../../redis.js';
 import { MeCustomIds } from '../../utils/customIds.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-override');
+
+/** Response type for setting override */
+interface SetOverrideResponse {
+  success: boolean;
+  personality: {
+    id: string;
+    name: string;
+    displayName: string | null;
+  };
+  persona: {
+    id: string;
+    name: string;
+    preferredName: string | null;
+  };
+}
+
+/** Response type for clearing override */
+interface ClearOverrideResponse {
+  success: boolean;
+  personality: {
+    id: string;
+    name: string;
+    displayName: string | null;
+  };
+  hadOverride: boolean;
+}
+
+/** Response type for getting override info (for modal) */
+interface OverrideInfoResponse {
+  personality: {
+    id: string;
+    name: string;
+    displayName: string | null;
+  };
+}
+
+/** Response type for creating persona and setting as override */
+interface CreateOverrideResponse {
+  success: boolean;
+  persona: {
+    id: string;
+    name: string;
+    preferredName: string | null;
+    description: string | null;
+    pronouns: string | null;
+    content: string | null;
+  };
+  personality: {
+    name: string;
+    displayName: string | null;
+  };
+}
 
 /**
  * Handle /me override set <personality> <profile> command
@@ -27,51 +81,51 @@ const logger = createLogger('me-override');
  * Otherwise, directly sets the selected profile as override.
  */
 export async function handleOverrideSet(interaction: ChatInputCommandInteraction): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
   const personalitySlug = interaction.options.getString('personality', true);
   const personaId = interaction.options.getString('profile', true);
 
   try {
-    // Find personality by slug
-    const personality = await prisma.personality.findUnique({
-      where: { slug: personalitySlug },
-      select: {
-        id: true,
-        name: true,
-        displayName: true,
-      },
-    });
-
-    if (personality === null) {
-      await interaction.reply({
-        content: `❌ Personality "${personalitySlug}" not found.`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-      },
-    });
-
-    if (user === null) {
-      await interaction.reply({
-        content:
-          "❌ You don't have an account yet. Send a message to any personality to create one!",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const personalityName = personality.displayName ?? personality.name;
-
     // Check if user wants to create a new profile
     if (personaId === CREATE_NEW_PERSONA_VALUE) {
+      // Get personality info via gateway
+      const infoResult = await callGatewayApi<OverrideInfoResponse>(
+        `/user/persona/override/${personalitySlug}`,
+        { userId: discordId }
+      );
+
+      if (!infoResult.ok) {
+        // Handle specific errors
+        if (
+          infoResult.error?.includes('Personality not found') ||
+          infoResult.error?.includes('not found')
+        ) {
+          await interaction.reply({
+            content: `❌ Personality "${personalitySlug}" not found.`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        if (infoResult.error?.includes('no account') || infoResult.error?.includes('User')) {
+          await interaction.reply({
+            content:
+              "❌ You don't have an account yet. Send a message to any personality to create one!",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        await interaction.reply({
+          content: '❌ Failed to prepare profile creation. Please try again later.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const { personality } = infoResult.data;
+      const personalityName = personality.displayName ?? personality.name;
+
       // Show modal to create new profile for this personality
       const modal = new ModalBuilder()
         .setCustomId(MeCustomIds.override.createForOverride(personality.id))
@@ -96,58 +150,61 @@ export async function handleOverrideSet(interaction: ChatInputCommandInteraction
       return;
     }
 
-    // User selected an existing profile - verify ownership
-    const persona = await prisma.persona.findFirst({
-      where: {
-        id: personaId,
-        ownerId: user.id,
-      },
-      select: {
-        id: true,
-        name: true,
-        preferredName: true,
-      },
-    });
+    // User selected an existing profile - set override via gateway
+    const result = await callGatewayApi<SetOverrideResponse>(
+      `/user/persona/override/${personalitySlug}`,
+      {
+        userId: discordId,
+        method: 'PUT',
+        body: { personaId },
+      }
+    );
 
-    if (persona === null) {
+    if (!result.ok) {
+      // Handle specific errors
+      if (
+        result.error?.includes('Personality not found') ||
+        result.error?.includes('personality')
+      ) {
+        await interaction.reply({
+          content: `❌ Personality "${personalitySlug}" not found.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      if (result.error?.includes('no account') || result.error?.includes('User')) {
+        await interaction.reply({
+          content:
+            "❌ You don't have an account yet. Send a message to any personality to create one!",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      if (result.error?.includes('Profile not found') || result.error?.includes('Persona')) {
+        await interaction.reply({
+          content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      logger.warn(
+        { userId: discordId, personalitySlug, personaId, error: result.error },
+        '[Me] Failed to set override via gateway'
+      );
       await interaction.reply({
-        content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
+        content: '❌ Failed to set profile override. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Get existing config for this personality
-    const existingConfig = await prisma.userPersonalityConfig.findUnique({
-      where: {
-        userId_personalityId: {
-          userId: user.id,
-          personalityId: personality.id,
-        },
-      },
-    });
-
-    if (existingConfig !== null) {
-      // Update existing config
-      await prisma.userPersonalityConfig.update({
-        where: { id: existingConfig.id },
-        data: { personaId: persona.id },
-      });
-    } else {
-      // Create new config
-      await prisma.userPersonalityConfig.create({
-        data: {
-          userId: user.id,
-          personalityId: personality.id,
-          personaId: persona.id,
-        },
-      });
-    }
-
-    // Broadcast cache invalidation
-    await personaCacheInvalidationService.invalidateUserPersona(discordId);
-
+    const { personality, persona } = result.data;
+    const personalityName = personality.displayName ?? personality.name;
     const displayName = persona.preferredName ?? persona.name;
+
     logger.info(
       { userId: discordId, personalityId: personality.id, personaId: persona.id },
       '[Me] Set override profile'
@@ -174,7 +231,6 @@ export async function handleOverrideCreateModalSubmit(
   interaction: ModalSubmitInteraction,
   personalityId: string
 ): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
@@ -194,71 +250,50 @@ export async function handleOverrideCreateModalSubmit(
       return;
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: { id: true },
-    });
+    // Create persona and set as override via gateway (using personality ID in path)
+    const result = await callGatewayApi<CreateOverrideResponse>(
+      `/user/persona/override/by-id/${personalityId}`,
+      {
+        userId: discordId,
+        method: 'POST',
+        body: {
+          name: personaName,
+          description,
+          preferredName,
+          pronouns,
+          content: content ?? '',
+          username: interaction.user.username,
+        },
+      }
+    );
 
-    if (user === null) {
+    if (!result.ok) {
+      if (result.error?.includes('User not found')) {
+        await interaction.reply({
+          content: '❌ User not found.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      logger.warn(
+        { userId: discordId, personalityId, error: result.error },
+        '[Me] Failed to create override profile via gateway'
+      );
       await interaction.reply({
-        content: '❌ User not found.',
+        content: '❌ Failed to create profile. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Get personality name for response
-    const personality = await prisma.personality.findUnique({
-      where: { id: personalityId },
-      select: { name: true, displayName: true },
-    });
-    const personalityName = personality?.displayName ?? personality?.name ?? 'Unknown';
-
-    // Create the new profile
-    const newPersona = await prisma.persona.create({
-      data: {
-        name: personaName,
-        description,
-        preferredName,
-        pronouns,
-        content: content ?? '',
-        ownerId: user.id,
-      },
-    });
-
-    // Set up the override config
-    const existingConfig = await prisma.userPersonalityConfig.findUnique({
-      where: {
-        userId_personalityId: {
-          userId: user.id,
-          personalityId,
-        },
-      },
-    });
-
-    if (existingConfig !== null) {
-      await prisma.userPersonalityConfig.update({
-        where: { id: existingConfig.id },
-        data: { personaId: newPersona.id },
-      });
-    } else {
-      await prisma.userPersonalityConfig.create({
-        data: {
-          userId: user.id,
-          personalityId,
-          personaId: newPersona.id,
-        },
-      });
-    }
+    const { persona, personality } = result.data;
+    const personalityName = personality.displayName ?? personality.name;
 
     logger.info(
-      { userId: discordId, personalityId, personaId: newPersona.id, personaName },
+      { userId: discordId, personalityId, personaId: persona.id, personaName },
       '[Me] Created new profile and set as override'
     );
-
-    // Broadcast cache invalidation
-    await personaCacheInvalidationService.invalidateUserPersona(discordId);
 
     await interaction.reply({
       content:
@@ -283,58 +318,53 @@ export async function handleOverrideCreateModalSubmit(
  * Handle /me override clear <personality> - Remove override
  */
 export async function handleOverrideClear(interaction: ChatInputCommandInteraction): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
   const personalitySlug = interaction.options.getString('personality', true);
 
   try {
-    // Find personality
-    const personality = await prisma.personality.findUnique({
-      where: { slug: personalitySlug },
-      select: {
-        id: true,
-        name: true,
-        displayName: true,
-      },
-    });
+    // Clear override via gateway
+    const result = await callGatewayApi<ClearOverrideResponse>(
+      `/user/persona/override/${personalitySlug}`,
+      {
+        userId: discordId,
+        method: 'DELETE',
+      }
+    );
 
-    if (personality === null) {
+    if (!result.ok) {
+      // Handle specific errors
+      if (result.error?.includes('Personality not found') || result.error?.includes('not found')) {
+        await interaction.reply({
+          content: `❌ Personality "${personalitySlug}" not found.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      if (result.error?.includes('no account') || result.error?.includes('User')) {
+        await interaction.reply({
+          content:
+            "❌ You don't have an account yet. Send a message to any personality to create one!",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      logger.warn(
+        { userId: discordId, personalitySlug, error: result.error },
+        '[Me] Failed to clear override via gateway'
+      );
       await interaction.reply({
-        content: `❌ Personality "${personalitySlug}" not found.`,
+        content: '❌ Failed to clear profile override. Please try again later.',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // Find user and their config for this personality
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        id: true,
-        personalityConfigs: {
-          where: { personalityId: personality.id },
-          select: {
-            id: true,
-            personaId: true,
-            llmConfigId: true,
-          },
-        },
-      },
-    });
-
-    if (user === null) {
-      await interaction.reply({
-        content:
-          "❌ You don't have an account yet. Send a message to any personality to create one!",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const existingConfig = user.personalityConfigs[0];
+    const { personality, hadOverride } = result.data;
     const personalityName = personality.displayName ?? personality.name;
 
-    if (existingConfig?.personaId === null || existingConfig?.personaId === undefined) {
+    if (!hadOverride) {
       await interaction.reply({
         content: `ℹ️ You don't have a profile override set for ${personalityName}.`,
         flags: MessageFlags.Ephemeral,
@@ -342,26 +372,10 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
       return;
     }
 
-    // Clear the profile override
-    // If config has llmConfigId, just clear personaId; otherwise delete the config
-    if (existingConfig.llmConfigId !== null) {
-      await prisma.userPersonalityConfig.update({
-        where: { id: existingConfig.id },
-        data: { personaId: null },
-      });
-    } else {
-      await prisma.userPersonalityConfig.delete({
-        where: { id: existingConfig.id },
-      });
-    }
-
     logger.info(
       { userId: discordId, personalityId: personality.id },
       '[Me] Cleared profile override'
     );
-
-    // Broadcast cache invalidation BEFORE replying to ensure consistency
-    await personaCacheInvalidationService.invalidateUserPersona(discordId);
 
     await interaction.reply({
       content: `✅ **Profile override cleared for ${personalityName}!**\n\nYour default profile will now be used when talking to ${personalityName}.`,

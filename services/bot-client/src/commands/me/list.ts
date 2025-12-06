@@ -3,41 +3,49 @@
  *
  * Lists all profiles owned by the user.
  * Shows which one is the default and basic info about each.
+ *
+ * Uses gateway API for all data access (no direct Prisma).
  */
 
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, getPrismaClient, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-list');
+
+/** Response type for persona list */
+interface PersonaSummary {
+  id: string;
+  name: string;
+  preferredName: string | null;
+  pronouns: string | null;
+  content: string | null;
+  isDefault: boolean;
+}
 
 /**
  * Handle /me profile list command
  */
 export async function handleListPersonas(interaction: ChatInputCommandInteraction): Promise<void> {
-  const prisma = getPrismaClient();
   const discordId = interaction.user.id;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { discordId },
-      select: {
-        defaultPersonaId: true,
-        ownedPersonas: {
-          select: {
-            id: true,
-            name: true,
-            preferredName: true,
-            pronouns: true,
-            content: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'asc' },
-        },
-      },
+    // Fetch user's personas via gateway API
+    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
+      userId: discordId,
     });
 
-    if (user === null || user.ownedPersonas.length === 0) {
+    if (!result.ok) {
+      logger.warn({ userId: discordId, error: result.error }, '[Me] Failed to fetch personas');
+      await interaction.reply({
+        content: '❌ Failed to load your profiles. Please try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (result.data.personas.length === 0) {
       await interaction.reply({
         content:
           "📋 **You don't have any profiles yet.**\n\n" +
@@ -47,16 +55,17 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       return;
     }
 
+    const personas = result.data.personas;
+
     const embed = new EmbedBuilder()
       .setTitle('📋 Your Profiles')
       .setColor(DISCORD_COLORS.BLURPLE)
       .setDescription(
-        `You have **${user.ownedPersonas.length}** profile${user.ownedPersonas.length === 1 ? '' : 's'}.`
+        `You have **${personas.length}** profile${personas.length === 1 ? '' : 's'}.`
       );
 
-    for (const persona of user.ownedPersonas) {
-      const isDefault = persona.id === user.defaultPersonaId;
-      const fieldName = isDefault ? `⭐ ${persona.name} (default)` : persona.name;
+    for (const persona of personas) {
+      const fieldName = persona.isDefault ? `⭐ ${persona.name} (default)` : persona.name;
 
       const details: string[] = [];
       if (persona.preferredName !== null) {
@@ -86,10 +95,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       flags: MessageFlags.Ephemeral,
     });
 
-    logger.info(
-      { userId: discordId, personaCount: user.ownedPersonas.length },
-      '[Me] Listed profiles'
-    );
+    logger.info({ userId: discordId, personaCount: personas.length }, '[Me] Listed profiles');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to list profiles');
     await interaction.reply({

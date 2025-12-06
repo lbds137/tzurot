@@ -1,30 +1,22 @@
 /**
  * Tests for Profile Edit Handler
+ * Tests modal display and gateway API calls for profile editing.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEditPersona, handleEditModalSubmit } from './edit.js';
 import { MessageFlags } from 'discord.js';
 
-// Mock Prisma
-const mockPrismaClient = {
-  user: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  persona: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-};
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -33,14 +25,6 @@ vi.mock('@tzurot/common-types', async () => {
     }),
   };
 });
-
-// Mock redis module to provide personaCacheInvalidationService
-vi.mock('../../redis.js', () => ({
-  personaCacheInvalidationService: {
-    invalidateUserPersona: vi.fn().mockResolvedValue(undefined),
-    invalidateAll: vi.fn().mockResolvedValue(undefined),
-  },
-}));
 
 describe('handleEditPersona', () => {
   const mockShowModal = vi.fn();
@@ -60,9 +44,9 @@ describe('handleEditPersona', () => {
   }
 
   it('should show modal with empty fields for user with no persona', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: null,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { personas: [] },
     });
 
     await handleEditPersona(createMockInteraction());
@@ -72,69 +56,56 @@ describe('handleEditPersona', () => {
   });
 
   it('should show modal with existing persona values when editing default', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
+    // First call returns persona list
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        personas: [{ id: 'persona-123', name: 'My Persona', isDefault: true }],
+      },
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'My Persona',
-      description: 'My main persona',
-      preferredName: 'Alice',
-      pronouns: 'she/her',
-      content: 'I love coding',
+    // Second call returns persona details
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        id: 'persona-123',
+        name: 'My Persona',
+        description: 'My main persona',
+        preferredName: 'Alice',
+        pronouns: 'she/her',
+        content: 'I love coding',
+      },
     });
 
     await handleEditPersona(createMockInteraction());
 
-    expect(mockPrismaClient.persona.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: 'persona-123',
-        ownerId: 'user-uuid',
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        preferredName: true,
-        pronouns: true,
-        content: true,
-      },
-    });
     expect(mockShowModal).toHaveBeenCalled();
   });
 
   it('should show modal for specific persona when personaId provided', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
-    });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'specific-persona',
-      name: 'Work Persona',
-      preferredName: 'Bob',
-      pronouns: 'he/him',
-      content: 'Work stuff',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        id: 'specific-persona',
+        name: 'Work Persona',
+        preferredName: 'Bob',
+        pronouns: 'he/him',
+        content: 'Work stuff',
+      },
     });
 
     await handleEditPersona(createMockInteraction(), 'specific-persona');
 
-    expect(mockPrismaClient.persona.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: 'specific-persona',
-        ownerId: 'user-uuid',
-      },
-      select: expect.any(Object),
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/specific-persona', {
+      userId: '123456789',
     });
     expect(mockShowModal).toHaveBeenCalled();
   });
 
   it('should show error when specific profile not found', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Persona not found',
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue(null);
 
     await handleEditPersona(createMockInteraction(), 'nonexistent-persona');
 
@@ -145,8 +116,8 @@ describe('handleEditPersona', () => {
     expect(mockShowModal).not.toHaveBeenCalled();
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleEditPersona(createMockInteraction());
 
@@ -155,14 +126,6 @@ describe('handleEditPersona', () => {
       flags: MessageFlags.Ephemeral,
     });
     expect(mockShowModal).not.toHaveBeenCalled();
-  });
-
-  it('should handle user not found in database', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
-
-    await handleEditPersona(createMockInteraction());
-
-    expect(mockShowModal).toHaveBeenCalled();
   });
 });
 
@@ -184,15 +147,20 @@ describe('handleEditModalSubmit', () => {
   }
 
   it('should update existing persona', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'persona-123',
+          name: 'My Persona',
+          description: 'Main persona',
+          preferredName: 'Alice',
+          pronouns: 'she/her',
+          content: 'I love coding',
+        },
+      },
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'Old Name',
-    });
-    mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
@@ -205,15 +173,15 @@ describe('handleEditModalSubmit', () => {
       'persona-123'
     );
 
-    expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
-      where: { id: 'persona-123' },
-      data: {
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123', {
+      userId: '123456789',
+      method: 'PUT',
+      body: {
         name: 'My Persona',
         description: 'Main persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'I love coding',
-        updatedAt: expect.any(Date),
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
@@ -223,12 +191,21 @@ describe('handleEditModalSubmit', () => {
   });
 
   it('should create new persona when personaId is "new"', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: null,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'new-persona-123',
+          name: 'New Persona',
+          description: 'Brand new',
+          preferredName: 'Bob',
+          pronouns: 'he/him',
+          content: 'Test content',
+        },
+        setAsDefault: true,
+      },
     });
-    mockPrismaClient.persona.create.mockResolvedValue({ id: 'new-persona-123' });
-    mockPrismaClient.user.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
@@ -241,62 +218,39 @@ describe('handleEditModalSubmit', () => {
       'new'
     );
 
-    expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
-      data: {
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
+      userId: '123456789',
+      method: 'POST',
+      body: {
         name: 'New Persona',
         description: 'Brand new',
         preferredName: 'Bob',
         pronouns: 'he/him',
         content: 'Test content',
-        ownerId: 'user-uuid',
-      },
-    });
-    // Should set as default since user had no default
-    expect(mockPrismaClient.user.update).toHaveBeenCalledWith({
-      where: { id: 'user-uuid' },
-      data: { defaultPersonaId: 'new-persona-123' },
-    });
-  });
-
-  it('should create user if they do not exist', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
-    mockPrismaClient.user.create.mockResolvedValue({
-      id: 'new-user-uuid',
-      defaultPersonaId: null,
-    });
-    mockPrismaClient.persona.create.mockResolvedValue({ id: 'new-persona-123' });
-    mockPrismaClient.user.update.mockResolvedValue({});
-
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: 'First Persona',
-        description: '',
-        preferredName: 'NewUser',
-        pronouns: '',
-        content: '',
-      }),
-      'new'
-    );
-
-    expect(mockPrismaClient.user.create).toHaveBeenCalledWith({
-      data: {
-        discordId: '123456789',
         username: 'testuser',
       },
-      select: {
-        id: true,
-        defaultPersonaId: true,
-      },
+    });
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('set as your default'),
+      flags: MessageFlags.Ephemeral,
     });
   });
 
   it('should handle empty optional fields', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'persona-123',
+          name: 'My Persona',
+          description: null,
+          preferredName: null,
+          pronouns: null,
+          content: '',
+        },
+      },
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({ id: 'persona-123' });
-    mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
@@ -309,25 +263,20 @@ describe('handleEditModalSubmit', () => {
       'persona-123'
     );
 
-    expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
-      where: { id: 'persona-123' },
-      data: {
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123', {
+      userId: '123456789',
+      method: 'PUT',
+      body: {
         name: 'My Persona',
         description: null,
         preferredName: null,
         pronouns: null,
         content: '',
-        updatedAt: expect.any(Date),
       },
     });
   });
 
   it('should require profile name', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
-    });
-
     await handleEditModalSubmit(
       createMockModalInteraction({
         personaName: '',
@@ -343,16 +292,24 @@ describe('handleEditModalSubmit', () => {
       content: expect.stringContaining('Profile name is required'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should trim whitespace from fields', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'persona-123',
+          name: 'My Persona',
+          description: 'Main persona',
+          preferredName: 'Alice',
+          pronouns: 'she/her',
+          content: 'content with spaces',
+        },
+      },
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({ id: 'persona-123' });
-    mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleEditModalSubmit(
       createMockModalInteraction({
@@ -365,21 +322,21 @@ describe('handleEditModalSubmit', () => {
       'persona-123'
     );
 
-    expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
-      where: { id: 'persona-123' },
-      data: {
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123', {
+      userId: '123456789',
+      method: 'PUT',
+      body: {
         name: 'My Persona',
         description: 'Main persona',
         preferredName: 'Alice',
         pronouns: 'she/her',
         content: 'content with spaces',
-        updatedAt: expect.any(Date),
       },
     });
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleEditModalSubmit(
       createMockModalInteraction({
@@ -399,11 +356,10 @@ describe('handleEditModalSubmit', () => {
   });
 
   it('should error if trying to update non-owned profile', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      defaultPersonaId: 'persona-123',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Persona not found',
     });
-    mockPrismaClient.persona.findFirst.mockResolvedValue(null); // Not found = not owned
 
     await handleEditModalSubmit(
       createMockModalInteraction({
@@ -420,6 +376,5 @@ describe('handleEditModalSubmit', () => {
       content: expect.stringContaining('Profile not found'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
   });
 });
