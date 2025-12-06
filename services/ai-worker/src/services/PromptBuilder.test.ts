@@ -464,9 +464,7 @@ describe('PromptBuilder', () => {
           channel: { id: 'channel-1', name: 'general', type: 'text' },
         };
 
-        const participants = new Map([
-          ['Alice', { content: 'A tester', isActive: true }],
-        ]);
+        const participants = new Map([['Alice', { content: 'A tester', isActive: true }]]);
 
         const memories: MemoryDocument[] = [
           {

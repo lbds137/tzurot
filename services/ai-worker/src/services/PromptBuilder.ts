@@ -199,7 +199,9 @@ export class PromptBuilder {
         : 'User',
       personality.name
     );
-    logger.debug(`[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`);
+    logger.debug(
+      `[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
+    );
 
     // Wrap persona in XML tags (START of prompt - primacy)
     const personaSection = `<persona>\n${persona}\n</persona>`;
@@ -242,8 +244,7 @@ export class PromptBuilder {
     }
 
     // Wrap protocol in XML tags (END of prompt - recency bias for highest impact)
-    const protocolSection =
-      protocol.length > 0 ? `\n\n<protocol>\n${protocol}\n</protocol>` : '';
+    const protocolSection = protocol.length > 0 ? `\n\n<protocol>\n${protocol}\n</protocol>` : '';
 
     // Assemble in correct order for U-shaped attention optimization
     const fullSystemPrompt = `${personaSection}${dateContext}${environmentContext}${participantsContext}${memoryContext}${referencesContext}${protocolSection}`;
