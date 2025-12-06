@@ -1,14 +1,54 @@
 # Current Work
 
-> Last updated: 2025-12-05
+> Last updated: 2025-12-06
 
-## Status: Character List Pagination Fix
+## Status: /me Command Refactor
 
 **Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
+**Branch**: `refactor/me-commands-and-autocomplete`
 
 ---
 
-## Active Work: Slash Command Restructuring
+## Active Work: /me Command & Autocomplete Refactor
+
+### Problem Statement
+
+The `/me` command has significant architectural issues discovered during PR #318 review:
+
+1. **Gateway Bypass**: All `/me` commands use direct Prisma instead of API gateway
+2. **Inconsistent Autocomplete**: 3 different personality autocomplete implementations
+3. **Command Structure**: `override` and `settings` should be under `profile`
+
+**Full documentation**: [docs/improvements/me-command-refactor.md](docs/improvements/me-command-refactor.md)
+
+### Audit Findings
+
+**Files bypassing gateway (using `getPrismaClient`):**
+- `me/autocomplete.ts`, `me/create.ts`, `me/default.ts`, `me/edit.ts`
+- `me/list.ts`, `me/override.ts`, `me/settings.ts`, `me/view.ts`
+
+**Root cause**: No `/user/persona` gateway endpoints exist.
+
+**Autocomplete inconsistency:**
+| Implementation | API | Visibility Icons | Return |
+|---------------|-----|-----------------|--------|
+| `/character/autocomplete.ts` | Gateway | 🌐/🔒/📖 | slug |
+| `/me/autocomplete.ts` | **Prisma** | None | slug |
+| `/me/model/autocomplete.ts` | Gateway | None | id |
+
+### Implementation Plan
+
+1. **Phase 1**: Create gateway endpoints for persona CRUD
+2. **Phase 2**: Create shared personality autocomplete utility
+3. **Phase 3**: Refactor /me commands to use gateway
+4. **Phase 4**: Restructure command groups (override, settings → profile)
+5. **Phase 5**: Update all tests
+
+**Estimated effort**: 4-6 sessions
+
+---
+
+## Previous Active Work: Slash Command Restructuring
 
 ### Problem Statement
 
