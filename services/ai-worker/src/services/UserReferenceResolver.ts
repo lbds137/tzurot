@@ -109,7 +109,10 @@ export class UserReferenceResolver {
             '[UserReferenceResolver] Resolved shapes.inc reference'
           );
         }
-      } else if (persona === null) {
+      } else if (persona !== null) {
+        // Already seen via different format, just replace without adding to list
+        processedText = processedText.replaceAll(fullMatch, persona.personaName);
+      } else {
         // Fallback: if no mapping found, use the username from the reference
         // This is better than leaving ugly @[username](user:uuid) in the prompt
         processedText = processedText.replaceAll(fullMatch, username);
