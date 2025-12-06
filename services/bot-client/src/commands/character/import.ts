@@ -172,8 +172,7 @@ export async function handleImport(
       }
 
       await interaction.editReply(
-        `❌ Failed to import character:\n` +
-          `\`\`\`\n${errorMessage.slice(0, 1500)}\n\`\`\``
+        `❌ Failed to import character:\n` + `\`\`\`\n${errorMessage.slice(0, 1500)}\n\`\`\``
       );
       return;
     }

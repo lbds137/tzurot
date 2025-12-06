@@ -731,10 +731,10 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 
 **Hook Philosophy**: Minimize per-commit overhead, validate thoroughly before push.
 
-| Hook | When | What It Does | Speed |
-|------|------|--------------|-------|
-| **pre-commit** | Every commit | Migration safety checks only | Fast (~1s) |
-| **pre-push** | Before push | Format, lint, typecheck, tests | Slow (~60s) |
+| Hook           | When         | What It Does                   | Speed       |
+| -------------- | ------------ | ------------------------------ | ----------- |
+| **pre-commit** | Every commit | Migration safety checks only   | Fast (~1s)  |
+| **pre-push**   | Before push  | Format, lint, typecheck, tests | Slow (~60s) |
 
 **Batched Commit Workflow** (reduces hook runs, saves resources):
 
@@ -746,12 +746,14 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 This approach means heavy checks (lint, typecheck, tests) run once per push instead of on every commit.
 
 **Source-controlled locations**:
+
 - `./hooks/pre-commit` - Minimal checks (tracked in git)
 - `./hooks/pre-push` - Full quality suite (tracked in git)
 
 **Installation**: Run `./scripts/git/install-hooks.sh` after cloning (copies to `.git/hooks/`)
 
 **When modifying hooks**:
+
 1. Edit files in `./hooks/` (source-controlled)
 2. Run `./scripts/git/install-hooks.sh` to install locally
 3. Commit and push the hook changes
