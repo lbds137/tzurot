@@ -237,8 +237,9 @@ const CHARACTERS_PER_PAGE = 15;
 /**
  * Escape markdown special characters in a string.
  * Escapes backslashes first to prevent double-escaping issues.
+ * @internal Exported for testing
  */
-function escapeMarkdown(text: string): string {
+export function escapeMarkdown(text: string): string {
   return text
     .replace(/\\/g, '\\\\') // Escape backslashes first
     .replace(/\*/g, '\\*'); // Then escape asterisks
