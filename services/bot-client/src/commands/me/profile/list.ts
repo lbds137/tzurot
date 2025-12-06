@@ -10,7 +10,7 @@
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-list');
 

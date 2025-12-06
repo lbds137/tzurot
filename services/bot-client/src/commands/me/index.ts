@@ -8,11 +8,11 @@
  * - /me profile create - Create a new profile
  * - /me profile list - List all your profiles
  * - /me profile default <profile> - Set a profile as your default
- * - /me settings share-ltm <enable|disable> - Toggle LTM sharing across personalities
+ * - /me profile share-ltm <enable|disable> - Toggle LTM sharing across personalities
+ * - /me profile override-set <personality> <profile> - Override profile for specific personality
+ * - /me profile override-clear <personality> - Clear profile override for personality
  * - /me timezone set <timezone> - Set your timezone
  * - /me timezone get - Show your current timezone
- * - /me override set <personality> <profile> - Override profile for specific personality
- * - /me override clear <personality> - Clear profile override for personality
  * - /me model list - Show your model overrides
  * - /me model set <personality> <config> - Override model for a personality
  * - /me model reset <personality> - Remove model override
@@ -29,19 +29,21 @@ import type {
 } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
-import { handleViewPersona, handleExpandContent } from './view.js';
-import { handleEditPersona, handleEditModalSubmit } from './edit.js';
-import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
-import { handleListPersonas } from './list.js';
-import { handleSetDefaultPersona } from './default.js';
-import { handleShareLtmSetting } from './settings.js';
-import { handleTimezoneSet, handleTimezoneGet } from './timezone.js';
-import {
-  handleOverrideSet,
-  handleOverrideClear,
-  handleOverrideCreateModalSubmit,
-} from './override.js';
+// Profile subcommand handlers
+import { handleViewPersona, handleExpandContent } from './profile/view.js';
+import { handleEditPersona, handleEditModalSubmit } from './profile/edit.js';
+import { handleCreatePersona, handleCreateModalSubmit } from './profile/create.js';
+import { handleListPersonas } from './profile/list.js';
+import { handleSetDefaultPersona } from './profile/default.js';
+import { handleShareLtmSetting } from './profile/share-ltm.js';
+import { handleOverrideSet, handleOverrideCreateModalSubmit } from './profile/override-set.js';
+import { handleOverrideClear } from './profile/override-clear.js';
+// Timezone subcommand handlers
+import { handleTimezoneSet } from './timezone/set.js';
+import { handleTimezoneGet } from './timezone/get.js';
+// Autocomplete handlers
 import { handleMePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
+// Model subcommand handlers
 import { handleListOverrides as handleModelList } from './model/list.js';
 import { handleSet as handleModelSet } from './model/set.js';
 import { handleReset as handleModelReset } from './model/reset.js';
@@ -95,11 +97,6 @@ export const data = new SlashCommandBuilder()
               .setAutocomplete(true)
           )
       )
-  )
-  .addSubcommandGroup(group =>
-    group
-      .setName('settings')
-      .setDescription('Manage profile settings')
       .addSubcommand(subcommand =>
         subcommand
           .setName('share-ltm')
@@ -113,6 +110,37 @@ export const data = new SlashCommandBuilder()
                 { name: 'Enable - Share memories with all personalities', value: 'enable' },
                 { name: 'Disable - Keep memories per personality (default)', value: 'disable' }
               )
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('override-set')
+          .setDescription('Set a different profile for a specific personality')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('The personality to override')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(option =>
+            option
+              .setName('profile')
+              .setDescription('The profile to use (or create new)')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('override-clear')
+          .setDescription('Clear profile override for a specific personality')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('The personality to clear override for')
+              .setRequired(true)
+              .setAutocomplete(true)
           )
       )
   )
@@ -134,42 +162,6 @@ export const data = new SlashCommandBuilder()
       )
       .addSubcommand(subcommand =>
         subcommand.setName('get').setDescription('Show your current timezone')
-      )
-  )
-  .addSubcommandGroup(group =>
-    group
-      .setName('override')
-      .setDescription('Set profile overrides for specific personalities')
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('set')
-          .setDescription('Set a different profile for a specific personality')
-          .addStringOption(option =>
-            option
-              .setName('personality')
-              .setDescription('The personality to override')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-          .addStringOption(option =>
-            option
-              .setName('profile')
-              .setDescription('The profile to use (or create new)')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('clear')
-          .setDescription('Clear profile override for a specific personality')
-          .addStringOption(option =>
-            option
-              .setName('personality')
-              .setDescription('The personality to clear override for')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
       )
   )
   .addSubcommandGroup(group =>
@@ -229,24 +221,19 @@ export const data = new SlashCommandBuilder()
 
 /**
  * Profile subcommand router
+ * Handles: view, create, list, share-ltm, override-set, override-clear
+ * (edit, default handled separately due to parameter passing)
  */
 const profileRouter = createSubcommandRouter(
   {
     view: handleViewPersona,
     create: handleCreatePersona,
     list: handleListPersonas,
+    'share-ltm': handleShareLtmSetting,
+    'override-set': handleOverrideSet,
+    'override-clear': handleOverrideClear,
   },
   { logger, logPrefix: '[Me/Profile]' }
-);
-
-/**
- * Settings subcommand router
- */
-const settingsRouter = createSubcommandRouter(
-  {
-    'share-ltm': handleShareLtmSetting,
-  },
-  { logger, logPrefix: '[Me/Settings]' }
 );
 
 /**
@@ -258,17 +245,6 @@ const timezoneRouter = createSubcommandRouter(
     get: handleTimezoneGet,
   },
   { logger, logPrefix: '[Me/Timezone]' }
-);
-
-/**
- * Override subcommand router
- */
-const overrideRouter = createSubcommandRouter(
-  {
-    set: handleOverrideSet,
-    clear: handleOverrideClear,
-  },
-  { logger, logPrefix: '[Me/Override]' }
 );
 
 /**
@@ -337,15 +313,11 @@ export async function execute(
       // Default needs the profile ID
       await handleSetDefaultPersona(interaction);
     } else {
-      // view, create, list use profile router
+      // view, create, list, share-ltm, override-set, override-clear use profile router
       await profileRouter(interaction);
     }
-  } else if (group === 'settings') {
-    await settingsRouter(interaction);
   } else if (group === 'timezone') {
     await timezoneRouter(interaction);
-  } else if (group === 'override') {
-    await overrideRouter(interaction);
   } else if (group === 'model') {
     await modelRouter(interaction);
   } else {
@@ -362,12 +334,12 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
   const subcommand = interaction.options.getSubcommand();
 
   if (focusedOption.name === 'personality') {
-    // Personality autocomplete (for override and model commands)
+    // Personality autocomplete (for profile override and model commands)
     if (subcommandGroup === 'model') {
       // Model subcommands use their own personality autocomplete
       await handleModelAutocomplete(interaction);
     } else {
-      // Override subcommands use personality autocomplete with visibility icons
+      // Profile override subcommands use personality autocomplete with visibility icons
       await handleMePersonalityAutocomplete(interaction);
     }
   } else if (focusedOption.name === 'config') {
@@ -375,8 +347,8 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
     await handleModelAutocomplete(interaction);
   } else if (focusedOption.name === 'profile') {
     // Profile autocomplete
-    // Include "Create new" option only for override set (not for profile commands)
-    const includeCreateNew = subcommandGroup === 'override' && subcommand === 'set';
+    // Include "Create new" option only for override-set (not for other profile commands)
+    const includeCreateNew = subcommandGroup === 'profile' && subcommand === 'override-set';
     await handlePersonaAutocomplete(interaction, includeCreateNew);
   } else if (focusedOption.name === 'timezone') {
     // Timezone autocomplete

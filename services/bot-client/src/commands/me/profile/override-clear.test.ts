@@ -1,0 +1,135 @@
+/**
+ * Tests for Override Clear Handler
+ * Tests gateway API calls for clearing per-personality profile overrides.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { handleOverrideClear } from './override-clear.js';
+import { MessageFlags } from 'discord.js';
+
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
+
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+describe('handleOverrideClear', () => {
+  const mockReply = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createMockInteraction(personalitySlug: string) {
+    return {
+      user: { id: '123456789', username: 'testuser' },
+      options: {
+        getString: (name: string) => {
+          if (name === 'personality') return personalitySlug;
+          return null;
+        },
+      },
+      reply: mockReply,
+    } as any;
+  }
+
+  it('should clear override successfully', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        personality: {
+          id: 'personality-uuid',
+          name: 'Lilith',
+          displayName: 'Lilith',
+        },
+        hadOverride: true,
+      },
+    });
+
+    await handleOverrideClear(createMockInteraction('lilith'));
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
+      userId: '123456789',
+      method: 'DELETE',
+    });
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Profile override cleared'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should inform user if no override exists', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        personality: {
+          id: 'personality-uuid',
+          name: 'Lilith',
+          displayName: 'Lilith',
+        },
+        hadOverride: false,
+      },
+    });
+
+    await handleOverrideClear(createMockInteraction('lilith'));
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining("don't have a profile override"),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should error if personality not found', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Personality not found',
+    });
+
+    await handleOverrideClear(createMockInteraction('nonexistent'));
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Personality "nonexistent" not found'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should error if user not found', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'User has no account yet',
+    });
+
+    await handleOverrideClear(createMockInteraction('lilith'));
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining("don't have an account yet"),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+    await handleOverrideClear(createMockInteraction('lilith'));
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to clear profile override'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+});

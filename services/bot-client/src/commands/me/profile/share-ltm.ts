@@ -9,7 +9,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-settings');
 
