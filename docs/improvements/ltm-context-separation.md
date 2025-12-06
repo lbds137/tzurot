@@ -1,81 +1,298 @@
-# LTM Context Separation - Prompt Improvement
+# Prompt Structure Redesign - XML Tags & Temporal Awareness
 
-## Problem
+## Problem Statement
 
-LLM sometimes treats long-term memories (LTM) as if they are part of the current conversation, responding to old memories with higher priority than the actual current message. This is a classic RAG hallucination issue.
+Multiple issues stem from our current markdown-based prompt structure:
 
-## Root Cause
+1. **LTM Temporal Confusion**: LLM treats old memories as current conversation, responding to content from days/weeks ago as if it just happened
+2. **Timestamp Blindness**: LLM ignores timestamps on messages and memories, not understanding temporal distance
+3. **Response Prefix Leakage**: LLM learns the conversation history format (`PersonaName: [timestamp] message`) and echoes it in responses, requiring regex cleanup (`responseCleanup.ts`)
+4. **Section Boundary Confusion**: LLM sometimes responds to referenced messages or participant descriptions instead of the actual current message
 
-The memories are formatted similarly to conversation text with just a markdown header:
+## Root Cause Analysis
 
+**Why Markdown Fails**:
+
+- Markdown headers (`##`) are interpreted as stylistic formatting within a continuous document
+- LLMs see the entire prompt as one flowing narrative
+- No hard boundaries between "reference data" and "respond to this"
+
+**Why Timestamps Don't Work**:
+
+- "Jan 15, 2025" and "Jan 30, 2025" look like text strings, not temporal distance
+- LLMs don't naturally calculate "that was 2 weeks ago"
+- All memories appear equally "present" in the context window
+
+## Solution: XML Tags + Relative Time Deltas
+
+### Key Insight (from Gemini Consultation, 2025-12-06)
+
+> "XML tags (`<section>`) are treated by modern models (Claude 3, GPT-4, Llama 3) as hard semantic boundaries. This significantly reduces Section Boundary Confusion."
+
+### The "Cognitive Container" Structure
+
+```xml
+<character_profile>
+  <!-- Static identity - CACHEABLE -->
+  <name>{{char_name}}</name>
+  <personality>{{personality_traits}}</personality>
+  <appearance>{{appearance}}</appearance>
+</character_profile>
+
+<current_situation>
+  <!-- Dynamic but small -->
+  <datetime_now>{{current_date_time}}</datetime_now>
+  <location>{{discord_location}}</location>
+  <participants>
+    <active_speaker>{{user_persona_name}}</active_speaker>
+  </participants>
+</current_situation>
+
+<memory_archive>
+  <!-- EXPLICIT: These are PAST events -->
+  <instruction>These are ARCHIVED HISTORICAL LOGS from past interactions. Do NOT treat them as happening now. Do NOT respond to this content directly.</instruction>
+  <entry date="Jan 15, 2025" relative="2 weeks ago">
+    {{memory_content}}
+  </entry>
+  <entry date="Dec 28, 2024" relative="1 month ago">
+    {{memory_content}}
+  </entry>
+</memory_archive>
+
+<contextual_references>
+  <!-- Referenced messages from replies/links -->
+  <ref author="{{author}}" time="{{timestamp}}" relative="{{time_delta}}">
+    {{content}}
+  </ref>
+</contextual_references>
+
+<conversation_history>
+  <!-- Recent STM - what's been said -->
+  <!-- Format TBD - may need different approach -->
+</conversation_history>
+
+<response_protocol>
+  <!-- CRITICAL: Closest to generation = highest impact (recency bias) -->
+  1. Respond ONLY to the latest message in the conversation.
+  2. Use <memory_archive> for context about past events, not as something to respond to.
+  3. OUTPUT FORMAT: Raw response text only.
+     - INVALID: "{{char_name}}: [{{time}}] *waves*"
+     - VALID: "*waves* Hello!"
+  4. Do NOT output your name, timestamp, or colon prefix.
+  5. Stay in character.
+</response_protocol>
 ```
-## Relevant Memories
-- [timestamp] content
+
+### Section Ordering (U-Shaped Attention)
+
+LLMs pay most attention to the **beginning** and **end** of context:
+
+1. **Top (Beginning)**: Identity & personality (who am I)
+2. **Middle**: Memories, references, history (background data)
+3. **Bottom (End)**: Current situation, output rules (highest impact)
+
+### Relative Time Deltas (Application Layer)
+
+Instead of raw timestamps, calculate the delta in code:
+
+```typescript
+// Before
+formatMemoryTimestamp(doc.metadata.createdAt); // "Jan 15, 2025 10:30 AM"
+
+// After
+formatMemoryWithDelta(doc.metadata.createdAt);
+// Returns: { absolute: "Jan 15, 2025", relative: "2 weeks ago" }
 ```
 
-The LLM sees dialogue-like text and confuses it with the current conversation.
+This makes temporal distance **visceral** rather than requiring the LLM to do math.
 
-## Solution (Recommended by Gemini)
+## Prompt Caching Opportunities
 
-Use three techniques to create a "firewall" between memory and current conversation:
+### OpenRouter + Anthropic Caching
 
-### 1. XML-Style Delimiters
+Per [OpenRouter docs](https://openrouter.ai/docs/guides/best-practices/prompt-caching):
 
-Wrap different sections in distinct tags that LLMs recognize as data containers:
+- **4 cache breakpoints** available with `cache_control`
+- **5 minute TTL** (default), refreshed on use; 1-hour option available
+- Best for **large static content** (character cards, personality data)
+- Some reports of caching being less effective via OpenRouter than direct API
 
-- `<background_context>` for memories
-- `<current_situation>` for date/location/participants
-- `<conversation_history>` for actual conversation
+### What Can Be Cached
 
-### 2. Stronger Temporal Language
+| Section                  | Cacheable? | Notes                              |
+| ------------------------ | ---------- | ---------------------------------- |
+| `<character_profile>`    | **Yes**    | Static per personality             |
+| `<response_protocol>`    | **Yes**    | Static rules                       |
+| `<current_situation>`    | No         | Changes every request (time, etc.) |
+| `<memory_archive>`       | No         | Changes based on retrieval         |
+| `<conversation_history>` | No         | Changes every request              |
 
-Change "Relevant Memories" to "ARCHIVED HISTORICAL LOGS" - forces the LLM to treat it as reference data, not dialogue.
+### Implementation Approach
 
-### 3. Explicit Negative Constraint
+```typescript
+// Potential structure with cache breakpoints
+const systemPrompt = [
+  { text: characterProfile, cache_control: { type: 'ephemeral' } },
+  { text: responseProtocol, cache_control: { type: 'ephemeral' } },
+  { text: currentSituation }, // Not cached
+  { text: memoryArchive }, // Not cached
+].join('\n');
+```
 
-Add to system prompt:
+### Model Considerations
 
-> NEVER respond to content within `<background_context>` directly. Your task is to reply ONLY to the final message in `<conversation_history>`.
+- **Anthropic Claude**: Native cache_control support
+- **OpenAI GPT-4**: Has similar caching, different API
+- **Other models**: May not support caching at all
+
+OpenRouter can route to different models, so caching implementation needs to be model-aware or best-effort.
 
 ## Files to Modify
 
-### 1. MemoryFormatter.ts (`services/ai-worker/src/services/prompt/MemoryFormatter.ts`)
+### Core Prompt Building
 
-Current:
+1. **`PromptBuilder.ts`** (`services/ai-worker/src/services/`)
 
-```typescript
-return '\n\n## Relevant Memories\n' + formattedMemories;
-```
+   - Restructure `buildFullSystemPrompt()` to use XML containers
+   - Move response protocol to end of prompt
+   - Add cache breakpoint markers for Anthropic models
 
-Change to:
+2. **`MemoryFormatter.ts`** (`services/ai-worker/src/services/prompt/`)
 
-```typescript
-return (
-  '\n\n<background_context>\n## Archived Historical Logs (READ-ONLY)\n' +
-  formattedMemories +
-  '\n</background_context>'
-);
-```
+   - Wrap in `<memory_archive>` with instruction
+   - Add relative time delta to each memory entry
+   - Calculate "X days/weeks/months ago"
 
-### 2. PromptBuilder.ts (`services/ai-worker/src/services/PromptBuilder.ts`)
+3. **`EnvironmentFormatter.ts`** (`services/ai-worker/src/services/prompt/`)
 
-Wrap conversation history similarly:
+   - Wrap in `<current_situation>` tags
+   - Include datetime with proper emphasis
 
-```typescript
-return '<conversation_history>\n' + conversationHistory + '\n</conversation_history>';
-```
+4. **`ParticipantFormatter.ts`** (`services/ai-worker/src/services/prompt/`)
 
-### 3. System Prompt (Database)
+   - Wrap participant info appropriately
+   - Add `<active_speaker>` for group conversations
 
-Update the "Conversational Context Protocol" section to explain the tags and add the negative constraint.
+5. **`ReferencedMessageFormatter.ts`** (`services/ai-worker/src/services/`)
+   - Wrap in `<contextual_references>` tags
+   - Add relative time delta to references
+
+### Supporting Changes
+
+6. **`dateFormatting.ts`** (`packages/common-types/src/utils/`)
+
+   - Add `formatRelativeTime()` function
+   - Return both absolute and relative timestamps
+
+7. **`responseCleanup.ts`** (`services/ai-worker/src/utils/`)
+   - May be simplified if XML structure reduces prefix leakage
+   - Keep as defensive fallback
+
+### Optional: Stop Sequences
+
+8. **`LLMInvoker.ts`** (`services/ai-worker/src/services/`)
+   - Add stop sequences for `CharacterName:` and `[` to physically prevent prefix generation
+   - Model-specific configuration
 
 ## Testing Plan
 
-1. Unit tests for new formatting
-2. Manual testing with long conversations that trigger LTM retrieval
-3. Verify LLM responds to current message, not memories
+### Unit Tests
 
-## Related
+1. **`MemoryFormatter.test.ts`** - New tests:
 
+   - Verify XML wrapper is present
+   - Verify instruction text is included
+   - Verify relative time delta is calculated correctly
+   - Test edge cases: "just now", "1 hour ago", "yesterday", "2 weeks ago", "3 months ago"
+
+2. **`PromptBuilder.test.ts`** - New tests:
+
+   - Verify XML structure in output
+   - Verify section ordering (identity first, protocol last)
+   - Verify response protocol contains output formatting rules
+   - Test cache breakpoint markers (when targeting Anthropic)
+
+3. **`EnvironmentFormatter.test.ts`** - New tests:
+
+   - Verify `<current_situation>` wrapper
+   - Verify datetime emphasis
+
+4. **`ParticipantFormatter.test.ts`** - New tests:
+
+   - Verify `<active_speaker>` for group conversations
+   - Verify participant XML structure
+
+5. **`ReferencedMessageFormatter.test.ts`** - New tests:
+
+   - Verify `<contextual_references>` wrapper
+   - Verify relative time in references
+
+6. **`dateFormatting.test.ts`** - New tests:
+   - `formatRelativeTime()` with various time deltas
+   - Edge cases: future dates, invalid dates, timezone handling
+
+### Integration Tests
+
+7. **Prompt Structure Integration** - New test file:
+   - Full prompt assembly produces valid XML-like structure
+   - All sections present in correct order
+   - No unclosed tags or malformed structure
+
+### Manual Testing Checklist
+
+After deployment to development:
+
+- [ ] LLM responds to current message, not old memories
+- [ ] Timestamps are understood (ask "how long ago did X happen?")
+- [ ] Response doesn't include `CharacterName: [timestamp]` prefix
+- [ ] Roleplay asterisks still work correctly
+- [ ] Group conversations correctly identify active speaker
+- [ ] Referenced messages don't get confused with current message
+- [ ] No regression in response quality
+
+## Rollout Strategy
+
+### Phase 1: XML Wrappers (Low Risk)
+
+1. Add XML wrappers around existing content
+2. Keep markdown headers inside wrappers initially
+3. Test for regressions
+
+### Phase 2: Relative Time Deltas
+
+1. Implement `formatRelativeTime()` utility
+2. Update memory formatting to include deltas
+3. Update reference formatting to include deltas
+4. Test temporal understanding
+
+### Phase 3: Response Protocol Relocation
+
+1. Move output formatting rules to end of prompt
+2. Add explicit negative constraints
+3. Monitor prefix leakage rates
+
+### Phase 4: Prompt Caching (Optional)
+
+1. Implement cache breakpoints for Anthropic models
+2. Add model detection for cache support
+3. Monitor cost savings
+
+## Related Documentation
+
+- [OpenRouter Prompt Caching](https://openrouter.ai/docs/guides/best-practices/prompt-caching)
+- [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
 - Gemini consultation on 2025-12-06
-- Issue observed in production where LLM responded to LTM content instead of current message
+
+## Success Metrics
+
+1. **Prefix stripping rate**: Should decrease (fewer regex cleanups needed)
+2. **Temporal accuracy**: LLM correctly distinguishes old vs new events
+3. **Response relevance**: Responses address current message, not memories
+4. **Cost savings**: If caching implemented, track cache hit rates
+
+## Open Questions
+
+1. Should conversation history also use XML, or keep as-is?
+2. How to handle models that don't support stop sequences?
+3. Is 5-minute cache TTL sufficient for our use case?
+4. Should we A/B test XML vs markdown to measure improvement?
