@@ -1,23 +1,22 @@
 /**
  * Tests for Profile List Handler
+ * Tests gateway API calls and response rendering.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListPersonas } from './list.js';
 import { MessageFlags } from 'discord.js';
 
-// Mock Prisma
-const mockPrismaClient = {
-  user: {
-    findUnique: vi.fn(),
-  },
-};
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -42,9 +41,9 @@ describe('handleListPersonas', () => {
   }
 
   it('should show empty state when user has no profiles', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { personas: [] },
     });
 
     await handleListPersonas(createMockInteraction());
@@ -55,38 +54,43 @@ describe('handleListPersonas', () => {
     });
   });
 
-  it('should show empty state when user not found', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
+  it('should handle gateway API errors gracefully', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Gateway error',
+    });
 
     await handleListPersonas(createMockInteraction());
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have any profiles yet"),
+      content: expect.stringContaining('Failed to load'),
       flags: MessageFlags.Ephemeral,
     });
   });
 
   it('should list user personas with embed', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: 'persona-1',
-      ownedPersonas: [
-        {
-          id: 'persona-1',
-          name: 'Default Persona',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'I love coding',
-          createdAt: new Date(),
-        },
-        {
-          id: 'persona-2',
-          name: 'Work Persona',
-          preferredName: 'Professional Alice',
-          pronouns: null,
-          content: null,
-          createdAt: new Date(),
-        },
-      ],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          {
+            id: 'persona-1',
+            name: 'Default Persona',
+            preferredName: 'Alice',
+            pronouns: 'she/her',
+            content: 'I love coding',
+            isDefault: true,
+          },
+          {
+            id: 'persona-2',
+            name: 'Work Persona',
+            preferredName: 'Professional Alice',
+            pronouns: null,
+            content: null,
+            isDefault: false,
+          },
+        ],
+      },
     });
 
     await handleListPersonas(createMockInteraction());
@@ -104,18 +108,20 @@ describe('handleListPersonas', () => {
   });
 
   it('should mark default persona with star', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: 'persona-1',
-      ownedPersonas: [
-        {
-          id: 'persona-1',
-          name: 'My Persona',
-          preferredName: null,
-          pronouns: null,
-          content: null,
-          createdAt: new Date(),
-        },
-      ],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          {
+            id: 'persona-1',
+            name: 'My Persona',
+            preferredName: null,
+            pronouns: null,
+            content: null,
+            isDefault: true,
+          },
+        ],
+      },
     });
 
     await handleListPersonas(createMockInteraction());
@@ -129,34 +135,36 @@ describe('handleListPersonas', () => {
   });
 
   it('should show persona count in description', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [
-        {
-          id: 'persona-1',
-          name: 'Persona 1',
-          preferredName: null,
-          pronouns: null,
-          content: null,
-          createdAt: new Date(),
-        },
-        {
-          id: 'persona-2',
-          name: 'Persona 2',
-          preferredName: null,
-          pronouns: null,
-          content: null,
-          createdAt: new Date(),
-        },
-        {
-          id: 'persona-3',
-          name: 'Persona 3',
-          preferredName: null,
-          pronouns: null,
-          content: null,
-          createdAt: new Date(),
-        },
-      ],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          {
+            id: 'persona-1',
+            name: 'Persona 1',
+            preferredName: null,
+            pronouns: null,
+            content: null,
+            isDefault: false,
+          },
+          {
+            id: 'persona-2',
+            name: 'Persona 2',
+            preferredName: null,
+            pronouns: null,
+            content: null,
+            isDefault: false,
+          },
+          {
+            id: 'persona-3',
+            name: 'Persona 3',
+            preferredName: null,
+            pronouns: null,
+            content: null,
+            isDefault: false,
+          },
+        ],
+      },
     });
 
     await handleListPersonas(createMockInteraction());
@@ -168,8 +176,8 @@ describe('handleListPersonas', () => {
     expect(embed.description).toContain('profiles');
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle network errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleListPersonas(createMockInteraction());
 
@@ -181,18 +189,20 @@ describe('handleListPersonas', () => {
 
   it('should truncate long content in preview', async () => {
     const longContent = 'x'.repeat(200);
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      defaultPersonaId: null,
-      ownedPersonas: [
-        {
-          id: 'persona-1',
-          name: 'Long Content Persona',
-          preferredName: null,
-          pronouns: null,
-          content: longContent,
-          createdAt: new Date(),
-        },
-      ],
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personas: [
+          {
+            id: 'persona-1',
+            name: 'Long Content Persona',
+            preferredName: null,
+            pronouns: null,
+            content: longContent,
+            isDefault: false,
+          },
+        ],
+      },
     });
 
     await handleListPersonas(createMockInteraction());

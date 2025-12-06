@@ -1,26 +1,22 @@
 /**
  * Tests for Profile Settings Handler
+ * Tests gateway API calls for settings management.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleShareLtmSetting } from './settings.js';
 import { MessageFlags } from 'discord.js';
 
-// Mock Prisma
-const mockPrismaClient = {
-  user: {
-    findUnique: vi.fn(),
-  },
-  persona: {
-    update: vi.fn(),
-  },
-};
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -29,14 +25,6 @@ vi.mock('@tzurot/common-types', async () => {
     }),
   };
 });
-
-// Mock redis module to provide personaCacheInvalidationService
-vi.mock('../../redis.js', () => ({
-  personaCacheInvalidationService: {
-    invalidateUserPersona: vi.fn().mockResolvedValue(undefined),
-    invalidateAll: vi.fn().mockResolvedValue(undefined),
-  },
-}));
 
 describe('handleShareLtmSetting', () => {
   const mockReply = vi.fn();
@@ -59,7 +47,10 @@ describe('handleShareLtmSetting', () => {
   }
 
   it('should show error when user has no account', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'User has no account yet',
+    });
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 
@@ -70,10 +61,9 @@ describe('handleShareLtmSetting', () => {
   });
 
   it('should show error when user has no profile', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-123',
-      defaultPersonaId: null,
-      defaultPersona: null,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'No default persona',
     });
 
     await handleShareLtmSetting(createMockInteraction('enable'));
@@ -85,11 +75,11 @@ describe('handleShareLtmSetting', () => {
   });
 
   it('should show info message when already in desired state (enable)', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-123',
-      defaultPersonaId: 'persona-123',
-      defaultPersona: {
-        shareLtmAcrossPersonalities: true,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        unchanged: true,
       },
     });
 
@@ -99,15 +89,14 @@ describe('handleShareLtmSetting', () => {
       content: expect.stringContaining('already sharing'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
   });
 
   it('should show info message when already in desired state (disable)', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-123',
-      defaultPersonaId: 'persona-123',
-      defaultPersona: {
-        shareLtmAcrossPersonalities: false,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        unchanged: true,
       },
     });
 
@@ -117,26 +106,24 @@ describe('handleShareLtmSetting', () => {
       content: expect.stringContaining('already keeping'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.persona.update).not.toHaveBeenCalled();
   });
 
   it('should enable LTM sharing', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-123',
-      defaultPersonaId: 'persona-123',
-      defaultPersona: {
-        shareLtmAcrossPersonalities: false,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        unchanged: false,
       },
     });
-    mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 
-    expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
-      where: { id: 'persona-123' },
-      data: {
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/settings', {
+      userId: '123456789',
+      method: 'PATCH',
+      body: {
         shareLtmAcrossPersonalities: true,
-        updatedAt: expect.any(Date),
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
@@ -146,22 +133,21 @@ describe('handleShareLtmSetting', () => {
   });
 
   it('should disable LTM sharing', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-123',
-      defaultPersonaId: 'persona-123',
-      defaultPersona: {
-        shareLtmAcrossPersonalities: true,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        unchanged: false,
       },
     });
-    mockPrismaClient.persona.update.mockResolvedValue({});
 
     await handleShareLtmSetting(createMockInteraction('disable'));
 
-    expect(mockPrismaClient.persona.update).toHaveBeenCalledWith({
-      where: { id: 'persona-123' },
-      data: {
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/settings', {
+      userId: '123456789',
+      method: 'PATCH',
+      body: {
         shareLtmAcrossPersonalities: false,
-        updatedAt: expect.any(Date),
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
@@ -170,8 +156,8 @@ describe('handleShareLtmSetting', () => {
     });
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 

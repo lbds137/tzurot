@@ -1,5 +1,6 @@
 /**
  * Tests for Profile Override Handlers
+ * Tests gateway API calls for setting per-personality profile overrides.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -11,31 +12,16 @@ import {
 import { MessageFlags } from 'discord.js';
 import { CREATE_NEW_PERSONA_VALUE } from './autocomplete.js';
 
-// Mock Prisma
-const mockPrismaClient = {
-  user: {
-    findUnique: vi.fn(),
-  },
-  personality: {
-    findUnique: vi.fn(),
-  },
-  persona: {
-    findFirst: vi.fn(),
-    create: vi.fn(),
-  },
-  userPersonalityConfig: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-};
+// Mock gateway client
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    getPrismaClient: vi.fn(() => mockPrismaClient),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -44,14 +30,6 @@ vi.mock('@tzurot/common-types', async () => {
     }),
   };
 });
-
-// Mock redis
-vi.mock('../../redis.js', () => ({
-  personaCacheInvalidationService: {
-    invalidateUserPersona: vi.fn().mockResolvedValue(undefined),
-    invalidateAll: vi.fn().mockResolvedValue(undefined),
-  },
-}));
 
 describe('handleOverrideSet', () => {
   const mockReply = vi.fn();
@@ -78,30 +56,29 @@ describe('handleOverrideSet', () => {
   }
 
   it('should set existing persona as override', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        personality: {
+          id: 'personality-uuid',
+          name: 'Lilith',
+          displayName: 'Lilith',
+        },
+        persona: {
+          id: 'persona-123',
+          name: 'Work Persona',
+          preferredName: 'Alice',
+        },
+      },
     });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-    });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'Work Persona',
-      preferredName: 'Alice',
-    });
-    mockPrismaClient.userPersonalityConfig.findUnique.mockResolvedValue(null);
-    mockPrismaClient.userPersonalityConfig.create.mockResolvedValue({});
 
     await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
 
-    expect(mockPrismaClient.userPersonalityConfig.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-uuid',
-        personalityId: 'personality-uuid',
-        personaId: 'persona-123',
-      },
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
+      userId: '123456789',
+      method: 'PUT',
+      body: { personaId: 'persona-123' },
     });
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile override set'),
@@ -110,50 +87,31 @@ describe('handleOverrideSet', () => {
   });
 
   it('should show create modal when CREATE_NEW_PERSONA_VALUE selected', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
-    });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        personality: {
+          id: 'personality-uuid',
+          name: 'Lilith',
+          displayName: 'Lilith',
+        },
+      },
     });
 
     await handleOverrideSet(createMockInteraction('lilith', CREATE_NEW_PERSONA_VALUE));
 
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
+      userId: '123456789',
+    });
     expect(mockShowModal).toHaveBeenCalled();
     expect(mockReply).not.toHaveBeenCalled();
   });
 
-  it('should update existing config when user has config', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: null,
-    });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-    });
-    mockPrismaClient.persona.findFirst.mockResolvedValue({
-      id: 'persona-123',
-      name: 'Work Persona',
-      preferredName: null,
-    });
-    mockPrismaClient.userPersonalityConfig.findUnique.mockResolvedValue({
-      id: 'config-uuid',
-    });
-    mockPrismaClient.userPersonalityConfig.update.mockResolvedValue({});
-
-    await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
-
-    expect(mockPrismaClient.userPersonalityConfig.update).toHaveBeenCalledWith({
-      where: { id: 'config-uuid' },
-      data: { personaId: 'persona-123' },
-    });
-  });
-
   it('should error if personality not found', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue(null);
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Personality not found',
+    });
 
     await handleOverrideSet(createMockInteraction('nonexistent', 'persona-123'));
 
@@ -164,12 +122,10 @@ describe('handleOverrideSet', () => {
   });
 
   it('should error if user not found', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'User has no account yet',
     });
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
 
     await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
 
@@ -180,15 +136,10 @@ describe('handleOverrideSet', () => {
   });
 
   it('should error if profile not owned by user', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Profile not found',
     });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-    });
-    mockPrismaClient.persona.findFirst.mockResolvedValue(null);
 
     await handleOverrideSet(createMockInteraction('lilith', 'other-persona'));
 
@@ -198,8 +149,8 @@ describe('handleOverrideSet', () => {
     });
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.personality.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
 
@@ -228,16 +179,24 @@ describe('handleOverrideCreateModalSubmit', () => {
   }
 
   it('should create new persona and set as override', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        persona: {
+          id: 'new-persona-123',
+          name: 'Lilith Persona',
+          preferredName: 'Alice',
+          description: 'For Lilith only',
+          pronouns: 'she/her',
+          content: 'Special content for Lilith',
+        },
+        personality: {
+          name: 'Lilith',
+          displayName: 'Lilith',
+        },
+      },
     });
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      name: 'Lilith',
-      displayName: 'Lilith',
-    });
-    mockPrismaClient.persona.create.mockResolvedValue({ id: 'new-persona-123' });
-    mockPrismaClient.userPersonalityConfig.findUnique.mockResolvedValue(null);
-    mockPrismaClient.userPersonalityConfig.create.mockResolvedValue({});
 
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
@@ -250,23 +209,21 @@ describe('handleOverrideCreateModalSubmit', () => {
       'personality-uuid'
     );
 
-    expect(mockPrismaClient.persona.create).toHaveBeenCalledWith({
-      data: {
-        name: 'Lilith Persona',
-        description: 'For Lilith only',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'Special content for Lilith',
-        ownerId: 'user-uuid',
-      },
-    });
-    expect(mockPrismaClient.userPersonalityConfig.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-uuid',
-        personalityId: 'personality-uuid',
-        personaId: 'new-persona-123',
-      },
-    });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/persona/override/by-id/personality-uuid',
+      {
+        userId: '123456789',
+        method: 'POST',
+        body: {
+          name: 'Lilith Persona',
+          description: 'For Lilith only',
+          preferredName: 'Alice',
+          pronouns: 'she/her',
+          content: 'Special content for Lilith',
+          username: 'testuser',
+        },
+      }
+    );
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile "Lilith Persona" created'),
       flags: MessageFlags.Ephemeral,
@@ -277,6 +234,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
         personaName: '',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -288,15 +246,19 @@ describe('handleOverrideCreateModalSubmit', () => {
       content: expect.stringContaining('Profile name is required'),
       flags: MessageFlags.Ephemeral,
     });
-    expect(mockPrismaClient.persona.create).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should error if user not found', async () => {
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'User not found',
+    });
 
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'Test',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -310,12 +272,13 @@ describe('handleOverrideCreateModalSubmit', () => {
     });
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.user.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleOverrideCreateModalSubmit(
       createMockModalInteraction({
         personaName: 'Test',
+        description: '',
         preferredName: '',
         pronouns: '',
         content: '',
@@ -350,28 +313,25 @@ describe('handleOverrideClear', () => {
     } as any;
   }
 
-  it('should clear override by deleting config', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
-    });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      personalityConfigs: [
-        {
-          id: 'config-uuid',
-          personaId: 'persona-123',
-          llmConfigId: null,
+  it('should clear override successfully', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        personality: {
+          id: 'personality-uuid',
+          name: 'Lilith',
+          displayName: 'Lilith',
         },
-      ],
+        hadOverride: true,
+      },
     });
-    mockPrismaClient.userPersonalityConfig.delete.mockResolvedValue({});
 
     await handleOverrideClear(createMockInteraction('lilith'));
 
-    expect(mockPrismaClient.userPersonalityConfig.delete).toHaveBeenCalledWith({
-      where: { id: 'config-uuid' },
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
+      userId: '123456789',
+      method: 'DELETE',
     });
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile override cleared'),
@@ -379,48 +339,18 @@ describe('handleOverrideClear', () => {
     });
   });
 
-  it('should clear override by updating config if llmConfigId exists', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: null,
-    });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      personalityConfigs: [
-        {
-          id: 'config-uuid',
-          personaId: 'persona-123',
-          llmConfigId: 'llm-config-uuid',
-        },
-      ],
-    });
-    mockPrismaClient.userPersonalityConfig.update.mockResolvedValue({});
-
-    await handleOverrideClear(createMockInteraction('lilith'));
-
-    expect(mockPrismaClient.userPersonalityConfig.update).toHaveBeenCalledWith({
-      where: { id: 'config-uuid' },
-      data: { personaId: null },
-    });
-    expect(mockPrismaClient.userPersonalityConfig.delete).not.toHaveBeenCalled();
-  });
-
   it('should inform user if no override exists', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
-    });
-    mockPrismaClient.user.findUnique.mockResolvedValue({
-      id: 'user-uuid',
-      personalityConfigs: [
-        {
-          id: 'config-uuid',
-          personaId: null,
-          llmConfigId: null,
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        success: true,
+        personality: {
+          id: 'personality-uuid',
+          name: 'Lilith',
+          displayName: 'Lilith',
         },
-      ],
+        hadOverride: false,
+      },
     });
 
     await handleOverrideClear(createMockInteraction('lilith'));
@@ -432,7 +362,10 @@ describe('handleOverrideClear', () => {
   });
 
   it('should error if personality not found', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue(null);
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Personality not found',
+    });
 
     await handleOverrideClear(createMockInteraction('nonexistent'));
 
@@ -443,12 +376,10 @@ describe('handleOverrideClear', () => {
   });
 
   it('should error if user not found', async () => {
-    mockPrismaClient.personality.findUnique.mockResolvedValue({
-      id: 'personality-uuid',
-      name: 'Lilith',
-      displayName: 'Lilith',
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'User has no account yet',
     });
-    mockPrismaClient.user.findUnique.mockResolvedValue(null);
 
     await handleOverrideClear(createMockInteraction('lilith'));
 
@@ -458,8 +389,8 @@ describe('handleOverrideClear', () => {
     });
   });
 
-  it('should handle database errors gracefully', async () => {
-    mockPrismaClient.personality.findUnique.mockRejectedValue(new Error('DB error'));
+  it('should handle gateway errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleOverrideClear(createMockInteraction('lilith'));
 
