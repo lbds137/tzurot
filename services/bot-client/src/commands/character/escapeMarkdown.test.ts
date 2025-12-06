@@ -53,9 +53,7 @@ describe('escapeMarkdown', () => {
 
   describe('complex strings', () => {
     it('should handle mixed content', () => {
-      expect(escapeMarkdown('Hello *world* with \\path')).toBe(
-        'Hello \\*world\\* with \\\\path'
-      );
+      expect(escapeMarkdown('Hello *world* with \\path')).toBe('Hello \\*world\\* with \\\\path');
     });
 
     it('should handle character names with asterisks', () => {
