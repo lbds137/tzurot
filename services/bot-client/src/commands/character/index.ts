@@ -225,7 +225,6 @@ async function handleEdit(
   }
 }
 
-
 /** Characters per page for pagination */
 const CHARACTERS_PER_PAGE = 15;
 
