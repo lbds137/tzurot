@@ -185,7 +185,8 @@ export async function handleImport(
 
     // Use separate avatar attachment if provided, otherwise fall back to JSON's avatarData
     const finalAvatarData =
-      avatarData ?? (typeof characterData.avatarData === 'string' ? characterData.avatarData : undefined);
+      avatarData ??
+      (typeof characterData.avatarData === 'string' ? characterData.avatarData : undefined);
 
     const payload = {
       name: characterData.name,

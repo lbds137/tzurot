@@ -150,7 +150,7 @@ import { handleCreate } from './create.js';
 
 const router = createSubcommandRouter({
   list: handleList,
-  create: (i) => handleCreate(i, config),
+  create: i => handleCreate(i, config),
 });
 
 export async function execute(interaction) {
@@ -175,12 +175,12 @@ export async function execute(interaction) {
 
 **File Responsibilities:**
 
-| File              | Purpose                                                   |
-| ----------------- | --------------------------------------------------------- |
+| File              | Purpose                                                           |
+| ----------------- | ----------------------------------------------------------------- |
 | `index.ts`        | `data`, `execute` (routing), `handleSelectMenu?`, `handleButton?` |
-| `{subcommand}.ts` | Handler function for that subcommand                      |
-| `config.ts`       | Dashboard configuration, shared types, constants          |
-| `autocomplete.ts` | `handleAutocomplete` if complex/reused across subcommands |
+| `{subcommand}.ts` | Handler function for that subcommand                              |
+| `config.ts`       | Dashboard configuration, shared types, constants                  |
+| `autocomplete.ts` | `handleAutocomplete` if complex/reused across subcommands         |
 
 ---
 
