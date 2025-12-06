@@ -7,7 +7,13 @@
 
 import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
-import { splitMessage, createLogger, AI_ENDPOINTS, GUEST_MODE } from '@tzurot/common-types';
+import {
+  splitMessage,
+  createLogger,
+  AI_ENDPOINTS,
+  GUEST_MODE,
+  DISCORD_LIMITS,
+} from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
@@ -54,7 +60,7 @@ export class DiscordResponseSender {
    * Send AI response to Discord
    *
    * Handles:
-   * - Model indicator addition
+   * - Model indicator addition (appended to last chunk to preserve formatting)
    * - Message chunking (2000 char limit)
    * - Webhook vs DM routing
    * - Discord message ID tracking
@@ -63,16 +69,15 @@ export class DiscordResponseSender {
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
     const { content, personality, message, modelUsed, isGuestMode } = options;
 
-    // Add model indicator if provided
-    let contentWithIndicator = content;
+    // Build footer to append AFTER chunking (to preserve newline formatting)
+    // The chunker's word-level splitting replaces \n with spaces, so we add footer post-chunk
+    let footer = '';
     if (modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
-      contentWithIndicator += `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
+      footer += `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
     }
-
-    // Add guest mode footer if using free model without API key
     if (isGuestMode === true) {
-      contentWithIndicator += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
+      footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
     }
 
     // Determine if this is a webhook-capable channel
@@ -87,12 +92,13 @@ export class DiscordResponseSender {
       await this.sendViaWebhook(
         message.channel as TextChannel | ThreadChannel,
         personality,
-        contentWithIndicator,
+        content,
+        footer,
         chunkMessageIds
       );
     } else {
       // DM - send as bot with personality prefix
-      await this.sendViaDM(message, personality, contentWithIndicator, chunkMessageIds);
+      await this.sendViaDM(message, personality, content, footer, chunkMessageIds);
     }
 
     logger.debug(
@@ -112,14 +118,29 @@ export class DiscordResponseSender {
 
   /**
    * Send via webhook (guild channels)
+   *
+   * Footer is appended to the last chunk to preserve newline formatting.
+   * If appending would exceed Discord's limit, footer becomes its own chunk.
    */
   private async sendViaWebhook(
     channel: TextChannel | ThreadChannel,
     personality: LoadedPersonality,
     content: string,
+    footer: string,
     chunkMessageIds: string[]
   ): Promise<void> {
     const chunks = splitMessage(content);
+
+    // Append footer to last chunk, or make it a new chunk if it would overflow
+    if (chunks.length > 0 && footer.length > 0) {
+      const lastIndex = chunks.length - 1;
+      if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
+        chunks[lastIndex] += footer;
+      } else {
+        // Footer would overflow - add as separate chunk (trim leading newline)
+        chunks.push(footer.trimStart());
+      }
+    }
 
     for (const chunk of chunks) {
       const sentMessage = await this.webhookManager.sendAsPersonality(channel, personality, chunk);
@@ -134,16 +155,31 @@ export class DiscordResponseSender {
 
   /**
    * Send via DM (add personality prefix)
+   *
+   * Footer is appended to the last chunk to preserve newline formatting.
+   * If appending would exceed Discord's limit, footer becomes its own chunk.
    */
   private async sendViaDM(
     message: Message,
     personality: LoadedPersonality,
     content: string,
+    footer: string,
     chunkMessageIds: string[]
   ): Promise<void> {
     // Add personality prefix BEFORE chunking to respect 2000 char limit
     const dmContent = `**${personality.displayName}:** ${content}`;
     const chunks = splitMessage(dmContent);
+
+    // Append footer to last chunk, or make it a new chunk if it would overflow
+    if (chunks.length > 0 && footer.length > 0) {
+      const lastIndex = chunks.length - 1;
+      if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
+        chunks[lastIndex] += footer;
+      } else {
+        // Footer would overflow - add as separate chunk (trim leading newline)
+        chunks.push(footer.trimStart());
+      }
+    }
 
     for (const chunk of chunks) {
       const sentMessage = await message.reply(chunk);
