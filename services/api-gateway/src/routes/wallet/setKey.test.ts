@@ -323,7 +323,7 @@ describe('POST /wallet/set', () => {
       mockValidateApiKey.mockResolvedValue({ valid: true });
 
       const { req, res } = createMockReqRes({
-        provider: AIProvider.OpenAI,
+        provider: AIProvider.OpenRouter,
         apiKey: 'sk-valid-key',
       });
 
@@ -333,7 +333,7 @@ describe('POST /wallet/set', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          provider: AIProvider.OpenAI,
+          provider: AIProvider.OpenRouter,
           credits: undefined,
         })
       );
@@ -343,10 +343,6 @@ describe('POST /wallet/set', () => {
   describe('provider validation', () => {
     it('should support OpenRouter provider', () => {
       expect(AIProvider.OpenRouter).toBe('openrouter');
-    });
-
-    it('should support OpenAI provider', () => {
-      expect(AIProvider.OpenAI).toBe('openai');
     });
   });
 

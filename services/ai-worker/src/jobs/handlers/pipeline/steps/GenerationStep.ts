@@ -10,6 +10,7 @@ import type {
   RAGResponse,
 } from '../../../../services/ConversationalRAGService.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
+import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
 
 const logger = createLogger('GenerationStep');
 
@@ -114,13 +115,26 @@ export class GenerationStep implements IPipelineStep {
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
 
-      logger.error({ err: error, jobId: job.id }, '[GenerationStep] Generation failed');
+      // Parse error for classification and user messaging
+      const errorInfo = parseApiError(error);
+      const errorLogContext = getErrorLogContext(error);
+
+      // Enhanced error logging with structured context
+      logger.error(
+        {
+          err: error,
+          jobId: job.id,
+          ...errorLogContext,
+        },
+        `[GenerationStep] Generation failed: ${errorInfo.category}`
+      );
 
       const result: LLMGenerationResult = {
         requestId,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         personalityErrorMessage: personality.errorMessage,
+        errorInfo,
         metadata: {
           processingTimeMs,
         },

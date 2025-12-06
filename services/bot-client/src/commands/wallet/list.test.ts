@@ -40,7 +40,6 @@ vi.mock('../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
     const names: Record<string, string> = {
       openrouter: 'OpenRouter',
-      openai: 'OpenAI',
     };
     return names[provider] ?? provider;
   },
@@ -71,12 +70,6 @@ describe('handleListKeys', () => {
             createdAt: '2025-01-01T00:00:00Z',
             lastUsedAt: '2025-01-15T12:00:00Z',
           },
-          {
-            provider: 'openai',
-            isActive: true,
-            createdAt: '2025-01-05T00:00:00Z',
-            lastUsedAt: null,
-          },
         ],
       },
     });
@@ -91,7 +84,7 @@ describe('handleListKeys', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             title: '💳 Your API Wallet',
-            description: expect.stringContaining('2'),
+            description: expect.stringContaining('1'),
           }),
         }),
       ],

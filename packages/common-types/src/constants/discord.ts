@@ -24,6 +24,23 @@ export const TEXT_LIMITS = {
   PERSONALITY_PREVIEW: 200,
   /** Medium preview for referenced messages (500 chars) */
   REFERENCE_PREVIEW: 500,
+  /** Suffix appended when text is truncated (ellipsis + note) */
+  TRUNCATION_SUFFIX: '…\n\n_(truncated)_',
+} as const;
+
+/**
+ * Character view truncation limits
+ *
+ * These limits are used when displaying character details in paginated embeds.
+ * Each field type has a different limit based on typical content length.
+ */
+export const CHARACTER_VIEW_LIMITS = {
+  /** Short fields like age - concise single value */
+  SHORT: 200,
+  /** Medium fields like tone, appearance, likes, dislikes - brief descriptions */
+  MEDIUM: 500,
+  /** Long fields like conversational goals/examples, error messages - detailed content */
+  LONG: 800,
 } as const;
 
 /**

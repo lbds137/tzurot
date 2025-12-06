@@ -11,12 +11,15 @@ import {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
   MessageFlags,
 } from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../types.js';
+import { getCommandFromCustomId } from '../utils/customIds.js';
 
 const logger = createLogger('CommandHandler');
 
@@ -73,6 +76,8 @@ export class CommandHandler {
           data: importedModule.data,
           execute: importedModule.execute,
           autocomplete: importedModule.autocomplete,
+          handleSelectMenu: importedModule.handleSelectMenu,
+          handleButton: importedModule.handleButton,
           category,
         };
 
@@ -117,9 +122,10 @@ export class CommandHandler {
   async handleInteraction(
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction
   ): Promise<void> {
-    // For modal submits, extract command name from customId (format: "commandName-modalType")
+    // For modal submits, extract command name from customId
+    // Supports both new "::" format and legacy "-" format
     const commandName = interaction.isModalSubmit()
-      ? interaction.customId.split('-')[0]
+      ? (getCommandFromCustomId(interaction.customId) ?? interaction.customId)
       : interaction.commandName;
 
     const command = this.commands.get(commandName);
@@ -138,8 +144,8 @@ export class CommandHandler {
         `[CommandHandler] Executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`
       );
 
-      // Pass commands collection to utility command (for help subcommand)
-      if (commandName === 'utility' && interaction.isChatInputCommand()) {
+      // Pass commands collection to help command
+      if (commandName === 'help' && interaction.isChatInputCommand()) {
         await command.execute(interaction, this.commands);
       } else {
         await command.execute(interaction);
@@ -192,6 +198,70 @@ export class CommandHandler {
         `[CommandHandler] Error in autocomplete for: ${interaction.commandName}`
       );
       await interaction.respond([]);
+    }
+  }
+
+  /**
+   * Handle a component interaction (select menu or button)
+   *
+   * Routes based on customId prefix.
+   * Supports both new "::" format (e.g., "character::menu::abc") and legacy "-" format.
+   */
+  async handleComponentInteraction(
+    interaction: StringSelectMenuInteraction | ButtonInteraction
+  ): Promise<void> {
+    // Extract command name from customId prefix using utility that handles both formats
+    const customId = interaction.customId;
+    const commandName = getCommandFromCustomId(customId) ?? customId;
+
+    const command = this.commands.get(commandName);
+
+    if (!command) {
+      logger.warn(
+        { customId, commandName },
+        '[CommandHandler] Unknown command for component interaction'
+      );
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: 'Unknown interaction!',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      return;
+    }
+
+    try {
+      if (interaction.isStringSelectMenu()) {
+        if (!command.handleSelectMenu) {
+          logger.warn(
+            { customId, commandName },
+            '[CommandHandler] No select menu handler for command'
+          );
+          return;
+        }
+        logger.info(`[CommandHandler] Executing select menu handler: ${commandName}`);
+        await command.handleSelectMenu(interaction);
+      } else if (interaction.isButton()) {
+        if (!command.handleButton) {
+          logger.warn({ customId, commandName }, '[CommandHandler] No button handler for command');
+          return;
+        }
+        logger.info(`[CommandHandler] Executing button handler: ${commandName}`);
+        await command.handleButton(interaction);
+      }
+    } catch (error) {
+      logger.error(
+        { err: error, customId, commandName },
+        '[CommandHandler] Error in component interaction'
+      );
+
+      const errorMessage = 'There was an error processing this interaction!';
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      } else {
+        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      }
     }
   }
 

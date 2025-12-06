@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
+import { SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock Prisma clients
@@ -971,6 +972,228 @@ describe('DatabaseSyncService', () => {
       // Should NOT have executed any updates in dry-run mode
       expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
       expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Foreign Key Ordering', () => {
+    /**
+     * This test verifies that tables are synced in FK-dependency order.
+     * The original bug was that Object.entries(SYNC_CONFIG) iterated in definition order,
+     * causing users to sync before personas - which fails because
+     * users.default_persona_id references personas.id.
+     */
+    beforeEach(() => {
+      // Mock schema version and validation queries
+      devClient.$queryRaw.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('_prisma_migrations')) {
+          return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        if (queryStr.includes('information_schema')) {
+          return [
+            { table_name: 'users', column_name: 'id' },
+            { table_name: 'personas', column_name: 'id' },
+          ];
+        }
+        return [];
+      });
+
+      prodClient.$queryRaw.mockImplementation(async query => {
+        const queryStr = String(query);
+        if (queryStr.includes('_prisma_migrations')) {
+          return [{ migration_name: '20251117155350_update_memories_index_to_lists_50' }];
+        }
+        return [];
+      });
+    });
+
+    it('should sync tables in SYNC_TABLE_ORDER order', async () => {
+      // Track the order of table syncs by capturing SELECT queries
+      const syncedTables: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        // Match SELECT * FROM "tablename" pattern
+        const match = queryStr.match(/FROM "([^"]+)"/);
+        if (match && !queryStr.includes('is_default')) {
+          syncedTables.push(match[1]);
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+
+      await service.sync({ dryRun: true });
+
+      // The tables should be synced in SYNC_TABLE_ORDER order
+      // Filter out only the tables that are in SYNC_TABLE_ORDER (ignore validation queries)
+      const syncedInOrder = syncedTables.filter(t =>
+        SYNC_TABLE_ORDER.includes(t as (typeof SYNC_TABLE_ORDER)[number])
+      );
+
+      // Verify order matches SYNC_TABLE_ORDER
+      expect(syncedInOrder).toEqual(SYNC_TABLE_ORDER);
+    });
+
+    it('should sync users before personas (personas.owner_id FK - NOT NULL)', async () => {
+      // Circular FK dependency between users and personas:
+      // - users.default_persona_id -> personas.id (NULLABLE - deferred to pass 2)
+      // - personas.owner_id -> users.id (NOT NULL - must sync users first)
+      const syncedTables: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        const match = queryStr.match(/FROM "([^"]+)"/);
+        if (match && !queryStr.includes('is_default')) {
+          syncedTables.push(match[1]);
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+
+      await service.sync({ dryRun: true });
+
+      const personasIndex = syncedTables.indexOf('personas');
+      const usersIndex = syncedTables.indexOf('users');
+
+      // Both tables should have been synced
+      expect(personasIndex).toBeGreaterThanOrEqual(0);
+      expect(usersIndex).toBeGreaterThanOrEqual(0);
+
+      // users must come before personas (personas.owner_id -> users.id is NOT NULL)
+      // users.default_persona_id is handled via two-pass deferred FK approach
+      expect(
+        usersIndex,
+        'users must be synced before personas to satisfy FK constraint (personas.owner_id is NOT NULL)'
+      ).toBeLessThan(personasIndex);
+    });
+
+    it('should defer FK columns during pass 1 and update them in pass 2', async () => {
+      // Track all queries to both clients to verify two-pass behavior
+      const devQueries: string[] = [];
+      const prodQueries: string[] = [];
+      const userId = '00000000-0000-5000-a000-000000000001';
+      const personaId = '00000000-0000-5000-a000-000000000002';
+
+      // Mock dev client to return a user with default_persona_id set
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        devQueries.push(queryStr);
+
+        // Return user data with default_persona_id
+        if (queryStr.includes('FROM "users"') && !queryStr.includes('UPDATE')) {
+          return [
+            {
+              id: userId,
+              discord_id: '123456789',
+              default_persona_id: personaId, // This should be deferred
+              default_llm_config_id: null,
+              created_at: new Date('2024-01-01'),
+              updated_at: new Date('2024-01-02'),
+              timezone: 'UTC',
+              preferences: {},
+            },
+          ];
+        }
+
+        // Return persona data
+        if (queryStr.includes('FROM "personas"') && !queryStr.includes('UPDATE')) {
+          return [
+            {
+              id: personaId,
+              name: 'default',
+              owner_id: userId,
+              created_at: new Date('2024-01-01'),
+              updated_at: new Date('2024-01-02'),
+            },
+          ];
+        }
+
+        return [];
+      });
+
+      // Track prod client SELECT queries
+      prodClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+        prodQueries.push(queryStr);
+        return [];
+      });
+
+      // Track prod client INSERT/UPDATE queries (via $executeRawUnsafe)
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        const queryStr = String(query);
+        prodQueries.push(queryStr);
+        return { count: 1 };
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Check that users INSERT/UPSERT was called on prod (pass 1)
+      const usersUpsertQuery = prodQueries.find(q => q.includes('INSERT') && q.includes('"users"'));
+      expect(usersUpsertQuery).toBeDefined();
+
+      // Check that there's an UPDATE for deferred FK columns on prod (pass 2)
+      const updateDeferredQuery = prodQueries.find(
+        q => q.includes('UPDATE') && q.includes('"users"') && q.includes('default_persona_id')
+      );
+      expect(updateDeferredQuery).toBeDefined();
+    });
+
+    it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {
+      devClient.$queryRawUnsafe.mockResolvedValue([]);
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+
+      const result = await service.sync({ dryRun: true });
+
+      // Every table in SYNC_TABLE_ORDER should have stats
+      for (const tableName of SYNC_TABLE_ORDER) {
+        expect(result.stats[tableName], `Stats missing for table "${tableName}"`).toBeDefined();
+        expect(result.stats[tableName]).toHaveProperty('devToProd');
+        expect(result.stats[tableName]).toHaveProperty('prodToDev');
+        expect(result.stats[tableName]).toHaveProperty('conflicts');
+      }
+    });
+
+    it('should handle composite primary keys correctly (personality_owners)', async () => {
+      // personality_owners has composite PK: ['personality_id', 'user_id']
+      const personalityId = '00000000-0000-5000-a000-000000000001';
+      const userId = '00000000-0000-5000-a000-000000000002';
+      const prodQueries: string[] = [];
+
+      devClient.$queryRawUnsafe.mockImplementation(async query => {
+        const queryStr = String(query);
+
+        if (queryStr.includes('FROM "personality_owners"')) {
+          return [
+            {
+              personality_id: personalityId,
+              user_id: userId,
+              created_at: new Date('2024-01-01'),
+            },
+          ];
+        }
+        return [];
+      });
+
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
+        prodQueries.push(String(query));
+        return { count: 1 };
+      });
+
+      await service.sync({ dryRun: false });
+
+      // Find the INSERT query for personality_owners
+      const insertQuery = prodQueries.find(
+        q => q.includes('INSERT') && q.includes('"personality_owners"')
+      );
+      expect(insertQuery).toBeDefined();
+
+      // Verify the ON CONFLICT clause uses BOTH columns of the composite PK
+      expect(insertQuery).toContain('"personality_id"');
+      expect(insertQuery).toContain('"user_id"');
+      expect(insertQuery).toContain('ON CONFLICT');
     });
   });
 });

@@ -16,29 +16,49 @@ echo "🚀 Running pre-push checks..."
 # Ensure we aren't running in watch mode
 export CI=true
 
-# Check for v3 TypeScript files in the repository (not just staged)
+# Store exit codes to report all failures at once
+FAILED=0
+FAILURE_MESSAGES=()
+
+# Function to run a check and capture failures
+run_check() {
+    local check_name="$1"
+    local check_command="$2"
+
+    echo -e "\n🔍 ${check_name}..."
+
+    if eval "$check_command"; then
+        echo -e "${GREEN}✅ ${check_name} passed${NC}"
+    else
+        FAILED=1
+        FAILURE_MESSAGES+=("${check_name}")
+        echo -e "${RED}❌ ${check_name} failed${NC}"
+    fi
+}
+
+# Check for v3 TypeScript files in the repository
 V3_TS_FILES=$(find packages services -name "*.ts" -o -name "*.tsx" 2>/dev/null || true)
 
 if [ -n "$V3_TS_FILES" ]; then
+    echo -e "\n📦 V3 TypeScript changes detected"
+
+    # Run all quality checks
+    run_check "Prettier formatting" "pnpm format"
+    run_check "TypeScript build verification" "./scripts/deployment/verify-build.sh"
+    run_check "ESLint" "pnpm lint"
+
     echo -e "\n🧪 Running unit test suite..."
+    run_check "Unit tests" "pnpm test"
+fi
 
-    if pnpm test; then
-        echo -e "${GREEN}✅ Unit tests passed!${NC}"
-    else
-        echo -e "${RED}❌ Unit tests failed! Aborting push.${NC}"
-        echo -e "\n${YELLOW}To bypass this hook (not recommended): git push --no-verify${NC}"
-        exit 1
-    fi
-
-    echo -e "\n🔧 Running integration tests..."
-
-    if pnpm test:integration; then
-        echo -e "${GREEN}✅ Integration tests passed!${NC}"
-    else
-        echo -e "${RED}❌ Integration tests failed! Aborting push.${NC}"
-        echo -e "\n${YELLOW}To bypass this hook (not recommended): git push --no-verify${NC}"
-        exit 1
-    fi
+# Report results
+if [ $FAILED -eq 1 ]; then
+    echo -e "\n${RED}❌ Pre-push failed! The following checks failed:${NC}"
+    for msg in "${FAILURE_MESSAGES[@]}"; do
+        echo -e "${RED}  - $msg${NC}"
+    done
+    echo -e "\n${YELLOW}Fix the issues before pushing, or use: git push --no-verify${NC}"
+    exit 1
 fi
 
 echo -e "\n${GREEN}✅ All pre-push checks passed! Pushing to remote...${NC}"

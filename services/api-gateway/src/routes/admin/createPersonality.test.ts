@@ -33,6 +33,9 @@ const createMockPrismaClient = () => ({
     create: vi.fn(),
     update: vi.fn(),
   },
+  systemPrompt: {
+    findFirst: vi.fn(),
+  },
   llmConfig: {
     findFirst: vi.fn(),
   },
@@ -395,6 +398,181 @@ describe('POST /admin/personality', () => {
       // Should still succeed - LLM config error is non-critical
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('default system prompt', () => {
+    it('should assign default system prompt when available', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.systemPrompt.findFirst.mockResolvedValue({
+        id: 'system-prompt-123',
+      });
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-sp-123',
+        name: 'Test Bot',
+        slug: 'test-bot-sp',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-sp',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.systemPrompt.findFirst).toHaveBeenCalledWith({
+        where: { isDefault: true },
+        select: { id: true },
+      });
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          systemPromptId: 'system-prompt-123',
+        }),
+      });
+    });
+
+    it('should set systemPromptId to null when no default exists', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.systemPrompt.findFirst.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-no-sp',
+        name: 'Test Bot',
+        slug: 'test-bot-no-sp',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-no-sp',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          systemPromptId: null,
+        }),
+      });
+    });
+  });
+
+  describe('errorMessage field', () => {
+    it('should save errorMessage when provided', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-err-123',
+        name: 'Test Bot',
+        slug: 'test-bot-err',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        errorMessage: 'Custom error message',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-err',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        errorMessage: 'Custom error message',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          errorMessage: 'Custom error message',
+        }),
+      });
+    });
+
+    it('should set errorMessage to null when not provided', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-no-err',
+        name: 'Test Bot',
+        slug: 'test-bot-no-err',
+        displayName: null,
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+        errorMessage: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Test Bot',
+        slug: 'test-bot-no-err',
+        characterInfo: 'A helpful assistant',
+        personalityTraits: 'Friendly',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          errorMessage: null,
+        }),
+      });
     });
   });
 });

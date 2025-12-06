@@ -2,51 +2,44 @@
  * Bot Mention Processor
  *
  * Handles generic bot mentions (not a specific personality).
- * Uses the default personality if configured.
+ * Sends a help message guiding users on how to interact with personalities.
  * Last processor in the chain - fallback for unhandled mentions.
  */
 
 import type { Message } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
-import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
-import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 
 const logger = createLogger('BotMentionProcessor');
 
 export class BotMentionProcessor implements IMessageProcessor {
-  constructor(
-    private readonly personalityService: IPersonalityLoader,
-    private readonly personalityHandler: PersonalityMessageHandler
-  ) {}
-
   async process(message: Message): Promise<boolean> {
     // Check for generic bot mention
     if (!message.mentions.has(message.client.user)) {
       return false; // No bot mention, message is unhandled
     }
 
-    logger.debug('[BotMentionProcessor] Processing generic bot mention');
+    logger.debug(
+      { userId: message.author.id, channelId: message.channelId },
+      '[BotMentionProcessor] Processing generic bot mention, sending help'
+    );
 
-    // Load default personality
-    const defaultPersonality = await this.personalityService.loadPersonality('default');
+    const config = getConfig();
+    const mentionChar = config.BOT_MENTION_CHAR;
 
-    if (!defaultPersonality) {
-      logger.warn({}, '[BotMentionProcessor] Default personality not configured');
-      return false; // No default personality, message is unhandled
-    }
+    // Send a helpful guide message
+    await message.reply({
+      content: [
+        `👋 Hi! I'm a bot that hosts multiple AI personalities.`,
+        ``,
+        `**How to chat:**`,
+        `• Mention a personality: \`${mentionChar}personality your message\``,
+        `• Reply to a personality's message to continue the conversation`,
+        ``,
+        `Use \`/character list\` to see available personalities.`,
+      ].join('\n'),
+    });
 
-    // Clean Discord mention tags from content
-    const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
-
-    // Get voice transcript if available (set by VoiceMessageProcessor)
-    const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript ?? cleanContent;
-
-    // Handle the personality message
-    await this.personalityHandler.handleMessage(message, defaultPersonality, content);
-
-    return true; // Stop processing (mention was handled)
+    return true; // Stop processing (mention was handled with help message)
   }
 }

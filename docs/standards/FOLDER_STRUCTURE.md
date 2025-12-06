@@ -132,10 +132,7 @@ src/
 ├── index.ts                    # Entry point
 ├── redis.ts                    # Redis config
 ├── types.ts                    # Type definitions
-├── commands/                   # Discord slash commands
-│   ├── admin.ts
-│   ├── personality.ts
-│   └── utility.ts
+├── commands/                   # Discord slash commands (see below)
 ├── handlers/                   # Event handlers
 │   ├── CommandHandler.ts
 │   ├── MessageHandler.ts
@@ -159,6 +156,104 @@ src/
 - `MessageReferenceExtractor.ts` moved from `context/` to `handlers/` (related to message handling)
 - `GatewayClient.ts` moved from `gateway/` to `utils/` (no single-file folders)
 - `WebhookManager.ts` moved from `webhooks/` to `utils/` (no single-file folders)
+
+### Discord Slash Command Folder Structure
+
+Commands with subcommand groups follow a hierarchical folder structure that mirrors the command structure itself. This maintains both **SRP** (Single Responsibility Principle) and **DRY** (Don't Repeat Yourself).
+
+#### Core Principles
+
+1. **One file per subcommand** - Each subcommand handler lives in its own file
+2. **Subcommand groups get subfolders** - Groups with multiple subcommands become folders
+3. **Shared logic in utils/** - Common helpers used across subcommands go in a shared `utils/` folder
+4. **Types stay DRY** - Shared types go in `types.ts` or common-types package
+5. **Index.ts for routing** - Main index.ts handles command registration and routing only
+
+#### Example: Complex Command with Subcommand Groups
+
+For a command like `/me` with multiple subcommand groups:
+
+```
+commands/me/
+├── index.ts                    # Command registration & routing (SlashCommandBuilder)
+├── index.test.ts               # Tests for routing logic
+├── autocomplete.ts             # Shared autocomplete handlers
+├── autocomplete.test.ts
+├── profile/                    # /me profile <subcommand>
+│   ├── view.ts                 # /me profile view
+│   ├── view.test.ts
+│   ├── edit.ts                 # /me profile edit
+│   ├── edit.test.ts
+│   ├── create.ts               # /me profile create
+│   ├── create.test.ts
+│   ├── list.ts                 # /me profile list
+│   ├── list.test.ts
+│   ├── default.ts              # /me profile default
+│   ├── default.test.ts
+│   ├── share-ltm.ts            # /me profile share-ltm
+│   ├── share-ltm.test.ts
+│   ├── override-set.ts         # /me profile override-set
+│   ├── override-set.test.ts
+│   ├── override-clear.ts       # /me profile override-clear
+│   ├── override-clear.test.ts
+│   └── utils/                  # Shared profile utilities (DRY)
+│       └── modalBuilder.ts     # Modal building logic used by create/edit
+├── timezone/                   # /me timezone <subcommand>
+│   ├── set.ts                  # /me timezone set
+│   ├── set.test.ts
+│   ├── get.ts                  # /me timezone get
+│   ├── get.test.ts
+│   └── utils.ts                # Shared timezone utilities (DRY)
+└── model/                      # /me model <subcommand>
+    ├── list.ts                 # /me model list
+    ├── set.ts                  # /me model set
+    ├── reset.ts                # /me model reset
+    ├── set-default.ts          # /me model set-default
+    ├── clear-default.ts        # /me model clear-default
+    ├── autocomplete.ts         # Model-specific autocomplete
+    └── *.test.ts               # Tests colocated with source
+```
+
+#### Anti-Patterns to Avoid
+
+```
+❌ BAD: Multiple handlers in one file
+// override.ts
+export function handleOverrideSet() { ... }
+export function handleOverrideClear() { ... }  // Separate responsibilities!
+
+✅ GOOD: One handler per file
+// override-set.ts
+export function handleOverrideSet() { ... }
+
+// override-clear.ts
+export function handleOverrideClear() { ... }
+```
+
+```
+❌ BAD: Duplicated logic across files
+// set.ts
+function formatTimezone(tz: string) { ... }  // Duplicated!
+
+// get.ts
+function formatTimezone(tz: string) { ... }  // Duplicated!
+
+✅ GOOD: Shared logic in utils
+// utils.ts
+export function formatTimezone(tz: string) { ... }
+
+// set.ts
+import { formatTimezone } from './utils.js';
+
+// get.ts
+import { formatTimezone } from './utils.js';
+```
+
+#### When to Create a Subfolder
+
+- **≥2 subcommands** in a group → Create a subfolder
+- **1 subcommand** → Keep in parent directory (no single-file folders)
+- **Shared utilities** used by ≥2 files → Create `utils/` folder within the group
 
 ## File Naming Conventions
 

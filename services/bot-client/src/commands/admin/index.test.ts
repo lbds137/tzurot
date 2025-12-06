@@ -21,9 +21,6 @@ vi.mock('@tzurot/common-types', async () => {
   return {
     ...actual,
     requireBotOwner: vi.fn(),
-    getConfig: vi.fn(() => ({
-      GATEWAY_URL: 'http://localhost:3000',
-    })),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -50,7 +47,7 @@ vi.mock('./usage.js', () => ({
   handleUsage: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { requireBotOwner, getConfig } from '@tzurot/common-types';
+import { requireBotOwner } from '@tzurot/common-types';
 import { handleDbSync } from './db-sync.js';
 import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
@@ -217,16 +214,10 @@ describe('admin command', () => {
     beforeEach(() => {
       vi.clearAllMocks();
 
-      // Reset getConfig mock for autocomplete tests
-      vi.mocked(getConfig).mockReturnValue({
-        GATEWAY_URL: 'http://localhost:3000',
-        INTERNAL_SERVICE_SECRET: 'test-service-secret',
-      } as ReturnType<typeof getConfig>);
-
       mockAutocompleteInteraction = {
         options: {
           getFocused: vi.fn(),
-          getSubcommand: vi.fn().mockReturnValue('llm-config-set-default'),
+          getSubcommand: vi.fn().mockReturnValue('kick'),
         },
         respond: vi.fn().mockResolvedValue(undefined),
         client: {
@@ -242,230 +233,6 @@ describe('admin command', () => {
 
     afterEach(() => {
       vi.restoreAllMocks();
-    });
-
-    describe('config autocomplete', () => {
-      it('should respond with filtered configs', async () => {
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: 'claude',
-        });
-        vi.mocked(fetch).mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              configs: [
-                {
-                  id: 'c1',
-                  name: 'Claude Config',
-                  model: 'anthropic/claude-sonnet-4',
-                  isGlobal: true,
-                  isDefault: false,
-                },
-                {
-                  id: 'c2',
-                  name: 'GPT Config',
-                  model: 'openai/gpt-4',
-                  isGlobal: true,
-                  isDefault: true,
-                },
-              ],
-            }),
-            { status: 200 }
-          )
-        );
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
-          { name: 'Claude Config (claude-sonnet-4)', value: 'c1' },
-        ]);
-      });
-
-      it('should show [DEFAULT] marker for default config', async () => {
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-        vi.mocked(fetch).mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              configs: [
-                {
-                  id: 'c1',
-                  name: 'Default Config',
-                  model: 'anthropic/claude-sonnet-4',
-                  isGlobal: true,
-                  isDefault: true,
-                },
-              ],
-            }),
-            { status: 200 }
-          )
-        );
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
-          { name: 'Default Config (claude-sonnet-4) [DEFAULT]', value: 'c1' },
-        ]);
-      });
-
-      it('should respond with empty array when gateway URL not configured', async () => {
-        vi.mocked(getConfig).mockReturnValue({ GATEWAY_URL: undefined } as ReturnType<
-          typeof getConfig
-        >);
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
-      });
-
-      it('should respond with empty array on API error', async () => {
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-        vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
-      });
-
-      it('should respond with empty array on fetch error', async () => {
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-        vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([]);
-      });
-
-      it('should only show global configs', async () => {
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-        vi.mocked(fetch).mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              configs: [
-                {
-                  id: 'c1',
-                  name: 'Global Config',
-                  model: 'model-1',
-                  isGlobal: true,
-                  isDefault: false,
-                },
-                {
-                  id: 'c2',
-                  name: 'User Config',
-                  model: 'model-2',
-                  isGlobal: false,
-                  isDefault: false,
-                },
-              ],
-            }),
-            { status: 200 }
-          )
-        );
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
-          { name: 'Global Config (model-1)', value: 'c1' },
-        ]);
-      });
-
-      it('should only show free models for llm-config-set-free-default', async () => {
-        // Set subcommand to llm-config-set-free-default
-        vi.mocked(mockAutocompleteInteraction.options.getSubcommand).mockReturnValue(
-          'llm-config-set-free-default'
-        );
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-        vi.mocked(fetch).mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              configs: [
-                {
-                  id: 'c1',
-                  name: 'Free Model',
-                  model: 'some-provider/model-name:free',
-                  isGlobal: true,
-                  isDefault: false,
-                },
-                {
-                  id: 'c2',
-                  name: 'Paid Model',
-                  model: 'anthropic/claude-sonnet-4',
-                  isGlobal: true,
-                  isDefault: true,
-                },
-              ],
-            }),
-            { status: 200 }
-          )
-        );
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        // Should only show the free model, not the paid one
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
-          { name: 'Free Model (model-name:free)', value: 'c1' },
-        ]);
-      });
-
-      it('should show all models for llm-config-set-default', async () => {
-        // Set subcommand to llm-config-set-default (non-free)
-        vi.mocked(mockAutocompleteInteraction.options.getSubcommand).mockReturnValue(
-          'llm-config-set-default'
-        );
-        vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
-          value: '',
-        });
-        vi.mocked(fetch).mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              configs: [
-                {
-                  id: 'c1',
-                  name: 'Free Model',
-                  model: 'some-provider/model-name:free',
-                  isGlobal: true,
-                  isDefault: false,
-                },
-                {
-                  id: 'c2',
-                  name: 'Paid Model',
-                  model: 'anthropic/claude-sonnet-4',
-                  isGlobal: true,
-                  isDefault: true,
-                },
-              ],
-            }),
-            { status: 200 }
-          )
-        );
-
-        await autocomplete(mockAutocompleteInteraction);
-
-        // Should show both models
-        expect(mockAutocompleteInteraction.respond).toHaveBeenCalledWith([
-          { name: 'Free Model (model-name:free)', value: 'c1' },
-          { name: 'Paid Model (claude-sonnet-4) [DEFAULT]', value: 'c2' },
-        ]);
-      });
     });
 
     describe('server-id autocomplete', () => {
@@ -528,13 +295,15 @@ describe('admin command', () => {
     describe('error handling', () => {
       it('should respond with empty array on handler exception', async () => {
         vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
-          name: 'config',
+          name: 'server-id',
           value: '',
         });
-        // Make fetch throw after getFocused succeeds
-        vi.mocked(fetch).mockImplementation(() => {
-          throw new Error('Handler error');
-        });
+        // Create a mock that throws when used
+        mockAutocompleteInteraction.client.guilds.cache = {
+          filter: () => {
+            throw new Error('Handler error');
+          },
+        } as unknown as Collection<string, Guild>;
 
         await autocomplete(mockAutocompleteInteraction);
 

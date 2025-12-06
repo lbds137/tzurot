@@ -17,7 +17,7 @@ export * from './types/jobs.js';
 export * from './types/schemas.js';
 
 // Export utilities
-export { splitMessage, preserveCodeBlocks } from './utils/discord.js';
+export { splitMessage, truncateText } from './utils/discord.js';
 export { createLogger } from './utils/logger.js';
 export {
   parseRedisUrl,
@@ -37,7 +37,7 @@ export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
-export { PersonalityCache, type PersonalityCacheOptions } from './utils/PersonalityCache.js';
+export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
 export {
   encryptApiKey,
@@ -51,6 +51,7 @@ export {
   createSanitizedSerializers,
   sanitizeLogHook,
 } from './utils/logSanitizer.js';
+export { escapeXmlContent, containsXmlTags } from './utils/promptSanitizer.js';
 
 // Export services
 export * from './services/prisma.js';

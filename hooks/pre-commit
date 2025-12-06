@@ -11,33 +11,14 @@ NC='\033[0m' # No Color
 GIT_ROOT=$(git rev-parse --show-toplevel)
 cd "$GIT_ROOT"
 
-echo "🚀 Running pre-commit checks..."
-
-# Store exit codes to report all failures at once
-FAILED=0
-FAILURE_MESSAGES=()
-
-# Function to run a check and capture failures
-run_check() {
-    local check_name="$1"
-    local check_command="$2"
-
-    echo -e "\n🔍 ${check_name}..."
-
-    if eval "$check_command"; then
-        echo -e "${GREEN}✅ ${check_name} passed${NC}"
-    else
-        FAILED=1
-        FAILURE_MESSAGES+=("${check_name}")
-        echo -e "${RED}❌ ${check_name} failed${NC}"
-    fi
-}
+# Minimal pre-commit: Only check for dangerous migration operations
+# Full checks (lint, typecheck, tests) run in pre-push hook
 
 # Check for Prisma migration changes that might drop vector index without recreating
 STAGED_MIGRATION_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^prisma/migrations/.*\.sql$' || true)
 
 if [ -n "$STAGED_MIGRATION_FILES" ]; then
-    echo -e "\n📊 Checking Prisma migrations for dangerous operations..."
+    echo -e "📊 Checking Prisma migrations for dangerous operations..."
     for file in $STAGED_MIGRATION_FILES; do
         # Only flag if DROP INDEX exists WITHOUT a corresponding CREATE INDEX
         if grep -q 'DROP INDEX.*idx_memories_embedding' "$file" && ! grep -q 'CREATE INDEX.*idx_memories_embedding' "$file"; then
@@ -45,40 +26,8 @@ if [ -n "$STAGED_MIGRATION_FILES" ]; then
             echo -e "${RED}   File: $file${NC}"
             echo -e "${YELLOW}   The idx_memories_embedding index is essential for pgvector performance.${NC}"
             echo -e "${YELLOW}   Either remove the DROP INDEX or add a CREATE INDEX statement.${NC}"
-            FAILED=1
-            FAILURE_MESSAGES+=("Vector index protection (DROP without CREATE)")
+            exit 1
         fi
     done
-    if [ $FAILED -eq 0 ]; then
-        echo -e "${GREEN}✅ Migrations safe - no orphan index drops${NC}"
-    fi
+    echo -e "${GREEN}✅ Migrations safe${NC}"
 fi
-
-# Check for v3 TypeScript changes (packages/, services/, or tests/)
-STAGED_V3_TS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(packages|services|tests)/.*\.(ts|tsx)$' || true)
-
-# V3 TypeScript checks
-if [ -n "$STAGED_V3_TS_FILES" ]; then
-    echo -e "\n📦 V3 TypeScript changes detected"
-    run_check "Prettier formatting" "pnpm format"
-    run_check "TypeScript build verification" "./scripts/deployment/verify-build.sh"
-    run_check "ESLint (v3)" "pnpm lint"
-fi
-
-# Note: tzurot-legacy/ excluded from pre-commit checks
-# If no relevant files changed
-if [ -z "$STAGED_V3_TS_FILES" ]; then
-    echo "No v3 TypeScript files staged for commit, skipping checks..."
-fi
-
-# Report results
-if [ $FAILED -eq 1 ]; then
-    echo -e "\n${RED}❌ Pre-commit failed! The following checks failed:${NC}"
-    for msg in "${FAILURE_MESSAGES[@]}"; do
-        echo -e "${RED}  - $msg${NC}"
-    done
-    echo -e "\n${YELLOW}To bypass hooks (not recommended): git commit --no-verify${NC}"
-    exit 1
-fi
-
-echo -e "\n${GREEN}✅ All pre-commit checks passed!${NC}"

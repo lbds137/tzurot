@@ -94,7 +94,7 @@ describe('ReplyMessageProcessor', () => {
 
       const result = await processor.process(message);
 
-      expect(mockReplyResolver.resolvePersonality).toHaveBeenCalledWith(message);
+      expect(mockReplyResolver.resolvePersonality).toHaveBeenCalledWith(message, 'user-123');
       expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
         message,
         mockLilithPersonality,
@@ -109,7 +109,7 @@ describe('ReplyMessageProcessor', () => {
 
       const result = await processor.process(message);
 
-      expect(mockReplyResolver.resolvePersonality).toHaveBeenCalledWith(message);
+      expect(mockReplyResolver.resolvePersonality).toHaveBeenCalledWith(message, 'user-123');
       expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
       expect(result).toBe(false); // Should continue (not a personality reply)
     });

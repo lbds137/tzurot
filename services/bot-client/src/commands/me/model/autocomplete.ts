@@ -1,0 +1,170 @@
+/**
+ * Me Model Command Autocomplete Handler
+ * Provides autocomplete suggestions for personality and config options
+ */
+
+import type { AutocompleteInteraction } from 'discord.js';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  isFreeModel,
+  type PersonalitySummary,
+  type LlmConfigSummary,
+  type AIProvider,
+} from '@tzurot/common-types';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+
+/**
+ * Special value for the "Unlock All Models" upsell option
+ * Used to detect when user selects the upsell in command handlers
+ */
+export const UNLOCK_MODELS_VALUE = '__unlock_all_models__';
+
+interface WalletListResponse {
+  keys: {
+    provider: AIProvider;
+    isActive: boolean;
+  }[];
+}
+
+const logger = createLogger('me-model-autocomplete');
+
+/**
+ * Handle autocomplete for /me model commands
+ */
+export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focusedOption = interaction.options.getFocused(true);
+  const userId = interaction.user.id;
+
+  try {
+    if (focusedOption.name === 'personality') {
+      await handlePersonalityAutocomplete(interaction, focusedOption.value, userId);
+    } else if (focusedOption.name === 'config') {
+      await handleConfigAutocomplete(interaction, focusedOption.value, userId);
+    } else {
+      await interaction.respond([]);
+    }
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        option: focusedOption.name,
+        query: focusedOption.value,
+        userId,
+        guildId: interaction.guildId,
+        command: interaction.commandName,
+        subcommand: interaction.options.getSubcommand(false),
+      },
+      '[Me/Model] Autocomplete error'
+    );
+    await interaction.respond([]);
+  }
+}
+
+/**
+ * Handle personality autocomplete
+ */
+async function handlePersonalityAutocomplete(
+  interaction: AutocompleteInteraction,
+  query: string,
+  userId: string
+): Promise<void> {
+  const result = await callGatewayApi<{ personalities: PersonalitySummary[] }>(
+    '/user/personality',
+    { userId }
+  );
+
+  if (!result.ok) {
+    logger.warn({ userId, error: result.error }, '[Me/Model] Failed to fetch personalities');
+    await interaction.respond([]);
+    return;
+  }
+
+  const queryLower = query.toLowerCase();
+  const filtered = result.data.personalities
+    .filter(
+      p =>
+        p.name.toLowerCase().includes(queryLower) ||
+        p.slug.toLowerCase().includes(queryLower) ||
+        (p.displayName?.toLowerCase().includes(queryLower) ?? false)
+    )
+    .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
+
+  const choices = filtered.map(p => ({
+    name: p.displayName ?? p.name,
+    value: p.id,
+  }));
+
+  await interaction.respond(choices);
+}
+
+/**
+ * Handle config autocomplete
+ * For guest users (no API key), only shows free models + an upsell option
+ */
+async function handleConfigAutocomplete(
+  interaction: AutocompleteInteraction,
+  query: string,
+  userId: string
+): Promise<void> {
+  // Fetch configs and wallet status in parallel
+  const [configResult, walletResult] = await Promise.all([
+    callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', { userId }),
+    callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
+  ]);
+
+  if (!configResult.ok) {
+    logger.warn({ userId, error: configResult.error }, '[Me/Model] Failed to fetch configs');
+    await interaction.respond([]);
+    return;
+  }
+
+  // Check if user is in guest mode (no active wallet keys)
+  const hasActiveWallet = walletResult.ok && walletResult.data.keys.some(k => k.isActive === true);
+  const isGuestMode = !hasActiveWallet;
+
+  const queryLower = query.toLowerCase();
+
+  // Filter configs - for guests, only show free models
+  let filtered = configResult.data.configs.filter(c => {
+    // Text search filter
+    const matchesQuery =
+      c.name.toLowerCase().includes(queryLower) ||
+      c.model.toLowerCase().includes(queryLower) ||
+      (c.description?.toLowerCase().includes(queryLower) ?? false);
+
+    if (!matchesQuery) {
+      return false;
+    }
+
+    // For guests, only show free models
+    if (isGuestMode && !isFreeModel(c.model)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // Reserve one slot for upsell if in guest mode
+  const maxChoices = isGuestMode
+    ? DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES - 1
+    : DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES;
+
+  filtered = filtered.slice(0, maxChoices);
+
+  const choices = filtered.map(c => ({
+    // Show model info in the name for clarity, add 🆓 badge for free models
+    name: `${isFreeModel(c.model) ? '🆓 ' : ''}${c.name} (${c.model.split('/').pop()})`,
+    value: c.id,
+  }));
+
+  // Add upsell option for guest users
+  if (isGuestMode) {
+    choices.push({
+      name: '✨ Unlock All Models...',
+      value: UNLOCK_MODELS_VALUE,
+    });
+  }
+
+  await interaction.respond(choices);
+}

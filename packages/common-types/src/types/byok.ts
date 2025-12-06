@@ -16,6 +16,12 @@ export interface PersonalitySummary {
   slug: string;
   /** True if the requesting user owns this personality */
   isOwned: boolean;
+  /** True if the personality is publicly visible */
+  isPublic: boolean;
+  /** Owner's internal user ID */
+  ownerId: string | null;
+  /** Owner's Discord user ID (for fetching display name) */
+  ownerDiscordId: string | null;
 }
 
 /**

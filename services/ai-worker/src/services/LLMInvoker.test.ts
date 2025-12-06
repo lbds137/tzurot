@@ -227,30 +227,45 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
-    it('should retry all errors (including non-transient)', async () => {
-      vi.useFakeTimers();
-
+    it('should fast-fail on permanent errors (no retry)', async () => {
+      // Permanent errors like authentication errors should NOT be retried
       const mockModel = {
         invoke: vi.fn().mockRejectedValue(new Error('API key invalid')),
       } as any as BaseChatModel;
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry(mockModel, messages, 'test-model');
+      // Should fail immediately without retrying
+      await expect(invoker.invokeWithRetry(mockModel, messages, 'test-model')).rejects.toThrow();
 
-      // Attach rejection handler BEFORE advancing timers
-      const rejectionPromise = expect(promise).rejects.toThrow();
+      // Only called once because permanent errors fast-fail
+      expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+    });
 
-      // Fast-forward through all retry attempts
-      await vi.runAllTimersAsync();
+    it('should fast-fail on 402 quota exceeded error', async () => {
+      const mockModel = {
+        invoke: vi.fn().mockRejectedValue({ status: 402, message: 'Quota exceeded' }),
+      } as any as BaseChatModel;
 
-      // Await the rejection
-      await rejectionPromise;
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      // Should retry all errors, not just transient ones (RETRY_CONFIG.MAX_ATTEMPTS = 3)
-      expect(mockModel.invoke).toHaveBeenCalledTimes(3);
+      await expect(invoker.invokeWithRetry(mockModel, messages, 'test-model')).rejects.toThrow();
 
-      vi.useRealTimers();
+      // Only called once because quota exceeded is permanent
+      expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fast-fail on daily limit error message', async () => {
+      const mockModel = {
+        invoke: vi.fn().mockRejectedValue(new Error('50 requests per day limit reached')),
+      } as any as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      await expect(invoker.invokeWithRetry(mockModel, messages, 'test-model')).rejects.toThrow();
+
+      // Only called once because daily limit is permanent
+      expect(mockModel.invoke).toHaveBeenCalledTimes(1);
     });
 
     it('should throw after max retries exhausted', async () => {

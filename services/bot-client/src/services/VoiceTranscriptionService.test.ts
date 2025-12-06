@@ -23,7 +23,7 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    preserveCodeBlocks: vi.fn((content: string) => {
+    splitMessage: vi.fn((content: string) => {
       // Simple mock: split on 2000 char boundaries
       const chunks: string[] = [];
       for (let i = 0; i < content.length; i += 2000) {
@@ -34,7 +34,7 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-import { preserveCodeBlocks } from '@tzurot/common-types';
+import { splitMessage } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 
 describe('VoiceTranscriptionService', () => {
@@ -220,8 +220,8 @@ describe('VoiceTranscriptionService', () => {
 
       await service.transcribe(message, false, false);
 
-      // Should call preserveCodeBlocks
-      expect(preserveCodeBlocks).toHaveBeenCalledWith(longTranscript);
+      // Should call splitMessage for chunking
+      expect(splitMessage).toHaveBeenCalledWith(longTranscript);
 
       // Should send multiple replies (mocked to create 2 chunks)
       expect(message.reply).toHaveBeenCalledTimes(2);

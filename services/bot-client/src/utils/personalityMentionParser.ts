@@ -55,18 +55,24 @@ interface PotentialMention {
  * **Security:**
  * Limits processing to MAX_POTENTIAL_MENTIONS (10) to prevent resource exhaustion attacks
  *
+ * **Access Control:**
+ * When userId is provided, only matches personalities that the user has access to
+ * (public personalities or ones they own)
+ *
  * **Performance:**
  * Batches all personality lookups into a single Promise.all() to minimize database calls
  *
  * @param content - The message content to search
  * @param mentionChar - The character used for mentions (from BOT_MENTION_CHAR config)
  * @param personalityService - Service to validate personality names
+ * @param userId - Discord user ID for access control
  * @returns The best matching personality and cleaned content, or null if none found
  */
 export async function findPersonalityMention(
   content: string,
   mentionChar: string,
-  personalityService: IPersonalityLoader
+  personalityService: IPersonalityLoader,
+  userId: string
 ): Promise<PersonalityMentionResult | null> {
   logger.debug({ content, mentionChar }, '[PersonalityMentionParser] Parsing mentions');
 
@@ -102,9 +108,10 @@ export async function findPersonalityMention(
   );
 
   // Step 2: Batch lookup all potential personalities at once (performance optimization)
+  // Pass userId for access control - only matches accessible personalities
   const lookupResults = await Promise.all(
     potentialMentions.map(async ({ name, wordCount }) => {
-      const personality = await personalityService.loadPersonality(name);
+      const personality = await personalityService.loadPersonality(name, userId);
       return personality ? { name, wordCount, isValid: true } : null;
     })
   );

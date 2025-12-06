@@ -118,7 +118,7 @@ describe('CommandHandler', () => {
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
-        customId: 'test-create',
+        customId: 'test::create',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
         replied: false,
@@ -131,11 +131,11 @@ describe('CommandHandler', () => {
       expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
     });
 
-    it('should extract command name from modal customId', async () => {
+    it('should extract command name from modal customId using :: delimiter', async () => {
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
-        customId: 'test-edit',
+        customId: 'test::edit::entity-123',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
         replied: false,
@@ -144,7 +144,7 @@ describe('CommandHandler', () => {
 
       await handler.handleInteraction(mockInteraction);
 
-      // Should extract 'test' from 'test-edit'
+      // Should extract 'test' from 'test::edit::entity-123'
       const command = handler.getCommands().get('test');
       expect(command?.execute).toHaveBeenCalled();
     });
@@ -168,21 +168,21 @@ describe('CommandHandler', () => {
       });
     });
 
-    it('should pass commands collection to utility command', async () => {
-      const mockUtilityCommand: Command = {
+    it('should pass commands collection to help command', async () => {
+      const mockHelpCommand: Command = {
         data: {
-          name: 'utility',
-          description: 'Utility commands',
+          name: 'help',
+          description: 'Show all available commands',
         },
         execute: vi.fn().mockResolvedValue(undefined),
       };
 
-      handler.getCommands().set('utility', mockUtilityCommand);
+      handler.getCommands().set('help', mockHelpCommand);
 
       const mockInteraction = {
         isChatInputCommand: () => true,
         isModalSubmit: () => false,
-        commandName: 'utility',
+        commandName: 'help',
         reply: vi.fn().mockResolvedValue(undefined),
         followUp: vi.fn(),
         replied: false,
@@ -192,10 +192,7 @@ describe('CommandHandler', () => {
       await handler.handleInteraction(mockInteraction);
 
       // Should pass commands collection as second argument
-      expect(mockUtilityCommand.execute).toHaveBeenCalledWith(
-        mockInteraction,
-        handler.getCommands()
-      );
+      expect(mockHelpCommand.execute).toHaveBeenCalledWith(mockInteraction, handler.getCommands());
     });
 
     it('should handle command execution error with reply', async () => {

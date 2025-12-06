@@ -3,6 +3,12 @@
  *
  * Centralized retry and timeout patterns for ai-worker service.
  * Handles exponential backoff, parallel retries, and timeout management.
+ *
+ * Features:
+ * - Exponential backoff between retries
+ * - Global timeout for all attempts
+ * - Optional error classification for fast-fail on permanent errors
+ * - Parallel retry for batch operations
  */
 
 import type { Logger } from 'pino';
@@ -26,6 +32,12 @@ export interface RetryOptions {
   logger?: Logger;
   /** Operation name for logging */
   operationName?: string;
+  /**
+   * Optional function to determine if an error should be retried.
+   * Return false to fast-fail without retrying (e.g., for permanent errors).
+   * Default: all errors are retried.
+   */
+  shouldRetry?: (error: unknown) => boolean;
 }
 
 /**
@@ -85,6 +97,7 @@ export async function withRetry<T>(
     globalTimeoutMs,
     logger,
     operationName = 'operation',
+    shouldRetry,
   } = options;
 
   const startTime = Date.now();
@@ -122,6 +135,24 @@ export async function withRetry<T>(
       return { value, attempts: attempt, totalTimeMs };
     } catch (error) {
       lastError = error;
+
+      // Check if this error should be retried (fast-fail for permanent errors)
+      const errorShouldRetry = shouldRetry === undefined || shouldRetry(error);
+
+      if (!errorShouldRetry) {
+        const totalTimeMs = Date.now() - startTime;
+        logger?.warn(
+          { err: error, attempt, totalTimeMs },
+          `[Retry] ${operationName} failed with non-retryable error, fast-failing`
+        );
+        // Wrap in RetryError to maintain consistent error type
+        const retryError = new RetryError(
+          `${operationName} failed with non-retryable error`,
+          attempt,
+          error
+        );
+        throw retryError;
+      }
 
       logger?.warn(
         { err: error, attempt, maxAttempts },

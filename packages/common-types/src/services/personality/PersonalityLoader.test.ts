@@ -15,7 +15,6 @@ describe('PersonalityLoader', () => {
     mockPrisma = {
       personality: {
         findFirst: vi.fn(),
-        findUnique: vi.fn(),
         findMany: vi.fn(),
       },
       personalityAlias: {
@@ -36,6 +35,8 @@ describe('PersonalityLoader', () => {
         name: 'TestBot',
         displayName: 'Test Bot',
         slug: 'test-bot',
+        isPublic: true,
+        ownerId: null,
         systemPrompt: { content: 'Test prompt' },
         defaultConfigLink: {
           llmConfig: {
@@ -61,6 +62,7 @@ describe('PersonalityLoader', () => {
         personalityDislikes: null,
         conversationalGoals: null,
         conversationalExamples: null,
+        errorMessage: null,
       };
 
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
@@ -71,13 +73,17 @@ describe('PersonalityLoader', () => {
       expect(result?.id).toBe('00000000-0000-0000-0000-000000000001');
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
         where: {
-          OR: [
-            { id: '00000000-0000-0000-0000-000000000001' },
-            { name: { equals: '00000000-0000-0000-0000-000000000001', mode: 'insensitive' } },
-            { slug: '00000000-0000-0000-0000-000000000001' },
+          AND: [
+            {
+              OR: [
+                { id: '00000000-0000-0000-0000-000000000001' },
+                { name: { equals: '00000000-0000-0000-0000-000000000001', mode: 'insensitive' } },
+                { slug: '00000000-0000-0000-0000-000000000001' },
+              ],
+            },
           ],
         },
-        include: expect.any(Object),
+        select: expect.any(Object),
       });
     });
 
@@ -87,6 +93,8 @@ describe('PersonalityLoader', () => {
         name: 'TestBot',
         displayName: 'Test Bot',
         slug: 'test-bot',
+        isPublic: true,
+        ownerId: null,
         systemPrompt: { content: 'Test prompt' },
         defaultConfigLink: null,
         characterInfo: 'Test character',
@@ -98,6 +106,7 @@ describe('PersonalityLoader', () => {
         personalityDislikes: null,
         conversationalGoals: null,
         conversationalExamples: null,
+        errorMessage: null,
       };
 
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
@@ -108,9 +117,13 @@ describe('PersonalityLoader', () => {
       expect(result?.name).toBe('TestBot');
       expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
         where: {
-          OR: [{ name: { equals: 'testbot', mode: 'insensitive' } }, { slug: 'testbot' }],
+          AND: [
+            {
+              OR: [{ name: { equals: 'testbot', mode: 'insensitive' } }, { slug: 'testbot' }],
+            },
+          ],
         },
-        include: expect.any(Object),
+        select: expect.any(Object),
       });
     });
 
@@ -120,6 +133,8 @@ describe('PersonalityLoader', () => {
         name: 'TestBot',
         displayName: 'Test Bot',
         slug: 'test-bot',
+        isPublic: true,
+        ownerId: null,
         systemPrompt: { content: 'Test prompt' },
         defaultConfigLink: null,
         characterInfo: 'Test character',
@@ -131,6 +146,7 @@ describe('PersonalityLoader', () => {
         personalityDislikes: null,
         conversationalGoals: null,
         conversationalExamples: null,
+        errorMessage: null,
       };
 
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
@@ -156,6 +172,8 @@ describe('PersonalityLoader', () => {
         name: 'Lilith',
         displayName: 'Lilith',
         slug: 'lilith-tzel-shani',
+        isPublic: true,
+        ownerId: null,
         systemPrompt: { content: 'Test prompt' },
         defaultConfigLink: null,
         characterInfo: 'Test character',
@@ -167,10 +185,14 @@ describe('PersonalityLoader', () => {
         personalityDislikes: null,
         conversationalGoals: null,
         conversationalExamples: null,
+        errorMessage: null,
       };
 
       // Direct lookup returns null
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      vi.mocked(mockPrisma.personality.findFirst)
+        .mockResolvedValueOnce(null) // First call for direct lookup
+        .mockResolvedValueOnce(mockPersonality as any); // Second call after alias lookup
+
       // Alias lookup finds a match
       vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
         id: 'alias-id',
@@ -179,8 +201,6 @@ describe('PersonalityLoader', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as any);
-      // Personality lookup by ID returns the personality
-      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue(mockPersonality as any);
 
       const result = await loader.loadFromDatabase('lilith');
 
@@ -193,15 +213,14 @@ describe('PersonalityLoader', () => {
         },
         select: { personalityId: true },
       });
-      expect(vi.mocked(mockPrisma.personality.findUnique)).toHaveBeenCalledWith({
-        where: { id: 'test-id' },
-        include: expect.any(Object),
-      });
     });
 
     it('should return null when alias exists but personality is deleted', async () => {
       // Direct lookup returns null
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      vi.mocked(mockPrisma.personality.findFirst)
+        .mockResolvedValueOnce(null) // First call for direct lookup
+        .mockResolvedValueOnce(null); // Second call for personality by alias ID (deleted)
+
       // Alias lookup finds a match
       vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
         id: 'alias-id',
@@ -210,8 +229,6 @@ describe('PersonalityLoader', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as any);
-      // Personality lookup by ID returns null (deleted)
-      vi.mocked(mockPrisma.personality.findUnique).mockResolvedValue(null);
 
       const result = await loader.loadFromDatabase('deleted-bot');
 
@@ -226,6 +243,86 @@ describe('PersonalityLoader', () => {
       const result = await loader.loadFromDatabase('test');
 
       expect(result).toBeNull();
+    });
+
+    describe('access control', () => {
+      it('should apply access filter when userId is provided', async () => {
+        const mockPersonality = {
+          id: 'test-id',
+          name: 'PrivateBot',
+          displayName: 'Private Bot',
+          slug: 'private-bot',
+          isPublic: false,
+          ownerId: 'user-123',
+          systemPrompt: { content: 'Test prompt' },
+          defaultConfigLink: null,
+          characterInfo: 'Test character',
+          personalityTraits: 'Test traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+        };
+
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+        const result = await loader.loadFromDatabase('private-bot', 'user-123');
+
+        expect(result).not.toBeNull();
+        expect(result?.isPublic).toBe(false);
+        expect(result?.ownerId).toBe('user-123');
+
+        // Verify access filter was applied
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+          where: {
+            AND: [
+              {
+                OR: [
+                  { name: { equals: 'private-bot', mode: 'insensitive' } },
+                  { slug: 'private-bot' },
+                ],
+              },
+              {
+                OR: [{ isPublic: true }, { ownerId: 'user-123' }],
+              },
+            ],
+          },
+          select: expect.any(Object),
+        });
+      });
+
+      it('should not apply access filter when userId is not provided', async () => {
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
+
+        await loader.loadFromDatabase('test');
+
+        // Verify no access filter (AND array has only one element)
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+          where: {
+            AND: [
+              {
+                OR: [{ name: { equals: 'test', mode: 'insensitive' } }, { slug: 'test' }],
+              },
+            ],
+          },
+          select: expect.any(Object),
+        });
+      });
+
+      it('should return null when user lacks access to private personality', async () => {
+        // Direct lookup returns null (access denied due to filter)
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
+
+        const result = await loader.loadFromDatabase('private-bot', 'wrong-user');
+
+        expect(result).toBeNull();
+      });
     });
   });
 
@@ -287,6 +384,8 @@ describe('PersonalityLoader', () => {
           name: 'Bot1',
           displayName: 'Bot 1',
           slug: 'bot-1',
+          isPublic: true,
+          ownerId: null,
           systemPrompt: { content: 'Prompt 1' },
           defaultConfigLink: null,
           characterInfo: 'Character 1',
@@ -298,12 +397,15 @@ describe('PersonalityLoader', () => {
           personalityDislikes: null,
           conversationalGoals: null,
           conversationalExamples: null,
+          errorMessage: null,
         },
         {
           id: 'id-2',
           name: 'Bot2',
           displayName: 'Bot 2',
           slug: 'bot-2',
+          isPublic: false,
+          ownerId: 'user-123',
           systemPrompt: { content: 'Prompt 2' },
           defaultConfigLink: null,
           characterInfo: 'Character 2',
@@ -315,6 +417,7 @@ describe('PersonalityLoader', () => {
           personalityDislikes: null,
           conversationalGoals: null,
           conversationalExamples: null,
+          errorMessage: null,
         },
       ];
 
@@ -326,7 +429,7 @@ describe('PersonalityLoader', () => {
       expect(result[0].id).toBe('id-1');
       expect(result[1].id).toBe('id-2');
       expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
-        include: expect.any(Object),
+        select: expect.any(Object),
       });
     });
 

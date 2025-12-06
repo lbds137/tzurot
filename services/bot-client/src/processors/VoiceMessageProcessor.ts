@@ -46,7 +46,8 @@ export class VoiceMessageProcessor implements IMessageProcessor {
     const mentionCheck = await findPersonalityMention(
       message.content,
       config.BOT_MENTION_CHAR,
-      this.personalityService
+      this.personalityService,
+      message.author.id
     );
     const hasMention = mentionCheck !== null || message.mentions.has(message.client.user);
 

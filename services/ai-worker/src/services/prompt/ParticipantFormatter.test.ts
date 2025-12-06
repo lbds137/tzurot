@@ -7,6 +7,41 @@ import { formatParticipantsContext } from './ParticipantFormatter.js';
 
 describe('ParticipantFormatter', () => {
   describe('formatParticipantsContext', () => {
+    describe('XML wrapper', () => {
+      it('should wrap output in <participants> tags when participants exist', () => {
+        const participants = new Map([
+          ['Alice', { content: 'A software developer', isActive: true }],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Alice');
+
+        expect(result).toContain('<participants>');
+        expect(result).toContain('</participants>');
+      });
+
+      it('should not add XML wrapper when no participants', () => {
+        const result = formatParticipantsContext(new Map());
+
+        expect(result).toBe('');
+        expect(result).not.toContain('<participants>');
+      });
+
+      it('should have properly closed XML tags', () => {
+        const participants = new Map([
+          ['Alice', { content: 'Dev', isActive: true }],
+          ['Bob', { content: 'Designer', isActive: false }],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Alice');
+
+        // Count opening and closing tags
+        const openTags = (result.match(/<participants>/g) || []).length;
+        const closeTags = (result.match(/<\/participants>/g) || []).length;
+        expect(openTags).toBe(1);
+        expect(closeTags).toBe(1);
+      });
+    });
+
     it('should return empty string when no participants', () => {
       const result = formatParticipantsContext(new Map());
       expect(result).toBe('');

@@ -12,9 +12,51 @@ import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 export type ValidationResult = { valid: true } | { valid: false; error: ErrorResponse };
 
 /**
+ * UUID v4 regex pattern
+ * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validates a UUID v4 format
+ *
+ * @param id - The ID to validate
+ * @param fieldName - Name of the field for error message (default: 'ID')
+ * @returns Validation result with error if invalid
+ */
+export function validateUuid(id: string, fieldName = 'ID'): ValidationResult {
+  if (!UUID_REGEX.test(id)) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError(`Invalid ${fieldName} format`),
+    };
+  }
+  return { valid: true };
+}
+
+/** Reserved slugs that cannot be used for personalities/personas */
+const RESERVED_SLUGS = new Set([
+  'admin',
+  'system',
+  'default',
+  'api',
+  'bot',
+  'help',
+  'settings',
+  'config',
+  'me',
+  'user',
+  'users',
+]);
+
+/**
  * Validates a personality slug format
- * Slug must contain only lowercase letters, numbers, and hyphens
- * Maximum length is 64 characters to prevent DoS attacks
+ * Slug must:
+ * - Contain only lowercase letters, numbers, and hyphens
+ * - Start and end with alphanumeric character (not hyphen)
+ * - Not have consecutive hyphens
+ * - Not be a reserved keyword
+ * - Maximum length is 64 characters to prevent DoS attacks
  *
  * @param slug - The slug to validate
  * @returns Validation result with error if invalid
@@ -28,6 +70,16 @@ export function validateSlug(slug: string): ValidationResult {
     };
   }
 
+  // Check for reserved slugs
+  if (RESERVED_SLUGS.has(slug.toLowerCase())) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError(
+        `"${slug}" is a reserved name and cannot be used as a slug.`
+      ),
+    };
+  }
+
   // Check format (lowercase letters, numbers, hyphens only)
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return {
@@ -35,6 +87,30 @@ export function validateSlug(slug: string): ValidationResult {
       error: ErrorResponses.validationError(
         'Invalid slug format. Use only lowercase letters, numbers, and hyphens.'
       ),
+    };
+  }
+
+  // Must start with alphanumeric (not hyphen)
+  if (slug.startsWith('-')) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug cannot start with a hyphen.'),
+    };
+  }
+
+  // Must end with alphanumeric (not hyphen)
+  if (slug.endsWith('-')) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug cannot end with a hyphen.'),
+    };
+  }
+
+  // No consecutive hyphens
+  if (slug.includes('--')) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug cannot contain consecutive hyphens.'),
     };
   }
 

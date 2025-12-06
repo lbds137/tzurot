@@ -137,7 +137,7 @@ function createServices(): Services {
     new VoiceMessageProcessor(voiceTranscription, personalityIdCache),
     new ReplyMessageProcessor(replyResolver, personalityHandler),
     new PersonalityMentionProcessor(personalityIdCache, personalityHandler),
-    new BotMentionProcessor(personalityIdCache, personalityHandler),
+    new BotMentionProcessor(),
   ];
 
   // Create MessageHandler with full dependency injection
@@ -172,7 +172,7 @@ client.on(Events.MessageCreate, message => {
   })();
 });
 
-// Interaction handler for slash commands, modals, and autocomplete
+// Interaction handler for slash commands, modals, autocomplete, and component interactions
 client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
@@ -180,6 +180,9 @@ client.on(Events.InteractionCreate, interaction => {
         await commandHandler.handleInteraction(interaction);
       } else if (interaction.isAutocomplete()) {
         await commandHandler.handleAutocomplete(interaction);
+      } else if (interaction.isStringSelectMenu() || interaction.isButton()) {
+        // Route component interactions to their commands based on customId prefix
+        await commandHandler.handleComponentInteraction(interaction);
       }
     } catch (error) {
       logger.error({ err: error }, 'Error in interaction handler');

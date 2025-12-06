@@ -4,11 +4,72 @@
 
 const DISCORD_MAX_MESSAGE_LENGTH = 2000;
 
+/** Default ellipsis for truncated text */
+const DEFAULT_ELLIPSIS = '…';
+
 /**
- * Intelligently splits a message for Discord's 2000 character limit
- * Tries to split on natural boundaries (paragraphs, sentences, words)
+ * Truncates text to a maximum length, adding ellipsis if truncated.
+ *
+ * @param text - The text to truncate
+ * @param maxLength - Maximum length including ellipsis (must be > ellipsis length)
+ * @param ellipsis - String to append when truncated (default: '…')
+ * @returns The truncated text, or original if within limit
+ *
+ * @example
+ * truncateText('Hello World', 8) // 'Hello W…'
+ * truncateText('Hi', 8) // 'Hi' (no truncation needed)
+ * truncateText('Long text here', 10, '...') // 'Long te...'
  */
-export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
+export function truncateText(
+  text: string,
+  maxLength: number,
+  ellipsis: string = DEFAULT_ELLIPSIS
+): string {
+  // Defensive checks for text parameter
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+
+  // Defensive checks for ellipsis parameter
+  if (typeof ellipsis !== 'string') {
+    ellipsis = DEFAULT_ELLIPSIS;
+  }
+
+  // Defensive checks for maxLength parameter
+  // Handle NaN, negative, and non-finite values
+  if (!Number.isFinite(maxLength) || maxLength < 0) {
+    return '';
+  }
+
+  // Ensure maxLength is an integer (floor it)
+  maxLength = Math.floor(maxLength);
+
+  if (maxLength === 0) {
+    return '';
+  }
+
+  if (maxLength <= ellipsis.length) {
+    // Can't fit anything useful, just return ellipsis truncated
+    return ellipsis.slice(0, maxLength);
+  }
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  // Truncate and add ellipsis
+  return text.slice(0, maxLength - ellipsis.length) + ellipsis;
+}
+
+/**
+ * Internal helper: splits text at natural boundaries (paragraphs, sentences, words)
+ * This is an implementation detail - use splitMessage() for the public API
+ * @internal
+ */
+function splitAtNaturalBoundaries(
+  content: string,
+  maxLength = DISCORD_MAX_MESSAGE_LENGTH
+): string[] {
   if (content.length <= maxLength) {
     return [content];
   }
@@ -87,10 +148,17 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
 }
 
 /**
- * Formats code blocks for Discord
- * Ensures code blocks don't get split awkwardly
+ * Splits a message for Discord's character limit while preserving code blocks
+ *
+ * This is the main entry point for message splitting. It:
+ * 1. Preserves code blocks (``` ```) when possible
+ * 2. Falls back to natural boundary splitting (paragraphs, sentences, words)
+ * 3. Force-splits only when absolutely necessary
+ *
+ * @param content - The content to split
+ * @param maxLength - Maximum length per chunk (default: Discord's 2000 char limit)
  */
-export function preserveCodeBlocks(content: string): string[] {
+export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
   // Defensive check: handle undefined/null/non-string input
   // Utility functions should be robust to bad input
   if (!content || typeof content !== 'string') {
@@ -100,11 +168,12 @@ export function preserveCodeBlocks(content: string): string[] {
   const codeBlockRegex = /```[\s\S]*?```/g;
   const codeBlocks = content.match(codeBlockRegex) ?? [];
 
+  // No code blocks - use simple natural boundary splitting
   if (codeBlocks.length === 0) {
-    return splitMessage(content);
+    return splitAtNaturalBoundaries(content, maxLength);
   }
 
-  // Replace code blocks with placeholders
+  // Replace code blocks with placeholders to protect them during splitting
   let processedContent = content;
   const placeholders: string[] = [];
 
@@ -114,8 +183,8 @@ export function preserveCodeBlocks(content: string): string[] {
     processedContent = processedContent.replace(block, placeholder);
   });
 
-  // Split the content
-  const chunks = splitMessage(processedContent);
+  // Split the content with placeholders
+  const chunks = splitAtNaturalBoundaries(processedContent, maxLength);
 
   // Restore code blocks
   const restoredChunks = chunks.map(chunk => {
@@ -127,12 +196,12 @@ export function preserveCodeBlocks(content: string): string[] {
   });
 
   // Check if any restored chunks exceed the limit (can happen if code block is large)
-  // If so, re-split those chunks
+  // If so, re-split those chunks (code block will be split, but that's unavoidable)
   const finalChunks: string[] = [];
   for (const chunk of restoredChunks) {
-    if (chunk.length > DISCORD_MAX_MESSAGE_LENGTH) {
-      // Re-split this chunk normally (without code block preservation to avoid infinite loop)
-      finalChunks.push(...splitMessage(chunk));
+    if (chunk.length > maxLength) {
+      // Re-split this chunk at natural boundaries (code block protection disabled to avoid infinite loop)
+      finalChunks.push(...splitAtNaturalBoundaries(chunk, maxLength));
     } else {
       finalChunks.push(chunk);
     }

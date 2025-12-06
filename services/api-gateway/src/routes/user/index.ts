@@ -8,6 +8,10 @@
  * - GET /user/timezone/list - List common timezones
  * - GET /user/usage - Get token usage statistics
  * - GET /user/personality - List personalities (for autocomplete)
+ * - GET /user/personality/:slug - Get a single personality
+ * - POST /user/personality - Create a new personality
+ * - PUT /user/personality/:slug - Update an owned personality
+ * - PATCH /user/personality/:slug/visibility - Toggle visibility
  * - GET /user/llm-config - List LLM configs
  * - POST /user/llm-config - Create user LLM config
  * - DELETE /user/llm-config/:id - Delete user LLM config
@@ -17,6 +21,16 @@
  * - GET /user/model-override/default - Get user's global default config
  * - PUT /user/model-override/default - Set user's global default config
  * - DELETE /user/model-override/default - Clear user's global default config
+ * - GET /user/persona - List user's personas
+ * - GET /user/persona/:id - Get a specific persona
+ * - POST /user/persona - Create a new persona
+ * - PUT /user/persona/:id - Update a persona
+ * - DELETE /user/persona/:id - Delete a persona
+ * - PATCH /user/persona/:id/default - Set persona as default
+ * - PATCH /user/persona/settings - Update persona settings (share-ltm)
+ * - GET /user/persona/override - List persona overrides
+ * - PUT /user/persona/override/:personalitySlug - Set persona override
+ * - DELETE /user/persona/override/:personalitySlug - Clear persona override
  */
 
 import { Router } from 'express';
@@ -26,6 +40,7 @@ import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality.js';
 import { createLlmConfigRoutes } from './llm-config.js';
 import { createModelOverrideRoutes } from './model-override.js';
+import { createPersonaRoutes } from './persona.js';
 
 /**
  * Create user router with injected dependencies
@@ -52,6 +67,9 @@ export function createUserRouter(
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));
+
+  // Persona routes (user profiles that tell AI about the user)
+  router.use('/persona', createPersonaRoutes(prisma));
 
   return router;
 }

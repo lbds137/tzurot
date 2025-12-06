@@ -36,6 +36,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
         personalityDislikes,
         conversationalGoals,
         conversationalExamples,
+        errorMessage,
         customFields,
         avatarData,
       } = req.body as {
@@ -51,6 +52,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
         personalityDislikes?: string | null;
         conversationalGoals?: string | null;
         conversationalExamples?: string | null;
+        errorMessage?: string | null;
         customFields?: Record<string, unknown> | null;
         avatarData?: string;
       };
@@ -108,6 +110,12 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
         );
       }
 
+      // Find default system prompt to link to the new personality
+      const defaultSystemPrompt = await prisma.systemPrompt.findFirst({
+        where: { isDefault: true },
+        select: { id: true },
+      });
+
       // Process avatar if provided
       let processedAvatarData: Buffer | undefined;
       if (avatarData !== undefined && avatarData.length > 0) {
@@ -154,6 +162,8 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
           personalityDislikes: personalityDislikes ?? null,
           conversationalGoals: conversationalGoals ?? null,
           conversationalExamples: conversationalExamples ?? null,
+          errorMessage: errorMessage ?? null,
+          systemPromptId: defaultSystemPrompt?.id ?? null,
           ...(customFields !== null && customFields !== undefined
             ? { customFields: customFields as Prisma.InputJsonValue }
             : {}),

@@ -33,7 +33,7 @@ export type GatewayResult<T> = GatewayResponse<T> | GatewayError;
  * Options for gateway API calls
  */
 export interface GatewayCallOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   userId: string;
   body?: unknown;
 }

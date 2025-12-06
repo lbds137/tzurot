@@ -21,7 +21,7 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    preserveCodeBlocks: vi.fn((content: string) => {
+    splitMessage: vi.fn((content: string) => {
       // Simple mock: split on 2000 char boundaries
       const chunks: string[] = [];
       for (let i = 0; i < content.length; i += 2000) {
@@ -169,6 +169,33 @@ describe('DiscordResponseSender', () => {
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
       expect(result.chunkMessageIds).toEqual(['msg-1', 'msg-2']);
       expect(result.chunkCount).toBe(2);
+    });
+
+    it('should append model indicator to LAST chunk only (preserves newline)', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      // Create content that will be chunked into 2 parts
+      const longContent = 'x'.repeat(3000);
+
+      mockWebhookManager.sendAsPersonality
+        .mockResolvedValueOnce({ id: 'msg-1' })
+        .mockResolvedValueOnce({ id: 'msg-2' });
+
+      await sender.sendResponse({
+        content: longContent,
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'test-model',
+      });
+
+      // First chunk should NOT have model indicator
+      const firstChunk = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(firstChunk).not.toContain('-# Model:');
+
+      // Last chunk SHOULD have model indicator with newline preserved
+      const lastChunk = mockWebhookManager.sendAsPersonality.mock.calls[1][2];
+      expect(lastChunk).toMatch(/\n-# Model: \[test-model\]/);
     });
   });
 

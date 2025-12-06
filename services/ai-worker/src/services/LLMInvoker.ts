@@ -26,6 +26,7 @@ import {
   type ModelConfig,
 } from './ModelFactory.js';
 import { withRetry } from '../utils/retryService.js';
+import { shouldRetryError } from '../utils/apiErrorParser.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,
@@ -121,6 +122,7 @@ export class LLMInvoker {
     );
 
     // Use retryService for consistent retry behavior
+    // Fast-fail on permanent errors (auth, quota, content policy, etc.)
     const result = await withRetry(
       () => this.invokeSingleAttempt(model, transformedMessages, modelName),
       {
@@ -128,6 +130,7 @@ export class LLMInvoker {
         globalTimeoutMs,
         logger,
         operationName: `LLM invocation (${modelName})`,
+        shouldRetry: shouldRetryError,
       }
     );
 

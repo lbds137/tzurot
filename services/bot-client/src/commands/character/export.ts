@@ -1,0 +1,175 @@
+/**
+ * Character Export Subcommand
+ * Handles /character export - allows users to export their characters as JSON files
+ * Exports both a JSON file and a separate avatar image (if one exists)
+ */
+
+import type { ChatInputCommandInteraction } from 'discord.js';
+import { MessageFlags, AttachmentBuilder } from 'discord.js';
+import { createLogger, type EnvConfig, getConfig } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import type { CharacterData } from './config.js';
+
+const logger = createLogger('character-export');
+
+/**
+ * Extended character data that includes hasAvatar flag from API
+ */
+interface ExportCharacterData extends Omit<CharacterData, 'avatarData'> {
+  hasAvatar: boolean;
+}
+
+/**
+ * API response type for personality endpoint
+ */
+interface PersonalityResponse {
+  personality: ExportCharacterData;
+  canEdit: boolean;
+}
+
+/**
+ * Fields to include in exported JSON (excluding avatarData - that's exported as separate file)
+ */
+const EXPORT_FIELDS = [
+  'name',
+  'slug',
+  'displayName',
+  'isPublic',
+  'characterInfo',
+  'personalityTraits',
+  'personalityTone',
+  'personalityAge',
+  'personalityAppearance',
+  'personalityLikes',
+  'personalityDislikes',
+  'conversationalGoals',
+  'conversationalExamples',
+  'errorMessage',
+] as const;
+
+/**
+ * Build exportable character data (matching import format)
+ * Avatar is excluded - it's sent as a separate image file
+ */
+function buildExportData(character: ExportCharacterData): Record<string, unknown> {
+  const exportData: Record<string, unknown> = {};
+
+  for (const field of EXPORT_FIELDS) {
+    const value = character[field];
+    // Only include non-null values
+    if (value !== null && value !== undefined && value !== '') {
+      exportData[field] = value;
+    }
+  }
+
+  return exportData;
+}
+
+/**
+ * Fetch avatar image from public endpoint
+ * Returns image buffer or null if not found
+ */
+async function fetchAvatarData(slug: string): Promise<Buffer | null> {
+  const config = getConfig();
+  const avatarUrl = `${config.GATEWAY_URL}/avatars/${slug}.png`;
+
+  try {
+    const response = await fetch(avatarUrl);
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Avatar fetch failed: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    logger.warn({ err: error, slug }, '[Character/Export] Failed to fetch avatar');
+    return null;
+  }
+}
+
+/**
+ * Handle /character export subcommand
+ * Exports character as JSON file + separate avatar image (if exists)
+ */
+export async function handleExport(
+  interaction: ChatInputCommandInteraction,
+  _config: EnvConfig
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const slug = interaction.options.getString('character', true);
+
+  try {
+    // Fetch character data
+    const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slug}`, {
+      userId: interaction.user.id,
+    });
+
+    if (!result.ok) {
+      if (result.status === 404) {
+        await interaction.editReply(`❌ Character \`${slug}\` not found.`);
+        return;
+      }
+      if (result.status === 403) {
+        await interaction.editReply(`❌ You don't have access to character \`${slug}\`.`);
+        return;
+      }
+      throw new Error(`API error: ${result.status}`);
+    }
+
+    const character = result.data.personality;
+    const displayName = character.displayName ?? character.name;
+
+    // Build export data (excludes avatar)
+    const exportData = buildExportData(character);
+
+    // Convert to pretty JSON
+    const jsonContent = JSON.stringify(exportData, null, 2);
+
+    // Create JSON attachment
+    const jsonBuffer = Buffer.from(jsonContent, 'utf-8');
+    const jsonAttachment = new AttachmentBuilder(jsonBuffer, {
+      name: `${slug}.json`,
+      description: `Character data: ${displayName}`,
+    });
+
+    const files: AttachmentBuilder[] = [jsonAttachment];
+    const contentParts: string[] = [`✅ Exported **${displayName}** (\`${slug}\`)`];
+
+    // Add avatar as separate image file if it exists
+    if (character.hasAvatar) {
+      const avatarBuffer = await fetchAvatarData(slug);
+      if (avatarBuffer !== null) {
+        const avatarAttachment = new AttachmentBuilder(avatarBuffer, {
+          name: `${slug}-avatar.png`,
+          description: `Avatar for ${displayName}`,
+        });
+        files.push(avatarAttachment);
+        contentParts.push('🖼️ Avatar image included');
+      } else {
+        contentParts.push('⚠️ Avatar could not be exported');
+      }
+    }
+
+    contentParts.push('');
+    contentParts.push(
+      '📝 Edit the JSON and re-import with `/character import`.\n' +
+        'You can optionally include a new avatar image when importing.'
+    );
+
+    await interaction.editReply({
+      content: contentParts.join('\n'),
+      files,
+    });
+
+    logger.info(
+      { slug, userId: interaction.user.id, hasAvatar: character.hasAvatar },
+      '[Character/Export] Character exported successfully'
+    );
+  } catch (error) {
+    logger.error({ err: error, slug }, '[Character/Export] Error exporting character');
+    await interaction.editReply('❌ An unexpected error occurred while exporting the character.');
+  }
+}

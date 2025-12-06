@@ -303,7 +303,7 @@ describe('MessageHandler', () => {
 
       // Should notify user of error via webhook (not direct reply)
       expect(mockResponseSender.sendResponse).toHaveBeenCalledWith({
-        content: 'Sorry, I encountered an error while processing your request.',
+        content: 'Sorry, I encountered an error generating a response. Please try again later.',
         personality: mockPersonality,
         message: mockMessage,
       });

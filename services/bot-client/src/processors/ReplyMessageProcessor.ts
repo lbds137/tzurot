@@ -26,13 +26,16 @@ export class ReplyMessageProcessor implements IMessageProcessor {
       return false; // Not a reply, continue to next processor
     }
 
-    logger.debug('[ReplyMessageProcessor] Processing reply message');
+    const userId = message.author.id;
+    logger.debug({ userId }, '[ReplyMessageProcessor] Processing reply message');
 
     // Resolve which personality this reply targets
-    const personality = await this.replyResolver.resolvePersonality(message);
+    // Pass userId for access control to prevent the "Reply Loophole"
+    // (User B replying to User A's private personality message)
+    const personality = await this.replyResolver.resolvePersonality(message, userId);
 
     if (!personality) {
-      // Reply is not to a personality webhook
+      // Reply is not to a personality webhook, or user lacks access
       return false; // Continue to next processor
     }
 

@@ -537,6 +537,85 @@ OpenRouter/Gemini API
 - Conversation history management
 - Response generation
 
+### 🚨 Gateway Client Usage (CRITICAL)
+
+**NEVER use direct `fetch()` calls to the API gateway.** Always use the established gateway clients.
+
+**Why this matters**: Using direct fetch with wrong headers caused a major production regression where /character commands couldn't find any personalities. Tests didn't catch it because they mocked at too high a level.
+
+**Available Gateway Clients** (in `bot-client/src/utils/`):
+
+| Client                             | Purpose                     | Headers Added                 | When to Use                                                |
+| ---------------------------------- | --------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `callGatewayApi()`                 | User-authenticated requests | `X-User-Id`, `X-Service-Auth` | Any `/user/*` endpoint                                     |
+| `adminFetch()` / `adminPostJson()` | Admin-only requests         | `X-Service-Auth`              | Any `/admin/*` endpoint (add `X-Owner-Id` header manually) |
+| `GatewayClient`                    | Internal service requests   | `X-Service-Auth`              | Service-to-service communication                           |
+
+**Examples:**
+
+```typescript
+// ✅ CORRECT - User endpoint
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+
+const result = await callGatewayApi<ResponseType>('/user/personality', {
+  userId: interaction.user.id,
+  method: 'POST',
+  body: data,
+});
+
+// ✅ CORRECT - Admin endpoint
+import { adminFetch } from '../../utils/adminApiClient.js';
+
+const response = await adminFetch('/admin/personality', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Owner-Id': interaction.user.id,
+  },
+  body: JSON.stringify(payload),
+});
+
+// ❌ WRONG - Direct fetch (caused production bug!)
+const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
+  headers: {
+    'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+    'X-Discord-User-Id': userId, // WRONG HEADER NAME!
+  },
+});
+```
+
+**Header Reference:**
+
+- `X-User-Id` - Required for user-authenticated endpoints (NOT `X-Discord-User-Id`)
+- `X-Owner-Id` - Required for admin endpoints (bot owner verification)
+- `X-Service-Auth` - Required for all internal service calls
+
+### 🚨 Database Access Rules (CRITICAL)
+
+**bot-client MUST NEVER use Prisma directly.** All database access goes through the api-gateway.
+
+**Why this matters**: The api-gateway is the single source of truth for data access. Direct Prisma calls from bot-client:
+
+- Bypass authorization checks implemented in gateway routes
+- Create duplicate code paths for the same operations
+- Make it harder to audit and secure data access
+- Violate the microservices architecture
+
+**Allowed in each service:**
+
+| Service       | Prisma Access | Why                                             |
+| ------------- | ------------- | ----------------------------------------------- |
+| `bot-client`  | ❌ NEVER      | Use gateway APIs via `callGatewayApi()` etc.    |
+| `api-gateway` | ✅ Yes        | Source of truth - implements all data access    |
+| `ai-worker`   | ✅ Yes        | Needs direct access for memory/conversation ops |
+
+**Current violations being fixed** (tracked in `docs/improvements/me-command-refactor.md`):
+
+- `/me` commands (autocomplete, create, edit, view, list, default, override, settings)
+- Root cause: No `/user/persona` gateway endpoints existed
+
+**If you see `getPrismaClient()` in bot-client** → It's a bug. Create gateway endpoints instead.
+
 ## Current Features (Development Deployment)
 
 ### ✅ Working in Dev Deployment
@@ -612,6 +691,23 @@ OpenRouter/Gemini API
 
 **📚 See**: `tzurot-constants` skill for when to create constants, domain organization details, and migration patterns
 
+**Error Message Patterns**:
+
+- **Gateway (api-gateway)**: Return clean error messages WITHOUT emojis
+  - Error responses are machine-readable and may be processed by multiple consumers
+  - Example: `sendError(res, ErrorResponses.notFound('Persona'))`
+  - Result: `{ "error": "NOT_FOUND", "message": "Persona not found" }`
+
+- **Bot client (bot-client)**: ADD emojis to user-facing messages
+  - ❌ for errors: `content: '❌ Profile not found.'`
+  - ✅ for success: `content: '✅ Profile override set successfully!'`
+  - ⚠️ for warnings: `content: '⚠️ This action cannot be undone.'`
+
+- **Why this separation**: Gateway is an API layer used by multiple services. Bot-client is the only service that renders messages to Discord users. Keeping emojis in bot-client allows:
+  - Consistent emoji usage across all user-facing commands
+  - Gateway responses remain clean for programmatic use
+  - Easy to change emoji style without touching API layer
+
 ## Folder Structure Standards
 
 > **📁 ALWAYS FOLLOW**: See [docs/standards/FOLDER_STRUCTURE.md](docs/standards/FOLDER_STRUCTURE.md) for comprehensive folder structure and file naming standards.
@@ -672,24 +768,38 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 
 **📚 See**: `tzurot-git-workflow` skill for complete PR workflow, rebase conflict handling, commit format details, and git safety protocol
 
-### Git Hooks
+### Git Hooks & Commit Strategy
 
-**🚨 CRITICAL: Pre-commit hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
+**🚨 CRITICAL: Hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
 
-- **Source-controlled location**: `./hooks/pre-commit` (tracked in git)
-- **Installed location**: `.git/hooks/pre-commit` (NOT tracked in git)
-- **ALWAYS update**: `./hooks/pre-commit` (the source-controlled version)
-- **NEVER edit**: `.git/hooks/pre-commit` directly (will not persist in repository)
+**Hook Philosophy**: Minimize per-commit overhead, validate thoroughly before push.
 
-**Installation script**: `./scripts/git/install-hooks.sh` copies hooks from `./hooks/` to `.git/hooks/`
+| Hook           | When         | What It Does                   | Speed       |
+| -------------- | ------------ | ------------------------------ | ----------- |
+| **pre-commit** | Every commit | Migration safety checks only   | Fast (~1s)  |
+| **pre-push**   | Before push  | Format, lint, typecheck, tests | Slow (~60s) |
 
-When modifying pre-commit checks:
+**Batched Commit Workflow** (reduces hook runs, saves resources):
 
-1. Edit `./hooks/pre-commit` (source-controlled)
-2. Run `./scripts/git/install-hooks.sh` to install updated hook locally
-3. Commit and push `./hooks/pre-commit` changes
+1. **Work on a unit of work** (feature, fix, or refactor)
+2. **Commit frequently** (pre-commit is fast, just migration checks)
+3. **Push when the unit is complete** (triggers all quality checks once)
+4. **Don't push after every commit** - batch related commits together
 
-New developers should run `./scripts/git/install-hooks.sh` after cloning the repository.
+This approach means heavy checks (lint, typecheck, tests) run once per push instead of on every commit.
+
+**Source-controlled locations**:
+
+- `./hooks/pre-commit` - Minimal checks (tracked in git)
+- `./hooks/pre-push` - Full quality suite (tracked in git)
+
+**Installation**: Run `./scripts/git/install-hooks.sh` after cloning (copies to `.git/hooks/`)
+
+**When modifying hooks**:
+
+1. Edit files in `./hooks/` (source-controlled)
+2. Run `./scripts/git/install-hooks.sh` to install locally
+3. Commit and push the hook changes
 
 ## Environment Variables
 
@@ -887,6 +997,44 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 - Verify API contracts remain unchanged
 - Check return value formats match exactly
 - Run full integration tests after refactors
+
+---
+
+### 2025-12-05 - Direct Fetch Calls Broke Character Commands
+
+**What Happened**: The /character commands (edit, view, list, create) couldn't find any personalities. Users got "character not found" for all their own characters.
+
+**Impact**:
+
+- All /character functionality broken in production
+- Users unable to manage their AI personalities
+- Confusion and frustration for users
+- Required emergency investigation and fix
+
+**Root Cause**:
+
+- Character commands used direct `fetch()` calls instead of the established `callGatewayApi` utility
+- Wrong header name: `X-Discord-User-Id` instead of `X-User-Id`
+- API gateway couldn't authenticate users → returned 403/empty results
+- Tests mocked at high level (`callGatewayApi`) so didn't catch the actual HTTP issues
+- No tests existed for the internal fetch functions
+
+**Why It Wasn't Caught**:
+
+- Autocomplete used `callGatewayApi` (correct) → worked fine, giving false confidence
+- Character CRUD used direct `fetch` (wrong) → silently failed auth
+- Unit tests mocked too broadly, never tested actual headers
+- No integration tests that verified HTTP headers
+
+**Prevention Measures Added**:
+
+1. Added "Gateway Client Usage (CRITICAL)" section to CLAUDE.md
+2. Documented the THREE gateway clients and when to use each
+3. Clear examples of ✅ correct vs ❌ wrong patterns
+4. Header reference: `X-User-Id` NOT `X-Discord-User-Id`
+5. Refactored character commands to use `callGatewayApi` (already tested)
+
+**Universal Lesson**: When established utilities exist, USE THEM. Don't reinvent direct calls.
 
 ---
 

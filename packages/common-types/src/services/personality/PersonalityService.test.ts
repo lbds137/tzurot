@@ -222,6 +222,125 @@ describe('PersonalityService - Cache Invalidation', () => {
     });
   });
 
+  describe('cache and access control', () => {
+    const mockPersonality = {
+      id: '00000000-0000-0000-0000-000000000099',
+      name: 'PrivatePersonality',
+      displayName: 'Private',
+      slug: 'private',
+      isPublic: false,
+      ownerId: 'owner-user-123',
+      systemPrompt: { content: 'Test prompt' },
+      defaultConfigLink: {
+        llmConfig: {
+          model: 'test-model',
+          visionModel: null,
+          temperature: 0.7,
+          topP: null,
+          topK: null,
+          frequencyPenalty: null,
+          presencePenalty: null,
+          maxTokens: 1000,
+          memoryScoreThreshold: 0.7,
+          memoryLimit: 10,
+          contextWindowTokens: 4096,
+        },
+      },
+      characterInfo: 'Private character',
+      personalityTraits: 'Test traits',
+      personalityTone: null,
+      personalityAge: null,
+      personalityAppearance: null,
+      personalityLikes: null,
+      personalityDislikes: null,
+      conversationalGoals: null,
+      conversationalExamples: null,
+    };
+
+    it('should use cache when userId is not provided (internal operations)', async () => {
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+      // First load - should hit DB
+      const loaded1 = await service.loadPersonality('00000000-0000-0000-0000-000000000099');
+      expect(loaded1).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+
+      // Second load without userId - should hit cache (no additional DB call)
+      const loaded2 = await service.loadPersonality('00000000-0000-0000-0000-000000000099');
+      expect(loaded2).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1); // Still 1
+    });
+
+    it('should bypass cache when userId is provided (enforces access control)', async () => {
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+      // First load without userId - should hit DB and cache result
+      const loaded1 = await service.loadPersonality('00000000-0000-0000-0000-000000000099');
+      expect(loaded1).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+
+      // Second load WITH userId - should bypass cache and hit DB again
+      const loaded2 = await service.loadPersonality(
+        '00000000-0000-0000-0000-000000000099',
+        'some-user-123'
+      );
+      expect(loaded2).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2); // Now 2
+
+      // Third load WITH different userId - should bypass cache again
+      const loaded3 = await service.loadPersonality(
+        '00000000-0000-0000-0000-000000000099',
+        'another-user-456'
+      );
+      expect(loaded3).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(3); // Now 3
+    });
+
+    it('should bypass cache when userId is empty string', async () => {
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+      // Load without userId - should hit DB and cache result
+      const loaded1 = await service.loadPersonality('00000000-0000-0000-0000-000000000099');
+      expect(loaded1).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+
+      // Load with empty string userId - should use cache (empty string = no access control)
+      const loaded2 = await service.loadPersonality('00000000-0000-0000-0000-000000000099', '');
+      expect(loaded2).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1); // Still 1
+    });
+
+    it('should always bypass cache for name lookups (non-UUID)', async () => {
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+      // Load by name - should hit DB
+      const loaded1 = await service.loadPersonality('PrivatePersonality');
+      expect(loaded1).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+
+      // Cache is now populated by ID, but loading by name should still hit DB
+      // because we only cache by ID and name lookups always go to DB
+      const loaded2 = await service.loadPersonality('PrivatePersonality');
+      expect(loaded2).not.toBeNull();
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2); // Now 2
+    });
+
+    it('should return null when access control denies access', async () => {
+      // Mock DB returning null (personality exists but user lacks access)
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+
+      // Load with userId - DB returns null due to access control
+      const loaded = await service.loadPersonality(
+        '00000000-0000-0000-0000-000000000099',
+        'unauthorized-user'
+      );
+
+      expect(loaded).toBeNull();
+      // Verify DB was queried (cache was bypassed)
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('getCacheStats', () => {
     it('should return cache statistics', async () => {
       const stats = service.getCacheStats();

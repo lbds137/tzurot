@@ -11,27 +11,21 @@
 
 import type { ModalSubmitInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  getConfig,
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_COLORS,
-  AIProvider,
-  API_KEY_FORMATS,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../utils/providers.js';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { WalletCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('wallet-modal');
 
 /**
  * Handle wallet modal submissions
- * Routes based on customId pattern: wallet-set-{provider}
+ * Routes based on customId pattern: wallet::set::{provider}
  */
 export async function handleWalletModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
-  // Parse customId to extract action and provider
-  // Format: wallet-set-{provider}
-  const parts = interaction.customId.split('-');
-  if (parts.length < 3 || parts[0] !== 'wallet') {
+  // Parse customId using centralized utilities
+  const parsed = WalletCustomIds.parse(interaction.customId);
+  if (parsed?.provider === undefined) {
     await interaction.reply({
       content: '❌ Unknown wallet modal submission',
       flags: MessageFlags.Ephemeral,
@@ -39,10 +33,9 @@ export async function handleWalletModalSubmit(interaction: ModalSubmitInteractio
     return;
   }
 
-  const action = parts[1];
-  const provider = parts.slice(2).join('-') as AIProvider;
+  const provider = parsed.provider as AIProvider;
 
-  if (action === 'set') {
+  if (parsed.action === 'set') {
     await handleSetKeySubmit(interaction, provider);
   } else {
     await interaction.reply({
@@ -62,7 +55,6 @@ async function handleSetKeySubmit(
   // Defer reply immediately (ephemeral for security)
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const config = getConfig();
   const apiKey = interaction.fields.getTextInputValue('apiKey');
 
   // Basic validation
@@ -80,33 +72,20 @@ async function handleSetKeySubmit(
 
   try {
     // Send to api-gateway for validation and storage
-    const gatewayUrl = config.GATEWAY_URL;
-    const response = await fetch(`${gatewayUrl}/wallet/set`, {
+    const result = await callGatewayApi<{ success: boolean }>('/wallet/set', {
       method: 'POST',
-      headers: {
-        'Content-Type': CONTENT_TYPES.JSON,
-        'X-User-Id': interaction.user.id,
-        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      },
-      body: JSON.stringify({
-        provider,
-        apiKey,
-      }),
+      userId: interaction.user.id,
+      body: { provider, apiKey },
     });
 
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-      };
-
+    if (!result.ok) {
       logger.error(
-        { status: response.status, provider, userId: interaction.user.id, error: errorData.error },
+        { status: result.status, provider, userId: interaction.user.id, error: result.error },
         '[Wallet Modal] Failed to store API key'
       );
 
       // Handle specific error cases with user-friendly messages
-      const friendlyMessage = getErrorMessage(response.status, errorData, provider);
+      const friendlyMessage = getErrorMessage(result.status, { error: result.error }, provider);
       await interaction.editReply(friendlyMessage);
       return;
     }
@@ -234,27 +213,13 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
           'Get your key at: https://openrouter.ai/keys'
         );
       }
-      break;
+      return null;
 
-    case AIProvider.OpenAI:
-      // OpenAI keys start with 'sk-'
-      if (!apiKey.startsWith(API_KEY_FORMATS.OPENAI_PREFIX)) {
-        return (
-          '❌ **Invalid OpenAI Key Format**\n\n' +
-          `OpenAI API keys should start with \`${API_KEY_FORMATS.OPENAI_PREFIX}\`.\n` +
-          'Get your key at: https://platform.openai.com/api-keys'
-        );
-      }
-      // But shouldn't be OpenRouter keys
-      if (apiKey.startsWith(API_KEY_FORMATS.OPENROUTER_PREFIX)) {
-        return (
-          '❌ **Wrong Provider**\n\n' +
-          `This looks like an OpenRouter key (starts with \`${API_KEY_FORMATS.OPENROUTER_PREFIX}\`).\n` +
-          'Use `/wallet set provider:OpenRouter` instead.'
-        );
-      }
-      break;
+    default: {
+      // Type guard for exhaustive check - add new providers above
+      const _exhaustive: never = provider;
+      void _exhaustive;
+      return null;
+    }
   }
-
-  return null;
 }

@@ -6,25 +6,25 @@
  * - PersonalityLoader: Database queries
  * - PersonalityValidator: Zod schemas and validation
  * - PersonalityDefaults: Config merging and placeholder replacement
- * - PersonalityCache: In-memory caching with TTL
+ * - TTLCache: In-memory caching with TTL (via lru-cache)
  */
 
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { TIMEOUTS } from '../../constants/index.js';
 import type { LoadedPersonality } from '../../types/schemas.js';
-import { PersonalityCache } from '../../utils/PersonalityCache.js';
+import { TTLCache } from '../../utils/TTLCache.js';
 import { PersonalityLoader } from './PersonalityLoader.js';
 import { mapToPersonality } from './PersonalityDefaults.js';
 
 const logger = createLogger('PersonalityService');
 
 export class PersonalityService {
-  private cache: PersonalityCache<LoadedPersonality>;
+  private cache: TTLCache<LoadedPersonality>;
   private loader: PersonalityLoader;
 
   constructor(prisma: PrismaClient) {
-    this.cache = new PersonalityCache({
+    this.cache = new TTLCache({
       ttl: TIMEOUTS.CACHE_TTL,
       maxSize: 100, // Maximum personalities to cache
     });
@@ -34,21 +34,32 @@ export class PersonalityService {
   /**
    * Load a personality by name or ID
    * Cache is always keyed by ID for consistency
+   *
+   * Access Control:
+   * When userId is provided, only returns personalities that are:
+   * - Public (isPublic = true), OR
+   * - Owned by the requesting user (ownerId = userId)
+   *
+   * @param nameOrId - Personality name, UUID, slug, or alias
+   * @param userId - Discord user ID for access control (optional - omit for internal operations)
+   * @returns LoadedPersonality or null if not found or access denied
    */
-  async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
+  async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {
     // Check if nameOrId is a valid UUID
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
 
-    // If it's a UUID, check cache by ID first
-    if (isUUID) {
+    // If it's a UUID and no userId filter, check cache by ID first
+    // Note: We only use cache when no access control is needed (internal operations)
+    // This ensures access control is always enforced for user requests
+    if (isUUID && (userId === undefined || userId === '')) {
       const cached = this.cache.get(nameOrId);
       if (cached) {
         return cached;
       }
     }
 
-    // Load from database
-    const dbPersonality = await this.loader.loadFromDatabase(nameOrId);
+    // Load from database (with access control if userId provided)
+    const dbPersonality = await this.loader.loadFromDatabase(nameOrId, userId);
     if (!dbPersonality) {
       return null;
     }
@@ -63,6 +74,7 @@ export class PersonalityService {
     const personality = mapToPersonality(dbPersonality, globalDefaultConfig, logger);
 
     // Cache by ID only for clean, normalized cache keys
+    // Note: Cache stores personality data, access control is re-checked on each load
     this.cache.set(personality.id, personality);
 
     logger.info(
@@ -84,7 +96,15 @@ export class PersonalityService {
   }
 
   /**
-   * Load all personalities
+   * Load all personalities (internal operations only)
+   *
+   * WARNING: This method has no access control - it returns ALL personalities
+   * including private ones. Only use for internal operations like:
+   * - Startup verification (counting personalities)
+   * - Cache warming
+   *
+   * For user-facing operations, use the API gateway endpoints
+   * which enforce access control based on userId.
    */
   async loadAllPersonalities(): Promise<LoadedPersonality[]> {
     const dbPersonalities = await this.loader.loadAllFromDatabase();

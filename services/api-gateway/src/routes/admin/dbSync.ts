@@ -49,25 +49,17 @@ export function createDbSyncRoute(): Router {
       const prodAdapter = new PrismaPg({ connectionString: config.PROD_DATABASE_URL });
       const prodClient = new PrismaClient({ adapter: prodAdapter });
 
-      try {
-        // Execute sync
-        const syncService = new DatabaseSyncService(devClient, prodClient);
-        const result = await syncService.sync({ dryRun });
+      // Execute sync - the service handles connect/disconnect internally
+      const syncService = new DatabaseSyncService(devClient, prodClient);
+      const result = await syncService.sync({ dryRun });
 
-        logger.info({ result }, '[Admin] Database sync complete');
+      logger.info({ result }, '[Admin] Database sync complete');
 
-        sendCustomSuccess(res, {
-          success: true,
-          ...result,
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        logger.error({ err: error }, '[Admin] Database sync failed');
-        throw error; // Let asyncHandler handle it
-      } finally {
-        await devClient.$disconnect();
-        await prodClient.$disconnect();
-      }
+      sendCustomSuccess(res, {
+        success: true,
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
     })
   );
 

@@ -3,7 +3,9 @@
  *
  * Supports:
  * - OpenRouter - via AI_PROVIDER=openrouter or OPENROUTER_API_KEY
- * - OpenAI - via AI_PROVIDER=openai or OPENAI_API_KEY
+ *
+ * Note: OpenAI API key is used internally for embeddings/whisper, but not for chat models.
+ * All chat/generation goes through OpenRouter which can route to any provider including OpenAI models.
  */
 
 import { ChatOpenAI } from '@langchain/openai';
@@ -14,32 +16,12 @@ const logger = createLogger('ModelFactory');
 const config = getConfig();
 
 /**
- * Validate and normalize model name for the current provider
+ * Validate and normalize model name
  */
-function validateModelForProvider(
-  requestedModel: string | undefined,
-  provider: AIProvider
-): string {
-  switch (provider) {
-    case AIProvider.OpenRouter: {
-      // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model
-      return requestedModel !== undefined && requestedModel.length > 0
-        ? requestedModel
-        : config.DEFAULT_AI_MODEL;
-    }
-
-    case AIProvider.OpenAI: {
-      // Use requested model or default
-      return requestedModel !== undefined && requestedModel.length > 0
-        ? requestedModel
-        : config.DEFAULT_AI_MODEL;
-    }
-
-    default:
-      return requestedModel !== undefined && requestedModel.length > 0
-        ? requestedModel
-        : config.DEFAULT_AI_MODEL;
-  }
+function validateModelName(requestedModel: string | undefined): string {
+  return requestedModel !== undefined && requestedModel.length > 0
+    ? requestedModel
+    : config.DEFAULT_AI_MODEL;
 }
 
 export interface ModelConfig {
@@ -85,7 +67,10 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
 }
 
 /**
- * Create a chat model based on environment configuration
+ * Create a chat model based on configured AI provider
+ *
+ * Currently only OpenRouter is supported. OpenRouter can route to any provider
+ * including OpenAI, Anthropic, Google, etc. models.
  */
 export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
   const provider = config.AI_PROVIDER;
@@ -101,19 +86,6 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   const modelKwargs = buildModelKwargs(modelConfig);
   const hasModelKwargs = Object.keys(modelKwargs).length > 0;
 
-  logger.debug(
-    {
-      provider,
-      temperature,
-      topP,
-      frequencyPenalty,
-      presencePenalty,
-      maxTokens,
-      modelKwargs: hasModelKwargs ? modelKwargs : undefined,
-    },
-    '[ModelFactory] Creating model with parameters'
-  );
-
   switch (provider) {
     case AIProvider.OpenRouter: {
       const apiKey =
@@ -121,16 +93,24 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           ? modelConfig.apiKey
           : config.OPENROUTER_API_KEY;
       if (apiKey === undefined || apiKey.length === 0) {
-        throw new Error('OPENROUTER_API_KEY is required when AI_PROVIDER=openrouter');
+        throw new Error('OPENROUTER_API_KEY is required for AI generation');
       }
 
-      const requestedModel =
-        modelConfig.modelName !== undefined && modelConfig.modelName.length > 0
-          ? modelConfig.modelName
-          : config.DEFAULT_AI_MODEL;
-      const modelName = validateModelForProvider(requestedModel, AIProvider.OpenRouter);
+      const modelName = validateModelName(modelConfig.modelName);
 
-      logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
+      logger.debug(
+        {
+          provider,
+          modelName,
+          temperature,
+          topP,
+          frequencyPenalty,
+          presencePenalty,
+          maxTokens,
+          modelKwargs: hasModelKwargs ? modelKwargs : undefined,
+        },
+        '[ModelFactory] Creating model'
+      );
 
       return {
         model: new ChatOpenAI({
@@ -150,43 +130,11 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       };
     }
 
-    case AIProvider.OpenAI: {
-      const apiKey =
-        modelConfig.apiKey !== undefined && modelConfig.apiKey.length > 0
-          ? modelConfig.apiKey
-          : config.OPENAI_API_KEY;
-      if (apiKey === undefined || apiKey.length === 0) {
-        throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai');
-      }
-
-      const requestedModel =
-        modelConfig.modelName !== undefined && modelConfig.modelName.length > 0
-          ? modelConfig.modelName
-          : config.DEFAULT_AI_MODEL;
-      const modelName = validateModelForProvider(requestedModel, AIProvider.OpenAI);
-
-      logger.info(`[ModelFactory] Creating OpenAI model: ${modelName}`);
-
-      return {
-        model: new ChatOpenAI({
-          modelName,
-          apiKey,
-          temperature,
-          topP,
-          frequencyPenalty,
-          presencePenalty,
-          maxTokens,
-          // Note: top_k and repetition_penalty are not standard OpenAI params
-          // but we pass them anyway in case the API evolves
-          modelKwargs: hasModelKwargs ? modelKwargs : undefined,
-        }),
-        modelName,
-      };
+    default: {
+      // Type guard for exhaustive check - add new providers above
+      const _exhaustive: never = provider;
+      throw new Error(`Unsupported AI provider: ${String(_exhaustive)}`);
     }
-
-    default:
-      // Exhaustive check - should never reach here since all enum values are handled
-      throw new Error(`Unknown AI provider: ${String(provider)}. Supported: openrouter, openai`);
   }
 }
 

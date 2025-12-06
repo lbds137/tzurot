@@ -26,6 +26,40 @@ describe('EnvironmentFormatter', () => {
   });
 
   describe('formatEnvironmentContext', () => {
+    describe('XML wrapper', () => {
+      it('should wrap output in <current_situation> tags', () => {
+        const dmEnvironment: DiscordEnvironment = {
+          type: 'dm',
+          channel: {
+            id: 'dm-1',
+            name: 'Direct Message',
+            type: 'DM',
+          },
+        };
+
+        const result = formatEnvironmentContext(dmEnvironment);
+
+        expect(result).toMatch(/^<current_situation>\n/);
+        expect(result).toMatch(/\n<\/current_situation>$/);
+      });
+
+      it('should have properly closed XML tags', () => {
+        const guildEnvironment: DiscordEnvironment = {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'Test Server' },
+          channel: { id: 'channel-1', name: 'general', type: 'text' },
+        };
+
+        const result = formatEnvironmentContext(guildEnvironment);
+
+        // Count opening and closing tags
+        const openTags = (result.match(/<current_situation>/g) || []).length;
+        const closeTags = (result.match(/<\/current_situation>/g) || []).length;
+        expect(openTags).toBe(1);
+        expect(closeTags).toBe(1);
+      });
+    });
+
     it('should format DM environment', () => {
       const dmEnvironment: DiscordEnvironment = {
         type: 'dm',

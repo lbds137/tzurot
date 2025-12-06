@@ -2,6 +2,7 @@
  * Referenced Message Formatter
  *
  * Formats referenced messages (from replies or message links) for inclusion in AI prompts.
+ * Wraps output in <contextual_references> XML tags for better LLM context separation.
  * Processes attachments (images, voice messages) in parallel for better performance.
  */
 
@@ -12,6 +13,8 @@ import {
   CONTENT_TYPES,
   TEXT_LIMITS,
   RETRY_CONFIG,
+  formatTimestampWithDelta,
+  escapeXmlContent,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { withRetry } from '../utils/retryService.js';
@@ -49,8 +52,10 @@ export class ReferencedMessageFormatter {
 
     for (const line of lines) {
       const trimmed = line.trim();
-      // Skip markdown headers, reference labels, metadata, and introductory text
+      // Skip XML tags, markdown headers, reference labels, metadata, and introductory text
       if (
+        trimmed.startsWith('<contextual_references') ||
+        trimmed.startsWith('</contextual_references') ||
         trimmed.startsWith('##') ||
         trimmed.startsWith('[Reference') ||
         trimmed.startsWith('From:') ||
@@ -106,14 +111,26 @@ export class ReferencedMessageFormatter {
       }
 
       lines.push(`Location:\n${ref.locationContext}`);
-      lines.push(`Time: ${ref.timestamp}`);
+
+      // Format timestamp with both absolute date and relative time for better LLM understanding
+      const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
+      if (absolute.length > 0 && relative.length > 0) {
+        lines.push(`Time: ${absolute} — ${relative}`);
+      } else {
+        // Fallback to raw timestamp if formatting fails
+        lines.push(`Time: ${ref.timestamp}`);
+      }
 
       if (ref.content) {
-        lines.push(`\nMessage Text:\n${ref.content}`);
+        // Escape user-generated content to prevent prompt injection via XML tag breaking
+        lines.push(`\nMessage Text:\n${escapeXmlContent(ref.content)}`);
       }
 
       if (ref.embeds) {
-        lines.push(`\nMessage Embeds (structured data from Discord):\n${ref.embeds}`);
+        // Escape embeds as they can contain user-generated content
+        lines.push(
+          `\nMessage Embeds (structured data from Discord):\n${escapeXmlContent(ref.embeds)}`
+        );
       }
 
       // Process attachments in parallel (or use preprocessed data if available)
@@ -156,7 +173,8 @@ export class ReferencedMessageFormatter {
       );
     }
 
-    return formattedText;
+    // Wrap in XML tags for clear LLM context separation
+    return `<contextual_references>\n${formattedText}\n</contextual_references>`;
   }
 
   /**
