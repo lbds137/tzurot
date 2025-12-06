@@ -7,36 +7,48 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { data, execute, autocomplete } from './index.js';
 
 // Mock all handler modules
-vi.mock('./view.js', () => ({
+vi.mock('./profile/view.js', () => ({
   handleViewPersona: vi.fn().mockResolvedValue(undefined),
+  handleExpandContent: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./edit.js', () => ({
+vi.mock('./profile/edit.js', () => ({
   handleEditPersona: vi.fn().mockResolvedValue(undefined),
   handleEditModalSubmit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./create.js', () => ({
+vi.mock('./profile/create.js', () => ({
   handleCreatePersona: vi.fn().mockResolvedValue(undefined),
   handleCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./list.js', () => ({
+vi.mock('./profile/list.js', () => ({
   handleListPersonas: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./default.js', () => ({
+vi.mock('./profile/default.js', () => ({
   handleSetDefaultPersona: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./settings.js', () => ({
+vi.mock('./profile/share-ltm.js', () => ({
   handleShareLtmSetting: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./override.js', () => ({
+vi.mock('./profile/override-set.js', () => ({
   handleOverrideSet: vi.fn().mockResolvedValue(undefined),
-  handleOverrideClear: vi.fn().mockResolvedValue(undefined),
   handleOverrideCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./profile/override-clear.js', () => ({
+  handleOverrideClear: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./timezone/set.js', () => ({
+  handleTimezoneSet: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./timezone/get.js', () => ({
+  handleTimezoneGet: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./autocomplete.js', () => ({
@@ -88,7 +100,7 @@ describe('Me Command Index', () => {
       expect(profileSubcommands).toContain('default');
     });
 
-    it('should have settings, override, timezone, and model subcommand groups', () => {
+    it('should have profile, timezone, and model subcommand groups (settings and override merged into profile)', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -97,16 +109,30 @@ describe('Me Command Index', () => {
       const groupNames = groups.map((g: { name: string }) => g.name);
 
       expect(groupNames).toContain('profile');
-      expect(groupNames).toContain('settings');
       expect(groupNames).toContain('timezone');
-      expect(groupNames).toContain('override');
       expect(groupNames).toContain('model');
+      // settings and override groups were removed - their commands are now under profile
+      expect(groupNames).not.toContain('settings');
+      expect(groupNames).not.toContain('override');
+    });
+
+    it('should have share-ltm, override-set, and override-clear under profile group', () => {
+      const json = data.toJSON();
+      const options = json.options ?? [];
+
+      const groups = options.filter((opt: { type: number }) => opt.type === 2);
+      const profileGroup = groups.find((g: { name: string }) => g.name === 'profile');
+
+      const profileSubcommands = (profileGroup?.options ?? []).map((s: { name: string }) => s.name);
+      expect(profileSubcommands).toContain('share-ltm');
+      expect(profileSubcommands).toContain('override-set');
+      expect(profileSubcommands).toContain('override-clear');
     });
   });
 
   describe('execute - subcommand routing', () => {
     it('should route to view handler for /me profile view', async () => {
-      const { handleViewPersona } = await import('./view.js');
+      const { handleViewPersona } = await import('./profile/view.js');
 
       const interaction = {
         isModalSubmit: () => false,
@@ -123,7 +149,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route to edit handler for /me profile edit', async () => {
-      const { handleEditPersona } = await import('./edit.js');
+      const { handleEditPersona } = await import('./profile/edit.js');
 
       const interaction = {
         isModalSubmit: () => false,
@@ -141,7 +167,7 @@ describe('Me Command Index', () => {
     });
 
     it('should pass profile ID to edit handler when specified', async () => {
-      const { handleEditPersona } = await import('./edit.js');
+      const { handleEditPersona } = await import('./profile/edit.js');
 
       const interaction = {
         isModalSubmit: () => false,
@@ -159,7 +185,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route to create handler for /me profile create', async () => {
-      const { handleCreatePersona } = await import('./create.js');
+      const { handleCreatePersona } = await import('./profile/create.js');
 
       const interaction = {
         isModalSubmit: () => false,
@@ -176,7 +202,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route to list handler for /me profile list', async () => {
-      const { handleListPersonas } = await import('./list.js');
+      const { handleListPersonas } = await import('./profile/list.js');
 
       const interaction = {
         isModalSubmit: () => false,
@@ -193,7 +219,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route to default handler for /me profile default', async () => {
-      const { handleSetDefaultPersona } = await import('./default.js');
+      const { handleSetDefaultPersona } = await import('./profile/default.js');
 
       const interaction = {
         isModalSubmit: () => false,
@@ -209,13 +235,13 @@ describe('Me Command Index', () => {
       expect(handleSetDefaultPersona).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to settings handler for /me settings share-ltm', async () => {
-      const { handleShareLtmSetting } = await import('./settings.js');
+    it('should route to share-ltm handler for /me profile share-ltm', async () => {
+      const { handleShareLtmSetting } = await import('./profile/share-ltm.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => 'settings',
+          getSubcommandGroup: () => 'profile',
           getSubcommand: () => 'share-ltm',
         },
         user: { id: '123' },
@@ -226,14 +252,14 @@ describe('Me Command Index', () => {
       expect(handleShareLtmSetting).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to override set handler for /me override set', async () => {
-      const { handleOverrideSet } = await import('./override.js');
+    it('should route to override-set handler for /me profile override-set', async () => {
+      const { handleOverrideSet } = await import('./profile/override-set.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => 'override',
-          getSubcommand: () => 'set',
+          getSubcommandGroup: () => 'profile',
+          getSubcommand: () => 'override-set',
         },
         user: { id: '123' },
       } as any;
@@ -243,14 +269,14 @@ describe('Me Command Index', () => {
       expect(handleOverrideSet).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route to override clear handler for /me override clear', async () => {
-      const { handleOverrideClear } = await import('./override.js');
+    it('should route to override-clear handler for /me profile override-clear', async () => {
+      const { handleOverrideClear } = await import('./profile/override-clear.js');
 
       const interaction = {
         isModalSubmit: () => false,
         options: {
-          getSubcommandGroup: () => 'override',
-          getSubcommand: () => 'clear',
+          getSubcommandGroup: () => 'profile',
+          getSubcommand: () => 'override-clear',
         },
         user: { id: '123' },
       } as any;
@@ -263,7 +289,7 @@ describe('Me Command Index', () => {
 
   describe('execute - modal routing', () => {
     it('should route me::profile::create modal to create handler', async () => {
-      const { handleCreateModalSubmit } = await import('./create.js');
+      const { handleCreateModalSubmit } = await import('./profile/create.js');
 
       const interaction = {
         isModalSubmit: () => true,
@@ -276,7 +302,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route me::profile::edit::new modal to edit handler', async () => {
-      const { handleEditModalSubmit } = await import('./edit.js');
+      const { handleEditModalSubmit } = await import('./profile/edit.js');
 
       const interaction = {
         isModalSubmit: () => true,
@@ -289,7 +315,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route me::profile::edit::{id} modal to edit handler with ID', async () => {
-      const { handleEditModalSubmit } = await import('./edit.js');
+      const { handleEditModalSubmit } = await import('./profile/edit.js');
 
       // UUID can contain hyphens - the :: delimiter allows proper parsing
       const interaction = {
@@ -306,7 +332,7 @@ describe('Me Command Index', () => {
     });
 
     it('should route me::override::create modal to override create handler', async () => {
-      const { handleOverrideCreateModalSubmit } = await import('./override.js');
+      const { handleOverrideCreateModalSubmit } = await import('./profile/override-set.js');
 
       // UUID can contain hyphens - the :: delimiter allows proper parsing
       const interaction = {
@@ -330,8 +356,8 @@ describe('Me Command Index', () => {
       const interaction = {
         options: {
           getFocused: () => ({ name: 'personality', value: '' }),
-          getSubcommandGroup: () => 'override',
-          getSubcommand: () => 'set',
+          getSubcommandGroup: () => 'profile',
+          getSubcommand: () => 'override-set',
         },
       } as any;
 
@@ -356,14 +382,14 @@ describe('Me Command Index', () => {
       expect(handlePersonaAutocomplete).toHaveBeenCalledWith(interaction, false);
     });
 
-    it('should route profile option in override set to autocomplete with create option', async () => {
+    it('should route profile option in override-set to autocomplete with create option', async () => {
       const { handlePersonaAutocomplete } = await import('./autocomplete.js');
 
       const interaction = {
         options: {
           getFocused: () => ({ name: 'profile', value: '' }),
-          getSubcommandGroup: () => 'override',
-          getSubcommand: () => 'set',
+          getSubcommandGroup: () => 'profile',
+          getSubcommand: () => 'override-set',
         },
       } as any;
 

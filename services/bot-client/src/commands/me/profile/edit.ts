@@ -17,8 +17,8 @@ import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
-import { MeCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { MeCustomIds } from '../../../utils/customIds.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-profile-edit');
 
