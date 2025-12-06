@@ -149,30 +149,49 @@ export async function handleImport(
       conversationalExamples: characterData.conversationalExamples ?? undefined,
       customFields: characterData.customFields ?? undefined,
       avatarData: characterData.avatarData ?? undefined,
+      errorMessage: characterData.errorMessage ?? undefined,
     };
 
-    // Call API Gateway to create character (uses user endpoint)
-    const result = await callGatewayApi<{ id: string }>('/user/personality', {
+    // Check if character already exists
+    const existingResult = await callGatewayApi<{
+      personality: { id: string };
+      canEdit: boolean;
+    }>(`/user/personality/${slug}`, {
       userId: interaction.user.id,
-      method: 'POST',
-      body: payload,
+      method: 'GET',
     });
 
-    if (result.ok === false) {
-      const errorMessage = result.error;
-      logger.error({ error: errorMessage }, '[Character/Import] Failed to import');
+    let isUpdate = false;
 
-      // Check for common errors
-      if (errorMessage.includes('already exists') || errorMessage.includes('409')) {
+    if (existingResult.ok) {
+      // Character exists - check if user can edit it
+      if (!existingResult.data.canEdit) {
         await interaction.editReply(
-          `❌ A character with the slug \`${slug}\` already exists.\n` +
-            'Either change the slug in the JSON file or delete the existing character first.'
+          `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
+            'You can only overwrite characters that you own.'
         );
         return;
       }
+      isUpdate = true;
+    }
+
+    // Call API Gateway to create or update character
+    const result = await callGatewayApi<{ id: string }>(
+      isUpdate ? `/user/personality/${slug}` : '/user/personality',
+      {
+        userId: interaction.user.id,
+        method: isUpdate ? 'PUT' : 'POST',
+        body: payload,
+      }
+    );
+
+    if (result.ok === false) {
+      const errorMessage = result.error;
+      logger.error({ error: errorMessage, isUpdate }, '[Character/Import] Failed to import');
 
       await interaction.editReply(
-        `❌ Failed to import character:\n` + `\`\`\`\n${errorMessage.slice(0, 1500)}\n\`\`\``
+        `❌ Failed to ${isUpdate ? 'update' : 'import'} character:\n` +
+          `\`\`\`\n${errorMessage.slice(0, 1500)}\n\`\`\``
       );
       return;
     }
@@ -180,11 +199,12 @@ export async function handleImport(
     // Build success embed
     const visibilityIcon = isPublic ? '🌐' : '🔒';
     const visibilityText = isPublic ? 'Public' : 'Private';
+    const actionWord = isUpdate ? 'Updated' : 'Imported';
     const embed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.SUCCESS)
-      .setTitle('Character Imported Successfully')
+      .setTitle(`Character ${actionWord} Successfully`)
       .setDescription(
-        `Imported character: **${String(payload.name)}** (\`${slug}\`)\n` +
+        `${actionWord} character: **${String(payload.name)}** (\`${slug}\`)\n` +
           `${visibilityIcon} ${visibilityText}`
       )
       .setTimestamp();
@@ -233,8 +253,8 @@ export async function handleImport(
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(
-      { slug, userId: interaction.user.id },
-      '[Character/Import] Character imported successfully'
+      { slug, userId: interaction.user.id, isUpdate },
+      `[Character/Import] Character ${isUpdate ? 'updated' : 'imported'} successfully`
     );
   } catch (error) {
     logger.error({ err: error }, '[Character/Import] Error importing character');
