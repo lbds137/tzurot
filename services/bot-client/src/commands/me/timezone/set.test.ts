@@ -61,8 +61,7 @@ vi.mock('../../../utils/commandHelpers.js', () => ({
   deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
-  createSuccessEmbed: (...args: unknown[]) =>
-    mockCreateSuccessEmbed(...(args as [string, string])),
+  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...(args as [string, string])),
 }));
 
 describe('handleTimezoneSet', () => {
