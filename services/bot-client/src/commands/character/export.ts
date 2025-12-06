@@ -71,7 +71,7 @@ function buildExportData(character: ExportCharacterData): Record<string, unknown
  */
 async function fetchAvatarData(slug: string): Promise<Buffer | null> {
   const config = getConfig();
-  const avatarUrl = `${config.GATEWAY_URL}/public/avatars/${slug}.png`;
+  const avatarUrl = `${config.GATEWAY_URL}/avatars/${slug}.png`;
 
   try {
     const response = await fetch(avatarUrl);
