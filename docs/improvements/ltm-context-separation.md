@@ -290,30 +290,39 @@ XML tag interpretation varies by model. Testing priority:
 
 ## Rollout Strategy
 
-### Phase 1: XML Wrappers (Low Risk)
+### Phase 1: XML Wrappers (Low Risk) ✅ COMPLETE
 
-1. Add XML wrappers around existing content
-2. Keep markdown headers inside wrappers initially
-3. Test for regressions
+1. ✅ Add XML wrappers around existing content
+   - `<persona>` wraps character identity (at START for primacy effect)
+   - `<current_situation>` wraps environment/datetime
+   - `<participants>` wraps active users
+   - `<memory_archive>` wraps LTM with historical instruction
+   - `<contextual_references>` wraps referenced messages
+   - `<protocol>` wraps system prompt (at END for recency bias)
+2. ✅ Keep markdown headers inside wrappers initially
+3. ✅ Test for regressions - all 3,249+ tests pass
 
-### Phase 2: Relative Time Deltas
+### Phase 2: Relative Time Deltas ✅ COMPLETE
 
-1. Implement `formatRelativeTime()` utility
-2. Update memory formatting to include deltas
-3. Update reference formatting to include deltas
-4. Test temporal understanding
+1. ✅ Implement `formatRelativeTimeDelta()` utility in dateFormatting.ts
+2. ✅ Implement `formatTimestampWithDelta()` for combined format
+3. ✅ Update MemoryFormatter to include deltas: `[Mon, Jan 15, 2025 — 2 weeks ago] content`
+4. ✅ Update ReferencedMessageFormatter to include deltas
+5. ✅ Add comprehensive tests for date formatting functions
 
-### Phase 3: Response Protocol Relocation
+### Phase 3: Response Protocol Relocation ✅ COMPLETE (with Phase 1)
 
-1. Move output formatting rules to end of prompt
-2. Add explicit negative constraints
-3. Monitor prefix leakage rates
+1. ✅ Move output formatting rules to end of prompt (protocol section)
+2. ✅ Split persona from protocol in PromptBuilder
+3. ✅ Persona at START (primacy effect), Protocol at END (recency bias)
 
-### Phase 4: Prompt Caching (Optional)
+### Phase 4: Prompt Caching (Deferred)
 
 1. Implement cache breakpoints for Anthropic models
 2. Add model detection for cache support
 3. Monitor cost savings
+
+**Note**: Deferred to post-launch. Core functionality complete without caching.
 
 ## Related Documentation
 
