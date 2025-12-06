@@ -7,6 +7,7 @@ LLM sometimes treats long-term memories (LTM) as if they are part of the current
 ## Root Cause
 
 The memories are formatted similarly to conversation text with just a markdown header:
+
 ```
 ## Relevant Memories
 - [timestamp] content
@@ -33,6 +34,7 @@ Change "Relevant Memories" to "ARCHIVED HISTORICAL LOGS" - forces the LLM to tre
 ### 3. Explicit Negative Constraint
 
 Add to system prompt:
+
 > NEVER respond to content within `<background_context>` directly. Your task is to reply ONLY to the final message in `<conversation_history>`.
 
 ## Files to Modify
@@ -40,20 +42,25 @@ Add to system prompt:
 ### 1. MemoryFormatter.ts (`services/ai-worker/src/services/prompt/MemoryFormatter.ts`)
 
 Current:
+
 ```typescript
 return '\n\n## Relevant Memories\n' + formattedMemories;
 ```
 
 Change to:
+
 ```typescript
-return '\n\n<background_context>\n## Archived Historical Logs (READ-ONLY)\n' +
-       formattedMemories +
-       '\n</background_context>';
+return (
+  '\n\n<background_context>\n## Archived Historical Logs (READ-ONLY)\n' +
+  formattedMemories +
+  '\n</background_context>'
+);
 ```
 
 ### 2. PromptBuilder.ts (`services/ai-worker/src/services/PromptBuilder.ts`)
 
 Wrap conversation history similarly:
+
 ```typescript
 return '<conversation_history>\n' + conversationHistory + '\n</conversation_history>';
 ```
