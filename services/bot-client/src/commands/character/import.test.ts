@@ -86,7 +86,12 @@ function createValidCharacterData(
  * Mock callGatewayApi for create scenario (character doesn't exist)
  * First call (GET) returns 404, second call (POST) returns success
  */
-function mockCreateScenario(createResponse: { ok: boolean; data?: unknown; error?: string; status?: number }) {
+function mockCreateScenario(createResponse: {
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+  status?: number;
+}) {
   (callGatewayApi as Mock)
     .mockResolvedValueOnce({ ok: false, error: 'Not found', status: 404 }) // GET returns 404
     .mockResolvedValueOnce(createResponse); // POST
