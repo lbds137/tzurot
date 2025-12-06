@@ -175,6 +175,15 @@ export class PromptBuilder {
 
   /**
    * Build full system prompt with personas, memories, and date context
+   *
+   * Section ordering leverages U-shaped attention (LLMs pay most attention to beginning and end):
+   * 1. <persona> - Identity & personality (who am I) - START for primacy
+   * 2. Date/time context - When is now
+   * 3. <current_situation> - Environment context (where)
+   * 4. <participants> - Who is involved
+   * 5. <memory_archive> - Historical memories (middle = less attention = good for archives)
+   * 6. <contextual_references> - Referenced messages from replies/links
+   * 7. <protocol> - Behavior rules - END for recency bias (highest impact)
    */
   buildFullSystemPrompt(
     personality: LoadedPersonality,
@@ -183,26 +192,43 @@ export class PromptBuilder {
     context: ConversationContext,
     referencedMessagesFormatted?: string
   ): SystemMessage {
-    const systemPrompt = this.buildSystemPrompt(
+    const { persona, protocol } = this.buildSystemPrompt(
       personality,
       context.activePersonaName !== undefined && context.activePersonaName.length > 0
         ? context.activePersonaName
         : 'User',
       personality.name
     );
-    logger.debug(`[PromptBuilder] System prompt length: ${systemPrompt.length} chars`);
+    logger.debug(`[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`);
 
-    // Current date/time context (place early for better awareness)
+    // Wrap persona in XML tags (START of prompt - primacy)
+    const personaSection = `<persona>\n${persona}\n</persona>`;
+
+    // Current date/time context
     // Use user's preferred timezone if available
     const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date(), context.userTimezone)}`;
 
     // Discord environment context (where conversation is happening)
+    // Already wrapped in <current_situation> by formatEnvironmentContext
     const environmentContext =
       context.environment !== undefined && context.environment !== null
         ? `\n\n${formatEnvironmentContext(context.environment)}`
         : '';
 
+    // Conversation participants - ALL people involved
+    // Already wrapped in <participants> by formatParticipantsContext
+    const participantsContext = formatParticipantsContext(
+      participantPersonas,
+      context.activePersonaName
+    );
+
+    // Relevant memories from past interactions
+    // Already wrapped in <memory_archive> with instruction by formatMemoriesContext
+    // Use user's preferred timezone for memory timestamps
+    const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
+
     // Referenced messages (from replies and message links)
+    // Already wrapped in <contextual_references> by ReferencedMessageFormatter
     // Use pre-formatted text to avoid duplicate vision/transcription API calls
     const referencesContext =
       referencedMessagesFormatted !== undefined && referencedMessagesFormatted.length > 0
@@ -215,21 +241,16 @@ export class PromptBuilder {
       );
     }
 
-    // Conversation participants - ALL people involved
-    const participantsContext = formatParticipantsContext(
-      participantPersonas,
-      context.activePersonaName
-    );
+    // Wrap protocol in XML tags (END of prompt - recency bias for highest impact)
+    const protocolSection =
+      protocol.length > 0 ? `\n\n<protocol>\n${protocol}\n</protocol>` : '';
 
-    // Relevant memories from past interactions
-    // Use user's preferred timezone for memory timestamps
-    const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
-
-    const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${referencesContext}${participantsContext}${memoryContext}`;
+    // Assemble in correct order for U-shaped attention optimization
+    const fullSystemPrompt = `${personaSection}${dateContext}${environmentContext}${participantsContext}${memoryContext}${referencesContext}${protocolSection}`;
 
     // Basic prompt composition logging (always)
     logger.info(
-      `[PromptBuilder] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} environment=${environmentContext.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`
+      `[PromptBuilder] Prompt composition: persona=${persona.length} protocol=${protocol.length} dateContext=${dateContext.length} environment=${environmentContext.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`
     );
 
     // Detailed prompt assembly logging (development only)
@@ -242,7 +263,8 @@ export class PromptBuilder {
         {
           personalityId: personality.id,
           personalityName: personality.name,
-          systemPromptLength: systemPrompt.length,
+          personaLength: persona.length,
+          protocolLength: protocol.length,
           participantCount: participantPersonas.size,
           participantsContextLength: participantsContext.length,
           activePersonaName: context.activePersonaName,
@@ -290,48 +312,44 @@ export class PromptBuilder {
 
   /**
    * Build comprehensive system prompt from personality character fields
+   *
+   * Returns separate persona and protocol sections:
+   * - persona: Identity, character info, traits, etc. (who you are)
+   * - protocol: Behavior rules from systemPrompt (how to respond)
+   *
+   * This separation enables U-shaped attention optimization:
+   * persona goes at the START, protocol goes at the END of the full prompt.
    */
   private buildSystemPrompt(
     personality: LoadedPersonality,
     userName: string,
     assistantName: string
-  ): string {
-    const sections: string[] = [];
-
-    // Start with system prompt (jailbreak/behavior rules)
-    // Replace {user} and {assistant} placeholders with actual names
-    if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
-      const promptWithNames = replacePromptPlaceholders(
-        personality.systemPrompt,
-        userName,
-        assistantName
-      );
-      sections.push(promptWithNames);
-    }
+  ): { persona: string; protocol: string } {
+    const personaSections: string[] = [];
 
     // Add explicit identity statement
-    sections.push(
-      `\n## Your Identity\nYou are ${personality.displayName !== undefined && personality.displayName.length > 0 ? personality.displayName : personality.name}.`
+    personaSections.push(
+      `## Your Identity\nYou are ${personality.displayName !== undefined && personality.displayName.length > 0 ? personality.displayName : personality.name}.`
     );
 
     // Add character info (who they are, their history)
     if (personality.characterInfo !== undefined && personality.characterInfo.length > 0) {
-      sections.push(`\n## Character Information\n${personality.characterInfo}`);
+      personaSections.push(`\n## Character Information\n${personality.characterInfo}`);
     }
 
     // Add personality traits
     if (personality.personalityTraits !== undefined && personality.personalityTraits.length > 0) {
-      sections.push(`\n## Personality Traits\n${personality.personalityTraits}`);
+      personaSections.push(`\n## Personality Traits\n${personality.personalityTraits}`);
     }
 
     // Add tone/style
     if (personality.personalityTone !== undefined && personality.personalityTone.length > 0) {
-      sections.push(`\n## Conversational Tone\n${personality.personalityTone}`);
+      personaSections.push(`\n## Conversational Tone\n${personality.personalityTone}`);
     }
 
     // Add age
     if (personality.personalityAge !== undefined && personality.personalityAge.length > 0) {
-      sections.push(`\n## Age\n${personality.personalityAge}`);
+      personaSections.push(`\n## Age\n${personality.personalityAge}`);
     }
 
     // Add appearance
@@ -339,12 +357,12 @@ export class PromptBuilder {
       personality.personalityAppearance !== undefined &&
       personality.personalityAppearance.length > 0
     ) {
-      sections.push(`\n## Physical Appearance\n${personality.personalityAppearance}`);
+      personaSections.push(`\n## Physical Appearance\n${personality.personalityAppearance}`);
     }
 
     // Add likes
     if (personality.personalityLikes !== undefined && personality.personalityLikes.length > 0) {
-      sections.push(`\n## What I Like\n${personality.personalityLikes}`);
+      personaSections.push(`\n## What I Like\n${personality.personalityLikes}`);
     }
 
     // Add dislikes
@@ -352,7 +370,7 @@ export class PromptBuilder {
       personality.personalityDislikes !== undefined &&
       personality.personalityDislikes.length > 0
     ) {
-      sections.push(`\n## What I Dislike\n${personality.personalityDislikes}`);
+      personaSections.push(`\n## What I Dislike\n${personality.personalityDislikes}`);
     }
 
     // Add conversational goals
@@ -360,7 +378,7 @@ export class PromptBuilder {
       personality.conversationalGoals !== undefined &&
       personality.conversationalGoals.length > 0
     ) {
-      sections.push(`\n## Conversational Goals\n${personality.conversationalGoals}`);
+      personaSections.push(`\n## Conversational Goals\n${personality.conversationalGoals}`);
     }
 
     // Add conversational examples
@@ -368,10 +386,20 @@ export class PromptBuilder {
       personality.conversationalExamples !== undefined &&
       personality.conversationalExamples.length > 0
     ) {
-      sections.push(`\n## Conversational Examples\n${personality.conversationalExamples}`);
+      personaSections.push(`\n## Conversational Examples\n${personality.conversationalExamples}`);
     }
 
-    return sections.join('\n');
+    // Protocol is the systemPrompt (behavior rules/jailbreak)
+    // Replace {user} and {assistant} placeholders with actual names
+    let protocol = '';
+    if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
+      protocol = replacePromptPlaceholders(personality.systemPrompt, userName, assistantName);
+    }
+
+    return {
+      persona: personaSections.join('\n'),
+      protocol,
+    };
   }
 
   /**
