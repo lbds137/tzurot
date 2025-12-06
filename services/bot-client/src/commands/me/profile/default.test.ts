@@ -9,7 +9,7 @@ import { MessageFlags } from 'discord.js';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
+vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 

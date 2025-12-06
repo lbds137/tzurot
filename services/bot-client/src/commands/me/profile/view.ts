@@ -20,8 +20,8 @@ import {
 } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
-import { MeCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { MeCustomIds } from '../../../utils/customIds.js';
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-view');
 

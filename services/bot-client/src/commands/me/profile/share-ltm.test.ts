@@ -4,12 +4,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleShareLtmSetting } from './settings.js';
+import { handleShareLtmSetting } from './share-ltm.js';
 import { MessageFlags } from 'discord.js';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
+vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
