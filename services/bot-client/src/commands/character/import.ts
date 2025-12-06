@@ -13,6 +13,7 @@ const logger = createLogger('character-import');
 /**
  * JSON template for character import
  * This is shown to users when they need help with the format
+ * Note: Avatar is uploaded separately as an image file, not in JSON
  */
 export const CHARACTER_JSON_TEMPLATE = `{
   "name": "Character Name",
@@ -28,14 +29,18 @@ export const CHARACTER_JSON_TEMPLATE = `{
   "personalityDislikes": "Things the character avoids... (optional)",
   "conversationalGoals": "What conversations should achieve... (optional)",
   "conversationalExamples": "Example dialogues to guide AI... (optional)",
-  "errorMessage": "Custom error message when AI fails (optional)",
-  "avatarData": "Base64-encoded avatar image (optional)"
+  "errorMessage": "Custom error message when AI fails (optional)"
 }`;
 
 /**
  * Required fields for character import
  */
 export const REQUIRED_IMPORT_FIELDS = ['name', 'slug', 'characterInfo', 'personalityTraits'];
+
+/**
+ * Valid image MIME types for avatar upload
+ */
+const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
 /**
  * Build the template help message
@@ -47,13 +52,15 @@ function buildTemplateMessage(): string {
     CHARACTER_JSON_TEMPLATE +
     '\n```\n' +
     '**Required fields:** `name`, `slug`, `characterInfo`, `personalityTraits`\n' +
-    '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)'
+    '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)\n' +
+    '**Avatar:** Upload an image separately using the `avatar` option'
   );
 }
 
 /**
  * Handle /character import subcommand
  * Allows any user to import a character from a JSON file
+ * Optionally accepts a separate avatar image
  */
 export async function handleImport(
   interaction: ChatInputCommandInteraction,
@@ -63,6 +70,7 @@ export async function handleImport(
 
   try {
     const fileAttachment = interaction.options.getAttachment('file', true);
+    const avatarAttachment = interaction.options.getAttachment('avatar', false);
 
     // Validate file type
     if (
@@ -129,9 +137,55 @@ export async function handleImport(
       return;
     }
 
+    // Process optional avatar attachment
+    let avatarData: string | undefined;
+    if (avatarAttachment) {
+      // Validate avatar is an image
+      if (
+        avatarAttachment.contentType === null ||
+        !VALID_IMAGE_TYPES.includes(avatarAttachment.contentType)
+      ) {
+        await interaction.editReply(
+          '❌ Avatar must be an image file (PNG, JPG, GIF, or WebP).\n' +
+            `Received: ${avatarAttachment.contentType ?? 'unknown type'}`
+        );
+        return;
+      }
+
+      // Validate avatar size (max 8MB)
+      const MAX_AVATAR_SIZE = 8 * 1024 * 1024;
+      if (avatarAttachment.size > MAX_AVATAR_SIZE) {
+        await interaction.editReply('❌ Avatar image is too large. Maximum size is 8MB.');
+        return;
+      }
+
+      // Download and convert to base64
+      try {
+        const avatarResponse = await fetch(avatarAttachment.url);
+        if (!avatarResponse.ok) {
+          throw new Error(`HTTP ${avatarResponse.status}`);
+        }
+        const avatarBuffer = Buffer.from(await avatarResponse.arrayBuffer());
+        avatarData = avatarBuffer.toString('base64');
+
+        logger.info(
+          { filename: avatarAttachment.name, sizeKb: (avatarAttachment.size / 1024).toFixed(2) },
+          '[Character/Import] Downloaded avatar image'
+        );
+      } catch (avatarError) {
+        logger.error({ err: avatarError }, '[Character/Import] Failed to download avatar');
+        await interaction.editReply('❌ Failed to download avatar image. Please try again.');
+        return;
+      }
+    }
+
     // Build payload for API
     // isPublic defaults to false if not specified
     const isPublic = typeof characterData.isPublic === 'boolean' ? characterData.isPublic : false;
+
+    // Use separate avatar attachment if provided, otherwise fall back to JSON's avatarData
+    const finalAvatarData =
+      avatarData ?? (typeof characterData.avatarData === 'string' ? characterData.avatarData : undefined);
 
     const payload = {
       name: characterData.name,
@@ -148,7 +202,7 @@ export async function handleImport(
       conversationalGoals: characterData.conversationalGoals ?? undefined,
       conversationalExamples: characterData.conversationalExamples ?? undefined,
       customFields: characterData.customFields ?? undefined,
-      avatarData: characterData.avatarData ?? undefined,
+      avatarData: finalAvatarData,
       errorMessage: characterData.errorMessage ?? undefined,
     };
 
