@@ -8,40 +8,40 @@ This guide documents the slash command changes in v3.0.0-beta.9. Users familiar 
 
 The `/profile`, `/model`, and `/settings` commands have been consolidated under the `/me` command group for better organization.
 
-| Old Command | New Command | Description |
-|-------------|-------------|-------------|
-| `/profile` | `/me profile` | View or edit your personal profile |
-| `/profile view` | `/me profile view` | View your profile |
-| `/profile edit` | `/me profile edit` | Edit your profile |
-| `/profile override` | `/me profile override` | Set a profile override for a character |
-| `/model` | `/me model` | View or change your AI model settings |
-| `/model view` | `/me model view` | View current model settings |
-| `/model set` | `/me model set` | Set your preferred model |
-| `/settings timezone` | `/me timezone` | Set your timezone |
+| Old Command          | New Command            | Description                            |
+| -------------------- | ---------------------- | -------------------------------------- |
+| `/profile`           | `/me profile`          | View or edit your personal profile     |
+| `/profile view`      | `/me profile view`     | View your profile                      |
+| `/profile edit`      | `/me profile edit`     | Edit your profile                      |
+| `/profile override`  | `/me profile override` | Set a profile override for a character |
+| `/model`             | `/me model`            | View or change your AI model settings  |
+| `/model view`        | `/me model view`       | View current model settings            |
+| `/model set`         | `/me model set`        | Set your preferred model               |
+| `/settings timezone` | `/me timezone`         | Set your timezone                      |
 
 ### Character Management Commands
 
 The `/personality` command has been renamed to `/character` for clarity.
 
-| Old Command | New Command | Description |
-|-------------|-------------|-------------|
-| `/personality list` | `/character list` | List all your characters |
-| `/personality create` | `/character create` | Create a new character |
-| `/personality edit` | `/character edit` | Edit an existing character |
-| `/personality view` | `/character view` | View character details |
-| `/personality delete` | `/character delete` | Delete a character |
+| Old Command           | New Command         | Description                |
+| --------------------- | ------------------- | -------------------------- |
+| `/personality list`   | `/character list`   | List all your characters   |
+| `/personality create` | `/character create` | Create a new character     |
+| `/personality edit`   | `/character edit`   | Edit an existing character |
+| `/personality view`   | `/character view`   | View character details     |
+| `/personality delete` | `/character delete` | Delete a character         |
 
 ### Model Preset Commands
 
 The `/llm-config` command has been renamed to `/preset` for simplicity.
 
-| Old Command | New Command | Description |
-|-------------|-------------|-------------|
-| `/llm-config list` | `/preset list` | List available presets |
-| `/llm-config create` | `/preset create` | Create a new preset |
-| `/llm-config edit` | `/preset edit` | Edit an existing preset |
-| `/llm-config view` | `/preset view` | View preset details |
-| `/llm-config delete` | `/preset delete` | Delete a preset |
+| Old Command          | New Command      | Description             |
+| -------------------- | ---------------- | ----------------------- |
+| `/llm-config list`   | `/preset list`   | List available presets  |
+| `/llm-config create` | `/preset create` | Create a new preset     |
+| `/llm-config edit`   | `/preset edit`   | Edit an existing preset |
+| `/llm-config view`   | `/preset view`   | View preset details     |
+| `/llm-config delete` | `/preset delete` | Delete a preset         |
 
 ## Why These Changes?
 
@@ -52,6 +52,7 @@ The `/llm-config` command has been renamed to `/preset` for simplicity.
 ## Autocomplete Support
 
 All commands support autocomplete:
+
 - Character names autocomplete when typing
 - Preset names autocomplete when selecting
 - Timezone names autocomplete with search
