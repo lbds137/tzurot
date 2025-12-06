@@ -590,6 +590,30 @@ const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
 - `X-Owner-Id` - Required for admin endpoints (bot owner verification)
 - `X-Service-Auth` - Required for all internal service calls
 
+### 🚨 Database Access Rules (CRITICAL)
+
+**bot-client MUST NEVER use Prisma directly.** All database access goes through the api-gateway.
+
+**Why this matters**: The api-gateway is the single source of truth for data access. Direct Prisma calls from bot-client:
+- Bypass authorization checks implemented in gateway routes
+- Create duplicate code paths for the same operations
+- Make it harder to audit and secure data access
+- Violate the microservices architecture
+
+**Allowed in each service:**
+
+| Service       | Prisma Access | Why                                             |
+| ------------- | ------------- | ----------------------------------------------- |
+| `bot-client`  | ❌ NEVER      | Use gateway APIs via `callGatewayApi()` etc.    |
+| `api-gateway` | ✅ Yes        | Source of truth - implements all data access    |
+| `ai-worker`   | ✅ Yes        | Needs direct access for memory/conversation ops |
+
+**Current violations being fixed** (tracked in `docs/improvements/me-command-refactor.md`):
+- `/me` commands (autocomplete, create, edit, view, list, default, override, settings)
+- Root cause: No `/user/persona` gateway endpoints existed
+
+**If you see `getPrismaClient()` in bot-client** → It's a bug. Create gateway endpoints instead.
+
 ## Current Features (Development Deployment)
 
 ### ✅ Working in Dev Deployment

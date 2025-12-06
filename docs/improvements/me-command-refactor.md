@@ -18,6 +18,7 @@ The `/me` command group has significant architectural issues that need to be add
 ### 1. Gateway Bypass (Critical)
 
 **Files using `getPrismaClient` directly (should use gateway):**
+
 - `me/autocomplete.ts` - Personality and persona autocomplete
 - `me/create.ts` - Create user persona/profile
 - `me/default.ts` - Set default persona
@@ -28,6 +29,7 @@ The `/me` command group has significant architectural issues that need to be add
 - `me/view.ts` - View user persona
 
 **Files correctly using gateway (`callGatewayApi`):**
+
 - `me/timezone.ts` - Uses gateway for user settings
 - `me/model/*` - All model override commands use gateway
 
@@ -35,13 +37,14 @@ The `/me` command group has significant architectural issues that need to be add
 
 ### 2. Autocomplete Inconsistency
 
-| File | API Method | Visibility Indicators | Return Value |
-|------|------------|----------------------|--------------|
-| `/character/autocomplete.ts` | `callGatewayApi` | 🌐 public, 🔒 private, 📖 not-owned | `slug` |
-| `/me/autocomplete.ts` | **Direct Prisma** | None | `slug` |
-| `/me/model/autocomplete.ts` | `callGatewayApi` | None | `id` |
+| File                         | API Method        | Visibility Indicators               | Return Value |
+| ---------------------------- | ----------------- | ----------------------------------- | ------------ |
+| `/character/autocomplete.ts` | `callGatewayApi`  | 🌐 public, 🔒 private, 📖 not-owned | `slug`       |
+| `/me/autocomplete.ts`        | **Direct Prisma** | None                                | `slug`       |
+| `/me/model/autocomplete.ts`  | `callGatewayApi`  | None                                | `id`         |
 
 **Issues:**
+
 - Direct Prisma bypasses authorization checks
 - Inconsistent return values (`slug` vs `id`)
 - Missing visibility indicators in `/me` commands
@@ -50,6 +53,7 @@ The `/me` command group has significant architectural issues that need to be add
 ### 3. Command Structure Issues
 
 **Current structure:**
+
 ```
 /me profile view|edit|create|list|default   (5 subcommands)
 /me settings share-ltm                       (1 subcommand - orphaned)
@@ -59,11 +63,13 @@ The `/me` command group has significant architectural issues that need to be add
 ```
 
 **Problems:**
+
 - `/me settings share-ltm` - This is a profile-level setting, should be under `profile`
 - `/me override set|clear` - This maps profiles to personalities, should be under `profile`
 - `settings` group has only 1 command (weird UX)
 
 **Proposed structure:**
+
 ```
 /me profile view|edit|create|list|default|share-ltm|override-set|override-clear (8 subcommands)
 /me timezone set|get                         (2 subcommands)
@@ -74,15 +80,15 @@ The `/me` command group has significant architectural issues that need to be add
 
 Files that may violate SRP (multiple handlers in one file):
 
-| File | Handlers | Assessment |
-|------|----------|------------|
-| `me/autocomplete.ts` | 2 | OK - both are autocomplete related |
-| `me/create.ts` | 2 | OK - command + modal submit |
-| `me/edit.ts` | 2 | OK - command + modal submit |
-| `me/override.ts` | 3 | **Split?** - set, clear, modal submit |
-| `me/timezone.ts` | 2 | OK - set + get are related |
-| `me/view.ts` | 2 | OK - view + expand button |
-| `character/view.ts` | 3 | Review needed |
+| File                 | Handlers | Assessment                            |
+| -------------------- | -------- | ------------------------------------- |
+| `me/autocomplete.ts` | 2        | OK - both are autocomplete related    |
+| `me/create.ts`       | 2        | OK - command + modal submit           |
+| `me/edit.ts`         | 2        | OK - command + modal submit           |
+| `me/override.ts`     | 3        | **Split?** - set, clear, modal submit |
+| `me/timezone.ts`     | 2        | OK - set + get are related            |
+| `me/view.ts`         | 2        | OK - view + expand button             |
+| `character/view.ts`  | 3        | Review needed                         |
 
 ## Implementation Plan
 
@@ -91,6 +97,7 @@ Files that may violate SRP (multiple handlers in one file):
 Create new routes in `api-gateway/src/routes/user/`:
 
 **`persona.ts`** - User persona/profile CRUD:
+
 ```
 GET    /user/persona           - List user's personas
 GET    /user/persona/:id       - Get specific persona
@@ -101,6 +108,7 @@ PATCH  /user/persona/:id/default - Set as default
 ```
 
 **`persona-override.ts`** - Profile-to-personality mapping:
+
 ```
 GET    /user/persona-override              - List all overrides
 GET    /user/persona-override/:personalityId - Get override for personality
@@ -109,6 +117,7 @@ DELETE /user/persona-override/:personalityId - Clear override
 ```
 
 **`persona-settings.ts`** - Persona settings:
+
 ```
 GET   /user/persona-settings        - Get all settings
 PATCH /user/persona-settings        - Update settings (share-ltm, etc.)
@@ -141,6 +150,7 @@ Update all commands to use this shared utility.
 ### Phase 3: Refactor /me Commands to Use Gateway
 
 For each file in `/me`:
+
 1. Replace `getPrismaClient()` with `callGatewayApi()`
 2. Update error handling to match gateway response format
 3. Update tests to mock gateway instead of Prisma
