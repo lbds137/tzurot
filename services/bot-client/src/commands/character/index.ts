@@ -708,15 +708,10 @@ async function handleSectionModalSubmit(
 
     // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(characterDashboardConfig, updated);
-    const components = buildDashboardComponents(
-      characterDashboardConfig,
-      updated.slug,
-      updated,
-      {
-        showClose: true,
-        showRefresh: true,
-      }
-    );
+    const components = buildDashboardComponents(characterDashboardConfig, updated.slug, updated, {
+      showClose: true,
+      showRefresh: true,
+    });
 
     await interaction.editReply({ embeds: [embed], components });
 
@@ -947,15 +942,10 @@ async function handleAction(
 
     // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(characterDashboardConfig, updated);
-    const components = buildDashboardComponents(
-      characterDashboardConfig,
-      updated.slug,
-      updated,
-      {
-        showClose: true,
-        showRefresh: true,
-      }
-    );
+    const components = buildDashboardComponents(characterDashboardConfig, updated.slug, updated, {
+      showClose: true,
+      showRefresh: true,
+    });
 
     await interaction.editReply({ embeds: [embed], components });
 
