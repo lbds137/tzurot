@@ -17,12 +17,7 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import {
-  createLogger,
-  getPrismaClient,
-  DISCORD_LIMITS,
-  splitMessage,
-} from '@tzurot/common-types';
+import { createLogger, getPrismaClient, DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
 import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-view');
@@ -99,8 +94,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     // Content (truncate if too long)
     const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
-    const isTruncated =
-      persona.content !== null && persona.content.length > CONTENT_PREVIEW_LENGTH;
+    const isTruncated = persona.content !== null && persona.content.length > CONTENT_PREVIEW_LENGTH;
 
     if (persona.content !== null && persona.content.length > 0) {
       const content = isTruncated

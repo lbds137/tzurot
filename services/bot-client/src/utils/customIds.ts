@@ -138,7 +138,8 @@ export const MeCustomIds = {
   // View actions
   view: {
     /** Expand content field button */
-    expand: (personaId: string, field: string) => `me::view::expand::${personaId}::${field}` as const,
+    expand: (personaId: string, field: string) =>
+      `me::view::expand::${personaId}::${field}` as const,
   },
 
   // Override actions

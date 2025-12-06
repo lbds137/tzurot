@@ -9,7 +9,10 @@ const DISCORD_MAX_MESSAGE_LENGTH = 2000;
  * This is an implementation detail - use splitMessage() for the public API
  * @internal
  */
-function splitAtNaturalBoundaries(content: string, maxLength = DISCORD_MAX_MESSAGE_LENGTH): string[] {
+function splitAtNaturalBoundaries(
+  content: string,
+  maxLength = DISCORD_MAX_MESSAGE_LENGTH
+): string[] {
   if (content.length <= maxLength) {
     return [content];
   }
