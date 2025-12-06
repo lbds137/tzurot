@@ -58,14 +58,15 @@ function truncatePreview(text: string | null | undefined, maxLength = 100): stri
 }
 
 /**
- * Identity Section
- * Fields: name, displayName, slug (slug read-only after creation)
+ * Identity & Basics Section
+ * Fields: name, displayName, personalityTraits, personalityTone, personalityAge
+ * All short/medium fields grouped together (5 fields = Discord modal max)
  */
 const identitySection: SectionDefinition<CharacterData> = {
   id: 'identity',
-  label: '🏷️ Identity',
-  description: 'Name and unique identifier',
-  fieldIds: ['name', 'displayName'],
+  label: '🏷️ Identity & Basics',
+  description: 'Name, traits, tone, and age',
+  fieldIds: ['name', 'displayName', 'personalityTraits', 'personalityTone', 'personalityAge'],
   fields: [
     {
       id: 'name',
@@ -83,88 +84,14 @@ const identitySection: SectionDefinition<CharacterData> = {
       style: 'short',
       maxLength: 255,
     },
-  ],
-  getStatus: (data: CharacterData) => {
-    if (data.name && data.name.length > 0) {
-      return SectionStatus.COMPLETE;
-    }
-    return SectionStatus.EMPTY;
-  },
-  getPreview: (data: CharacterData) => {
-    const display = data.displayName ?? data.name;
-    return `**${display}** (slug: \`${data.slug}\`)`;
-  },
-};
-
-/**
- * Character Background Section
- * Fields: characterInfo, personalityTraits
- */
-const backgroundSection: SectionDefinition<CharacterData> = {
-  id: 'background',
-  label: '📖 Background',
-  description: 'Character info and personality traits',
-  fieldIds: ['characterInfo', 'personalityTraits'],
-  fields: [
-    {
-      id: 'characterInfo',
-      label: 'Character Info',
-      placeholder: 'Background, history, and description...',
-      required: true,
-      style: 'paragraph',
-      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
-    },
     {
       id: 'personalityTraits',
       label: 'Personality Traits',
       placeholder: 'Key traits and behaviors...',
       required: true,
       style: 'paragraph',
-      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+      maxLength: 1000,
     },
-  ],
-  getStatus: (data: CharacterData) => {
-    const hasInfo = data.characterInfo.length > 0;
-    const hasTraits = data.personalityTraits.length > 0;
-    if (hasInfo && hasTraits) {
-      return SectionStatus.COMPLETE;
-    }
-    if (hasInfo || hasTraits) {
-      return SectionStatus.PARTIAL;
-    }
-    return SectionStatus.EMPTY;
-  },
-  getPreview: (data: CharacterData) => {
-    const infoPrev = truncatePreview(data.characterInfo, 80);
-    const traitsPrev = truncatePreview(data.personalityTraits, 80);
-    const parts: string[] = [];
-    if (infoPrev.length > 0) {
-      parts.push(`*Info:* ${infoPrev}`);
-    }
-    if (traitsPrev.length > 0) {
-      parts.push(`*Traits:* ${traitsPrev}`);
-    }
-    return parts.length > 0 ? parts.join('\n') : '_Not configured_';
-  },
-};
-
-/**
- * Personality Details Section
- * Fields: personalityTone, personalityAge, personalityAppearance, likes, dislikes
- * Note: This is exactly 5 fields (Discord modal max)
- */
-const detailsSection: SectionDefinition<CharacterData> = {
-  id: 'details',
-  label: '✨ Details',
-  description: 'Tone, age, appearance, likes, dislikes',
-  fieldIds: [
-    'personalityTone',
-    'personalityAge',
-    'personalityAppearance',
-    'personalityLikes',
-    'personalityDislikes',
-  ],
-  fields: [
     {
       id: 'personalityTone',
       label: 'Tone',
@@ -181,21 +108,103 @@ const detailsSection: SectionDefinition<CharacterData> = {
       style: 'short',
       maxLength: 100,
     },
+  ],
+  getStatus: (data: CharacterData) => {
+    const hasName = data.name !== null && data.name.length > 0;
+    const hasTraits = data.personalityTraits.length > 0;
+    if (hasName && hasTraits) {
+      return SectionStatus.COMPLETE;
+    }
+    if (hasName) {
+      return SectionStatus.PARTIAL;
+    }
+    return SectionStatus.EMPTY;
+  },
+  getPreview: (data: CharacterData) => {
+    const display = data.displayName ?? data.name;
+    const parts: string[] = [`**${display}** (slug: \`${data.slug}\`)`];
+    if (data.personalityTone !== null && data.personalityTone.length > 0) {
+      parts.push(`🎭 ${data.personalityTone}`);
+    }
+    if (data.personalityAge !== null && data.personalityAge.length > 0) {
+      parts.push(`📅 ${data.personalityAge}`);
+    }
+    return parts.join(' • ');
+  },
+};
+
+/**
+ * Biography & Appearance Section
+ * Fields: characterInfo, personalityAppearance
+ * Both are long fields (4000 chars each)
+ */
+const biographySection: SectionDefinition<CharacterData> = {
+  id: 'biography',
+  label: '📖 Biography & Appearance',
+  description: 'Character background and physical description',
+  fieldIds: ['characterInfo', 'personalityAppearance'],
+  fields: [
+    {
+      id: 'characterInfo',
+      label: 'Character Info',
+      placeholder: 'Background, history, and description...',
+      required: true,
+      style: 'paragraph',
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+    },
     {
       id: 'personalityAppearance',
       label: 'Appearance',
       placeholder: 'Physical description...',
       required: false,
       style: 'paragraph',
-      maxLength: 1000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
+  ],
+  getStatus: (data: CharacterData) => {
+    const hasInfo = data.characterInfo.length > 0;
+    const hasAppearance =
+      data.personalityAppearance !== null && data.personalityAppearance.length > 0;
+    if (hasInfo && hasAppearance) {
+      return SectionStatus.COMPLETE;
+    }
+    if (hasInfo) {
+      return SectionStatus.PARTIAL;
+    }
+    return SectionStatus.EMPTY;
+  },
+  getPreview: (data: CharacterData) => {
+    const infoPrev = truncatePreview(data.characterInfo, 80);
+    const appearancePrev = truncatePreview(data.personalityAppearance, 80);
+    const parts: string[] = [];
+    if (infoPrev.length > 0) {
+      parts.push(`*Bio:* ${infoPrev}`);
+    }
+    if (appearancePrev.length > 0) {
+      parts.push(`*Appearance:* ${appearancePrev}`);
+    }
+    return parts.length > 0 ? parts.join('\n') : '_Not configured_';
+  },
+};
+
+/**
+ * Preferences Section
+ * Fields: personalityLikes, personalityDislikes
+ * Both are long fields (4000 chars each)
+ */
+const preferencesSection: SectionDefinition<CharacterData> = {
+  id: 'preferences',
+  label: '❤️ Preferences',
+  description: 'Likes and dislikes',
+  fieldIds: ['personalityLikes', 'personalityDislikes'],
+  fields: [
     {
       id: 'personalityLikes',
       label: 'Likes',
       placeholder: 'Things this character enjoys...',
       required: false,
       style: 'paragraph',
-      maxLength: 1000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
     {
       id: 'personalityDislikes',
@@ -203,53 +212,42 @@ const detailsSection: SectionDefinition<CharacterData> = {
       placeholder: 'Things this character avoids...',
       required: false,
       style: 'paragraph',
-      maxLength: 1000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
   ],
   getStatus: (data: CharacterData) => {
-    const fields = [
-      data.personalityTone,
-      data.personalityAge,
-      data.personalityAppearance,
-      data.personalityLikes,
-      data.personalityDislikes,
-    ].filter((f): f is string => f !== null && f !== undefined && f.length > 0);
-
-    if (fields.length >= 3) {
+    const hasLikes = data.personalityLikes !== null && data.personalityLikes.length > 0;
+    const hasDislikes = data.personalityDislikes !== null && data.personalityDislikes.length > 0;
+    if (hasLikes && hasDislikes) {
       return SectionStatus.COMPLETE;
     }
-    if (fields.length > 0) {
+    if (hasLikes || hasDislikes) {
       return SectionStatus.PARTIAL;
     }
     return SectionStatus.DEFAULT;
   },
   getPreview: (data: CharacterData) => {
     const parts: string[] = [];
-    if (data.personalityTone !== null && data.personalityTone.length > 0) {
-      parts.push(`🎭 ${data.personalityTone}`);
-    }
-    if (data.personalityAge !== null && data.personalityAge.length > 0) {
-      parts.push(`📅 ${data.personalityAge}`);
-    }
     if (data.personalityLikes !== null && data.personalityLikes.length > 0) {
-      parts.push(`❤️ ${truncatePreview(data.personalityLikes, 40)}`);
+      parts.push(`❤️ ${truncatePreview(data.personalityLikes, 60)}`);
     }
     if (data.personalityDislikes !== null && data.personalityDislikes.length > 0) {
-      parts.push(`💔 ${truncatePreview(data.personalityDislikes, 40)}`);
+      parts.push(`💔 ${truncatePreview(data.personalityDislikes, 60)}`);
     }
-    return parts.length > 0 ? parts.join(' | ') : '_Optional details not set_';
+    return parts.length > 0 ? parts.join('\n') : '_Preferences not set_';
   },
 };
 
 /**
- * Conversation Style Section
- * Fields: conversationalGoals, conversationalExamples
+ * Conversation Section
+ * Fields: conversationalGoals, conversationalExamples, errorMessage
+ * Goals and examples are long fields (4000 chars), errorMessage is shorter (1000 chars)
  */
 const conversationSection: SectionDefinition<CharacterData> = {
   id: 'conversation',
-  label: '💬 Conversation Style',
-  description: 'Goals and example dialogues',
-  fieldIds: ['conversationalGoals', 'conversationalExamples'],
+  label: '💬 Conversation',
+  description: 'Goals, examples, and error handling',
+  fieldIds: ['conversationalGoals', 'conversationalExamples', 'errorMessage'],
   fields: [
     {
       id: 'conversationalGoals',
@@ -257,7 +255,7 @@ const conversationSection: SectionDefinition<CharacterData> = {
       placeholder: 'What should conversations achieve?',
       required: false,
       style: 'paragraph',
-      maxLength: 2000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
     {
       id: 'conversationalExamples',
@@ -267,15 +265,24 @@ const conversationSection: SectionDefinition<CharacterData> = {
       style: 'paragraph',
       maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
+    {
+      id: 'errorMessage',
+      label: 'Error Message',
+      placeholder: "What should the character say when there's an error?",
+      required: false,
+      style: 'paragraph',
+      maxLength: 1000,
+    },
   ],
   getStatus: (data: CharacterData) => {
     const hasGoals = data.conversationalGoals !== null && data.conversationalGoals.length > 0;
     const hasExamples =
       data.conversationalExamples !== null && data.conversationalExamples.length > 0;
+    const hasError = data.errorMessage !== null && data.errorMessage.length > 0;
     if (hasGoals && hasExamples) {
       return SectionStatus.COMPLETE;
     }
-    if (hasGoals || hasExamples) {
+    if (hasGoals || hasExamples || hasError) {
       return SectionStatus.PARTIAL;
     }
     return SectionStatus.DEFAULT;
@@ -283,45 +290,15 @@ const conversationSection: SectionDefinition<CharacterData> = {
   getPreview: (data: CharacterData) => {
     const parts: string[] = [];
     if (data.conversationalGoals !== null && data.conversationalGoals.length > 0) {
-      parts.push(`*Goals:* ${truncatePreview(data.conversationalGoals, 60)}`);
+      parts.push(`🎯 ${truncatePreview(data.conversationalGoals, 50)}`);
     }
     if (data.conversationalExamples !== null && data.conversationalExamples.length > 0) {
-      parts.push(`*Examples:* ${truncatePreview(data.conversationalExamples, 60)}`);
+      parts.push(`💬 ${truncatePreview(data.conversationalExamples, 50)}`);
+    }
+    if (data.errorMessage !== null && data.errorMessage.length > 0) {
+      parts.push(`⚠️ Custom error set`);
     }
     return parts.length > 0 ? parts.join('\n') : '_Default conversation style_';
-  },
-};
-
-/**
- * Error Message Section
- * Custom error message when AI fails
- */
-const errorSection: SectionDefinition<CharacterData> = {
-  id: 'error',
-  label: '⚠️ Error Message',
-  description: 'Custom error message for AI failures',
-  fieldIds: ['errorMessage'],
-  fields: [
-    {
-      id: 'errorMessage',
-      label: 'Error Message',
-      placeholder: "What should the character say when there's an error?",
-      required: false,
-      style: 'paragraph',
-      maxLength: 2000,
-    },
-  ],
-  getStatus: (data: CharacterData) => {
-    if (data.errorMessage !== null && data.errorMessage.length > 0) {
-      return SectionStatus.COMPLETE;
-    }
-    return SectionStatus.DEFAULT;
-  },
-  getPreview: (data: CharacterData) => {
-    if (data.errorMessage !== null && data.errorMessage.length > 0) {
-      return truncatePreview(data.errorMessage, 100);
-    }
-    return '_Using default error message_';
   },
 };
 
@@ -342,7 +319,7 @@ export const characterDashboardConfig: DashboardConfig<CharacterData> = {
 
     return `**Slug:** \`${data.slug}\`\n${features}`;
   },
-  sections: [identitySection, backgroundSection, detailsSection, conversationSection, errorSection],
+  sections: [identitySection, biographySection, preferencesSection, conversationSection],
   actions: [
     {
       id: 'visibility',

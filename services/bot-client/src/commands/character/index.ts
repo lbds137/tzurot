@@ -298,12 +298,12 @@ function buildListPaginationButtons(
 /** Number of pages for character view */
 const VIEW_TOTAL_PAGES = 4;
 
-/** Page titles for character view */
+/** Page titles for character view - aligned with edit section names */
 const VIEW_PAGE_TITLES = [
-  '📋 Overview',
-  '📖 Background',
-  '✨ Details & Preferences',
-  '💬 Conversation & Errors',
+  '🏷️ Identity & Basics',
+  '📖 Biography & Appearance',
+  '❤️ Preferences',
+  '💬 Conversation',
 ];
 
 /** Field info for tracking truncation */
@@ -373,9 +373,11 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
     .setTimestamp();
 
   switch (safePage) {
-    case 0:
-      // Overview page - no expandable fields
+    case 0: {
+      // Overview & Identity page
       embed.setDescription(buildOverviewDescription(character));
+
+      // Identity info
       embed.addFields(
         {
           name: '🏷️ Identity',
@@ -394,44 +396,45 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
           inline: false,
         }
       );
-      break;
 
-    case 1: {
-      // Background page
-      const charInfo = truncateField(character.characterInfo);
-      const traits = truncateField(character.personalityTraits);
-      if (charInfo.wasTruncated) {
-        truncatedFields.push('characterInfo');
-      }
+      // Add traits, tone, age if set
+      const traits = truncateField(character.personalityTraits, CHARACTER_VIEW_LIMITS.MEDIUM);
       if (traits.wasTruncated) {
         truncatedFields.push('personalityTraits');
       }
+      embed.addFields({ name: '🎭 Personality Traits', value: traits.value, inline: false });
+
+      // Tone and age inline
+      const toneValue = character.personalityTone ?? '_Not set_';
+      const ageValue = character.personalityAge ?? '_Not set_';
+      embed.addFields(
+        { name: '🎨 Tone', value: toneValue, inline: true },
+        { name: '📅 Age', value: ageValue, inline: true }
+      );
+      break;
+    }
+
+    case 1: {
+      // Biography & Appearance page
+      const charInfo = truncateField(character.characterInfo);
+      const appearance = truncateField(character.personalityAppearance);
+      if (charInfo.wasTruncated) {
+        truncatedFields.push('characterInfo');
+      }
+      if (appearance.wasTruncated) {
+        truncatedFields.push('personalityAppearance');
+      }
       embed.addFields(
         { name: '📝 Character Info', value: charInfo.value, inline: false },
-        { name: '🎭 Personality Traits', value: traits.value, inline: false }
+        { name: '👤 Appearance', value: appearance.value, inline: false }
       );
       break;
     }
 
     case 2: {
-      // Details & Preferences page
-      const tone = truncateField(character.personalityTone, CHARACTER_VIEW_LIMITS.MEDIUM);
-      const age = truncateField(character.personalityAge, CHARACTER_VIEW_LIMITS.SHORT);
-      const appearance = truncateField(
-        character.personalityAppearance,
-        CHARACTER_VIEW_LIMITS.MEDIUM
-      );
-      const likes = truncateField(character.personalityLikes, CHARACTER_VIEW_LIMITS.MEDIUM);
-      const dislikes = truncateField(character.personalityDislikes, CHARACTER_VIEW_LIMITS.MEDIUM);
-      if (tone.wasTruncated) {
-        truncatedFields.push('personalityTone');
-      }
-      if (age.wasTruncated) {
-        truncatedFields.push('personalityAge');
-      }
-      if (appearance.wasTruncated) {
-        truncatedFields.push('personalityAppearance');
-      }
+      // Preferences page
+      const likes = truncateField(character.personalityLikes);
+      const dislikes = truncateField(character.personalityDislikes);
       if (likes.wasTruncated) {
         truncatedFields.push('personalityLikes');
       }
@@ -439,9 +442,6 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
         truncatedFields.push('personalityDislikes');
       }
       embed.addFields(
-        { name: '🎨 Tone', value: tone.value, inline: true },
-        { name: '📅 Age', value: age.value, inline: true },
-        { name: '👤 Appearance', value: appearance.value, inline: false },
         { name: '❤️ Likes', value: likes.value, inline: false },
         { name: '💔 Dislikes', value: dislikes.value, inline: false }
       );
@@ -450,8 +450,8 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
 
     case 3: {
       // Conversation & Errors page
-      const goals = truncateField(character.conversationalGoals, CHARACTER_VIEW_LIMITS.LONG);
-      const examples = truncateField(character.conversationalExamples, CHARACTER_VIEW_LIMITS.LONG);
+      const goals = truncateField(character.conversationalGoals);
+      const examples = truncateField(character.conversationalExamples);
       const errorMsg = truncateField(character.errorMessage, CHARACTER_VIEW_LIMITS.MEDIUM);
       if (goals.wasTruncated) {
         truncatedFields.push('conversationalGoals');
@@ -1630,3 +1630,17 @@ function canUserEditCharacter(
 export function isCharacterDashboardInteraction(customId: string): boolean {
   return isDashboardInteraction(customId, 'character');
 }
+
+// ============================================================================
+// TEST EXPORTS - For unit testing internal functions
+// ============================================================================
+
+/** @internal Export for testing */
+export const _testExports = {
+  buildCharacterViewPage,
+  truncateField,
+  buildViewComponents,
+  VIEW_TOTAL_PAGES,
+  VIEW_PAGE_TITLES,
+  EXPANDABLE_FIELDS,
+};

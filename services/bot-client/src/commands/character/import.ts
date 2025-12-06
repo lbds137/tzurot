@@ -1,35 +1,64 @@
 /**
  * Character Import Subcommand
- * Handles /character import (owner only)
+ * Handles /character import - allows users to import characters from JSON files
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  CONTENT_TYPES,
-  DISCORD_LIMITS,
-  DISCORD_COLORS,
-  requireBotOwner,
-  type EnvConfig,
-} from '@tzurot/common-types';
-import { adminFetch } from '../../utils/adminApiClient.js';
+import { createLogger, DISCORD_LIMITS, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('character-import');
 
 /**
+ * JSON template for character import
+ * This is shown to users when they need help with the format
+ */
+export const CHARACTER_JSON_TEMPLATE = `{
+  "name": "Character Name",
+  "slug": "character-slug",
+  "displayName": "Display Name (optional)",
+  "isPublic": false,
+  "characterInfo": "Background, history, and description of the character...",
+  "personalityTraits": "Key personality traits and behaviors...",
+  "personalityTone": "friendly, sarcastic, professional, etc. (optional)",
+  "personalityAge": "Apparent age or age range (optional)",
+  "personalityAppearance": "Physical description... (optional)",
+  "personalityLikes": "Things the character enjoys... (optional)",
+  "personalityDislikes": "Things the character avoids... (optional)",
+  "conversationalGoals": "What conversations should achieve... (optional)",
+  "conversationalExamples": "Example dialogues to guide AI... (optional)",
+  "errorMessage": "Custom error message when AI fails (optional)",
+  "avatarData": "Base64-encoded avatar image (optional)"
+}`;
+
+/**
+ * Required fields for character import
+ */
+export const REQUIRED_IMPORT_FIELDS = ['name', 'slug', 'characterInfo', 'personalityTraits'];
+
+/**
+ * Build the template help message
+ */
+function buildTemplateMessage(): string {
+  return (
+    '**Expected JSON Structure:**\n' +
+    '```json\n' +
+    CHARACTER_JSON_TEMPLATE +
+    '\n```\n' +
+    '**Required fields:** `name`, `slug`, `characterInfo`, `personalityTraits`\n' +
+    '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)'
+  );
+}
+
+/**
  * Handle /character import subcommand
- * Owner-only - imports a character from JSON file
+ * Allows any user to import a character from a JSON file
  */
 export async function handleImport(
   interaction: ChatInputCommandInteraction,
   _config: EnvConfig
 ): Promise<void> {
-  // Owner-only check
-  if (!(await requireBotOwner(interaction))) {
-    return;
-  }
-
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
@@ -68,14 +97,15 @@ export async function handleImport(
     } catch (error) {
       logger.error({ err: error }, '[Character/Import] Failed to download or parse JSON');
       await interaction.editReply(
-        '❌ Failed to parse JSON file.\n' + 'Make sure the file is valid JSON format.'
+        '❌ Failed to parse JSON file.\n' +
+          'Make sure the file is valid JSON format.\n\n' +
+          buildTemplateMessage()
       );
       return;
     }
 
     // Validate required fields
-    const requiredFields = ['name', 'slug', 'characterInfo', 'personalityTraits'];
-    const missingFields = requiredFields.filter(
+    const missingFields = REQUIRED_IMPORT_FIELDS.filter(
       field =>
         characterData[field] === undefined ||
         characterData[field] === null ||
@@ -84,8 +114,7 @@ export async function handleImport(
 
     if (missingFields.length > 0) {
       await interaction.editReply(
-        `❌ Missing required fields: ${missingFields.join(', ')}\n` +
-          'JSON must include: name, slug, characterInfo, personalityTraits'
+        `❌ Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage()
       );
       return;
     }
@@ -101,12 +130,16 @@ export async function handleImport(
     }
 
     // Build payload for API
+    // isPublic defaults to false if not specified
+    const isPublic = typeof characterData.isPublic === 'boolean' ? characterData.isPublic : false;
+
     const payload = {
       name: characterData.name,
       slug: characterData.slug,
       characterInfo: characterData.characterInfo,
       personalityTraits: characterData.personalityTraits,
       displayName: characterData.displayName ?? undefined,
+      isPublic,
       personalityTone: characterData.personalityTone ?? undefined,
       personalityAge: characterData.personalityAge ?? undefined,
       personalityAppearance: characterData.personalityAppearance ?? undefined,
@@ -116,28 +149,21 @@ export async function handleImport(
       conversationalExamples: characterData.conversationalExamples ?? undefined,
       customFields: characterData.customFields ?? undefined,
       avatarData: characterData.avatarData ?? undefined,
-      ownerId: interaction.user.id,
     };
 
-    // Call API Gateway to create character
-    const response = await adminFetch('/admin/personality', {
+    // Call API Gateway to create character (uses user endpoint)
+    const result = await callGatewayApi<{ id: string }>('/user/personality', {
+      userId: interaction.user.id,
       method: 'POST',
-      headers: {
-        'Content-Type': CONTENT_TYPES.JSON,
-        'X-Owner-Id': interaction.user.id,
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(
-        { status: response.status, error: errorText },
-        '[Character/Import] Failed to import'
-      );
+    if (result.ok === false) {
+      const errorMessage = result.error;
+      logger.error({ error: errorMessage }, '[Character/Import] Failed to import');
 
       // Check for common errors
-      if (response.status === 409) {
+      if (errorMessage.includes('already exists') || errorMessage.includes('409')) {
         await interaction.editReply(
           `❌ A character with the slug \`${slug}\` already exists.\n` +
             'Either change the slug in the JSON file or delete the existing character first.'
@@ -146,19 +172,22 @@ export async function handleImport(
       }
 
       await interaction.editReply(
-        `❌ Failed to import character (HTTP ${response.status}):\n` +
-          `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+        `❌ Failed to import character:\n` +
+          `\`\`\`\n${errorMessage.slice(0, 1500)}\n\`\`\``
       );
       return;
     }
 
-    await response.json();
-
     // Build success embed
+    const visibilityIcon = isPublic ? '🌐' : '🔒';
+    const visibilityText = isPublic ? 'Public' : 'Private';
     const embed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.SUCCESS)
       .setTitle('Character Imported Successfully')
-      .setDescription(`Imported character: **${String(payload.name)}** (\`${slug}\`)`)
+      .setDescription(
+        `Imported character: **${String(payload.name)}** (\`${slug}\`)\n` +
+          `${visibilityIcon} ${visibilityText}`
+      )
       .setTimestamp();
 
     // Show what was imported
