@@ -34,6 +34,10 @@ vi.mock('@tzurot/common-types', async () => {
       NODE_ENV: 'test',
     }),
     countTextTokens: vi.fn((text: string) => Math.ceil(text.length / 4)), // Mock: ~4 chars per token
+    formatTimestampWithDelta: vi.fn((date: Date) => ({
+      absolute: 'Mon, Jan 15, 2024',
+      relative: '2 weeks ago',
+    })),
   };
 });
 
