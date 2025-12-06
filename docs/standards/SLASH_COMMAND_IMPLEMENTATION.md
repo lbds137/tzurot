@@ -114,24 +114,73 @@ field.setMaxLength(4000);
 
 ## File Structure
 
+### 🚨 Rule 4: One Subcommand Per File
+
+**Each subcommand handler MUST be in its own file.** This is a strict pattern for maintainability.
+
 ```
 commands/
 ├── mycommand/
-│   ├── index.ts          # Command definition + execute + handlers
-│   ├── config.ts         # Dashboard config (if using Dashboard pattern)
-│   ├── autocomplete.ts   # Autocomplete handler (if separate)
-│   ├── helpers.ts        # Shared utilities
-│   ├── index.test.ts     # Tests for execute/handlers
-│   └── autocomplete.test.ts
+│   ├── index.ts          # Command definition + routing (minimal logic)
+│   ├── list.ts           # /mycommand list handler
+│   ├── create.ts         # /mycommand create handler
+│   ├── edit.ts           # /mycommand edit handler
+│   ├── delete.ts         # /mycommand delete handler
+│   ├── config.ts         # Shared configuration (if needed)
+│   ├── autocomplete.ts   # Autocomplete handler (if needed)
+│   ├── list.test.ts      # Tests colocated with handler
+│   ├── create.test.ts
+│   └── index.test.ts     # Tests for routing/integration
+```
+
+**Why This Pattern:**
+
+- **Discoverability**: Easy to find the code for any subcommand
+- **Single Responsibility**: Each file handles one subcommand
+- **Testability**: Tests are colocated and focused
+- **Maintainability**: Changes to one subcommand don't risk breaking others
+- **Parallel Development**: Multiple subcommands can be worked on simultaneously
+
+**`index.ts` Should Be Thin:**
+
+```typescript
+// ✅ CORRECT: index.ts is routing only
+import { handleList } from './list.js';
+import { handleCreate } from './create.js';
+
+const router = createSubcommandRouter({
+  list: handleList,
+  create: (i) => handleCreate(i, config),
+});
+
+export async function execute(interaction) {
+  await router(interaction);
+}
+```
+
+```typescript
+// ❌ WRONG: index.ts contains all handler logic
+export async function execute(interaction) {
+  const subcommand = interaction.options.getSubcommand();
+  switch (subcommand) {
+    case 'list':
+      // 100+ lines of list logic here
+      break;
+    case 'create':
+      // 100+ lines of create logic here
+      break;
+  }
+}
 ```
 
 **File Responsibilities:**
 
-| File              | Exports                                                                  |
-| ----------------- | ------------------------------------------------------------------------ |
-| `index.ts`        | `data`, `execute`, `autocomplete?`, `handleSelectMenu?`, `handleButton?` |
-| `config.ts`       | Dashboard configuration object                                           |
-| `autocomplete.ts` | Can export `handleAutocomplete` if complex                               |
+| File              | Purpose                                                   |
+| ----------------- | --------------------------------------------------------- |
+| `index.ts`        | `data`, `execute` (routing), `handleSelectMenu?`, `handleButton?` |
+| `{subcommand}.ts` | Handler function for that subcommand                      |
+| `config.ts`       | Dashboard configuration, shared types, constants          |
+| `autocomplete.ts` | `handleAutocomplete` if complex/reused across subcommands |
 
 ---
 
