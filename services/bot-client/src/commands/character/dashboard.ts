@@ -245,6 +245,19 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     return;
   }
 
+  // Handle delete confirmation buttons
+  if (characterParsed?.action === 'delete_confirm' && characterParsed.characterId !== undefined) {
+    const { handleDeleteButton } = await import('./delete.js');
+    await handleDeleteButton(interaction, characterParsed.characterId, true);
+    return;
+  }
+
+  if (characterParsed?.action === 'delete_cancel' && characterParsed.characterId !== undefined) {
+    const { handleDeleteButton } = await import('./delete.js');
+    await handleDeleteButton(interaction, characterParsed.characterId, false);
+    return;
+  }
+
   // Handle dashboard buttons
   const parsed = parseDashboardCustomId(customId);
   if (parsed?.entityType !== 'character' || parsed.entityId === undefined) {

@@ -90,8 +90,12 @@ async function handlePersonalityAutocomplete(
     )
     .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
+  // Explicitly check for null/undefined/empty string (displayName could be '')
   const choices = filtered.map(p => ({
-    name: p.displayName ?? p.name,
+    name:
+      p.displayName !== null && p.displayName !== undefined && p.displayName !== ''
+        ? p.displayName
+        : p.name,
     value: p.id,
   }));
 

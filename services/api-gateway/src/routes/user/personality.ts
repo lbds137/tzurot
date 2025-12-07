@@ -513,12 +513,14 @@ export function createPersonalityRoutes(
       }
 
       // Create personality in database
-      // If displayName not provided, default to name
+      // If displayName not provided or empty, default to name
+      const hasDisplayName =
+        displayName !== null && displayName !== undefined && displayName !== '';
       const personality = await prisma.personality.create({
         data: {
           name,
           slug,
-          displayName: displayName ?? name,
+          displayName: hasDisplayName ? displayName : name,
           characterInfo,
           personalityTraits,
           personalityTone: personalityTone ?? null,
@@ -620,10 +622,10 @@ export function createPersonalityRoutes(
         return sendError(res, ErrorResponses.unauthorized('User not found'));
       }
 
-      // Find personality
+      // Find personality (include name for displayName defaulting)
       const personality = await prisma.personality.findUnique({
         where: { slug },
-        select: { id: true, ownerId: true },
+        select: { id: true, ownerId: true, name: true },
       });
 
       if (personality === null) {
@@ -675,9 +677,12 @@ export function createPersonalityRoutes(
       if (name !== undefined) {
         updateData.name = name;
       }
-      if (displayName !== undefined) {
-        updateData.displayName = displayName;
-      }
+      // Ensure displayName is NEVER null/empty after an update
+      // Priority: provided displayName (if truthy) > provided name > existing name
+      const effectiveName = name ?? personality.name;
+      const hasDisplayName =
+        displayName !== null && displayName !== undefined && displayName !== '';
+      updateData.displayName = hasDisplayName ? displayName : effectiveName;
       if (characterInfo !== undefined) {
         updateData.characterInfo = characterInfo;
       }

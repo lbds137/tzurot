@@ -10,6 +10,10 @@
  * - Cached avatar
  *
  * This is a destructive operation with a confirmation step.
+ *
+ * IMPORTANT: This uses the global button handler pattern instead of awaitMessageComponent
+ * because awaitMessageComponent doesn't work reliably in multi-replica deployments -
+ * the button click may arrive at a different replica than the one waiting.
  */
 
 import {
@@ -18,27 +22,23 @@ import {
   ButtonStyle,
   EmbedBuilder,
   MessageFlags,
-  ComponentType,
 } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import {
   createLogger,
   type EnvConfig,
   DeletePersonalityResponseSchema,
   DISCORD_COLORS,
-  DISCORD_LIMITS,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
+import { CharacterCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('character-delete');
 
-/** Custom ID prefix for delete confirmation buttons */
-const DELETE_CONFIRM_ID = 'character_delete_confirm';
-const DELETE_CANCEL_ID = 'character_delete_cancel';
-
 /**
- * Handle the delete subcommand - show confirmation and delete character
+ * Handle the delete subcommand - show confirmation dialog
+ * The actual deletion is handled by handleDeleteButton when user clicks confirm
  */
 export async function handleDelete(
   interaction: ChatInputCommandInteraction,
@@ -76,142 +76,31 @@ export async function handleDelete(
           '• All pending memories\n' +
           '• All activated channels\n' +
           '• All aliases\n' +
-          '• Cached avatar\n\n' +
-          '**Type the character slug to confirm:** `' +
-          slug +
-          '`'
+          '• Cached avatar'
       )
       .setColor(DISCORD_COLORS.ERROR);
 
-    // Build confirmation buttons
+    // Build confirmation buttons using CharacterCustomIds pattern
     const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(DELETE_CONFIRM_ID)
+        .setCustomId(CharacterCustomIds.deleteConfirm(slug))
         .setLabel('Delete Forever')
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
-        .setCustomId(DELETE_CANCEL_ID)
+        .setCustomId(CharacterCustomIds.deleteCancel(slug))
         .setLabel('Cancel')
         .setStyle(ButtonStyle.Secondary)
     );
 
-    const reply = await interaction.editReply({
+    await interaction.editReply({
       embeds: [embed],
       components: [buttons],
     });
 
-    // Wait for button interaction (30 second timeout)
-    try {
-      const buttonInteraction = await reply.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        filter: i => i.user.id === interaction.user.id,
-        time: DISCORD_LIMITS.BUTTON_COLLECTOR_TIMEOUT,
-      });
-
-      if (buttonInteraction.customId === DELETE_CANCEL_ID) {
-        await buttonInteraction.update({
-          content: '✅ Deletion cancelled.',
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-
-      // User clicked confirm - proceed with deletion
-      await buttonInteraction.update({
-        content: '🔄 Deleting character...',
-        embeds: [],
-        components: [],
-      });
-
-      // Call the DELETE API
-      const result = await callGatewayApi<unknown>(`/user/personality/${slug}`, {
-        method: 'DELETE',
-        userId: interaction.user.id,
-      });
-
-      if (!result.ok) {
-        logger.error({ slug, error: result.error }, '[Character] Delete API failed');
-        await interaction.editReply({
-          content: `❌ Failed to delete character: ${result.error}`,
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-
-      // Validate response against schema (contract validation)
-      const parseResult = DeletePersonalityResponseSchema.safeParse(result.data);
-      if (!parseResult.success) {
-        logger.error(
-          { slug, parseError: parseResult.error.message },
-          '[Character] Response schema validation failed'
-        );
-        // Still consider it a success since the API returned 200
-        await interaction.editReply({
-          content: `✅ Character \`${character.name}\` has been deleted.`,
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-
-      const deleteResponse = parseResult.data;
-      const counts = deleteResponse.deletedCounts;
-
-      // Build success message with deletion counts
-      const countLines: string[] = [];
-      if (counts.conversationHistory > 0) {
-        countLines.push(`• ${counts.conversationHistory} conversation message(s)`);
-      }
-      if (counts.memories > 0) {
-        countLines.push(
-          `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`
-        );
-      }
-      if (counts.pendingMemories > 0) {
-        countLines.push(
-          `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`
-        );
-      }
-      if (counts.activatedChannels > 0) {
-        countLines.push(`• ${counts.activatedChannels} activated channel(s)`);
-      }
-      if (counts.aliases > 0) {
-        countLines.push(`• ${counts.aliases} alias(es)`);
-      }
-
-      let successMessage = `✅ Character \`${deleteResponse.deletedName}\` has been permanently deleted.`;
-      if (countLines.length > 0) {
-        successMessage += '\n\n**Deleted data:**\n' + countLines.join('\n');
-      }
-
-      await interaction.editReply({
-        content: successMessage,
-        embeds: [],
-        components: [],
-      });
-
-      logger.info(
-        {
-          userId: interaction.user.id,
-          slug: deleteResponse.deletedSlug,
-          counts,
-        },
-        '[Character] Successfully deleted character'
-      );
-    } catch (error) {
-      // Timeout or other collector error
-      if ((error as Error).message?.includes('time')) {
-        await interaction.editReply({
-          content: '⏱️ Confirmation timed out. Deletion cancelled.',
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-      throw error;
-    }
+    logger.info(
+      { userId: interaction.user.id, slug },
+      '[Character] Showing delete confirmation'
+    );
   } catch (error) {
     logger.error({ err: error, slug }, '[Character] Delete command failed');
     await interaction.editReply({
@@ -220,4 +109,107 @@ export async function handleDelete(
       components: [],
     });
   }
+}
+
+/**
+ * Handle delete confirmation button click
+ * Called from the global button handler in dashboard.ts
+ */
+export async function handleDeleteButton(
+  interaction: ButtonInteraction,
+  slug: string,
+  confirmed: boolean
+): Promise<void> {
+  if (!confirmed) {
+    await interaction.update({
+      content: '✅ Deletion cancelled.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  // User clicked confirm - proceed with deletion
+  await interaction.update({
+    content: '🔄 Deleting character...',
+    embeds: [],
+    components: [],
+  });
+
+  // Call the DELETE API
+  const result = await callGatewayApi<unknown>(`/user/personality/${slug}`, {
+    method: 'DELETE',
+    userId: interaction.user.id,
+  });
+
+  if (!result.ok) {
+    logger.error({ slug, error: result.error }, '[Character] Delete API failed');
+    await interaction.editReply({
+      content: `❌ Failed to delete character: ${result.error}`,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  // Validate response against schema (contract validation)
+  const parseResult = DeletePersonalityResponseSchema.safeParse(result.data);
+  if (!parseResult.success) {
+    logger.error(
+      { slug, parseError: parseResult.error.message },
+      '[Character] Response schema validation failed'
+    );
+    // Still consider it a success since the API returned 200
+    await interaction.editReply({
+      content: `✅ Character has been deleted.`,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const deleteResponse = parseResult.data;
+  const counts = deleteResponse.deletedCounts;
+
+  // Build success message with deletion counts
+  const countLines: string[] = [];
+  if (counts.conversationHistory > 0) {
+    countLines.push(`• ${counts.conversationHistory} conversation message(s)`);
+  }
+  if (counts.memories > 0) {
+    countLines.push(
+      `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`
+    );
+  }
+  if (counts.pendingMemories > 0) {
+    countLines.push(
+      `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`
+    );
+  }
+  if (counts.activatedChannels > 0) {
+    countLines.push(`• ${counts.activatedChannels} activated channel(s)`);
+  }
+  if (counts.aliases > 0) {
+    countLines.push(`• ${counts.aliases} alias(es)`);
+  }
+
+  let successMessage = `✅ Character \`${deleteResponse.deletedName}\` has been permanently deleted.`;
+  if (countLines.length > 0) {
+    successMessage += '\n\n**Deleted data:**\n' + countLines.join('\n');
+  }
+
+  await interaction.editReply({
+    content: successMessage,
+    embeds: [],
+    components: [],
+  });
+
+  logger.info(
+    {
+      userId: interaction.user.id,
+      slug: deleteResponse.deletedSlug,
+      counts,
+    },
+    '[Character] Successfully deleted character'
+  );
 }
