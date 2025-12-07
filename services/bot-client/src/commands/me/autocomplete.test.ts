@@ -9,6 +9,11 @@ import {
   handlePersonaAutocomplete,
   CREATE_NEW_PERSONA_VALUE,
 } from './autocomplete.js';
+import { mockListPersonasResponse } from '@tzurot/common-types';
+
+// Test UUIDs for personas (must be valid UUID format: 4th segment starts with 8/9/a/b)
+const PERSONA_ID_1 = '11111111-1111-4111-8111-111111111111';
+const PERSONA_ID_2 = '22222222-2222-4222-8222-222222222222';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -118,7 +123,7 @@ describe('handlePersonaAutocomplete', () => {
   it('should call gateway API with user ID', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
@@ -131,66 +136,62 @@ describe('handlePersonaAutocomplete', () => {
   it('should return user profiles with preferredName as display', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          { id: 'persona-1', name: 'Work', preferredName: 'Professional Me', isDefault: false },
-          { id: 'persona-2', name: 'Casual', preferredName: 'Relaxed Me', isDefault: false },
-        ],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'Work', preferredName: 'Professional Me', isDefault: false },
+        { id: PERSONA_ID_2, name: 'Casual', preferredName: 'Relaxed Me', isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: 'Professional Me', value: 'persona-1' },
-      { name: 'Relaxed Me', value: 'persona-2' },
+      { name: 'Professional Me', value: PERSONA_ID_1 },
+      { name: 'Relaxed Me', value: PERSONA_ID_2 },
     ]);
   });
 
   it('should mark default profile with star indicator', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          { id: 'persona-1', name: 'Default', preferredName: 'My Default', isDefault: true },
-          { id: 'persona-2', name: 'Other', preferredName: null, isDefault: false },
-        ],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'Default', preferredName: 'My Default', isDefault: true },
+        { id: PERSONA_ID_2, name: 'Other', preferredName: null, isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: 'My Default ⭐ (default)', value: 'persona-1' },
-      { name: 'Other', value: 'persona-2' },
+      { name: 'My Default ⭐ (default)', value: PERSONA_ID_1 },
+      { name: 'Other', value: PERSONA_ID_2 },
     ]);
   });
 
   it('should use name as fallback when preferredName is null', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [{ id: 'persona-1', name: 'WorkProfile', preferredName: null, isDefault: false }],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'WorkProfile', preferredName: null, isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
 
-    expect(mockRespond).toHaveBeenCalledWith([{ name: 'WorkProfile', value: 'persona-1' }]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: 'WorkProfile', value: PERSONA_ID_1 }]);
   });
 
   it('should include "Create new profile" option when includeCreateNew is true', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [{ id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false }],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'Existing', preferredName: null, isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''), true);
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: 'Existing', value: 'persona-1' },
+      { name: 'Existing', value: PERSONA_ID_1 },
       { name: '➕ Create new profile...', value: CREATE_NEW_PERSONA_VALUE },
     ]);
   });
@@ -198,9 +199,9 @@ describe('handlePersonaAutocomplete', () => {
   it('should not include "Create new profile" when includeCreateNew is false', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [{ id: 'persona-1', name: 'Existing', preferredName: null, isDefault: false }],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'Existing', preferredName: null, isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''), false);
@@ -214,7 +215,7 @@ describe('handlePersonaAutocomplete', () => {
   it('should filter "Create new profile" option based on query', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
 
     // Query matches "create"
@@ -228,7 +229,7 @@ describe('handlePersonaAutocomplete', () => {
     // Query doesn't match
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
     await handlePersonaAutocomplete(createMockInteraction('profile', 'xyz'), true);
     expect(mockRespond).toHaveBeenCalledWith([]);
@@ -237,7 +238,7 @@ describe('handlePersonaAutocomplete', () => {
   it('should return empty array when user has no profiles', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
@@ -267,53 +268,47 @@ describe('handlePersonaAutocomplete', () => {
   it('should filter profiles based on query', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          { id: 'persona-1', name: 'Work', preferredName: 'Professional', isDefault: false },
-          { id: 'persona-2', name: 'Personal', preferredName: 'Casual Me', isDefault: false },
-        ],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'Work', preferredName: 'Professional', isDefault: false },
+        { id: PERSONA_ID_2, name: 'Personal', preferredName: 'Casual Me', isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', 'work'));
 
     // Only 'Work' matches the query 'work'
-    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional', value: 'persona-1' }]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional', value: PERSONA_ID_1 }]);
   });
 
   it('should filter by preferredName too', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          { id: 'persona-1', name: 'First', preferredName: 'Professional Me', isDefault: false },
-          { id: 'persona-2', name: 'Second', preferredName: 'Casual', isDefault: false },
-        ],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'First', preferredName: 'Professional Me', isDefault: false },
+        { id: PERSONA_ID_2, name: 'Second', preferredName: 'Casual', isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', 'prof'));
 
     // 'Professional Me' matches the query 'prof'
-    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional Me', value: 'persona-1' }]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional Me', value: PERSONA_ID_1 }]);
   });
 
   it('should return all profiles when query is empty', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          { id: 'persona-1', name: 'Work', preferredName: null, isDefault: false },
-          { id: 'persona-2', name: 'Personal', preferredName: null, isDefault: false },
-        ],
-      },
+      data: mockListPersonasResponse([
+        { id: PERSONA_ID_1, name: 'Work', preferredName: null, isDefault: false },
+        { id: PERSONA_ID_2, name: 'Personal', preferredName: null, isDefault: false },
+      ]),
     });
 
     await handlePersonaAutocomplete(createMockInteraction('profile', ''));
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: 'Work', value: 'persona-1' },
-      { name: 'Personal', value: 'persona-2' },
+      { name: 'Work', value: PERSONA_ID_1 },
+      { name: 'Personal', value: PERSONA_ID_2 },
     ]);
   });
 });

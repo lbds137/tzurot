@@ -6,6 +6,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleEditPersona, handleEditModalSubmit } from './edit.js';
 import { MessageFlags } from 'discord.js';
+import {
+  mockListPersonasResponse,
+  mockGetPersonaResponse,
+  mockUpdatePersonaResponse,
+  mockCreatePersonaResponse,
+} from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -46,7 +52,7 @@ describe('handleEditPersona', () => {
   it('should show modal with empty fields for user with no persona', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
 
     await handleEditPersona(createMockInteraction());
@@ -59,21 +65,20 @@ describe('handleEditPersona', () => {
     // First call returns persona list
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
-      data: {
-        personas: [{ id: 'persona-123', name: 'My Persona', isDefault: true }],
-      },
+      data: mockListPersonasResponse([{ name: 'My Persona', isDefault: true }]),
     });
     // Second call returns persona details
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
-      data: {
-        id: 'persona-123',
-        name: 'My Persona',
-        description: 'My main persona',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'I love coding',
-      },
+      data: mockGetPersonaResponse({
+        persona: {
+          name: 'My Persona',
+          description: 'My main persona',
+          preferredName: 'Alice',
+          pronouns: 'she/her',
+          content: 'I love coding',
+        },
+      }),
     });
 
     await handleEditPersona(createMockInteraction());
@@ -84,13 +89,14 @@ describe('handleEditPersona', () => {
   it('should show modal for specific persona when personaId provided', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        id: 'specific-persona',
-        name: 'Work Persona',
-        preferredName: 'Bob',
-        pronouns: 'he/him',
-        content: 'Work stuff',
-      },
+      data: mockGetPersonaResponse({
+        persona: {
+          name: 'Work Persona',
+          preferredName: 'Bob',
+          pronouns: 'he/him',
+          content: 'Work stuff',
+        },
+      }),
     });
 
     await handleEditPersona(createMockInteraction(), 'specific-persona');
@@ -149,17 +155,15 @@ describe('handleEditModalSubmit', () => {
   it('should update existing persona', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockUpdatePersonaResponse({
         persona: {
-          id: 'persona-123',
           name: 'My Persona',
           description: 'Main persona',
           preferredName: 'Alice',
           pronouns: 'she/her',
           content: 'I love coding',
         },
-      },
+      }),
     });
 
     await handleEditModalSubmit(
@@ -193,10 +197,8 @@ describe('handleEditModalSubmit', () => {
   it('should create new persona when personaId is "new"', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockCreatePersonaResponse({
         persona: {
-          id: 'new-persona-123',
           name: 'New Persona',
           description: 'Brand new',
           preferredName: 'Bob',
@@ -204,7 +206,7 @@ describe('handleEditModalSubmit', () => {
           content: 'Test content',
         },
         setAsDefault: true,
-      },
+      }),
     });
 
     await handleEditModalSubmit(
@@ -239,17 +241,15 @@ describe('handleEditModalSubmit', () => {
   it('should handle empty optional fields', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockUpdatePersonaResponse({
         persona: {
-          id: 'persona-123',
           name: 'My Persona',
           description: null,
           preferredName: null,
           pronouns: null,
           content: '',
         },
-      },
+      }),
     });
 
     await handleEditModalSubmit(
@@ -298,17 +298,15 @@ describe('handleEditModalSubmit', () => {
   it('should trim whitespace from fields', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockUpdatePersonaResponse({
         persona: {
-          id: 'persona-123',
           name: 'My Persona',
           description: 'Main persona',
           preferredName: 'Alice',
           pronouns: 'she/her',
           content: 'content with spaces',
         },
-      },
+      }),
     });
 
     await handleEditModalSubmit(

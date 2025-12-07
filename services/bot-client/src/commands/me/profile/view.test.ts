@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleViewPersona } from './view.js';
 import { MessageFlags } from 'discord.js';
+import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -43,7 +44,7 @@ describe('handleViewPersona', () => {
   it('should show error when user has no personas', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
 
     await handleViewPersona(createMockInteraction());
@@ -57,12 +58,10 @@ describe('handleViewPersona', () => {
   it('should show error when no default persona is set', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          { id: 'persona-1', name: 'Test', isDefault: false },
-          { id: 'persona-2', name: 'Other', isDefault: false },
-        ],
-      },
+      data: mockListPersonasResponse([
+        { name: 'Test', isDefault: false },
+        { name: 'Other', isDefault: false },
+      ]),
     });
 
     await handleViewPersona(createMockInteraction());
@@ -77,22 +76,21 @@ describe('handleViewPersona', () => {
     // First call returns persona list
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
-      data: {
-        personas: [{ id: 'persona-123', name: 'Test Profile', isDefault: true }],
-      },
+      data: mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]),
     });
     // Second call returns persona details
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
-      data: {
-        id: 'persona-123',
-        name: 'Test Profile',
-        preferredName: 'TestUser',
-        pronouns: 'they/them',
-        content: 'I am a test user who loves programming',
-        description: 'Test description',
-        shareLtmAcrossPersonalities: false,
-      },
+      data: mockGetPersonaResponse({
+        persona: {
+          name: 'Test Profile',
+          preferredName: 'TestUser',
+          pronouns: 'they/them',
+          content: 'I am a test user who loves programming',
+          description: 'Test description',
+          shareLtmAcrossPersonalities: false,
+        },
+      }),
     });
 
     await handleViewPersona(createMockInteraction());
@@ -114,22 +112,21 @@ describe('handleViewPersona', () => {
     // First call returns persona list
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
-      data: {
-        personas: [{ id: 'persona-123', name: 'Test Profile', isDefault: true }],
-      },
+      data: mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]),
     });
     // Second call returns persona details
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
-      data: {
-        id: 'persona-123',
-        name: 'Test Profile',
-        preferredName: null,
-        pronouns: null,
-        content: '',
-        description: null,
-        shareLtmAcrossPersonalities: true,
-      },
+      data: mockGetPersonaResponse({
+        persona: {
+          name: 'Test Profile',
+          preferredName: null,
+          pronouns: null,
+          content: '',
+          description: null,
+          shareLtmAcrossPersonalities: true,
+        },
+      }),
     });
 
     await handleViewPersona(createMockInteraction());

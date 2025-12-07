@@ -128,34 +128,61 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 
 ## Recent Work (2025-12-07)
 
-**API Contract Enforcement System** - Phase 1 COMPLETE:
+**API Contract Enforcement System** - Phase 2 COMPLETE:
+
+Continued from Phase 1 - converting bot-client tests to use validated mock factories,
+which exposed more real production bugs!
+
+**Session 2 Accomplishments**:
+
+- Converted all profile command tests to use validated factories:
+  - create.test.ts, default.test.ts, edit.test.ts, list.test.ts, share-ltm.test.ts, view.test.ts
+- Converted me/autocomplete.test.ts to use `mockListPersonasResponse`
+- Fixed 4 gateway tests affected by previous response format changes
+
+**REAL Production Bugs Found & Fixed** (by validated factories):
+
+1. **view.ts** - Handler expected `result.data` to be persona directly, but gateway returns `{ persona: {...} }`
+   - Would have broken `/me profile view` command!
+   - Fixed both `handleViewPersona` and `handleExpandContent` functions
+
+2. **edit.ts** - Same issue - expected direct persona object
+   - Would have broken `/me profile edit` modal population!
+   - Fixed both specific-persona fetch and default-persona fetch code paths
+
+**Not Converted** (APIs without factories yet):
+- Model commands (`/user/model-override`) - uses different API structure
+- Timezone commands (`/user/timezone`) - no factory needed (simple responses)
+- Wallet commands (`/wallet/*`) - different API structure
+- These tests use inline mocks which is fine for now
+
+**All 2,681 tests passing** (759 ai-worker + 745 api-gateway + 1,177 bot-client)
+
+---
+
+**API Contract Enforcement System** - Phase 1:
 
 Following two production bugs from v3.0.0-beta.9 (profile override-set, character creation),
 implemented a contract enforcement system to prevent future API mismatches.
 
 **Implemented**:
+
 - Zod schemas in `packages/common-types/src/schemas/api/` for persona and personality endpoints
 - Validated mock factories in `packages/common-types/src/factories/` that crash tests if mocks don't match schemas
 - RFC 4122 v5 compliant UUIDs for test data
 - Converted `override-set.test.ts` and `override-clear.test.ts` to use validated factories
 
 **Contract Bug Found & Fixed**:
+
 - DELETE /user/persona/override/:slug was returning `{message, personalitySlug}`
 - Bot-client expected `{success, personality, hadOverride}`
 - Would have broken `/me profile override-clear` in production!
 - Fixed gateway to return correct response format
 
-**Remaining** (18 test files, convert incrementally):
-- Profile: create, default, edit, list, share-ltm, view
-- Model: handlers, clear-default
-- Timezone: get, set
-- Preset: create, delete, list
-- Wallet: list, test
-- Autocomplete: me/autocomplete, character/autocomplete, personalityAutocomplete
-
 **Full documentation**: [docs/improvements/api-contract-enforcement.md](docs/improvements/api-contract-enforcement.md)
 
 **Commits**:
+
 - `d928f001` fix(api-gateway): fix DELETE override response + use validated mock factories
 
 ---

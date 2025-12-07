@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { MessageFlags } from 'discord.js';
+import { mockCreatePersonaResponse } from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -82,10 +83,8 @@ describe('handleCreateModalSubmit', () => {
   it('should create new persona via gateway', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockCreatePersonaResponse({
         persona: {
-          id: 'new-persona-123',
           name: 'Work Persona',
           description: 'For work stuff',
           preferredName: 'Alice',
@@ -93,7 +92,7 @@ describe('handleCreateModalSubmit', () => {
           content: 'I am professional',
         },
         setAsDefault: false,
-      },
+      }),
     });
 
     await handleCreateModalSubmit(
@@ -127,10 +126,8 @@ describe('handleCreateModalSubmit', () => {
   it('should indicate when set as default', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockCreatePersonaResponse({
         persona: {
-          id: 'new-persona-123',
           name: 'First Persona',
           description: null,
           preferredName: null,
@@ -138,7 +135,7 @@ describe('handleCreateModalSubmit', () => {
           content: null,
         },
         setAsDefault: true,
-      },
+      }),
     });
 
     await handleCreateModalSubmit(
@@ -178,10 +175,8 @@ describe('handleCreateModalSubmit', () => {
   it('should handle empty optional fields', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockCreatePersonaResponse({
         persona: {
-          id: 'new-persona',
           name: 'Minimal Persona',
           description: null,
           preferredName: null,
@@ -189,7 +184,7 @@ describe('handleCreateModalSubmit', () => {
           content: '',
         },
         setAsDefault: false,
-      },
+      }),
     });
 
     await handleCreateModalSubmit(
@@ -219,10 +214,8 @@ describe('handleCreateModalSubmit', () => {
   it('should trim whitespace from fields', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockCreatePersonaResponse({
         persona: {
-          id: 'new-persona',
           name: 'Work Persona',
           description: 'For work',
           preferredName: 'Alice',
@@ -230,7 +223,7 @@ describe('handleCreateModalSubmit', () => {
           content: 'content',
         },
         setAsDefault: false,
-      },
+      }),
     });
 
     await handleCreateModalSubmit(

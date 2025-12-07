@@ -85,9 +85,12 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     }
 
     // Fetch full persona details (including content) via gateway
-    const detailsResult = await callGatewayApi<PersonaDetails>(`/user/persona/${persona.id}`, {
-      userId: discordId,
-    });
+    const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
+      `/user/persona/${persona.id}`,
+      {
+        userId: discordId,
+      }
+    );
 
     if (!detailsResult.ok) {
       logger.warn(
@@ -101,7 +104,7 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       return;
     }
 
-    const personaDetails = detailsResult.data;
+    const personaDetails = detailsResult.data.persona;
 
     // Build embed with profile information
     const embed = new EmbedBuilder()
@@ -194,9 +197,12 @@ export async function handleExpandContent(
 
   try {
     // Fetch persona details via gateway (also verifies ownership)
-    const result = await callGatewayApi<PersonaDetails>(`/user/persona/${personaId}`, {
-      userId: discordId,
-    });
+    const result = await callGatewayApi<{ persona: PersonaDetails }>(
+      `/user/persona/${personaId}`,
+      {
+        userId: discordId,
+      }
+    );
 
     if (!result.ok) {
       logger.warn(
@@ -207,7 +213,7 @@ export async function handleExpandContent(
       return;
     }
 
-    const content = result.data.content;
+    const content = result.data.persona.content;
     if (content === null || content.length === 0) {
       await interaction.editReply('📝 Content\n\n_Not set_');
       return;
