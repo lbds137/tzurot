@@ -11,6 +11,16 @@ import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discor
 import { MessageFlags } from 'discord.js';
 
 // Mock dependencies
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal();
+  return {
+    ...(actual as Record<string, unknown>),
+    // Mock bot owner check to true so slugs remain unchanged in tests
+    // (slug normalization is tested in slugUtils.test.ts)
+    isBotOwner: vi.fn().mockReturnValue(true),
+  };
+});
+
 vi.mock('./api.js', () => ({
   createCharacter: vi.fn(),
 }));
@@ -69,7 +79,7 @@ describe('Character Create', () => {
   describe('handleSeedModalSubmit', () => {
     const createMockModalInteraction = (values: Record<string, string>) =>
       ({
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser' },
         channelId: 'channel-123',
         deferReply: vi.fn(),
         editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),

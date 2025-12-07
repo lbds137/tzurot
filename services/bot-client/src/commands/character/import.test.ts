@@ -19,6 +19,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       debug: vi.fn(),
     }),
+    // Mock bot owner check to true so slugs remain unchanged in tests
+    // (slug normalization is tested in slugUtils.test.ts)
+    isBotOwner: vi.fn().mockReturnValue(true),
   };
 });
 
@@ -85,7 +88,7 @@ function createMockInteraction(
     : null;
 
   return {
-    user: { id: 'owner-123' },
+    user: { id: 'owner-123', username: 'testowner' },
     deferReply: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue(undefined),
     options: {
