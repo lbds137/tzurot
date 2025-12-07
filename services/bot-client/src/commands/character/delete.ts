@@ -165,10 +165,14 @@ export async function handleDelete(
         countLines.push(`• ${counts.conversationHistory} conversation message(s)`);
       }
       if (counts.memories > 0) {
-        countLines.push(`• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`);
+        countLines.push(
+          `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`
+        );
       }
       if (counts.pendingMemories > 0) {
-        countLines.push(`• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`);
+        countLines.push(
+          `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`
+        );
       }
       if (counts.activatedChannels > 0) {
         countLines.push(`• ${counts.activatedChannels} activated channel(s)`);

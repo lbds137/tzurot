@@ -287,7 +287,7 @@ async function sendCharacterResponse(
     const sentMessage = await webhookManager.sendAsPersonality(channel, personality, chunk);
     if (sentMessage !== undefined && sentMessage !== null) {
       // Store in Redis for reply routing
-      await redisService.storeWebhookMessage(sentMessage.id, personality.name);
+      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
     }
   }
 }

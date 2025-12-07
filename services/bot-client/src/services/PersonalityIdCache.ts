@@ -15,6 +15,7 @@
 
 import {
   createLogger,
+  UUID_REGEX,
   PersonalityService,
   LoadedPersonality,
   TIMEOUTS,
@@ -48,9 +49,9 @@ export class PersonalityIdCache {
    */
   async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {
     // Check if it's a UUID - if so, load directly (with access control)
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
-
-    if (isUUID) {
+    // Note: Using UUID_REGEX.test() directly instead of isValidUUID() because the type guard
+    // causes issues when nameOrId is already typed as string (narrows to never on false branch)
+    if (UUID_REGEX.test(nameOrId)) {
       return this.personalityService.loadPersonality(nameOrId, userId);
     }
 
