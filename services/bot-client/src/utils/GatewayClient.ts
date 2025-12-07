@@ -232,7 +232,7 @@ export class GatewayClient {
       } catch (error) {
         // Re-throw job failure errors - they should not be retried
         // Format: "Job {jobId} failed" - NOT "Job status check failed"
-        if (error instanceof Error && error.message.match(/^Job .+ failed$/)) {
+        if (error instanceof Error && /^Job .+ failed$/.exec(error.message)) {
           throw error;
         }
         // On network error, wait and retry
