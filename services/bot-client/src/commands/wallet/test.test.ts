@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTestKey } from './test.js';
+import { mockTestWalletKeyResponse, AIProvider } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -40,7 +41,6 @@ vi.mock('../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
     const names: Record<string, string> = {
       openrouter: 'OpenRouter',
-      openai: 'OpenAI',
     };
     return names[provider] ?? provider;
   },
@@ -69,11 +69,11 @@ describe('handleTestKey', () => {
   it('should test key successfully with credits', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
+      data: mockTestWalletKeyResponse({
         valid: true,
-        provider: 'openrouter',
+        provider: AIProvider.OpenRouter,
         credits: 12.5,
-      },
+      }),
     });
 
     const interaction = createMockInteraction('openrouter');
@@ -100,13 +100,13 @@ describe('handleTestKey', () => {
   it('should test key successfully without credits info', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
+      data: mockTestWalletKeyResponse({
         valid: true,
-        provider: 'openai',
-      },
+        provider: AIProvider.OpenRouter,
+      }),
     });
 
-    const interaction = createMockInteraction('openai');
+    const interaction = createMockInteraction('openrouter');
     await handleTestKey(interaction);
 
     expect(mockEditReply).toHaveBeenCalledWith({

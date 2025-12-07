@@ -6,6 +6,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListOverrides } from './list.js';
 import { handleSet } from './set.js';
 import { handleReset } from './reset.js';
+import {
+  mockListModelOverridesResponse,
+  mockSetModelOverrideResponse,
+  mockDeleteModelOverrideResponse,
+  mockListWalletKeysResponse,
+} from '@tzurot/common-types';
+
+// Test UUIDs (RFC 4122 compliant)
+const PERSONALITY_ID_1 = '11111111-1111-5111-8111-111111111111';
+const PERSONALITY_ID_2 = '22222222-2222-5222-8222-222222222222';
+const CONFIG_ID_1 = '33333333-3333-5333-8333-333333333333';
+const CONFIG_ID_2 = '44444444-4444-5444-8444-444444444444';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -57,17 +69,20 @@ describe('Model Command Handlers', () => {
     it('should list overrides', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
-        data: {
-          overrides: [
-            { personalityId: 'p1', personalityName: 'Lilith', configId: 'c1', configName: 'Fast' },
-            {
-              personalityId: 'p2',
-              personalityName: 'Sarcastic',
-              configId: 'c2',
-              configName: 'GPT-4',
-            },
-          ],
-        },
+        data: mockListModelOverridesResponse([
+          {
+            personalityId: PERSONALITY_ID_1,
+            personalityName: 'Lilith',
+            configId: CONFIG_ID_1,
+            configName: 'Fast',
+          },
+          {
+            personalityId: PERSONALITY_ID_2,
+            personalityName: 'Sarcastic',
+            configId: CONFIG_ID_2,
+            configName: 'GPT-4',
+          },
+        ]),
       });
 
       const interaction = createMockInteraction();
@@ -91,7 +106,7 @@ describe('Model Command Handlers', () => {
     it('should show empty message when no overrides', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
-        data: { overrides: [] },
+        data: mockListModelOverridesResponse([]),
       });
 
       const interaction = createMockInteraction();
@@ -119,7 +134,10 @@ describe('Model Command Handlers', () => {
   });
 
   describe('handleSet', () => {
-    function createMockInteraction(personalityId = 'p1', configId = 'c1') {
+    function createMockInteraction(
+      personalityId = PERSONALITY_ID_1,
+      configId = CONFIG_ID_1
+    ) {
       return {
         user: { id: '123456789' },
         options: {
@@ -139,28 +157,29 @@ describe('Model Command Handlers', () => {
         if (path === '/wallet/list') {
           return Promise.resolve({
             ok: true,
-            data: { keys: [{ provider: 'openrouter', isActive: true }] },
+            data: mockListWalletKeysResponse([{ isActive: true }]),
           });
         }
         if (path === '/user/llm-config') {
+          // llm-config doesn't have a factory yet - use inline mock
           return Promise.resolve({
             ok: true,
             data: {
-              configs: [{ id: 'c1', name: 'Fast', model: 'openai/gpt-4o-mini' }],
+              configs: [{ id: CONFIG_ID_1, name: 'Fast', model: 'openai/gpt-4o-mini' }],
             },
           });
         }
         if (path === '/user/model-override' && options?.method === 'PUT') {
           return Promise.resolve({
             ok: true,
-            data: {
+            data: mockSetModelOverrideResponse({
               override: {
-                personalityId: 'p1',
+                personalityId: PERSONALITY_ID_1,
                 personalityName: 'Lilith',
-                configId: 'c1',
+                configId: CONFIG_ID_1,
                 configName: 'Fast',
               },
-            },
+            }),
           });
         }
         return Promise.resolve({ ok: false, error: 'Unknown path' });
@@ -172,7 +191,7 @@ describe('Model Command Handlers', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
         method: 'PUT',
         userId: '123456789',
-        body: { personalityId: 'p1', configId: 'c1' },
+        body: { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
       });
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
@@ -203,7 +222,7 @@ describe('Model Command Handlers', () => {
   });
 
   describe('handleReset', () => {
-    function createMockInteraction(personalityId = 'p1') {
+    function createMockInteraction(personalityId = PERSONALITY_ID_1) {
       return {
         user: { id: '123456789' },
         options: {
@@ -217,15 +236,21 @@ describe('Model Command Handlers', () => {
     }
 
     it('should reset model override', async () => {
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: mockDeleteModelOverrideResponse(),
+      });
 
       const interaction = createMockInteraction();
       await handleReset(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override/p1', {
-        method: 'DELETE',
-        userId: '123456789',
-      });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        `/user/model-override/${PERSONALITY_ID_1}`,
+        {
+          method: 'DELETE',
+          userId: '123456789',
+        }
+      );
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Model Override Removed',
         'The personality will now use its default model configuration.'

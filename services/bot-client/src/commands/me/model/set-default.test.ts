@@ -6,6 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleSetDefault } from './set-default.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import { MessageFlags } from 'discord.js';
+import {
+  mockSetDefaultConfigResponse,
+  mockListWalletKeysResponse,
+} from '@tzurot/common-types';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -70,10 +74,11 @@ describe('handleSetDefault', () => {
       if (path === '/wallet/list') {
         return Promise.resolve({
           ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
+          data: mockListWalletKeysResponse([{ isActive: true }]),
         });
       }
       if (path === '/user/llm-config') {
+        // llm-config doesn't have a factory yet - use inline mock
         return Promise.resolve({
           ok: true,
           data: {
@@ -84,7 +89,9 @@ describe('handleSetDefault', () => {
       if (path === '/user/model-override/default') {
         return Promise.resolve({
           ok: true,
-          data: { default: { configId, configName } },
+          data: mockSetDefaultConfigResponse({
+            default: { configId, configName },
+          }),
         });
       }
       return Promise.resolve({ ok: false, error: 'Unknown path' });
@@ -136,7 +143,7 @@ describe('handleSetDefault', () => {
       if (path === '/wallet/list') {
         return Promise.resolve({
           ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
+          data: mockListWalletKeysResponse([{ isActive: true }]),
         });
       }
       if (path === '/user/llm-config') {
@@ -182,7 +189,7 @@ describe('handleSetDefault', () => {
         // No active wallet keys = guest mode
         return Promise.resolve({
           ok: true,
-          data: { keys: [] },
+          data: mockListWalletKeysResponse([]),
         });
       }
       if (path === '/user/llm-config') {
@@ -223,7 +230,7 @@ describe('handleSetDefault', () => {
         // No active wallet keys = guest mode
         return Promise.resolve({
           ok: true,
-          data: { keys: [] },
+          data: mockListWalletKeysResponse([]),
         });
       }
       if (path === '/user/llm-config') {
@@ -243,7 +250,9 @@ describe('handleSetDefault', () => {
       if (path === '/user/model-override/default') {
         return Promise.resolve({
           ok: true,
-          data: { default: { configId: 'free-config', configName: 'Free Config' } },
+          data: mockSetDefaultConfigResponse({
+            default: { configId: 'free-config', configName: 'Free Config' },
+          }),
         });
       }
       return Promise.resolve({ ok: false, error: 'Unknown path' });

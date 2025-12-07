@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleClearDefault } from './clear-default.js';
+import { mockClearDefaultConfigResponse } from '@tzurot/common-types';
 
 // Mock userGatewayClient
 vi.mock('../../../utils/userGatewayClient.js', () => ({
@@ -57,7 +58,10 @@ describe('handleClearDefault', () => {
   }
 
   it('should defer ephemeral reply', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockClearDefaultConfigResponse(),
+    });
 
     await handleClearDefault(createMockInteraction());
 
@@ -65,7 +69,10 @@ describe('handleClearDefault', () => {
   });
 
   it('should call gateway API with DELETE method', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockClearDefaultConfigResponse(),
+    });
 
     await handleClearDefault(createMockInteraction());
 
@@ -76,7 +83,10 @@ describe('handleClearDefault', () => {
   });
 
   it('should show success embed when config cleared', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockClearDefaultConfigResponse(),
+    });
 
     await handleClearDefault(createMockInteraction());
 

@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleRemoveKey } from './remove.js';
+import { mockRemoveWalletKeyResponse, AIProvider } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -40,7 +41,6 @@ vi.mock('../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
     const names: Record<string, string> = {
       openrouter: 'OpenRouter',
-      openai: 'OpenAI',
     };
     return names[provider] ?? provider;
   },
@@ -67,7 +67,12 @@ describe('handleRemoveKey', () => {
   }
 
   it('should remove key successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockRemoveWalletKeyResponse({
+        provider: AIProvider.OpenRouter,
+      }),
+    });
 
     const interaction = createMockInteraction('openrouter');
     await handleRemoveKey(interaction);
@@ -96,12 +101,12 @@ describe('handleRemoveKey', () => {
       error: 'Not found',
     });
 
-    const interaction = createMockInteraction('openai');
+    const interaction = createMockInteraction('openrouter');
     await handleRemoveKey(interaction);
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
-      expect.stringContaining("don't have an API key configured for **OpenAI**")
+      expect.stringContaining("don't have an API key configured for **OpenRouter**")
     );
   });
 

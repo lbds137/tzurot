@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListKeys } from './list.js';
+import { mockListWalletKeysResponse, AIProvider } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -62,16 +63,14 @@ describe('handleListKeys', () => {
   it('should list keys successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        keys: [
-          {
-            provider: 'openrouter',
-            isActive: true,
-            createdAt: '2025-01-01T00:00:00Z',
-            lastUsedAt: '2025-01-15T12:00:00Z',
-          },
-        ],
-      },
+      data: mockListWalletKeysResponse([
+        {
+          provider: AIProvider.OpenRouter,
+          isActive: true,
+          createdAt: '2025-01-01T00:00:00Z',
+          lastUsedAt: '2025-01-15T12:00:00Z',
+        },
+      ]),
     });
 
     const interaction = createMockInteraction();
@@ -94,7 +93,7 @@ describe('handleListKeys', () => {
   it('should show empty state when no keys configured', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { keys: [] },
+      data: mockListWalletKeysResponse([]),
     });
 
     const interaction = createMockInteraction();
@@ -144,16 +143,14 @@ describe('handleListKeys', () => {
   it('should handle single key with correct pluralization', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        keys: [
-          {
-            provider: 'openrouter',
-            isActive: true,
-            createdAt: '2025-01-01T00:00:00Z',
-            lastUsedAt: '2025-01-15T12:00:00Z',
-          },
-        ],
-      },
+      data: mockListWalletKeysResponse([
+        {
+          provider: AIProvider.OpenRouter,
+          isActive: true,
+          createdAt: '2025-01-01T00:00:00Z',
+          lastUsedAt: '2025-01-15T12:00:00Z',
+        },
+      ]),
     });
 
     const interaction = createMockInteraction();

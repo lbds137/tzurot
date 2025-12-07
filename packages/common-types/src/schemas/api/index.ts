@@ -10,3 +10,9 @@ export * from './persona.js';
 
 // Personality endpoints
 export * from './personality.js';
+
+// Model Override endpoints
+export * from './model-override.js';
+
+// Wallet endpoints
+export * from './wallet.js';
