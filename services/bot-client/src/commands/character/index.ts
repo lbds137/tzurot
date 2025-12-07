@@ -185,9 +185,8 @@ async function handleEdit(
       return;
     }
 
-    // Check ownership/permissions (API already verifies access, but check edit permission)
-    const canEdit = canUserEditCharacter(interaction.user.id, character, config);
-    if (!canEdit) {
+    // Use server-side permission check (compares internal User UUIDs, not Discord IDs)
+    if (!character.canEdit) {
       await interaction.editReply(
         `❌ You don't have permission to edit \`${slug}\`.\n` +
           'You can only edit characters you own.'
@@ -478,8 +477,8 @@ async function handleAvatar(
       return;
     }
 
-    const canEdit = canUserEditCharacter(interaction.user.id, character, config);
-    if (!canEdit) {
+    // Use server-side permission check (compares internal User UUIDs, not Discord IDs)
+    if (!character.canEdit) {
       await interaction.editReply(
         `❌ You don't have permission to edit \`${slug}\`.\n` +
           'You can only edit characters you own.'
@@ -987,9 +986,17 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 
 /**
  * API response type for personality endpoint
+ * Note: canEdit is computed server-side using internal User UUIDs, not Discord IDs
  */
 interface PersonalityResponse {
   personality: CharacterData;
+  canEdit: boolean;
+}
+
+/**
+ * Extended character data that includes canEdit flag from API
+ */
+interface FetchedCharacter extends CharacterData {
   canEdit: boolean;
 }
 
@@ -1012,12 +1019,13 @@ interface PersonalityListResponse {
 /**
  * Fetch a character by slug
  * Uses the /user/personality/:slug endpoint which requires user authentication
+ * Returns character data with canEdit flag from server-side permission check
  */
 async function fetchCharacter(
   slugOrId: string,
   _config: EnvConfig,
   userId: string
-): Promise<CharacterData | null> {
+): Promise<FetchedCharacter | null> {
   const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slugOrId}`, {
     userId,
   });
@@ -1029,7 +1037,11 @@ async function fetchCharacter(
     throw new Error(`Failed to fetch character: ${result.status}`);
   }
 
-  return result.data.personality;
+  // Include canEdit from API response - this is the authoritative permission check
+  return {
+    ...result.data.personality,
+    canEdit: result.data.canEdit,
+  };
 }
 
 /**
@@ -1212,27 +1224,6 @@ async function toggleVisibility(
   return result.data.personality;
 }
 
-/**
- * Check if user can edit a character
- */
-function canUserEditCharacter(
-  userId: string,
-  character: CharacterData,
-  config: EnvConfig
-): boolean {
-  // Owner can always edit
-  if (character.ownerId === userId) {
-    return true;
-  }
-
-  // Bot owner can edit all
-  if (userId === config.BOT_OWNER_ID) {
-    return true;
-  }
-
-  // TODO: Check PersonalityOwner table for co-owners
-  return false;
-}
 
 /**
  * Check if interaction is a character dashboard interaction
