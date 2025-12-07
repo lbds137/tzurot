@@ -67,10 +67,10 @@ Current count: 14 files without tests
 | Lines | File                                                  | Priority | Status    |
 | ----- | ----------------------------------------------------- | -------- | --------- |
 | 1242  | bot-client/commands/character/index.ts                | P1       | Splitting |
-| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       |           |
-| 176   | bot-client/commands/character/export.ts               | P2       |           |
-| 154   | bot-client/commands/me/model/set.ts                   | P2       |           |
-| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       |           |
+| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       | ✅ Done   |
+| 176   | bot-client/commands/character/export.ts               | P2       | ✅ Done   |
+| 154   | bot-client/commands/me/model/set.ts                   | P2       | ✅ Done   |
+| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       | ✅ Done   |
 | 111   | ai-worker/services/RedisService.ts                    | P2       |           |
 | 90    | bot-client/commands/preset/global/edit.ts             | P3       |           |
 | 90    | ai-worker/jobs/CleanupJobResults.ts                   | P3       |           |
@@ -148,3 +148,17 @@ wc -l services/bot-client/src/commands/character/index.ts
 - All tests enforce contracts (canEdit permission check, error handling)
 - Fixed pre-push hook installation issue
 - Committed and pushed: 6282312e
+
+### 2025-12-06 Session 3 (Continued)
+
+- Added tests for 4 P2 priority untested files:
+  - character/export.ts - 13 tests
+  - PendingMemoryProcessor.ts - 14 tests
+  - me/model/set.ts - 9 tests
+  - conversationUtils.ts - 20 tests
+- Total test count: 3566 tests across all services (+55 new)
+  - common-types: 776 tests
+  - api-gateway: 745 tests
+  - ai-worker: 792 tests
+  - bot-client: 1253 tests
+- Remaining untested files: 10 (down from 14)
