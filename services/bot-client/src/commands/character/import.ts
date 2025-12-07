@@ -7,6 +7,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { normalizeSlugForUser } from '../../utils/slugUtils.js';
 
 const logger = createLogger('character-import');
 
@@ -127,15 +128,18 @@ export async function handleImport(
       return;
     }
 
-    // Validate slug format
-    const slug = characterData.slug as string;
-    if (!/^[a-z0-9-]+$/.test(slug)) {
+    // Validate slug format (before normalization)
+    const rawSlug = characterData.slug as string;
+    if (!/^[a-z0-9-]+$/.test(rawSlug)) {
       await interaction.editReply(
         '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
-          `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+          `Example: \`${rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
       );
       return;
     }
+
+    // Normalize slug: append username for non-bot-owners
+    const slug = normalizeSlugForUser(rawSlug, interaction.user.id, interaction.user.username);
 
     // Process optional avatar attachment
     let avatarData: string | undefined;

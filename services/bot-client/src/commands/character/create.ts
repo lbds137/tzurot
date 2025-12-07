@@ -24,6 +24,7 @@ import {
   extractModalValues,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
+import { normalizeSlugForUser } from '../../utils/slugUtils.js';
 import { characterDashboardConfig, characterSeedFields } from './config.js';
 import { createCharacter } from './api.js';
 
@@ -67,7 +68,7 @@ export async function handleSeedModalSubmit(
     characterSeedFields.map(f => f.id)
   );
 
-  // Validate slug format
+  // Validate slug format (before normalization)
   if (!/^[a-z0-9-]+$/.test(values.slug)) {
     await interaction.editReply(
       '❌ Invalid slug format. Use only lowercase letters, numbers, and hyphens.\n' +
@@ -76,12 +77,19 @@ export async function handleSeedModalSubmit(
     return;
   }
 
+  // Normalize slug: append username for non-bot-owners
+  const normalizedSlug = normalizeSlugForUser(
+    values.slug,
+    interaction.user.id,
+    interaction.user.username
+  );
+
   try {
     // Create character via API
     const character = await createCharacter(
       {
         name: values.name,
-        slug: values.slug,
+        slug: normalizedSlug,
         characterInfo: values.characterInfo,
         personalityTraits: values.personalityTraits,
         isPublic: false, // Default to private
@@ -126,7 +134,7 @@ export async function handleSeedModalSubmit(
     // Check for duplicate slug error
     if (error instanceof Error && error.message.includes('409')) {
       await interaction.editReply(
-        `❌ A character with slug \`${values.slug}\` already exists.\n` +
+        `❌ A character with slug \`${normalizedSlug}\` already exists.\n` +
           'Please choose a different slug.'
       );
       return;
