@@ -490,6 +490,7 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
         logger.error({ err: error }, '[User] Failed to set default LLM config');
       }
 
+      // Return full personality data for dashboard display
       sendCustomSuccess(
         res,
         {
@@ -499,8 +500,26 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
             name: personality.name,
             slug: personality.slug,
             displayName: personality.displayName,
+            characterInfo: personality.characterInfo,
+            personalityTraits: personality.personalityTraits,
+            personalityTone: personality.personalityTone,
+            personalityAge: personality.personalityAge,
+            personalityAppearance: personality.personalityAppearance,
+            personalityLikes: personality.personalityLikes,
+            personalityDislikes: personality.personalityDislikes,
+            conversationalGoals: personality.conversationalGoals,
+            conversationalExamples: personality.conversationalExamples,
+            errorMessage: personality.errorMessage,
+            birthMonth: null, // Not yet supported in create
+            birthDay: null,
+            birthYear: null,
             isPublic: personality.isPublic,
+            voiceEnabled: personality.voiceEnabled,
+            imageEnabled: personality.imageEnabled,
+            ownerId: discordUserId, // Return Discord ID for bot-client
             hasAvatar: processedAvatarData !== undefined,
+            createdAt: personality.createdAt.toISOString(),
+            updatedAt: personality.updatedAt.toISOString(),
           },
         },
         StatusCodes.CREATED

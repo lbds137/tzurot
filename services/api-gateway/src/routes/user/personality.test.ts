@@ -74,6 +74,36 @@ const mockPrisma = {
 import { createPersonalityRoutes } from './personality.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
+// Mock dates for consistent testing
+const MOCK_CREATED_AT = new Date('2024-01-01T00:00:00.000Z');
+const MOCK_UPDATED_AT = new Date('2024-01-02T00:00:00.000Z');
+
+// Base mock personality with all fields needed for POST response
+function createMockCreatedPersonality(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'new-personality',
+    name: 'New Character',
+    slug: 'new-char',
+    displayName: null,
+    characterInfo: null,
+    personalityTraits: null,
+    personalityTone: null,
+    personalityAge: null,
+    personalityAppearance: null,
+    personalityLikes: null,
+    personalityDislikes: null,
+    conversationalGoals: null,
+    conversationalExamples: null,
+    errorMessage: null,
+    isPublic: false,
+    voiceEnabled: false,
+    imageEnabled: false,
+    createdAt: MOCK_CREATED_AT,
+    updatedAt: MOCK_UPDATED_AT,
+    ...overrides,
+  };
+}
+
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
   const req = {
@@ -480,13 +510,12 @@ describe('/user/personality routes', () => {
     });
 
     it('should create personality successfully', async () => {
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(
+        createMockCreatedPersonality({
+          characterInfo: 'A new character',
+          personalityTraits: 'Friendly, kind',
+        })
+      );
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
@@ -526,13 +555,7 @@ describe('/user/personality routes', () => {
     it('should create user if not exists', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(createMockCreatedPersonality());
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
@@ -550,13 +573,7 @@ describe('/user/personality routes', () => {
     });
 
     it('should set default LLM config if available', async () => {
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(createMockCreatedPersonality());
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: 'default-config',
         isGlobal: true,
@@ -586,13 +603,7 @@ describe('/user/personality routes', () => {
       mockPrisma.systemPrompt.findFirst.mockResolvedValue({
         id: 'default-system-prompt',
       });
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(createMockCreatedPersonality());
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
@@ -620,13 +631,7 @@ describe('/user/personality routes', () => {
 
     it('should set systemPromptId to null when no default system prompt exists', async () => {
       mockPrisma.systemPrompt.findFirst.mockResolvedValue(null);
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(createMockCreatedPersonality());
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
@@ -649,13 +654,9 @@ describe('/user/personality routes', () => {
     });
 
     it('should save errorMessage when provided', async () => {
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(
+        createMockCreatedPersonality({ errorMessage: 'Custom error message for this character' })
+      );
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
@@ -679,13 +680,7 @@ describe('/user/personality routes', () => {
     });
 
     it('should set errorMessage to null when not provided', async () => {
-      mockPrisma.personality.create.mockResolvedValue({
-        id: 'new-personality',
-        name: 'New Character',
-        slug: 'new-char',
-        displayName: null,
-        isPublic: false,
-      });
+      mockPrisma.personality.create.mockResolvedValue(createMockCreatedPersonality());
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
