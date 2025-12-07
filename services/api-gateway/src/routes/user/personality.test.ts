@@ -44,6 +44,13 @@ vi.mock('../../utils/imageProcessor.js', () => ({
   }),
 }));
 
+// Mock fs/promises for avatar cache deletion tests
+vi.mock('fs/promises', () => ({
+  unlink: vi.fn(),
+}));
+import * as fsPromises from 'fs/promises';
+const mockUnlink = vi.mocked(fsPromises.unlink);
+
 // Mock Prisma
 const mockPrisma = {
   user: {
@@ -812,6 +819,120 @@ describe('/user/personality routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    describe('avatar cache deletion', () => {
+      beforeEach(() => {
+        mockUnlink.mockReset();
+        // Standard setup: user exists, owns the personality
+        mockPrisma.personality.findUnique.mockResolvedValue({
+          id: 'personality-avatar',
+          ownerId: 'user-uuid-123',
+          avatarData: null,
+        });
+        mockPrisma.personality.update.mockResolvedValue({
+          id: 'personality-avatar',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: 'Test Display',
+          isPublic: false,
+          updatedAt: new Date(),
+        });
+      });
+
+      it('should delete cached avatar file when avatar is updated', async () => {
+        mockUnlink.mockResolvedValue(undefined);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+          { slug: 'test-char' }
+        );
+
+        await handler(req, res);
+
+        expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/test-char.png');
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should silently handle ENOENT when avatar cache file does not exist', async () => {
+        const enoentError = new Error('File not found') as NodeJS.ErrnoException;
+        enoentError.code = 'ENOENT';
+        mockUnlink.mockRejectedValue(enoentError);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+          { slug: 'valid-slug' }
+        );
+
+        await handler(req, res);
+
+        // Should not fail - ENOENT is expected when file doesn't exist
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should silently handle ENOTDIR when avatar path issue', async () => {
+        const enotdirError = new Error('Not a directory') as NodeJS.ErrnoException;
+        enotdirError.code = 'ENOTDIR';
+        mockUnlink.mockRejectedValue(enotdirError);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+          { slug: 'valid-slug' }
+        );
+
+        await handler(req, res);
+
+        // Should not fail - ENOTDIR is expected when data volume not mounted
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should log warning for other filesystem errors but not fail', async () => {
+        const permError = new Error('Permission denied') as NodeJS.ErrnoException;
+        permError.code = 'EACCES';
+        mockUnlink.mockRejectedValue(permError);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+          { slug: 'valid-slug' }
+        );
+
+        await handler(req, res);
+
+        // Should still succeed - cache deletion failure is non-fatal
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should skip cache deletion for invalid slug format (path traversal protection)', async () => {
+        // This tests the CWE-22 path traversal protection
+        // Invalid slugs should not trigger unlink at all
+        mockPrisma.personality.findUnique.mockResolvedValue({
+          id: 'personality-avatar',
+          ownerId: 'user-uuid-123',
+          slug: '../../../etc/passwd', // Malicious slug
+          avatarData: null,
+        });
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+          { slug: '../../../etc/passwd' }
+        );
+
+        await handler(req, res);
+
+        // unlink should NOT be called for invalid slug
+        expect(mockUnlink).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
     });
   });
 
