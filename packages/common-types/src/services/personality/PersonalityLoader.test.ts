@@ -6,6 +6,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityLoader } from './PersonalityLoader.js';
 import type { PrismaClient } from '../prisma.js';
+import * as ownerMiddleware from '../../utils/ownerMiddleware.js';
+
+vi.mock('../../utils/ownerMiddleware.js', () => ({
+  isBotOwner: vi.fn().mockReturnValue(false),
+}));
 
 describe('PersonalityLoader', () => {
   let mockPrisma: PrismaClient;
@@ -83,6 +88,7 @@ describe('PersonalityLoader', () => {
             },
           ],
         },
+        orderBy: { createdAt: 'asc' },
         select: expect.any(Object),
       });
     });
@@ -123,6 +129,7 @@ describe('PersonalityLoader', () => {
             },
           ],
         },
+        orderBy: { createdAt: 'asc' },
         select: expect.any(Object),
       });
     });
@@ -245,6 +252,44 @@ describe('PersonalityLoader', () => {
       expect(result).toBeNull();
     });
 
+    it('should order by createdAt ascending to prefer oldest personality on name collision', async () => {
+      // When multiple personalities have the same name, the oldest one should be returned
+      // This test verifies that orderBy: { createdAt: 'asc' } is included in the query
+      const mockPersonality = {
+        id: 'oldest-personality',
+        name: 'DuplicateName',
+        displayName: 'Duplicate Name',
+        slug: 'original-slug',
+        isPublic: true,
+        ownerId: null,
+        systemPrompt: { content: 'Original personality' },
+        defaultConfigLink: null,
+        characterInfo: 'Original character',
+        personalityTraits: 'Original traits',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+      };
+
+      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+      const result = await loader.loadFromDatabase('DuplicateName');
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe('oldest-personality');
+      // Verify orderBy is included to ensure oldest (first created) is returned
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { createdAt: 'asc' },
+        })
+      );
+    });
+
     describe('access control', () => {
       it('should apply access filter when userId is provided', async () => {
         const mockPersonality = {
@@ -291,6 +336,7 @@ describe('PersonalityLoader', () => {
               },
             ],
           },
+          orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
         });
       });
@@ -310,6 +356,7 @@ describe('PersonalityLoader', () => {
               },
             ],
           },
+          orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
         });
       });
@@ -322,6 +369,53 @@ describe('PersonalityLoader', () => {
         const result = await loader.loadFromDatabase('private-bot', 'wrong-user');
 
         expect(result).toBeNull();
+      });
+
+      it('should bypass access filter when user is bot owner', async () => {
+        // Mock isBotOwner to return true for this test
+        vi.mocked(ownerMiddleware.isBotOwner).mockReturnValueOnce(true);
+
+        const mockPersonality = {
+          id: 'private-id',
+          name: 'PrivateBot',
+          displayName: 'Private Bot',
+          slug: 'private-bot',
+          isPublic: false,
+          ownerId: 'other-user',
+          systemPrompt: { content: 'Test prompt' },
+          defaultConfigLink: null,
+          characterInfo: 'Test character',
+          personalityTraits: 'Test traits',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+        };
+
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+
+        // Bot owner should be able to access any personality
+        const result = await loader.loadFromDatabase('private-bot', 'bot-owner-id');
+
+        expect(result).not.toBeNull();
+        expect(result?.id).toBe('private-id');
+
+        // Verify no access filter was applied (AND array has only one element)
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+          where: {
+            AND: [
+              {
+                OR: [{ name: { equals: 'private-bot', mode: 'insensitive' } }, { slug: 'private-bot' }],
+              },
+            ],
+          },
+          orderBy: { createdAt: 'asc' },
+          select: expect.any(Object),
+        });
       });
     });
   });

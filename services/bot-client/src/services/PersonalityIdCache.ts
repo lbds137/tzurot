@@ -36,13 +36,22 @@ export class PersonalityIdCache {
   /**
    * Load personality by name or ID
    * If loaded by name before and not expired, uses cached ID for faster lookup
+   *
+   * Access Control:
+   * When userId is provided, only returns personalities that are:
+   * - Public (isPublic = true), OR
+   * - Owned by the requesting user (ownerId = userId), OR
+   * - Requested by the bot owner (admin bypass)
+   *
+   * @param nameOrId - Personality name, UUID, slug, or alias
+   * @param userId - Discord user ID for access control (optional - omit for internal operations)
    */
-  async loadPersonality(nameOrId: string): Promise<LoadedPersonality | null> {
-    // Check if it's a UUID - if so, load directly
+  async loadPersonality(nameOrId: string, userId?: string): Promise<LoadedPersonality | null> {
+    // Check if it's a UUID - if so, load directly (with access control)
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
 
     if (isUUID) {
-      return this.personalityService.loadPersonality(nameOrId);
+      return this.personalityService.loadPersonality(nameOrId, userId);
     }
 
     // Check both name and slug caches (namespaced to prevent collisions)
@@ -60,7 +69,8 @@ export class PersonalityIdCache {
           { input: nameOrId, cachedId: cached.id, age, cacheType: cachedByName ? 'name' : 'slug' },
           'Using cached personality ID'
         );
-        return this.personalityService.loadPersonality(cached.id);
+        // Pass userId for access control
+        return this.personalityService.loadPersonality(cached.id, userId);
       } else {
         logger.debug({ input: nameOrId, age }, 'Cached personality ID expired, refetching');
         this.nameToIdMap.delete(`name:${normalizedInput}`);
@@ -69,7 +79,8 @@ export class PersonalityIdCache {
     }
 
     // First time loading by this name OR cache expired - load and cache the ID
-    const personality = await this.personalityService.loadPersonality(nameOrId);
+    // Pass userId for access control
+    const personality = await this.personalityService.loadPersonality(nameOrId, userId);
     if (personality) {
       const now = Date.now();
       // Cache with namespaced keys to prevent slug/name collisions
