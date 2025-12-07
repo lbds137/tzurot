@@ -11,6 +11,7 @@ import type {
   ConversationalRAGService,
   RAGResponse,
 } from '../../../../services/ConversationalRAGService.js';
+import { RetryError } from '../../../../utils/retryService.js';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -373,6 +374,74 @@ describe('GenerationStep', () => {
       const result = await step.process(context);
 
       expect(result.result?.metadata?.providerUsed).toBe('gemini');
+    });
+
+    describe('RetryError unwrapping', () => {
+      it('should unwrap RetryError to classify underlying API error', async () => {
+        // Create an underlying authentication error
+        const authError = new Error('Invalid API key');
+        // Wrap it in a RetryError
+        const retryError = new RetryError('All retries failed', 3, authError);
+
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(retryError);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(false);
+        // The error message should be from the RetryError (outer), but the
+        // errorInfo.category should be based on the underlying authError
+        expect(result.result?.error).toBe('All retries failed');
+        // The underlying error contains 'Invalid API key' which matches authentication pattern
+        expect(result.result?.errorInfo?.category).toBe('authentication');
+      });
+
+      it('should classify underlying rate limit error from RetryError', async () => {
+        const rateLimitError = new Error('Rate limit exceeded');
+        const retryError = new RetryError('Max retries reached', 3, rateLimitError);
+
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(retryError);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.errorInfo?.category).toBe('rate_limit');
+      });
+
+      it('should handle RetryError with null lastError', async () => {
+        const retryError = new RetryError('Timed out', 3, null);
+
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(retryError);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(false);
+        // With null lastError, should fall back to unknown error classification
+        expect(result.result?.errorInfo?.category).toBe('unknown');
+      });
     });
   });
 });
