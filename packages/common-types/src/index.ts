@@ -68,3 +68,7 @@ export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';
+
+// Export factories (validated mock helpers for testing)
+// Use these instead of manually constructing API response mocks
+export * from './factories/index.js';
