@@ -4,7 +4,14 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { createLogger, getConfig, CONTENT_TYPES, JobStatus } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  CONTENT_TYPES,
+  JobStatus,
+  INTERVALS,
+  TIMEOUTS,
+} from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
 const logger = createLogger('GatewayClient');
@@ -185,8 +192,8 @@ export class GatewayClient {
     jobId: string,
     options: { maxWaitMs?: number; pollIntervalMs?: number } = {}
   ): Promise<GenerateResponse['result']> {
-    const maxWaitMs = options.maxWaitMs ?? 120000; // 2 minutes default
-    const pollIntervalMs = options.pollIntervalMs ?? 1000; // 1 second default
+    const maxWaitMs = options.maxWaitMs ?? TIMEOUTS.JOB_BASE;
+    const pollIntervalMs = options.pollIntervalMs ?? INTERVALS.JOB_POLL_INTERVAL;
     const startTime = Date.now();
 
     logger.info({ jobId, maxWaitMs, pollIntervalMs }, '[GatewayClient] Starting job poll');

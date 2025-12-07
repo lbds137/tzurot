@@ -125,7 +125,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('chat')
-      .setDescription('Send a message to a character')
+      .setDescription('Send a standalone message to a character (no conversation history)')
       .addStringOption(option =>
         option
           .setName('character')

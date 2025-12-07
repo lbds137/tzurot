@@ -57,8 +57,10 @@ export const INTERVALS = {
   REQUEST_DEDUP_CLEANUP: 10000,
   /** Attachment cleanup delay after job completion (5 seconds) */
   ATTACHMENT_CLEANUP_DELAY: 5000,
-  /** Typing indicator refresh interval (8 seconds) */
+  /** Typing indicator refresh interval (8 seconds - Discord expires at 10s) */
   TYPING_INDICATOR_REFRESH: 8000,
+  /** Job polling interval for synchronous-style waiting (1 second) */
+  JOB_POLL_INTERVAL: 1000,
   /** Default delay for embed processing in referenced messages (2.5 seconds) */
   EMBED_PROCESSING_DELAY: 2500,
   /** Message age window for deduplication checks (60 seconds) */
