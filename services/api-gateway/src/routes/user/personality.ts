@@ -21,6 +21,7 @@
 import { Router, type Response } from 'express';
 import { resolve } from 'path';
 import { unlink } from 'fs/promises';
+import { realpathSync } from 'fs';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -680,14 +681,24 @@ export function createPersonalityRoutes(
       // If avatar was updated, invalidate caches
       if (avatarWasUpdated) {
         // 1. Delete filesystem cache (avatars are cached at /data/avatars/<slug>.png)
-        const avatarPath = resolve('/data/avatars', `${slug}.png`);
-        try {
-          await unlink(avatarPath);
-          logger.info({ slug, avatarPath }, '[User] Deleted cached avatar file');
-        } catch (error) {
-          // File might not exist (first avatar upload), that's OK
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-            logger.warn({ err: error, avatarPath }, '[User] Failed to delete cached avatar file');
+        // Use realpathSync to prevent path traversal attacks (CWE-22)
+        const avatarRoot = realpathSync('/data/avatars');
+        const avatarPath = resolve(avatarRoot, `${slug}.png`);
+        // Ensure the resolved path is inside the avatarRoot directory
+        if (!avatarPath.startsWith(avatarRoot + '/')) {
+          logger.warn(
+            { slug, attemptedPath: avatarPath },
+            '[User] Blocked attempt to delete avatar file outside allowed directory'
+          );
+        } else {
+          try {
+            await unlink(avatarPath);
+            logger.info({ slug, avatarPath }, '[User] Deleted cached avatar file');
+          } catch (error) {
+            // File might not exist (first avatar upload), that's OK
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+              logger.warn({ err: error, avatarPath }, '[User] Failed to delete cached avatar file');
+            }
           }
         }
 
