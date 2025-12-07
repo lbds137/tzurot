@@ -128,6 +128,7 @@ export function mapToPersonality(
       globalDefaultConfig?.contextWindowTokens ??
       AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
     avatarUrl: deriveAvatarUrl(db.slug, logger),
+    avatarUpdatedAt: db.updatedAt, // For cache-busting Discord's CDN
     memoryScoreThreshold,
     memoryLimit,
     // Character definition fields (with placeholders replaced)

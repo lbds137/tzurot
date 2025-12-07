@@ -21,6 +21,7 @@ const PERSONALITY_SELECT = {
   slug: true,
   isPublic: true,
   ownerId: true,
+  updatedAt: true, // For avatar cache-busting
   characterInfo: true,
   personalityTraits: true,
   personalityTone: true,
