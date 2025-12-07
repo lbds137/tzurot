@@ -192,8 +192,8 @@ async function main(): Promise<void> {
   app.use('/wallet', createWalletRouter(prisma, cacheRedis, apiKeyCacheInvalidation));
   logger.info('[Gateway] Wallet routes registered (Redis rate limiting)');
 
-  app.use('/user', createUserRouter(prisma, llmConfigCacheInvalidation));
-  logger.info('[Gateway] User routes registered');
+  app.use('/user', createUserRouter(prisma, llmConfigCacheInvalidation, cacheInvalidationService));
+  logger.info('[Gateway] User routes registered (with personality cache invalidation)');
 
   app.use('/models', createModelsRouter(modelCache));
   logger.info('[Gateway] Models routes registered');

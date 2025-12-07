@@ -11,11 +11,14 @@
  */
 
 import { Router, type Response } from 'express';
+import { resolve } from 'path';
+import { unlink } from 'fs/promises';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
   type PersonalitySummary,
+  type CacheInvalidationService,
   AVATAR_LIMITS,
   assertDefined,
 } from '@tzurot/common-types';
@@ -85,7 +88,10 @@ async function canUserEditPersonality(
   return ownerEntry !== null;
 }
 
-export function createPersonalityRoutes(prisma: PrismaClient): Router {
+export function createPersonalityRoutes(
+  prisma: PrismaClient,
+  cacheInvalidationService?: CacheInvalidationService
+): Router {
   const router = Router();
 
   /**
@@ -638,7 +644,8 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
       }
 
       // Process avatar if provided
-      if (avatarData !== undefined && avatarData.length > 0) {
+      const avatarWasUpdated = avatarData !== undefined && avatarData.length > 0;
+      if (avatarWasUpdated) {
         try {
           const result = await optimizeAvatar(avatarData);
           updateData.avatarData = new Uint8Array(result.buffer);
@@ -662,8 +669,40 @@ export function createPersonalityRoutes(prisma: PrismaClient): Router {
         },
       });
 
+      // If avatar was updated, invalidate caches
+      if (avatarWasUpdated) {
+        // 1. Delete filesystem cache (avatars are cached at /data/avatars/<slug>.png)
+        const avatarPath = resolve('/data/avatars', `${slug}.png`);
+        try {
+          await unlink(avatarPath);
+          logger.info({ slug, avatarPath }, '[User] Deleted cached avatar file');
+        } catch (error) {
+          // File might not exist (first avatar upload), that's OK
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            logger.warn({ err: error, avatarPath }, '[User] Failed to delete cached avatar file');
+          }
+        }
+
+        // 2. Invalidate in-memory personality cache across all services
+        if (cacheInvalidationService) {
+          try {
+            await cacheInvalidationService.invalidatePersonality(personality.id);
+            logger.info(
+              { personalityId: personality.id },
+              '[User] Invalidated personality cache after avatar update'
+            );
+          } catch (error) {
+            // Log but don't fail the request - cache will expire via TTL
+            logger.warn(
+              { err: error, personalityId: personality.id },
+              '[User] Failed to invalidate personality cache'
+            );
+          }
+        }
+      }
+
       logger.info(
-        { discordUserId, slug, personalityId: personality.id },
+        { discordUserId, slug, personalityId: personality.id, avatarUpdated: avatarWasUpdated },
         '[User] Updated personality'
       );
 
