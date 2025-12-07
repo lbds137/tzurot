@@ -6,6 +6,7 @@
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { isBotOwner } from '../../utils/ownerMiddleware.js';
+import { isValidUUID } from '../../constants/service.js';
 import type { DatabasePersonality, LlmConfig } from './PersonalityValidator.js';
 import { parseLlmConfig } from './PersonalityValidator.js';
 
@@ -111,11 +112,9 @@ export class PersonalityLoader {
    * @returns DatabasePersonality or null if not found or access denied
    */
   async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
-    // Check if nameOrId is a valid UUID
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
-
     // Build access control filter
     const accessFilter = this.buildAccessFilter(userId);
+    const searchLower = nameOrId.toLowerCase();
 
     try {
       // Prioritized lookup order: UUID → Name → Slug → Alias
@@ -123,7 +122,7 @@ export class PersonalityLoader {
       // (e.g., personality with name "Lilith" should win over one with slug "lilith")
 
       // Step 1a: Try UUID lookup (if input looks like UUID)
-      if (isUUID) {
+      if (isValidUUID(nameOrId)) {
         const byId = await this.prisma.personality.findFirst({
           where: {
             AND: [{ id: nameOrId }, ...(accessFilter ? [accessFilter] : [])],
@@ -135,34 +134,34 @@ export class PersonalityLoader {
         }
       }
 
-      // Step 1b: Try name lookup (case-insensitive) - NAME TAKES PRIORITY
-      // Order by createdAt ascending so oldest personality with matching name wins
-      const byName = await this.prisma.personality.findFirst({
+      // Step 1b+1c: Fetch name OR slug candidates in single query, prioritize in-memory
+      // This optimizes from 2 sequential queries to 1 query with in-memory prioritization
+      const candidates = await this.prisma.personality.findMany({
         where: {
           AND: [
-            { name: { equals: nameOrId, mode: 'insensitive' as const } },
+            {
+              OR: [
+                { name: { equals: nameOrId, mode: 'insensitive' as const } },
+                { slug: searchLower },
+              ],
+            },
             ...(accessFilter ? [accessFilter] : []),
           ],
         },
         orderBy: { createdAt: 'asc' },
         select: PERSONALITY_SELECT,
       });
-      if (byName) {
-        return byName as DatabasePersonality;
+
+      // Prioritize in-memory: Name match takes priority over slug match
+      // This prevents slug "lilith" from overriding a personality actually named "Lilith"
+      const nameMatch = candidates.find(c => c.name.toLowerCase() === searchLower);
+      if (nameMatch) {
+        return nameMatch as DatabasePersonality;
       }
 
-      // Step 1c: Try slug lookup (exact match, lowercase)
-      // Only checked if name didn't match - prevents slug "lilith" from
-      // overriding a personality actually named "Lilith"
-      const bySlug = await this.prisma.personality.findFirst({
-        where: {
-          AND: [{ slug: nameOrId.toLowerCase() }, ...(accessFilter ? [accessFilter] : [])],
-        },
-        orderBy: { createdAt: 'asc' },
-        select: PERSONALITY_SELECT,
-      });
-      if (bySlug) {
-        return bySlug as DatabasePersonality;
+      const slugMatch = candidates.find(c => c.slug === searchLower);
+      if (slugMatch) {
+        return slugMatch as DatabasePersonality;
       }
 
       // Step 2: If not found, check aliases (case-insensitive)

@@ -1,7 +1,7 @@
 /**
  * Service Constants
  *
- * Network, service defaults, application settings, and health status.
+ * Network, service defaults, application settings, health status, and validation patterns.
  */
 
 /**
@@ -13,6 +13,21 @@ export const SERVICE_DEFAULTS = {
   /** Default API gateway port */
   API_GATEWAY_PORT: 3000,
 } as const;
+
+/**
+ * UUID validation pattern (RFC 4122 compliant)
+ * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ */
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Check if a string is a valid UUID
+ * @param value - String to validate
+ * @returns True if the string is a valid UUID
+ */
+export function isValidUUID(value: string | null | undefined): value is string {
+  return value !== null && value !== undefined && UUID_REGEX.test(value);
+}
 
 /**
  * Application-wide settings
