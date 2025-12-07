@@ -34,7 +34,11 @@
  */
 
 import { Router } from 'express';
-import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
+import type {
+  PrismaClient,
+  LlmConfigCacheInvalidationService,
+  CacheInvalidationService,
+} from '@tzurot/common-types';
 import { createTimezoneRoutes } from './timezone.js';
 import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality.js';
@@ -46,10 +50,12 @@ import { createPersonaRoutes } from './persona.js';
  * Create user router with injected dependencies
  * @param prisma - Prisma client instance
  * @param llmConfigCacheInvalidation - Optional cache invalidation service for LLM configs
+ * @param cacheInvalidationService - Optional cache invalidation service for personality changes
  */
 export function createUserRouter(
   prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
+  cacheInvalidationService?: CacheInvalidationService
 ): Router {
   const router = Router();
 
@@ -59,8 +65,8 @@ export function createUserRouter(
   // Usage routes
   router.use('/usage', createUsageRoutes(prisma));
 
-  // Personality routes (for autocomplete)
-  router.use('/personality', createPersonalityRoutes(prisma));
+  // Personality routes (with cache invalidation for avatar changes)
+  router.use('/personality', createPersonalityRoutes(prisma, cacheInvalidationService));
 
   // LLM config routes
   router.use('/llm-config', createLlmConfigRoutes(prisma));
