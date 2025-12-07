@@ -16,3 +16,9 @@ export * from './persona.js';
 
 // Personality endpoint mocks
 export * from './personality.js';
+
+// Model Override endpoint mocks
+export * from './model-override.js';
+
+// Wallet endpoint mocks
+export * from './wallet.js';
