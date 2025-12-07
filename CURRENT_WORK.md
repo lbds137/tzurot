@@ -150,6 +150,7 @@ Following Claude Code review on PR #323, addressed non-refactor items:
    - Tests for areServicesRegistered() returning correct state
 
 **Deferred to future work**:
+
 - GatewayClient.ts tests (254 lines, 5 methods, requires fetch mocking + fake timer polling tests)
 
 **Test counts**: 3,701 total (780 common-types + 750 api-gateway + 824 ai-worker + 1347 bot-client)
@@ -177,6 +178,7 @@ Following Gemini's review of the slug/name collision fix, implemented performanc
 **Test counts**: 3,690 total (780 common-types + 750 api-gateway + 824 ai-worker + 1336 bot-client)
 
 **Commits**:
+
 - `1fd58464` perf(common-types): optimize PersonalityLoader with single-query lookup
 - `a93c9387` fix(ci): use pnpm test:coverage for per-package coverage reports
 
