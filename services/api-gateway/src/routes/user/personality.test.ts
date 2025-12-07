@@ -85,15 +85,15 @@ import type { PrismaClient } from '@tzurot/common-types';
 const MOCK_CREATED_AT = new Date('2024-01-01T00:00:00.000Z');
 const MOCK_UPDATED_AT = new Date('2024-01-02T00:00:00.000Z');
 
-// Base mock personality with all fields needed for POST response
-function createMockCreatedPersonality(overrides: Record<string, unknown> = {}) {
+// Base mock personality with all fields needed for POST/PUT responses
+function createMockPersonality(overrides: Record<string, unknown> = {}) {
   return {
     id: 'new-personality',
     name: 'New Character',
     slug: 'new-char',
     displayName: null,
-    characterInfo: null,
-    personalityTraits: null,
+    characterInfo: 'Default character info',
+    personalityTraits: 'Default traits',
     personalityTone: null,
     personalityAge: null,
     personalityAppearance: null,
@@ -102,13 +102,23 @@ function createMockCreatedPersonality(overrides: Record<string, unknown> = {}) {
     conversationalGoals: null,
     conversationalExamples: null,
     errorMessage: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
     isPublic: false,
     voiceEnabled: false,
     imageEnabled: false,
+    ownerId: 'user-uuid-123',
+    avatarData: null,
     createdAt: MOCK_CREATED_AT,
     updatedAt: MOCK_UPDATED_AT,
     ...overrides,
   };
+}
+
+// Alias for backward compatibility
+function createMockCreatedPersonality(overrides: Record<string, unknown> = {}) {
+  return createMockPersonality(overrides);
 }
 
 // Helper to create mock request/response
@@ -756,14 +766,16 @@ describe('/user/personality routes', () => {
         id: 'personality-7',
         ownerId: 'user-uuid-123',
       });
-      mockPrisma.personality.update.mockResolvedValue({
-        id: 'personality-7',
-        name: 'Updated Name',
-        slug: 'my-char',
-        displayName: 'Updated Display',
-        isPublic: false,
-        updatedAt: new Date('2024-01-03'),
-      });
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-7',
+          name: 'Updated Name',
+          slug: 'my-char',
+          displayName: 'Updated Display',
+          isPublic: false,
+          updatedAt: new Date('2024-01-03'),
+        })
+      );
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:slug');
@@ -803,14 +815,16 @@ describe('/user/personality routes', () => {
         userId: 'user-uuid-123',
         personalityId: 'personality-8',
       });
-      mockPrisma.personality.update.mockResolvedValue({
-        id: 'personality-8',
-        name: 'Updated',
-        slug: 'shared-char',
-        displayName: null,
-        isPublic: false,
-        updatedAt: new Date(),
-      });
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-8',
+          name: 'Updated',
+          slug: 'shared-char',
+          displayName: null,
+          isPublic: false,
+          updatedAt: new Date(),
+        })
+      );
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:slug');
@@ -830,14 +844,14 @@ describe('/user/personality routes', () => {
           ownerId: 'user-uuid-123',
           avatarData: null,
         });
-        mockPrisma.personality.update.mockResolvedValue({
-          id: 'personality-avatar',
-          name: 'Test',
-          slug: 'test-char',
-          displayName: 'Test Display',
-          isPublic: false,
-          updatedAt: new Date(),
-        });
+        mockPrisma.personality.update.mockResolvedValue(
+          createMockPersonality({
+            id: 'personality-avatar',
+            name: 'Test',
+            slug: 'test-char',
+            displayName: 'Test Display',
+          })
+        );
       });
 
       it('should delete cached avatar file when avatar is updated', async () => {
