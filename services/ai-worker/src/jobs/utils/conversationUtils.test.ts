@@ -8,7 +8,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
-import { extractParticipants, convertConversationHistory, type Participant } from './conversationUtils.js';
+import {
+  extractParticipants,
+  convertConversationHistory,
+  type Participant,
+} from './conversationUtils.js';
 import { MessageRole } from '@tzurot/common-types';
 
 // Mock common-types
