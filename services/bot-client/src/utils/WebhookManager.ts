@@ -161,7 +161,8 @@ export class WebhookManager {
     // Discord caches avatar images by URL, so we need to change the URL when avatar changes
     let avatarURL = personality.avatarUrl;
     if (avatarURL !== undefined && avatarURL.length > 0 && personality.avatarUpdatedAt) {
-      const timestamp = new Date(personality.avatarUpdatedAt).getTime();
+      // Safe - avatarUpdatedAt is a Date object after Zod parsing (z.coerce.date)
+      const timestamp = personality.avatarUpdatedAt.getTime();
       avatarURL = `${avatarURL}?v=${timestamp}`;
     }
 
