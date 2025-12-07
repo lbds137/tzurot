@@ -149,6 +149,7 @@ Continued the Code Quality Sprint documented in `docs/improvements/code-quality-
 **Test counts**: 3646 total (776 common-types + 745 api-gateway + 819 ai-worker + 1306 bot-client)
 
 **Commits**:
+
 - `3008c142` refactor(bot-client): extract edit/avatar handlers, enforce coverage
 - `ce447c88` style: fix prettier formatting in edit and avatar tests
 
