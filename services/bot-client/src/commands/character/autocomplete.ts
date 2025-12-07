@@ -22,7 +22,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 
   try {
     // Determine if we should only show owned characters
-    const ownedOnly = subcommand === 'edit' || subcommand === 'avatar';
+    const ownedOnly = subcommand === 'edit' || subcommand === 'avatar' || subcommand === 'delete';
 
     const handled = await handlePersonalityAutocomplete(interaction, {
       optionName: 'character',

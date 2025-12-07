@@ -7,6 +7,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
+// Mock isBotOwner - must be before vi.mock to be hoisted
+const mockIsBotOwner = vi.fn().mockReturnValue(false);
+
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -23,6 +26,7 @@ vi.mock('@tzurot/common-types', async () => {
         throw new Error(`${name} must be defined`);
       }
     }),
+    isBotOwner: (...args: unknown[]) => mockIsBotOwner(...args),
   };
 });
 
@@ -62,10 +66,15 @@ const mockPrisma = {
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   personalityOwner: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
+  },
+  pendingMemory: {
+    count: vi.fn(),
+    deleteMany: vi.fn(),
   },
   systemPrompt: {
     findFirst: vi.fn(),
@@ -79,7 +88,7 @@ const mockPrisma = {
 };
 
 import { createPersonalityRoutes } from './personality.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient, DeletePersonalityResponseSchema } from '@tzurot/common-types';
 
 // Mock dates for consistent testing
 const MOCK_CREATED_AT = new Date('2024-01-01T00:00:00.000Z');
@@ -140,7 +149,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, params: Record<str
 // Helper to get handler from router
 function getHandler(
   router: ReturnType<typeof createPersonalityRoutes>,
-  method: 'get' | 'post' | 'put' | 'patch',
+  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
   path: string
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,12 +164,16 @@ function getHandler(
 describe('/user/personality routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsBotOwner.mockReturnValue(false);
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
     mockPrisma.personality.findMany.mockResolvedValue([]);
     mockPrisma.personality.findUnique.mockResolvedValue(null);
     mockPrisma.personalityOwner.findMany.mockResolvedValue([]);
     mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
     mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+    mockPrisma.pendingMemory.count.mockResolvedValue(0);
+    mockPrisma.pendingMemory.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.personality.delete.mockResolvedValue({});
   });
 
   describe('route factory', () => {
@@ -1066,6 +1079,332 @@ describe('/user/personality routes', () => {
           }),
         })
       );
+    });
+  });
+
+  describe('DELETE /user/personality/:slug', () => {
+    it('should have DELETE /:slug route registered', () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+
+      const deleteRoute = (
+        router.stack as unknown as { route?: { path?: string; methods?: { delete?: boolean } } }[]
+      ).find(layer => layer.route?.path === '/:slug' && layer.route?.methods?.delete);
+      expect(deleteRoute).toBeDefined();
+    });
+
+    it('should return 403 when user not found', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'test-char' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should return 404 when personality not found', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'nonexistent' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return 403 when user does not own personality', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-other',
+        name: 'Not Mine',
+        ownerId: 'other-user-uuid',
+        _count: {
+          conversationHistory: 0,
+          memories: 0,
+          activatedChannels: 0,
+          aliases: 0,
+        },
+      });
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'not-mine' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(mockPrisma.personality.delete).not.toHaveBeenCalled();
+    });
+
+    it('should delete owned personality successfully', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-owned',
+        name: 'My Character',
+        ownerId: 'user-uuid-123',
+        _count: {
+          conversationHistory: 10,
+          memories: 5,
+          activatedChannels: 2,
+          aliases: 1,
+        },
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(3);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'my-char' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.pendingMemory.deleteMany).toHaveBeenCalledWith({
+        where: { personalityId: 'personality-owned' },
+      });
+      expect(mockPrisma.personality.delete).toHaveBeenCalledWith({
+        where: { id: 'personality-owned' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should return correct deletion counts', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-counts',
+        name: 'Count Test',
+        ownerId: 'user-uuid-123',
+        _count: {
+          conversationHistory: 50,
+          memories: 25,
+          activatedChannels: 3,
+          aliases: 2,
+        },
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(10);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'count-test' });
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          deletedSlug: 'count-test',
+          deletedName: 'Count Test',
+          deletedCounts: {
+            conversationHistory: 50,
+            memories: 25,
+            pendingMemories: 10,
+            activatedChannels: 3,
+            aliases: 2,
+          },
+        })
+      );
+    });
+
+    it('should validate response against Zod schema (contract validation)', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-schema',
+        name: 'Schema Test',
+        ownerId: 'user-uuid-123',
+        _count: {
+          conversationHistory: 5,
+          memories: 3,
+          activatedChannels: 1,
+          aliases: 0,
+        },
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(2);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'schema-test' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+
+      // Extract the actual response and validate against schema
+      const jsonCall = vi.mocked(res.json).mock.calls[0][0];
+      const parseResult = DeletePersonalityResponseSchema.safeParse(jsonCall);
+      expect(parseResult.success).toBe(true);
+    });
+
+    it('should skip PendingMemory deletion when count is 0', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-no-pending',
+        name: 'No Pending',
+        ownerId: 'user-uuid-123',
+        _count: {
+          conversationHistory: 5,
+          memories: 3,
+          activatedChannels: 0,
+          aliases: 0,
+        },
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(0);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'no-pending' });
+
+      await handler(req, res);
+
+      // Should NOT call deleteMany when count is 0
+      expect(mockPrisma.pendingMemory.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrisma.personality.delete).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should allow bot owner to delete any personality', async () => {
+      // Set up as bot owner
+      mockIsBotOwner.mockReturnValue(true);
+
+      // Personality owned by someone else
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-other-user',
+        name: 'Other User Character',
+        ownerId: 'other-user-uuid',
+        _count: {
+          conversationHistory: 10,
+          memories: 5,
+          activatedChannels: 0,
+          aliases: 0,
+        },
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(0);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'other-user-char' });
+
+      await handler(req, res);
+
+      expect(mockIsBotOwner).toHaveBeenCalled();
+      expect(mockPrisma.personality.delete).toHaveBeenCalledWith({
+        where: { id: 'personality-other-user' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should allow co-owner (PersonalityOwner table) to delete personality', async () => {
+      // Personality owned by different user
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-coowned',
+        name: 'Co-owned Character',
+        ownerId: 'other-user-uuid',
+        _count: {
+          conversationHistory: 0,
+          memories: 0,
+          activatedChannels: 0,
+          aliases: 0,
+        },
+      });
+      // But user has co-ownership entry
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue({
+        userId: 'user-uuid-123',
+        personalityId: 'personality-coowned',
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(0);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'coowned-char' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.delete).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    describe('avatar cache deletion', () => {
+      beforeEach(() => {
+        mockUnlink.mockReset();
+        mockPrisma.personality.findUnique.mockResolvedValue({
+          id: 'personality-avatar-delete',
+          name: 'Avatar Test',
+          ownerId: 'user-uuid-123',
+          _count: {
+            conversationHistory: 0,
+            memories: 0,
+            activatedChannels: 0,
+            aliases: 0,
+          },
+        });
+        mockPrisma.pendingMemory.count.mockResolvedValue(0);
+      });
+
+      it('should delete cached avatar file with valid slug', async () => {
+        mockUnlink.mockResolvedValue(undefined);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'delete', '/:slug');
+        const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
+
+        await handler(req, res);
+
+        expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/valid-slug.png');
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should silently handle ENOENT when avatar cache file does not exist', async () => {
+        const enoentError = new Error('File not found') as NodeJS.ErrnoException;
+        enoentError.code = 'ENOENT';
+        mockUnlink.mockRejectedValue(enoentError);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'delete', '/:slug');
+        const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
+
+        await handler(req, res);
+
+        // Should not fail - ENOENT is expected when file doesn't exist
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should silently handle ENOTDIR when avatar path issue', async () => {
+        const enotdirError = new Error('Not a directory') as NodeJS.ErrnoException;
+        enotdirError.code = 'ENOTDIR';
+        mockUnlink.mockRejectedValue(enotdirError);
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'delete', '/:slug');
+        const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
+
+        await handler(req, res);
+
+        // Should not fail - ENOTDIR is expected when data volume not mounted
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should skip avatar deletion for invalid slug format (path traversal protection)', async () => {
+        // This tests the CWE-22 path traversal protection
+        // Invalid slugs should not trigger unlink at all
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'delete', '/:slug');
+        const { req, res } = createMockReqRes({}, { slug: '../../../etc/passwd' });
+
+        await handler(req, res);
+
+        // unlink should NOT be called for invalid slug
+        expect(mockUnlink).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should skip avatar deletion for slug with spaces', async () => {
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'delete', '/:slug');
+        const { req, res } = createMockReqRes({}, { slug: 'invalid slug' });
+
+        await handler(req, res);
+
+        // unlink should NOT be called for slug with spaces
+        expect(mockUnlink).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
     });
   });
 });

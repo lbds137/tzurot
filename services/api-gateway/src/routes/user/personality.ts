@@ -5,6 +5,7 @@
 // - create.ts (create personality)
 // - update.ts (update personality with avatar cache invalidation)
 // - visibility.ts (toggle visibility)
+// - delete.ts (delete personality with cascade cleanup)
 
 /**
  * User Personality Routes
@@ -16,6 +17,7 @@
  * - POST /user/personality - Create a new personality
  * - PUT /user/personality/:slug - Update an owned personality
  * - PATCH /user/personality/:slug/visibility - Toggle visibility
+ * - DELETE /user/personality/:slug - Delete an owned personality and all related data
  */
 
 import { Router, type Response } from 'express';
@@ -30,6 +32,8 @@ import {
   AVATAR_LIMITS,
   assertDefined,
   isBotOwner,
+  DeletePersonalityResponseSchema,
+  type DeletePersonalityResponse,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
@@ -906,6 +910,159 @@ export function createPersonalityRoutes(
         },
         StatusCodes.OK
       );
+    })
+  );
+
+  /**
+   * DELETE /user/personality/:slug
+   * Delete a personality and all associated data (owned personalities only)
+   *
+   * This is a destructive operation that:
+   * 1. Deletes PendingMemory records manually (no FK cascade)
+   * 2. Deletes the personality (Prisma cascades ConversationHistory, Memory, Aliases, etc.)
+   * 3. Deletes cached avatar file
+   * 4. Invalidates personality cache
+   */
+  router.delete(
+    '/:slug',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const discordUserId = req.userId;
+      const { slug } = req.params;
+
+      // Get user
+      const user = await prisma.user.findFirst({
+        where: { discordId: discordUserId },
+        select: { id: true },
+      });
+
+      if (user === null) {
+        return sendError(res, ErrorResponses.unauthorized('User not found'));
+      }
+
+      // Find personality with data for deletion counts
+      const personality = await prisma.personality.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+          _count: {
+            select: {
+              conversationHistory: true,
+              memories: true,
+              activatedChannels: true,
+              aliases: true,
+            },
+          },
+        },
+      });
+
+      if (personality === null) {
+        return sendError(res, ErrorResponses.notFound('Personality not found'));
+      }
+
+      // Check ownership (bot owner can delete any personality)
+      const canDelete = await canUserEditPersonality(
+        prisma,
+        user.id,
+        personality.id,
+        discordUserId
+      );
+      if (!canDelete) {
+        return sendError(
+          res,
+          ErrorResponses.unauthorized('You do not have permission to delete this personality')
+        );
+      }
+
+      // Count PendingMemory records (need manual deletion - no FK cascade)
+      const pendingMemoryCount = await prisma.pendingMemory.count({
+        where: { personalityId: personality.id },
+      });
+
+      // Store counts before deletion
+      const deletedCounts = {
+        conversationHistory: personality._count.conversationHistory,
+        memories: personality._count.memories,
+        pendingMemories: pendingMemoryCount,
+        activatedChannels: personality._count.activatedChannels,
+        aliases: personality._count.aliases,
+      };
+
+      logger.info(
+        {
+          discordUserId,
+          slug,
+          personalityId: personality.id,
+          deletedCounts,
+        },
+        '[Personality] Starting deletion'
+      );
+
+      // 1. Delete PendingMemory records first (no FK cascade)
+      if (pendingMemoryCount > 0) {
+        await prisma.pendingMemory.deleteMany({
+          where: { personalityId: personality.id },
+        });
+        logger.debug(
+          { personalityId: personality.id, count: pendingMemoryCount },
+          '[Personality] Deleted PendingMemory records'
+        );
+      }
+
+      // 2. Delete personality (Prisma cascades ConversationHistory, Memory, Aliases, etc.)
+      await prisma.personality.delete({
+        where: { id: personality.id },
+      });
+
+      // 3. Delete cached avatar file
+      const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
+      if (SAFE_SLUG_PATTERN.test(slug)) {
+        const avatarPath = resolve('/data/avatars', `${slug}.png`);
+        try {
+          await unlink(avatarPath);
+          logger.info({ slug, avatarPath }, '[Personality] Deleted cached avatar file');
+        } catch (error) {
+          const errCode = (error as NodeJS.ErrnoException).code;
+          if (errCode !== 'ENOENT' && errCode !== 'ENOTDIR') {
+            logger.warn({ err: error, avatarPath }, '[Personality] Failed to delete avatar file');
+          }
+        }
+      }
+
+      // 4. Invalidate personality cache
+      if (cacheInvalidationService) {
+        try {
+          await cacheInvalidationService.invalidatePersonality(personality.id);
+          logger.debug(
+            { personalityId: personality.id },
+            '[Personality] Invalidated cache after deletion'
+          );
+        } catch (error) {
+          logger.warn(
+            { err: error, personalityId: personality.id },
+            '[Personality] Failed to invalidate cache'
+          );
+        }
+      }
+
+      logger.info(
+        { discordUserId, slug, deletedCounts },
+        '[Personality] Successfully deleted personality and all related data'
+      );
+
+      // Build response matching the schema
+      const response: DeletePersonalityResponse = {
+        success: true,
+        deletedSlug: slug,
+        deletedName: personality.name,
+        deletedCounts,
+      };
+
+      // Validate response against schema before sending
+      const validated = DeletePersonalityResponseSchema.parse(response);
+      sendCustomSuccess(res, validated, StatusCodes.OK);
     })
   );
 

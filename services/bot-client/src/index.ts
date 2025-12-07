@@ -7,6 +7,7 @@ import {
   UserService,
   PersonaResolver,
   PersonaCacheInvalidationService,
+  ConversationHistoryService,
   disconnectPrisma,
   getPrismaClient,
   getConfig,
@@ -106,6 +107,7 @@ function createServices(): Services {
 
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
+  const conversationHistoryService = new ConversationHistoryService(prisma);
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
   const personalityIdCache = new PersonalityIdCache(personalityService); // Optimizes name→ID lookups
   const userService = new UserService(prisma);
@@ -150,6 +152,7 @@ function createServices(): Services {
     webhookManager,
     gatewayClient,
     personalityService,
+    conversationHistoryService,
   });
 
   return {

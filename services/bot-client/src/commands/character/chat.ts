@@ -24,6 +24,7 @@ import {
   DISCORD_LIMITS,
   INTERVALS,
   TIMEOUTS,
+  MESSAGE_LIMITS,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../../types.js';
@@ -31,6 +32,7 @@ import {
   getGatewayClient,
   getPersonalityService,
   getWebhookManager,
+  getConversationHistoryService,
 } from '../../services/serviceRegistry.js';
 import { redisService } from '../../redis.js';
 
@@ -149,25 +151,48 @@ export async function handleChat(
     const userMessageContent = `**${displayName}:** ${message}`;
     await channel.send(userMessageContent);
 
-    // 5. Build context for AI generation
+    // 5. Fetch conversation history for this channel + personality
+    const conversationHistoryService = getConversationHistoryService();
+    const history = await conversationHistoryService.getRecentHistory(
+      channel.id,
+      personality.id,
+      MESSAGE_LIMITS.MAX_HISTORY_FETCH
+    );
+
+    // Convert history to API format (matching MessageContextBuilder pattern)
+    const conversationHistory = history.map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      createdAt: msg.createdAt.toISOString(),
+      personaId: msg.personaId,
+      personaName: msg.personaName,
+    }));
+
+    logger.debug(
+      { historyCount: conversationHistory.length, characterSlug },
+      '[Character Chat] Fetched conversation history'
+    );
+
+    // 6. Build context for AI generation
     const context: MessageContext = {
       messageContent: message,
       userId,
       userName: displayName,
       environment: buildEnvironment(interaction),
-      conversationHistory: [], // No history for chat command (could be enhanced later)
+      conversationHistory,
     };
 
-    // 6. Submit job to gateway
+    // 7. Submit job to gateway
     const gatewayClient = getGatewayClient();
     const { jobId } = await gatewayClient.generate(personality, context);
 
     logger.info({ jobId, characterSlug }, '[Character Chat] Job submitted, polling for result');
 
-    // 7. Show typing indicator while waiting
+    // 8. Show typing indicator while waiting
     await channel.sendTyping();
 
-    // 8. Poll for result (with typing indicator refresh)
+    // 9. Poll for result (with typing indicator refresh)
     // NOTE: setInterval is a known scaling blocker (see CLAUDE.md "Timer Patterns")
     // Acceptable here as it's short-lived and cleared in finally block
     const typingInterval = setInterval(() => {
@@ -189,7 +214,7 @@ export async function handleChat(
         return;
       }
 
-      // 9. Send AI response via webhook
+      // 10. Send AI response via webhook
       await sendCharacterResponse(
         channel as TextChannel | ThreadChannel,
         personality,

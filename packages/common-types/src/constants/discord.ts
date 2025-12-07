@@ -65,6 +65,8 @@ export const DISCORD_LIMITS = {
   MODAL_TITLE_MAX_LENGTH: 45,
   /** Safe length for dynamic content in modal title (accounting for prefix like "Persona for ") */
   MODAL_TITLE_DYNAMIC_CONTENT: 30,
+  /** Timeout for button collector interactions (30 seconds) */
+  BUTTON_COLLECTOR_TIMEOUT: 30000,
 } as const;
 
 /**

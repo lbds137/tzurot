@@ -10,7 +10,7 @@
  * - Import getJobTracker(), getWebhookManager(), etc. in commands
  */
 
-import type { PersonalityService } from '@tzurot/common-types';
+import type { PersonalityService, ConversationHistoryService } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -20,6 +20,7 @@ let jobTracker: JobTracker | undefined;
 let webhookManager: WebhookManager | undefined;
 let gatewayClient: GatewayClient | undefined;
 let personalityService: PersonalityService | undefined;
+let conversationHistoryService: ConversationHistoryService | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -29,6 +30,7 @@ export interface RegisteredServices {
   webhookManager: WebhookManager;
   gatewayClient: GatewayClient;
   personalityService: PersonalityService;
+  conversationHistoryService: ConversationHistoryService;
 }
 
 /**
@@ -40,6 +42,7 @@ export function registerServices(services: RegisteredServices): void {
   webhookManager = services.webhookManager;
   gatewayClient = services.gatewayClient;
   personalityService = services.personalityService;
+  conversationHistoryService = services.conversationHistoryService;
 }
 
 /**
@@ -87,6 +90,17 @@ export function getPersonalityService(): PersonalityService {
 }
 
 /**
+ * Get the ConversationHistoryService instance
+ * @throws Error if services not registered
+ */
+export function getConversationHistoryService(): ConversationHistoryService {
+  if (conversationHistoryService === undefined) {
+    throw new Error('ConversationHistoryService not registered. Call registerServices() first.');
+  }
+  return conversationHistoryService;
+}
+
+/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -94,7 +108,8 @@ export function areServicesRegistered(): boolean {
     jobTracker !== undefined &&
     webhookManager !== undefined &&
     gatewayClient !== undefined &&
-    personalityService !== undefined
+    personalityService !== undefined &&
+    conversationHistoryService !== undefined
   );
 }
 
@@ -112,4 +127,5 @@ export function resetServices(): void {
   webhookManager = undefined;
   gatewayClient = undefined;
   personalityService = undefined;
+  conversationHistoryService = undefined;
 }
