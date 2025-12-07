@@ -18,7 +18,13 @@ import type {
   GuildMember,
 } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import { createLogger, splitMessage, DISCORD_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  splitMessage,
+  DISCORD_LIMITS,
+  INTERVALS,
+  TIMEOUTS,
+} from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../../types.js';
 import {
@@ -151,16 +157,18 @@ export async function handleChat(
     await channel.sendTyping();
 
     // 8. Poll for result (with typing indicator refresh)
+    // NOTE: setInterval is a known scaling blocker (see CLAUDE.md "Timer Patterns")
+    // Acceptable here as it's short-lived and cleared in finally block
     const typingInterval = setInterval(() => {
       channel.sendTyping().catch(() => {
         // Ignore typing errors
       });
-    }, 8000);
+    }, INTERVALS.TYPING_INDICATOR_REFRESH);
 
     try {
       const result = await gatewayClient.pollJobUntilComplete(jobId, {
-        maxWaitMs: 120000, // 2 minutes
-        pollIntervalMs: 1000,
+        maxWaitMs: TIMEOUTS.JOB_BASE,
+        pollIntervalMs: INTERVALS.JOB_POLL_INTERVAL,
       });
 
       clearInterval(typingInterval);

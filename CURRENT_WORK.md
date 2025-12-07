@@ -128,6 +128,60 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 
 ## Recent Work (2025-12-07)
 
+**PR #323 Review Feedback Addressed**:
+
+Following Claude Code review on PR #323, addressed non-refactor items:
+
+1. **Extracted magic numbers to constants** in `timing.ts`:
+   - Added `INTERVALS.JOB_POLL_INTERVAL: 1000` for job polling
+   - Updated `chat.ts` to use `INTERVALS.TYPING_INDICATOR_REFRESH` and `TIMEOUTS.JOB_BASE`
+   - Updated `GatewayClient.ts` to use the same constants
+
+2. **Documented setInterval scaling pattern** in `chat.ts`:
+   - Added inline comment noting setInterval as scaling blocker
+   - Acceptable for this use case (request-scoped, short-lived, cleared in finally)
+
+3. **Updated /character chat description** to document no conversation history:
+   - Changed description to: "Send a standalone message to a character (no conversation history)"
+
+4. **Added serviceRegistry.ts tests** (11 tests):
+   - Tests for getters throwing when services not registered
+   - Tests for registerServices() populating services
+   - Tests for areServicesRegistered() returning correct state
+
+**Deferred to future work**:
+- GatewayClient.ts tests (254 lines, 5 methods, requires fetch mocking + fake timer polling tests)
+
+**Test counts**: 3,701 total (780 common-types + 750 api-gateway + 824 ai-worker + 1347 bot-client)
+
+---
+
+**PersonalityLoader Optimization & CI Fix**:
+
+Following Gemini's review of the slug/name collision fix, implemented performance optimizations:
+
+1. **Centralized UUID validation** - Moved duplicated UUID regex to `constants/service.ts`
+   - Added `UUID_REGEX` and `isValidUUID()` function
+   - DRY principle - single source of truth for UUID validation
+
+2. **Single-query optimization** - Reduced PersonalityLoader from 2-3 sequential queries to 1
+   - Combined name/slug lookup into single `findMany` with OR conditions
+   - In-memory prioritization: name matches take priority over slug matches
+   - Performance improvement while maintaining correct collision prevention
+
+3. **Fixed CI Codecov upload** - Coverage reports weren't being generated in expected locations
+   - Changed from `npx vitest run --coverage` to `pnpm test:coverage`
+   - Updated junit.xml paths to find per-package test results
+   - Coverage now generates in `./services/*/coverage/` and `./packages/*/coverage/`
+
+**Test counts**: 3,690 total (780 common-types + 750 api-gateway + 824 ai-worker + 1336 bot-client)
+
+**Commits**:
+- `1fd58464` perf(common-types): optimize PersonalityLoader with single-query lookup
+- `a93c9387` fix(ci): use pnpm test:coverage for per-package coverage reports
+
+---
+
 **Code Quality Sprint** - Phase 4 COMPLETE:
 
 Continued the Code Quality Sprint documented in `docs/improvements/code-quality-sprint.md`.
