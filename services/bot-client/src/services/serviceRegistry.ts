@@ -97,3 +97,19 @@ export function areServicesRegistered(): boolean {
     personalityService !== undefined
   );
 }
+
+/**
+ * Reset all service references to undefined.
+ * Used in tests to ensure clean state between test suites.
+ *
+ * @example
+ * afterEach(() => {
+ *   resetServices();
+ * });
+ */
+export function resetServices(): void {
+  jobTracker = undefined;
+  webhookManager = undefined;
+  gatewayClient = undefined;
+  personalityService = undefined;
+}

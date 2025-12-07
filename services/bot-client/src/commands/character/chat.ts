@@ -37,7 +37,18 @@ import { redisService } from '../../redis.js';
 const logger = createLogger('character-chat');
 
 /**
- * Build Discord environment context from interaction
+ * Build Discord environment context from a slash command interaction.
+ *
+ * Extracts guild, channel, and type information to provide context
+ * for AI personality responses about where the conversation is happening.
+ *
+ * @param interaction - The slash command interaction from Discord
+ * @returns Environment object with guild/channel metadata
+ * @throws Error if channel is unavailable (should never happen in valid interactions)
+ *
+ * @example
+ * const env = buildEnvironment(interaction);
+ * // Returns: { type: 'guild', guild: { id: '123', name: 'My Server' }, channel: { id: '456', name: 'general', type: 'text' } }
  */
 function buildEnvironment(interaction: ChatInputCommandInteraction): {
   type: 'guild' | 'dm';

@@ -144,4 +144,33 @@ describe('serviceRegistry', () => {
       expect(areServicesRegistered()).toBe(false);
     });
   });
+
+  describe('resetServices', () => {
+    it('should reset all services to undefined', async () => {
+      const { registerServices, resetServices, areServicesRegistered, getJobTracker } =
+        await import('./serviceRegistry.js');
+
+      const mockJobTracker = { track: vi.fn() } as unknown as JobTracker;
+      const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
+      const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
+      const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
+
+      // Register services first
+      registerServices({
+        jobTracker: mockJobTracker,
+        webhookManager: mockWebhookManager,
+        gatewayClient: mockGatewayClient,
+        personalityService: mockPersonalityService,
+      });
+
+      expect(areServicesRegistered()).toBe(true);
+
+      // Reset services
+      resetServices();
+
+      // Verify all services are now undefined
+      expect(areServicesRegistered()).toBe(false);
+      expect(() => getJobTracker()).toThrow('JobTracker not registered');
+    });
+  });
 });
