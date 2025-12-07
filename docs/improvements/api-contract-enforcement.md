@@ -303,19 +303,27 @@ Add to code style:
 
 ## Rollout Strategy
 
-### Immediate (This Session)
+### Immediate (This Session) ✅ COMPLETE
 
-- [ ] Create `schemas/api/persona.ts` with buggy endpoint schemas
-- [ ] Create `schemas/api/personality.ts` with create personality schema
-- [ ] Create `factories/persona.ts` and `factories/personality.ts`
-- [ ] Update the two buggy endpoint tests to use factories
-- [ ] Add post-mortem to CLAUDE.md
+- [x] Create `schemas/api/persona.ts` with buggy endpoint schemas
+- [x] Create `schemas/api/personality.ts` with create personality schema
+- [x] Create `factories/persona.ts` and `factories/personality.ts`
+- [x] Update the two buggy endpoint tests to use factories
+- [x] **BONUS**: Found and fixed DELETE /user/persona/override/:slug contract mismatch
+  - Gateway was returning `{message, personalitySlug}` but bot-client expected `{success, personality, hadOverride}`
+  - This would have broken `/me profile override-clear` in production!
 
 ### Short-term (Next Few Sessions)
 
 - [ ] Add `validateResponse()` to gateway
 - [ ] Audit high-risk endpoints (all POST/PUT that return data used by UI)
-- [ ] Convert 10-15 most critical endpoints to schema pattern
+- [ ] Convert remaining 18 test files (incrementally, as code is touched):
+  - Profile: create, default, edit, list, share-ltm, view
+  - Model: handlers, clear-default
+  - Timezone: get, set
+  - Preset: create, delete, list
+  - Wallet: list, test
+  - Autocomplete: me/autocomplete, character/autocomplete, personalityAutocomplete
 
 ### Ongoing
 

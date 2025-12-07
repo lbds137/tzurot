@@ -1,8 +1,8 @@
 # Current Work
 
-> Last updated: 2025-12-06
+> Last updated: 2025-12-07
 
-## Status: /me Command Refactor
+## Status: API Contract Enforcement
 
 **Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
 **Branch**: `refactor/me-commands-and-autocomplete`
@@ -123,6 +123,40 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 - Mark old commands as `(Deprecated)` in description
 - Old commands reply with "Please use `/new-command` instead"
 - Keep deprecated commands for 2-4 weeks before removal
+
+---
+
+## Recent Work (2025-12-07)
+
+**API Contract Enforcement System** - Phase 1 COMPLETE:
+
+Following two production bugs from v3.0.0-beta.9 (profile override-set, character creation),
+implemented a contract enforcement system to prevent future API mismatches.
+
+**Implemented**:
+- Zod schemas in `packages/common-types/src/schemas/api/` for persona and personality endpoints
+- Validated mock factories in `packages/common-types/src/factories/` that crash tests if mocks don't match schemas
+- RFC 4122 v5 compliant UUIDs for test data
+- Converted `override-set.test.ts` and `override-clear.test.ts` to use validated factories
+
+**Contract Bug Found & Fixed**:
+- DELETE /user/persona/override/:slug was returning `{message, personalitySlug}`
+- Bot-client expected `{success, personality, hadOverride}`
+- Would have broken `/me profile override-clear` in production!
+- Fixed gateway to return correct response format
+
+**Remaining** (18 test files, convert incrementally):
+- Profile: create, default, edit, list, share-ltm, view
+- Model: handlers, clear-default
+- Timezone: get, set
+- Preset: create, delete, list
+- Wallet: list, test
+- Autocomplete: me/autocomplete, character/autocomplete, personalityAutocomplete
+
+**Full documentation**: [docs/improvements/api-contract-enforcement.md](docs/improvements/api-contract-enforcement.md)
+
+**Commits**:
+- `d928f001` fix(api-gateway): fix DELETE override response + use validated mock factories
 
 ---
 
