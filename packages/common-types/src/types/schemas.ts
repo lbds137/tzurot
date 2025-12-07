@@ -134,7 +134,7 @@ export const loadedPersonalitySchema = z.object({
 
   // Avatar
   avatarUrl: z.string().optional(),
-  avatarUpdatedAt: z.date().optional(), // For cache-busting Discord's CDN
+  avatarUpdatedAt: z.coerce.date().optional(), // For cache-busting Discord's CDN (coerce handles JSON string dates)
 
   // Character definition fields
   characterInfo: z.string(),
