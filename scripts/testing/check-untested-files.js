@@ -46,10 +46,12 @@ const INDEX_FILE_MIN_LINES = 100;
 // Minimum line count to consider a file "significant" enough to require tests
 const MIN_LINES_FOR_TEST = 50;
 
-// Files explicitly known to be untested (technical debt - track these!)
+// Files explicitly known to be untested (intentionally excluded)
 const KNOWN_UNTESTED = new Set([
-  // Add files here as you identify them to suppress warnings
-  // 'services/bot-client/src/commands/character/template.ts', // Only 34 lines
+  // Routing/wiring only - all business logic handlers extracted to separate tested files
+  'services/bot-client/src/commands/character/index.ts',
+  // Types-only file - no executable code, just TypeScript interfaces
+  'services/ai-worker/src/services/context/PromptContext.ts',
 ]);
 
 function getAllTsFiles(dir, files = []) {
