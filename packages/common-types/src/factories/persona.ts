@@ -26,9 +26,9 @@ import {
   type CreatePersonaResponse,
 } from '../schemas/api/persona.js';
 
-// Default UUIDs for consistent test data
-const DEFAULT_PERSONALITY_ID = '11111111-1111-1111-1111-111111111111';
-const DEFAULT_PERSONA_ID = '22222222-2222-2222-2222-222222222222';
+// Default UUIDs for consistent test data (RFC 4122 compliant v5 UUIDs)
+const DEFAULT_PERSONALITY_ID = '11111111-1111-5111-8111-111111111111';
+const DEFAULT_PERSONA_ID = '22222222-2222-5222-8222-222222222222';
 
 /**
  * Create a validated mock for GET /user/persona/override/:slug
@@ -79,7 +79,12 @@ export function mockClearOverrideResponse(
 ): ClearOverrideResponse {
   const base: ClearOverrideResponse = {
     success: true,
-    personalityName: 'TestPersonality',
+    personality: {
+      id: DEFAULT_PERSONALITY_ID,
+      name: 'TestPersonality',
+      displayName: 'Test Personality',
+    },
+    hadOverride: true,
   };
   return ClearOverrideResponseSchema.parse(deepMerge(base, overrides));
 }

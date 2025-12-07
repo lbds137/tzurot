@@ -687,8 +687,13 @@ describe('/user/persona routes', () => {
       expect(mockPrisma.userPersonalityConfig.delete).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('override cleared'),
-          personalitySlug: 'lilith',
+          success: true,
+          personality: {
+            id: MOCK_PERSONALITY_ID,
+            name: 'Lilith',
+            displayName: 'Lilith the Succubus',
+          },
+          hadOverride: true,
         })
       );
     });
@@ -746,10 +751,16 @@ describe('/user/persona routes', () => {
       const { req, res } = createMockReqRes({}, { personalitySlug: 'lilith' });
       await handler(req, res);
 
-      // Should succeed (idempotent delete)
+      // Should succeed (idempotent delete) with hadOverride: false
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          personalitySlug: 'lilith',
+          success: true,
+          personality: {
+            id: MOCK_PERSONALITY_ID,
+            name: 'Lilith',
+            displayName: 'Lilith',
+          },
+          hadOverride: false,
         })
       );
     });
