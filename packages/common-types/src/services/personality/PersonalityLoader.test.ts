@@ -409,7 +409,10 @@ describe('PersonalityLoader', () => {
           where: {
             AND: [
               {
-                OR: [{ name: { equals: 'private-bot', mode: 'insensitive' } }, { slug: 'private-bot' }],
+                OR: [
+                  { name: { equals: 'private-bot', mode: 'insensitive' } },
+                  { slug: 'private-bot' },
+                ],
               },
             ],
           },
