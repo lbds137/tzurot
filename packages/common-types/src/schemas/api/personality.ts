@@ -97,3 +97,34 @@ export const ListPersonalitiesResponseSchema = z.object({
   ),
 });
 export type ListPersonalitiesResponse = z.infer<typeof ListPersonalitiesResponseSchema>;
+
+// ============================================================================
+// DELETE /user/personality/:slug
+// Deletes a personality and all associated data
+// ============================================================================
+
+/** Counts of deleted related records for user feedback */
+export const DeletedCountsSchema = z.object({
+  /** Number of conversation history messages deleted */
+  conversationHistory: z.number().int().nonnegative(),
+  /** Number of memory entries deleted */
+  memories: z.number().int().nonnegative(),
+  /** Number of pending memory entries deleted */
+  pendingMemories: z.number().int().nonnegative(),
+  /** Number of activated channels deleted */
+  activatedChannels: z.number().int().nonnegative(),
+  /** Number of aliases deleted */
+  aliases: z.number().int().nonnegative(),
+});
+export type DeletedCounts = z.infer<typeof DeletedCountsSchema>;
+
+export const DeletePersonalityResponseSchema = z.object({
+  success: z.literal(true),
+  /** The slug of the deleted personality */
+  deletedSlug: z.string(),
+  /** The name of the deleted personality (for user-friendly feedback) */
+  deletedName: z.string(),
+  /** Counts of deleted related records */
+  deletedCounts: DeletedCountsSchema,
+});
+export type DeletePersonalityResponse = z.infer<typeof DeletePersonalityResponseSchema>;

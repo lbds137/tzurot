@@ -29,10 +29,15 @@ const mockPersonalityService = {
   loadPersonality: vi.fn(),
 };
 
+const mockConversationHistoryService = {
+  getRecentHistory: vi.fn(),
+};
+
 vi.mock('../../services/serviceRegistry.js', () => ({
   getGatewayClient: () => mockGatewayClient,
   getWebhookManager: () => mockWebhookManager,
   getPersonalityService: () => mockPersonalityService,
+  getConversationHistoryService: () => mockConversationHistoryService,
 }));
 
 // Mock redis service
@@ -121,6 +126,8 @@ describe('Character Chat Handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    // Default: empty conversation history
+    mockConversationHistoryService.getRecentHistory.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -253,6 +260,75 @@ describe('Character Chat Handler', () => {
           messageContent: 'Hello!',
           userId: 'user-123',
           userName: 'TestUser',
+        })
+      );
+    });
+
+    it('should fetch and include conversation history in context', async () => {
+      const mockChannel = createMockChannel();
+      const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+      const personality = createMockPersonality({ id: 'personality-uuid-123' });
+
+      // Mock conversation history with sample messages
+      const mockHistory = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: 'Previous message 1',
+          createdAt: new Date('2025-12-07T10:00:00Z'),
+          personaId: 'persona-1',
+          personaName: 'User1',
+        },
+        {
+          id: 'msg-2',
+          role: 'assistant',
+          content: 'Previous response 1',
+          createdAt: new Date('2025-12-07T10:01:00Z'),
+          personaId: 'persona-2',
+          personaName: null,
+        },
+      ];
+      mockConversationHistoryService.getRecentHistory.mockResolvedValue(mockHistory);
+
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        content: 'Response',
+        metadata: {},
+      });
+      mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+      await handleChat(mockInteraction, mockConfig);
+
+      // Verify conversation history was fetched with correct parameters
+      expect(mockConversationHistoryService.getRecentHistory).toHaveBeenCalledWith(
+        'channel-123', // channel ID from mock
+        'personality-uuid-123', // personality ID
+        100 // MESSAGE_LIMITS.MAX_HISTORY_FETCH
+      );
+
+      // Verify context includes conversation history with ISO timestamps
+      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+        personality,
+        expect.objectContaining({
+          conversationHistory: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              content: 'Previous message 1',
+              createdAt: '2025-12-07T10:00:00.000Z',
+              personaId: 'persona-1',
+              personaName: 'User1',
+            },
+            {
+              id: 'msg-2',
+              role: 'assistant',
+              content: 'Previous response 1',
+              createdAt: '2025-12-07T10:01:00.000Z',
+              personaId: 'persona-2',
+              personaName: null,
+            },
+          ],
         })
       );
     });

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { PersonalityService } from '@tzurot/common-types';
+import type { PersonalityService, ConversationHistoryService } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -45,6 +45,13 @@ describe('serviceRegistry', () => {
       );
     });
 
+    it('should throw when getting ConversationHistoryService before registration', async () => {
+      const { getConversationHistoryService } = await import('./serviceRegistry.js');
+      expect(() => getConversationHistoryService()).toThrow(
+        'ConversationHistoryService not registered. Call registerServices() first.'
+      );
+    });
+
     it('should report services not registered', async () => {
       const { areServicesRegistered } = await import('./serviceRegistry.js');
       expect(areServicesRegistered()).toBe(false);
@@ -56,6 +63,9 @@ describe('serviceRegistry', () => {
     const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
     const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
     const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
+    const mockConversationHistoryService = {
+      getRecentHistory: vi.fn(),
+    } as unknown as ConversationHistoryService;
 
     it('should return registered JobTracker', async () => {
       const { registerServices, getJobTracker } = await import('./serviceRegistry.js');
@@ -65,6 +75,7 @@ describe('serviceRegistry', () => {
         webhookManager: mockWebhookManager,
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
       });
 
       expect(getJobTracker()).toBe(mockJobTracker);
@@ -78,6 +89,7 @@ describe('serviceRegistry', () => {
         webhookManager: mockWebhookManager,
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
       });
 
       expect(getWebhookManager()).toBe(mockWebhookManager);
@@ -91,6 +103,7 @@ describe('serviceRegistry', () => {
         webhookManager: mockWebhookManager,
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
       });
 
       expect(getGatewayClient()).toBe(mockGatewayClient);
@@ -104,9 +117,25 @@ describe('serviceRegistry', () => {
         webhookManager: mockWebhookManager,
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
       });
 
       expect(getPersonalityService()).toBe(mockPersonalityService);
+    });
+
+    it('should return registered ConversationHistoryService', async () => {
+      const { registerServices, getConversationHistoryService } =
+        await import('./serviceRegistry.js');
+
+      registerServices({
+        jobTracker: mockJobTracker,
+        webhookManager: mockWebhookManager,
+        gatewayClient: mockGatewayClient,
+        personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
+      });
+
+      expect(getConversationHistoryService()).toBe(mockConversationHistoryService);
     });
 
     it('should report services as registered', async () => {
@@ -117,6 +146,7 @@ describe('serviceRegistry', () => {
         webhookManager: mockWebhookManager,
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
       });
 
       expect(areServicesRegistered()).toBe(true);
@@ -134,11 +164,13 @@ describe('serviceRegistry', () => {
         webhookManager: undefined,
         gatewayClient: undefined,
         personalityService: undefined,
+        conversationHistoryService: undefined,
       } as unknown as {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
         gatewayClient: GatewayClient;
         personalityService: PersonalityService;
+        conversationHistoryService: ConversationHistoryService;
       };
 
       registerServices(partialServices);
@@ -156,6 +188,9 @@ describe('serviceRegistry', () => {
       const mockWebhookManager = { send: vi.fn() } as unknown as WebhookManager;
       const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
       const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
+      const mockConversationHistoryService = {
+        getRecentHistory: vi.fn(),
+      } as unknown as ConversationHistoryService;
 
       // Register services first
       registerServices({
@@ -163,6 +198,7 @@ describe('serviceRegistry', () => {
         webhookManager: mockWebhookManager,
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
       });
 
       expect(areServicesRegistered()).toBe(true);

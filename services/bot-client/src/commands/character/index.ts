@@ -22,6 +22,7 @@ import { handleTemplate } from './template.js';
 import { handleView } from './view.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
+import { handleDelete } from './delete.js';
 import { handleAvatar } from './avatar.js';
 import { handleList, escapeMarkdown } from './list.js';
 import { handleChat } from './chat.js';
@@ -55,6 +56,18 @@ export const data = new SlashCommandBuilder()
         option
           .setName('character')
           .setDescription('Character to edit')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('delete')
+      .setDescription('Permanently delete a character and all its data')
+      .addStringOption(option =>
+        option
+          .setName('character')
+          .setDescription('Character to delete')
           .setRequired(true)
           .setAutocomplete(true)
       )
@@ -152,6 +165,7 @@ function createCharacterRouter(
     {
       create: handleCreate,
       edit: interaction => handleEdit(interaction, config),
+      delete: interaction => handleDelete(interaction, config),
       view: interaction => handleView(interaction, config),
       list: interaction => handleList(interaction, config),
       avatar: interaction => handleAvatar(interaction, config),
