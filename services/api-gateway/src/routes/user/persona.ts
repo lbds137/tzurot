@@ -1,3 +1,10 @@
+/* eslint-disable max-lines */
+// TODO: TECH DEBT - Split this 650+ line file into separate route modules:
+// - crud.ts (list, get, create, update, delete)
+// - default.ts (set default persona)
+// - settings.ts (update persona settings)
+// - override.ts (override CRUD)
+
 /**
  * User Persona Routes
  * CRUD operations for user personas (profiles that tell AI about the user)

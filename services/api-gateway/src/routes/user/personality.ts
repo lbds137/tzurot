@@ -1,3 +1,11 @@
+/* eslint-disable max-lines */
+// TODO: TECH DEBT - Split this 650+ line file into separate route modules:
+// - list.ts (list personalities)
+// - get.ts (get single personality)
+// - create.ts (create personality)
+// - update.ts (update personality with avatar cache invalidation)
+// - visibility.ts (toggle visibility)
+
 /**
  * User Personality Routes
  * CRUD operations for user-owned personalities (characters)

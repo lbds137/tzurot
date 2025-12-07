@@ -145,6 +145,48 @@ export default tseslint.config(
             'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
         },
       ],
+
+      // ============================================================================
+      // MODULE SIZE & COMPLEXITY RULES
+      // These prevent files from becoming too large and complex to test
+      // Previously in .eslintrc.module-size.js but never integrated!
+      // ============================================================================
+
+      // Enforce maximum file length - error at 500, to force splitting large files
+      'max-lines': [
+        'error',
+        {
+          max: 500,
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ],
+
+      // Enforce maximum function length
+      'max-lines-per-function': [
+        'warn',
+        {
+          max: 100,
+          skipBlankLines: true,
+          skipComments: true,
+          IIFEs: true,
+        },
+      ],
+
+      // Enforce maximum cyclomatic complexity
+      complexity: ['warn', { max: 15 }],
+
+      // Enforce maximum depth of nested blocks
+      'max-depth': ['warn', { max: 4 }],
+
+      // Enforce maximum number of parameters
+      'max-params': ['warn', { max: 5 }],
+
+      // Enforce maximum number of statements in a function
+      'max-statements': ['warn', { max: 30 }],
+
+      // Enforce maximum nested callbacks
+      'max-nested-callbacks': ['warn', { max: 3 }],
     },
   }
 );

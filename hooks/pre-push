@@ -47,6 +47,11 @@ if [ -n "$V3_TS_FILES" ]; then
     run_check "TypeScript build verification" "./scripts/deployment/verify-build.sh"
     run_check "ESLint" "pnpm lint"
 
+    # Check for untested source files (informational - will be strict once backlog cleared)
+    # TODO: Change to --strict once all current untested files are addressed
+    echo -e "\n📊 Untested files report (informational):"
+    node scripts/testing/check-untested-files.js || true
+
     echo -e "\n🧪 Running unit test suite..."
     run_check "Unit tests" "pnpm test"
 fi
