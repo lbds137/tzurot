@@ -73,11 +73,46 @@ jobs:
       - name: Run unit tests with coverage
         run: npx vitest run --coverage
 
-      - name: Upload coverage to Codecov
+      - name: Debug - List coverage files
+        run: find . -name "lcov.info" -o -name "coverage-final.json" | head -20
+
+      - name: Upload ai-worker coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./services/ai-worker/coverage/lcov.info
+          flags: ai-worker
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Upload api-gateway coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./services/api-gateway/coverage/lcov.info
+          flags: api-gateway
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Upload bot-client coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./services/bot-client/coverage/lcov.info
+          flags: bot-client
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Upload common-types coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/common-types/coverage/lcov.info
+          flags: common-types
           fail_ci_if_error: true
           verbose: true
 
