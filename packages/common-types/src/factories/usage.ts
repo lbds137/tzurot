@@ -44,9 +44,7 @@ const defaultUsageBreakdown: UsageBreakdown = {
 /**
  * Create a validated usage breakdown
  */
-export function mockUsageBreakdown(
-  overrides: DeepPartial<UsageBreakdown> = {}
-): UsageBreakdown {
+export function mockUsageBreakdown(overrides: DeepPartial<UsageBreakdown> = {}): UsageBreakdown {
   const merged: UsageBreakdown = {
     ...defaultUsageBreakdown,
     ...overrides,
@@ -112,7 +110,8 @@ export function mockGetUsageResponse(
   const merged: GetUsageResponse = {
     ...defaultGetUsageResponse,
     ...overrides,
-    byProvider: Object.keys(byProvider).length > 0 ? byProvider : defaultGetUsageResponse.byProvider,
+    byProvider:
+      Object.keys(byProvider).length > 0 ? byProvider : defaultGetUsageResponse.byProvider,
     byModel: Object.keys(byModel).length > 0 ? byModel : defaultGetUsageResponse.byModel,
     byRequestType:
       Object.keys(byRequestType).length > 0 ? byRequestType : defaultGetUsageResponse.byRequestType,

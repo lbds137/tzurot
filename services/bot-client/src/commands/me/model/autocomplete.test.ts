@@ -34,7 +34,10 @@ import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 // Helper to mock both config and wallet APIs for config autocomplete tests
-function mockConfigApis(configs: ReturnType<typeof mockLlmConfigSummary>[], hasActiveWallet: boolean) {
+function mockConfigApis(
+  configs: ReturnType<typeof mockLlmConfigSummary>[],
+  hasActiveWallet: boolean
+) {
   vi.mocked(callGatewayApi).mockImplementation((path: string) => {
     if (path === '/user/llm-config') {
       return Promise.resolve({ ok: true, data: { configs } });
