@@ -57,10 +57,7 @@ describe('GatewayClient', () => {
 
       client.generate({ name: 'test' } as never, { messageContent: 'hi' } as never);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://custom.test/ai/generate',
-        expect.any(Object)
-      );
+      expect(mockFetch).toHaveBeenCalledWith('http://custom.test/ai/generate', expect.any(Object));
     });
 
     it('should fall back to config.GATEWAY_URL when not provided', () => {

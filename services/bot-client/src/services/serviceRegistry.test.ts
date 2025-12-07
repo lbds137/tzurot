@@ -19,7 +19,9 @@ describe('serviceRegistry', () => {
   describe('before registration', () => {
     it('should throw when getting JobTracker before registration', async () => {
       const { getJobTracker } = await import('./serviceRegistry.js');
-      expect(() => getJobTracker()).toThrow('JobTracker not registered. Call registerServices() first.');
+      expect(() => getJobTracker()).toThrow(
+        'JobTracker not registered. Call registerServices() first.'
+      );
     });
 
     it('should throw when getting WebhookManager before registration', async () => {
