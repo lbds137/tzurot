@@ -128,6 +128,32 @@ Current command structure (9 top-level commands) is confusing with overlapping c
 
 ## Recent Work (2025-12-07)
 
+**Code Quality Sprint** - Phase 4 COMPLETE:
+
+Continued the Code Quality Sprint documented in `docs/improvements/code-quality-sprint.md`.
+
+**Session 5 Accomplishments**:
+
+- Further split `character/index.ts` (312 → 171 lines):
+  - Extracted `edit.ts` (82 lines) - handleEdit dashboard opener
+  - Extracted `avatar.ts` (93 lines) - handleAvatar upload handler
+  - `index.ts` now contains only command definition + routing
+- Added comprehensive tests for new handlers:
+  - `edit.test.ts` - 6 tests (dashboard opening, permissions, session creation, errors)
+  - `avatar.test.ts` - 13 tests (validation, permissions, download/upload, errors)
+- **Phase 4 Coverage Enforcement** - COMPLETE:
+  - Updated `codecov.yml`: 80% target for project and patch coverage
+  - Enabled `--strict` mode in pre-push hook for untested files check
+  - Added routing-only and types-only files to `KNOWN_UNTESTED`
+
+**Test counts**: 3646 total (776 common-types + 745 api-gateway + 819 ai-worker + 1306 bot-client)
+
+**Commits**:
+- `3008c142` refactor(bot-client): extract edit/avatar handlers, enforce coverage
+- `ce447c88` style: fix prettier formatting in edit and avatar tests
+
+---
+
 **API Contract Enforcement System** - Phase 2 COMPLETE:
 
 Continued from Phase 1 - converting bot-client tests to use validated mock factories,
