@@ -74,13 +74,27 @@ export class ReplyResolutionService {
       }
 
       // Try Redis lookup first (fast path for recent messages)
-      let personalityName = await redisService.getWebhookPersonality(referencedMessage.id);
+      // Redis now stores personality ID (UUID), not name, to avoid slug/name collisions
+      let personalityIdOrName = await redisService.getWebhookPersonality(referencedMessage.id);
 
-      // Fallback: Parse webhook username if Redis lookup fails
+      // Check if Redis value is a UUID (new format) vs name (legacy format)
+      const isUUID =
+        personalityIdOrName !== null &&
+        personalityIdOrName !== undefined &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personalityIdOrName);
+
+      if (isUUID) {
+        logger.debug(
+          { personalityId: personalityIdOrName },
+          '[ReplyResolutionService] Found personality ID in Redis (new format)'
+        );
+      }
+
+      // Fallback: Parse webhook username if Redis lookup fails or returns legacy name
       if (
-        (personalityName === undefined ||
-          personalityName === null ||
-          personalityName.length === 0) &&
+        (personalityIdOrName === undefined ||
+          personalityIdOrName === null ||
+          personalityIdOrName.length === 0) &&
         referencedMessage.author !== undefined &&
         referencedMessage.author !== null
       ) {
@@ -93,18 +107,18 @@ export class ReplyResolutionService {
         // Extract personality name by removing bot suffix
         // Format: "Personality | suffix" -> "Personality"
         if (webhookUsername.includes(' | ')) {
-          personalityName = webhookUsername.split(' | ')[0].trim();
+          personalityIdOrName = webhookUsername.split(' | ')[0].trim();
           logger.debug(
-            { personalityName },
+            { personalityName: personalityIdOrName },
             '[ReplyResolutionService] Extracted personality name from webhook username'
           );
         }
       }
 
       if (
-        personalityName === undefined ||
-        personalityName === null ||
-        personalityName.length === 0
+        personalityIdOrName === undefined ||
+        personalityIdOrName === null ||
+        personalityIdOrName.length === 0
       ) {
         logger.debug('[ReplyResolutionService] No personality found for webhook message');
         return null;
@@ -113,11 +127,15 @@ export class ReplyResolutionService {
       // Load the personality from database with access control
       // This prevents the "Reply Loophole" - users can't interact with
       // private personalities by replying to messages from other users
-      const personality = await this.personalityService.loadPersonality(personalityName, userId);
+      // Note: PersonalityLoader prioritizes UUID > Name > Slug, so UUID lookup is direct
+      const personality = await this.personalityService.loadPersonality(
+        personalityIdOrName,
+        userId
+      );
 
       if (!personality) {
         logger.debug(
-          { personalityName, userId },
+          { personalityIdOrName, userId },
           '[ReplyResolutionService] Personality not found or access denied'
         );
         return null;

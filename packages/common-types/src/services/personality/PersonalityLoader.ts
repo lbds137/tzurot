@@ -118,30 +118,51 @@ export class PersonalityLoader {
     const accessFilter = this.buildAccessFilter(userId);
 
     try {
-      // Step 1: Try direct lookup by ID, name, or slug
-      // Order by createdAt ascending so that when multiple personalities have the same name,
-      // the oldest one (created first) is returned. This ensures stable behavior when
-      // users create characters with names that collide with existing characters.
-      const dbPersonality = await this.prisma.personality.findFirst({
+      // Prioritized lookup order: UUID → Name → Slug → Alias
+      // This prevents slug collisions from overriding name matches
+      // (e.g., personality with name "Lilith" should win over one with slug "lilith")
+
+      // Step 1a: Try UUID lookup (if input looks like UUID)
+      if (isUUID) {
+        const byId = await this.prisma.personality.findFirst({
+          where: {
+            AND: [{ id: nameOrId }, ...(accessFilter ? [accessFilter] : [])],
+          },
+          select: PERSONALITY_SELECT,
+        });
+        if (byId) {
+          return byId as DatabasePersonality;
+        }
+      }
+
+      // Step 1b: Try name lookup (case-insensitive) - NAME TAKES PRIORITY
+      // Order by createdAt ascending so oldest personality with matching name wins
+      const byName = await this.prisma.personality.findFirst({
         where: {
           AND: [
-            {
-              OR: [
-                ...(isUUID ? [{ id: nameOrId }] : []),
-                { name: { equals: nameOrId, mode: 'insensitive' } },
-                { slug: nameOrId.toLowerCase() },
-              ],
-            },
-            // Apply access filter if userId provided
+            { name: { equals: nameOrId, mode: 'insensitive' as const } },
             ...(accessFilter ? [accessFilter] : []),
           ],
         },
         orderBy: { createdAt: 'asc' },
         select: PERSONALITY_SELECT,
       });
+      if (byName) {
+        return byName as DatabasePersonality;
+      }
 
-      if (dbPersonality) {
-        return dbPersonality as DatabasePersonality;
+      // Step 1c: Try slug lookup (exact match, lowercase)
+      // Only checked if name didn't match - prevents slug "lilith" from
+      // overriding a personality actually named "Lilith"
+      const bySlug = await this.prisma.personality.findFirst({
+        where: {
+          AND: [{ slug: nameOrId.toLowerCase() }, ...(accessFilter ? [accessFilter] : [])],
+        },
+        orderBy: { createdAt: 'asc' },
+        select: PERSONALITY_SELECT,
+      });
+      if (bySlug) {
+        return bySlug as DatabasePersonality;
       }
 
       // Step 2: If not found, check aliases (case-insensitive)
