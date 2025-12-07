@@ -21,7 +21,6 @@
 import { Router, type Response } from 'express';
 import { resolve } from 'path';
 import { unlink } from 'fs/promises';
-import { realpathSync } from 'fs';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -681,36 +680,28 @@ export function createPersonalityRoutes(
       // If avatar was updated, invalidate caches
       if (avatarWasUpdated) {
         // 1. Delete filesystem cache (avatars are cached at /data/avatars/<slug>.png)
-        // Use realpathSync to prevent path traversal attacks (CWE-22)
-        try {
-          const avatarRoot = realpathSync('/data/avatars');
-          const avatarPath = resolve(avatarRoot, `${slug}.png`);
-          // Ensure the resolved path is inside the avatarRoot directory
-          if (!avatarPath.startsWith(avatarRoot + '/')) {
-            logger.warn(
-              { slug, attemptedPath: avatarPath },
-              '[User] Blocked attempt to delete avatar file outside allowed directory'
-            );
-          } else {
-            try {
-              await unlink(avatarPath);
-              logger.info({ slug, avatarPath }, '[User] Deleted cached avatar file');
-            } catch (error) {
-              // File might not exist (first avatar upload), that's OK
-              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-                logger.warn(
-                  { err: error, avatarPath },
-                  '[User] Failed to delete cached avatar file'
-                );
-              }
+        // Validate slug format to prevent path traversal (CWE-22)
+        // Only alphanumeric, underscore, and hyphen are allowed
+        const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
+        if (SAFE_SLUG_PATTERN.test(slug)) {
+          const avatarPath = resolve('/data/avatars', `${slug}.png`);
+          try {
+            await unlink(avatarPath);
+            logger.info({ slug, avatarPath }, '[User] Deleted cached avatar file');
+          } catch (error) {
+            // File might not exist (first avatar upload or volume not mounted), that's OK
+            const errCode = (error as NodeJS.ErrnoException).code;
+            if (errCode !== 'ENOENT' && errCode !== 'ENOTDIR') {
+              logger.warn({ err: error, avatarPath }, '[User] Failed to delete cached avatar file');
+            } else {
+              logger.debug(
+                { slug, errCode },
+                '[User] Avatar cache file not found, nothing to delete'
+              );
             }
           }
-        } catch (error) {
-          // Avatar directory might not exist yet (first time setup), that's OK
-          logger.debug(
-            { err: error },
-            '[User] Avatar cache directory not found, skipping cache deletion'
-          );
+        } else {
+          logger.warn({ slug }, '[User] Invalid slug format, skipping avatar cache deletion');
         }
 
         // 2. Invalidate in-memory personality cache across all services

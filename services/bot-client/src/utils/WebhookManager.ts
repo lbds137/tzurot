@@ -157,6 +157,14 @@ export class WebhookManager {
     const webhook = await this.getWebhook(channel);
     const standardizedName = this.getStandardizedUsername(personality);
 
+    // Build avatar URL with cache-busting query param to force Discord CDN refresh
+    // Discord caches avatar images by URL, so we need to change the URL when avatar changes
+    let avatarURL = personality.avatarUrl;
+    if (avatarURL !== undefined && avatarURL.length > 0 && personality.avatarUpdatedAt) {
+      const timestamp = new Date(personality.avatarUpdatedAt).getTime();
+      avatarURL = `${avatarURL}?v=${timestamp}`;
+    }
+
     // Build webhook send options
     const webhookOptions: {
       content: string;
@@ -166,7 +174,7 @@ export class WebhookManager {
     } = {
       content,
       username: standardizedName,
-      avatarURL: personality.avatarUrl,
+      avatarURL,
     };
 
     // For threads, add threadId parameter (Discord.js v14 official API)
