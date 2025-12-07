@@ -41,8 +41,8 @@ Production bugs were caused by:
 - [x] Remove eslint-disable comment (file now 312 lines < 500 limit)
 - [x] Create `api.test.ts` with permission check tests (16 tests)
 - [x] Create `list.test.ts` (15 tests)
-- [ ] Create `create.test.ts`
-- [ ] Create `dashboard.test.ts`
+- [x] Create `create.test.ts` (9 tests)
+- [x] Create `dashboard.test.ts` (14 tests)
 
 ### Priority 2: persona.ts (649 lines)
 
@@ -135,3 +135,16 @@ wc -l services/bot-client/src/commands/character/index.ts
 - Created check-untested-files.js script
 - Found 14 source files without tests
 - Started splitting character/index.ts (extracted api.ts, list.ts)
+
+### 2025-12-06 Session 2 (Continued)
+
+- Completed character/index.ts split (1242 → 312 lines)
+  - api.ts (257 lines) - 16 tests
+  - list.ts (229 lines) - 15 tests
+  - create.ts (137 lines) - 9 tests
+  - dashboard.ts (378 lines) - 14 tests
+- Total test count: 3511 tests across all services
+- bot-client tests: 1231 tests
+- All tests enforce contracts (canEdit permission check, error handling)
+- Fixed pre-push hook installation issue
+- Committed and pushed: 6282312e
