@@ -140,9 +140,7 @@ describe('Character Avatar Handler', () => {
 
       await handleAvatar(mockInteraction, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('too large')
-      );
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('too large'));
       expect(api.fetchCharacter).not.toHaveBeenCalled();
     });
 
@@ -153,9 +151,7 @@ describe('Character Avatar Handler', () => {
 
       await handleAvatar(mockInteraction, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('not found')
-      );
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
     });
 
     it('should return error when user cannot edit character', async () => {

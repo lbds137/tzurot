@@ -102,9 +102,7 @@ describe('Character Edit Handler', () => {
 
       await handleEdit(mockInteraction, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('not found')
-      );
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
     });
 
     it('should return error when user cannot edit character', async () => {
