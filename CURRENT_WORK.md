@@ -151,6 +151,7 @@ which exposed more real production bugs!
    - Fixed both specific-persona fetch and default-persona fetch code paths
 
 **Not Converted** (APIs without factories yet):
+
 - Model commands (`/user/model-override`) - uses different API structure
 - Timezone commands (`/user/timezone`) - no factory needed (simple responses)
 - Wallet commands (`/wallet/*`) - different API structure

@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTimezoneSet } from './set.js';
+import { mockSetTimezoneResponse } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -90,7 +91,7 @@ describe('handleTimezoneSet', () => {
   it('should set timezone successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { timezone: 'America/New_York' },
+      data: mockSetTimezoneResponse({ timezone: 'America/New_York' }),
     });
 
     const interaction = createMockInteraction({ timezone: 'America/New_York' });

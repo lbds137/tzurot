@@ -91,7 +91,9 @@ function createBaseModelOverrideSummary(
 }
 
 /** Create a base user default config object */
-function createBaseUserDefaultConfig(overrides?: DeepPartial<UserDefaultConfig>): UserDefaultConfig {
+function createBaseUserDefaultConfig(
+  overrides?: DeepPartial<UserDefaultConfig>
+): UserDefaultConfig {
   const base: UserDefaultConfig = {
     configId: DEFAULT_CONFIG_ID,
     configName: 'TestConfig',

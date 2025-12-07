@@ -415,7 +415,11 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         updatedAt: persona.updatedAt.toISOString(),
       };
 
-      sendCustomSuccess(res, { success: true, persona: response, setAsDefault: isFirstPersona }, StatusCodes.CREATED);
+      sendCustomSuccess(
+        res,
+        { success: true, persona: response, setAsDefault: isFirstPersona },
+        StatusCodes.CREATED
+      );
     })
   );
 
@@ -626,7 +630,10 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         });
       }
 
-      logger.info({ userId: user.id, personaId: id, alreadyDefault }, '[Persona] Set default persona');
+      logger.info(
+        { userId: user.id, personaId: id, alreadyDefault },
+        '[Persona] Set default persona'
+      );
 
       sendCustomSuccess(res, {
         success: true,

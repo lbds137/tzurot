@@ -5,6 +5,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
+import {
+  mockListLlmConfigsResponse,
+  mockLlmConfigSummary,
+  mockListWalletKeysResponse,
+} from '@tzurot/common-types';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -29,7 +34,7 @@ import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 // Helper to mock both config and wallet APIs for config autocomplete tests
-function mockConfigApis(configs: unknown[], hasActiveWallet: boolean) {
+function mockConfigApis(configs: ReturnType<typeof mockLlmConfigSummary>[], hasActiveWallet: boolean) {
   vi.mocked(callGatewayApi).mockImplementation((path: string) => {
     if (path === '/user/llm-config') {
       return Promise.resolve({ ok: true, data: { configs } });
@@ -37,7 +42,7 @@ function mockConfigApis(configs: unknown[], hasActiveWallet: boolean) {
     if (path === '/wallet/list') {
       return Promise.resolve({
         ok: true,
-        data: { keys: hasActiveWallet ? [{ provider: 'openrouter', isActive: true }] : [] },
+        data: mockListWalletKeysResponse(hasActiveWallet ? [{ isActive: true }] : []),
       });
     }
     return Promise.resolve({ ok: false, error: 'Unknown path', status: 404 });
@@ -180,22 +185,20 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Claude Config',
-            description: null,
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
-          },
-          {
+          }),
+          mockLlmConfigSummary({
             id: 'c2',
             name: 'GPT Config',
-            description: null,
             model: 'openai/gpt-4',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         true // has wallet
       );
@@ -215,22 +218,20 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Claude Config',
-            description: null,
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
-          },
-          {
+          }),
+          mockLlmConfigSummary({
             id: 'c2',
             name: 'GPT Config',
-            description: null,
             model: 'openai/gpt-4',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         true
       );
@@ -249,22 +250,22 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Claude Config',
             description: 'Fast and cheap',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
-          },
-          {
+          }),
+          mockLlmConfigSummary({
             id: 'c2',
             name: 'GPT Config',
             description: 'Slow but accurate',
             model: 'openai/gpt-4',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         true
       );
@@ -301,22 +302,20 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Claude Pro',
-            description: null,
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
-          },
-          {
+          }),
+          mockLlmConfigSummary({
             id: 'c2',
             name: 'Grok Free',
-            description: null,
             model: 'x-ai/grok-4.1-fast:free',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         false // no wallet = guest mode
       );
@@ -340,14 +339,13 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Free Config',
-            description: null,
             model: 'some-model:free',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         false // guest mode
       );
@@ -371,14 +369,13 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Free Config',
-            description: null,
             model: 'some-model:free',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         true // has wallet
       );
@@ -399,14 +396,13 @@ describe('handleAutocomplete', () => {
       });
       mockConfigApis(
         [
-          {
+          mockLlmConfigSummary({
             id: 'c1',
             name: 'Free Config',
-            description: null,
             model: 'some-model:free',
             isGlobal: true,
             isOwned: false,
-          },
+          }),
         ],
         true // even with wallet, free models get the badge
       );

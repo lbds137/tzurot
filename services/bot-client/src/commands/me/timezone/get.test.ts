@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTimezoneGet } from './get.js';
+import { mockGetTimezoneResponse } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -88,7 +89,7 @@ describe('handleTimezoneGet', () => {
   it('should get timezone successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { timezone: 'America/New_York', isDefault: false },
+      data: mockGetTimezoneResponse({ timezone: 'America/New_York', isDefault: false }),
     });
 
     const interaction = createMockInteraction();
@@ -108,7 +109,7 @@ describe('handleTimezoneGet', () => {
   it('should show default timezone message when using default', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { timezone: 'UTC', isDefault: true },
+      data: mockGetTimezoneResponse({ timezone: 'UTC', isDefault: true }),
     });
 
     const interaction = createMockInteraction();
