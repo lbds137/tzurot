@@ -520,16 +520,21 @@ describe('customIds', () => {
     describe('CharacterCustomIds - all builders must use :: delimiter', () => {
       it('seed', () => assertValidCustomId(CharacterCustomIds.seed(), 'character'));
       it('menu', () => assertValidCustomId(CharacterCustomIds.menu('test'), 'character'));
-      it('modal', () => assertValidCustomId(CharacterCustomIds.modal('test', 'section'), 'character'));
+      it('modal', () =>
+        assertValidCustomId(CharacterCustomIds.modal('test', 'section'), 'character'));
       it('close', () => assertValidCustomId(CharacterCustomIds.close('test'), 'character'));
       it('refresh', () => assertValidCustomId(CharacterCustomIds.refresh('test'), 'character'));
       it('listPage', () => assertValidCustomId(CharacterCustomIds.listPage(1), 'character'));
       it('listInfo', () => assertValidCustomId(CharacterCustomIds.listInfo(), 'character'));
-      it('viewPage', () => assertValidCustomId(CharacterCustomIds.viewPage('test', 1), 'character'));
+      it('viewPage', () =>
+        assertValidCustomId(CharacterCustomIds.viewPage('test', 1), 'character'));
       it('viewInfo', () => assertValidCustomId(CharacterCustomIds.viewInfo('test'), 'character'));
-      it('expand', () => assertValidCustomId(CharacterCustomIds.expand('test', 'field'), 'character'));
-      it('deleteConfirm', () => assertValidCustomId(CharacterCustomIds.deleteConfirm('test'), 'character'));
-      it('deleteCancel', () => assertValidCustomId(CharacterCustomIds.deleteCancel('test'), 'character'));
+      it('expand', () =>
+        assertValidCustomId(CharacterCustomIds.expand('test', 'field'), 'character'));
+      it('deleteConfirm', () =>
+        assertValidCustomId(CharacterCustomIds.deleteConfirm('test'), 'character'));
+      it('deleteCancel', () =>
+        assertValidCustomId(CharacterCustomIds.deleteCancel('test'), 'character'));
     });
 
     describe('MeCustomIds - all builders must use :: delimiter', () => {

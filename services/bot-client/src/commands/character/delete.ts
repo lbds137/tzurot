@@ -97,10 +97,7 @@ export async function handleDelete(
       components: [buttons],
     });
 
-    logger.info(
-      { userId: interaction.user.id, slug },
-      '[Character] Showing delete confirmation'
-    );
+    logger.info({ userId: interaction.user.id, slug }, '[Character] Showing delete confirmation');
   } catch (error) {
     logger.error({ err: error, slug }, '[Character] Delete command failed');
     await interaction.editReply({
@@ -177,9 +174,7 @@ export async function handleDeleteButton(
     countLines.push(`• ${counts.conversationHistory} conversation message(s)`);
   }
   if (counts.memories > 0) {
-    countLines.push(
-      `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`
-    );
+    countLines.push(`• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`);
   }
   if (counts.pendingMemories > 0) {
     countLines.push(
