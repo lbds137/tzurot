@@ -11,6 +11,7 @@ import type {
 } from '../../../../services/ConversationalRAGService.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
+import { RetryError } from '../../../../utils/retryService.js';
 
 const logger = createLogger('GenerationStep');
 
@@ -115,9 +116,12 @@ export class GenerationStep implements IPipelineStep {
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
 
+      // Unwrap RetryError to get the underlying API error for proper classification
+      const underlyingError = error instanceof RetryError ? error.lastError : error;
+
       // Parse error for classification and user messaging
-      const errorInfo = parseApiError(error);
-      const errorLogContext = getErrorLogContext(error);
+      const errorInfo = parseApiError(underlyingError);
+      const errorLogContext = getErrorLogContext(underlyingError);
 
       // Enhanced error logging with structured context
       logger.error(

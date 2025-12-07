@@ -698,13 +698,19 @@ export function createPersonalityRoutes(
             } catch (error) {
               // File might not exist (first avatar upload), that's OK
               if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-                logger.warn({ err: error, avatarPath }, '[User] Failed to delete cached avatar file');
+                logger.warn(
+                  { err: error, avatarPath },
+                  '[User] Failed to delete cached avatar file'
+                );
               }
             }
           }
         } catch (error) {
           // Avatar directory might not exist yet (first time setup), that's OK
-          logger.debug({ err: error }, '[User] Avatar cache directory not found, skipping cache deletion');
+          logger.debug(
+            { err: error },
+            '[User] Avatar cache directory not found, skipping cache deletion'
+          );
         }
 
         // 2. Invalidate in-memory personality cache across all services
