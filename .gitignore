@@ -33,6 +33,7 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
+junit.xml
 
 # Temporary files
 tmp/

@@ -160,7 +160,7 @@ export class WebhookManager {
     // Build avatar URL with cache-busting query param to force Discord CDN refresh
     // Discord caches avatar images by URL, so we need to change the URL when avatar changes
     let avatarURL = personality.avatarUrl;
-    if (avatarURL && personality.avatarUpdatedAt) {
+    if (avatarURL !== undefined && avatarURL !== '' && personality.avatarUpdatedAt) {
       // Safe - avatarUpdatedAt is a Date object after Zod parsing (z.coerce.date)
       const timestamp = personality.avatarUpdatedAt.getTime();
       avatarURL = `${avatarURL}?v=${timestamp}`;

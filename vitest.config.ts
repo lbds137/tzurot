@@ -28,6 +28,11 @@ export default defineConfig({
         '**/test/**',
       ],
     },
+    // Output test results in JUnit format for Codecov test-results-action
+    reporters: ['default', 'junit'],
+    outputFile: {
+      junit: 'junit.xml',
+    },
     // Use fake timers by default for consistent testing
     fakeTimers: {
       toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
