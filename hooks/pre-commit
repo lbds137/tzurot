@@ -31,3 +31,13 @@ if [ -n "$STAGED_MIGRATION_FILES" ]; then
     done
     echo -e "${GREEN}✅ Migrations safe${NC}"
 fi
+
+# Run Prettier formatting on staged files
+# Run this early so formatting changes are included in the commit
+echo -e "🎨 Running Prettier formatting..."
+if pnpm format; then
+    echo -e "${GREEN}✅ Prettier formatting complete${NC}"
+else
+    echo -e "${RED}❌ Prettier formatting failed${NC}"
+    exit 1
+fi

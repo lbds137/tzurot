@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import { resolve } from 'path';
 import { access, writeFile } from 'fs/promises';
+import { getSafeAvatarPath, isValidSlug } from '../../utils/avatarPaths.js';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -32,16 +32,15 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
     void (async () => {
       const slug = req.params.slug;
 
-      // Validate slug to prevent path traversal attacks
-      if (!slug || !/^[a-zA-Z0-9_-]+$/.test(slug)) {
+      // Validate slug and construct safe path (prevents path traversal attacks)
+      if (!slug || !isValidSlug(slug)) {
         const errorResponse = ErrorResponses.validationError('Invalid personality slug');
         res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
         return;
       }
 
-      // Construct and verify path stays within /data/avatars
-      const avatarPath = resolve('/data/avatars', `${slug}.png`);
-      if (!avatarPath.startsWith('/data/avatars/')) {
+      const avatarPath = getSafeAvatarPath(slug);
+      if (avatarPath === null) {
         const errorResponse = ErrorResponses.validationError('Invalid avatar path');
         res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
         return;

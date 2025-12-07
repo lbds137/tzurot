@@ -42,8 +42,7 @@ V3_TS_FILES=$(find packages services -name "*.ts" -o -name "*.tsx" 2>/dev/null |
 if [ -n "$V3_TS_FILES" ]; then
     echo -e "\n📦 V3 TypeScript changes detected"
 
-    # Run all quality checks
-    run_check "Prettier formatting" "pnpm format"
+    # Run all quality checks (Prettier moved to pre-commit)
     run_check "TypeScript build verification" "./scripts/deployment/verify-build.sh"
     run_check "ESLint" "pnpm lint"
 

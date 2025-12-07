@@ -21,8 +21,7 @@
  */
 
 import { Router, type Response } from 'express';
-import { resolve } from 'path';
-import { unlink } from 'fs/promises';
+import { deleteAvatarFile } from '../../utils/avatarPaths.js';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -757,29 +756,7 @@ export function createPersonalityRoutes(
       // If avatar was updated, invalidate caches
       if (avatarWasUpdated) {
         // 1. Delete filesystem cache (avatars are cached at /data/avatars/<slug>.png)
-        // Validate slug format to prevent path traversal (CWE-22)
-        // Only alphanumeric, underscore, and hyphen are allowed
-        const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
-        if (SAFE_SLUG_PATTERN.test(slug)) {
-          const avatarPath = resolve('/data/avatars', `${slug}.png`);
-          try {
-            await unlink(avatarPath);
-            logger.info({ slug, avatarPath }, '[User] Deleted cached avatar file');
-          } catch (error) {
-            // File might not exist (first avatar upload or volume not mounted), that's OK
-            const errCode = (error as NodeJS.ErrnoException).code;
-            if (errCode !== 'ENOENT' && errCode !== 'ENOTDIR') {
-              logger.warn({ err: error, avatarPath }, '[User] Failed to delete cached avatar file');
-            } else {
-              logger.debug(
-                { slug, errCode },
-                '[User] Avatar cache file not found, nothing to delete'
-              );
-            }
-          }
-        } else {
-          logger.warn({ slug }, '[User] Invalid slug format, skipping avatar cache deletion');
-        }
+        await deleteAvatarFile(slug, 'User avatar update');
 
         // 2. Invalidate in-memory personality cache across all services
         if (cacheInvalidationService) {
@@ -1017,19 +994,7 @@ export function createPersonalityRoutes(
       });
 
       // 3. Delete cached avatar file
-      const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
-      if (SAFE_SLUG_PATTERN.test(slug)) {
-        const avatarPath = resolve('/data/avatars', `${slug}.png`);
-        try {
-          await unlink(avatarPath);
-          logger.info({ slug, avatarPath }, '[Personality] Deleted cached avatar file');
-        } catch (error) {
-          const errCode = (error as NodeJS.ErrnoException).code;
-          if (errCode !== 'ENOENT' && errCode !== 'ENOTDIR') {
-            logger.warn({ err: error, avatarPath }, '[Personality] Failed to delete avatar file');
-          }
-        }
-      }
+      await deleteAvatarFile(slug, 'Personality delete');
 
       // 4. Invalidate personality cache
       if (cacheInvalidationService) {
