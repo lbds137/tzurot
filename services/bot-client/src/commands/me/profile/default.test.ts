@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleSetDefaultPersona } from './default.js';
 import { MessageFlags } from 'discord.js';
+import { mockSetDefaultPersonaResponse } from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -49,15 +50,13 @@ describe('handleSetDefaultPersona', () => {
   it('should set persona as default', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockSetDefaultPersonaResponse({
         persona: {
-          id: 'persona-123',
           name: 'Work Persona',
           preferredName: 'Alice',
         },
         alreadyDefault: false,
-      },
+      }),
     });
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
@@ -79,15 +78,13 @@ describe('handleSetDefaultPersona', () => {
   it('should use persona name if no preferredName', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockSetDefaultPersonaResponse({
         persona: {
-          id: 'persona-123',
           name: 'Work Persona',
           preferredName: null,
         },
         alreadyDefault: false,
-      },
+      }),
     });
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
@@ -115,15 +112,13 @@ describe('handleSetDefaultPersona', () => {
   it('should inform user if persona is already default', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockSetDefaultPersonaResponse({
         persona: {
-          id: 'persona-123',
           name: 'My Persona',
           preferredName: 'Alice',
         },
         alreadyDefault: true,
-      },
+      }),
     });
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));

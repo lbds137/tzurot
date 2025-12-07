@@ -391,6 +391,15 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         },
       });
 
+      // Set as default if this is the user's first persona
+      const isFirstPersona = user.defaultPersonaId === null;
+      if (isFirstPersona) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { defaultPersonaId: persona.id },
+        });
+      }
+
       logger.info({ userId: user.id, personaId: persona.id }, '[Persona] Created new persona');
 
       const response: PersonaDetails = {
@@ -400,13 +409,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         description: persona.description,
         content: persona.content,
         pronouns: persona.pronouns,
-        isDefault: false,
+        isDefault: isFirstPersona,
         shareLtmAcrossPersonalities: persona.shareLtmAcrossPersonalities,
         createdAt: persona.createdAt.toISOString(),
         updatedAt: persona.updatedAt.toISOString(),
       };
 
-      sendCustomSuccess(res, { persona: response }, StatusCodes.CREATED);
+      sendCustomSuccess(res, { success: true, persona: response, setAsDefault: isFirstPersona }, StatusCodes.CREATED);
     })
   );
 
@@ -522,7 +531,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         updatedAt: persona.updatedAt.toISOString(),
       };
 
-      sendCustomSuccess(res, { persona: response });
+      sendCustomSuccess(res, { success: true, persona: response });
     })
   );
 
@@ -599,7 +608,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       // Check ownership
       const persona = await prisma.persona.findFirst({
         where: { id, ownerId: user.id },
-        select: { id: true, name: true },
+        select: { id: true, name: true, preferredName: true },
       });
 
       if (persona === null) {
@@ -607,16 +616,26 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { defaultPersonaId: id },
-      });
+      // Check if already default
+      const alreadyDefault = user.defaultPersonaId === id;
 
-      logger.info({ userId: user.id, personaId: id }, '[Persona] Set default persona');
+      if (!alreadyDefault) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { defaultPersonaId: id },
+        });
+      }
+
+      logger.info({ userId: user.id, personaId: id, alreadyDefault }, '[Persona] Set default persona');
 
       sendCustomSuccess(res, {
-        message: `"${persona.name}" is now your default profile`,
-        personaId: id,
+        success: true,
+        persona: {
+          id: persona.id,
+          name: persona.name,
+          preferredName: persona.preferredName,
+        },
+        alreadyDefault,
       });
     })
   );
@@ -652,21 +671,29 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      await prisma.persona.update({
+      // Check current value to determine if it's unchanged
+      const currentPersona = await prisma.persona.findUnique({
         where: { id: user.defaultPersonaId },
-        data: { shareLtmAcrossPersonalities },
+        select: { shareLtmAcrossPersonalities: true },
       });
 
+      const unchanged = currentPersona?.shareLtmAcrossPersonalities === shareLtmAcrossPersonalities;
+
+      if (!unchanged) {
+        await prisma.persona.update({
+          where: { id: user.defaultPersonaId },
+          data: { shareLtmAcrossPersonalities },
+        });
+      }
+
       logger.info(
-        { userId: user.id, shareLtmAcrossPersonalities },
+        { userId: user.id, shareLtmAcrossPersonalities, unchanged },
         '[Persona] Updated share-ltm setting'
       );
 
       sendCustomSuccess(res, {
-        message: shareLtmAcrossPersonalities
-          ? 'Memory sharing enabled across all personalities'
-          : 'Memory sharing disabled (memories kept per personality)',
-        shareLtmAcrossPersonalities,
+        success: true,
+        unchanged,
       });
     })
   );

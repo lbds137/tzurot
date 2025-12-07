@@ -39,6 +39,7 @@ const mockPrisma = {
   persona: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -366,6 +367,7 @@ describe('/user/persona routes', () => {
 
       expect(mockPrisma.persona.update).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
+        success: true,
         persona: expect.objectContaining({ name: 'Updated Name' }),
       });
     });
@@ -443,7 +445,11 @@ describe('/user/persona routes', () => {
 
   describe('PATCH /user/persona/:id/default', () => {
     it('should set persona as default', async () => {
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID_2, name: 'Second' });
+      mockPrisma.persona.findFirst.mockResolvedValue({
+        id: MOCK_PERSONA_ID_2,
+        name: 'Second',
+        preferredName: 'Tester',
+      });
       mockPrisma.user.update.mockResolvedValue({});
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
@@ -458,12 +464,15 @@ describe('/user/persona routes', () => {
           data: { defaultPersonaId: MOCK_PERSONA_ID_2 },
         })
       );
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('Second'),
-          personaId: MOCK_PERSONA_ID_2,
-        })
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        persona: {
+          id: MOCK_PERSONA_ID_2,
+          name: 'Second',
+          preferredName: 'Tester',
+        },
+        alreadyDefault: false,
+      });
     });
 
     it('should return 404 for non-existent persona', async () => {
@@ -481,6 +490,8 @@ describe('/user/persona routes', () => {
 
   describe('PATCH /user/persona/settings', () => {
     it('should update share-ltm setting to true', async () => {
+      // Mock current value is false, so updating to true is a change
+      mockPrisma.persona.findUnique.mockResolvedValue({ shareLtmAcrossPersonalities: false });
       mockPrisma.persona.update.mockResolvedValue({});
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
@@ -495,15 +506,15 @@ describe('/user/persona routes', () => {
           data: { shareLtmAcrossPersonalities: true },
         })
       );
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('enabled'),
-          shareLtmAcrossPersonalities: true,
-        })
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        unchanged: false,
+      });
     });
 
     it('should update share-ltm setting to false', async () => {
+      // Mock current value is true, so updating to false is a change
+      mockPrisma.persona.findUnique.mockResolvedValue({ shareLtmAcrossPersonalities: true });
       mockPrisma.persona.update.mockResolvedValue({});
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
@@ -512,12 +523,28 @@ describe('/user/persona routes', () => {
       const { req, res } = createMockReqRes({ shareLtmAcrossPersonalities: false });
       await handler(req, res);
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('disabled'),
-          shareLtmAcrossPersonalities: false,
-        })
-      );
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        unchanged: false,
+      });
+    });
+
+    it('should return unchanged: true when setting is already the same', async () => {
+      // Mock current value is already true
+      mockPrisma.persona.findUnique.mockResolvedValue({ shareLtmAcrossPersonalities: true });
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'patch', '/settings');
+
+      const { req, res } = createMockReqRes({ shareLtmAcrossPersonalities: true });
+      await handler(req, res);
+
+      // Should NOT call update since value is unchanged
+      expect(mockPrisma.persona.update).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        unchanged: true,
+      });
     });
 
     it('should reject non-boolean value', async () => {

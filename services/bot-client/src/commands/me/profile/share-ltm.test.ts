@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleShareLtmSetting } from './share-ltm.js';
 import { MessageFlags } from 'discord.js';
+import { mockUpdatePersonaSettingsResponse } from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -77,10 +78,7 @@ describe('handleShareLtmSetting', () => {
   it('should show info message when already in desired state (enable)', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        unchanged: true,
-      },
+      data: mockUpdatePersonaSettingsResponse({ unchanged: true }),
     });
 
     await handleShareLtmSetting(createMockInteraction('enable'));
@@ -94,10 +92,7 @@ describe('handleShareLtmSetting', () => {
   it('should show info message when already in desired state (disable)', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        unchanged: true,
-      },
+      data: mockUpdatePersonaSettingsResponse({ unchanged: true }),
     });
 
     await handleShareLtmSetting(createMockInteraction('disable'));
@@ -111,10 +106,7 @@ describe('handleShareLtmSetting', () => {
   it('should enable LTM sharing', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        unchanged: false,
-      },
+      data: mockUpdatePersonaSettingsResponse({ unchanged: false }),
     });
 
     await handleShareLtmSetting(createMockInteraction('enable'));
@@ -135,10 +127,7 @@ describe('handleShareLtmSetting', () => {
   it('should disable LTM sharing', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        unchanged: false,
-      },
+      data: mockUpdatePersonaSettingsResponse({ unchanged: false }),
     });
 
     await handleShareLtmSetting(createMockInteraction('disable'));

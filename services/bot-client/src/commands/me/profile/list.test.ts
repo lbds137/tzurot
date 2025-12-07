@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListPersonas } from './list.js';
 import { MessageFlags } from 'discord.js';
+import { mockListPersonasResponse } from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -43,7 +44,7 @@ describe('handleListPersonas', () => {
   it('should show empty state when user has no profiles', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { personas: [] },
+      data: mockListPersonasResponse([]),
     });
 
     await handleListPersonas(createMockInteraction());
@@ -71,26 +72,22 @@ describe('handleListPersonas', () => {
   it('should list user personas with embed', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          {
-            id: 'persona-1',
-            name: 'Default Persona',
-            preferredName: 'Alice',
-            pronouns: 'she/her',
-            content: 'I love coding',
-            isDefault: true,
-          },
-          {
-            id: 'persona-2',
-            name: 'Work Persona',
-            preferredName: 'Professional Alice',
-            pronouns: null,
-            content: null,
-            isDefault: false,
-          },
-        ],
-      },
+      data: mockListPersonasResponse([
+        {
+          name: 'Default Persona',
+          preferredName: 'Alice',
+          pronouns: 'she/her',
+          content: 'I love coding',
+          isDefault: true,
+        },
+        {
+          name: 'Work Persona',
+          preferredName: 'Professional Alice',
+          pronouns: null,
+          content: null,
+          isDefault: false,
+        },
+      ]),
     });
 
     await handleListPersonas(createMockInteraction());
@@ -110,18 +107,15 @@ describe('handleListPersonas', () => {
   it('should mark default persona with star', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          {
-            id: 'persona-1',
-            name: 'My Persona',
-            preferredName: null,
-            pronouns: null,
-            content: null,
-            isDefault: true,
-          },
-        ],
-      },
+      data: mockListPersonasResponse([
+        {
+          name: 'My Persona',
+          preferredName: null,
+          pronouns: null,
+          content: null,
+          isDefault: true,
+        },
+      ]),
     });
 
     await handleListPersonas(createMockInteraction());
@@ -137,34 +131,29 @@ describe('handleListPersonas', () => {
   it('should show persona count in description', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          {
-            id: 'persona-1',
-            name: 'Persona 1',
-            preferredName: null,
-            pronouns: null,
-            content: null,
-            isDefault: false,
-          },
-          {
-            id: 'persona-2',
-            name: 'Persona 2',
-            preferredName: null,
-            pronouns: null,
-            content: null,
-            isDefault: false,
-          },
-          {
-            id: 'persona-3',
-            name: 'Persona 3',
-            preferredName: null,
-            pronouns: null,
-            content: null,
-            isDefault: false,
-          },
-        ],
-      },
+      data: mockListPersonasResponse([
+        {
+          name: 'Persona 1',
+          preferredName: null,
+          pronouns: null,
+          content: null,
+          isDefault: false,
+        },
+        {
+          name: 'Persona 2',
+          preferredName: null,
+          pronouns: null,
+          content: null,
+          isDefault: false,
+        },
+        {
+          name: 'Persona 3',
+          preferredName: null,
+          pronouns: null,
+          content: null,
+          isDefault: false,
+        },
+      ]),
     });
 
     await handleListPersonas(createMockInteraction());
@@ -191,18 +180,15 @@ describe('handleListPersonas', () => {
     const longContent = 'x'.repeat(200);
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personas: [
-          {
-            id: 'persona-1',
-            name: 'Long Content Persona',
-            preferredName: null,
-            pronouns: null,
-            content: longContent,
-            isDefault: false,
-          },
-        ],
-      },
+      data: mockListPersonasResponse([
+        {
+          name: 'Long Content Persona',
+          preferredName: null,
+          pronouns: null,
+          content: longContent,
+          isDefault: false,
+        },
+      ]),
     });
 
     await handleListPersonas(createMockInteraction());

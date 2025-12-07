@@ -64,9 +64,12 @@ export async function handleEditPersona(
 
     if (personaId !== null && personaId !== undefined) {
       // Fetch specific persona via gateway
-      const result = await callGatewayApi<PersonaDetails>(`/user/persona/${personaId}`, {
-        userId: discordId,
-      });
+      const result = await callGatewayApi<{ persona: PersonaDetails }>(
+        `/user/persona/${personaId}`,
+        {
+          userId: discordId,
+        }
+      );
 
       if (!result.ok) {
         await interaction.reply({
@@ -76,7 +79,7 @@ export async function handleEditPersona(
         return;
       }
 
-      persona = result.data;
+      persona = result.data.persona;
     } else {
       // Find default persona from list
       const listResult = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
@@ -87,12 +90,12 @@ export async function handleEditPersona(
         const defaultPersona = listResult.data.personas.find(p => p.isDefault);
         if (defaultPersona !== undefined) {
           // Fetch full details of default persona
-          const detailsResult = await callGatewayApi<PersonaDetails>(
+          const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
             `/user/persona/${defaultPersona.id}`,
             { userId: discordId }
           );
           if (detailsResult.ok) {
-            persona = detailsResult.data;
+            persona = detailsResult.data.persona;
           }
         }
       }

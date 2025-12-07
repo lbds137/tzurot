@@ -39,6 +39,96 @@ export const PersonaFullSchema = PersonaRefSchema.extend({
 });
 export type PersonaFull = z.infer<typeof PersonaFullSchema>;
 
+/** Persona details (full data with metadata) */
+export const PersonaDetailsSchema = PersonaFullSchema.extend({
+  isDefault: z.boolean(),
+  shareLtmAcrossPersonalities: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type PersonaDetails = z.infer<typeof PersonaDetailsSchema>;
+
+/** Persona summary for lists (subset of PersonaDetails) */
+export const PersonaSummarySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  preferredName: z.string().nullable(),
+  description: z.string().nullable(),
+  pronouns: z.string().nullable().optional(),
+  content: z.string().nullable().optional(),
+  isDefault: z.boolean(),
+  shareLtmAcrossPersonalities: z.boolean().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+export type PersonaSummary = z.infer<typeof PersonaSummarySchema>;
+
+// ============================================================================
+// GET /user/persona
+// Returns list of user's personas
+// ============================================================================
+
+export const ListPersonasResponseSchema = z.object({
+  personas: z.array(PersonaSummarySchema),
+});
+export type ListPersonasResponse = z.infer<typeof ListPersonasResponseSchema>;
+
+// ============================================================================
+// GET /user/persona/:id
+// Returns a specific persona by ID
+// ============================================================================
+
+export const GetPersonaResponseSchema = z.object({
+  persona: PersonaDetailsSchema,
+});
+export type GetPersonaResponse = z.infer<typeof GetPersonaResponseSchema>;
+
+// ============================================================================
+// POST /user/persona
+// Creates a new persona
+// ============================================================================
+
+export const CreatePersonaResponseSchema = z.object({
+  success: z.literal(true),
+  persona: PersonaDetailsSchema,
+  setAsDefault: z.boolean(),
+});
+export type CreatePersonaResponse = z.infer<typeof CreatePersonaResponseSchema>;
+
+// ============================================================================
+// PUT /user/persona/:id
+// Updates an existing persona
+// ============================================================================
+
+export const UpdatePersonaResponseSchema = z.object({
+  success: z.literal(true),
+  persona: PersonaDetailsSchema,
+});
+export type UpdatePersonaResponse = z.infer<typeof UpdatePersonaResponseSchema>;
+
+// ============================================================================
+// PATCH /user/persona/:id/default
+// Sets a persona as the user's default
+// ============================================================================
+
+export const SetDefaultPersonaResponseSchema = z.object({
+  success: z.literal(true),
+  persona: PersonaRefSchema,
+  alreadyDefault: z.boolean(),
+});
+export type SetDefaultPersonaResponse = z.infer<typeof SetDefaultPersonaResponseSchema>;
+
+// ============================================================================
+// PATCH /user/persona/settings
+// Updates persona settings (share-ltm)
+// ============================================================================
+
+export const UpdatePersonaSettingsResponseSchema = z.object({
+  success: z.literal(true),
+  unchanged: z.boolean(),
+});
+export type UpdatePersonaSettingsResponse = z.infer<typeof UpdatePersonaSettingsResponseSchema>;
+
 // ============================================================================
 // GET /user/persona/override/:personalitySlug
 // Returns personality info for override modal preparation
@@ -87,42 +177,3 @@ export const CreateOverrideResponseSchema = z.object({
   }),
 });
 export type CreateOverrideResponse = z.infer<typeof CreateOverrideResponseSchema>;
-
-// ============================================================================
-// POST /user/persona
-// Creates a new persona
-// ============================================================================
-
-export const CreatePersonaResponseSchema = z.object({
-  persona: PersonaFullSchema.extend({
-    isDefault: z.boolean(),
-    createdAt: z.string().datetime(),
-  }),
-});
-export type CreatePersonaResponse = z.infer<typeof CreatePersonaResponseSchema>;
-
-// ============================================================================
-// PUT /user/persona/:id
-// Updates an existing persona
-// ============================================================================
-
-export const UpdatePersonaResponseSchema = z.object({
-  persona: PersonaFullSchema.extend({
-    isDefault: z.boolean(),
-    updatedAt: z.string().datetime(),
-  }),
-});
-export type UpdatePersonaResponse = z.infer<typeof UpdatePersonaResponseSchema>;
-
-// ============================================================================
-// PATCH /user/persona/:id/default
-// Sets a persona as the user's default
-// ============================================================================
-
-export const SetDefaultPersonaResponseSchema = z.object({
-  success: z.literal(true),
-  persona: PersonaRefSchema.extend({
-    isDefault: z.literal(true),
-  }),
-});
-export type SetDefaultPersonaResponse = z.infer<typeof SetDefaultPersonaResponseSchema>;
