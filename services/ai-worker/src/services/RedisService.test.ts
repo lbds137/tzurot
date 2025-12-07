@@ -92,18 +92,18 @@ describe('RedisService', () => {
       const testError = new Error('Redis connection error');
       mockRedis.xadd.mockRejectedValue(testError);
 
-      await expect(
-        redisService.publishJobResult('job-123', 'request-456', {})
-      ).rejects.toThrow('Redis connection error');
+      await expect(redisService.publishJobResult('job-123', 'request-456', {})).rejects.toThrow(
+        'Redis connection error'
+      );
     });
 
     it('should throw error when xtrim fails', async () => {
       mockRedis.xadd.mockResolvedValue('1234567890-0');
       mockRedis.xtrim.mockRejectedValue(new Error('Trim failed'));
 
-      await expect(
-        redisService.publishJobResult('job-123', 'request-456', {})
-      ).rejects.toThrow('Trim failed');
+      await expect(redisService.publishJobResult('job-123', 'request-456', {})).rejects.toThrow(
+        'Trim failed'
+      );
     });
 
     it('should handle complex result payloads', async () => {

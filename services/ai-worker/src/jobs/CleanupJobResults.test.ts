@@ -148,7 +148,9 @@ describe('CleanupJobResults', () => {
       mockPrisma.jobResult.count.mockRejectedValue(new Error('Database error'));
 
       // Should not throw - best effort cleanup
-      await expect(cleanupOldJobResults(mockPrisma as unknown as PrismaClient)).resolves.toBeUndefined();
+      await expect(
+        cleanupOldJobResults(mockPrisma as unknown as PrismaClient)
+      ).resolves.toBeUndefined();
     });
 
     it('should not throw on deleteMany error', async () => {
@@ -156,7 +158,9 @@ describe('CleanupJobResults', () => {
       mockPrisma.jobResult.deleteMany.mockRejectedValue(new Error('Delete failed'));
 
       // Should not throw - best effort cleanup
-      await expect(cleanupOldJobResults(mockPrisma as unknown as PrismaClient)).resolves.toBeUndefined();
+      await expect(
+        cleanupOldJobResults(mockPrisma as unknown as PrismaClient)
+      ).resolves.toBeUndefined();
     });
 
     it('should only delete DELIVERED status results', async () => {

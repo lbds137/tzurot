@@ -64,22 +64,22 @@ Production bugs were caused by:
 
 Original count: 14 files without tests → **All files now tested!**
 
-| Lines | File                                                  | Priority | Status                   |
-| ----- | ----------------------------------------------------- | -------- | ------------------------ |
-| 1242  | bot-client/commands/character/index.ts                | P1       | ✅ Split + Tested        |
-| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       | ✅ Done (14 tests)       |
-| 176   | bot-client/commands/character/export.ts               | P2       | ✅ Done (13 tests)       |
-| 154   | bot-client/commands/me/model/set.ts                   | P2       | ✅ Done (9 tests)        |
-| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       | ✅ Done (20 tests)       |
-| 111   | ai-worker/services/RedisService.ts                    | P2       | ✅ Done (16 tests)       |
-| 90    | bot-client/commands/preset/global/edit.ts             | P3       | ✅ Done (8 tests)        |
-| 90    | ai-worker/jobs/CleanupJobResults.ts                   | P3       | ✅ Done (11 tests)       |
-| 75    | ai-worker/services/context/PromptContext.ts           | P3       | N/A (types only)         |
-| 70    | bot-client/commands/preset/global/create.ts           | P3       | ✅ Done (7 tests)        |
-| 68    | bot-client/commands/me/model/list.ts                  | P3       | ✅ Done (6 tests)        |
-| 62    | bot-client/commands/preset/global/set-default.ts      | P3       | ✅ Done (5 tests)        |
-| 62    | bot-client/commands/preset/global/set-free-default.ts | P3       | ✅ Done (5 tests)        |
-| 53    | bot-client/commands/me/model/reset.ts                 | P3       | ✅ Done (4 tests)        |
+| Lines | File                                                  | Priority | Status             |
+| ----- | ----------------------------------------------------- | -------- | ------------------ |
+| 1242  | bot-client/commands/character/index.ts                | P1       | ✅ Split + Tested  |
+| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       | ✅ Done (14 tests) |
+| 176   | bot-client/commands/character/export.ts               | P2       | ✅ Done (13 tests) |
+| 154   | bot-client/commands/me/model/set.ts                   | P2       | ✅ Done (9 tests)  |
+| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       | ✅ Done (20 tests) |
+| 111   | ai-worker/services/RedisService.ts                    | P2       | ✅ Done (16 tests) |
+| 90    | bot-client/commands/preset/global/edit.ts             | P3       | ✅ Done (8 tests)  |
+| 90    | ai-worker/jobs/CleanupJobResults.ts                   | P3       | ✅ Done (11 tests) |
+| 75    | ai-worker/services/context/PromptContext.ts           | P3       | N/A (types only)   |
+| 70    | bot-client/commands/preset/global/create.ts           | P3       | ✅ Done (7 tests)  |
+| 68    | bot-client/commands/me/model/list.ts                  | P3       | ✅ Done (6 tests)  |
+| 62    | bot-client/commands/preset/global/set-default.ts      | P3       | ✅ Done (5 tests)  |
+| 62    | bot-client/commands/preset/global/set-free-default.ts | P3       | ✅ Done (5 tests)  |
+| 53    | bot-client/commands/me/model/reset.ts                 | P3       | ✅ Done (4 tests)  |
 
 ## Phase 4: Coverage Enforcement
 
