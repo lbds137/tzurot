@@ -18,6 +18,9 @@ describe('PersonalityService - Cache Invalidation', () => {
         findFirst: vi.fn(),
         findMany: vi.fn(),
       },
+      personalityAlias: {
+        findFirst: vi.fn(),
+      },
       llmConfig: {
         findFirst: vi.fn(),
       },
@@ -311,23 +314,26 @@ describe('PersonalityService - Cache Invalidation', () => {
     });
 
     it('should always bypass cache for name lookups (non-UUID)', async () => {
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+      // Non-UUID lookups use findMany for combined name/slug query
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([mockPersonality] as any);
 
       // Load by name - should hit DB
       const loaded1 = await service.loadPersonality('PrivatePersonality');
       expect(loaded1).not.toBeNull();
-      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
 
       // Cache is now populated by ID, but loading by name should still hit DB
       // because we only cache by ID and name lookups always go to DB
       const loaded2 = await service.loadPersonality('PrivatePersonality');
       expect(loaded2).not.toBeNull();
-      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2); // Now 2
+      expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(2); // Now 2
     });
 
     it('should return null when access control denies access', async () => {
       // Mock DB returning null (personality exists but user lacks access)
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([]);
+      vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
 
       // Load with userId - DB returns null due to access control
       const loaded = await service.loadPersonality(
@@ -336,9 +342,10 @@ describe('PersonalityService - Cache Invalidation', () => {
       );
 
       expect(loaded).toBeNull();
-      // Verify DB was queried - prioritized lookup tries UUID, name, and slug
-      // The input is a UUID so it tries: UUID lookup → name lookup → slug lookup
-      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(3);
+      // Verify DB was queried - prioritized lookup tries UUID, then combined name/slug
+      // The input is a UUID so it tries: UUID lookup (findFirst) → combined name/slug (findMany)
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -360,6 +367,9 @@ describe('PersonalityService - Cache Invalidation', () => {
         name: 'TestPersonality',
         displayName: 'Test',
         slug: 'test',
+        isPublic: true,
+        ownerId: null,
+        updatedAt: new Date(),
         systemPrompt: { content: 'Test' },
         defaultConfigLink: {
           llmConfig: {
@@ -385,15 +395,17 @@ describe('PersonalityService - Cache Invalidation', () => {
         personalityDislikes: null,
         conversationalGoals: null,
         conversationalExamples: null,
+        errorMessage: null,
       };
 
-      vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+      // Non-UUID lookups use findMany for combined name/slug query
+      vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
       // Initially empty
       let stats = service.getCacheStats();
       expect(stats.size).toBe(0);
 
-      // Load a personality
+      // Load a personality by name (uses findMany)
       await service.loadPersonality('test');
 
       // Cache should have 1 entry (by ID only)

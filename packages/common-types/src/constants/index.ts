@@ -88,7 +88,7 @@ export {
 export { MessageRole, PLACEHOLDERS, MESSAGE_LIMITS } from './message.js';
 
 // Service constants
-export { SERVICE_DEFAULTS, APP_SETTINGS, HealthStatus } from './service.js';
+export { SERVICE_DEFAULTS, APP_SETTINGS, HealthStatus, UUID_REGEX, isValidUUID } from './service.js';
 
 // Timezone constants
 export {

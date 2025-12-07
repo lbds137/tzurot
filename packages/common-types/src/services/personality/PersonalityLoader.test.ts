@@ -3,10 +3,10 @@
  * Tests database query logic for loading personalities
  *
  * The PersonalityLoader uses a prioritized lookup strategy:
- * 1. UUID lookup (if input looks like a UUID)
- * 2. Name lookup (case-insensitive)
- * 3. Slug lookup (lowercase)
- * 4. Alias lookup (fallback)
+ * 1. UUID lookup (if input looks like a UUID) - findFirst
+ * 2. Name OR Slug lookup (combined query) - findMany with in-memory prioritization
+ *    - Name match takes priority over slug match
+ * 3. Alias lookup (fallback) - findFirst on personalityAlias, then findFirst on personality
  *
  * This prevents slug/name collisions where a personality named "Lilith"
  * should win over a different personality with slug "lilith".
@@ -104,55 +104,54 @@ describe('PersonalityLoader', () => {
       it('should find personality by name when input is not UUID', async () => {
         const mockPersonality = createMockPersonality({
           name: 'TestBot',
+          slug: 'test-bot',
         });
 
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+        // findMany returns array with matching personality
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
         const result = await loader.loadFromDatabase('testbot');
 
         expect(result).not.toBeNull();
         expect(result?.name).toBe('TestBot');
 
-        // Should only make one call (name lookup succeeds)
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+        // Should use findMany for combined name/slug lookup
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
 
-        // Verify name query structure (case-insensitive)
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+        // Verify combined query structure (name OR slug)
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
           where: {
-            AND: [{ name: { equals: 'testbot', mode: 'insensitive' } }],
+            AND: [
+              {
+                OR: [
+                  { name: { equals: 'testbot', mode: 'insensitive' } },
+                  { slug: 'testbot' },
+                ],
+              },
+            ],
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
         });
       });
 
-      it('should fall back to slug lookup when name lookup fails', async () => {
+      it('should return slug match when no name match exists (in-memory prioritization)', async () => {
+        // Personality has a different name but matching slug
         const mockPersonality = createMockPersonality({
-          name: 'TestBot',
+          name: 'SomeOtherName',
           slug: 'test-bot',
         });
 
-        // Name lookup fails, slug lookup succeeds
-        vi.mocked(mockPrisma.personality.findFirst)
-          .mockResolvedValueOnce(null) // Name lookup
-          .mockResolvedValueOnce(mockPersonality as any); // Slug lookup
+        // findMany returns personality matched by slug (not name)
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
         const result = await loader.loadFromDatabase('test-bot');
 
         expect(result).not.toBeNull();
         expect(result?.slug).toBe('test-bot');
 
-        // Should make two calls (name fails, slug succeeds)
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2);
-
-        // Verify slug query structure
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenNthCalledWith(2, {
-          where: {
-            AND: [{ slug: 'test-bot' }],
-          },
-          orderBy: { createdAt: 'asc' },
-          select: expect.any(Object),
-        });
+        // Should use findMany for combined name/slug lookup
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
       });
 
       it('should fall back to alias lookup when name and slug fail', async () => {
@@ -162,11 +161,8 @@ describe('PersonalityLoader', () => {
           slug: 'lilith-tzel-shani',
         });
 
-        // Name and slug lookups fail
-        vi.mocked(mockPrisma.personality.findFirst)
-          .mockResolvedValueOnce(null) // Name lookup
-          .mockResolvedValueOnce(null) // Slug lookup
-          .mockResolvedValueOnce(mockPersonality as any); // Personality by alias ID
+        // Combined name/slug lookup returns empty (no match)
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
 
         // Alias lookup succeeds
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
@@ -177,14 +173,18 @@ describe('PersonalityLoader', () => {
           updatedAt: new Date(),
         } as any);
 
+        // Personality by alias ID lookup succeeds
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
         const result = await loader.loadFromDatabase('lilith');
 
         expect(result).not.toBeNull();
         expect(result?.name).toBe('Lilith');
         expect(result?.slug).toBe('lilith-tzel-shani');
 
-        // Should make 3 personality calls (name, slug, by-alias-id)
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(3);
+        // Should make 1 findMany (combined name/slug) + 1 findFirst (by alias ID)
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
 
         // Verify alias query
         expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledWith({
@@ -196,16 +196,17 @@ describe('PersonalityLoader', () => {
       });
 
       it('should return null when all lookups fail', async () => {
-        // All lookups fail
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+        // Combined name/slug lookup returns empty
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
+        // Alias lookup fails
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
 
         const result = await loader.loadFromDatabase('nonexistent');
 
         expect(result).toBeNull();
 
-        // Should make 2 personality calls (name, slug) then alias
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(2);
+        // Should make 1 findMany (combined name/slug) then alias lookup
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
         expect(vi.mocked(mockPrisma.personalityAlias.findFirst)).toHaveBeenCalledTimes(1);
       });
     });
@@ -215,8 +216,7 @@ describe('PersonalityLoader', () => {
         // Scenario: User looks up "Lilith"
         // - Personality A: name="Lilith", slug="lilith-tzel-shani" (correct)
         // - Personality B: name="kissed", slug="lilith" (wrong)
-        // Old bug: Single OR query might return B if it was created first
-        // New behavior: Name lookup happens first, returns A
+        // Both are returned by findMany, in-memory prioritization picks name match
 
         const correctPersonality = createMockPersonality({
           id: 'correct-id',
@@ -224,10 +224,17 @@ describe('PersonalityLoader', () => {
           slug: 'lilith-tzel-shani',
         });
 
-        // Name lookup succeeds with correct personality
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(
-          correctPersonality as any
-        );
+        const wrongPersonality = createMockPersonality({
+          id: 'wrong-id',
+          name: 'kissed',
+          slug: 'lilith',
+        });
+
+        // findMany returns both candidates (slug match and name match)
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([
+          wrongPersonality,
+          correctPersonality,
+        ] as any);
 
         const result = await loader.loadFromDatabase('Lilith');
 
@@ -236,18 +243,18 @@ describe('PersonalityLoader', () => {
         expect(result?.name).toBe('Lilith');
         expect(result?.slug).toBe('lilith-tzel-shani');
 
-        // Should only make one call - name lookup succeeds immediately
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+        // Should use findMany for combined lookup
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledTimes(1);
       });
 
-      it('should order by createdAt ascending to prefer oldest personality on name collision', async () => {
+      it('should order by createdAt ascending in query', async () => {
         const mockPersonality = createMockPersonality({
           id: 'oldest-personality',
           name: 'DuplicateName',
           slug: 'original-slug',
         });
 
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
         const result = await loader.loadFromDatabase('DuplicateName');
 
@@ -255,7 +262,7 @@ describe('PersonalityLoader', () => {
         expect(result?.id).toBe('oldest-personality');
 
         // Verify orderBy is included
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith(
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith(
           expect.objectContaining({
             orderBy: { createdAt: 'asc' },
           })
@@ -265,11 +272,8 @@ describe('PersonalityLoader', () => {
 
     describe('alias lookup edge cases', () => {
       it('should return null when alias exists but personality is deleted', async () => {
-        // Name and slug lookups fail
-        vi.mocked(mockPrisma.personality.findFirst)
-          .mockResolvedValueOnce(null) // Name lookup
-          .mockResolvedValueOnce(null) // Slug lookup
-          .mockResolvedValueOnce(null); // Personality by alias ID (deleted)
+        // Combined name/slug lookup returns empty
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
 
         // Alias lookup finds a match
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
@@ -280,6 +284,9 @@ describe('PersonalityLoader', () => {
           updatedAt: new Date(),
         } as any);
 
+        // Personality by alias ID returns null (deleted)
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(null);
+
         const result = await loader.loadFromDatabase('deleted-bot');
 
         expect(result).toBeNull();
@@ -288,7 +295,7 @@ describe('PersonalityLoader', () => {
 
     describe('error handling', () => {
       it('should handle database errors gracefully', async () => {
-        vi.mocked(mockPrisma.personality.findFirst).mockRejectedValue(
+        vi.mocked(mockPrisma.personality.findMany).mockRejectedValue(
           new Error('Database connection failed')
         );
 
@@ -299,7 +306,7 @@ describe('PersonalityLoader', () => {
     });
 
     describe('access control', () => {
-      it('should apply access filter to name lookup when userId is provided', async () => {
+      it('should apply access filter to combined name/slug lookup when userId is provided', async () => {
         const mockPersonality = createMockPersonality({
           name: 'PrivateBot',
           slug: 'private-bot',
@@ -307,7 +314,7 @@ describe('PersonalityLoader', () => {
           ownerId: 'user-123',
         });
 
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
         const result = await loader.loadFromDatabase('private-bot', 'user-123');
 
@@ -315,11 +322,16 @@ describe('PersonalityLoader', () => {
         expect(result?.isPublic).toBe(false);
         expect(result?.ownerId).toBe('user-123');
 
-        // Verify access filter was applied to name query
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+        // Verify access filter was applied to combined query
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
           where: {
             AND: [
-              { name: { equals: 'private-bot', mode: 'insensitive' } },
+              {
+                OR: [
+                  { name: { equals: 'private-bot', mode: 'insensitive' } },
+                  { slug: 'private-bot' },
+                ],
+              },
               { OR: [{ isPublic: true }, { ownerId: 'user-123' }] },
             ],
           },
@@ -328,43 +340,20 @@ describe('PersonalityLoader', () => {
         });
       });
 
-      it('should apply access filter to slug lookup when userId is provided', async () => {
-        const mockPersonality = createMockPersonality({
-          name: 'PrivateBot',
-          slug: 'private-bot',
-          isPublic: false,
-          ownerId: 'user-123',
-        });
-
-        // Name lookup fails, slug lookup succeeds
-        vi.mocked(mockPrisma.personality.findFirst)
-          .mockResolvedValueOnce(null) // Name lookup
-          .mockResolvedValueOnce(mockPersonality as any); // Slug lookup
-
-        const result = await loader.loadFromDatabase('private-bot', 'user-123');
-
-        expect(result).not.toBeNull();
-
-        // Verify access filter was applied to slug query
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenNthCalledWith(2, {
-          where: {
-            AND: [{ slug: 'private-bot' }, { OR: [{ isPublic: true }, { ownerId: 'user-123' }] }],
-          },
-          orderBy: { createdAt: 'asc' },
-          select: expect.any(Object),
-        });
-      });
-
       it('should not apply access filter when userId is not provided', async () => {
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([]);
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
 
         await loader.loadFromDatabase('test');
 
-        // Verify no access filter (AND array has only one element)
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenNthCalledWith(1, {
+        // Verify no access filter (AND array has only the OR condition)
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
           where: {
-            AND: [{ name: { equals: 'test', mode: 'insensitive' } }],
+            AND: [
+              {
+                OR: [{ name: { equals: 'test', mode: 'insensitive' } }, { slug: 'test' }],
+              },
+            ],
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
@@ -372,8 +361,8 @@ describe('PersonalityLoader', () => {
       });
 
       it('should return null when user lacks access to private personality', async () => {
-        // All lookups return null (access denied due to filter)
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
+        // All lookups return empty (access denied due to filter)
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([]);
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
 
         const result = await loader.loadFromDatabase('private-bot', 'wrong-user');
@@ -393,17 +382,24 @@ describe('PersonalityLoader', () => {
           ownerId: 'other-user',
         });
 
-        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
         const result = await loader.loadFromDatabase('private-bot', 'bot-owner-id');
 
         expect(result).not.toBeNull();
         expect(result?.id).toBe('private-id');
 
-        // Verify no access filter was applied (AND array has only one element)
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
+        // Verify no access filter was applied (AND array has only the OR condition)
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
           where: {
-            AND: [{ name: { equals: 'private-bot', mode: 'insensitive' } }],
+            AND: [
+              {
+                OR: [
+                  { name: { equals: 'private-bot', mode: 'insensitive' } },
+                  { slug: 'private-bot' },
+                ],
+              },
+            ],
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
@@ -418,23 +414,23 @@ describe('PersonalityLoader', () => {
           ownerId: 'user-123',
         });
 
-        // Name and slug lookups fail
-        vi.mocked(mockPrisma.personality.findFirst)
-          .mockResolvedValueOnce(null) // Name lookup
-          .mockResolvedValueOnce(null) // Slug lookup
-          .mockResolvedValueOnce(mockPersonality as any); // Personality by alias ID
+        // Combined name/slug lookup returns empty
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
 
         // Alias lookup succeeds
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue({
           personalityId: 'private-id',
         } as any);
 
+        // Personality by alias ID lookup succeeds
+        vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
+
         const result = await loader.loadFromDatabase('my-alias', 'user-123');
 
         expect(result).not.toBeNull();
 
         // Verify access filter was applied to the alias-based personality lookup
-        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenNthCalledWith(3, {
+        expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
           where: {
             AND: [{ id: 'private-id' }, { OR: [{ isPublic: true }, { ownerId: 'user-123' }] }],
           },
