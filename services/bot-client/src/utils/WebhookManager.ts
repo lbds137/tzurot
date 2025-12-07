@@ -183,8 +183,8 @@ export class WebhookManager {
       logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${standardizedName}`);
     }
 
-    // Debug logging for avatar URL
-    logger.debug(`[WebhookManager] Sending with avatar: ${personality.avatarUrl ?? 'UNDEFINED'}`);
+    // Debug logging for avatar URL (log the actual URL with cache-busting)
+    logger.debug(`[WebhookManager] Sending with avatar: ${avatarURL ?? 'UNDEFINED'}`);
 
     // Send via webhook and return message
     const sentMessage = await webhook.send(webhookOptions);
