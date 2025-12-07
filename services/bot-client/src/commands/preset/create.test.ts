@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleCreate } from './create.js';
+import { mockCreateLlmConfigResponse } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -78,14 +79,12 @@ describe('handleCreate', () => {
   it('should create preset successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        config: {
-          id: 'cfg-123',
-          name: 'MyPreset',
-          model: 'anthropic/claude-sonnet-4',
-          provider: 'openrouter',
-        },
-      },
+      data: mockCreateLlmConfigResponse({
+        id: 'cfg-123',
+        name: 'MyPreset',
+        model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
+      }),
     });
 
     const interaction = createMockInteraction();
@@ -118,14 +117,12 @@ describe('handleCreate', () => {
   it('should use custom provider when specified', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        config: {
-          id: 'cfg-123',
-          name: 'GeminiPreset',
-          model: 'gemini-2.0-flash',
-          provider: 'gemini',
-        },
-      },
+      data: mockCreateLlmConfigResponse({
+        id: 'cfg-123',
+        name: 'GeminiPreset',
+        model: 'gemini-2.0-flash',
+        provider: 'gemini',
+      }),
     });
 
     const interaction = createMockInteraction({

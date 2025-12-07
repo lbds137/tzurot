@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleDelete } from './delete.js';
+import { mockDeleteLlmConfigResponse } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -58,7 +59,7 @@ describe('handleDelete', () => {
   }
 
   it('should delete preset successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true });
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: mockDeleteLlmConfigResponse() });
 
     const interaction = createMockInteraction('cfg-123');
     await handleDelete(interaction);

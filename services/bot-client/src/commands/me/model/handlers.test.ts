@@ -11,6 +11,7 @@ import {
   mockSetModelOverrideResponse,
   mockDeleteModelOverrideResponse,
   mockListWalletKeysResponse,
+  mockListLlmConfigsResponse,
 } from '@tzurot/common-types';
 
 // Test UUIDs (RFC 4122 compliant)
@@ -134,10 +135,7 @@ describe('Model Command Handlers', () => {
   });
 
   describe('handleSet', () => {
-    function createMockInteraction(
-      personalityId = PERSONALITY_ID_1,
-      configId = CONFIG_ID_1
-    ) {
+    function createMockInteraction(personalityId = PERSONALITY_ID_1, configId = CONFIG_ID_1) {
       return {
         user: { id: '123456789' },
         options: {
@@ -161,12 +159,11 @@ describe('Model Command Handlers', () => {
           });
         }
         if (path === '/user/llm-config') {
-          // llm-config doesn't have a factory yet - use inline mock
           return Promise.resolve({
             ok: true,
-            data: {
-              configs: [{ id: CONFIG_ID_1, name: 'Fast', model: 'openai/gpt-4o-mini' }],
-            },
+            data: mockListLlmConfigsResponse([
+              { id: CONFIG_ID_1, name: 'Fast', model: 'openai/gpt-4o-mini' },
+            ]),
           });
         }
         if (path === '/user/model-override' && options?.method === 'PUT') {
@@ -244,13 +241,10 @@ describe('Model Command Handlers', () => {
       const interaction = createMockInteraction();
       await handleReset(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        `/user/model-override/${PERSONALITY_ID_1}`,
-        {
-          method: 'DELETE',
-          userId: '123456789',
-        }
-      );
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/model-override/${PERSONALITY_ID_1}`, {
+        method: 'DELETE',
+        userId: '123456789',
+      });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Model Override Removed',
         'The personality will now use its default model configuration.'

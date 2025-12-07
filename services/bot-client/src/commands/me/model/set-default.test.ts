@@ -9,6 +9,7 @@ import { MessageFlags } from 'discord.js';
 import {
   mockSetDefaultConfigResponse,
   mockListWalletKeysResponse,
+  mockListLlmConfigsResponse,
 } from '@tzurot/common-types';
 
 // Mock logger
@@ -78,12 +79,11 @@ describe('handleSetDefault', () => {
         });
       }
       if (path === '/user/llm-config') {
-        // llm-config doesn't have a factory yet - use inline mock
         return Promise.resolve({
           ok: true,
-          data: {
-            configs: [{ id: configId, name: configName, model: 'openai/gpt-4o-mini' }],
-          },
+          data: mockListLlmConfigsResponse([
+            { id: configId, name: configName, model: 'openai/gpt-4o-mini' },
+          ]),
         });
       }
       if (path === '/user/model-override/default') {
@@ -149,7 +149,9 @@ describe('handleSetDefault', () => {
       if (path === '/user/llm-config') {
         return Promise.resolve({
           ok: true,
-          data: { configs: [{ id: 'config-123', name: 'Test', model: 'openai/gpt-4o-mini' }] },
+          data: mockListLlmConfigsResponse([
+            { id: 'config-123', name: 'Test', model: 'openai/gpt-4o-mini' },
+          ]),
         });
       }
       if (path === '/user/model-override/default') {
@@ -195,9 +197,9 @@ describe('handleSetDefault', () => {
       if (path === '/user/llm-config') {
         return Promise.resolve({
           ok: true,
-          data: {
-            configs: [{ id: 'premium-config', name: 'Premium Config', model: 'openai/gpt-4o' }],
-          },
+          data: mockListLlmConfigsResponse([
+            { id: 'premium-config', name: 'Premium Config', model: 'openai/gpt-4o' },
+          ]),
         });
       }
       return Promise.resolve({ ok: false, error: 'Should not be called' });
@@ -236,15 +238,13 @@ describe('handleSetDefault', () => {
       if (path === '/user/llm-config') {
         return Promise.resolve({
           ok: true,
-          data: {
-            configs: [
-              {
-                id: 'free-config',
-                name: 'Free Config',
-                model: 'meta-llama/llama-3.3-70b-instruct:free',
-              },
-            ],
-          },
+          data: mockListLlmConfigsResponse([
+            {
+              id: 'free-config',
+              name: 'Free Config',
+              model: 'meta-llama/llama-3.3-70b-instruct:free',
+            },
+          ]),
         });
       }
       if (path === '/user/model-override/default') {

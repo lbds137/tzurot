@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleList } from './list.js';
+import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -55,40 +56,38 @@ describe('handleList', () => {
       if (path === '/user/llm-config') {
         return Promise.resolve({
           ok: true,
-          data: {
-            configs: [
-              {
-                id: '1',
-                name: 'Default',
-                model: 'anthropic/claude-sonnet-4',
-                isGlobal: true,
-                isDefault: true,
-                isOwned: false,
-              },
-              {
-                id: '2',
-                name: 'Fast',
-                model: 'openai/gpt-4o-mini',
-                isGlobal: true,
-                isDefault: false,
-                isOwned: false,
-              },
-              {
-                id: '3',
-                name: 'MyPreset',
-                model: 'anthropic/claude-opus-4',
-                isGlobal: false,
-                isDefault: false,
-                isOwned: true,
-              },
-            ],
-          },
+          data: mockListLlmConfigsResponse([
+            {
+              id: '1',
+              name: 'Default',
+              model: 'anthropic/claude-sonnet-4',
+              isGlobal: true,
+              isDefault: true,
+              isOwned: false,
+            },
+            {
+              id: '2',
+              name: 'Fast',
+              model: 'openai/gpt-4o-mini',
+              isGlobal: true,
+              isDefault: false,
+              isOwned: false,
+            },
+            {
+              id: '3',
+              name: 'MyPreset',
+              model: 'anthropic/claude-opus-4',
+              isGlobal: false,
+              isDefault: false,
+              isOwned: true,
+            },
+          ]),
         });
       }
       if (path === '/wallet/list') {
         return Promise.resolve({
           ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
+          data: mockListWalletKeysResponse([{ isActive: true }]),
         });
       }
       return Promise.resolve({ ok: false, error: 'Unknown path' });
@@ -121,13 +120,13 @@ describe('handleList', () => {
       if (path === '/user/llm-config') {
         return Promise.resolve({
           ok: true,
-          data: { configs: [] },
+          data: mockListLlmConfigsResponse([]),
         });
       }
       if (path === '/wallet/list') {
         return Promise.resolve({
           ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
+          data: mockListWalletKeysResponse([{ isActive: true }]),
         });
       }
       return Promise.resolve({ ok: false, error: 'Unknown path' });
