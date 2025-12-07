@@ -718,7 +718,7 @@ export function createPersonalityRoutes(
         }
       }
 
-      // Update personality
+      // Update personality - select ALL fields needed for dashboard refresh
       const updated = await prisma.personality.update({
         where: { id: personality.id },
         data: updateData,
@@ -727,7 +727,25 @@ export function createPersonalityRoutes(
           name: true,
           slug: true,
           displayName: true,
+          characterInfo: true,
+          personalityTraits: true,
+          personalityTone: true,
+          personalityAge: true,
+          personalityAppearance: true,
+          personalityLikes: true,
+          personalityDislikes: true,
+          conversationalGoals: true,
+          conversationalExamples: true,
+          errorMessage: true,
+          birthMonth: true,
+          birthDay: true,
+          birthYear: true,
           isPublic: true,
+          voiceEnabled: true,
+          imageEnabled: true,
+          ownerId: true,
+          avatarData: true,
+          createdAt: true,
           updatedAt: true,
         },
       });
@@ -782,6 +800,7 @@ export function createPersonalityRoutes(
         '[User] Updated personality'
       );
 
+      // Return full personality data for dashboard refresh
       sendCustomSuccess(
         res,
         {
@@ -791,7 +810,25 @@ export function createPersonalityRoutes(
             name: updated.name,
             slug: updated.slug,
             displayName: updated.displayName,
+            characterInfo: updated.characterInfo,
+            personalityTraits: updated.personalityTraits,
+            personalityTone: updated.personalityTone,
+            personalityAge: updated.personalityAge,
+            personalityAppearance: updated.personalityAppearance,
+            personalityLikes: updated.personalityLikes,
+            personalityDislikes: updated.personalityDislikes,
+            conversationalGoals: updated.conversationalGoals,
+            conversationalExamples: updated.conversationalExamples,
+            errorMessage: updated.errorMessage,
+            birthMonth: updated.birthMonth,
+            birthDay: updated.birthDay,
+            birthYear: updated.birthYear,
             isPublic: updated.isPublic,
+            voiceEnabled: updated.voiceEnabled,
+            imageEnabled: updated.imageEnabled,
+            ownerId: updated.ownerId,
+            hasAvatar: updated.avatarData !== null,
+            createdAt: updated.createdAt.toISOString(),
             updatedAt: updated.updatedAt.toISOString(),
           },
         },
