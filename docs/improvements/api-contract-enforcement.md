@@ -32,23 +32,23 @@ Based on Gemini consultation, we implemented:
 
 ### ✅ Fully Covered (Zod Schemas + Validated Factories)
 
-| Domain | Endpoints | Schema File | Factory File |
-|--------|-----------|-------------|--------------|
-| **Persona** | GET/POST/PUT/DELETE `/user/persona/*`, override, settings, default | `persona.ts` | `persona.ts` |
-| **Personality** | GET/POST/PUT/PATCH `/user/personality/*` | `personality.ts` | `personality.ts` |
-| **LLM Config** | GET/POST/DELETE `/user/llm-config` | `llm-config.ts` | `llm-config.ts` |
-| **Model Override** | GET/PUT/DELETE `/user/model-override/*`, default | `model-override.ts` | `model-override.ts` |
-| **Timezone** | GET/PUT `/user/timezone` | `timezone.ts` | `timezone.ts` |
-| **Usage** | GET `/user/usage`, `/admin/usage` | `usage.ts` | `usage.ts` |
-| **Wallet** | GET/POST/DELETE `/user/wallet/*`, test | `wallet.ts` | `wallet.ts` |
+| Domain             | Endpoints                                                          | Schema File         | Factory File        |
+| ------------------ | ------------------------------------------------------------------ | ------------------- | ------------------- |
+| **Persona**        | GET/POST/PUT/DELETE `/user/persona/*`, override, settings, default | `persona.ts`        | `persona.ts`        |
+| **Personality**    | GET/POST/PUT/PATCH `/user/personality/*`                           | `personality.ts`    | `personality.ts`    |
+| **LLM Config**     | GET/POST/DELETE `/user/llm-config`                                 | `llm-config.ts`     | `llm-config.ts`     |
+| **Model Override** | GET/PUT/DELETE `/user/model-override/*`, default                   | `model-override.ts` | `model-override.ts` |
+| **Timezone**       | GET/PUT `/user/timezone`                                           | `timezone.ts`       | `timezone.ts`       |
+| **Usage**          | GET `/user/usage`, `/admin/usage`                                  | `usage.ts`          | `usage.ts`          |
+| **Wallet**         | GET/POST/DELETE `/user/wallet/*`, test                             | `wallet.ts`         | `wallet.ts`         |
 
 ### ⚠️ Lower-Risk Gaps (Acceptable)
 
-| Endpoint | Risk | Reason |
-|----------|------|--------|
+| Endpoint                               | Risk    | Reason                                                               |
+| -------------------------------------- | ------- | -------------------------------------------------------------------- |
 | `/models/text,vision,image-generation` | **Low** | Read-only autocomplete, uses existing `ModelAutocompleteOption` type |
-| `/admin/db-sync` | **Low** | Admin-only endpoint, rarely used, has local `SyncResult` interface |
-| `/admin/llm-config` | **Low** | Shares structure with user llm-config (already has schemas) |
+| `/admin/db-sync`                       | **Low** | Admin-only endpoint, rarely used, has local `SyncResult` interface   |
+| `/admin/llm-config`                    | **Low** | Shares structure with user llm-config (already has schemas)          |
 
 ### ✅ No Schema Needed (Internal/Public)
 
@@ -116,9 +116,7 @@ All factories follow this pattern:
 ```typescript
 import { SomeResponseSchema, type SomeResponse } from '../schemas/api/some.js';
 
-type DeepPartial<T> = T extends object
-  ? { [P in keyof T]?: DeepPartial<T[P]> }
-  : T;
+type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T;
 
 export function mockSomeResponse(overrides?: DeepPartial<SomeResponse>): SomeResponse {
   const base: SomeResponse = {
