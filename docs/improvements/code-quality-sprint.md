@@ -62,24 +62,24 @@ Production bugs were caused by:
 
 ## Phase 3: Cover Remaining Untested Files
 
-Current count: 14 files without tests
+Original count: 14 files without tests → **All files now tested!**
 
-| Lines | File                                                  | Priority | Status    |
-| ----- | ----------------------------------------------------- | -------- | --------- |
-| 1242  | bot-client/commands/character/index.ts                | P1       | Splitting |
-| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       | ✅ Done   |
-| 176   | bot-client/commands/character/export.ts               | P2       | ✅ Done   |
-| 154   | bot-client/commands/me/model/set.ts                   | P2       | ✅ Done   |
-| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       | ✅ Done   |
-| 111   | ai-worker/services/RedisService.ts                    | P2       |           |
-| 90    | bot-client/commands/preset/global/edit.ts             | P3       |           |
-| 90    | ai-worker/jobs/CleanupJobResults.ts                   | P3       |           |
-| 75    | ai-worker/services/context/PromptContext.ts           | P3       |           |
-| 70    | bot-client/commands/preset/global/create.ts           | P3       |           |
-| 68    | bot-client/commands/me/model/list.ts                  | P3       |           |
-| 62    | bot-client/commands/preset/global/set-default.ts      | P3       |           |
-| 62    | bot-client/commands/preset/global/set-free-default.ts | P3       |           |
-| 53    | bot-client/commands/me/model/reset.ts                 | P3       |           |
+| Lines | File                                                  | Priority | Status                   |
+| ----- | ----------------------------------------------------- | -------- | ------------------------ |
+| 1242  | bot-client/commands/character/index.ts                | P1       | ✅ Split + Tested        |
+| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       | ✅ Done (14 tests)       |
+| 176   | bot-client/commands/character/export.ts               | P2       | ✅ Done (13 tests)       |
+| 154   | bot-client/commands/me/model/set.ts                   | P2       | ✅ Done (9 tests)        |
+| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       | ✅ Done (20 tests)       |
+| 111   | ai-worker/services/RedisService.ts                    | P2       | ✅ Done (16 tests)       |
+| 90    | bot-client/commands/preset/global/edit.ts             | P3       | ✅ Done (8 tests)        |
+| 90    | ai-worker/jobs/CleanupJobResults.ts                   | P3       | ✅ Done (11 tests)       |
+| 75    | ai-worker/services/context/PromptContext.ts           | P3       | N/A (types only)         |
+| 70    | bot-client/commands/preset/global/create.ts           | P3       | ✅ Done (7 tests)        |
+| 68    | bot-client/commands/me/model/list.ts                  | P3       | ✅ Done (6 tests)        |
+| 62    | bot-client/commands/preset/global/set-default.ts      | P3       | ✅ Done (5 tests)        |
+| 62    | bot-client/commands/preset/global/set-free-default.ts | P3       | ✅ Done (5 tests)        |
+| 53    | bot-client/commands/me/model/reset.ts                 | P3       | ✅ Done (4 tests)        |
 
 ## Phase 4: Coverage Enforcement
 
@@ -162,3 +162,22 @@ wc -l services/bot-client/src/commands/character/index.ts
   - ai-worker: 792 tests
   - bot-client: 1253 tests
 - Remaining untested files: 10 (down from 14)
+
+### 2025-12-06 Session 4 (Continued)
+
+- Completed Phase 3 - all remaining untested files now have tests:
+  - RedisService.ts - 16 tests (stream publishing, job result storage, retrieval, error handling)
+  - CleanupJobResults.ts - 11 tests (probabilistic cleanup, threshold-based cleanup, error handling)
+  - preset/global/edit.ts - 8 tests (partial updates, no fields error, API errors)
+  - preset/global/create.ts - 7 tests (creation, default provider, API errors)
+  - preset/global/set-default.ts - 5 tests (default setting, API errors)
+  - preset/global/set-free-default.ts - 5 tests (free tier default, API errors)
+  - me/model/list.ts - 6 tests (empty state, list display, unknown config)
+  - me/model/reset.ts - 4 tests (reset success, API errors)
+  - PromptContext.ts - N/A (types only, no executable code)
+- Total test count: 3628 tests across all services (+62 new)
+  - common-types: 776 tests
+  - api-gateway: 745 tests
+  - ai-worker: 819 tests (+27)
+  - bot-client: 1288 tests (+35)
+- **Phase 3 COMPLETE** - All 14 originally untested files now have tests or are type-only
