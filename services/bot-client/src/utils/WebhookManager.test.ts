@@ -99,13 +99,18 @@ function createMockWebhook(id: string, ownerId?: string): Webhook {
 }
 
 // Helper to create mock LoadedPersonality
-function createMockPersonality(displayName: string, avatarUrl?: string): LoadedPersonality {
+function createMockPersonality(
+  displayName: string,
+  avatarUrl?: string,
+  avatarUpdatedAt?: Date
+): LoadedPersonality {
   return {
     id: 'personality-123',
     name: displayName.toLowerCase(),
     displayName,
     systemPrompt: 'Test personality',
     avatarUrl,
+    avatarUpdatedAt,
     llmConfig: {
       model: 'test-model',
       temperature: 0.7,
@@ -498,6 +503,81 @@ describe('WebhookManager', () => {
       const result = await manager.sendAsPersonality(channel, personality, 'Test');
 
       expect(result).toHaveProperty('id');
+    });
+
+    describe('avatar cache-busting', () => {
+      it('should append timestamp query param when avatarUpdatedAt exists', async () => {
+        const client = createMockClient('TestBot#1234');
+        manager = new WebhookManager(client);
+
+        const avatarUpdatedAt = new Date('2024-01-01T00:00:00Z');
+        const personality = createMockPersonality(
+          'Lilith',
+          'https://example.com/avatar.png',
+          avatarUpdatedAt
+        );
+        const channel = createMockTextChannel('channel-123', 'bot-123');
+
+        await manager.sendAsPersonality(channel, personality, 'Test');
+
+        const webhook = await manager.getWebhook(channel);
+        expect(webhook.send).toHaveBeenCalledWith(
+          expect.objectContaining({
+            avatarURL: `https://example.com/avatar.png?v=${avatarUpdatedAt.getTime()}`,
+          })
+        );
+      });
+
+      it('should not modify avatarURL when avatarUpdatedAt is missing', async () => {
+        const client = createMockClient('TestBot#1234');
+        manager = new WebhookManager(client);
+
+        const personality = createMockPersonality('Lilith', 'https://example.com/avatar.png');
+        const channel = createMockTextChannel('channel-123', 'bot-123');
+
+        await manager.sendAsPersonality(channel, personality, 'Test');
+
+        const webhook = await manager.getWebhook(channel);
+        expect(webhook.send).toHaveBeenCalledWith(
+          expect.objectContaining({
+            avatarURL: 'https://example.com/avatar.png',
+          })
+        );
+      });
+
+      it('should not modify avatarURL when avatarUrl is empty', async () => {
+        const client = createMockClient('TestBot#1234');
+        manager = new WebhookManager(client);
+
+        const personality = createMockPersonality('Lilith', '', new Date());
+        const channel = createMockTextChannel('channel-123', 'bot-123');
+
+        await manager.sendAsPersonality(channel, personality, 'Test');
+
+        const webhook = await manager.getWebhook(channel);
+        expect(webhook.send).toHaveBeenCalledWith(
+          expect.objectContaining({
+            avatarURL: '',
+          })
+        );
+      });
+
+      it('should not modify avatarURL when avatarUrl is undefined', async () => {
+        const client = createMockClient('TestBot#1234');
+        manager = new WebhookManager(client);
+
+        const personality = createMockPersonality('Lilith', undefined, new Date());
+        const channel = createMockTextChannel('channel-123', 'bot-123');
+
+        await manager.sendAsPersonality(channel, personality, 'Test');
+
+        const webhook = await manager.getWebhook(channel);
+        expect(webhook.send).toHaveBeenCalledWith(
+          expect.objectContaining({
+            avatarURL: undefined,
+          })
+        );
+      });
     });
   });
 
