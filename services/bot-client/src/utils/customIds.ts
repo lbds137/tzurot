@@ -55,6 +55,12 @@ export const CharacterCustomIds = {
   /** Build expand field button customId */
   expand: (slug: string, fieldName: string) => `character::expand::${slug}::${fieldName}` as const,
 
+  /** Build delete confirm button customId */
+  deleteConfirm: (slug: string) => `character::delete_confirm::${slug}` as const,
+
+  /** Build delete cancel button customId */
+  deleteCancel: (slug: string) => `character::delete_cancel::${slug}` as const,
+
   /** Parse character customId */
   parse: (
     customId: string

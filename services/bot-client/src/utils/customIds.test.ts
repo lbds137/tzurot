@@ -77,6 +77,18 @@ describe('customIds', () => {
           'character::expand::my-character::characterInfo'
         );
       });
+
+      it('should build deleteConfirm customId with slug', () => {
+        expect(CharacterCustomIds.deleteConfirm('my-character')).toBe(
+          'character::delete_confirm::my-character'
+        );
+      });
+
+      it('should build deleteCancel customId with slug', () => {
+        expect(CharacterCustomIds.deleteCancel('my-character')).toBe(
+          'character::delete_cancel::my-character'
+        );
+      });
     });
 
     describe('parse', () => {
@@ -208,6 +220,24 @@ describe('customIds', () => {
           command: 'character',
           action: 'refresh',
           characterId: 'abc123',
+        });
+      });
+
+      it('should parse delete_confirm customId', () => {
+        const result = CharacterCustomIds.parse('character::delete_confirm::my-char');
+        expect(result).toEqual({
+          command: 'character',
+          action: 'delete_confirm',
+          characterId: 'my-char',
+        });
+      });
+
+      it('should parse delete_cancel customId', () => {
+        const result = CharacterCustomIds.parse('character::delete_cancel::my-char');
+        expect(result).toEqual({
+          command: 'character',
+          action: 'delete_cancel',
+          characterId: 'my-char',
         });
       });
     });
@@ -452,6 +482,72 @@ describe('customIds', () => {
       const parsed = WalletCustomIds.parse(customId);
       expect(parsed?.action).toBe('set');
       expect(parsed?.provider).toBe('openrouter');
+    });
+
+    it('should round-trip character delete confirm', () => {
+      const customId = CharacterCustomIds.deleteConfirm('my-char');
+      const parsed = CharacterCustomIds.parse(customId);
+      expect(parsed?.action).toBe('delete_confirm');
+      expect(parsed?.characterId).toBe('my-char');
+    });
+
+    it('should round-trip character delete cancel', () => {
+      const customId = CharacterCustomIds.deleteCancel('my-char');
+      const parsed = CharacterCustomIds.parse(customId);
+      expect(parsed?.action).toBe('delete_cancel');
+      expect(parsed?.characterId).toBe('my-char');
+    });
+  });
+
+  /**
+   * ENFORCEMENT TEST: Ensures ALL customId builders use the :: delimiter
+   *
+   * This test prevents future bugs where a developer might accidentally use
+   * underscores, hyphens, or other delimiters that would break the routing.
+   *
+   * If this test fails, it means a new builder was added that doesn't follow
+   * the established pattern and would cause "Unknown command" errors in production.
+   */
+  describe('delimiter enforcement (CRITICAL - prevents routing bugs)', () => {
+    // Helper to test that a customId:
+    // 1. Contains the :: delimiter
+    // 2. Can be routed by getCommandFromCustomId
+    function assertValidCustomId(customId: string, expectedCommand: string): void {
+      expect(customId).toContain('::');
+      expect(getCommandFromCustomId(customId)).toBe(expectedCommand);
+    }
+
+    describe('CharacterCustomIds - all builders must use :: delimiter', () => {
+      it('seed', () => assertValidCustomId(CharacterCustomIds.seed(), 'character'));
+      it('menu', () => assertValidCustomId(CharacterCustomIds.menu('test'), 'character'));
+      it('modal', () => assertValidCustomId(CharacterCustomIds.modal('test', 'section'), 'character'));
+      it('close', () => assertValidCustomId(CharacterCustomIds.close('test'), 'character'));
+      it('refresh', () => assertValidCustomId(CharacterCustomIds.refresh('test'), 'character'));
+      it('listPage', () => assertValidCustomId(CharacterCustomIds.listPage(1), 'character'));
+      it('listInfo', () => assertValidCustomId(CharacterCustomIds.listInfo(), 'character'));
+      it('viewPage', () => assertValidCustomId(CharacterCustomIds.viewPage('test', 1), 'character'));
+      it('viewInfo', () => assertValidCustomId(CharacterCustomIds.viewInfo('test'), 'character'));
+      it('expand', () => assertValidCustomId(CharacterCustomIds.expand('test', 'field'), 'character'));
+      it('deleteConfirm', () => assertValidCustomId(CharacterCustomIds.deleteConfirm('test'), 'character'));
+      it('deleteCancel', () => assertValidCustomId(CharacterCustomIds.deleteCancel('test'), 'character'));
+    });
+
+    describe('MeCustomIds - all builders must use :: delimiter', () => {
+      it('profile.create', () => assertValidCustomId(MeCustomIds.profile.create(), 'me'));
+      it('profile.edit', () => assertValidCustomId(MeCustomIds.profile.edit('test'), 'me'));
+      it('profile.editNew', () => assertValidCustomId(MeCustomIds.profile.editNew(), 'me'));
+      it('view.expand', () => assertValidCustomId(MeCustomIds.view.expand('test', 'field'), 'me'));
+      it('override.createForOverride', () =>
+        assertValidCustomId(MeCustomIds.override.createForOverride('test'), 'me'));
+    });
+
+    describe('WalletCustomIds - all builders must use :: delimiter', () => {
+      it('set', () => assertValidCustomId(WalletCustomIds.set('openrouter'), 'wallet'));
+    });
+
+    describe('PresetCustomIds - all builders must use :: delimiter', () => {
+      it('menu', () => assertValidCustomId(PresetCustomIds.menu('test'), 'preset'));
+      it('modal', () => assertValidCustomId(PresetCustomIds.modal('test', 'section'), 'preset'));
     });
   });
 });
