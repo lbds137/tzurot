@@ -163,12 +163,8 @@ describe('Character Delete Handler', () => {
       const components = editReplyCall.components[0].components;
 
       // Verify buttons use the correct customId pattern (:: delimiter)
-      expect(components[0].data.custom_id).toBe(
-        CharacterCustomIds.deleteConfirm('test-character')
-      );
-      expect(components[1].data.custom_id).toBe(
-        CharacterCustomIds.deleteCancel('test-character')
-      );
+      expect(components[0].data.custom_id).toBe(CharacterCustomIds.deleteConfirm('test-character'));
+      expect(components[1].data.custom_id).toBe(CharacterCustomIds.deleteCancel('test-character'));
     });
 
     it('should handle fetch errors gracefully', async () => {
