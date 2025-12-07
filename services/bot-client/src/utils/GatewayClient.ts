@@ -230,6 +230,11 @@ export class GatewayClient {
         // Wait before next poll
         await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
       } catch (error) {
+        // Re-throw job failure errors - they should not be retried
+        // Format: "Job {jobId} failed" - NOT "Job status check failed"
+        if (error instanceof Error && error.message.match(/^Job .+ failed$/)) {
+          throw error;
+        }
         // On network error, wait and retry
         logger.warn({ err: error, jobId }, '[GatewayClient] Poll request failed, retrying');
         await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
