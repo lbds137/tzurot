@@ -68,7 +68,8 @@ export type SetOverrideResponse = z.infer<typeof SetOverrideResponseSchema>;
 
 export const ClearOverrideResponseSchema = z.object({
   success: z.literal(true),
-  personalityName: z.string(),
+  personality: PersonalityRefSchema,
+  hadOverride: z.boolean(),
 });
 export type ClearOverrideResponse = z.infer<typeof ClearOverrideResponseSchema>;
 

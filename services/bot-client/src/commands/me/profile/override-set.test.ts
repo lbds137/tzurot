@@ -1,12 +1,20 @@
 /**
  * Tests for Override Set Handler
  * Tests gateway API calls for setting per-personality profile overrides.
+ *
+ * Uses validated mock factories from @tzurot/common-types to ensure
+ * test mocks match actual gateway API responses.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideSet, handleOverrideCreateModalSubmit } from './override-set.js';
 import { MessageFlags } from 'discord.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
+import {
+  mockSetOverrideResponse,
+  mockOverrideInfoResponse,
+  mockCreateOverrideResponse,
+} from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -58,21 +66,13 @@ describe('handleOverrideSet', () => {
   }
 
   it('should set existing persona as override', async () => {
+    // Use validated factory - ensures mock matches actual gateway response
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        personality: {
-          id: 'personality-uuid',
-          name: 'Lilith',
-          displayName: 'Lilith',
-        },
-        persona: {
-          id: 'persona-123',
-          name: 'Work Persona',
-          preferredName: 'Alice',
-        },
-      },
+      data: mockSetOverrideResponse({
+        personality: { name: 'Lilith', displayName: 'Lilith' },
+        persona: { name: 'Work Persona', preferredName: 'Alice' },
+      }),
     });
 
     await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
@@ -89,15 +89,12 @@ describe('handleOverrideSet', () => {
   });
 
   it('should show create modal when CREATE_NEW_PERSONA_VALUE selected', async () => {
+    // Use validated factory for override info response
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        personality: {
-          id: 'personality-uuid',
-          name: 'Lilith',
-          displayName: 'Lilith',
-        },
-      },
+      data: mockOverrideInfoResponse({
+        personality: { name: 'Lilith', displayName: 'Lilith' },
+      }),
     });
 
     await handleOverrideSet(createMockInteraction('lilith', CREATE_NEW_PERSONA_VALUE));
@@ -181,12 +178,12 @@ describe('handleOverrideCreateModalSubmit', () => {
   }
 
   it('should create new persona and set as override', async () => {
+    // Use validated factory for create override response
+    // NOTE: POST /user/persona/override/by-id/:id endpoint needs to be implemented
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
+      data: mockCreateOverrideResponse({
         persona: {
-          id: 'new-persona-123',
           name: 'Lilith Persona',
           preferredName: 'Alice',
           description: 'For Lilith only',
@@ -197,7 +194,7 @@ describe('handleOverrideCreateModalSubmit', () => {
           name: 'Lilith',
           displayName: 'Lilith',
         },
-      },
+      }),
     });
 
     await handleOverrideCreateModalSubmit(

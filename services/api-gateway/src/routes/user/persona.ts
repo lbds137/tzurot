@@ -813,8 +813,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         // Still return success - idempotent behavior
         logger.info({ userId: user.id, personalitySlug }, '[Persona] No override to clear');
         sendCustomSuccess(res, {
-          message: `No profile override exists for ${personality.displayName ?? personality.name}.`,
-          personalitySlug,
+          success: true,
+          personality: {
+            id: personality.id,
+            name: personality.name,
+            displayName: personality.displayName,
+          },
+          hadOverride: false,
         });
         return;
       }
@@ -835,8 +840,13 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
       logger.info({ userId: user.id, personalitySlug }, '[Persona] Cleared persona override');
 
       sendCustomSuccess(res, {
-        message: `Profile override cleared for ${personality.displayName ?? personality.name}. Your default profile will be used.`,
-        personalitySlug,
+        success: true,
+        personality: {
+          id: personality.id,
+          name: personality.name,
+          displayName: personality.displayName,
+        },
+        hadOverride: true,
       });
     })
   );

@@ -15,9 +15,9 @@ import {
   type PersonalityFull,
 } from '../schemas/api/personality.js';
 
-// Default UUIDs for consistent test data
-const DEFAULT_PERSONALITY_ID = '33333333-3333-3333-3333-333333333333';
-const DEFAULT_OWNER_ID = '44444444-4444-4444-4444-444444444444';
+// Default UUIDs for consistent test data (RFC 4122 compliant v5 UUIDs)
+const DEFAULT_PERSONALITY_ID = '33333333-3333-5333-8333-333333333333';
+const DEFAULT_OWNER_ID = '44444444-4444-5444-8444-444444444444';
 
 /** Base personality data with all required fields */
 function createBasePersonality(overrides?: Partial<PersonalityFull>): PersonalityFull {

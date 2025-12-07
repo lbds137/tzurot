@@ -1,11 +1,15 @@
 /**
  * Tests for Override Clear Handler
  * Tests gateway API calls for clearing per-personality profile overrides.
+ *
+ * Uses validated mock factories from @tzurot/common-types to ensure
+ * test mocks match actual gateway API responses.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideClear } from './override-clear.js';
 import { MessageFlags } from 'discord.js';
+import { mockClearOverrideResponse } from '@tzurot/common-types';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
@@ -47,17 +51,13 @@ describe('handleOverrideClear', () => {
   }
 
   it('should clear override successfully', async () => {
+    // Use validated factory - ensures mock matches actual gateway response
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        personality: {
-          id: 'personality-uuid',
-          name: 'Lilith',
-          displayName: 'Lilith',
-        },
+      data: mockClearOverrideResponse({
+        personality: { name: 'Lilith', displayName: 'Lilith' },
         hadOverride: true,
-      },
+      }),
     });
 
     await handleOverrideClear(createMockInteraction('lilith'));
@@ -73,17 +73,13 @@ describe('handleOverrideClear', () => {
   });
 
   it('should inform user if no override exists', async () => {
+    // Use validated factory with hadOverride: false
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        success: true,
-        personality: {
-          id: 'personality-uuid',
-          name: 'Lilith',
-          displayName: 'Lilith',
-        },
+      data: mockClearOverrideResponse({
+        personality: { name: 'Lilith', displayName: 'Lilith' },
         hadOverride: false,
-      },
+      }),
     });
 
     await handleOverrideClear(createMockInteraction('lilith'));
