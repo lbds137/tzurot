@@ -1,0 +1,108 @@
+/**
+ * Validated Mock Factories for Personality API Responses
+ *
+ * These factories create mock data that is VALIDATED against the Zod schemas.
+ * If a test tries to mock an invalid shape, it will CRASH immediately.
+ */
+
+import {
+  CreatePersonalityResponseSchema,
+  GetPersonalityResponseSchema,
+  ListPersonalitiesResponseSchema,
+  type CreatePersonalityResponse,
+  type GetPersonalityResponse,
+  type ListPersonalitiesResponse,
+  type PersonalityFull,
+} from '../schemas/api/personality.js';
+
+// Default UUIDs for consistent test data
+const DEFAULT_PERSONALITY_ID = '33333333-3333-3333-3333-333333333333';
+const DEFAULT_OWNER_ID = '44444444-4444-4444-4444-444444444444';
+
+/** Base personality data with all required fields */
+function createBasePersonality(overrides?: Partial<PersonalityFull>): PersonalityFull {
+  const now = new Date().toISOString();
+  return {
+    id: DEFAULT_PERSONALITY_ID,
+    name: 'TestCharacter',
+    slug: 'test-character',
+    displayName: 'Test Character',
+    characterInfo: 'A test character for unit tests',
+    personalityTraits: 'Friendly, helpful',
+    personalityTone: 'Casual and warm',
+    personalityAge: null,
+    personalityAppearance: null,
+    personalityLikes: null,
+    personalityDislikes: null,
+    conversationalGoals: null,
+    conversationalExamples: null,
+    errorMessage: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    isPublic: false,
+    voiceEnabled: false,
+    imageEnabled: false,
+    ownerId: DEFAULT_OWNER_ID,
+    hasAvatar: false,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a validated mock for POST /user/personality
+ * @throws ZodError if the resulting mock doesn't match the schema
+ */
+export function mockCreatePersonalityResponse(
+  overrides?: Partial<PersonalityFull>
+): CreatePersonalityResponse {
+  return CreatePersonalityResponseSchema.parse({
+    success: true,
+    personality: createBasePersonality(overrides),
+  });
+}
+
+/**
+ * Create a validated mock for GET /user/personality/:slug
+ * @throws ZodError if the resulting mock doesn't match the schema
+ */
+export function mockGetPersonalityResponse(
+  overrides?: Partial<PersonalityFull>
+): GetPersonalityResponse {
+  return GetPersonalityResponseSchema.parse({
+    personality: createBasePersonality(overrides),
+  });
+}
+
+/**
+ * Create a validated mock for GET /user/personality (list)
+ * @throws ZodError if the resulting mock doesn't match the schema
+ */
+export function mockListPersonalitiesResponse(
+  personalities?: Partial<PersonalityFull>[]
+): ListPersonalitiesResponse {
+  const defaultList = [
+    {
+      id: DEFAULT_PERSONALITY_ID,
+      name: 'TestCharacter',
+      slug: 'test-character',
+      displayName: 'Test Character',
+      isPublic: false,
+      hasAvatar: false,
+    },
+  ];
+
+  return ListPersonalitiesResponseSchema.parse({
+    personalities:
+      personalities?.map(p => ({
+        id: p.id ?? DEFAULT_PERSONALITY_ID,
+        name: p.name ?? 'TestCharacter',
+        slug: p.slug ?? 'test-character',
+        displayName: p.displayName ?? 'Test Character',
+        isPublic: p.isPublic ?? false,
+        hasAvatar: p.hasAvatar ?? false,
+      })) ?? defaultList,
+  });
+}

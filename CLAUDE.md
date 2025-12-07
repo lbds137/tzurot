@@ -1038,6 +1038,52 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 ---
 
+### 2025-12-06 - API Contract Mismatch in /me Commands
+
+**What Happened**: Profile override-set (`/me profile override-set`) and character creation (`/character create`) failed in production. Bot-client expected response shapes that didn't match what gateway returned.
+
+**Impact**:
+
+- Profile override functionality broken
+- Character creation dashboard showed incomplete data
+- Required emergency fixes to two gateway endpoints
+
+**Root Cause**:
+
+- Gateway routes were created with certain response shapes (e.g., `{ message, personalitySlug, personaId }`)
+- Bot-client was updated to call those routes expecting DIFFERENT shapes (e.g., `{ success, personality, persona }`)
+- Bot-client tests mocked `callGatewayApi` with **assumed** response shapes
+- Gateway tests mocked Prisma and verified gateway logic
+- **Neither side verified the actual contract between them**
+- Tests passed on both sides because they tested different contracts!
+
+**Specific Issues**:
+
+1. Bot-client test mocked `GET /user/persona/override/:slug` - endpoint that never existed
+2. Gateway PUT returned minimal data, bot expected full objects
+3. Gateway POST returned `{ id, slug }`, bot needed 20+ fields for dashboard
+
+**Why It Wasn't Caught**:
+
+- 106 mocked gateway responses in bot-client tests - all based on assumptions
+- No shared types or schemas between services
+- No integration tests verifying actual HTTP responses
+- AI (Claude) wrote both sides in same session, assumed it knew what gateway returned
+
+**Prevention Measures**:
+
+1. **Shared Zod Schemas**: Define response shapes in `common-types/schemas/api/`
+2. **Validated Mock Factories**: Create factories that validate mocks against schemas
+3. **Runtime Validation**: Gateway uses `Schema.parse()` before sending responses
+4. **New Rule**: NEVER manually construct JSON mocks for API responses - use factories
+5. **New Rule**: When writing API consumer code, READ the actual response code first
+
+**Implementation**: See `docs/improvements/api-contract-enforcement.md` for full plan.
+
+**Universal Lesson**: Tests that mock external dependencies can give false confidence. Shared contracts (Zod schemas) catch mismatches at test time instead of production.
+
+---
+
 ### Why v3 Abandoned DDD
 
 **Lesson**: DDD was over-engineered for a one-person project. It caused:
