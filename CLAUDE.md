@@ -358,6 +358,11 @@ railway run psql
 4. **Check test summary** (shows BOTH passes AND failures): `pnpm test 2>&1 | grep -E "(Test Files|Tests)" | sed 's/\x1b\[[0-9;]*m//g'`
    - This strips ANSI color codes for readability and shows all results (passed, failed, skipped)
    - ALWAYS use this after running tests to verify nothing broke
+5. **Read junit.xml for detailed results** (alternative to parsing console output):
+   - Each service generates a `junit.xml` file after tests run
+   - Read it directly using the Read tool: `services/<service>/junit.xml` or `packages/<package>/junit.xml`
+   - Contains all test names, pass/fail status, error messages, and execution times
+   - This avoids log truncation issues when console output is long
 
 ### Linting
 
