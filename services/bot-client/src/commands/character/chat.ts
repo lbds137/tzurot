@@ -11,7 +11,12 @@
  * 4. Bot sends character response via webhook
  */
 
-import type { ChatInputCommandInteraction, TextChannel, ThreadChannel, GuildMember } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  TextChannel,
+  ThreadChannel,
+  GuildMember,
+} from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { createLogger, splitMessage, DISCORD_LIMITS } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
@@ -44,7 +49,10 @@ function buildEnvironment(interaction: ChatInputCommandInteraction): {
   if ('type' in channel) {
     if (channel.type === ChannelType.GuildText) {
       channelType = 'text';
-    } else if (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread) {
+    } else if (
+      channel.type === ChannelType.PublicThread ||
+      channel.type === ChannelType.PrivateThread
+    ) {
       channelType = 'thread';
     }
   }

@@ -107,8 +107,16 @@ describe('PersonalityIdCache', () => {
         // Second load uses cached ID but MUST still pass userId
         await cache.loadPersonality('testbot', 'user-222');
 
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(1, 'testbot', 'user-111');
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(2, 'cached-id', 'user-222');
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          1,
+          'testbot',
+          'user-111'
+        );
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          2,
+          'cached-id',
+          'user-222'
+        );
       });
 
       it('should pass userId when using slug cache', async () => {
@@ -125,7 +133,11 @@ describe('PersonalityIdCache', () => {
         // Second load by slug uses cached ID with new userId
         await cache.loadPersonality('my-slug', 'user-bbb');
 
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(1, 'testbot', 'user-aaa');
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          1,
+          'testbot',
+          'user-aaa'
+        );
         expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
           2,
           'slug-cached-id',
@@ -136,7 +148,11 @@ describe('PersonalityIdCache', () => {
 
     describe('cache behavior', () => {
       it('should cache name→ID mapping after first load', async () => {
-        const mockPersonality = createMockPersonality({ id: 'my-id', name: 'TestBot', slug: 'test-bot' });
+        const mockPersonality = createMockPersonality({
+          id: 'my-id',
+          name: 'TestBot',
+          slug: 'test-bot',
+        });
         vi.mocked(mockPersonalityService.loadPersonality).mockResolvedValue(mockPersonality);
 
         // First load - fetches by name
@@ -147,12 +163,24 @@ describe('PersonalityIdCache', () => {
 
         // First call: 'testbot' (by name)
         // Second call: 'my-id' (by cached ID)
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(1, 'testbot', undefined);
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(2, 'my-id', undefined);
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          1,
+          'testbot',
+          undefined
+        );
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          2,
+          'my-id',
+          undefined
+        );
       });
 
       it('should expire cache after TTL', async () => {
-        const mockPersonality = createMockPersonality({ id: 'my-id', name: 'TestBot', slug: 'test-bot' });
+        const mockPersonality = createMockPersonality({
+          id: 'my-id',
+          name: 'TestBot',
+          slug: 'test-bot',
+        });
         vi.mocked(mockPersonalityService.loadPersonality).mockResolvedValue(mockPersonality);
 
         // First load
@@ -165,8 +193,16 @@ describe('PersonalityIdCache', () => {
         await cache.loadPersonality('testbot');
 
         // Both calls should be by name (not cached ID)
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(1, 'testbot', undefined);
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(2, 'testbot', undefined);
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          1,
+          'testbot',
+          undefined
+        );
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          2,
+          'testbot',
+          undefined
+        );
       });
 
       it('should not cache when personality not found', async () => {
@@ -192,7 +228,11 @@ describe('PersonalityIdCache', () => {
 
     describe('clearCache', () => {
       it('should clear all cached mappings', async () => {
-        const mockPersonality = createMockPersonality({ id: 'my-id', name: 'TestBot', slug: 'test-bot' });
+        const mockPersonality = createMockPersonality({
+          id: 'my-id',
+          name: 'TestBot',
+          slug: 'test-bot',
+        });
         vi.mocked(mockPersonalityService.loadPersonality).mockResolvedValue(mockPersonality);
 
         // First load caches
@@ -204,8 +244,16 @@ describe('PersonalityIdCache', () => {
         // Next load should fetch by name again
         await cache.loadPersonality('testbot');
 
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(1, 'testbot', undefined);
-        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(2, 'testbot', undefined);
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          1,
+          'testbot',
+          undefined
+        );
+        expect(mockPersonalityService.loadPersonality).toHaveBeenNthCalledWith(
+          2,
+          'testbot',
+          undefined
+        );
       });
     });
   });
