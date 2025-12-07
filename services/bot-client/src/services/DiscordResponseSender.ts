@@ -147,7 +147,8 @@ export class DiscordResponseSender {
 
       if (sentMessage !== null && sentMessage !== undefined) {
         // Store webhook message in Redis for reply routing (7 day TTL)
-        await redisService.storeWebhookMessage(sentMessage.id, personality.name);
+        // Store personality ID (not name) to avoid slug/name collisions
+        await redisService.storeWebhookMessage(sentMessage.id, personality.id);
         chunkMessageIds.push(sentMessage.id);
       }
     }
@@ -185,7 +186,8 @@ export class DiscordResponseSender {
       const sentMessage = await message.reply(chunk);
 
       // Store DM message in Redis for reply routing (7 day TTL)
-      await redisService.storeWebhookMessage(sentMessage.id, personality.name);
+      // Store personality ID (not name) to avoid slug/name collisions
+      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);
     }
   }

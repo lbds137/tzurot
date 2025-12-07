@@ -262,7 +262,7 @@ export class PgvectorMemoryAdapter {
               m.message_ids,
               m.senders,
               m.created_at,
-              persona.name as persona_name,
+              COALESCE(persona.preferred_name, persona.name) as persona_name,
               COALESCE(personality.display_name, personality.name) as personality_name
             FROM memories m
             JOIN personas persona ON m.persona_id = persona.id

@@ -336,8 +336,9 @@ describe('PersonalityService - Cache Invalidation', () => {
       );
 
       expect(loaded).toBeNull();
-      // Verify DB was queried (cache was bypassed)
-      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(1);
+      // Verify DB was queried - prioritized lookup tries UUID, name, and slug
+      // The input is a UUID so it tries: UUID lookup → name lookup → slug lookup
+      expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledTimes(3);
     });
   });
 
