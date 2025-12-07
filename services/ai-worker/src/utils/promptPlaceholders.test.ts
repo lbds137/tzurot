@@ -155,11 +155,23 @@ Lilith: Likewise!`;
       expect(result).toBe('{Bob} is here');
     });
 
-    it('should be case-sensitive for placeholders', () => {
+    it('should be case-insensitive for placeholders', () => {
       const text = '{User} and {ASSISTANT} and {uSeR}';
       const result = replacePromptPlaceholders(text, userName, assistantName);
-      // Should NOT replace uppercase or mixed case
-      expect(result).toBe('{User} and {ASSISTANT} and {uSeR}');
+      // SHOULD replace uppercase and mixed case (case-insensitive)
+      expect(result).toBe('Alice and Lilith and Alice');
+    });
+
+    it('should handle mixed-case {{Char}} and {{User}} (Character.AI format)', () => {
+      const text = '{{User}}: Hello {{Char}}!';
+      const result = replacePromptPlaceholders(text, userName, assistantName);
+      expect(result).toBe('Alice: Hello Lilith!');
+    });
+
+    it('should handle all uppercase placeholders', () => {
+      const text = '{{USER}}: Hi {{CHAR}}!';
+      const result = replacePromptPlaceholders(text, userName, assistantName);
+      expect(result).toBe('Alice: Hi Lilith!');
     });
 
     it('should handle placeholders at start and end of string', () => {

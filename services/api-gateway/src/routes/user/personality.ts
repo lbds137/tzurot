@@ -29,6 +29,7 @@ import {
   type CacheInvalidationService,
   AVATAR_LIMITS,
   assertDefined,
+  isBotOwner,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
@@ -67,12 +68,24 @@ async function getOrCreateInternalUser(
 
 /**
  * Check if user can edit a personality (owns it directly or via PersonalityOwner)
+ * Bot owner can edit any personality.
+ *
+ * @param prisma - Prisma client
+ * @param userId - Internal database user ID
+ * @param personalityId - Personality ID to check
+ * @param discordUserId - Discord user ID (for bot owner check)
  */
 async function canUserEditPersonality(
   prisma: PrismaClient,
   userId: string,
-  personalityId: string
+  personalityId: string,
+  discordUserId?: string
 ): Promise<boolean> {
+  // Bot owner bypass - can edit any personality
+  if (discordUserId !== undefined && isBotOwner(discordUserId)) {
+    return true;
+  }
+
   // Check direct ownership
   const personality = await prisma.personality.findUnique({
     where: { id: personalityId },
@@ -113,6 +126,7 @@ export function createPersonalityRoutes(
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
+      const isAdmin = isBotOwner(discordUserId);
 
       // Get user's internal ID
       const user = await prisma.user.findFirst({
@@ -120,6 +134,43 @@ export function createPersonalityRoutes(
         select: { id: true },
       });
 
+      // Bot owner gets ALL personalities and can edit any of them
+      if (isAdmin) {
+        const allPersonalities = await prisma.personality.findMany({
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            slug: true,
+            ownerId: true,
+            isPublic: true,
+            owner: {
+              select: { discordId: true },
+            },
+          },
+          orderBy: { name: 'asc' },
+        });
+
+        const personalities: PersonalitySummary[] = allPersonalities.map(p => ({
+          id: p.id,
+          name: p.name,
+          displayName: p.displayName,
+          slug: p.slug,
+          isOwned: true, // Bot owner "owns" all for edit/avatar purposes
+          isPublic: p.isPublic,
+          ownerId: p.ownerId,
+          ownerDiscordId: p.owner?.discordId ?? null,
+        }));
+
+        logger.info(
+          { discordUserId, isAdmin: true, totalCount: personalities.length },
+          '[Personality] Listed all personalities (admin)'
+        );
+
+        return sendCustomSuccess(res, { personalities }, StatusCodes.OK);
+      }
+
+      // Regular user flow
       // Get public personalities (with owner's Discord ID for display)
       const publicPersonalities = await prisma.personality.findMany({
         where: { isPublic: true },
@@ -266,8 +317,10 @@ export function createPersonalityRoutes(
       }
 
       // Check if user can view this personality
+      // Bot owner can view any personality
+      const isAdmin = isBotOwner(discordUserId);
       const isOwner = user !== null && personality.ownerId === user.id;
-      let hasAccess = personality.isPublic || isOwner;
+      let hasAccess = isAdmin || personality.isPublic || isOwner;
 
       // Check PersonalityOwner table if not already accessible
       if (!hasAccess && user !== null) {
@@ -291,7 +344,8 @@ export function createPersonalityRoutes(
 
       // Return personality data
       const canEdit =
-        user !== null && (await canUserEditPersonality(prisma, user.id, personality.id));
+        user !== null &&
+        (await canUserEditPersonality(prisma, user.id, personality.id, discordUserId));
 
       logger.info({ discordUserId, slug, canEdit }, '[Personality] Retrieved personality');
 
@@ -456,11 +510,12 @@ export function createPersonalityRoutes(
       }
 
       // Create personality in database
+      // If displayName not provided, default to name
       const personality = await prisma.personality.create({
         data: {
           name,
           slug,
-          displayName: displayName ?? null,
+          displayName: displayName ?? name,
           characterInfo,
           personalityTraits,
           personalityTone: personalityTone ?? null,
@@ -572,8 +627,8 @@ export function createPersonalityRoutes(
         return sendError(res, ErrorResponses.notFound('Personality not found'));
       }
 
-      // Check ownership
-      const canEdit = await canUserEditPersonality(prisma, user.id, personality.id);
+      // Check ownership (bot owner can edit any personality)
+      const canEdit = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
       if (!canEdit) {
         return sendError(
           res,
@@ -781,8 +836,8 @@ export function createPersonalityRoutes(
         return sendError(res, ErrorResponses.notFound('Personality not found'));
       }
 
-      // Check ownership
-      const canEdit = await canUserEditPersonality(prisma, user.id, personality.id);
+      // Check ownership (bot owner can change any personality's visibility)
+      const canEdit = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
       if (!canEdit) {
         return sendError(
           res,
