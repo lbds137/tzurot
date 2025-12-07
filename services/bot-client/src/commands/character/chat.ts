@@ -193,8 +193,9 @@ export async function handleChat(
     await channel.sendTyping();
 
     // 9. Poll for result (with typing indicator refresh)
-    // NOTE: setInterval is a known scaling blocker (see CLAUDE.md "Timer Patterns")
-    // Acceptable here as it's short-lived and cleared in finally block
+    // NOTE: setInterval is a scaling blocker when used for persistent background tasks.
+    // Safe here because it's: (1) request-scoped, (2) short-lived (<2min per job timeout),
+    // and (3) always cleared in finally block. See CLAUDE.md "Timer Patterns".
     const typingInterval = setInterval(() => {
       channel.sendTyping().catch(() => {
         // Ignore typing errors
