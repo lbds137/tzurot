@@ -28,7 +28,7 @@ Production bugs were caused by:
 
 ## Phase 2: Split Oversized Files
 
-### Priority 1: character/index.ts (1242 → 312 lines) ✅
+### Priority 1: character/index.ts (1242 → 171 lines) ✅
 
 **Why Priority 1**: This file caused the production bug - no tests = no safety net.
 
@@ -36,13 +36,17 @@ Production bugs were caused by:
 - [x] Create `list.ts` - List handlers (handleList, handleListPagination, escapeMarkdown)
 - [x] Create `create.ts` - Create handlers (handleCreate, handleSeedModalSubmit)
 - [x] Create `dashboard.ts` - Dashboard interaction handlers (handleSelectMenu, handleButton, handleAction)
+- [x] Create `edit.ts` - Edit dashboard opener (handleEdit)
+- [x] Create `avatar.ts` - Avatar upload handler (handleAvatar)
 - [x] Update `index.ts` to import from extracted files
 - [x] Verify all exports still work (typecheck passes)
-- [x] Remove eslint-disable comment (file now 312 lines < 500 limit)
+- [x] Remove eslint-disable comment (file now 171 lines - just routing)
 - [x] Create `api.test.ts` with permission check tests (16 tests)
 - [x] Create `list.test.ts` (15 tests)
 - [x] Create `create.test.ts` (9 tests)
 - [x] Create `dashboard.test.ts` (14 tests)
+- [x] Create `edit.test.ts` (6 tests)
+- [x] Create `avatar.test.ts` (13 tests)
 
 ### Priority 2: persona.ts (649 lines)
 
@@ -81,12 +85,13 @@ Original count: 14 files without tests → **All files now tested!**
 | 62    | bot-client/commands/preset/global/set-free-default.ts | P3       | ✅ Done (5 tests)  |
 | 53    | bot-client/commands/me/model/reset.ts                 | P3       | ✅ Done (4 tests)  |
 
-## Phase 4: Coverage Enforcement
+## Phase 4: Coverage Enforcement ✅
 
-- [ ] Update codecov.yml to require 80% minimum
-- [ ] Add `pnpm test:coverage` to pre-push hook
-- [ ] Change untested files check to --strict mode
-- [ ] Update CLAUDE.md with coverage requirements
+- [x] Update codecov.yml to require 80% minimum (project and patch targets)
+- [x] Change untested files check to --strict mode in pre-push hook
+- [x] Add routing-only and types-only files to KNOWN_UNTESTED
+- [ ] ~~Add `pnpm test:coverage` to pre-push hook~~ (Skipped - Codecov already enforces on PRs)
+- [ ] ~~Update CLAUDE.md with coverage requirements~~ (Skipped - existing docs sufficient)
 
 ## Phase 5: Fix Remaining ESLint Warnings
 
@@ -181,3 +186,19 @@ wc -l services/bot-client/src/commands/character/index.ts
   - ai-worker: 819 tests (+27)
   - bot-client: 1288 tests (+35)
 - **Phase 3 COMPLETE** - All 14 originally untested files now have tests or are type-only
+
+### 2025-12-07 Session 5 (Continued)
+
+- Further split character/index.ts (312 → 171 lines):
+  - Extracted `edit.ts` (82 lines) - handleEdit dashboard opener
+  - Extracted `avatar.ts` (93 lines) - handleAvatar upload handler
+  - index.ts now contains only command definition + routing
+- Added tests for new handlers:
+  - edit.test.ts - 6 tests (dashboard opening, permissions, errors)
+  - avatar.test.ts - 13 tests (validation, permissions, upload, errors)
+- Phase 4 Coverage Enforcement:
+  - Updated codecov.yml: 80% target for project and patch coverage
+  - Enabled --strict mode in pre-push hook for untested files check
+  - Added character/index.ts (routing-only) and PromptContext.ts (types-only) to KNOWN_UNTESTED
+- Total test count: 1306 bot-client tests (+18 new)
+- **Phase 4 COMPLETE**
