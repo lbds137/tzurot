@@ -5,6 +5,7 @@
 
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
+import { isBotOwner } from '../../utils/ownerMiddleware.js';
 import type { DatabasePersonality, LlmConfig } from './PersonalityValidator.js';
 import { parseLlmConfig } from './PersonalityValidator.js';
 
@@ -62,6 +63,11 @@ export class PersonalityLoader {
   /**
    * Build access control filter for personality queries
    *
+   * Access is granted if:
+   * - No userId provided (internal operations)
+   * - User is bot owner (admin bypass)
+   * - Personality is public OR user is owner
+   *
    * @param userId - Discord user ID requesting access (optional)
    * @returns Prisma where clause for access control, or undefined if no filtering needed
    */
@@ -70,6 +76,12 @@ export class PersonalityLoader {
   ): { OR: ({ isPublic: boolean } | { ownerId: string })[] } | undefined {
     if (userId === undefined || userId === '') {
       // No access control - internal operations
+      return undefined;
+    }
+
+    // Bot owner bypass - admin can access all personalities
+    if (isBotOwner(userId)) {
+      logger.debug({ userId }, '[PersonalityLoader] Bot owner bypass - no access filter applied');
       return undefined;
     }
 
@@ -91,7 +103,8 @@ export class PersonalityLoader {
    * Access Control:
    * When userId is provided, only returns personalities that are:
    * - Public (isPublic = true), OR
-   * - Owned by the requesting user (ownerId = userId)
+   * - Owned by the requesting user (ownerId = userId), OR
+   * - Requested by the bot owner (admin bypass)
    *
    * @param nameOrId - Personality name, UUID, slug, or alias
    * @param userId - Discord user ID for access control (optional - omit for internal operations)
@@ -106,6 +119,9 @@ export class PersonalityLoader {
 
     try {
       // Step 1: Try direct lookup by ID, name, or slug
+      // Order by createdAt ascending so that when multiple personalities have the same name,
+      // the oldest one (created first) is returned. This ensures stable behavior when
+      // users create characters with names that collide with existing characters.
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
           AND: [
@@ -120,6 +136,7 @@ export class PersonalityLoader {
             ...(accessFilter ? [accessFilter] : []),
           ],
         },
+        orderBy: { createdAt: 'asc' },
         select: PERSONALITY_SELECT,
       });
 

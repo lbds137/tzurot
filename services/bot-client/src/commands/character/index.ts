@@ -24,6 +24,7 @@ import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
 import { handleList, escapeMarkdown } from './list.js';
+import { handleChat } from './chat.js';
 import {
   handleModalSubmit,
   handleSelectMenu,
@@ -120,6 +121,25 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand(subcommand =>
     subcommand.setName('template').setDescription('Show the JSON template for character import')
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('chat')
+      .setDescription('Send a message to a character')
+      .addStringOption(option =>
+        option
+          .setName('character')
+          .setDescription('Character to chat with')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('message')
+          .setDescription('Message to send')
+          .setRequired(true)
+          .setMaxLength(2000)
+      )
   );
 
 /**
@@ -138,6 +158,7 @@ function createCharacterRouter(
       import: interaction => handleImport(interaction, config),
       export: interaction => handleExport(interaction, config),
       template: interaction => handleTemplate(interaction, config),
+      chat: interaction => handleChat(interaction, config),
     },
     { logger, logPrefix: '[Character]' }
   );

@@ -27,6 +27,7 @@ import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentServic
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
+import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
 import { BotMessageFilter } from './processors/BotMessageFilter.js';
@@ -142,6 +143,14 @@ function createServices(): Services {
 
   // Create MessageHandler with full dependency injection
   const messageHandler = new MessageHandler(processors, responseSender, persistence, jobTracker);
+
+  // Register services for global access (used by slash commands)
+  registerServices({
+    jobTracker,
+    webhookManager,
+    gatewayClient,
+    personalityService,
+  });
 
   return {
     messageHandler,
