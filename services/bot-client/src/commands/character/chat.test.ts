@@ -407,5 +407,40 @@ describe('Character Chat Handler', () => {
       // Should not throw
       await expect(handleChat(mockInteraction, mockConfig)).resolves.not.toThrow();
     });
+
+    it('should handle gateway job submission failure', async () => {
+      const mockChannel = createMockChannel();
+      const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+      Object.assign(mockInteraction, { replied: false, deferred: true });
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockRejectedValue(new Error('Gateway unavailable'));
+
+      await handleChat(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('something went wrong'),
+      });
+    });
+
+    it('should handle webhook send failure gracefully', async () => {
+      const mockChannel = createMockChannel();
+      const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+      // Set deferred=true so the error handler tries editReply
+      Object.assign(mockInteraction, { replied: false, deferred: true });
+      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        content: 'Response',
+        metadata: {},
+      });
+      mockWebhookManager.sendAsPersonality.mockRejectedValue(new Error('Webhook error'));
+
+      await handleChat(mockInteraction, mockConfig);
+
+      // Error should be caught and editReply should be called (since deferred=true)
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('something went wrong'),
+      });
+    });
   });
 });
