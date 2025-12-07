@@ -125,7 +125,7 @@ export async function handleChat(
 
     if (!personality) {
       await interaction.editReply({
-        content: `Character "${characterSlug}" not found or you don't have access.`,
+        content: `❌ Character "${characterSlug}" not found.`,
       });
       return;
     }
