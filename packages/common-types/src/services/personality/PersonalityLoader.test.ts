@@ -123,10 +123,7 @@ describe('PersonalityLoader', () => {
           where: {
             AND: [
               {
-                OR: [
-                  { name: { equals: 'testbot', mode: 'insensitive' } },
-                  { slug: 'testbot' },
-                ],
+                OR: [{ name: { equals: 'testbot', mode: 'insensitive' } }, { slug: 'testbot' }],
               },
             ],
           },
