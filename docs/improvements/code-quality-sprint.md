@@ -1,0 +1,137 @@
+# Code Quality Sprint - December 2025
+
+> **Status**: IN PROGRESS
+> **Started**: 2025-12-06
+> **Goal**: Eliminate all ESLint warnings and achieve 80% test coverage minimum
+
+## Root Cause Analysis
+
+Production bugs were caused by:
+
+1. **Untested code paths** - 1242-line `character/index.ts` had NO tests
+2. **Orphaned ESLint configs** - Module size rules existed but were never integrated
+3. **No enforcement** - Coverage requirements weren't blocking PRs
+
+## Phase 1: Workflow Enforcement ✅
+
+- [x] Integrate orphaned ESLint module-size rules into `eslint.config.js`
+  - `max-lines: 500` (error)
+  - `max-lines-per-function: 100` (warn)
+  - `complexity: 15` (warn)
+  - `max-depth: 4` (warn)
+  - `max-params: 5` (warn)
+  - `max-statements: 30` (warn)
+  - `max-nested-callbacks: 3` (warn)
+- [x] Create `scripts/testing/check-untested-files.js`
+- [x] Add untested files check to pre-push hook (informational for now)
+- [x] Install updated hooks
+
+## Phase 2: Split Oversized Files
+
+### Priority 1: character/index.ts (1242 → 312 lines) ✅
+
+**Why Priority 1**: This file caused the production bug - no tests = no safety net.
+
+- [x] Create `api.ts` - API client functions (fetchCharacter, createCharacter, etc.)
+- [x] Create `list.ts` - List handlers (handleList, handleListPagination, escapeMarkdown)
+- [x] Create `create.ts` - Create handlers (handleCreate, handleSeedModalSubmit)
+- [x] Create `dashboard.ts` - Dashboard interaction handlers (handleSelectMenu, handleButton, handleAction)
+- [x] Update `index.ts` to import from extracted files
+- [x] Verify all exports still work (typecheck passes)
+- [x] Remove eslint-disable comment (file now 312 lines < 500 limit)
+- [x] Create `api.test.ts` with permission check tests (16 tests)
+- [x] Create `list.test.ts` (15 tests)
+- [ ] Create `create.test.ts`
+- [ ] Create `dashboard.test.ts`
+
+### Priority 2: persona.ts (649 lines)
+
+- [ ] Analyze structure and plan split
+- [ ] Create separate route modules
+- [ ] Update index.ts imports
+- [ ] Remove eslint-disable comment
+- [ ] Add tests
+
+### Priority 3: personality.ts (648 lines)
+
+- [ ] Analyze structure and plan split
+- [ ] Create separate route modules
+- [ ] Update index.ts imports
+- [ ] Remove eslint-disable comment
+- [ ] Add tests
+
+## Phase 3: Cover Remaining Untested Files
+
+Current count: 14 files without tests
+
+| Lines | File                                                  | Priority | Status    |
+| ----- | ----------------------------------------------------- | -------- | --------- |
+| 1242  | bot-client/commands/character/index.ts                | P1       | Splitting |
+| 183   | ai-worker/jobs/PendingMemoryProcessor.ts              | P2       |           |
+| 176   | bot-client/commands/character/export.ts               | P2       |           |
+| 154   | bot-client/commands/me/model/set.ts                   | P2       |           |
+| 147   | ai-worker/jobs/utils/conversationUtils.ts             | P2       |           |
+| 111   | ai-worker/services/RedisService.ts                    | P2       |           |
+| 90    | bot-client/commands/preset/global/edit.ts             | P3       |           |
+| 90    | ai-worker/jobs/CleanupJobResults.ts                   | P3       |           |
+| 75    | ai-worker/services/context/PromptContext.ts           | P3       |           |
+| 70    | bot-client/commands/preset/global/create.ts           | P3       |           |
+| 68    | bot-client/commands/me/model/list.ts                  | P3       |           |
+| 62    | bot-client/commands/preset/global/set-default.ts      | P3       |           |
+| 62    | bot-client/commands/preset/global/set-free-default.ts | P3       |           |
+| 53    | bot-client/commands/me/model/reset.ts                 | P3       |           |
+
+## Phase 4: Coverage Enforcement
+
+- [ ] Update codecov.yml to require 80% minimum
+- [ ] Add `pnpm test:coverage` to pre-push hook
+- [ ] Change untested files check to --strict mode
+- [ ] Update CLAUDE.md with coverage requirements
+
+## Phase 5: Fix Remaining ESLint Warnings
+
+After Phase 2-4 complete, run `pnpm lint` and address remaining warnings:
+
+- [ ] `max-lines-per-function` warnings
+- [ ] `complexity` warnings
+- [ ] `max-params` warnings
+- [ ] `max-statements` warnings
+- [ ] `max-depth` warnings
+
+## Success Criteria
+
+1. Zero ESLint errors (already achieved)
+2. Zero ESLint warnings
+3. 80%+ test coverage across all services
+4. No files >500 lines
+5. No untested files with >50 lines of business logic
+6. Pre-push hook blocks on quality failures
+
+## Commands Reference
+
+```bash
+# Check current untested files
+node scripts/testing/check-untested-files.js
+
+# Run lint with warnings
+pnpm lint
+
+# Check coverage
+pnpm test:coverage
+
+# Run tests for specific service
+pnpm --filter @tzurot/bot-client test
+
+# Verify character/index.ts line count
+wc -l services/bot-client/src/commands/character/index.ts
+```
+
+## Session Notes
+
+### 2025-12-06 Session 1
+
+- Discovered 4 orphaned ESLint configs that were never integrated
+- Integrated module size rules into eslint.config.js
+- Created check-untested-files.js script
+- Found 14 source files without tests
+- Started splitting character/index.ts (extracted api.ts, list.ts)
