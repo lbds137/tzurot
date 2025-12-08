@@ -74,10 +74,18 @@ export class WebhookManager {
 
   /**
    * Get standardized username with bot suffix
+   * Falls back to name if displayName is null/undefined/empty
    */
   private getStandardizedUsername(personality: LoadedPersonality): string {
     const suffix = this.getBotSuffix();
-    return `${personality.displayName}${suffix}`;
+    // Use displayName if available, otherwise fall back to name
+    const displayName =
+      personality.displayName !== null &&
+      personality.displayName !== undefined &&
+      personality.displayName !== ''
+        ? personality.displayName
+        : personality.name;
+    return `${displayName}${suffix}`;
   }
 
   /**

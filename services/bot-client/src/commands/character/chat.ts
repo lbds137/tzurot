@@ -33,6 +33,7 @@ import {
   getPersonalityService,
   getWebhookManager,
   getConversationHistoryService,
+  getPersonaResolver,
 } from '../../services/serviceRegistry.js';
 import { redisService } from '../../redis.js';
 
@@ -106,9 +107,10 @@ export async function handleChat(
   const characterSlug = interaction.options.getString('character', true);
   const message = interaction.options.getString('message', true);
   const userId = interaction.user.id;
-  // Get display name - handle both GuildMember and APIInteractionGuildMember
+
+  // Get Discord display name (used as fallback)
   const member = interaction.member as GuildMember | null;
-  const displayName = member?.displayName ?? interaction.user.displayName;
+  const discordDisplayName = member?.displayName ?? interaction.user.displayName;
 
   logger.info(
     { characterSlug, userId, messageLength: message.length },
@@ -130,7 +132,29 @@ export async function handleChat(
       return;
     }
 
-    // 2. Verify we're in a webhook-capable channel
+    // 2. Get display name - use PersonaResolver for proper override → default hierarchy
+    // (matches behavior of conversation history and LTM resolution)
+    let displayName = discordDisplayName;
+    try {
+      const personaResolver = getPersonaResolver();
+      const personaResult = await personaResolver.resolve(userId, personality.id);
+      if (
+        personaResult.config.preferredName !== null &&
+        personaResult.config.preferredName !== undefined &&
+        personaResult.config.preferredName.length > 0
+      ) {
+        displayName = personaResult.config.preferredName;
+        logger.debug(
+          { userId, personalityId: personality.id, source: personaResult.source },
+          '[Character Chat] Using persona preferredName'
+        );
+      }
+    } catch {
+      // Silently fall back to Discord display name on error
+      logger.debug({ userId }, '[Character Chat] Failed to resolve persona, using Discord name');
+    }
+
+    // 3. Verify we're in a webhook-capable channel
     const { channel } = interaction;
     if (
       !channel ||
@@ -144,14 +168,14 @@ export async function handleChat(
       return;
     }
 
-    // 3. Delete the deferred reply (we'll send our own messages)
+    // 4. Delete the deferred reply (we'll send our own messages)
     await interaction.deleteReply();
 
-    // 4. Send the user's message as a visible channel message
+    // 5. Send the user's message as a visible channel message
     const userMessageContent = `**${displayName}:** ${message}`;
     await channel.send(userMessageContent);
 
-    // 5. Fetch conversation history for this channel + personality
+    // 6. Fetch conversation history for this channel + personality
     const conversationHistoryService = getConversationHistoryService();
     const history = await conversationHistoryService.getRecentHistory(
       channel.id,
@@ -174,7 +198,7 @@ export async function handleChat(
       '[Character Chat] Fetched conversation history'
     );
 
-    // 6. Build context for AI generation
+    // 7. Build context for AI generation
     const context: MessageContext = {
       messageContent: message,
       userId,
@@ -183,16 +207,16 @@ export async function handleChat(
       conversationHistory,
     };
 
-    // 7. Submit job to gateway
+    // 8. Submit job to gateway
     const gatewayClient = getGatewayClient();
     const { jobId } = await gatewayClient.generate(personality, context);
 
     logger.info({ jobId, characterSlug }, '[Character Chat] Job submitted, polling for result');
 
-    // 8. Show typing indicator while waiting
+    // 9. Show typing indicator while waiting
     await channel.sendTyping();
 
-    // 9. Poll for result (with typing indicator refresh)
+    // 10. Poll for result (with typing indicator refresh)
     // NOTE: setInterval is a scaling blocker when used for persistent background tasks.
     // Safe here because it's: (1) request-scoped, (2) short-lived (<2min per job timeout),
     // and (3) always cleared in finally block. See CLAUDE.md "Timer Patterns".
@@ -215,7 +239,7 @@ export async function handleChat(
         return;
       }
 
-      // 10. Send AI response via webhook
+      // 11. Send AI response via webhook
       await sendCharacterResponse(
         channel as TextChannel | ThreadChannel,
         personality,

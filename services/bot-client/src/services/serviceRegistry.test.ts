@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { PersonalityService, ConversationHistoryService } from '@tzurot/common-types';
+import type {
+  PersonalityService,
+  ConversationHistoryService,
+  PersonaResolver,
+} from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -52,6 +56,13 @@ describe('serviceRegistry', () => {
       );
     });
 
+    it('should throw when getting PersonaResolver before registration', async () => {
+      const { getPersonaResolver } = await import('./serviceRegistry.js');
+      expect(() => getPersonaResolver()).toThrow(
+        'PersonaResolver not registered. Call registerServices() first.'
+      );
+    });
+
     it('should report services not registered', async () => {
       const { areServicesRegistered } = await import('./serviceRegistry.js');
       expect(areServicesRegistered()).toBe(false);
@@ -66,6 +77,7 @@ describe('serviceRegistry', () => {
     const mockConversationHistoryService = {
       getRecentHistory: vi.fn(),
     } as unknown as ConversationHistoryService;
+    const mockPersonaResolver = { resolve: vi.fn() } as unknown as PersonaResolver;
 
     it('should return registered JobTracker', async () => {
       const { registerServices, getJobTracker } = await import('./serviceRegistry.js');
@@ -76,6 +88,7 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(getJobTracker()).toBe(mockJobTracker);
@@ -90,6 +103,7 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(getWebhookManager()).toBe(mockWebhookManager);
@@ -104,6 +118,7 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(getGatewayClient()).toBe(mockGatewayClient);
@@ -118,6 +133,7 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(getPersonalityService()).toBe(mockPersonalityService);
@@ -133,9 +149,25 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(getConversationHistoryService()).toBe(mockConversationHistoryService);
+    });
+
+    it('should return registered PersonaResolver', async () => {
+      const { registerServices, getPersonaResolver } = await import('./serviceRegistry.js');
+
+      registerServices({
+        jobTracker: mockJobTracker,
+        webhookManager: mockWebhookManager,
+        gatewayClient: mockGatewayClient,
+        personalityService: mockPersonalityService,
+        conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
+      });
+
+      expect(getPersonaResolver()).toBe(mockPersonaResolver);
     });
 
     it('should report services as registered', async () => {
@@ -147,6 +179,7 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(areServicesRegistered()).toBe(true);
@@ -165,12 +198,14 @@ describe('serviceRegistry', () => {
         gatewayClient: undefined,
         personalityService: undefined,
         conversationHistoryService: undefined,
+        personaResolver: undefined,
       } as unknown as {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
         gatewayClient: GatewayClient;
         personalityService: PersonalityService;
         conversationHistoryService: ConversationHistoryService;
+        personaResolver: PersonaResolver;
       };
 
       registerServices(partialServices);
@@ -191,6 +226,7 @@ describe('serviceRegistry', () => {
       const mockConversationHistoryService = {
         getRecentHistory: vi.fn(),
       } as unknown as ConversationHistoryService;
+      const mockPersonaResolver = { resolve: vi.fn() } as unknown as PersonaResolver;
 
       // Register services first
       registerServices({
@@ -199,6 +235,7 @@ describe('serviceRegistry', () => {
         gatewayClient: mockGatewayClient,
         personalityService: mockPersonalityService,
         conversationHistoryService: mockConversationHistoryService,
+        personaResolver: mockPersonaResolver,
       });
 
       expect(areServicesRegistered()).toBe(true);
