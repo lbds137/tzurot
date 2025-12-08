@@ -1,12 +1,17 @@
 # Shapes.inc Migration Reference
 
 > **Created**: 2025-12-08
-> **Status**: Active Reference (Future Implementation)
-> **Purpose**: Consolidated technical reference for shapes.inc data migration to v3
+> **Status**: Quick Reference (Future Implementation)
+> **Purpose**: High-level overview of shapes.inc migration concepts
 >
-> **Related**:
+> **Detailed Implementation Docs**:
 >
-> - `/import shapes` Slash Command Design: [docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md](../planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md)
+> - **[SHAPES_INC_IMPORT_PLAN.md](SHAPES_INC_IMPORT_PLAN.md)** - Detailed implementation guide (field mappings, code examples, CLI usage, edge cases, testing, rollback)
+> - **[shapes-inc-uuid-migration.md](shapes-inc-uuid-migration.md)** - UUID mapping operational guide with known user mappings
+> - **[SHAPES_INC_SLASH_COMMAND_DESIGN.md](../planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md)** - User-facing `/import shapes` command design
+>
+> **Reference Code**:
+>
 > - V2 Backup Script: `tzurot-legacy/scripts/backup-personalities-data.js`
 > - V3 Import Scripts: `scripts/data/import-personality/`
 
@@ -14,7 +19,7 @@
 
 Shapes.inc was Tzurot v2's AI provider. They killed their public bot API in September 2025, forcing the v3 rewrite. However, their internal APIs still work with user session cookies, enabling data migration for users who want to import their personalities.
 
-This document consolidates all technical details needed to implement the `/import shapes` command.
+This document provides a quick reference. For detailed implementation, see [SHAPES_INC_IMPORT_PLAN.md](SHAPES_INC_IMPORT_PLAN.md).
 
 ---
 
@@ -313,29 +318,29 @@ See [SHAPES_INC_SLASH_COMMAND_DESIGN.md](../planning/SHAPES_INC_SLASH_COMMAND_DE
 
 ### V2 Scripts (tzurot-legacy)
 
-| Script                                     | Purpose                      | Status      |
-| ------------------------------------------ | ---------------------------- | ----------- |
-| `scripts/backup-personalities-data.js`     | Fetch data from shapes.inc   | Standalone  |
-| `docs/external-services/SHAPES_INC_*.md`   | API documentation (archived) | Reference   |
+| Script                                   | Purpose                      | Status     |
+| ---------------------------------------- | ---------------------------- | ---------- |
+| `scripts/backup-personalities-data.js`   | Fetch data from shapes.inc   | Standalone |
+| `docs/external-services/SHAPES_INC_*.md` | API documentation (archived) | Reference  |
 
 ### V3 Scripts (scripts/data/import-personality)
 
-| Script                       | Purpose                          | Status           |
-| ---------------------------- | -------------------------------- | ---------------- |
-| `import-personality.ts`      | Main CLI orchestrator            | Production-ready |
-| `PersonalityMapper.ts`       | Map shapes.inc → v3 schema       | Production-ready |
-| `MemoryImporter.ts`          | Import LTM to pgvector           | Production-ready |
-| `bulk-import.ts`             | Batch import multiple            | Production-ready |
-| `migrate-legacy-persona.ts`  | Migrate orphaned memories        | Production-ready |
-| `AvatarDownloader.ts`        | Download avatars from shapes.inc | Production-ready |
+| Script                      | Purpose                          | Status           |
+| --------------------------- | -------------------------------- | ---------------- |
+| `import-personality.ts`     | Main CLI orchestrator            | Production-ready |
+| `PersonalityMapper.ts`      | Map shapes.inc → v3 schema       | Production-ready |
+| `MemoryImporter.ts`         | Import LTM to pgvector           | Production-ready |
+| `bulk-import.ts`            | Batch import multiple            | Production-ready |
+| `migrate-legacy-persona.ts` | Migrate orphaned memories        | Production-ready |
+| `AvatarDownloader.ts`       | Download avatars from shapes.inc | Production-ready |
 
 ### Utility Scripts
 
-| Script                              | Purpose                           |
-| ----------------------------------- | --------------------------------- |
-| `scripts/analyze-qdrant-users.cjs`  | List Qdrant userIds vs Postgres   |
-| `scripts/find-user-memories.cjs`    | Search memories by content        |
-| `scripts/uuid-mappings.json`        | UUID mapping configuration        |
+| Script                             | Purpose                         |
+| ---------------------------------- | ------------------------------- |
+| `scripts/analyze-qdrant-users.cjs` | List Qdrant userIds vs Postgres |
+| `scripts/find-user-memories.cjs`   | Search memories by content      |
+| `scripts/uuid-mappings.json`       | UUID mapping configuration      |
 
 ---
 
