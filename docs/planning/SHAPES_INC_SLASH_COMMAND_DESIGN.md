@@ -4,7 +4,10 @@
 > **Status**: Planning Phase (Future Work)
 > **Purpose**: Design document for future `/import shapes` slash command
 >
+> **Technical Reference**: See [SHAPES_INC_MIGRATION_REFERENCE.md](../migration/SHAPES_INC_MIGRATION_REFERENCE.md) for data structures, UUID mapping, LTM handling strategy, and scripts reference.
+>
 > **Key Reference Code**:
+>
 > - V2 Backup Script: `tzurot-legacy/scripts/backup-personalities-data.js`
 > - V3 Import Scripts: `scripts/data/import-personality/`
 >
@@ -1134,7 +1137,7 @@ await webhook.edit({
 
 ### Existing Documentation
 
-- **[Shapes.inc Import Plan](../migration/SHAPES_INC_IMPORT_PLAN.md)** - Manual import process design
+- **[Shapes.inc Migration Reference](../migration/SHAPES_INC_MIGRATION_REFERENCE.md)** - Technical details (data structures, UUID mapping, LTM handling)
 - **V2 Backup Script**: `tzurot-legacy/scripts/backup-personalities-data.js`
 - **V3 Import Scripts**: `scripts/data/import-personality/`
 
