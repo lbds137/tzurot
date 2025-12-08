@@ -339,4 +339,108 @@ describe('POST /user/personality (create)', () => {
       })
     );
   });
+
+  describe('avatar processing edge cases', () => {
+    it('should warn when avatar exceeds target size after optimization', async () => {
+      // Import the mock to override it for this test
+      const { optimizeAvatar } = await import('../../../utils/imageProcessor.js');
+      const mockOptimizeAvatar = vi.mocked(optimizeAvatar);
+      mockOptimizeAvatar.mockResolvedValueOnce({
+        buffer: Buffer.from('test'),
+        quality: 10, // Low quality still produced large file
+        originalSizeKB: 500,
+        processedSizeKB: 150, // Still exceeds 100KB target
+        exceedsTarget: true,
+      });
+      mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Big Avatar Character',
+        slug: 'big-avatar',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        avatarData: 'data:image/png;base64,iVBORw0KGgo=',
+      });
+
+      await handler(req, res);
+
+      // Should still succeed - exceeding target is just a warning
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(mockPrisma.personality.create).toHaveBeenCalled();
+    });
+
+    it('should return error when avatar processing fails', async () => {
+      const { optimizeAvatar } = await import('../../../utils/imageProcessor.js');
+      const mockOptimizeAvatar = vi.mocked(optimizeAvatar);
+      mockOptimizeAvatar.mockRejectedValueOnce(new Error('Invalid image format'));
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Bad Avatar Character',
+        slug: 'bad-avatar',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        avatarData: 'data:image/png;base64,invalid-data',
+      });
+
+      await handler(req, res);
+
+      // PROCESSING_ERROR returns 500, not 422
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(mockPrisma.personality.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('LLM config error handling', () => {
+    it('should still succeed when setting default LLM config fails', async () => {
+      mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: 'default-config',
+        isGlobal: true,
+        isDefault: true,
+      });
+      // Make the personalityDefaultConfig.create throw an error
+      mockPrisma.personalityDefaultConfig.create.mockRejectedValue(
+        new Error('Database constraint violation')
+      );
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Config Error Character',
+        slug: 'config-error',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handler(req, res);
+
+      // Should still succeed - LLM config failure is logged but non-fatal
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(mockPrisma.personality.create).toHaveBeenCalled();
+    });
+
+    it('should skip LLM config when no default config exists', async () => {
+      mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'No Config Character',
+        slug: 'no-config',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      // Should NOT attempt to create personalityDefaultConfig
+      expect(mockPrisma.personalityDefaultConfig.create).not.toHaveBeenCalled();
+    });
+  });
 });

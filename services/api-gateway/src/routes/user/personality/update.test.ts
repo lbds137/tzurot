@@ -427,4 +427,91 @@ describe('PUT /user/personality/:slug (update)', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
+
+  describe('cache invalidation on avatar update', () => {
+    beforeEach(() => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-cache',
+        ownerId: 'user-uuid-123',
+        name: 'Test',
+        avatarData: null,
+      });
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-cache',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: 'Test Display',
+        })
+      );
+      mockUnlink.mockResolvedValue(undefined);
+    });
+
+    it('should call cache invalidation service when avatar is updated', async () => {
+      const mockCacheInvalidationService = {
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+
+      const router = createPersonalityRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidationService
+      );
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith(
+        'personality-cache'
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should not fail when cache invalidation throws error', async () => {
+      const mockCacheInvalidationService = {
+        invalidatePersonality: vi.fn().mockRejectedValue(new Error('Cache service unavailable')),
+      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+
+      const router = createPersonalityRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidationService
+      );
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      // Should still succeed - cache invalidation failure is non-fatal
+      expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should not call cache invalidation when no avatar update', async () => {
+      const mockCacheInvalidationService = {
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+
+      const router = createPersonalityRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidationService
+      );
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { name: 'Updated Name' }, // No avatar update
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      // Should not call cache invalidation for non-avatar updates
+      expect(mockCacheInvalidationService.invalidatePersonality).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
 });

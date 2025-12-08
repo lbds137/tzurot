@@ -366,4 +366,72 @@ describe('DELETE /user/personality/:slug', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
   });
+
+  describe('cache invalidation', () => {
+    beforeEach(() => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-cache-test',
+        name: 'Cache Test',
+        ownerId: 'user-uuid-123',
+        _count: {
+          conversationHistory: 0,
+          memories: 0,
+          activatedChannels: 0,
+          aliases: 0,
+        },
+      });
+      mockPrisma.pendingMemory.count.mockResolvedValue(0);
+      mockUnlink.mockResolvedValue(undefined);
+    });
+
+    it('should call cache invalidation service when provided', async () => {
+      const mockCacheInvalidationService = {
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+
+      const router = createPersonalityRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidationService
+      );
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'cache-test' });
+
+      await handler(req, res);
+
+      expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith(
+        'personality-cache-test'
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should not fail when cache invalidation throws error', async () => {
+      const mockCacheInvalidationService = {
+        invalidatePersonality: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
+      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+
+      const router = createPersonalityRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidationService
+      );
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'cache-test' });
+
+      await handler(req, res);
+
+      // Should still succeed - cache invalidation failure is non-fatal
+      expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should succeed without cache invalidation service', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'no-cache-service' });
+
+      await handler(req, res);
+
+      // Should succeed without cache service
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
 });
