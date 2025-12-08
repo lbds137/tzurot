@@ -65,31 +65,63 @@ export class PersonalityLoader {
    * Build access control filter for personality queries
    *
    * Access is granted if:
-   * - No userId provided (internal operations)
-   * - User is bot owner (admin bypass)
+   * - No ownerUuid provided (internal operations or bot owner bypass)
    * - Personality is public OR user is owner
    *
-   * @param userId - Discord user ID requesting access (optional)
+   * @param ownerUuid - User's database UUID for ownership check (optional)
    * @returns Prisma where clause for access control, or undefined if no filtering needed
    */
   private buildAccessFilter(
-    userId?: string
+    ownerUuid?: string
   ): { OR: ({ isPublic: boolean } | { ownerId: string })[] } | undefined {
-    if (userId === undefined || userId === '') {
-      // No access control - internal operations
-      return undefined;
-    }
-
-    // Bot owner bypass - admin can access all personalities
-    if (isBotOwner(userId)) {
-      logger.debug({ userId }, '[PersonalityLoader] Bot owner bypass - no access filter applied');
+    if (ownerUuid === undefined || ownerUuid === '') {
+      // No access control - internal operations or bot owner bypass
       return undefined;
     }
 
     // User must have access: personality is public OR user is owner
     return {
-      OR: [{ isPublic: true }, { ownerId: userId }],
+      OR: [{ isPublic: true }, { ownerId: ownerUuid }],
     };
+  }
+
+  /**
+   * Resolve Discord user ID to database UUID for ownership checks
+   *
+   * @param discordUserId - Discord user ID
+   * @returns User's database UUID, or undefined if user not found or is bot owner
+   */
+  private async resolveOwnerUuid(discordUserId?: string): Promise<string | undefined> {
+    if (discordUserId === undefined || discordUserId === '') {
+      return undefined;
+    }
+
+    // Bot owner bypass - admin can access all personalities
+    if (isBotOwner(discordUserId)) {
+      logger.debug(
+        { discordUserId },
+        '[PersonalityLoader] Bot owner bypass - no access filter applied'
+      );
+      return undefined;
+    }
+
+    // Look up user by Discord ID to get their database UUID
+    const user = await this.prisma.user.findUnique({
+      where: { discordId: discordUserId },
+      select: { id: true },
+    });
+
+    if (user === null) {
+      logger.debug(
+        { discordUserId },
+        '[PersonalityLoader] User not found in database - treating as no access'
+      );
+      // Return a placeholder that won't match any ownerId
+      // This ensures the user can only access public personalities
+      return 'user-not-found';
+    }
+
+    return user.id;
   }
 
   /**
@@ -112,8 +144,11 @@ export class PersonalityLoader {
    * @returns DatabasePersonality or null if not found or access denied
    */
   async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
-    // Build access control filter
-    const accessFilter = this.buildAccessFilter(userId);
+    // Resolve Discord user ID to database UUID for ownership checks
+    const ownerUuid = await this.resolveOwnerUuid(userId);
+
+    // Build access control filter using the resolved UUID
+    const accessFilter = this.buildAccessFilter(ownerUuid);
     const searchLower = nameOrId.toLowerCase();
 
     try {
