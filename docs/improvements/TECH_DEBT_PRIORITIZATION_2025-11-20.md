@@ -458,7 +458,7 @@ export class RedisService {
 
 ### 3.3 Prisma Client Instantiation
 
-**Status**: ✅ **Already tracked in TECHNICAL_DEBT.md**
+**Status**: Tracked
 
 **Issue**: `PgvectorMemoryAdapter.ts` creates its own PrismaClient
 

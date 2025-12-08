@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: '2025-11-26'
+lastUpdated: '2025-12-08'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -503,6 +503,30 @@ cat prisma/migrations/<timestamp>_test_feature/migration.sql
 # Apply to Railway
 npx prisma migrate deploy
 ```
+
+### Database Scripts (`@tzurot/scripts`)
+
+The `scripts/` folder is a pnpm workspace package. Use TypeScript scripts in `scripts/src/` for database operations:
+
+```bash
+# Check for migration drift (checksums don't match)
+pnpm --filter @tzurot/scripts run db:check-drift
+
+# Fix drifted migrations
+pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name> [<migration_name> ...]
+```
+
+**Writing new scripts:** Use `scripts/src/db/check-migration-drift.ts` as a template:
+
+1. Import from `@tzurot/common-types` (e.g., `getPrismaClient`, `disconnectPrisma`)
+2. Use async/await with proper error handling
+3. Always call `disconnectPrisma()` in `finally` block
+
+**Why TypeScript:**
+
+- `tsx` handles ESM/CJS interop automatically
+- Workspace dependency on `@tzurot/common-types` for Prisma access
+- Type safety and better AI assistance
 
 ### Checksum Issues
 
