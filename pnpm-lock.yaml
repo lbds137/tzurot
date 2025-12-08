@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       openai:
-        specifier: ^6.9.1
-        version: 6.9.1(ws@8.18.3)(zod@4.1.13)
+        specifier: ^6.10.0
+        version: 6.10.0(ws@8.18.3)(zod@4.1.13)
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
@@ -26,17 +26,17 @@ importers:
         specifier: ^9.39.1
         version: 9.39.1
       '@langchain/core':
-        specifier: ^1.1.0
-        version: 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+        specifier: ^1.1.4
+        version: 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       '@langchain/openai':
         specifier: ^1.1.3
-        version: 1.1.3(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(ws@8.18.3)
+        version: 1.1.3(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(ws@8.18.3)
       '@prisma/adapter-pg':
-        specifier: ^7.0.1
-        version: 7.0.1
+        specifier: ^7.1.0
+        version: 7.1.0
       '@prisma/client':
-        specifier: ^7.0.1
-        version: 7.0.1(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
+        specifier: ^7.1.0
+        version: 7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -78,7 +78,7 @@ importers:
         version: 8.13.1(@types/ioredis-mock@8.2.6(ioredis@5.8.2))(ioredis@5.8.2)
       pglite-prisma-adapter:
         specifier: ^0.6.1
-        version: 0.6.1(@electric-sql/pglite@0.3.14)(@prisma/client@7.0.1(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3))
+        version: 0.6.1(@electric-sql/pglite@0.3.14)(@prisma/client@7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3))
       pino:
         specifier: ^10.1.0
         version: 10.1.0
@@ -113,14 +113,14 @@ importers:
   packages/common-types:
     dependencies:
       '@prisma/adapter-pg':
-        specifier: ^7.0.1
-        version: 7.0.1
+        specifier: ^7.1.0
+        version: 7.1.0
       '@prisma/client':
-        specifier: ^7.0.1
-        version: 7.0.1(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
+        specifier: ^7.1.0
+        version: 7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
       '@prisma/client-runtime-utils':
-        specifier: ^7.0.1
-        version: 7.0.1
+        specifier: ^7.1.0
+        version: 7.1.0
       discord-api-types:
         specifier: ^0.38.36
         version: 0.38.36
@@ -134,8 +134,8 @@ importers:
         specifier: ^11.2.4
         version: 11.2.4
       openai:
-        specifier: ^6.9.1
-        version: 6.9.1(ws@8.18.3)(zod@4.1.13)
+        specifier: ^6.10.0
+        version: 6.10.0(ws@8.18.3)(zod@4.1.13)
       pg:
         specifier: ^8.16.3
         version: 8.16.3
@@ -181,11 +181,11 @@ importers:
   services/ai-worker:
     dependencies:
       '@langchain/core':
-        specifier: ^1.1.0
-        version: 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+        specifier: ^1.1.4
+        version: 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       '@langchain/openai':
         specifier: ^1.1.3
-        version: 1.1.3(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(ws@8.18.3)
+        version: 1.1.3(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(ws@8.18.3)
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
@@ -196,11 +196,11 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
       langchain:
-        specifier: ^1.1.1
-        version: 1.1.1(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(openai@6.9.1(ws@8.18.3)(zod@4.1.13))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: ^1.1.5
+        version: 1.1.5(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(openai@6.10.0(ws@8.18.3)(zod@4.1.13))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       openai:
-        specifier: ^6.9.1
-        version: 6.9.1(ws@8.18.3)(zod@4.1.13)
+        specifier: ^6.10.0
+        version: 6.10.0(ws@8.18.3)(zod@4.1.13)
       pino:
         specifier: ^10.1.0
         version: 10.1.0
@@ -221,8 +221,8 @@ importers:
   services/api-gateway:
     dependencies:
       '@prisma/adapter-pg':
-        specifier: ^7.0.1
-        version: 7.0.1
+        specifier: ^7.1.0
+        version: 7.1.0
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
@@ -307,8 +307,8 @@ importers:
   tests:
     dependencies:
       '@prisma/adapter-pg':
-        specifier: ^7.0.1
-        version: 7.0.1
+        specifier: ^7.1.0
+        version: 7.1.0
       '@tzurot/ai-worker':
         specifier: workspace:*
         version: link:../services/ai-worker
@@ -943,8 +943,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@langchain/core@1.1.0':
-    resolution: {integrity: sha512-yJ6JHcU9psjnQbzRFkXjIdNTA+3074dA+2pHdH8ewvQCSleSk6JcjkCMIb5+NASjeMoi1ZuntlLKVsNqF38YxA==}
+  '@langchain/core@1.1.4':
+    resolution: {integrity: sha512-AZVHVoLJzhHU/jsjeNto1pvfHaPxGT+V3PcVyvUw0kCiWftdu1bxfwhwSsZJ9B9iJeXJdCIUe089+NYd3FsEuw==}
     engines: {node: '>=20'}
 
   '@langchain/langgraph-checkpoint@1.0.0':
@@ -953,8 +953,8 @@ packages:
     peerDependencies:
       '@langchain/core': ^1.0.1
 
-  '@langchain/langgraph-sdk@1.0.0':
-    resolution: {integrity: sha512-g25ti2W7Dl5wUPlNK+0uIGbeNFqf98imhHlbdVVKTTkDYLhi/pI1KTgsSSkzkeLuBIfvt2b0q6anQwCs7XBlbw==}
+  '@langchain/langgraph-sdk@1.2.0':
+    resolution: {integrity: sha512-nFfNJWc9P2job2uUoL37nXfz0VW9eLEtidP0edrgeHUW7BczIQzLXC9ucJHHHGLjlK0S522kmai0abAULv3pGA==}
     peerDependencies:
       '@langchain/core': ^1.0.1
       react: ^18 || ^19
@@ -967,8 +967,8 @@ packages:
       react-dom:
         optional: true
 
-  '@langchain/langgraph@1.0.1':
-    resolution: {integrity: sha512-7y8OTDLrHrpJ55Y5x7c7zU2BbqNllXwxM106Xrd+NaQB5CpEb4hbUfIwe4XmhhscKPwvhXAq3tjeUxw9MCiurQ==}
+  '@langchain/langgraph@1.0.4':
+    resolution: {integrity: sha512-EYLyN/uv1ubMBd3RN/y+eAxY0FJWKrnzRw8HuDJdmDcyomgV9btyHK2zDN70sO3QDDuAU9voLNNUZeFBQkBYMQ==}
     engines: {node: '>=18'}
     peerDependencies:
       '@langchain/core': ^1.0.1
@@ -1028,14 +1028,14 @@ packages:
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
-  '@prisma/adapter-pg@7.0.1':
-    resolution: {integrity: sha512-01GpPPhLMoDMF4ipgfZz0L87fla/TV/PBQcmHy+9vV1ml6gUoqF8dUIRNI5Yf2YKpOwzQg9sn8C7dYD1Yio9Ug==}
+  '@prisma/adapter-pg@7.1.0':
+    resolution: {integrity: sha512-DSAnUwkKfX4bUzhkrjGN4IBQzwg0nvFw2W17H0Oa532I5w9nLtTJ9mAEGDs1nUBEGRAsa0c7qsf8CSgfJ4DsBQ==}
 
-  '@prisma/client-runtime-utils@7.0.1':
-    resolution: {integrity: sha512-R26BVX9D/iw4toUmZKZf3jniM/9pMGHHdZN5LVP2L7HNiCQKNQQx/9LuMtjepbgRqSqQO3oHN0yzojHLnKTGEw==}
+  '@prisma/client-runtime-utils@7.1.0':
+    resolution: {integrity: sha512-39xmeBrNTN40FzF34aJMjfX1PowVCqoT3UKUWBBSP3aXV05NRqGBC3x2wCDs96ti6ZgdiVzqnRDHtbzU8X+lPQ==}
 
-  '@prisma/client@7.0.1':
-    resolution: {integrity: sha512-O74T6xcfaGAq5gXwCAvfTLvI6fmC3and2g5yLRMkNjri1K8mSpEgclDNuUWs9xj5AwNEMQ88NeD3asI+sovm1g==}
+  '@prisma/client@7.1.0':
+    resolution: {integrity: sha512-qf7GPYHmS/xybNiSOpzv9wBo+UwqfL2PeyX+08v+KVHDI0AlSCQIh5bBySkH3alu06NX9wy98JEnckhMHoMFfA==}
     engines: {node: ^20.19 || ^22.12 || >=24.0}
     peerDependencies:
       prisma: '*'
@@ -1055,9 +1055,6 @@ packages:
   '@prisma/debug@6.8.2':
     resolution: {integrity: sha512-4muBSSUwJJ9BYth5N8tqts8JtiLT8QI/RSAzEogwEfpbYGFo9mYsInsVo8dqXdPO2+Rm5OG5q0qWDDE3nyUbVg==}
 
-  '@prisma/debug@7.0.1':
-    resolution: {integrity: sha512-5+25XokVeAK2Z2C9W457AFw7Hk032Q3QI3G58KYKXPlpgxy+9FvV1+S1jqfJ2d4Nmq9LP/uACrM6OVhpJMSr8w==}
-
   '@prisma/debug@7.1.0':
     resolution: {integrity: sha512-pPAckG6etgAsEBusmZiFwM9bldLSNkn++YuC4jCTJACdK5hLOVnOzX7eSL2FgaU6Gomd6wIw21snUX2dYroMZQ==}
 
@@ -1067,8 +1064,8 @@ packages:
   '@prisma/driver-adapter-utils@6.10.1':
     resolution: {integrity: sha512-MJ7NiiMA5YQUD1aMHiOcLmRpW0U0NTpygyeuLMxHXnKbcq+HX/cy10qilFMLVzpveuIEHuwxziR67z6i0K1MKA==}
 
-  '@prisma/driver-adapter-utils@7.0.1':
-    resolution: {integrity: sha512-sBbxm/yysHLLF2iMAB+qcX/nn3WFgsiC4DQNz0uM6BwGSIs8lIvgo0u8nR9nxe5gvFgKiIH8f4z2fgOEMeXc8w==}
+  '@prisma/driver-adapter-utils@7.1.0':
+    resolution: {integrity: sha512-AlVLzeXkw81+47MvQ9M8DvTiHkRfJ8xzklTbYjpskb0cTTDVHboTI/OVwT6Wcep/bNvfLKJYO0nylBiM5rxgww==}
 
   '@prisma/engines-version@7.1.0-6.ab635e6b9d606fa5c8fb8b1a7f909c3c3c1c98ba':
     resolution: {integrity: sha512-qZUevUh+yPhGT28rDQnV8V2kLnFjirzhVD67elRPIJHRsUV/mkII10HSrJrhK/U2GYgAxXR2VEREtq7AsfS8qw==}
@@ -2003,10 +2000,6 @@ packages:
     resolution: {integrity: sha512-xelSayHH36ZgE7ZWhli7pW34hNbNl8Ojv5KVmkJD4hBdD3th8Tfk9vYasLM+mXWOZhFkgZfxhLSnrwRr4elSSg==}
     engines: {node: '>=0.10.0'}
 
-  is-network-error@1.3.0:
-    resolution: {integrity: sha512-6oIwpsgRfnDiyEDLMay/GqCl3HoAtH5+RUKW29gYkL0QA+ipzpDLA16yQs7/RHCSu+BwgbJaOUqa4A99qNVQVw==}
-    engines: {node: '>=16'}
-
   is-promise@4.0.0:
     resolution: {integrity: sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ==}
 
@@ -2062,14 +2055,14 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
-  langchain@1.1.1:
-    resolution: {integrity: sha512-z7cOFhLOzbu/lRlIE8GZ5rlfi7obvvHThhMdts1KsUBusJmWLmh1Yik28MHYzJRXclUbqs4u/9D2yNmr36wf0A==}
+  langchain@1.1.5:
+    resolution: {integrity: sha512-tmJHdCsi4AQLEWDeTm9QTWgdwYgIaA4kfp14KFw6e1sUPxjsoHqdFqdf1ZJZxhs1h/n+hpIr3NBfGNBQnWxWEQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@langchain/core': 1.1.0
+      '@langchain/core': 1.1.4
 
-  langsmith@0.3.79:
-    resolution: {integrity: sha512-j5uiAsyy90zxlxaMuGjb7EdcL51Yx61SpKfDOI1nMPBbemGju+lf47he4e59Hp5K63CY8XWgFP42WeZ+zuIU4Q==}
+  langsmith@0.3.82:
+    resolution: {integrity: sha512-RTcxtRm0zp2lV+pMesMW7EZSsIlqN7OmR2F6sZ/sOFQwmcLVl+VErMPV4VkX4Sycs4/EIAFT5hpr36EqiHoikQ==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -2257,8 +2250,8 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
-  openai@6.9.1:
-    resolution: {integrity: sha512-vQ5Rlt0ZgB3/BNmTa7bIijYFhz3YBceAA3Z4JuoMSBftBF9YqFHIEhZakSs+O/Ad7EaoEimZvHxD5ylRjN11Lg==}
+  openai@6.10.0:
+    resolution: {integrity: sha512-ITxOGo7rO3XRMiKA5l7tQ43iNNu+iXGFAcf2t+aWVzzqRaS0i7m1K2BhxNdaveB+5eENhO0VY1FkiZzhBk4v3A==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -2292,10 +2285,6 @@ packages:
   p-retry@4.6.2:
     resolution: {integrity: sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ==}
     engines: {node: '>=8'}
-
-  p-retry@7.1.0:
-    resolution: {integrity: sha512-xL4PiFRQa/f9L9ZvR4/gUCRNus4N8YX80ku8kv9Jqz+ZokkiZLM0bcvX0gm1F3PDi9SPRsww1BDsTWgE6Y1GLQ==}
-    engines: {node: '>=20'}
 
   p-timeout@3.2.0:
     resolution: {integrity: sha512-rhIwUycgwwKcP9yTOOFK/AKsAopjjCakVqLHePO3CC6Mir1Z99xT+R63jZxAT5lFZLa2inS5h+ZS2GvR99/FBg==}
@@ -3332,17 +3321,16 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))':
+  '@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       ansi-styles: 5.2.0
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.3.79(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+      langsmith: 0.3.82(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       mustache: 4.2.0
       p-queue: 6.6.2
-      p-retry: 7.1.0
       uuid: 10.0.0
       zod: 4.1.13
     transitivePeerDependencies:
@@ -3351,37 +3339,37 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/langgraph-checkpoint@1.0.0(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))':
+  '@langchain/langgraph-checkpoint@1.0.0(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))':
     dependencies:
-      '@langchain/core': 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+      '@langchain/core': 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       uuid: 10.0.0
 
-  '@langchain/langgraph-sdk@1.0.0(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@langchain/langgraph-sdk@1.2.0(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       p-queue: 6.6.2
       p-retry: 4.6.2
       uuid: 9.0.1
     optionalDependencies:
-      '@langchain/core': 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+      '@langchain/core': 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
 
-  '@langchain/langgraph@1.0.1(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(zod@4.1.13)':
+  '@langchain/langgraph@1.0.4(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(zod@4.1.13)':
     dependencies:
-      '@langchain/core': 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
-      '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))
-      '@langchain/langgraph-sdk': 1.0.0(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@langchain/core': 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
+      '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))
+      '@langchain/langgraph-sdk': 1.2.0(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       uuid: 10.0.0
       zod: 4.1.13
     transitivePeerDependencies:
       - react
       - react-dom
 
-  '@langchain/openai@1.1.3(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(ws@8.18.3)':
+  '@langchain/openai@1.1.3(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(ws@8.18.3)':
     dependencies:
-      '@langchain/core': 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+      '@langchain/core': 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       js-tiktoken: 1.0.21
-      openai: 6.9.1(ws@8.18.3)(zod@4.1.13)
+      openai: 6.10.0(ws@8.18.3)(zod@4.1.13)
       zod: 4.1.13
     transitivePeerDependencies:
       - ws
@@ -3417,19 +3405,19 @@ snapshots:
 
   '@pinojs/redact@0.4.0': {}
 
-  '@prisma/adapter-pg@7.0.1':
+  '@prisma/adapter-pg@7.1.0':
     dependencies:
-      '@prisma/driver-adapter-utils': 7.0.1
+      '@prisma/driver-adapter-utils': 7.1.0
       pg: 8.16.3
       postgres-array: 3.0.4
     transitivePeerDependencies:
       - pg-native
 
-  '@prisma/client-runtime-utils@7.0.1': {}
+  '@prisma/client-runtime-utils@7.1.0': {}
 
-  '@prisma/client@7.0.1(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)':
+  '@prisma/client@7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
-      '@prisma/client-runtime-utils': 7.0.1
+      '@prisma/client-runtime-utils': 7.1.0
     optionalDependencies:
       prisma: 7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       typescript: 5.9.3
@@ -3446,8 +3434,6 @@ snapshots:
   '@prisma/debug@6.10.1': {}
 
   '@prisma/debug@6.8.2': {}
-
-  '@prisma/debug@7.0.1': {}
 
   '@prisma/debug@7.1.0': {}
 
@@ -3477,9 +3463,9 @@ snapshots:
     dependencies:
       '@prisma/debug': 6.10.1
 
-  '@prisma/driver-adapter-utils@7.0.1':
+  '@prisma/driver-adapter-utils@7.1.0':
     dependencies:
-      '@prisma/debug': 7.0.1
+      '@prisma/debug': 7.1.0
 
   '@prisma/engines-version@7.1.0-6.ab635e6b9d606fa5c8fb8b1a7f909c3c3c1c98ba': {}
 
@@ -4523,8 +4509,6 @@ snapshots:
     dependencies:
       is-extglob: 2.1.1
 
-  is-network-error@1.3.0: {}
-
   is-promise@4.0.0: {}
 
   is-property@1.0.2: {}
@@ -4576,12 +4560,12 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
-  langchain@1.1.1(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(openai@6.9.1(ws@8.18.3)(zod@4.1.13))(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
+  langchain@1.1.5(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(openai@6.10.0(ws@8.18.3)(zod@4.1.13))(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
     dependencies:
-      '@langchain/core': 1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
-      '@langchain/langgraph': 1.0.1(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(zod@4.1.13)
-      '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.0(openai@6.9.1(ws@8.18.3)(zod@4.1.13)))
-      langsmith: 0.3.79(openai@6.9.1(ws@8.18.3)(zod@4.1.13))
+      '@langchain/core': 1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
+      '@langchain/langgraph': 1.0.4(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(zod@4.1.13)
+      '@langchain/langgraph-checkpoint': 1.0.0(@langchain/core@1.1.4(openai@6.10.0(ws@8.18.3)(zod@4.1.13)))
+      langsmith: 0.3.82(openai@6.10.0(ws@8.18.3)(zod@4.1.13))
       uuid: 10.0.0
       zod: 4.1.13
     transitivePeerDependencies:
@@ -4593,17 +4577,16 @@ snapshots:
       - react-dom
       - zod-to-json-schema
 
-  langsmith@0.3.79(openai@6.9.1(ws@8.18.3)(zod@4.1.13)):
+  langsmith@0.3.82(openai@6.10.0(ws@8.18.3)(zod@4.1.13)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2
       console-table-printer: 2.15.0
       p-queue: 6.6.2
-      p-retry: 4.6.2
       semver: 7.7.3
       uuid: 10.0.0
     optionalDependencies:
-      openai: 6.9.1(ws@8.18.3)(zod@4.1.13)
+      openai: 6.10.0(ws@8.18.3)(zod@4.1.13)
 
   levn@0.4.1:
     dependencies:
@@ -4757,7 +4740,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@6.9.1(ws@8.18.3)(zod@4.1.13):
+  openai@6.10.0(ws@8.18.3)(zod@4.1.13):
     optionalDependencies:
       ws: 8.18.3
       zod: 4.1.13
@@ -4790,10 +4773,6 @@ snapshots:
     dependencies:
       '@types/retry': 0.12.0
       retry: 0.13.1
-
-  p-retry@7.1.0:
-    dependencies:
-      is-network-error: 1.3.0
 
   p-timeout@3.2.0:
     dependencies:
@@ -4846,10 +4825,10 @@ snapshots:
     optionalDependencies:
       pg-cloudflare: 1.2.7
 
-  pglite-prisma-adapter@0.6.1(@electric-sql/pglite@0.3.14)(@prisma/client@7.0.1(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)):
+  pglite-prisma-adapter@0.6.1(@electric-sql/pglite@0.3.14)(@prisma/client@7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)):
     dependencies:
       '@electric-sql/pglite': 0.3.14
-      '@prisma/client': 7.0.1(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
+      '@prisma/client': 7.1.0(prisma@7.1.0(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
       '@prisma/driver-adapter-utils': 6.10.1
       postgres-array: 3.0.4
 
