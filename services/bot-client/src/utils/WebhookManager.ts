@@ -74,18 +74,13 @@ export class WebhookManager {
 
   /**
    * Get standardized username with bot suffix
-   * Falls back to name if displayName is null/undefined/empty
+   *
+   * Note: displayName is guaranteed to be set by mapToPersonality(), which uses
+   * `db.displayName ?? db.name` to ensure it's never null/undefined.
    */
   private getStandardizedUsername(personality: LoadedPersonality): string {
     const suffix = this.getBotSuffix();
-    // Use displayName if available, otherwise fall back to name
-    const displayName =
-      personality.displayName !== null &&
-      personality.displayName !== undefined &&
-      personality.displayName !== ''
-        ? personality.displayName
-        : personality.name;
-    return `${displayName}${suffix}`;
+    return `${personality.displayName}${suffix}`;
   }
 
   /**
