@@ -31,58 +31,58 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ### Personality System
 
-| Feature                      | Status    | Notes                                    |
-| ---------------------------- | --------- | ---------------------------------------- |
-| JSON personality configs     | ✅ Ported | Database + file-based loading            |
-| Personality name lookup      | ✅ Ported | Case-insensitive database lookup         |
-| Custom display names         | ✅ Ported | Part of personality config               |
-| Custom avatars               | ✅ Ported | avatarUrl in personality config          |
-| System prompts               | ✅ Ported | Stored in database                       |
-| Model configuration          | ✅ Ported | temperature, maxTokens, model            |
-| Default personality          | ✅ Ported | Fallback when no match found             |
-| Personality create/edit/list | ✅ Ported | /character and /personality commands     |
-| Personality access control   | ✅ Ported | Public/private with owner-based filtering|
-| Personality aliases          | ⏸️ Deferred | v2 had complex alias resolution        |
+| Feature                      | Status      | Notes                                     |
+| ---------------------------- | ----------- | ----------------------------------------- |
+| JSON personality configs     | ✅ Ported   | Database + file-based loading             |
+| Personality name lookup      | ✅ Ported   | Case-insensitive database lookup          |
+| Custom display names         | ✅ Ported   | Part of personality config                |
+| Custom avatars               | ✅ Ported   | avatarUrl in personality config           |
+| System prompts               | ✅ Ported   | Stored in database                        |
+| Model configuration          | ✅ Ported   | temperature, maxTokens, model             |
+| Default personality          | ✅ Ported   | Fallback when no match found              |
+| Personality create/edit/list | ✅ Ported   | /character and /personality commands      |
+| Personality access control   | ✅ Ported   | Public/private with owner-based filtering |
+| Personality aliases          | ⏸️ Deferred | v2 had complex alias resolution           |
 
 ### Message Handling
 
-| Feature                | Status      | Notes                                            |
-| ---------------------- | ----------- | ------------------------------------------------ |
-| @personality mentions  | ✅ Ported   | @lilith triggers personality                     |
-| Bot @mentions          | ✅ Ported   | Shows help message                               |
-| DM support             | ✅ Ported   | Falls back to regular replies                    |
-| Guild channel support  | ✅ Ported   | Uses webhooks                                    |
-| Referenced messages    | ✅ Ported   | MessageReferenceExtractor + Discord link parsing |
-| Reply detection        | ✅ Ported   | Reply to bot to continue conversation            |
-| Conversation history   | ✅ Ported   | ConversationPersistence service                  |
-| Auto-response system   | 📋 Planned  | v2 had activated channels                        |
+| Feature               | Status     | Notes                                            |
+| --------------------- | ---------- | ------------------------------------------------ |
+| @personality mentions | ✅ Ported  | @lilith triggers personality                     |
+| Bot @mentions         | ✅ Ported  | Shows help message                               |
+| DM support            | ✅ Ported  | Falls back to regular replies                    |
+| Guild channel support | ✅ Ported  | Uses webhooks                                    |
+| Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing |
+| Reply detection       | ✅ Ported  | Reply to bot to continue conversation            |
+| Conversation history  | ✅ Ported  | ConversationPersistence service                  |
+| Auto-response system  | 📋 Planned | v2 had activated channels                        |
 
 ### AI Integration
 
-| Feature                   | Status      | Notes                                    |
-| ------------------------- | ----------- | ---------------------------------------- |
-| API Gateway communication | ✅ Ported   | HTTP client with job polling             |
-| Job polling               | ✅ Ported   | 1s interval, configurable timeout        |
-| Error handling            | ✅ Ported   | Try/catch with user-friendly messages    |
-| Long-term memory          | ✅ Ported   | pgvector with semantic retrieval         |
-| Image support             | ✅ Ported   | Vision models for image analysis         |
-| Voice transcription       | ✅ Ported   | OpenAI Whisper integration               |
-| Model indicators          | ✅ Ported   | Shows which model generated response     |
-| BYOK (Bring Your Own Key) | ✅ Ported   | Users provide their own API keys         |
-| Guest mode                | ✅ Ported   | Free models for users without keys       |
-| Rate limiting             | 📋 Planned  | v2 had token bucket                      |
-| Request deduplication     | 📋 Planned  | v2 had message tracker                   |
+| Feature                   | Status     | Notes                                 |
+| ------------------------- | ---------- | ------------------------------------- |
+| API Gateway communication | ✅ Ported  | HTTP client with job polling          |
+| Job polling               | ✅ Ported  | 1s interval, configurable timeout     |
+| Error handling            | ✅ Ported  | Try/catch with user-friendly messages |
+| Long-term memory          | ✅ Ported  | pgvector with semantic retrieval      |
+| Image support             | ✅ Ported  | Vision models for image analysis      |
+| Voice transcription       | ✅ Ported  | OpenAI Whisper integration            |
+| Model indicators          | ✅ Ported  | Shows which model generated response  |
+| BYOK (Bring Your Own Key) | ✅ Ported  | Users provide their own API keys      |
+| Guest mode                | ✅ Ported  | Free models for users without keys    |
+| Rate limiting             | 📋 Planned | v2 had token bucket                   |
+| Request deduplication     | 📋 Planned | v2 had message tracker                |
 
 ### User Management
 
-| Feature               | Status    | Notes                                    |
-| --------------------- | --------- | ---------------------------------------- |
-| User personas         | ✅ Ported | /me profile commands                     |
-| Model overrides       | ✅ Ported | Per-personality model selection          |
-| LLM configurations    | ✅ Ported | /llm-config commands                     |
-| Timezone settings     | ✅ Ported | /settings timezone                       |
-| Admin commands        | ✅ Ported | /admin servers, kick, usage              |
-| NSFW verification     | 📋 Planned| One-time per-user verification           |
+| Feature            | Status     | Notes                           |
+| ------------------ | ---------- | ------------------------------- |
+| User personas      | ✅ Ported  | /me profile commands            |
+| Model overrides    | ✅ Ported  | Per-personality model selection |
+| LLM configurations | ✅ Ported  | /llm-config commands            |
+| Timezone settings  | ✅ Ported  | /settings timezone              |
+| Admin commands     | ✅ Ported  | /admin servers, kick, usage     |
+| NSFW verification  | 📋 Planned | One-time per-user verification  |
 
 ---
 
