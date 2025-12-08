@@ -1,6 +1,6 @@
 # Tzurot v3 Documentation
 
-**Last Updated:** 2025-11-17
+**Last Updated:** 2025-12-08
 
 This directory contains all project documentation, organized by category for easy navigation.
 
@@ -82,6 +82,14 @@ Operational procedures and runbooks.
 
 - `DATABASE_BACKUP_STRATEGY.md` - Backup and recovery procedures
 
+### 🔥 [postmortems/](postmortems/)
+
+Incident post-mortems and lessons learned.
+
+**Key docs:**
+
+- `PROJECT_POSTMORTEMS.md` - All v3 development post-mortems and prevention measures
+
 ### 📚 [reference/](reference/)
 
 Reference documentation and quick lookups.
@@ -146,6 +154,7 @@ Coding standards and UX patterns.
 | Feature spec          | `features/`     | Detailed feature documentation    |
 | Improvement proposal  | `improvements/` | Not-yet-implemented enhancements  |
 | Operational procedure | `operations/`   | Backups, monitoring, incidents    |
+| Post-mortem           | `postmortems/`  | Incident analysis, lessons learned|
 | Reference doc         | `reference/`    | CLI references, API docs          |
 | Coding standard       | `standards/`    | UX patterns, file organization    |
 | Template              | `templates/`    | Reusable document templates       |
