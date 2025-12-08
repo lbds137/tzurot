@@ -2,7 +2,7 @@
 
 This document tracks which features from Tzurot v2 have been ported to v3, which are planned, and which are intentionally avoided.
 
-**Last Updated:** 2025-11-17
+**Last Updated:** 2025-12-08
 
 ## Legend
 
@@ -27,45 +27,62 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 | Webhook fallback        | ✅ Ported | Falls back to regular messages for DMs                   |
 | Typing indicator        | ✅ Ported | Shows when bot is processing                             |
 | Message chunking        | ✅ Ported | Preserves code blocks when splitting 2000+ char messages |
+| Slash commands          | ✅ Ported | Full command suite with autocomplete                     |
 
 ### Personality System
 
-| Feature                         | Status     | Notes                                 |
-| ------------------------------- | ---------- | ------------------------------------- |
-| JSON personality configs        | ✅ Ported  | Simple file-based loading             |
-| Personality name lookup         | ✅ Ported  | Case-insensitive Map-based storage    |
-| Custom display names            | ✅ Ported  | Part of BotPersonality interface      |
-| Custom avatars                  | ✅ Ported  | avatarUrl in personality config       |
-| System prompts                  | ✅ Ported  | Passed to API Gateway                 |
-| Model configuration             | ✅ Ported  | temperature, maxTokens, model         |
-| Personality aliases             | 📋 Planned | v2 had complex alias resolution       |
-| Default personality             | ✅ Ported  | Fallback when no personalities loaded |
-| Personality add/remove commands | 📋 Planned | v2 had !tz add/remove                 |
-| Personality list command        | 📋 Planned | v2 had !tz list                       |
+| Feature                      | Status    | Notes                                    |
+| ---------------------------- | --------- | ---------------------------------------- |
+| JSON personality configs     | ✅ Ported | Database + file-based loading            |
+| Personality name lookup      | ✅ Ported | Case-insensitive database lookup         |
+| Custom display names         | ✅ Ported | Part of personality config               |
+| Custom avatars               | ✅ Ported | avatarUrl in personality config          |
+| System prompts               | ✅ Ported | Stored in database                       |
+| Model configuration          | ✅ Ported | temperature, maxTokens, model            |
+| Default personality          | ✅ Ported | Fallback when no match found             |
+| Personality create/edit/list | ✅ Ported | /character and /personality commands     |
+| Personality access control   | ✅ Ported | Public/private with owner-based filtering|
+| Personality aliases          | ⏸️ Deferred | v2 had complex alias resolution        |
 
 ### Message Handling
 
-| Feature               | Status     | Notes                                               |
-| --------------------- | ---------- | --------------------------------------------------- |
-| @personality mentions | ✅ Ported  | @lilith triggers personality                        |
-| Bot @mentions         | ✅ Ported  | Uses default personality                            |
-| DM support            | ✅ Ported  | Falls back to regular replies                       |
-| Guild channel support | ✅ Ported  | Uses webhooks                                       |
-| Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing    |
-| Slash commands        | ✅ Ported  | /admin, /personality, /utility (create, edit, etc.) |
-| Auto-response system  | 📋 Planned | v2 had activated channels                           |
-| Conversation history  | ✅ Ported  | ConversationPersistence service                     |
+| Feature                | Status      | Notes                                            |
+| ---------------------- | ----------- | ------------------------------------------------ |
+| @personality mentions  | ✅ Ported   | @lilith triggers personality                     |
+| Bot @mentions          | ✅ Ported   | Shows help message                               |
+| DM support             | ✅ Ported   | Falls back to regular replies                    |
+| Guild channel support  | ✅ Ported   | Uses webhooks                                    |
+| Referenced messages    | ✅ Ported   | MessageReferenceExtractor + Discord link parsing |
+| Reply detection        | ✅ Ported   | Reply to bot to continue conversation            |
+| Conversation history   | ✅ Ported   | ConversationPersistence service                  |
+| Auto-response system   | 📋 Planned  | v2 had activated channels                        |
 
 ### AI Integration
 
-| Feature                   | Status     | Notes                                 |
-| ------------------------- | ---------- | ------------------------------------- |
-| API Gateway communication | ✅ Ported  | HTTP client with job polling          |
-| Job polling               | ✅ Ported  | 500ms interval, 30s timeout           |
-| Error handling            | ✅ Ported  | Try/catch with user-friendly messages |
-| Rate limiting             | 📋 Planned | v2 had token bucket                   |
-| Request deduplication     | 📋 Planned | v2 had message tracker                |
-| Streaming responses       | 📋 Planned | Future enhancement                    |
+| Feature                   | Status      | Notes                                    |
+| ------------------------- | ----------- | ---------------------------------------- |
+| API Gateway communication | ✅ Ported   | HTTP client with job polling             |
+| Job polling               | ✅ Ported   | 1s interval, configurable timeout        |
+| Error handling            | ✅ Ported   | Try/catch with user-friendly messages    |
+| Long-term memory          | ✅ Ported   | pgvector with semantic retrieval         |
+| Image support             | ✅ Ported   | Vision models for image analysis         |
+| Voice transcription       | ✅ Ported   | OpenAI Whisper integration               |
+| Model indicators          | ✅ Ported   | Shows which model generated response     |
+| BYOK (Bring Your Own Key) | ✅ Ported   | Users provide their own API keys         |
+| Guest mode                | ✅ Ported   | Free models for users without keys       |
+| Rate limiting             | 📋 Planned  | v2 had token bucket                      |
+| Request deduplication     | 📋 Planned  | v2 had message tracker                   |
+
+### User Management
+
+| Feature               | Status    | Notes                                    |
+| --------------------- | --------- | ---------------------------------------- |
+| User personas         | ✅ Ported | /me profile commands                     |
+| Model overrides       | ✅ Ported | Per-personality model selection          |
+| LLM configurations    | ✅ Ported | /llm-config commands                     |
+| Timezone settings     | ✅ Ported | /settings timezone                       |
+| Admin commands        | ✅ Ported | /admin servers, kick, usage              |
+| NSFW verification     | 📋 Planned| One-time per-user verification           |
 
 ---
 
@@ -99,7 +116,6 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 **Why Not:** Unnecessary complexity for current needs
 
 - Complex message tracker with multiple layers
-- ~~PluralKit detection system~~ (Actually needed - will port simplified version)
 - Advanced caching (profile/avatar cache - no longer needed without shapes.inc)
 - Elaborate alias resolution with chains and circular detection
 
@@ -107,76 +123,41 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ---
 
-## Planned Features (From V2)
+## Remaining Features to Port
 
 ### High Priority 🔥
 
-1. **Slash Command System** - Modern Discord interactions
-   - `/personality add`, `/personality remove`, `/personality list`, `/personality info`
-   - `/channel activate`, `/channel deactivate`
-   - Built-in Discord UI with descriptions and autocomplete
-   - Auto-documented (users can discover commands in Discord)
-   - Permission checking via Discord's permission system
-
-2. **Conversation History** - Track recent messages per channel
-   - Simple in-memory cache
-   - Configurable history length
-   - Passed to AI for context
-
-3. **Auto-Response System** - Activated channels
+1. **Auto-Response System** - Activated channels
    - Channel activation/deactivation
    - Personality assignment per channel
    - Message history tracking
 
-4. **Referenced Message Support** - Reply detection
-   - Extract referenced message content
-   - Include in context for AI
-
-### Medium Priority 📋
-
-5. **NSFW Verification** - Age verification system
-   - **CHANGED FROM V2:** One-time verification per user (not per-channel)
-   - Auto-verify by using bot in NSFW-marked Discord channel
-   - Store verified user IDs persistently
-   - Once verified, can use bot in any channel
-   - Simple: just prevent kids from accessing
-
-6. **Rate Limiting** - Token bucket algorithm
+2. **Rate Limiting** - Token bucket algorithm
    - Per-user rate limits
    - Per-channel rate limits
    - Graceful degradation
 
-7. **Request Deduplication** - Prevent duplicate processing
+### Medium Priority 📋
+
+3. **Request Deduplication** - Prevent duplicate processing
    - Track recent message IDs
    - Simple Map-based cache
    - TTL-based cleanup
 
-8. **Personality Aliases** - Alternative names for personalities
-   - **SIMPLIFIED FROM V2:** Just Map<alias, personalityName>
-   - No domain objects, no smart alternate generation, no reassignment
-   - Case-insensitive lookup
-   - If alias taken, user picks another
-
-9. **Error Message Customization** - Per-personality error messages
-   - Custom timeout messages
-   - Custom error responses
-   - Part of personality config
+4. **NSFW Verification** - Age verification system
+   - One-time verification per user (not per-channel like v2)
+   - Auto-verify by using bot in NSFW-marked Discord channel
+   - Store verified user IDs persistently
 
 ### Low Priority ⏸️
 
-10. **PluralKit Support** - Detect and handle proxied messages
-    - NEEDED: Some users are PluralKit users
-    - Simplified detection vs v2's elaborate system
-    - Just need to detect webhook messages and handle appropriately
+5. **Personality Aliases** - Alternative names for personalities
+   - Just Map<alias, personalityName>
+   - Case-insensitive lookup
 
-11. **Release Notifications** - Notify about bot updates
-    - Port from v2
-    - Nice UX feature
-    - Low priority for now
-
-12. **Metrics & Monitoring** - Usage statistics
-    - Prometheus metrics
-    - Logging improvements
+6. **Release Notifications** - Notify about bot updates
+   - Nice UX feature
+   - Low priority for now
 
 ---
 
@@ -186,36 +167,13 @@ These are improvements over v2's architecture:
 
 - **Microservices Architecture** - Gateway, Worker, Bot-Client separation
 - **BullMQ Job Queue** - Async job processing with Redis
-- **LangChain.js Integration** - Better RAG and AI orchestration
-- **TypeScript** - Type safety across services
+- **TypeScript** - Type safety across all services
 - **Monorepo with pnpm** - Better dependency management
-- **Vector Store** - Memory persistence with Qdrant
-- **Modular AI Providers** - Easy to add new providers
+- **pgvector** - Memory persistence with PostgreSQL
+- **Modular AI Providers** - OpenRouter with 400+ models
 - **Slash Commands** - Modern Discord interactions (v2 used text prefix !tz)
-
----
-
-## Migration Philosophy
-
-**Extracting Clean Patterns:**
-
-- Look at v2 code to understand WHAT it does
-- Ignore HOW v2 implemented it (often overcomplicated)
-- Implement the simplest version that works
-- Add complexity only when needed
-
-**Testing as We Go:**
-
-- Each ported feature gets basic tests
-- Focus on integration over unit tests
-- Test with real Discord bot when possible
-
-**Incremental Approach:**
-
-- Port core features first (messaging, personalities)
-- Add command system next (user management)
-- Then conversation features (history, auto-response)
-- Finally polish features (aliases, caching, metrics)
+- **BYOK** - Users bring their own API keys
+- **Guest Mode** - Free model access without API keys
 
 ---
 
@@ -228,35 +186,40 @@ These are improvements over v2's architecture:
 - [x] AI Worker service
 - [x] Bot-Client basic structure
 
-### Phase 2: Core Messaging 🚧 IN PROGRESS
+### Phase 2: Core Messaging ✅ COMPLETE
 
 - [x] Webhook management
 - [x] Message routing
 - [x] Personality loading
 - [x] Gateway communication
-- [ ] Slash command system (Discord interactions)
-- [ ] Error handling polish
+- [x] Slash command system
+- [x] Error handling
 
-### Phase 3: Conversation Features 📋 PLANNED
+### Phase 3: Conversation Features ✅ COMPLETE
 
-- [ ] Conversation history
+- [x] Conversation history
+- [x] Referenced messages
+- [x] Long-term memory
+- [x] Image support
+- [x] Voice transcription
+
+### Phase 4: User Management ✅ COMPLETE
+
+- [x] BYOK (Bring Your Own Key)
+- [x] Guest mode (free models)
+- [x] User personas
+- [x] Model overrides
+- [x] LLM configurations
+- [x] Admin commands
+
+### Phase 5: Polish & Enhancement 🚧 IN PROGRESS
+
 - [ ] Auto-response system
-- [ ] Referenced messages
-- [ ] Channel activation
-
-### Phase 4: User Management 📋 PLANNED
-
 - [ ] Rate limiting
 - [ ] Request deduplication
-- [ ] User authentication
-- [ ] Permission system
-
-### Phase 5: Polish & Enhancement ⏸️ DEFERRED
-
+- [ ] NSFW verification
 - [ ] Personality aliases
 - [ ] Custom error messages
-- [ ] Advanced caching
-- [ ] Metrics & monitoring
 
 ---
 
@@ -283,42 +246,15 @@ These are improvements over v2's architecture:
   - Built-in autocomplete and validation
   - Better UX with descriptions and parameter hints
   - Modern Discord best practice
-  - Text prefix only useful for Revolt, which is descoped
 
-### Why simplify NSFW verification from v2?
+### Why BYOK (Bring Your Own Key)?
 
-- **Decision:** One-time per-user verification, not per-channel
-- **Date:** 2025-10-02
+- **Decision:** Users provide their own OpenRouter API keys
+- **Date:** 2025-11-21
 - **Reasoning:**
-  - V2 required verification per channel (annoying)
-  - Auto-verify by detecting NSFW channel usage
-  - Simple goal: just prevent kids from accessing
-  - Once verified, trust the user across all channels
-
-### Why simplify alias system from v2?
-
-- **Decision:** Just Map<alias, personalityName>, no domain objects
-- **Date:** 2025-10-02
-- **Reasoning:**
-  - V2 had: Alias ValueObject, smart alternate generation, reassignment logic
-  - That's a full class hierarchy for what's essentially a string lookup
-  - If alias is taken, just tell user to pick another name
-  - No need to be clever with automatic conflict resolution
-
-### When to add conversation history?
-
-- **Decision:** After slash command system works
-- **Date:** 2025-10-02
-- **Reasoning:** Commands provide user control, then add auto-features
-
----
-
-## Next Steps
-
-1. **Immediate:** Deploy to Railway, test end-to-end with real Discord
-2. **This Week:** Implement slash command system (Discord interactions)
-3. **Next Week:** Add conversation history and auto-response
-4. **This Month:** Complete all high-priority features
+  - Enables public launch without bankruptcy risk
+  - Users control their own costs
+  - Free model fallback for users without keys
 
 ---
 

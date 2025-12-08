@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
-lastUpdated: '2025-11-19'
+lastUpdated: '2025-12-08'
 ---
 
 # Tzurot v3 Git Workflow
@@ -296,13 +296,59 @@ git push --force-with-lease origin feat/your-feature
 # Use: git reset --soft (keeps changes staged)
 ```
 
-## Pre-Commit Checks
+## Git Hooks & Commit Strategy
 
-The project has automated pre-commit hooks that run:
+**🚨 CRITICAL: Hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
 
-1. **TypeScript build** - All services must compile
-2. **ESLint** - Code style and quality checks
-3. **Tests** - All tests must pass
+### Hook Philosophy
+
+Minimize per-commit overhead, validate thoroughly before push.
+
+| Hook           | When         | What It Does                | Speed       |
+| -------------- | ------------ | --------------------------- | ----------- |
+| **pre-commit** | Every commit | Prettier + migration safety | Fast (~5s)  |
+| **pre-push**   | Before push  | Lint, typecheck, tests      | Slow (~60s) |
+
+### Batched Commit Workflow
+
+This approach reduces hook runs and saves resources:
+
+1. **Work on a unit of work** (feature, fix, or refactor)
+2. **Commit frequently** (pre-commit is fast, just migration checks)
+3. **Push when the unit is complete** (triggers all quality checks once)
+4. **Don't push after every commit** - batch related commits together
+
+This means heavy checks (lint, typecheck, tests) run once per push instead of on every commit.
+
+### Hook File Locations
+
+**Source-controlled** (tracked in git):
+
+- `./hooks/pre-commit` - Minimal checks
+- `./hooks/pre-push` - Full quality suite
+
+### Installing Hooks
+
+Run after cloning or when hooks are updated:
+
+```bash
+./scripts/git/install-hooks.sh
+```
+
+This copies `./hooks/*` to `.git/hooks/`.
+
+### Modifying Hooks
+
+1. Edit files in `./hooks/` (source-controlled)
+2. Run `./scripts/git/install-hooks.sh` to install locally
+3. Commit and push the hook changes
+
+### Pre-Commit Checks
+
+The pre-commit hook runs formatting and safety checks:
+
+- **Prettier** - Auto-formats staged files
+- **Migration safety** - Ensures migrations are valid
 
 If pre-commit checks fail:
 
@@ -315,6 +361,14 @@ git add <fixed-files>
 # Commit again
 git commit -m "your message"
 ```
+
+### Pre-Push Checks
+
+The pre-push hook runs the full quality suite:
+
+1. **Lint** - ESLint checks
+2. **TypeScript** - Type checking
+3. **Tests** - Full test suite
 
 **NEVER skip hooks:**
 

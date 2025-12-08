@@ -6,9 +6,9 @@
 
 ## 🧠 Current Context
 
-- **Status**: Alpha (Private testing on Railway)
-- **Deployment**: 67 personalities, stable and operational
-- **Blocker**: BYOK (Risk of expensive API bills prevents public invites)
+- **Status**: Public Beta (BYOK enabled)
+- **Deployment**: Stable and operational on Railway
+- **Milestone Achieved**: BYOK complete - users can bring their own API keys
 - **Constraint**: Solo dev workflow - prioritize focus over feature count
 
 ## 🎯 The Strategy: "Launch, Stabilize, Evolve"
@@ -146,7 +146,7 @@
 
 **Why This Order**: Schema changes are risky - tests catch regressions. Code preparation before migrations.
 
-**Reference**: [SPRINT_2_IMPLEMENTATION_GUIDE.md](docs/planning/SPRINT_2_IMPLEMENTATION_GUIDE.md) - Detailed implementation guide
+**Note**: Sprint 2 BYOK implementation is complete. See git history for implementation details.
 
 **Prisma 7.0 Migration** ✅ COMPLETE (2025-11-24):
 
@@ -275,7 +275,7 @@
 - [x] **Task 3.12**: `/usage` - Daily/weekly/monthly token stats ✅
   - **Completed**: 2025-11-26
 
-**Integration**: Ownership model (isSuperuser, ownerId) from QOL_MODEL_MANAGEMENT.md integrated here.
+**Integration**: Ownership model (isSuperuser, ownerId) integrated into schema.
 
 **🎉 MILESTONE 1: Public Beta Launch**
 
@@ -541,7 +541,6 @@
 - [ ] **Task 9.1**: Image Generation (if tool calling infrastructure ready)
   - Only Gemini models available on OpenRouter
   - Wait for proper tool call architecture
-  - See: [docs/planning/PHASED_IMPLEMENTATION_PLAN.md - Phase 3](docs/planning/PHASED_IMPLEMENTATION_PLAN.md)
 - [ ] **Task 9.2**: Multi-Personality Response
   - `@Lilith @Sarcastic hey both of you` → Both respond
   - Complex conversation history tracking
@@ -742,20 +741,16 @@
 
 ### Planning Docs
 
-- [docs/planning/PHASED_IMPLEMENTATION_PLAN.md](docs/planning/PHASED_IMPLEMENTATION_PLAN.md) - BYOK Phase 1-3 details
-- [docs/planning/schema-improvements-proposal.md](docs/planning/schema-improvements-proposal.md) - Detailed schema changes
-- [docs/planning/QOL_MODEL_MANAGEMENT.md](docs/planning/QOL_MODEL_MANAGEMENT.md) - LLM config management details (integrated into Sprint 2-3)
-- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - OpenMemory architecture (Sprint 7-8)
-- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - v2 feature parity tracking (Sprint 6)
+- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - OpenMemory architecture (Phase 3)
+- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - v2 feature parity tracking
+- [docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md](docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md) - Future shapes.inc import command
 
 ### Architecture
 
-- [docs/architecture/llm-hyperparameters-research.md](docs/architecture/llm-hyperparameters-research.md) - Advanced LLM parameters (validated)
+- [docs/architecture/llm-hyperparameters-research.md](docs/architecture/llm-hyperparameters-research.md) - Advanced LLM parameters
 - [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
-- [docs/architecture/sillytavern-patterns.md](docs/architecture/sillytavern-patterns.md) - Implementation patterns from SillyTavern (Sprint 5, 8, 9)
+- [docs/architecture/sillytavern-patterns.md](docs/architecture/sillytavern-patterns.md) - Implementation patterns from SillyTavern
 
 ---
 
-**Remember**: You are currently blocking yourself from success by thinking about the **Brain** (OpenMemory) before you have built the **Wallet** (BYOK). Build the Wallet. Launch. Then build the Brain.
-
-**The One Document Rule**: If you have an idea, it goes into the Icebox section of this document. Close all other tabs/docs. Focus on the current sprint.
+**The One Document Rule**: If you have an idea, it goes into the Icebox section of this document. Focus on the current sprint.

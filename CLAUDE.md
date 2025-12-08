@@ -15,12 +15,12 @@
 
 > **🐙 GITHUB CLI REFERENCE**: Before running `gh` commands (especially `gh api` or reading PR comments), consult [docs/reference/GITHUB_CLI_REFERENCE.md](docs/reference/GITHUB_CLI_REFERENCE.md). Key pitfall: PR comments have THREE different API endpoints (issue comments, review comments, reviews) - using the wrong one returns empty results!
 
-> **⚠️ PRODUCTION STATUS**: v3 is deployed on Railway in TWO environments:
+> **⚠️ PRODUCTION STATUS**: v3 is in **Public Beta** on Railway:
 >
 > - **Development**: For testing new features before stable release
-> - **Production**: Stable alpha version for bot owner + alpha users
+> - **Production**: Stable beta for users with BYOK (Bring Your Own Key)
 >
-> ✅ **BYOK IS COMPLETE** - Public beta launch ready. Users can bring their own API keys via `/wallet` commands. Guest mode (free models) available for users without BYOK keys.
+> ✅ **BYOK IS COMPLETE** - Users can bring their own API keys via `/wallet` commands. Guest mode (free models) available for users without BYOK keys.
 
 ## Project Overview
 
@@ -402,97 +402,11 @@ This project uses **ESLint 9 flat config** (`eslint.config.js`), NOT legacy `.es
 
 ### Timer Patterns (`setTimeout`/`setInterval`)
 
-**⚠️ HORIZONTAL SCALING CONCERN**: `setInterval` creates in-memory state that prevents horizontal scaling. Multiple service instances would each run their own intervals.
-
-**✅ OK Patterns** (use freely):
-
-```typescript
-// 1. Request timeouts with AbortController
-const controller = new AbortController();
-const timeout = setTimeout(() => controller.abort(), 30000);
-try {
-  const response = await fetch(url, { signal: controller.signal });
-} finally {
-  clearTimeout(timeout);
-}
-
-// 2. One-time delays (retry backoff, startup delays)
-await new Promise(resolve => setTimeout(resolve, delayMs));
-
-// 3. Test utilities
-await vi.advanceTimersByTimeAsync(1000);
-```
-
-**❌ Scaling Blockers** (avoid or migrate):
-
-```typescript
-// BAD: Persistent cleanup intervals
-this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
-
-// BAD: Reconnection timers without coordination
-this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
-```
-
-**✅ Alternatives for Cleanup/Scheduled Tasks**:
-
-1. **BullMQ Repeatable Jobs** (preferred for this codebase):
-
-   ```typescript
-   await queue.add(
-     'cleanup-cache',
-     {},
-     {
-       repeat: { every: 60000 }, // Every minute
-     }
-   );
-   ```
-
-2. **Redis-based coordination** (for distributed locks)
-
-3. **External scheduler** (Railway cron, etc.)
-
-**Current Known Scaling Blockers** (tracked for future migration):
-
-- `BaseConfigResolver.ts` - cache cleanup interval (used by LlmConfigResolver and PersonaResolver)
-- `WebhookManager.ts` - webhook cleanup interval
-- `DatabaseNotificationListener.ts` - reconnection timeout
-
-**DO NOT USE**:
-
-- Different grep patterns or flags
-- Different tail lengths
-- Complex piped commands with multiple greps
-- Variations with sed, awk, or other tools
-
-If you need something beyond these commands, ask first or add it as a new pnpm script in package.json.
+**📚 See**: `tzurot-async-flow` skill for complete timer pattern guidance, including horizontal scaling concerns, OK patterns vs scaling blockers, and BullMQ alternatives for scheduled tasks.
 
 ### Scripts (Database & Utility Operations)
 
-The `scripts/` folder is a pnpm workspace package (`@tzurot/scripts`). All new scripts should be TypeScript in `scripts/src/`:
-
-**Database Operations:**
-
-```bash
-# Check for migration drift (checksums don't match)
-pnpm --filter @tzurot/scripts run db:check-drift
-
-# Fix drifted migrations
-pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name> [<migration_name> ...]
-```
-
-**Why this approach:**
-
-- Uses `tsx` which handles ESM/CJS interop automatically (no more `.mjs` vs `.cjs` confusion)
-- Proper workspace dependency on `@tzurot/common-types` for Prisma access
-- TypeScript provides type safety and better AI assistance
-
-**Writing new scripts:** Use `scripts/src/db/check-migration-drift.ts` as a template:
-
-1. Import from `@tzurot/common-types` (e.g., `getPrismaClient`, `disconnectPrisma`)
-2. Use async/await with proper error handling
-3. Always call `disconnectPrisma()` in `finally` block
-
-**Note:** Legacy scripts in subdirectories (`git/`, `deployment/`, etc.) still use shell scripts or older patterns.
+**📚 See**: `tzurot-db-vector` skill for database scripts (`@tzurot/scripts`), including migration drift checking, database operation utilities, and templates for writing new scripts.
 
 ## Architecture
 
@@ -771,40 +685,7 @@ Format: `type: description` (e.g., `feat: add voice transcription support`)
 2. Check health endpoint: https://api-gateway-development-83e8.up.railway.app/health
 3. Monitor logs via `railway logs`
 
-**📚 See**: `tzurot-git-workflow` skill for complete PR workflow, rebase conflict handling, commit format details, and git safety protocol
-
-### Git Hooks & Commit Strategy
-
-**🚨 CRITICAL: Hooks are source-controlled in `./hooks/` NOT `.git/hooks/`**
-
-**Hook Philosophy**: Minimize per-commit overhead, validate thoroughly before push.
-
-| Hook           | When         | What It Does                   | Speed       |
-| -------------- | ------------ | ------------------------------ | ----------- |
-| **pre-commit** | Every commit | Migration safety checks only   | Fast (~1s)  |
-| **pre-push**   | Before push  | Format, lint, typecheck, tests | Slow (~60s) |
-
-**Batched Commit Workflow** (reduces hook runs, saves resources):
-
-1. **Work on a unit of work** (feature, fix, or refactor)
-2. **Commit frequently** (pre-commit is fast, just migration checks)
-3. **Push when the unit is complete** (triggers all quality checks once)
-4. **Don't push after every commit** - batch related commits together
-
-This approach means heavy checks (lint, typecheck, tests) run once per push instead of on every commit.
-
-**Source-controlled locations**:
-
-- `./hooks/pre-commit` - Minimal checks (tracked in git)
-- `./hooks/pre-push` - Full quality suite (tracked in git)
-
-**Installation**: Run `./scripts/git/install-hooks.sh` after cloning (copies to `.git/hooks/`)
-
-**When modifying hooks**:
-
-1. Edit files in `./hooks/` (source-controlled)
-2. Run `./scripts/git/install-hooks.sh` to install locally
-3. Commit and push the hook changes
+**📚 See**: `tzurot-git-workflow` skill for complete PR workflow, rebase conflict handling, commit format, git safety protocol, and git hooks documentation (hook file locations, batched commit workflow, hook modification process).
 
 ## Environment Variables
 

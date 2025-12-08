@@ -1,7 +1,7 @@
 ---
 name: tzurot-async-flow
 description: BullMQ and async patterns for Tzurot v3 - Job queue architecture, Discord interaction deferral, idempotency, retry strategies, and error handling. Use when working with jobs or async operations.
-lastUpdated: '2025-11-19'
+lastUpdated: '2025-12-08'
 ---
 
 # Tzurot v3 Async Flow & Job Queue
@@ -594,6 +594,65 @@ async function detectStuckJobs(): Promise<void> {
   }
 }
 ```
+
+## Timer Patterns (`setTimeout`/`setInterval`)
+
+**⚠️ HORIZONTAL SCALING CONCERN**: `setInterval` creates in-memory state that prevents horizontal scaling. Multiple service instances would each run their own intervals.
+
+### ✅ OK Patterns (use freely)
+
+```typescript
+// 1. Request timeouts with AbortController
+const controller = new AbortController();
+const timeout = setTimeout(() => controller.abort(), 30000);
+try {
+  const response = await fetch(url, { signal: controller.signal });
+} finally {
+  clearTimeout(timeout);
+}
+
+// 2. One-time delays (retry backoff, startup delays)
+await new Promise(resolve => setTimeout(resolve, delayMs));
+
+// 3. Test utilities
+await vi.advanceTimersByTimeAsync(1000);
+```
+
+### ❌ Scaling Blockers (avoid or migrate)
+
+```typescript
+// BAD: Persistent cleanup intervals
+this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+
+// BAD: Reconnection timers without coordination
+this.reconnectTimeout = setTimeout(() => this.reconnect(), 5000);
+```
+
+### ✅ Alternatives for Cleanup/Scheduled Tasks
+
+**1. BullMQ Repeatable Jobs** (preferred for this codebase):
+
+```typescript
+await queue.add(
+  'cleanup-cache',
+  {},
+  {
+    repeat: { every: 60000 }, // Every minute
+  }
+);
+```
+
+**2. Redis-based coordination** (for distributed locks)
+
+**3. External scheduler** (Railway cron, etc.)
+
+### Current Known Scaling Blockers
+
+Tracked for future migration:
+
+- `BaseConfigResolver.ts` - cache cleanup interval (used by LlmConfigResolver and PersonaResolver)
+- `WebhookManager.ts` - webhook cleanup interval
+- `DatabaseNotificationListener.ts` - reconnection timeout
 
 ## Testing Async Code
 
