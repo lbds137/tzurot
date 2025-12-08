@@ -148,7 +148,11 @@ describe('PATCH /user/personality/:slug/visibility', () => {
     expect(mockPrisma.personality.update).toHaveBeenCalledWith({
       where: { id: 'personality-11' },
       data: { isPublic: false },
-      select: expect.any(Object),
+      select: expect.objectContaining({
+        id: true,
+        slug: true,
+        isPublic: true,
+      }),
     });
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
