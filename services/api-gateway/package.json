@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.0.1",
+    "@prisma/adapter-pg": "^7.1.0",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.65.1",
     "express": "^5.2.1",
