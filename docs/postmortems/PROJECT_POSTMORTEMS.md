@@ -4,14 +4,14 @@
 
 ## Quick Reference - Key Rules Established
 
-| Date | Incident | Rule Established |
-|------|----------|------------------|
-| 2025-07-25 | Untested push broke develop | Always run tests before pushing |
-| 2025-07-21 | Git restore destroyed work | Confirm before destructive git commands |
-| 2025-10-31 | DB URL committed | Never commit database URLs |
-| 2025-07-16 | DDD migration broke features | Test actual behavior, not just units |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch |
-| 2025-12-06 | API contract mismatch | Use shared Zod schemas for contracts |
+| Date       | Incident                      | Rule Established                        |
+| ---------- | ----------------------------- | --------------------------------------- |
+| 2025-07-25 | Untested push broke develop   | Always run tests before pushing         |
+| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git commands |
+| 2025-10-31 | DB URL committed              | Never commit database URLs              |
+| 2025-07-16 | DDD migration broke features  | Test actual behavior, not just units    |
+| 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch   |
+| 2025-12-06 | API contract mismatch         | Use shared Zod schemas for contracts    |
 
 ---
 
