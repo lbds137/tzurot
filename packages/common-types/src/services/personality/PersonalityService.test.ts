@@ -24,6 +24,9 @@ describe('PersonalityService - Cache Invalidation', () => {
       llmConfig: {
         findFirst: vi.fn(),
       },
+      user: {
+        findUnique: vi.fn(),
+      },
     } as unknown as PrismaClient;
 
     service = new PersonalityService(mockPrisma);
@@ -276,6 +279,10 @@ describe('PersonalityService - Cache Invalidation', () => {
 
     it('should bypass cache when userId is provided (enforces access control)', async () => {
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(mockPersonality as any);
+      // Mock user lookups
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({
+        id: '00000000-0000-0000-0000-000000000123',
+      } as any);
 
       // First load without userId - should hit DB and cache result
       const loaded1 = await service.loadPersonality('00000000-0000-0000-0000-000000000099');
@@ -330,6 +337,10 @@ describe('PersonalityService - Cache Invalidation', () => {
     });
 
     it('should return null when access control denies access', async () => {
+      // Mock user lookup
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({
+        id: '00000000-0000-0000-0000-000000000999',
+      } as any);
       // Mock DB returning null (personality exists but user lacks access)
       vi.mocked(mockPrisma.personality.findFirst).mockResolvedValue(null);
       vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([]);

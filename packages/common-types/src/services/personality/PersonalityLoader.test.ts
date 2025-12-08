@@ -69,6 +69,9 @@ describe('PersonalityLoader', () => {
       llmConfig: {
         findFirst: vi.fn(),
       },
+      user: {
+        findUnique: vi.fn(),
+      },
     } as unknown as PrismaClient;
 
     loader = new PersonalityLoader(mockPrisma);
@@ -304,22 +307,33 @@ describe('PersonalityLoader', () => {
 
     describe('access control', () => {
       it('should apply access filter to combined name/slug lookup when userId is provided', async () => {
+        // The ownerId is a database UUID, not Discord ID
+        const userUuid = '00000000-0000-0000-0000-000000000123';
         const mockPersonality = createMockPersonality({
           name: 'PrivateBot',
           slug: 'private-bot',
           isPublic: false,
-          ownerId: 'user-123',
+          ownerId: userUuid,
         });
 
+        // Mock user lookup: Discord ID -> UUID
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({ id: userUuid } as any);
         vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([mockPersonality] as any);
 
-        const result = await loader.loadFromDatabase('private-bot', 'user-123');
+        // Pass Discord ID, which gets resolved to UUID internally
+        const result = await loader.loadFromDatabase('private-bot', 'discord-user-123');
 
         expect(result).not.toBeNull();
         expect(result?.isPublic).toBe(false);
-        expect(result?.ownerId).toBe('user-123');
+        expect(result?.ownerId).toBe(userUuid);
 
-        // Verify access filter was applied to combined query
+        // Verify user lookup was called with Discord ID
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledWith({
+          where: { discordId: 'discord-user-123' },
+          select: { id: true },
+        });
+
+        // Verify access filter was applied with UUID (not Discord ID)
         expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
           where: {
             AND: [
@@ -329,7 +343,7 @@ describe('PersonalityLoader', () => {
                   { slug: 'private-bot' },
                 ],
               },
-              { OR: [{ isPublic: true }, { ownerId: 'user-123' }] },
+              { OR: [{ isPublic: true }, { ownerId: userUuid }] },
             ],
           },
           orderBy: { createdAt: 'asc' },
@@ -358,13 +372,48 @@ describe('PersonalityLoader', () => {
       });
 
       it('should return null when user lacks access to private personality', async () => {
+        // Mock user lookup - user exists but has different UUID than owner
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({
+          id: '00000000-0000-0000-0000-000000000999',
+        } as any);
+
         // All lookups return empty (access denied due to filter)
         vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([]);
         vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
 
-        const result = await loader.loadFromDatabase('private-bot', 'wrong-user');
+        const result = await loader.loadFromDatabase('private-bot', 'wrong-user-discord-id');
 
         expect(result).toBeNull();
+      });
+
+      it('should restrict access when user not found in database', async () => {
+        // User doesn't exist in database
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce(null);
+
+        // Personality lookup returns empty (only public would match)
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValue([]);
+        vi.mocked(mockPrisma.personalityAlias.findFirst).mockResolvedValue(null);
+
+        const result = await loader.loadFromDatabase('private-bot', 'unknown-discord-id');
+
+        expect(result).toBeNull();
+
+        // Verify filter uses placeholder that won't match any ownerId
+        expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
+          where: {
+            AND: [
+              {
+                OR: [
+                  { name: { equals: 'private-bot', mode: 'insensitive' } },
+                  { slug: 'private-bot' },
+                ],
+              },
+              { OR: [{ isPublic: true }, { ownerId: 'user-not-found' }] },
+            ],
+          },
+          orderBy: { createdAt: 'asc' },
+          select: expect.any(Object),
+        });
       });
 
       it('should bypass access filter when user is bot owner', async () => {
@@ -404,12 +453,16 @@ describe('PersonalityLoader', () => {
       });
 
       it('should apply access filter to alias-based lookup', async () => {
+        const userUuid = '00000000-0000-0000-0000-000000000123';
         const mockPersonality = createMockPersonality({
           id: 'private-id',
           name: 'PrivateBot',
           isPublic: false,
-          ownerId: 'user-123',
+          ownerId: userUuid,
         });
+
+        // Mock user lookup: Discord ID -> UUID
+        vi.mocked(mockPrisma.user.findUnique).mockResolvedValueOnce({ id: userUuid } as any);
 
         // Combined name/slug lookup returns empty
         vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([]);
@@ -422,14 +475,14 @@ describe('PersonalityLoader', () => {
         // Personality by alias ID lookup succeeds
         vi.mocked(mockPrisma.personality.findFirst).mockResolvedValueOnce(mockPersonality as any);
 
-        const result = await loader.loadFromDatabase('my-alias', 'user-123');
+        const result = await loader.loadFromDatabase('my-alias', 'discord-user-123');
 
         expect(result).not.toBeNull();
 
-        // Verify access filter was applied to the alias-based personality lookup
+        // Verify access filter was applied with UUID to the alias-based personality lookup
         expect(vi.mocked(mockPrisma.personality.findFirst)).toHaveBeenCalledWith({
           where: {
-            AND: [{ id: 'private-id' }, { OR: [{ isPublic: true }, { ownerId: 'user-123' }] }],
+            AND: [{ id: 'private-id' }, { OR: [{ isPublic: true }, { ownerId: userUuid }] }],
           },
           select: expect.any(Object),
         });
