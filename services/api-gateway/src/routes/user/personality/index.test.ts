@@ -30,15 +30,15 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('../../services/AuthMiddleware.js', () => ({
+vi.mock('../../../services/AuthMiddleware.js', () => ({
   requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
 }));
 
-vi.mock('../../utils/asyncHandler.js', () => ({
+vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-vi.mock('../../utils/imageProcessor.js', () => ({
+vi.mock('../../../utils/imageProcessor.js', () => ({
   optimizeAvatar: vi.fn().mockResolvedValue({
     buffer: Buffer.from('test'),
     quality: 80,
@@ -87,7 +87,7 @@ const mockPrisma = {
   },
 };
 
-import { createPersonalityRoutes } from './personality.js';
+import { createPersonalityRoutes } from './index.js';
 import { type PrismaClient, DeletePersonalityResponseSchema } from '@tzurot/common-types';
 
 // Mock dates for consistent testing
@@ -848,6 +848,138 @@ describe('/user/personality routes', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
+    describe('displayName preservation (regression tests)', () => {
+      beforeEach(() => {
+        mockPrisma.personality.findUnique.mockResolvedValue({
+          id: 'personality-unicode',
+          ownerId: 'user-uuid-123',
+          name: 'persephone', // Plain ASCII name
+        });
+      });
+
+      it('should NOT modify displayName when only updating avatar', async () => {
+        // This test verifies the fix for the bug where avatar-only updates
+        // were overwriting Unicode displayNames with plain ASCII names
+        mockPrisma.personality.update.mockResolvedValue(
+          createMockPersonality({
+            id: 'personality-unicode',
+            name: 'persephone',
+            displayName: '𝑷𝒆𝒓𝒔𝒆𝒑𝒉𝒐𝒏𝒆', // Unicode displayName preserved
+            slug: 'persephone',
+          })
+        );
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { avatarData: 'data:image/png;base64,iVBORw0KGgo=' }, // Only avatar, no displayName
+          { slug: 'persephone' }
+        );
+
+        await handler(req, res);
+
+        // Verify that displayName was NOT included in the update
+        expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.not.objectContaining({
+              displayName: expect.any(String),
+            }),
+          })
+        );
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should sync displayName when name is updated without explicit displayName', async () => {
+        mockPrisma.personality.update.mockResolvedValue(
+          createMockPersonality({
+            id: 'personality-unicode',
+            name: 'NewName',
+            displayName: 'NewName',
+            slug: 'persephone',
+          })
+        );
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { name: 'NewName' }, // Only name, no displayName
+          { slug: 'persephone' }
+        );
+
+        await handler(req, res);
+
+        // When name is updated without displayName, displayName should sync to new name
+        expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              name: 'NewName',
+              displayName: 'NewName',
+            }),
+          })
+        );
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should use explicit displayName when provided', async () => {
+        mockPrisma.personality.update.mockResolvedValue(
+          createMockPersonality({
+            id: 'personality-unicode',
+            name: 'persephone',
+            displayName: 'Custom Display Name',
+            slug: 'persephone',
+          })
+        );
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { displayName: 'Custom Display Name' },
+          { slug: 'persephone' }
+        );
+
+        await handler(req, res);
+
+        expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              displayName: 'Custom Display Name',
+            }),
+          })
+        );
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('should fall back to name when displayName is explicitly set to empty string', async () => {
+        mockPrisma.personality.update.mockResolvedValue(
+          createMockPersonality({
+            id: 'personality-unicode',
+            name: 'persephone',
+            displayName: 'persephone',
+            slug: 'persephone',
+          })
+        );
+
+        const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+        const handler = getHandler(router, 'put', '/:slug');
+        const { req, res } = createMockReqRes(
+          { displayName: '' }, // Explicitly empty
+          { slug: 'persephone' }
+        );
+
+        await handler(req, res);
+
+        // Empty displayName should fall back to existing name
+        expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              displayName: 'persephone', // Falls back to personality.name
+            }),
+          })
+        );
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+    });
+
     describe('avatar cache deletion', () => {
       beforeEach(() => {
         mockUnlink.mockReset();
@@ -855,6 +987,7 @@ describe('/user/personality routes', () => {
         mockPrisma.personality.findUnique.mockResolvedValue({
           id: 'personality-avatar',
           ownerId: 'user-uuid-123',
+          name: 'Test',
           avatarData: null,
         });
         mockPrisma.personality.update.mockResolvedValue(

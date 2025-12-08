@@ -41,7 +41,7 @@ import type {
 } from '@tzurot/common-types';
 import { createTimezoneRoutes } from './timezone.js';
 import { createUsageRoutes } from './usage.js';
-import { createPersonalityRoutes } from './personality.js';
+import { createPersonalityRoutes } from './personality/index.js';
 import { createLlmConfigRoutes } from './llm-config.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
