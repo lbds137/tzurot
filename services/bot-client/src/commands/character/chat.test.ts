@@ -33,11 +33,16 @@ const mockConversationHistoryService = {
   getRecentHistory: vi.fn(),
 };
 
+const mockPersonaResolver = {
+  resolve: vi.fn(),
+};
+
 vi.mock('../../services/serviceRegistry.js', () => ({
   getGatewayClient: () => mockGatewayClient,
   getWebhookManager: () => mockWebhookManager,
   getPersonalityService: () => mockPersonalityService,
   getConversationHistoryService: () => mockConversationHistoryService,
+  getPersonaResolver: () => mockPersonaResolver,
 }));
 
 // Mock redis service
@@ -128,6 +133,11 @@ describe('Character Chat Handler', () => {
     vi.useFakeTimers();
     // Default: empty conversation history
     mockConversationHistoryService.getRecentHistory.mockResolvedValue([]);
+    // Default: PersonaResolver returns empty preferredName (will use Discord name)
+    mockPersonaResolver.resolve.mockResolvedValue({
+      config: { personaId: 'persona-123', preferredName: null },
+      source: 'user-default',
+    });
   });
 
   afterEach(() => {
@@ -516,6 +526,153 @@ describe('Character Chat Handler', () => {
       // Error should be caught and editReply should be called (since deferred=true)
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('something went wrong'),
+      });
+    });
+
+    describe('persona preferred name lookup', () => {
+      it('should use persona preferredName from user default', async () => {
+        const mockChannel = createMockChannel();
+        const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+        const personality = createMockPersonality({ id: 'personality-uuid-123' });
+        mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+        mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+        mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+          content: 'Response',
+          metadata: {},
+        });
+        mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+        // Mock PersonaResolver returning user-default persona with preferredName
+        mockPersonaResolver.resolve.mockResolvedValue({
+          config: { personaId: 'persona-1', preferredName: 'Lila' },
+          source: 'user-default',
+        });
+
+        await handleChat(mockInteraction, mockConfig);
+
+        // User message should use preferredName instead of Discord name
+        expect(mockChannel.send).toHaveBeenCalledWith('**Lila:** Hello!');
+        // Context should include preferredName
+        expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            userName: 'Lila',
+          })
+        );
+      });
+
+      it('should use persona preferredName from personality-specific override', async () => {
+        const mockChannel = createMockChannel();
+        const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+        const personality = createMockPersonality({ id: 'personality-uuid-123' });
+        mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+        mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+        mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+          content: 'Response',
+          metadata: {},
+        });
+        mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+        // Mock PersonaResolver returning context-override persona
+        mockPersonaResolver.resolve.mockResolvedValue({
+          config: { personaId: 'override-persona', preferredName: 'Override Name' },
+          source: 'context-override',
+        });
+
+        await handleChat(mockInteraction, mockConfig);
+
+        // User message should use override's preferredName
+        expect(mockChannel.send).toHaveBeenCalledWith('**Override Name:** Hello!');
+        expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            userName: 'Override Name',
+          })
+        );
+      });
+
+      it('should use Discord name when PersonaResolver throws', async () => {
+        const mockChannel = createMockChannel();
+        const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+        mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+        mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+        mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+          content: 'Response',
+          metadata: {},
+        });
+        mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+        // Mock PersonaResolver throwing
+        mockPersonaResolver.resolve.mockRejectedValue(new Error('Database error'));
+
+        await handleChat(mockInteraction, mockConfig);
+
+        // Should fall back to Discord display name
+        expect(mockChannel.send).toHaveBeenCalledWith('**TestUser:** Hello!');
+      });
+
+      it('should use Discord name when persona has null preferredName', async () => {
+        const mockChannel = createMockChannel();
+        const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+        mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+        mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+        mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+          content: 'Response',
+          metadata: {},
+        });
+        mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+        // Mock PersonaResolver returning persona with null preferredName
+        mockPersonaResolver.resolve.mockResolvedValue({
+          config: { personaId: 'persona-1', preferredName: null },
+          source: 'user-default',
+        });
+
+        await handleChat(mockInteraction, mockConfig);
+
+        // Should fall back to Discord display name
+        expect(mockChannel.send).toHaveBeenCalledWith('**TestUser:** Hello!');
+      });
+
+      it('should use Discord name when persona has empty preferredName', async () => {
+        const mockChannel = createMockChannel();
+        const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+        mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+        mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+        mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+          content: 'Response',
+          metadata: {},
+        });
+        mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+        // Mock PersonaResolver returning persona with empty preferredName
+        mockPersonaResolver.resolve.mockResolvedValue({
+          config: { personaId: 'persona-1', preferredName: '' },
+          source: 'user-default',
+        });
+
+        await handleChat(mockInteraction, mockConfig);
+
+        // Should fall back to Discord display name
+        expect(mockChannel.send).toHaveBeenCalledWith('**TestUser:** Hello!');
+      });
+
+      it('should call PersonaResolver with userId and personalityId', async () => {
+        const mockChannel = createMockChannel();
+        const mockInteraction = createMockInteraction('test-char', 'Hello!', mockChannel);
+        const personality = createMockPersonality({ id: 'personality-uuid-456' });
+        mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+        mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+        mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+          content: 'Response',
+          metadata: {},
+        });
+        mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+        await handleChat(mockInteraction, mockConfig);
+
+        // Verify PersonaResolver was called with correct userId and personalityId
+        expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-123', 'personality-uuid-456');
       });
     });
   });

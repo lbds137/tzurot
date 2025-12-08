@@ -10,7 +10,11 @@
  * - Import getJobTracker(), getWebhookManager(), etc. in commands
  */
 
-import type { PersonalityService, ConversationHistoryService } from '@tzurot/common-types';
+import type {
+  PersonalityService,
+  ConversationHistoryService,
+  PersonaResolver,
+} from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
@@ -21,6 +25,7 @@ let webhookManager: WebhookManager | undefined;
 let gatewayClient: GatewayClient | undefined;
 let personalityService: PersonalityService | undefined;
 let conversationHistoryService: ConversationHistoryService | undefined;
+let personaResolver: PersonaResolver | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -31,6 +36,7 @@ export interface RegisteredServices {
   gatewayClient: GatewayClient;
   personalityService: PersonalityService;
   conversationHistoryService: ConversationHistoryService;
+  personaResolver: PersonaResolver;
 }
 
 /**
@@ -43,6 +49,7 @@ export function registerServices(services: RegisteredServices): void {
   gatewayClient = services.gatewayClient;
   personalityService = services.personalityService;
   conversationHistoryService = services.conversationHistoryService;
+  personaResolver = services.personaResolver;
 }
 
 /**
@@ -101,6 +108,17 @@ export function getConversationHistoryService(): ConversationHistoryService {
 }
 
 /**
+ * Get the PersonaResolver instance
+ * @throws Error if services not registered
+ */
+export function getPersonaResolver(): PersonaResolver {
+  if (personaResolver === undefined) {
+    throw new Error('PersonaResolver not registered. Call registerServices() first.');
+  }
+  return personaResolver;
+}
+
+/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -109,7 +127,8 @@ export function areServicesRegistered(): boolean {
     webhookManager !== undefined &&
     gatewayClient !== undefined &&
     personalityService !== undefined &&
-    conversationHistoryService !== undefined
+    conversationHistoryService !== undefined &&
+    personaResolver !== undefined
   );
 }
 
@@ -128,4 +147,5 @@ export function resetServices(): void {
   gatewayClient = undefined;
   personalityService = undefined;
   conversationHistoryService = undefined;
+  personaResolver = undefined;
 }

@@ -153,6 +153,7 @@ function createServices(): Services {
     gatewayClient,
     personalityService,
     conversationHistoryService,
+    personaResolver,
   });
 
   return {
