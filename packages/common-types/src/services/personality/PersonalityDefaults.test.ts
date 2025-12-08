@@ -202,6 +202,63 @@ describe('PersonalityDefaults', () => {
       expect(result.displayName).toBe('TestBot'); // Falls back to name
     });
 
+    it('should preserve Unicode displayName with SMP characters', () => {
+      // SMP characters like Mathematical Bold Italic are codepoints > U+FFFF
+      // They require UTF-16 surrogate pairs in JavaScript
+      const unicodeDisplayName = '𝑷𝒆𝒓𝒔𝒆𝒑𝒉𝒐𝒏𝒆 ☠🥀'; // Mathematical Bold Italic + emojis
+      const dbPersonality: DatabasePersonality = {
+        id: 'test-id',
+        name: 'persephone',
+        displayName: unicodeDisplayName,
+        slug: 'persephone',
+        systemPrompt: null,
+        defaultConfigLink: null,
+        characterInfo: null,
+        personalityTraits: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+      };
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      // Verify displayName is preserved exactly (not replaced with name)
+      expect(result.displayName).toBe(unicodeDisplayName);
+      expect(result.displayName).not.toBe('persephone');
+
+      // Verify the SMP characters are preserved (codepoint > U+FFFF means surrogate pairs)
+      const firstCodepoint = result.displayName.codePointAt(0);
+      expect(firstCodepoint).toBeGreaterThan(0xffff); // SMP character preserved
+    });
+
+    it('should fall back to name when displayName is null', () => {
+      const dbPersonality: DatabasePersonality = {
+        id: 'test-id',
+        name: 'FallbackBot',
+        displayName: null,
+        slug: 'fallback-bot',
+        systemPrompt: null,
+        defaultConfigLink: null,
+        characterInfo: null,
+        personalityTraits: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+      };
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      expect(result.displayName).toBe('FallbackBot');
+    });
+
     it('should replace placeholders in all character fields', () => {
       const dbPersonality: DatabasePersonality = {
         id: 'test-id',
