@@ -51,7 +51,7 @@ export function replacePlaceholders(
  */
 export function deriveAvatarUrl(
   slug: string,
-  logger: { warn: (obj: object, msg: string) => void; info: (obj: object, msg: string) => void }
+  logger: { warn: (obj: object, msg: string) => void }
 ): string | undefined {
   const publicUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
   if (publicUrl === undefined || publicUrl.length === 0) {
@@ -80,7 +80,7 @@ export function deriveAvatarUrl(
 export function mapToPersonality(
   db: DatabasePersonality,
   globalDefaultConfig: LlmConfig = null,
-  logger: { warn: (obj: object, msg: string) => void; info: (obj: object, msg: string) => void }
+  logger: { warn: (obj: object, msg: string) => void }
 ): LoadedPersonality {
   // Parse personality-specific config from database (handles Decimal conversion)
   const personalityConfig = parseLlmConfig(db.defaultConfigLink?.llmConfig);
@@ -107,28 +107,6 @@ export function mapToPersonality(
   const characterInfo = replacePlaceholders(db.characterInfo, db.name) ?? db.characterInfo;
   const personalityTraits =
     replacePlaceholders(db.personalityTraits, db.name) ?? db.personalityTraits;
-
-  // Debug: log raw displayName from database before coalesce
-  // Include codepoints to debug SMP character handling (fancy Unicode like 𝔄𝔰𝔪𝔬𝔡𝔢𝔲𝔰)
-  const displayNameCodepoints =
-    db.displayName !== null && db.displayName !== undefined && db.displayName.length > 0
-      ? Array.from(db.displayName)
-          .slice(0, 10)
-          .map(c => c.codePointAt(0)?.toString(16))
-          .join(',')
-      : 'null';
-  logger.info(
-    {
-      id: db.id,
-      name: db.name,
-      rawDisplayName: db.displayName,
-      displayNameType: typeof db.displayName,
-      displayNameLength: db.displayName?.length,
-      displayNameCodepoints,
-      willUseDisplayName: db.displayName !== null && db.displayName !== undefined,
-    },
-    '[mapToPersonality] displayName debug'
-  );
 
   return {
     id: db.id,
