@@ -24,7 +24,7 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    isBotOwner: (...args: unknown[]) => mockFn(...args),
+    isBotOwner: (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args),
   };
 });
 
@@ -90,7 +90,6 @@ describe('DELETE /user/personality/:slug', () => {
         aliases: 0,
       },
     });
-    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 
     const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'delete', '/:slug');
@@ -265,7 +264,7 @@ describe('DELETE /user/personality/:slug', () => {
         aliases: 0,
       },
     });
-    // But user has co-ownership entry
+    // User has co-ownership entry in PersonalityOwner table
     mockPrisma.personalityOwner.findUnique.mockResolvedValue({
       userId: 'user-uuid-123',
       personalityId: 'personality-coowned',

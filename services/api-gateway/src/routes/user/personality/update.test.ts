@@ -24,7 +24,7 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    isBotOwner: (...args: unknown[]) => mockFn(...args),
+    isBotOwner: (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args),
   };
 });
 
@@ -93,7 +93,6 @@ describe('PUT /user/personality/:slug (update)', () => {
       id: 'personality-6',
       ownerId: 'other-user',
     });
-    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 
     const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'put', '/:slug');
@@ -153,7 +152,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       id: 'personality-8',
       ownerId: 'other-user', // Not direct owner
     });
-    // But user has entry in PersonalityOwner table
+    // User has co-ownership entry in PersonalityOwner table
     mockPrisma.personalityOwner.findUnique.mockResolvedValue({
       userId: 'user-uuid-123',
       personalityId: 'personality-8',

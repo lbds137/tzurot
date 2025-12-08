@@ -66,7 +66,6 @@ describe('GET /user/personality/:slug', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 
     const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/:slug');

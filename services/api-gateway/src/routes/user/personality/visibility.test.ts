@@ -83,7 +83,6 @@ describe('PATCH /user/personality/:slug/visibility', () => {
       ownerId: 'other-user',
       isPublic: false,
     });
-    mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
 
     const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'patch', '/:slug/visibility');
