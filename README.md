@@ -221,8 +221,8 @@ pnpm format
 See [Railway Deployment Guide](docs/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
 
 ```bash
-# Deploy updates (auto-deploys on push)
-git push origin feat/v3-continued
+# Deploy updates (auto-deploys on push to develop)
+git push origin develop
 
 # View logs
 railway logs --service api-gateway

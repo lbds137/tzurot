@@ -1,12 +1,12 @@
 ---
 name: tzurot-deployment
 description: Railway deployment operations for Tzurot v3 - Service management, log analysis, environment variables, health checks, and troubleshooting. Use when deploying, debugging production issues, or managing Railway infrastructure.
-lastUpdated: '2025-11-19'
+lastUpdated: '2025-12-08'
 ---
 
 # Deployment Skill - Tzurot v3
 
-> **Critical Context**: Tzurot v3 is deployed on Railway in development environment for private testing. NOT open to public yet (requires BYOK implementation).
+> **Critical Context**: Tzurot v3 is deployed on Railway with BYOK (Bring Your Own Key) implemented. Public beta is ready for users.
 
 ## 🎯 Use This Skill When
 
@@ -433,14 +433,13 @@ See `tzurot-async-flow` skill for retry patterns.
 - Set up billing alerts (if available)
 - Monitor AI API costs (OpenRouter/Gemini) separately
 
-**⚠️ Warning**: Without BYOK, bot owner pays for all AI API usage. Implement rate limiting and token budgeting (see `tzurot-security` skill).
+**Note**: With BYOK, users provide their own API keys. Guest mode uses free models for users without keys.
 
-### Production Considerations (Future)
+### Scaling Considerations
 
-- Implement BYOK (Bring Your Own Key) before public launch
-- Add admin commands for usage monitoring
-- Set up proper rate limiting per guild/user
-- Consider autoscaling for api-gateway and ai-worker
+- Monitor usage with admin commands (`/admin usage`)
+- Rate limiting implemented per guild/user
+- Consider autoscaling for api-gateway and ai-worker if load increases
 
 ## Deployment Checklist
 

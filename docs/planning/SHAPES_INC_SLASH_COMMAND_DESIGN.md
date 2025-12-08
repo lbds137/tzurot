@@ -1,9 +1,14 @@
 # Shapes.inc Import Slash Command Design
 
 > **Created**: 2025-11-17
-> **Status**: Planning Phase
-> **Implementation**: OUT OF SCOPE (future work)
+> **Status**: Planning Phase (Future Work)
 > **Purpose**: Design document for future `/import shapes` slash command
+>
+> **Key Reference Code**:
+> - V2 Backup Script: `tzurot-legacy/scripts/backup-personalities-data.js`
+> - V3 Import Scripts: `scripts/data/import-personality/`
+>
+> **Note**: Shapes.inc killed their public bot API, but internal APIs still work with user session cookies. This enables data exfiltration for users who want to migrate their personalities.
 
 ## Table of Contents
 

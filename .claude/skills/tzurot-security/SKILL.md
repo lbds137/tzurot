@@ -1,7 +1,7 @@
 ---
 name: tzurot-security
 description: Security best practices for Tzurot v3 - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permission verification, microservices security, and supply chain integrity. Use when handling secrets, user input, or security-critical code.
-lastUpdated: '2025-11-19'
+lastUpdated: '2025-12-08'
 ---
 
 # Security Skill - Tzurot v3
@@ -688,7 +688,7 @@ const verifyOwner = async (req: Request, res: Response, next: NextFunction) => {
 app.use('/admin', verifyOwner);
 ```
 
-#### Current Status (v3.0.0-alpha.44):
+#### Current Status:
 
 **Development Environment:**
 

@@ -1,352 +1,51 @@
 # Current Work
 
-> Last updated: 2025-12-07
+> Last updated: 2025-12-08
 
-## Status: API Contract Enforcement
+## Status: Documentation Cleanup Sprint
 
-**Current Phase**: Phase 2 Sprint 5 - Quick Wins & Polish
-**Branch**: `refactor/me-commands-and-autocomplete`
+**Current Phase**: Housekeeping - Documentation Consolidation
+**Branch**: `docs/cleanup-consolidation-sprint`
 
 ---
 
-## Active Work: /me Command & Autocomplete Refactor
+## Active Work: Documentation Cleanup Sprint
+
+### Session Goals
+
+1. Remove docs for planned work that has been implemented
+2. Clean up CLAUDE.md (too large - move content to skills)
+3. Apply SRP/DRY principles to documentation
+4. Update README for anything out of date
+
+### Completed This Session
+
+- Deleted obsolete planning docs (6 files for completed features)
+- Updated all "alpha" references to "beta" across docs
+- Consolidated shapes.inc documentation
+- Fixed broken doc references in ROADMAP.md
+- Cleaned up docs/improvements folder
+- Moved Git Hooks section from CLAUDE.md to tzurot-git-workflow skill
+- Moved Timer Patterns section to tzurot-async-flow skill
+- Moved Scripts section to tzurot-db-vector skill
+- Reviewed skills for SRP/DRY opportunities (fixed DRY violations)
+- Updated README.md deployment section
+
+---
+
+## Previous Work: /me Command & Autocomplete Refactor
+
+**Branch**: `refactor/me-commands-and-autocomplete`
+**Status**: Planned, not started
 
 ### Problem Statement
 
-The `/me` command has significant architectural issues discovered during PR #318 review:
+The `/me` command has architectural issues:
 
 1. **Gateway Bypass**: All `/me` commands use direct Prisma instead of API gateway
 2. **Inconsistent Autocomplete**: 3 different personality autocomplete implementations
-3. **Command Structure**: `override` and `settings` should be under `profile`
 
 **Full documentation**: [docs/improvements/me-command-refactor.md](docs/improvements/me-command-refactor.md)
-
-### Audit Findings
-
-**Files bypassing gateway (using `getPrismaClient`):**
-
-- `me/autocomplete.ts`, `me/create.ts`, `me/default.ts`, `me/edit.ts`
-- `me/list.ts`, `me/override.ts`, `me/settings.ts`, `me/view.ts`
-
-**Root cause**: No `/user/persona` gateway endpoints exist.
-
-**Autocomplete inconsistency:**
-| Implementation | API | Visibility Icons | Return |
-|---------------|-----|-----------------|--------|
-| `/character/autocomplete.ts` | Gateway | 🌐/🔒/📖 | slug |
-| `/me/autocomplete.ts` | **Prisma** | None | slug |
-| `/me/model/autocomplete.ts` | Gateway | None | id |
-
-### Implementation Plan
-
-1. **Phase 1**: Create gateway endpoints for persona CRUD
-2. **Phase 2**: Create shared personality autocomplete utility
-3. **Phase 3**: Refactor /me commands to use gateway
-4. **Phase 4**: Restructure command groups (override, settings → profile)
-5. **Phase 5**: Update all tests
-
-**Estimated effort**: 4-6 sessions
-
----
-
-## Previous Active Work: Slash Command Restructuring
-
-### Problem Statement
-
-Current command structure (9 top-level commands) is confusing with overlapping concepts:
-
-| Command        | Purpose                       | Issues                                              |
-| -------------- | ----------------------------- | --------------------------------------------------- |
-| `/admin`       | Bot owner tools               | OK - keep separate                                  |
-| `/character`   | AI characters (dashboard)     | Overlaps with `/personality`                        |
-| `/personality` | AI characters (owner-only)    | Redundant with `/character`                         |
-| `/llm-config`  | LLM config definitions        | Overlaps with `/model`                              |
-| `/model`       | Model override assignments    | Overlaps with `/llm-config` and `/profile override` |
-| `/profile`     | User personas + overrides     | Override feature duplicates `/model`                |
-| `/settings`    | User settings (only timezone) | Too thin, should merge with `/profile`              |
-| `/utility`     | ping, help                    | `/help` should be top-level                         |
-| `/wallet`      | BYOK API keys                 | OK - keep distinct (sensitive)                      |
-
-### Proposed Restructuring (Gemini-Assisted Design)
-
-**Goal**: Reduce from 9 commands to 5-6, group by user intent not database schema.
-
-#### New Structure
-
-1. **`/help`** - Promote to top-level (currently buried under `/utility help`)
-
-2. **`/character`** - Unified AI character management
-   - Absorb `/personality` (use permission checks, not separate commands)
-   - Keep dashboard pattern (create, edit, view, list, avatar)
-   - Add model assignment as a field in character edit (not separate command)
-
-3. **`/preset`** - Rename `/llm-config` for clarity
-   - "Presets" are definitions (GPT-4 Turbo config, Claude config, etc.)
-   - `list`, `create`, `delete`
-   - Remove abstract `/model` command entirely
-
-4. **`/me`** - Unified user settings
-   - Merge `/profile` + `/settings`
-   - `persona` (view, edit, create, list, default)
-   - `settings` (timezone, preferred model preset)
-   - `overrides` (per-character model overrides - move from `/model`)
-
-5. **`/wallet`** - Keep as-is (sensitive BYOK operations)
-
-6. **`/admin`** - Keep as-is (owner-only server management)
-
-#### Key Changes
-
-| Old                  | New                            | Notes                                          |
-| -------------------- | ------------------------------ | ---------------------------------------------- |
-| `/personality`       | DELETE                         | Merge into `/character` with permission checks |
-| `/llm-config`        | `/preset`                      | Rename for clarity                             |
-| `/model set/reset`   | `/me overrides`                | Move to user-centric location                  |
-| `/model set-default` | `/me settings preferred-model` | Part of user settings                          |
-| `/model list`        | `/me overrides list`           | Shows user's overrides                         |
-| `/settings timezone` | `/me settings timezone`        | Consolidate under `/me`                        |
-| `/profile *`         | `/me persona *`                | Rename for clarity                             |
-| `/utility help`      | `/help`                        | Promote to top-level                           |
-| `/utility ping`      | `/admin ping` or keep          | Low priority                                   |
-
-#### Implementation Order
-
-1. **Phase 1**: Promote `/help` to top-level (quick win)
-2. **Phase 2**: Rename `/llm-config` → `/preset`
-3. **Phase 3**: Merge `/profile` + `/settings` → `/me`
-4. **Phase 4**: Move `/model` overrides → `/me overrides`
-5. **Phase 5**: Merge `/personality` → `/character` (with permission checks)
-6. **Cleanup**: Delete deprecated commands after transition period
-
-#### Deprecation Strategy
-
-- Mark old commands as `(Deprecated)` in description
-- Old commands reply with "Please use `/new-command` instead"
-- Keep deprecated commands for 2-4 weeks before removal
-
----
-
-## Recent Work (2025-12-07)
-
-**PR #323 Review Feedback Addressed**:
-
-Following Claude Code review on PR #323, addressed non-refactor items:
-
-1. **Extracted magic numbers to constants** in `timing.ts`:
-   - Added `INTERVALS.JOB_POLL_INTERVAL: 1000` for job polling
-   - Updated `chat.ts` to use `INTERVALS.TYPING_INDICATOR_REFRESH` and `TIMEOUTS.JOB_BASE`
-   - Updated `GatewayClient.ts` to use the same constants
-
-2. **Documented setInterval scaling pattern** in `chat.ts`:
-   - Added inline comment noting setInterval as scaling blocker
-   - Acceptable for this use case (request-scoped, short-lived, cleared in finally)
-
-3. **Updated /character chat description** to document no conversation history:
-   - Changed description to: "Send a standalone message to a character (no conversation history)"
-
-4. **Added serviceRegistry.ts tests** (11 tests):
-   - Tests for getters throwing when services not registered
-   - Tests for registerServices() populating services
-   - Tests for areServicesRegistered() returning correct state
-
-**Deferred to future work**:
-
-- GatewayClient.ts tests (254 lines, 5 methods, requires fetch mocking + fake timer polling tests)
-
-**Test counts**: 3,701 total (780 common-types + 750 api-gateway + 824 ai-worker + 1347 bot-client)
-
----
-
-**PersonalityLoader Optimization & CI Fix**:
-
-Following Gemini's review of the slug/name collision fix, implemented performance optimizations:
-
-1. **Centralized UUID validation** - Moved duplicated UUID regex to `constants/service.ts`
-   - Added `UUID_REGEX` and `isValidUUID()` function
-   - DRY principle - single source of truth for UUID validation
-
-2. **Single-query optimization** - Reduced PersonalityLoader from 2-3 sequential queries to 1
-   - Combined name/slug lookup into single `findMany` with OR conditions
-   - In-memory prioritization: name matches take priority over slug matches
-   - Performance improvement while maintaining correct collision prevention
-
-3. **Fixed CI Codecov upload** - Coverage reports weren't being generated in expected locations
-   - Changed from `npx vitest run --coverage` to `pnpm test:coverage`
-   - Updated junit.xml paths to find per-package test results
-   - Coverage now generates in `./services/*/coverage/` and `./packages/*/coverage/`
-
-**Test counts**: 3,690 total (780 common-types + 750 api-gateway + 824 ai-worker + 1336 bot-client)
-
-**Commits**:
-
-- `1fd58464` perf(common-types): optimize PersonalityLoader with single-query lookup
-- `a93c9387` fix(ci): use pnpm test:coverage for per-package coverage reports
-
----
-
-**Code Quality Sprint** - Phase 4 COMPLETE:
-
-Continued the Code Quality Sprint documented in `docs/improvements/code-quality-sprint.md`.
-
-**Session 5 Accomplishments**:
-
-- Further split `character/index.ts` (312 → 171 lines):
-  - Extracted `edit.ts` (82 lines) - handleEdit dashboard opener
-  - Extracted `avatar.ts` (93 lines) - handleAvatar upload handler
-  - `index.ts` now contains only command definition + routing
-- Added comprehensive tests for new handlers:
-  - `edit.test.ts` - 6 tests (dashboard opening, permissions, session creation, errors)
-  - `avatar.test.ts` - 13 tests (validation, permissions, download/upload, errors)
-- **Phase 4 Coverage Enforcement** - COMPLETE:
-  - Updated `codecov.yml`: 80% target for project and patch coverage
-  - Enabled `--strict` mode in pre-push hook for untested files check
-  - Added routing-only and types-only files to `KNOWN_UNTESTED`
-
-**Test counts**: 3646 total (776 common-types + 745 api-gateway + 819 ai-worker + 1306 bot-client)
-
-**Commits**:
-
-- `3008c142` refactor(bot-client): extract edit/avatar handlers, enforce coverage
-- `ce447c88` style: fix prettier formatting in edit and avatar tests
-
----
-
-**API Contract Enforcement System** - Phase 2 COMPLETE:
-
-Continued from Phase 1 - converting bot-client tests to use validated mock factories,
-which exposed more real production bugs!
-
-**Session 2 Accomplishments**:
-
-- Converted all profile command tests to use validated factories:
-  - create.test.ts, default.test.ts, edit.test.ts, list.test.ts, share-ltm.test.ts, view.test.ts
-- Converted me/autocomplete.test.ts to use `mockListPersonasResponse`
-- Fixed 4 gateway tests affected by previous response format changes
-
-**REAL Production Bugs Found & Fixed** (by validated factories):
-
-1. **view.ts** - Handler expected `result.data` to be persona directly, but gateway returns `{ persona: {...} }`
-   - Would have broken `/me profile view` command!
-   - Fixed both `handleViewPersona` and `handleExpandContent` functions
-
-2. **edit.ts** - Same issue - expected direct persona object
-   - Would have broken `/me profile edit` modal population!
-   - Fixed both specific-persona fetch and default-persona fetch code paths
-
-**Not Converted** (APIs without factories yet):
-
-- Model commands (`/user/model-override`) - uses different API structure
-- Timezone commands (`/user/timezone`) - no factory needed (simple responses)
-- Wallet commands (`/wallet/*`) - different API structure
-- These tests use inline mocks which is fine for now
-
-**All 2,681 tests passing** (759 ai-worker + 745 api-gateway + 1,177 bot-client)
-
----
-
-**API Contract Enforcement System** - Phase 1:
-
-Following two production bugs from v3.0.0-beta.9 (profile override-set, character creation),
-implemented a contract enforcement system to prevent future API mismatches.
-
-**Implemented**:
-
-- Zod schemas in `packages/common-types/src/schemas/api/` for persona and personality endpoints
-- Validated mock factories in `packages/common-types/src/factories/` that crash tests if mocks don't match schemas
-- RFC 4122 v5 compliant UUIDs for test data
-- Converted `override-set.test.ts` and `override-clear.test.ts` to use validated factories
-
-**Contract Bug Found & Fixed**:
-
-- DELETE /user/persona/override/:slug was returning `{message, personalitySlug}`
-- Bot-client expected `{success, personality, hadOverride}`
-- Would have broken `/me profile override-clear` in production!
-- Fixed gateway to return correct response format
-
-**Full documentation**: [docs/improvements/api-contract-enforcement.md](docs/improvements/api-contract-enforcement.md)
-
-**Commits**:
-
-- `d928f001` fix(api-gateway): fix DELETE override response + use validated mock factories
-
----
-
-## Recent Work (2025-12-05)
-
-**Character List Pagination** - COMPLETE:
-
-- `/character list` was failing for users with many characters (67+) due to Discord's 2000 character message limit
-- Implemented pagination with embeds (4096 char limit) and Previous/Next buttons
-- 15 characters per page with page indicator button
-- Stateless pagination - re-fetches data on page change for freshness
-- Also fixed creator name display (was showing "System" for all - now shows actual Discord usernames)
-- Added `ownerId` and `ownerDiscordId` to `PersonalitySummary` type
-- Updated API to return owner Discord ID for fetching display names
-
-**Commits**:
-
-- `83c93bf1` fix(character): add pagination to list command to fix 2000 char limit
-
----
-
-## Recent Work (2025-12-04)
-
-**Personality Access Control** - COMPLETE:
-
-- Added `isPublic` and `ownerId` fields to `DatabasePersonality` type
-- Updated `PersonalityLoader` with access control filter: `isPublic = true OR ownerId = userId`
-- Fixed "Reply Loophole" security issue - replies to private personality messages now check access
-- Updated all processors to pass `userId` for access validation (PersonalityMentionProcessor, ReplyMessageProcessor)
-- Rewrote `BotMentionProcessor` to show help message instead of loading non-existent "default" personality
-  - When users @mention the bot directly, they now get guidance on how to interact with personalities
-- Added "Personality Access Allowlist" feature to Icebox in ROADMAP.md for future enhancement
-- All 3,039 tests passing
-
----
-
-## Recent Work (2025-12-03)
-
-**Test Coverage Improvements**:
-
-- Added `config.test.ts` (18 tests) - env schema validation
-- Added `ModalFactory.test.ts` (21 tests) - dashboard modal building
-- Expanded `settings/index.test.ts` (+6 autocomplete tests)
-- Coverage: common-types 77.36%, bot-client 76.10%
-
----
-
-## Recent Work (2025-11-30)
-
-**Redis Client Migration** - COMPLETE:
-
-- Consolidated from dual Redis clients (node-redis + ioredis) to single ioredis client
-- BullMQ requires ioredis anyway, so this eliminates redundant connections
-- Updated all services: ai-worker, bot-client, common-types
-- Updated test mocks to use ioredis types
-- All 2,525 tests passing
-
-**VisionProcessor Guest Mode Fix**:
-
-- Fixed flawed `:free` suffix heuristic for vision fallback detection
-- Now uses proper `isGuestMode` from ApiKeyResolver throughout the chain
-- BYOK users who choose free models now correctly get paid vision fallbacks
-
-**Free Model Guest Mode** - COMPLETE (Tasks 5.G1-5.G9):
-
-- Added `isFreeDefault` boolean to `LlmConfig` table
-- `ApiKeyResolver` returns `isGuestMode: boolean` in results
-- Guest mode footer in responses via `DiscordResponseSender`
-- `/llm-config list` shows free badges, dims paid models for guests
-- `/model set` and `/model set-default` validate free-model-only for guests
-- Selected `x-ai/grok-4.1-fast:free` as default (2M context, vision)
-
----
-
-## Next Priority
-
-**User Persona Management** (Sprint 5.0.1-5.0.7) or **Quick Wins** (5.1-5.6)
-
-See [ROADMAP.md](ROADMAP.md) for the full task list.
 
 ---
 
@@ -357,6 +56,7 @@ See [ROADMAP.md](ROADMAP.md) for the full task list.
 - Branch: `develop`
 - Status: Stable and operational
 - BYOK implemented - users can bring their own API keys
+- Guest mode available for users without API keys
 
 ### Features Working
 
@@ -367,7 +67,7 @@ See [ROADMAP.md](ROADMAP.md) for the full task list.
 - Long-term memory via pgvector
 - Image attachment support
 - Voice transcription support
-- Slash commands (admin, personality, wallet, llm-config, model, settings)
+- Slash commands (admin, character, wallet, llm-config, model, settings, profile)
 - BYOK (Bring Your Own Key)
 - Free model guest mode
 
