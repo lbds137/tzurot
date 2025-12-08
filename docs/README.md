@@ -44,7 +44,7 @@ Data migration guides and procedures.
 
 - `PERSONA_MIGRATION_GUIDE.md` - Migrating persona data
 - `SHAPES_INC_IMPORT_PLAN.md` - Importing from Shapes.inc API
-- `SHAPES_INC_CREDENTIALS.md` - API credentials and access
+- `SHAPES_INC_MIGRATION_REFERENCE.md` - Migration details and credentials reference
 
 ### 📋 [planning/](planning/)
 

@@ -203,9 +203,9 @@ This document tracks v2 features that should be reimplemented in v3 for feature 
 
 ## Related Documentation
 
-- [shapes.inc Credentials](../migration/SHAPES_INC_CREDENTIALS.md) - Preserved API credentials
-- [V2 Feature Tracking](../V2_FEATURE_TRACKING.md) - What's already ported
-- [Architecture Decisions](../ARCHITECTURE_DECISIONS.md) - Why v3 is different
+- [shapes.inc Migration Reference](../migration/SHAPES_INC_MIGRATION_REFERENCE.md) - Migration details and credentials
+- [V2 Feature Tracking](V2_FEATURE_TRACKING.md) - What's already ported
+- [Architecture Decisions](../architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is different
 
 ---
 
