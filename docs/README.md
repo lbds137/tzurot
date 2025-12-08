@@ -144,21 +144,21 @@ Coding standards and UX patterns.
 
 ### Where to Put New Docs
 
-| Doc Type              | Location        | Example                           |
-| --------------------- | --------------- | --------------------------------- |
-| Design decision       | `architecture/` | System architecture, data models  |
-| Deployment procedure  | `deployment/`   | Railway setup, environment config |
-| Developer guide       | `guides/`       | Local setup, debugging, testing   |
-| Migration procedure   | `migration/`    | Data migrations, imports          |
-| Project planning      | `planning/`     | Roadmaps, feature tracking        |
-| Feature spec          | `features/`     | Detailed feature documentation    |
-| Improvement proposal  | `improvements/` | Not-yet-implemented enhancements  |
-| Operational procedure | `operations/`   | Backups, monitoring, incidents    |
-| Post-mortem           | `postmortems/`  | Incident analysis, lessons learned|
-| Reference doc         | `reference/`    | CLI references, API docs          |
-| Coding standard       | `standards/`    | UX patterns, file organization    |
-| Template              | `templates/`    | Reusable document templates       |
-| One-time/completed    | `archive/`      | Historical records                |
+| Doc Type              | Location        | Example                            |
+| --------------------- | --------------- | ---------------------------------- |
+| Design decision       | `architecture/` | System architecture, data models   |
+| Deployment procedure  | `deployment/`   | Railway setup, environment config  |
+| Developer guide       | `guides/`       | Local setup, debugging, testing    |
+| Migration procedure   | `migration/`    | Data migrations, imports           |
+| Project planning      | `planning/`     | Roadmaps, feature tracking         |
+| Feature spec          | `features/`     | Detailed feature documentation     |
+| Improvement proposal  | `improvements/` | Not-yet-implemented enhancements   |
+| Operational procedure | `operations/`   | Backups, monitoring, incidents     |
+| Post-mortem           | `postmortems/`  | Incident analysis, lessons learned |
+| Reference doc         | `reference/`    | CLI references, API docs           |
+| Coding standard       | `standards/`    | UX patterns, file organization     |
+| Template              | `templates/`    | Reusable document templates        |
+| One-time/completed    | `archive/`      | Historical records                 |
 
 ### Naming Conventions
 

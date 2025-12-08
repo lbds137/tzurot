@@ -801,13 +801,13 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 **Key rules established from past incidents:**
 
-| Date | Incident | Rule |
-|------|----------|------|
-| 2025-07-25 | Untested push broke develop | Always run tests before pushing |
-| 2025-07-21 | Git restore destroyed work | Confirm before destructive git commands |
-| 2025-10-31 | DB URL committed | Never commit database URLs |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch |
-| 2025-12-06 | API contract mismatch | Use shared Zod schemas for contracts |
+| Date       | Incident                      | Rule                                    |
+| ---------- | ----------------------------- | --------------------------------------- |
+| 2025-07-25 | Untested push broke develop   | Always run tests before pushing         |
+| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git commands |
+| 2025-10-31 | DB URL committed              | Never commit database URLs              |
+| 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch   |
+| 2025-12-06 | API contract mismatch         | Use shared Zod schemas for contracts    |
 
 **Why v3 Abandoned DDD**: Over-engineered for one-person project. v3 uses simple classes, constructor injection, clear responsibilities.
 
