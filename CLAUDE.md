@@ -184,7 +184,7 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 
 ## Claude Code Skills
 
-Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
+Tzurot v3 includes 13 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
 
 ### Available Skills
 
@@ -199,11 +199,13 @@ Tzurot v3 includes 12 project-specific Claude Code Skills in `.claude/skills/` t
 4. **tzurot-security** - Secret management, AI-specific security (prompt injection,
    PII scrubbing), Economic DoS prevention, Discord permissions, microservices security,
    supply chain integrity
+5. **tzurot-operations** - Adding personalities, checking health, debugging production,
+   database/Redis operations, routine tasks
 
 **Architecture & Design Skills:**
 
 1. **tzurot-architecture** - Microservices boundaries, service responsibilities,
-   dependency rules, anti-patterns from v2
+   dependency rules, error message patterns, anti-patterns from v2
 2. **tzurot-docs** - Documentation maintenance (CURRENT_WORK.md, folder structure),
    session handoff protocol
 3. **tzurot-gemini-collab** - MCP best practices, when to consult Gemini,
@@ -257,7 +259,7 @@ skill: "tzurot-architecture"  # Service design decisions
 ```
 tzurot/
 ├── .claude/                     # Claude Code configuration
-│   └── skills/                 # Project-specific skills (12 skills)
+│   └── skills/                 # Project-specific skills (13 skills)
 │
 ├── services/                    # Microservices
 │   ├── bot-client/             # Discord interface
@@ -610,44 +612,11 @@ const response = await fetch(`${config.GATEWAY_URL}/user/personality`, {
 
 **📚 See**: `tzurot-constants` skill for when to create constants, domain organization details, and migration patterns
 
-**Error Message Patterns**:
-
-- **Gateway (api-gateway)**: Return clean error messages WITHOUT emojis
-  - Error responses are machine-readable and may be processed by multiple consumers
-  - Example: `sendError(res, ErrorResponses.notFound('Persona'))`
-  - Result: `{ "error": "NOT_FOUND", "message": "Persona not found" }`
-
-- **Bot client (bot-client)**: ADD emojis to user-facing messages
-  - ❌ for errors: `content: '❌ Profile not found.'`
-  - ✅ for success: `content: '✅ Profile override set successfully!'`
-  - ⚠️ for warnings: `content: '⚠️ This action cannot be undone.'`
-
-- **Why this separation**: Gateway is an API layer used by multiple services. Bot-client is the only service that renders messages to Discord users. Keeping emojis in bot-client allows:
-  - Consistent emoji usage across all user-facing commands
-  - Gateway responses remain clean for programmatic use
-  - Easy to change emoji style without touching API layer
+**📚 See**: `tzurot-architecture` skill for error message patterns (gateway vs bot-client emoji conventions)
 
 ## Folder Structure Standards
 
 > **📁 ALWAYS FOLLOW**: See [docs/standards/FOLDER_STRUCTURE.md](docs/standards/FOLDER_STRUCTURE.md) for comprehensive folder structure and file naming standards.
-
-**Quick Reference**:
-
-- ✅ **Root directory**: ≤5 files (index.ts + config files only)
-- ✅ **Standard folders**: `services/`, `utils/`, `types/`, domain-specific folders
-- ✅ **No single-file folders**: Merge into parent or wait until ≥2 files
-- ✅ **File naming**: PascalCase for classes, camelCase for utilities
-- ✅ **Folder naming**: Always plural (`services/` not `service/`)
-- ❌ **No `-utils.ts` suffix in root**: Use `utils/` folder instead
-
-**Common Anti-Patterns**:
-
-- Root file bloat (15 files in common-types was too many!)
-- Single-file folders (context/, gateway/, webhooks/ with 1 file each)
-- Inconsistent naming (mix of PascalCase and camelCase)
-- Functions in constants files (use utils/ instead)
-
-See the full documentation for detailed examples and migration guidance.
 
 ## Git Workflow
 
@@ -905,40 +874,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 ## Common Operations
 
-### Adding a New Personality
-
-1. Create `personalities/name.json`:
-   ```json
-   {
-     "name": "PersonalityName",
-     "systemPrompt": "Your personality description...",
-     "model": "anthropic/claude-sonnet-4.5",
-     "temperature": 0.8,
-     "avatar": "https://example.com/avatar.png"
-   }
-   ```
-2. Commit and push (Railway auto-deploys)
-3. Bot auto-loads new personality on restart
-
-### Checking Service Health
-
-```bash
-# API Gateway health
-curl https://api-gateway-development-83e8.up.railway.app/health
-
-# Check logs
-railway logs --service api-gateway --tail 50
-railway logs --service ai-worker --tail 50
-railway logs --service bot-client --tail 50
-```
-
-### Debugging Production Issues
-
-1. Check service logs first: `railway logs --service <name>`
-2. Verify environment variables: `railway variables --service <name>`
-3. Check health endpoint (api-gateway only)
-4. Look for error patterns in logs
-5. Check Railway dashboard for service status
+**📚 See**: `tzurot-operations` skill for adding personalities, checking service health, debugging production issues, database/Redis operations, and other routine tasks.
 
 ## Tool Permissions
 

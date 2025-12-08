@@ -1,7 +1,7 @@
 ---
 name: tzurot-architecture
 description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
-lastUpdated: '2025-11-19'
+lastUpdated: '2025-12-08'
 ---
 
 # Tzurot v3 Architecture
@@ -450,6 +450,40 @@ app.get('/personality/:id', async (req, res) => {
     res.status(404).json({ error: error.message });
   }
 });
+```
+
+## Error Message Patterns
+
+**Gateway (api-gateway)**: Return clean error messages WITHOUT emojis
+
+- Error responses are machine-readable and may be processed by multiple consumers
+- Example: `sendError(res, ErrorResponses.notFound('Persona'))`
+- Result: `{ "error": "NOT_FOUND", "message": "Persona not found" }`
+
+**Bot client (bot-client)**: ADD emojis to user-facing messages
+
+- Use for errors: `content: '❌ Profile not found.'`
+- Use for success: `content: '✅ Profile override set successfully!'`
+- Use for warnings: `content: '⚠️ This action cannot be undone.'`
+
+**Why this separation**: Gateway is an API layer used by multiple services. Bot-client is the only service that renders messages to Discord users. Keeping emojis in bot-client allows:
+
+- Consistent emoji usage across all user-facing commands
+- Gateway responses remain clean for programmatic use
+- Easy to change emoji style without touching API layer
+
+```typescript
+// ✅ CORRECT - Gateway returns clean JSON
+// api-gateway/routes/persona.ts
+sendError(res, ErrorResponses.notFound('Persona'));
+// Returns: { "error": "NOT_FOUND", "message": "Persona not found" }
+
+// ✅ CORRECT - Bot adds emoji for user
+// bot-client/commands/me/view.ts
+await interaction.editReply({ content: '❌ Profile not found.' });
+
+// ❌ WRONG - Gateway with emoji
+sendError(res, { message: '❌ Persona not found' });
 ```
 
 ## Configuration Management

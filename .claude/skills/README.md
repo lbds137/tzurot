@@ -1,6 +1,6 @@
 # Tzurot v3 Skills Index
 
-> **Quick Navigation**: This directory contains 12 project-specific Claude Code Skills that codify Tzurot v3 development best practices and streamline workflows.
+> **Quick Navigation**: This directory contains 13 project-specific Claude Code Skills that codify Tzurot v3 development best practices and streamline workflows.
 
 ## 📋 All Skills
 
@@ -10,7 +10,8 @@
 | [tzurot-constants](./tzurot-constants/SKILL.md)         | Core Dev     | Removing magic numbers, organizing constants by domain              |
 | [tzurot-git-workflow](./tzurot-git-workflow/SKILL.md)   | Core Dev     | Creating commits/PRs, rebasing, handling git operations             |
 | [tzurot-security](./tzurot-security/SKILL.md)           | Core Dev     | Handling secrets, user input, security-critical code                |
-| [tzurot-architecture](./tzurot-architecture/SKILL.md)   | Architecture | Designing features, deciding where code belongs                     |
+| [tzurot-operations](./tzurot-operations/SKILL.md)       | Core Dev     | Adding personalities, checking health, debugging production issues  |
+| [tzurot-architecture](./tzurot-architecture/SKILL.md)   | Architecture | Designing features, deciding where code belongs, error patterns     |
 | [tzurot-docs](./tzurot-docs/SKILL.md)                   | Architecture | Updating documentation, session handoff                             |
 | [tzurot-gemini-collab](./tzurot-gemini-collab/SKILL.md) | Architecture | Consulting Gemini MCP, getting second opinions                      |
 | [tzurot-shared-types](./tzurot-shared-types/SKILL.md)   | Advanced     | Creating types, Zod schemas, type guards                            |
@@ -72,6 +73,10 @@
 ### "I'm deploying to Railway or debugging production..."
 
 → **tzurot-deployment** - Service management, logs, environment variables, troubleshooting
+
+### "I'm doing routine operations (adding personality, checking health)..."
+
+→ **tzurot-operations** - Adding personalities, checking health, debugging, database tasks
 
 ## 🔗 Common Skill Combinations
 
@@ -182,8 +187,8 @@ grep -r "TIMEOUTS\." .claude/skills/
 
 ## 📊 Skill Statistics
 
-- **Total Skills**: 12
-- **Total Lines**: ~6,000 lines of documentation
+- **Total Skills**: 13
+- **Total Lines**: ~6,500 lines of documentation
 - **Coverage**: Full development lifecycle
 - **Source Control**: All skills version-controlled
 - **Maintenance**: Updated via PR process
@@ -206,6 +211,6 @@ grep -r "TIMEOUTS\." .claude/skills/
 
 ---
 
-**Last Updated**: 2025-11-19
+**Last Updated**: 2025-12-08
 
 For questions about skills or suggestions for new ones, see [CLAUDE.md](../../CLAUDE.md#claude-code-skills).
