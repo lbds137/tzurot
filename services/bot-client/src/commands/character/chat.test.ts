@@ -672,7 +672,10 @@ describe('Character Chat Handler', () => {
         await handleChat(mockInteraction, mockConfig);
 
         // Verify PersonaResolver was called with correct userId and personalityId
-        expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-123', 'personality-uuid-456');
+        expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
+          'user-123',
+          'personality-uuid-456'
+        );
       });
     });
   });

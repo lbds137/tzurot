@@ -507,10 +507,12 @@ describe('WebhookManager', () => {
     });
 
     describe('displayName fallback to name', () => {
-      it('should use displayName when it has a value', async () => {
+      it('should use displayName for webhook username', async () => {
         const client = createMockClient('TestBot#1234');
         manager = new WebhookManager(client);
 
+        // Note: displayName fallback to name is handled by mapToPersonality(),
+        // not by WebhookManager. WebhookManager trusts that displayName is always set.
         const personality = createMockPersonality('Lilith Display', undefined, undefined, 'lilith');
         const channel = createMockTextChannel('channel-123', 'bot-123');
 
@@ -520,85 +522,6 @@ describe('WebhookManager', () => {
         expect(webhook.send).toHaveBeenCalledWith(
           expect.objectContaining({
             username: 'Lilith Display | TestBot',
-          })
-        );
-      });
-
-      it('should fall back to name when displayName is empty string', async () => {
-        const client = createMockClient('TestBot#1234');
-        manager = new WebhookManager(client);
-
-        const personality = createMockPersonality('', undefined, undefined, 'lilith-fallback');
-        const channel = createMockTextChannel('channel-123', 'bot-123');
-
-        await manager.sendAsPersonality(channel, personality, 'Test');
-
-        const webhook = await manager.getWebhook(channel);
-        expect(webhook.send).toHaveBeenCalledWith(
-          expect.objectContaining({
-            username: 'lilith-fallback | TestBot',
-          })
-        );
-      });
-
-      it('should fall back to name when displayName is null', async () => {
-        const client = createMockClient('TestBot#1234');
-        manager = new WebhookManager(client);
-
-        // Create personality with null displayName
-        const personality = {
-          id: 'personality-123',
-          name: 'lilith-null-display',
-          displayName: null,
-          systemPrompt: 'Test personality',
-          avatarUrl: undefined,
-          avatarUpdatedAt: undefined,
-          llmConfig: {
-            model: 'test-model',
-            temperature: 0.7,
-            maxTokens: 1000,
-          },
-        } as unknown as LoadedPersonality;
-
-        const channel = createMockTextChannel('channel-123', 'bot-123');
-
-        await manager.sendAsPersonality(channel, personality, 'Test');
-
-        const webhook = await manager.getWebhook(channel);
-        expect(webhook.send).toHaveBeenCalledWith(
-          expect.objectContaining({
-            username: 'lilith-null-display | TestBot',
-          })
-        );
-      });
-
-      it('should fall back to name when displayName is undefined', async () => {
-        const client = createMockClient('TestBot#1234');
-        manager = new WebhookManager(client);
-
-        // Create personality with undefined displayName
-        const personality = {
-          id: 'personality-123',
-          name: 'lilith-undefined-display',
-          displayName: undefined,
-          systemPrompt: 'Test personality',
-          avatarUrl: undefined,
-          avatarUpdatedAt: undefined,
-          llmConfig: {
-            model: 'test-model',
-            temperature: 0.7,
-            maxTokens: 1000,
-          },
-        } as unknown as LoadedPersonality;
-
-        const channel = createMockTextChannel('channel-123', 'bot-123');
-
-        await manager.sendAsPersonality(channel, personality, 'Test');
-
-        const webhook = await manager.getWebhook(channel);
-        expect(webhook.send).toHaveBeenCalledWith(
-          expect.objectContaining({
-            username: 'lilith-undefined-display | TestBot',
           })
         );
       });
