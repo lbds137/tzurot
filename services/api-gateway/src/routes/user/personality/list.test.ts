@@ -8,12 +8,14 @@ import {
   createMockPrisma,
   createMockReqRes,
   getHandler,
+  mockIsBotOwner,
   setupStandardMocks,
 } from './test-utils.js';
 
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
+  const { mockIsBotOwner: mockFn } = await import('./test-utils.js');
   return {
     ...actual,
     createLogger: () => ({
@@ -22,6 +24,7 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    isBotOwner: (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args),
   };
 });
 
@@ -126,5 +129,135 @@ describe('GET /user/personality (list)', () => {
         personalities: [],
       })
     );
+  });
+
+  describe('admin (bot owner) flow', () => {
+    beforeEach(() => {
+      // Set up as bot owner
+      mockIsBotOwner.mockReturnValue(true);
+    });
+
+    it('should return all personalities for bot owner', async () => {
+      const allPersonalities = [
+        {
+          id: 'personality-1',
+          name: 'Public Character',
+          displayName: 'Public',
+          slug: 'public-char',
+          ownerId: 'other-user',
+          isPublic: true,
+          owner: { discordId: '111111111111111111' },
+        },
+        {
+          id: 'personality-2',
+          name: 'Private Character',
+          displayName: 'Private',
+          slug: 'private-char',
+          ownerId: 'another-user',
+          isPublic: false,
+          owner: { discordId: '222222222222222222' },
+        },
+        {
+          id: 'personality-3',
+          name: 'Admin Character',
+          displayName: 'Admin',
+          slug: 'admin-char',
+          ownerId: 'user-uuid-123', // Owned by bot owner
+          isPublic: false,
+          owner: { discordId: 'test-user-id' },
+        },
+      ];
+      mockPrisma.personality.findMany.mockResolvedValueOnce(allPersonalities);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalities: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'personality-1',
+              slug: 'public-char',
+              isOwned: true, // Bot owner "owns" all
+              isPublic: true,
+            }),
+            expect.objectContaining({
+              id: 'personality-2',
+              slug: 'private-char',
+              isOwned: true, // Bot owner "owns" all
+              isPublic: false,
+            }),
+            expect.objectContaining({
+              id: 'personality-3',
+              slug: 'admin-char',
+              isOwned: true,
+              isPublic: false,
+            }),
+          ]),
+        })
+      );
+    });
+
+    it('should include owner Discord ID in admin response', async () => {
+      const personalityWithOwner = {
+        id: 'personality-with-owner',
+        name: 'Owned Character',
+        displayName: 'Owned',
+        slug: 'owned-char',
+        ownerId: 'some-uuid',
+        isPublic: false,
+        owner: { discordId: '333333333333333333' },
+      };
+      mockPrisma.personality.findMany.mockResolvedValueOnce([personalityWithOwner]);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalities: [
+            expect.objectContaining({
+              ownerDiscordId: '333333333333333333',
+            }),
+          ],
+        })
+      );
+    });
+
+    it('should handle personality with null owner', async () => {
+      const personalityWithoutOwner = {
+        id: 'personality-no-owner',
+        name: 'Orphan Character',
+        displayName: 'Orphan',
+        slug: 'orphan-char',
+        ownerId: null,
+        isPublic: true,
+        owner: null,
+      };
+      mockPrisma.personality.findMany.mockResolvedValueOnce([personalityWithoutOwner]);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalities: [
+            expect.objectContaining({
+              ownerDiscordId: null,
+            }),
+          ],
+        })
+      );
+    });
   });
 });
