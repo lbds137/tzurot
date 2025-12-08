@@ -17,14 +17,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.0.1",
-    "@prisma/client": "^7.0.1",
-    "@prisma/client-runtime-utils": "^7.0.1",
+    "@prisma/adapter-pg": "^7.1.0",
+    "@prisma/client": "^7.1.0",
+    "@prisma/client-runtime-utils": "^7.1.0",
     "discord-api-types": "^0.38.36",
     "discord.js": "^14.25.1",
     "ioredis": "^5.8.2",
     "lru-cache": "^11.2.4",
-    "openai": "^6.9.1",
+    "openai": "^6.10.0",
     "pg": "^8.16.3",
     "pino": "^10.1.0",
     "redis": "^5.10.0",
