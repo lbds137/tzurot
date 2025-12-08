@@ -49,17 +49,23 @@ export async function canUserEditPersonality(
     return true;
   }
 
-  // Check direct ownership
+  // Single query to check both direct ownership and PersonalityOwner table
   const personality = await prisma.personality.findUnique({
     where: { id: personalityId },
     select: { ownerId: true },
+    // Note: We can't nest relations in select, so we do a separate check
   });
 
-  if (personality?.ownerId === userId) {
+  if (personality === null) {
+    return false;
+  }
+
+  // Check direct ownership first (most common case)
+  if (personality.ownerId === userId) {
     return true;
   }
 
-  // Check PersonalityOwner table (composite key: personalityId_userId)
+  // Check PersonalityOwner table for co-ownership
   const ownerEntry = await prisma.personalityOwner.findUnique({
     where: {
       personalityId_userId: {
