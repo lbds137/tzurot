@@ -6,8 +6,7 @@
 >
 > **Detailed Implementation Docs**:
 >
-> - **[SHAPES_INC_IMPORT_PLAN.md](SHAPES_INC_IMPORT_PLAN.md)** - Detailed implementation guide (field mappings, code examples, CLI usage, edge cases, testing, rollback)
-> - **[shapes-inc-uuid-migration.md](shapes-inc-uuid-migration.md)** - UUID mapping operational guide with known user mappings
+> - **[SHAPES_INC_IMPORT_PLAN.md](SHAPES_INC_IMPORT_PLAN.md)** - Detailed implementation guide (field mappings, UUID mapping workflow, code examples, CLI usage, edge cases, testing, rollback)
 > - **[SHAPES_INC_SLASH_COMMAND_DESIGN.md](../planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md)** - User-facing `/import shapes` command design
 >
 > **Reference Code**:
@@ -125,89 +124,15 @@ interface TzurotPersonality {
 
 When importing personalities from shapes.inc exports, the memory data contains old user UUIDs that don't match current Postgres user IDs. This creates "orphaned" memories that can't be migrated to persona-scoped collections.
 
-### Current Status (Example: Lilith)
+### Solution
 
-- Total memories: 4463 points
-- Current users (in Postgres): 5
-- Orphaned UUIDs (from shapes.inc): 89
-
-### How UUID Mapping Works
-
-The migration script (`scripts/migrate-qdrant-to-personas.cjs`) supports UUID mappings via `scripts/uuid-mappings.json`:
+The import scripts support UUID mappings via `scripts/uuid-mappings.json`. When processing memories:
 
 1. Load UUID mappings from JSON file
-2. When processing Qdrant points, check if `userId` has a mapping
-3. If mapped, replace old UUID with new UUID before grouping
-4. All memories (old + new UUIDs) get consolidated under the current user's persona
+2. Replace old shapes.inc UUIDs with current Postgres UUIDs
+3. Consolidate all memories under the current user's persona
 
-### Mapping File Format
-
-```json
-{
-  "mappings": {
-    "OLD-SHAPES-UUID": {
-      "newUserId": "CURRENT-POSTGRES-UUID",
-      "discordId": "278863839632818186",
-      "username": "current-username",
-      "note": "context about this mapping",
-      "oldMemories": 46,
-      "newMemories": 18
-    }
-  }
-}
-```
-
-### Known Mappings (Example)
-
-```json
-{
-  "82ea754e-c3fb-467a-8662-8bc30791b4fe": {
-    "newUserId": "80bf4fc1-a240-53d3-bae7-43d6ed3e5bae",
-    "username": "fennarin",
-    "note": "Snail → Fennarin (name change)",
-    "oldMemories": 46,
-    "newMemories": 18
-  },
-  "98a94b95-cbd0-430b-8be2-602e1c75d8b0": {
-    "newUserId": "e64fcc09-e4db-5902-b1c9-5750141e3bf2",
-    "username": "lbds137",
-    "note": "Lila's shapes.inc → current Postgres UUID",
-    "oldMemories": 4837
-  }
-}
-```
-
-### Workflow for Finding Mappings
-
-1. **Search for User-Specific Keywords**:
-
-   ```bash
-   node scripts/find-user-memories.cjs "username"
-   ```
-
-2. **Check current Postgres UUID**:
-
-   ```bash
-   psql -c "SELECT id, username FROM users WHERE username = 'fennarin';"
-   ```
-
-3. **Add to uuid-mappings.json**
-
-4. **Run migration** - All mapped users get consolidated memories
-
-### Handling Unknown Users
-
-For orphaned UUIDs we don't recognize:
-
-**Option 1 (Recommended)**: Leave in legacy `personality-{id}` collections
-
-- Safe - no data loss
-- When users create accounts later, we can migrate their historical memories
-
-**Option 2**: Try to correlate with Discord usernames/IDs
-
-- Check if shapes.inc exports include Discord metadata
-- Match usernames to current Discord server members
+**For detailed workflow, tools, and options for handling unknown users**, see the [UUID Mapping Operational Workflow](SHAPES_INC_IMPORT_PLAN.md#uuid-mapping-operational-workflow) section in the Import Plan.
 
 ---
 

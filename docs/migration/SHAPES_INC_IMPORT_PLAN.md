@@ -179,6 +179,37 @@ const ORPHANED_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
 // Later, if user links their Discord ID, we can migrate memories
 ```
 
+### UUID Mapping Operational Workflow
+
+**Tools available**:
+
+- `scripts/analyze-qdrant-users.cjs` - Lists all Qdrant userIds vs Postgres users
+- `scripts/find-user-memories.cjs <keyword>` - Search memories by content
+- `scripts/uuid-mappings.json` - UUID mapping configuration
+- `scripts/migrate-qdrant-to-personas.cjs` - Migration script (reads mappings)
+
+**Workflow for finding mappings**:
+
+```bash
+# 1. Search for user-specific keywords
+node scripts/find-user-memories.cjs "username"
+
+# 2. Check current Postgres UUID
+psql -c "SELECT id, username FROM users WHERE username = 'username';"
+
+# 3. Add mapping to uuid-mappings.json
+# Format: { "OLD-UUID": { "newUserId": "NEW-UUID", "note": "context" } }
+
+# 4. Run migration
+node scripts/migrate-qdrant-to-personas.cjs
+```
+
+**Options for unknown users**:
+
+1. **Leave in legacy collections** (recommended) - Safe, no data loss, can migrate later
+2. **Correlate with Discord** - Check shapes.inc exports for Discord metadata
+3. **Create legacy collection** - Not recommended, loses userId association
+
 ## Import Tool Architecture
 
 ### Phase 1: Personality Config Import
