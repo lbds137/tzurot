@@ -52,14 +52,10 @@ const KNOWN_UNTESTED = new Set([
   'services/bot-client/src/commands/character/index.ts',
   // Types-only file - no executable code, just TypeScript interfaces
   'services/ai-worker/src/services/context/PromptContext.ts',
-  // Handler modules tested through composed router in index.test.ts
-  'services/api-gateway/src/routes/user/personality/create.ts',
-  'services/api-gateway/src/routes/user/personality/delete.ts',
-  'services/api-gateway/src/routes/user/personality/get.ts',
+  // Shared test utilities - not production code, helper functions for tests
+  'services/api-gateway/src/routes/user/personality/test-utils.ts',
+  // Helper functions tested indirectly via handler tests that use them
   'services/api-gateway/src/routes/user/personality/helpers.ts',
-  'services/api-gateway/src/routes/user/personality/list.ts',
-  'services/api-gateway/src/routes/user/personality/update.ts',
-  'services/api-gateway/src/routes/user/personality/visibility.ts',
 ]);
 
 function getAllTsFiles(dir, files = []) {
