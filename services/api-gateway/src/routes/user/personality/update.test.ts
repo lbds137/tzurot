@@ -134,7 +134,12 @@ describe('PUT /user/personality/:slug (update)', () => {
         name: 'Updated Name',
         displayName: 'Updated Display',
       }),
-      select: expect.any(Object),
+      select: expect.objectContaining({
+        id: true,
+        name: true,
+        slug: true,
+        displayName: true,
+      }),
     });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
