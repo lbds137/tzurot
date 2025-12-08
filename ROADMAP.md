@@ -1,6 +1,6 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-11-28
+> **Last Updated**: 2025-12-08
 > **Philosophy**: Launch, Stabilize, Evolve
 > **Context**: Solo dev + AI, must avoid decision fatigue and context switching
 
@@ -610,6 +610,17 @@
   - Consider established libraries: `he` (HTML entities), `xss`, `DOMPurify`, `sanitize-html`
   - General principle: prefer battle-tested libraries over custom implementations for security-critical utilities
   - Also applies to other utilities we write - check npm first before reinventing
+
+**From PR #334 Code Review (2025-12-08)**:
+
+- Add Zod schema for `UpdatePersonalityBody` in personality update handler
+  - Currently using TypeScript interface only - no runtime validation
+  - Would catch request body type mismatches at runtime
+  - Aligns with API contract enforcement strategy (see `docs/improvements/api-contract-enforcement.md`)
+- Add correlation IDs for cache invalidation logging
+  - Would improve distributed tracing in cache invalidation flows
+  - Helps debug cross-service cache sync issues
+  - Aligns with `tzurot-observability` skill patterns
 
 **Original Ideas**:
 
