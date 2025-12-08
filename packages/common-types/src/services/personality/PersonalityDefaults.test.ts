@@ -67,6 +67,7 @@ describe('PersonalityDefaults', () => {
     const originalEnv = process.env;
     const mockLogger = {
       warn: vi.fn(),
+      info: vi.fn(),
     };
 
     beforeEach(() => {
@@ -104,6 +105,7 @@ describe('PersonalityDefaults', () => {
   describe('mapToPersonality', () => {
     const mockLogger = {
       warn: vi.fn(),
+      info: vi.fn(),
     };
 
     beforeEach(() => {
