@@ -7,9 +7,28 @@ import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
-import type { MessageMetadata } from '../types/schemas.js';
+import { messageMetadataSchema, type MessageMetadata } from '../types/schemas.js';
 
 const logger = createLogger('ConversationHistoryService');
+
+/**
+ * Safely parse messageMetadata from database JSONB column
+ * Returns undefined if validation fails (logs warning)
+ */
+function parseMessageMetadata(raw: unknown): MessageMetadata | undefined {
+  if (raw === null || raw === undefined) {
+    return undefined;
+  }
+  const result = messageMetadataSchema.safeParse(raw);
+  if (!result.success) {
+    logger.warn(
+      { errors: result.error.issues },
+      '[ConversationHistoryService] Invalid messageMetadata from database, ignoring'
+    );
+    return undefined;
+  }
+  return result.data;
+}
 
 export interface ConversationMessage {
   id: string;
@@ -200,7 +219,7 @@ export class ConversationHistoryService {
           personaId: msg.personaId,
           personaName: msg.persona.preferredName ?? msg.persona.name,
           discordMessageId: msg.discordMessageId,
-          messageMetadata: (msg.messageMetadata as MessageMetadata) ?? undefined,
+          messageMetadata: parseMessageMetadata(msg.messageMetadata),
         })
       );
 
@@ -282,7 +301,7 @@ export class ConversationHistoryService {
           personaId: msg.personaId,
           personaName: msg.persona.preferredName ?? msg.persona.name,
           discordMessageId: msg.discordMessageId,
-          messageMetadata: (msg.messageMetadata as MessageMetadata) ?? undefined,
+          messageMetadata: parseMessageMetadata(msg.messageMetadata),
         })
       );
 
@@ -403,7 +422,7 @@ export class ConversationHistoryService {
         personaId: message.personaId,
         personaName: message.persona.preferredName ?? message.persona.name,
         discordMessageId: message.discordMessageId,
-        messageMetadata: (message.messageMetadata as MessageMetadata) ?? undefined,
+        messageMetadata: parseMessageMetadata(message.messageMetadata),
       };
     } catch (error) {
       logger.error({ err: error, discordMessageId }, `Failed to get message by Discord message ID`);

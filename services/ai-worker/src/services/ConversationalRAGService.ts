@@ -605,6 +605,12 @@ export class ConversationalRAGService {
     stopSequences.push('</message>');
     stopSequences.push('<chat_log>');
     stopSequences.push('</chat_log>');
+    // Stop sequences for quoted message structure
+    stopSequences.push('<quoted_messages>');
+    stopSequences.push('</quoted_messages>');
+    stopSequences.push('<quote ');
+    stopSequences.push('<quote>');
+    stopSequences.push('</quote>');
 
     // Log summary
     if (stopSequences.length > 0) {

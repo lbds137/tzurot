@@ -20,7 +20,7 @@ import { formatSingleMemory } from '../prompt/MemoryFormatter.js';
 import type { RawHistoryEntry } from '../../jobs/utils/conversationUtils.js';
 import {
   formatConversationHistoryAsXml,
-  getFormattedMessageLength,
+  getFormattedMessageCharLength,
 } from '../../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('ContextWindowManager');
@@ -269,7 +269,7 @@ export class ContextWindowManager {
 
       // Use cached token count if available, otherwise estimate from formatted length
       const entryTokens =
-        entry.tokenCount ?? Math.ceil(getFormattedMessageLength(entry, personalityName) / 4);
+        entry.tokenCount ?? Math.ceil(getFormattedMessageCharLength(entry, personalityName) / 4);
 
       if (estimatedTokens + entryTokens > budgetRemaining) {
         logger.debug(
