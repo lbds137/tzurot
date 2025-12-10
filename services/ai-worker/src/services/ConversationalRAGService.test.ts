@@ -164,7 +164,7 @@ vi.mock('./MultimodalProcessor.js', () => ({
 }));
 
 vi.mock('../utils/responseCleanup.js', () => ({
-  stripPersonalityPrefix: vi.fn((content: string) => content),
+  stripResponseArtifacts: vi.fn((content: string) => content),
 }));
 
 vi.mock('../utils/promptPlaceholders.js', () => ({

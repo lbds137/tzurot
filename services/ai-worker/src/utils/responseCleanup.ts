@@ -10,7 +10,7 @@
  * - Still occasionally add "Name:" prefixes
  */
 
-import { createLogger, TEXT_LIMITS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('ResponseCleanup');
 
@@ -28,11 +28,11 @@ const logger = createLogger('ResponseCleanup');
  *
  * @example
  * ```typescript
- * stripPersonalityPrefix('Hello there!</message>', 'Emily')
+ * stripResponseArtifacts('Hello there!</message>', 'Emily')
  * // Returns: 'Hello there!'
  * ```
  */
-export function stripPersonalityPrefix(content: string, personalityName: string): string {
+export function stripResponseArtifacts(content: string, personalityName: string): string {
   const originalContent = content;
   let cleaned = content;
   let strippedCount = 0;
@@ -100,37 +100,18 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
     break;
   }
 
-  // Log if we stripped anything meaningful
-  if (cleaned !== originalContent) {
-    const lengthDiff = originalContent.length - cleaned.length;
-
-    if (lengthDiff > 0) {
-      // Determine what was stripped for logging
-      const strippedFromStart = originalContent.substring(
-        0,
-        originalContent.indexOf(cleaned.substring(0, 20)) || lengthDiff
-      );
-      const strippedFromEnd = originalContent.endsWith(cleaned)
-        ? ''
-        : originalContent.substring(originalContent.lastIndexOf(cleaned) + cleaned.length);
-
-      const strippedContent = (strippedFromStart + strippedFromEnd).trim();
-
-      if (strippedContent.length > 0) {
-        logger.warn(
-          {
-            personalityName,
-            strippedContent:
-              strippedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW) +
-              (strippedContent.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW ? '...' : ''),
-            strippedCount,
-            wasStripped: true,
-          },
-          `[ResponseCleanup] Stripped ${strippedCount} artifact(s) from response. ` +
-            `LLM learned pattern from conversation history.`
-        );
-      }
-    }
+  // Log if we stripped anything
+  if (strippedCount > 0) {
+    const charsRemoved = originalContent.length - cleaned.length;
+    logger.warn(
+      {
+        personalityName,
+        strippedCount,
+        charsRemoved,
+      },
+      `[ResponseCleanup] Stripped ${strippedCount} artifact(s) (${charsRemoved} chars) from response. ` +
+        `LLM learned pattern from conversation history.`
+    );
   }
 
   return cleaned;
