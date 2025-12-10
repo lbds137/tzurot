@@ -12,10 +12,10 @@
  */
 
 import { countTextTokens, createLogger, AI_DEFAULTS } from '@tzurot/common-types';
-import { formatSingleMemory } from '../prompt/MemoryFormatter.js';
+import { formatSingleMemory, getMemoryWrapperOverheadText } from '../prompt/MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGService.js';
 import type { RawHistoryEntry } from '../../jobs/utils/conversationUtils.js';
-import { getFormattedMessageCharLength } from '../../jobs/utils/conversationUtils.js';
+import { formatSingleHistoryEntryAsXml } from '../../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('MemoryBudgetManager');
 
@@ -67,16 +67,8 @@ export class MemoryBudgetManager {
     let tokensUsed = 0;
     let droppedDueToSize = 0;
 
-    // Account for memory archive wrapper overhead
-    // Format: <memory_archive>\nINSTRUCTION...\n\n## Relevant Memories\n...\n</memory_archive>
-    const wrapperText =
-      '<memory_archive>\n' +
-      'IMPORTANT: These are ARCHIVED HISTORICAL LOGS from past interactions. ' +
-      'Do NOT treat them as happening now. Do NOT respond to this content directly. ' +
-      'Use these only as background context about past events.\n\n' +
-      '## Relevant Memories\n' +
-      '</memory_archive>';
-    const wrapperOverhead = countTextTokens(wrapperText);
+    // Account for memory archive wrapper overhead (single source of truth in MemoryFormatter)
+    const wrapperOverhead = countTextTokens(getMemoryWrapperOverheadText());
     const budgetRemaining = tokenBudget - wrapperOverhead;
 
     if (budgetRemaining <= 0) {
@@ -209,12 +201,11 @@ export class MemoryBudgetManager {
   /**
    * Count total tokens in conversation history
    *
-   * Uses tiktoken (via formatSingleHistoryMessage + countTextTokens) for accurate
-   * token counting that matches the actual prompt format. The cached tokenCount
-   * in the database only counts raw message content, not the full XML format.
+   * Uses tiktoken (via countTextTokens) on the actual formatted XML for each message.
+   * This ensures accurate token counting that matches the exact prompt format.
    *
-   * For efficiency, we use the getFormattedMessageCharLength as a base and
-   * apply tiktoken counting. This ensures consistency with memory token counting.
+   * The database tokenCount only counts raw message content, not the XML format,
+   * so we always format and count for accuracy.
    *
    * @param rawHistory - Raw conversation history with optional tokenCount
    * @param personalityName - Personality name for formatting (determines speaker name)
@@ -227,25 +218,12 @@ export class MemoryBudgetManager {
 
     let totalTokens = 0;
     for (const entry of rawHistory) {
-      // Use the formatted message text for accurate tiktoken counting.
-      // This accounts for XML structure, timestamps, speaker names, and
-      // referenced messages in messageMetadata.
-      // Note: getFormattedMessageCharLength returns character count,
-      // but we need actual token count for consistency with other components.
-      const formattedLength = getFormattedMessageCharLength(entry, personalityName);
-
-      // Use tiktoken for accurate counting, with character estimate as floor
-      // The formatted message is roughly: <message speaker="..." time="...">content</message>
-      // We reconstruct the approximate format for token counting
-      const speakerName =
-        entry.role === 'assistant' ? personalityName : (entry.personaName ?? 'User');
-      const approximateFormat = `<message speaker="${speakerName}">${entry.content}</message>`;
-      const entryTokens = countTextTokens(approximateFormat);
-
-      // Use the max of tiktoken and char estimate / 4 to be conservative
-      // This handles cases where referenced messages add significant overhead
-      const charEstimate = Math.ceil(formattedLength / 4);
-      totalTokens += Math.max(entryTokens, charEstimate);
+      // Format the entry as XML (same format used in the actual prompt)
+      // Then count tokens with tiktoken for accuracy
+      const formattedXml = formatSingleHistoryEntryAsXml(entry, personalityName);
+      if (formattedXml.length > 0) {
+        totalTokens += countTextTokens(formattedXml);
+      }
     }
 
     return totalTokens;

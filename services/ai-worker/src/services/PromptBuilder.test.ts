@@ -690,7 +690,9 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('## Relevant Memories');
+      // Now uses XML format
+      expect(content).toContain('<memory_archive>');
+      expect(content).toContain('<instruction>');
       expect(content).toContain('User likes pizza');
       expect(content).toContain('User dislikes spam');
     });
