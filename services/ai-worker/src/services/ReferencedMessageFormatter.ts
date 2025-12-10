@@ -93,51 +93,50 @@ export class ReferencedMessageFormatter {
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>
   ): Promise<string> {
-    const lines: string[] = [];
-    lines.push('## Referenced Messages\n');
-    lines.push('The user is referencing the following messages:\n');
+    const referenceElements: string[] = [];
 
-    // Process each reference
+    // Process each reference into XML
     for (const ref of references) {
-      // Add forwarded indicator if this is a forwarded message
-      const forwardedLabel = ref.isForwarded === true ? ' [FORWARDED MESSAGE]' : '';
-      lines.push(`[Reference ${ref.referenceNumber}]${forwardedLabel}`);
+      const refLines: string[] = [];
 
+      // Build quote attributes
+      const forwardedAttr = ref.isForwarded === true ? ' forwarded="true"' : '';
+      refLines.push(`<quote number="${ref.referenceNumber}"${forwardedAttr}>`);
+
+      // Author info
       if (ref.isForwarded === true) {
-        // For forwarded messages, author info is unavailable
-        lines.push(`From: [Author unavailable - this message was forwarded]`);
+        refLines.push(`<author unavailable="true">Author unavailable - forwarded message</author>`);
       } else {
-        lines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
+        refLines.push(
+          `<author display_name="${escapeXmlContent(ref.authorDisplayName)}" username="${escapeXmlContent(ref.authorUsername)}"/>`
+        );
       }
 
-      lines.push(`Location:\n${ref.locationContext}`);
+      // Location
+      refLines.push(`<location>${escapeXmlContent(ref.locationContext)}</location>`);
 
-      // Format timestamp with both absolute date and relative time for better LLM understanding
+      // Timestamp with both absolute date and relative time
       const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
       if (absolute.length > 0 && relative.length > 0) {
-        lines.push(`Time: ${absolute} — ${relative}`);
-      } else {
-        // Fallback to raw timestamp if formatting fails
-        lines.push(`Time: ${ref.timestamp}`);
-      }
-
-      if (ref.content) {
-        // Escape user-generated content to prevent prompt injection via XML tag breaking
-        lines.push(`\nMessage Text:\n${escapeXmlContent(ref.content)}`);
-      }
-
-      if (ref.embeds) {
-        // Escape embeds as they can contain user-generated content
-        lines.push(
-          `\nMessage Embeds (structured data from Discord):\n${escapeXmlContent(ref.embeds)}`
+        refLines.push(
+          `<time absolute="${escapeXmlContent(absolute)}" relative="${escapeXmlContent(relative)}"/>`
         );
+      } else {
+        refLines.push(`<time>${ref.timestamp}</time>`);
+      }
+
+      // Message content
+      if (ref.content) {
+        refLines.push(`<content>${escapeXmlContent(ref.content)}</content>`);
+      }
+
+      // Embeds (structured data from Discord)
+      if (ref.embeds) {
+        refLines.push(`<embeds>${escapeXmlContent(ref.embeds)}</embeds>`);
       }
 
       // Process attachments in parallel (or use preprocessed data if available)
       if (ref.attachments && ref.attachments.length > 0) {
-        lines.push('\nAttachments:');
-
-        // Get preprocessed attachments for this reference if available
         const preprocessedForRef = preprocessedAttachments?.[ref.referenceNumber];
 
         const attachmentLines = await this.processAttachmentsParallel(
@@ -148,13 +147,18 @@ export class ReferencedMessageFormatter {
           preprocessedForRef
         );
 
-        lines.push(...attachmentLines);
+        if (attachmentLines.length > 0) {
+          refLines.push('<attachments>');
+          refLines.push(...attachmentLines);
+          refLines.push('</attachments>');
+        }
       }
 
-      lines.push(''); // Empty line between references
+      refLines.push('</quote>');
+      referenceElements.push(refLines.join('\n'));
     }
 
-    const formattedText = lines.join('\n');
+    const formattedText = referenceElements.join('\n');
 
     logger.info(
       `[ReferencedMessageFormatter] Formatted ${references.length} referenced message(s) for prompt`
@@ -173,7 +177,7 @@ export class ReferencedMessageFormatter {
       );
     }
 
-    // Wrap in XML tags for clear LLM context separation
+    // Wrap in outer XML tag
     return `<contextual_references>\n${formattedText}\n</contextual_references>`;
   }
 

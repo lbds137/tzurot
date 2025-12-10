@@ -29,11 +29,7 @@ vi.mock('../utils/attachmentPlaceholders.js', () => ({
   }),
 }));
 
-vi.mock('../utils/referenceFormatter.js', () => ({
-  formatReferencesForDatabase: vi.fn(references => {
-    return `\n\n[Placeholder: ${references.length} reference(s)]`;
-  }),
-}));
+// Note: referenceFormatter is no longer used - references are stored in messageMetadata
 
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
@@ -79,6 +75,7 @@ describe('ConversationPersistence', () => {
         messageContent: 'Hello bot!',
       });
 
+      // New storage format: content + guild + discordMessageId + timestamp + metadata
       expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
         'channel-123',
         'personality-123',
@@ -86,7 +83,9 @@ describe('ConversationPersistence', () => {
         MessageRole.User,
         'Hello bot!',
         'guild-123',
-        'discord-msg-123'
+        'discord-msg-123',
+        undefined, // timestamp
+        undefined // messageMetadata (no references)
       );
     });
 
@@ -111,7 +110,9 @@ describe('ConversationPersistence', () => {
         MessageRole.User,
         '[no text content]',
         null,
-        'discord-msg-123'
+        'discord-msg-123',
+        undefined, // timestamp
+        undefined // messageMetadata
       );
     });
 
@@ -139,11 +140,13 @@ describe('ConversationPersistence', () => {
         MessageRole.User,
         'Check this image\n\n[Placeholder: 1 attachment(s)]',
         'guild-123',
-        'discord-msg-123'
+        'discord-msg-123',
+        undefined, // timestamp
+        undefined // messageMetadata (no references)
       );
     });
 
-    it('should include reference placeholders', async () => {
+    it('should store references in messageMetadata, not content', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
@@ -153,9 +156,14 @@ describe('ConversationPersistence', () => {
       const referencedMessages: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'ref-msg-1',
+          discordUserId: 'user-456',
+          authorUsername: 'otheruser',
+          authorDisplayName: 'Other User',
           content: 'Referenced message',
-          author: 'otheruser',
+          embeds: '',
           timestamp: '2025-01-01T10:00:00Z',
+          locationContext: 'Test Guild > #general',
         },
       ];
 
@@ -167,18 +175,35 @@ describe('ConversationPersistence', () => {
         referencedMessages,
       });
 
+      // Content should NOT contain references - they go in messageMetadata
       expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
         'channel-123',
         'personality-123',
         'persona-uuid-123',
         MessageRole.User,
-        'Replying to [Reference 1]\n\n[Placeholder: 1 reference(s)]',
+        'Replying to [Reference 1]', // Just the text, no reference content
         'guild-123',
-        'discord-msg-123'
+        'discord-msg-123',
+        undefined, // timestamp
+        {
+          referencedMessages: [
+            {
+              discordMessageId: 'ref-msg-1',
+              authorUsername: 'otheruser',
+              authorDisplayName: 'Other User',
+              content: 'Referenced message',
+              embeds: undefined,
+              timestamp: '2025-01-01T10:00:00Z',
+              locationContext: 'Test Guild > #general',
+              attachments: undefined,
+              isForwarded: undefined,
+            },
+          ],
+        }
       );
     });
 
-    it('should include both attachment and reference placeholders', async () => {
+    it('should store both attachments in content and references in metadata', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
@@ -190,9 +215,14 @@ describe('ConversationPersistence', () => {
       const referencedMessages: ReferencedMessage[] = [
         {
           referenceNumber: 1,
+          discordMessageId: 'ref-msg-1',
+          discordUserId: 'user-456',
+          authorUsername: 'otheruser',
+          authorDisplayName: 'Other User',
           content: 'Referenced message',
-          author: 'otheruser',
+          embeds: '',
           timestamp: '2025-01-01T10:00:00Z',
+          locationContext: 'Test Guild > #general',
         },
       ];
 
@@ -205,14 +235,19 @@ describe('ConversationPersistence', () => {
         referencedMessages,
       });
 
+      // Attachments go in content (as placeholders), references go in metadata
       expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
         'channel-123',
         'personality-123',
         'persona-uuid-123',
         MessageRole.User,
-        'Image with reference\n\n[Placeholder: 1 attachment(s)]\n\n[Placeholder: 1 reference(s)]',
+        'Image with reference\n\n[Placeholder: 1 attachment(s)]', // Attachments in content
         'guild-123',
-        'discord-msg-123'
+        'discord-msg-123',
+        undefined, // timestamp
+        {
+          referencedMessages: expect.any(Array), // References in metadata
+        }
       );
     });
   });
@@ -258,31 +293,29 @@ describe('ConversationPersistence', () => {
       );
     });
 
-    it('should upgrade with reference descriptions only', async () => {
+    it('should ignore reference descriptions (references are in messageMetadata)', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
         guildId: 'guild-123',
       });
 
+      // Passing only reference descriptions should NOT trigger an update
+      // References are already stored in messageMetadata during saveUserMessage
       await persistence.updateUserMessage(
         mockMessage,
         mockPersonality,
         'persona-uuid-123',
         'Message content',
-        undefined,
-        'Rich reference context'
+        undefined, // no attachment descriptions
+        'Rich reference context' // this is ignored
       );
 
-      expect(mockConversationHistory.updateLastUserMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        'Message content\n\nRich reference context'
-      );
+      // Should NOT call update since there's no attachment description
+      expect(mockConversationHistory.updateLastUserMessage).not.toHaveBeenCalled();
     });
 
-    it('should upgrade with both attachment and reference descriptions', async () => {
+    it('should upgrade with attachment descriptions only (ignore references)', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
@@ -295,14 +328,15 @@ describe('ConversationPersistence', () => {
         'persona-uuid-123',
         'Message content',
         'Rich image description from AI',
-        'Rich reference context'
+        'Rich reference context' // this is ignored - references are in metadata
       );
 
+      // Only attachment descriptions go in content update
       expect(mockConversationHistory.updateLastUserMessage).toHaveBeenCalledWith(
         'channel-123',
         'personality-123',
         'persona-uuid-123',
-        'Message content\n\nRich image description from AI\n\nRich reference context'
+        'Message content\n\nRich image description from AI'
       );
     });
 

@@ -3,16 +3,43 @@
  *
  * Manages conversation history storage and updates.
  * Handles atomic storage with placeholders and rich description upgrades.
+ *
+ * STORAGE PHILOSOPHY (2025-12):
+ * - `content` field: Plain text only (user message + attachment descriptions)
+ * - `messageMetadata` field: Structured data (referenced messages, attachment metadata)
+ * - XML formatting happens only at prompt-building time, NOT in storage
  */
 
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import { ConversationHistoryService, createLogger, MessageRole } from '@tzurot/common-types';
-import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  ReferencedMessage,
+  MessageMetadata,
+  StoredReferencedMessage,
+} from '@tzurot/common-types';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
-import { formatReferencesForDatabase } from '../utils/referenceFormatter.js';
 
 const logger = createLogger('ConversationPersistence');
+
+/**
+ * Convert ReferencedMessage (from request) to StoredReferencedMessage (for database)
+ * This creates a snapshot of the referenced message at the time it was referenced.
+ */
+function convertToStoredReferences(references: ReferencedMessage[]): StoredReferencedMessage[] {
+  return references.map(ref => ({
+    discordMessageId: ref.discordMessageId,
+    authorUsername: ref.authorUsername,
+    authorDisplayName: ref.authorDisplayName,
+    content: ref.content,
+    embeds: ref.embeds || undefined,
+    timestamp: ref.timestamp,
+    locationContext: ref.locationContext,
+    attachments: ref.attachments,
+    isForwarded: ref.isForwarded,
+  }));
+}
 
 /**
  * Options for saving a user message
@@ -76,27 +103,34 @@ export class ConversationPersistence {
    * - Ensures chronological ordering (user timestamp < assistant timestamp)
    * - Provides immediate placeholder descriptions (not empty data)
    * - Rich descriptions added later via updateUserMessage()
+   *
+   * STORAGE PHILOSOPHY (2025-12):
+   * - `content`: Plain text only (user message + attachment placeholders)
+   * - `messageMetadata.referencedMessages`: Structured snapshot of referenced messages
+   * - Referenced messages are NOT appended to content anymore
    */
   async saveUserMessage(options: SaveUserMessageOptions): Promise<void> {
     const { message, personality, personaId, messageContent, attachments, referencedMessages } =
       options;
 
-    // Build content with placeholder descriptions
+    // Build content with placeholder descriptions (but NOT references - those go in metadata)
     let userMessageContent = messageContent || '[no text content]';
 
-    // Add placeholder attachment descriptions
+    // Add placeholder attachment descriptions to content
     if (attachments && attachments.length > 0) {
       const attachmentPlaceholders = generateAttachmentPlaceholders(attachments);
       userMessageContent += attachmentPlaceholders;
     }
 
-    // Add placeholder reference descriptions
+    // Build message metadata with referenced messages (stored structurally, not as text)
+    let metadata: MessageMetadata | undefined;
     if (referencedMessages && referencedMessages.length > 0) {
-      const referencePlaceholders = formatReferencesForDatabase(referencedMessages);
-      userMessageContent += referencePlaceholders;
+      metadata = {
+        referencedMessages: convertToStoredReferences(referencedMessages),
+      };
     }
 
-    // Save atomically with all placeholder descriptions
+    // Save atomically with placeholder descriptions and structured metadata
     await this.conversationHistory.addMessage(
       message.channel.id,
       personality.id,
@@ -104,7 +138,9 @@ export class ConversationPersistence {
       MessageRole.User,
       userMessageContent,
       message.guild?.id ?? null,
-      message.id // Discord message ID for deduplication
+      message.id, // Discord message ID for deduplication
+      undefined, // timestamp (use default)
+      metadata // Structured metadata with referenced messages
     );
 
     logger.debug(
@@ -114,8 +150,9 @@ export class ConversationPersistence {
         hasReferences: referencedMessages && referencedMessages.length > 0,
         referenceCount: referencedMessages?.length ?? 0,
         contentLength: userMessageContent.length,
+        hasMetadata: metadata !== undefined,
       },
-      '[ConversationPersistence] Saved user message with placeholder descriptions'
+      '[ConversationPersistence] Saved user message with placeholder descriptions and metadata'
     );
   }
 
@@ -124,6 +161,12 @@ export class ConversationPersistence {
    *
    * Called after AI processing completes with vision/transcription results.
    * If AI processing failed, placeholders remain (acceptable degradation).
+   *
+   * STORAGE PHILOSOPHY (2025-12):
+   * - Only attachment descriptions go in `content` (user message + attachments)
+   * - Referenced messages are already in `messageMetadata` (from saveUserMessage)
+   * - Referenced message descriptions are NOT stored - they're formatted at prompt time
+   * - The `referencedMessagesDescriptions` parameter is now ignored for storage
    */
   async updateUserMessage(
     message: Message,
@@ -131,55 +174,32 @@ export class ConversationPersistence {
     personaId: string,
     messageContent: string,
     attachmentDescriptions?: string,
-    referencedMessagesDescriptions?: string
+    _referencedMessagesDescriptions?: string // Ignored - references are in metadata
   ): Promise<void> {
+    // Only update if we have attachment descriptions
+    // Referenced messages are already in metadata, not content
     if (
-      (attachmentDescriptions === undefined ||
-        attachmentDescriptions === null ||
-        attachmentDescriptions.length === 0) &&
-      (referencedMessagesDescriptions === undefined ||
-        referencedMessagesDescriptions === null ||
-        referencedMessagesDescriptions.length === 0)
+      attachmentDescriptions === undefined ||
+      attachmentDescriptions === null ||
+      attachmentDescriptions.length === 0
     ) {
       logger.debug(
-        '[ConversationPersistence] No rich descriptions available, keeping placeholders'
+        '[ConversationPersistence] No attachment descriptions available, keeping placeholders'
       );
       return;
     }
 
-    let enrichedContent = messageContent;
+    // Upgrade attachment placeholders to rich descriptions (but NOT references)
+    const enrichedContent = messageContent
+      ? `${messageContent}\n\n${attachmentDescriptions}`
+      : attachmentDescriptions;
 
-    // Upgrade attachment placeholders to rich descriptions
-    if (
-      attachmentDescriptions !== undefined &&
-      attachmentDescriptions !== null &&
-      attachmentDescriptions.length > 0
-    ) {
-      enrichedContent = enrichedContent
-        ? `${enrichedContent}\n\n${attachmentDescriptions}`
-        : attachmentDescriptions;
+    logger.debug(
+      { descriptionLength: attachmentDescriptions.length },
+      '[ConversationPersistence] Upgrading attachment placeholders to rich descriptions'
+    );
 
-      logger.debug(
-        { descriptionLength: attachmentDescriptions.length },
-        '[ConversationPersistence] Upgrading attachment placeholders to rich descriptions'
-      );
-    }
-
-    // Upgrade reference placeholders to rich descriptions
-    if (
-      referencedMessagesDescriptions !== undefined &&
-      referencedMessagesDescriptions !== null &&
-      referencedMessagesDescriptions.length > 0
-    ) {
-      enrichedContent += `\n\n${referencedMessagesDescriptions}`;
-
-      logger.debug(
-        { descriptionLength: referencedMessagesDescriptions.length },
-        '[ConversationPersistence] Upgrading reference placeholders to rich descriptions'
-      );
-    }
-
-    // Update the message we saved earlier
+    // Update the message content only (metadata with references is already saved)
     await this.conversationHistory.updateLastUserMessage(
       message.channel.id,
       personality.id,

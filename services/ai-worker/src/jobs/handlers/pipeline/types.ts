@@ -21,6 +21,25 @@ export interface ConversationHistoryEntry {
   tokenCount?: number;
   personaId?: string;
   personaName?: string;
+  /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
+  messageMetadata?: {
+    referencedMessages?: {
+      discordMessageId: string;
+      authorUsername: string;
+      authorDisplayName: string;
+      content: string;
+      embeds?: string;
+      timestamp: string;
+      locationContext: string;
+      attachments?: {
+        url: string;
+        contentType: string;
+        name?: string;
+        size?: number;
+      }[];
+      isForwarded?: boolean;
+    }[];
+  };
 }
 
 /**
