@@ -152,7 +152,6 @@ export function convertConversationHistory(
   });
 }
 
-
 /**
  * Raw conversation history entry (before BaseMessage conversion)
  */
@@ -307,13 +306,19 @@ function estimateReferenceLength(ref: StoredReferencedMessage): number {
 }
 
 /**
- * Count tokens for a single formatted message (for budget calculation)
+ * Get the character length of a formatted message (for budget estimation)
+ *
+ * Returns the character count of the message when formatted as XML.
+ * To estimate tokens, divide by 4 (rough approximation: ~4 chars per token).
  *
  * @param msg - Raw history entry
  * @param personalityName - Name of the AI personality
- * @returns Estimated token count for the formatted message
+ * @returns Character length of the formatted message
  */
-export function getFormattedMessageLength(msg: RawHistoryEntry, personalityName: string): number {
+export function getFormattedMessageCharLength(
+  msg: RawHistoryEntry,
+  personalityName: string
+): number {
   // Determine the speaker name
   let speakerName: string;
   let role: 'user' | 'assistant';
