@@ -27,10 +27,24 @@ export const AI_DEFAULTS = {
    * This prevents huge memories (e.g., pasted conversation logs) from consuming
    * the entire context window and leaving no room for conversation history.
    *
-   * 0.25 = 25% of context window (~32k tokens of 128k = room for ~150 pages of text)
-   * This leaves ~75% for: system prompt, current message, and conversation history.
+   * 0.25 = 25% of context window (~32k tokens of 128k)
+   *
+   * Why 25%?
+   * - Leaves ~75% for: system prompt (~5-10k), current message (~1-5k), history (~50-60k)
+   * - 32k tokens is enormous (~150 pages of text) - if AI needs more background, query is too broad
+   * - Chosen based on production incident where 77% memory usage left no room for history
+   * - Conversation history (recency) is often more valuable than LTM (semantic)
    */
   MEMORY_TOKEN_BUDGET_RATIO: 0.25,
+  /**
+   * Safety margin fraction reserved for response generation
+   *
+   * When calculating available context budget, this fraction is reserved to ensure
+   * there's room for the model's response tokens.
+   *
+   * 0.05 = 5% of context window (~6.4k tokens of 128k)
+   */
+  RESPONSE_SAFETY_MARGIN_RATIO: 0.05,
   /**
    * Default context window token budget (128k tokens)
    *
