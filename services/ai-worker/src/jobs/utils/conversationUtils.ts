@@ -11,6 +11,7 @@ import {
   createLogger,
   escapeXml,
   escapeXmlContent,
+  type StoredReferencedMessage,
 } from '@tzurot/common-types';
 
 const logger = createLogger('conversationUtils');
@@ -151,25 +152,6 @@ export function convertConversationHistory(
   });
 }
 
-/**
- * Stored referenced message (from messageMetadata JSONB column)
- */
-export interface StoredReference {
-  discordMessageId: string;
-  authorUsername: string;
-  authorDisplayName: string;
-  content: string;
-  embeds?: string;
-  timestamp: string;
-  locationContext: string;
-  attachments?: {
-    url: string;
-    contentType: string;
-    name?: string;
-    size?: number;
-  }[];
-  isForwarded?: boolean;
-}
 
 /**
  * Raw conversation history entry (before BaseMessage conversion)
@@ -183,14 +165,14 @@ export interface RawHistoryEntry {
   tokenCount?: number;
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
   messageMetadata?: {
-    referencedMessages?: StoredReference[];
+    referencedMessages?: StoredReferencedMessage[];
   };
 }
 
 /**
  * Format a single stored reference as XML
  */
-function formatStoredReference(ref: StoredReference, index: number): string {
+function formatStoredReferencedMessage(ref: StoredReferencedMessage, index: number): string {
   const authorName = ref.authorDisplayName || ref.authorUsername;
   // Use escapeXml for attributes (escapes quotes), escapeXmlContent for content
   const safeAuthor = escapeXml(authorName);
@@ -283,7 +265,7 @@ export function formatConversationHistoryAsXml(
       msg.messageMetadata.referencedMessages.length > 0
     ) {
       const formattedRefs = msg.messageMetadata.referencedMessages
-        .map((ref, idx) => formatStoredReference(ref, idx))
+        .map((ref, idx) => formatStoredReferencedMessage(ref, idx))
         .join('\n');
       quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
     }
@@ -300,7 +282,7 @@ export function formatConversationHistoryAsXml(
 /**
  * Estimate character length for a stored reference
  */
-function estimateReferenceLength(ref: StoredReference): number {
+function estimateReferenceLength(ref: StoredReferencedMessage): number {
   const authorName = ref.authorDisplayName || ref.authorUsername;
   let length =
     `<quote number="1" author="${authorName}" location="${ref.locationContext}">\n${ref.content}\n</quote>`
