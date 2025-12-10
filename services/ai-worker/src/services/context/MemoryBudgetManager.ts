@@ -165,8 +165,8 @@ export class MemoryBudgetManager {
     }
 
     // Calculate available space after fixed components
-    // Reserve some safety margin for response tokens
-    const safetyMargin = Math.floor(contextWindowTokens * 0.05); // 5% for response
+    // Reserve safety margin for response tokens
+    const safetyMargin = Math.floor(contextWindowTokens * AI_DEFAULTS.RESPONSE_SAFETY_MARGIN_RATIO);
     const availableSpace =
       contextWindowTokens -
       systemPromptBaseTokens -
