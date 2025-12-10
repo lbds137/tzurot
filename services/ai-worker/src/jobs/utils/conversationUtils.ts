@@ -9,6 +9,7 @@ import {
   MessageRole,
   formatRelativeTime,
   createLogger,
+  escapeXml,
   escapeXmlContent,
 } from '@tzurot/common-types';
 
@@ -191,9 +192,10 @@ export interface RawHistoryEntry {
  */
 function formatStoredReference(ref: StoredReference, index: number): string {
   const authorName = ref.authorDisplayName || ref.authorUsername;
-  const safeAuthor = escapeXmlContent(authorName);
+  // Use escapeXml for attributes (escapes quotes), escapeXmlContent for content
+  const safeAuthor = escapeXml(authorName);
   const safeContent = escapeXmlContent(ref.content);
-  const safeLocation = escapeXmlContent(ref.locationContext);
+  const safeLocation = escapeXml(ref.locationContext);
 
   // Format embeds if present
   let embedsSection = '';
@@ -262,14 +264,16 @@ export function formatConversationHistoryAsXml(
       continue;
     }
 
-    // Format the timestamp
+    // Format the timestamp (escape for use in attribute)
     const timeAttr =
       msg.createdAt !== undefined && msg.createdAt.length > 0
-        ? ` time="${formatRelativeTime(msg.createdAt)}"`
+        ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}"`
         : '';
 
     // Escape content to prevent XML injection
     const safeContent = escapeXmlContent(msg.content);
+    // Escape speaker name for use in attribute (quotes could break the XML)
+    const safeSpeaker = escapeXml(speakerName);
 
     // Format referenced messages from messageMetadata (user messages only)
     let quotedSection = '';
@@ -286,7 +290,7 @@ export function formatConversationHistoryAsXml(
 
     // Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
     messages.push(
-      `<message from="${speakerName}" role="${role}"${timeAttr}>${safeContent}${quotedSection}</message>`
+      `<message from="${safeSpeaker}" role="${role}"${timeAttr}>${safeContent}${quotedSection}</message>`
     );
   }
 
