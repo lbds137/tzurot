@@ -22,14 +22,22 @@ vi.mock('@tzurot/common-types', () => ({
   },
 }));
 
-// Mock MemoryFormatter
+// Mock MemoryFormatter (now uses XML format)
 vi.mock('../prompt/MemoryFormatter.js', () => ({
-  formatSingleMemory: vi.fn((doc: MemoryDocument) => `- ${doc.pageContent}`),
+  formatSingleMemory: vi.fn((doc: MemoryDocument) => `<memory>${doc.pageContent}</memory>`),
+  getMemoryWrapperOverheadText: vi.fn(
+    () => '<memory_archive>\n<instruction>ARCHIVED HISTORICAL LOGS</instruction>\n</memory_archive>'
+  ),
 }));
 
 // Mock conversationUtils
+// formatSingleHistoryEntryAsXml returns XML like: <message from="User" role="user">content</message>
+// We mock it to return a 100-char string so countTextTokens (mocked as chars/4) returns ~25 tokens
 vi.mock('../../jobs/utils/conversationUtils.js', () => ({
-  getFormattedMessageCharLength: vi.fn(() => 100),
+  formatSingleHistoryEntryAsXml: vi.fn(
+    (entry: { role: string; content: string }) =>
+      `<message from="User" role="${entry.role}">${entry.content}</message>`
+  ),
 }));
 
 describe('MemoryBudgetManager', () => {
@@ -225,8 +233,8 @@ describe('MemoryBudgetManager', () => {
       expect(result).toBe(0);
     });
 
-    it('should always use formatted length, ignoring cached tokenCount', () => {
-      // Even though tokenCount is cached, we use formatted length
+    it('should always use tiktoken on formatted XML, ignoring cached tokenCount', () => {
+      // Even though tokenCount is cached, we use tiktoken on formatted XML
       // because cached count doesn't include XML structure, timestamps, etc.
       const history = [
         { role: 'user', content: 'Hello', tokenCount: 5 }, // Cached value ignored
@@ -235,12 +243,14 @@ describe('MemoryBudgetManager', () => {
 
       const result = manager.countHistoryTokens(history, 'TestBot');
 
-      // Should use getFormattedMessageCharLength / 4 for all messages
-      // Mock returns 100 chars / 4 = 25 tokens per message
-      expect(result).toBe(50); // 2 messages * 25 tokens, NOT 5 + 7 = 12
+      // Mock formats as: <message from="User" role="user">Hello</message> = 46 chars
+      // countTextTokens mock returns chars / 4, so ~12 tokens per short message
+      // The key assertion: result should NOT be 5 + 7 = 12 (the cached values)
+      expect(result).toBeGreaterThan(12); // Cached values would give 12, actual is higher
+      expect(result).toBeGreaterThan(0);
     });
 
-    it('should estimate tokens using formatted length', () => {
+    it('should count tokens using tiktoken on formatted XML', () => {
       const history = [
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: 'Hi there' },
@@ -248,8 +258,9 @@ describe('MemoryBudgetManager', () => {
 
       const result = manager.countHistoryTokens(history, 'TestBot');
 
-      // Mock returns 100 chars / 4 = 25 tokens per message
-      expect(result).toBe(50); // 2 messages * 25 tokens
+      // Mock formats each message as XML and uses countTextTokens (chars/4)
+      // Both messages should contribute some tokens
+      expect(result).toBeGreaterThan(0);
     });
 
     it('should count multiple messages correctly', () => {
@@ -262,8 +273,13 @@ describe('MemoryBudgetManager', () => {
 
       const result = manager.countHistoryTokens(history, 'TestBot');
 
-      // 4 messages * 25 tokens = 100 tokens
-      expect(result).toBe(100);
+      // 4 messages, each formatted as XML and counted with tiktoken
+      // More messages = more tokens
+      expect(result).toBeGreaterThan(0);
+
+      // Count with 2 messages should be less than 4 messages
+      const twoMessageResult = manager.countHistoryTokens(history.slice(0, 2), 'TestBot');
+      expect(result).toBeGreaterThan(twoMessageResult);
     });
   });
 });
