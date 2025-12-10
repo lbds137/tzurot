@@ -47,6 +47,11 @@ let mockReferencedMessageFormatterInstance: {
 };
 let mockContextWindowManagerInstance: {
   buildContext: ReturnType<typeof vi.fn>;
+  calculateHistoryBudget: ReturnType<typeof vi.fn>;
+  selectAndSerializeHistory: ReturnType<typeof vi.fn>;
+  countHistoryTokens: ReturnType<typeof vi.fn>;
+  calculateMemoryBudget: ReturnType<typeof vi.fn>;
+  selectMemoriesWithinBudget: ReturnType<typeof vi.fn>;
 };
 
 // Mock all dependencies using class syntax for proper constructor behavior
@@ -139,6 +144,15 @@ vi.mock('./context/ContextWindowManager.js', () => ({
       messagesIncluded: 1,
       messagesDropped: 0,
     });
+    // New memory budget methods
+    countHistoryTokens = vi.fn().mockReturnValue(100);
+    calculateMemoryBudget = vi.fn().mockReturnValue(32000); // 25% of 128k
+    selectMemoriesWithinBudget = vi.fn().mockImplementation((memories: unknown[]) => ({
+      selectedMemories: memories, // Return all memories by default
+      tokensUsed: 500,
+      memoriesDropped: 0,
+      droppedDueToSize: 0,
+    }));
     constructor() {
       mockContextWindowManagerInstance = this;
     }

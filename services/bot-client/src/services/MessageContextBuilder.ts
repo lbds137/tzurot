@@ -233,10 +233,12 @@ export class MessageContextBuilder {
 
     // Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
+    // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
     const conversationHistory = history.map(msg => ({
       id: msg.id,
       role: msg.role,
       content: msg.content,
+      tokenCount: msg.tokenCount, // Pre-computed with tiktoken at message save time
       createdAt: msg.createdAt.toISOString(),
       personaId: msg.personaId,
       personaName: msg.personaName,
