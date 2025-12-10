@@ -419,7 +419,7 @@
   - Define: name, description, parameters, isStealth, autoMemorize
   - No runtime cost - just architectural foundation for Sprint 8
 - [ ] **Task 5.6**: Expand response cleanup to configurable regex pipeline
-  - Current: `responseCleanup.ts` → `stripPersonalityPrefix()` removes `Character: [timestamp]`
+  - Current: `responseCleanup.ts` → `stripResponseArtifacts()` removes XML tags and legacy prefixes
   - Add: Configurable regex rules (per personality or global)
   - Add: `<thinking>` tag removal integrated with Task 2.16
   - Reference: SillyTavern's `regex/engine.js`
