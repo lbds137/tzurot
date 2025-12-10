@@ -294,7 +294,7 @@ export class ConversationalRAGService {
       logger.info(
         `[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
       );
-      const relevantMemories = await this.memoryRetriever.retrieveRelevantMemories(
+      const retrievedMemories = await this.memoryRetriever.retrieveRelevantMemories(
         personality,
         searchQuery,
         context
@@ -303,6 +303,13 @@ export class ConversationalRAGService {
       // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
       // NEW ARCHITECTURE (2025-12): History is serialized inside the system prompt as XML
       // This prevents identity bleeding where the AI responds as another participant
+      //
+      // MEMORY BUDGET (2025-12): Memories are now token-budgeted to prevent huge memories
+      // (e.g., pasted conversation logs) from consuming the entire context window.
+      // Budget is dynamic: if history is short, memories can use more space.
+
+      const contextWindowTokens =
+        personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
 
       // Step 1: Build current message first (needed for token budget calculation)
       const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
@@ -312,8 +319,55 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions
       );
 
-      // Step 2: Build system prompt WITHOUT history to get base token count
-      const systemPromptBase = this.promptBuilder.buildFullSystemPrompt(
+      // Step 2: Build system prompt WITHOUT memories OR history to get base token count
+      const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt(
+        processedPersonality,
+        participantPersonas,
+        [], // No memories yet - we need base tokens first
+        context,
+        referencedMessagesDescriptions,
+        undefined // No history yet
+      );
+
+      // Step 3: Count tokens for budget calculation
+      const systemPromptBaseTokens = this.promptBuilder.countTokens(
+        systemPromptBaseOnly.content as string
+      );
+      const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
+      const historyTokens = this.contextWindowManager.countHistoryTokens(
+        context.rawConversationHistory,
+        personality.name
+      );
+
+      // Step 4: Calculate memory budget (dynamic - more room if history is short)
+      const memoryBudget = this.contextWindowManager.calculateMemoryBudget(
+        contextWindowTokens,
+        systemPromptBaseTokens,
+        currentMessageTokens,
+        historyTokens
+      );
+
+      // Step 5: Select memories within budget (knapsack by relevance)
+      const {
+        selectedMemories: relevantMemories,
+        tokensUsed: memoryTokensUsed,
+        memoriesDropped: memoriesDroppedCount,
+        droppedDueToSize,
+      } = this.contextWindowManager.selectMemoriesWithinBudget(
+        retrievedMemories,
+        memoryBudget,
+        context.userTimezone
+      );
+
+      // Log memory selection if any were dropped
+      if (memoriesDroppedCount > 0) {
+        logger.info(
+          `[RAG] Memory budget applied: kept ${relevantMemories.length}/${retrievedMemories.length} memories (${memoryTokensUsed} tokens, budget: ${memoryBudget}, dropped: ${memoriesDroppedCount}, oversized: ${droppedDueToSize})`
+        );
+      }
+
+      // Step 6: Build system prompt with selected memories (but no history yet)
+      const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt(
         processedPersonality,
         participantPersonas,
         relevantMemories,
@@ -322,23 +376,18 @@ export class ConversationalRAGService {
         undefined // No history yet
       );
 
-      // Step 3: Calculate token budget for history
-      const contextWindowTokens =
-        personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
-      const systemPromptBaseTokens = this.promptBuilder.countTokens(
-        systemPromptBase.content as string
+      // Step 7: Calculate history budget (using actual memory tokens)
+      const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
+        systemPromptWithMemories.content as string
       );
-      const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
-      const memoryTokens = this.promptBuilder.countMemoryTokens(relevantMemories);
-
       const historyBudget = this.contextWindowManager.calculateHistoryBudget(
         contextWindowTokens,
-        systemPromptBaseTokens,
+        systemPromptWithMemoriesTokens,
         currentMessageTokens,
-        memoryTokens
+        0 // Memory tokens already in system prompt
       );
 
-      // Step 4: Select and serialize history as XML within budget
+      // Step 8: Select and serialize history as XML within budget
       const {
         serializedHistory,
         historyTokensUsed,
@@ -350,7 +399,7 @@ export class ConversationalRAGService {
         historyBudget
       );
 
-      // Step 5: Rebuild system prompt WITH serialized history
+      // Step 9: Rebuild system prompt WITH memories AND serialized history
       const systemPrompt = this.promptBuilder.buildFullSystemPrompt(
         processedPersonality,
         participantPersonas,
@@ -362,13 +411,13 @@ export class ConversationalRAGService {
 
       // Log token allocation
       logger.info(
-        `[RAG] Token budget: total=${contextWindowTokens}, system=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokens}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
+        `[RAG] Token budget: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${retrievedMemories.length > 0 ? this.promptBuilder.countMemoryTokens(retrievedMemories) : 0}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
       );
       if (messagesDropped > 0) {
         logger.debug(`[RAG] Dropped ${messagesDropped} history messages due to token budget`);
       }
 
-      // Step 6: Build final messages array - just system + current (no separate history)
+      // Step 10: Build final messages array - just system + current (no separate history)
       const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
       // Get the appropriate model (provider determined by AI_PROVIDER env var)

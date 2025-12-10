@@ -21,6 +21,17 @@ export const AI_DEFAULTS = {
   /** Default number of memories to retrieve */
   MEMORY_LIMIT: 15,
   /**
+   * Maximum fraction of context window to allocate for memories
+   *
+   * When memories would exceed this budget, lowest-relevance memories are dropped.
+   * This prevents huge memories (e.g., pasted conversation logs) from consuming
+   * the entire context window and leaving no room for conversation history.
+   *
+   * 0.25 = 25% of context window (~32k tokens of 128k = room for ~150 pages of text)
+   * This leaves ~75% for: system prompt, current message, and conversation history.
+   */
+  MEMORY_TOKEN_BUDGET_RATIO: 0.25,
+  /**
    * Default context window token budget (128k tokens)
    *
    * GUIDELINE: Set contextWindowTokens to ~50% of model's advertised max for safety.
