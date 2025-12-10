@@ -80,6 +80,12 @@ describe('stripPersonalityPrefix', () => {
       const input = '<message speaker="Emily" time="now">How are you?</message>\n';
       expect(stripPersonalityPrefix(input, 'Emily')).toBe('How are you?');
     });
+
+    it('should strip mixed artifact types (name prefix + trailing XML)', () => {
+      // LLM might add legacy "Name:" prefix AND trailing </message>
+      expect(stripPersonalityPrefix('Emily: Hello!</message>', 'Emily')).toBe('Hello!');
+      expect(stripPersonalityPrefix('Emily: [now] Hi there!</message>', 'Emily')).toBe('Hi there!');
+    });
   });
 
   describe('Simple name prefix stripping (legacy)', () => {
