@@ -2,7 +2,12 @@
  * Response Cleanup Utilities
  *
  * Defensive cleaning of AI-generated responses to handle cases where the model
- * ignores instructions and adds unwanted prefixes/formatting.
+ * learns patterns from the conversation history and adds unwanted artifacts.
+ *
+ * With XML-formatted prompts, models may:
+ * - Append </message> tags (learning from chat_log structure)
+ * - Add <message speaker="Name"> prefixes
+ * - Still occasionally add "Name:" prefixes
  */
 
 import { createLogger, TEXT_LIMITS } from '@tzurot/common-types';
@@ -10,29 +15,21 @@ import { createLogger, TEXT_LIMITS } from '@tzurot/common-types';
 const logger = createLogger('ResponseCleanup');
 
 /**
- * Strip personality name prefix and timestamp from AI response
+ * Clean AI response by stripping learned artifacts
  *
- * Despite prompt instructions, some models add prefixes like:
- * - "Emily: [now] actual response"
- * - "Lilith: [2 minutes ago] actual response"
- * - "Personality Name: actual response"
- *
- * This function defensively strips these patterns.
+ * Models learn patterns from conversation history. With XML format, they may add:
+ * - Trailing </message> tags
+ * - Leading <message speaker="Name"...> tags
+ * - Simple "Name:" prefixes (legacy behavior)
  *
  * @param content - The AI-generated response content
- * @param personalityName - The personality name to look for in prefix
+ * @param personalityName - The personality name to look for
  * @returns Cleaned response content
  *
  * @example
  * ```typescript
- * stripPersonalityPrefix('Emily: [now] Hello!', 'Emily')
- * // Returns: 'Hello!'
- * ```
- *
- * @example
- * ```typescript
- * stripPersonalityPrefix('I am Emily', 'Emily')
- * // Returns: 'I am Emily' (unchanged - not at beginning)
+ * stripResponseArtifacts('Hello there!</message>', 'Emily')
+ * // Returns: 'Hello there!'
  * ```
  */
 export function stripPersonalityPrefix(content: string, personalityName: string): string {
@@ -44,122 +41,95 @@ export function stripPersonalityPrefix(content: string, personalityName: string)
   // Escape special regex characters in personality name
   const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  // Pattern 1a: Markdown bold around name - strip entirely
-  // Examples: "**Emily:** content" → "content", "**COLD**: content" → "content"
-  // The colon can be inside (**NAME:**) or outside (**NAME**:) the bold
-  const boldNamePattern = new RegExp(
-    `^\\*\\*${escapedName}:?\\*?\\*?:?\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
-    'i'
-  );
+  // === TRAILING ARTIFACTS (strip from end) ===
 
-  // Pattern 1b-i: Closed roleplay asterisk around name - strip entirely
-  // When the prefix has BOTH leading and trailing asterisks WITH NO SPACE between them
-  // Example: "*COLD: [timestamp]*content" → "content"
-  // Example: "*COLD: [timestamp]**roleplay*" → "*roleplay*"
-  // IMPORTANT: No \s* before closing \* - if there's a space, the asterisk is
-  // the START of roleplay content, not the end of the name wrapper
-  // Example: "*Name: [timestamp] *giggles*" → the space+* is start of action
-  const closedRoleplayNamePattern = new RegExp(
-    `^\\*${escapedName}:\\s*(?:\\[[^\\]]+?\\])?\\*`,
-    'i'
-  );
+  // Pattern: Trailing </message> tag (with optional whitespace)
+  // Example: "Hello!</message>" → "Hello!"
+  // Example: "Hello!</message>\n" → "Hello!"
+  const trailingMessageTag = /<\/message>\s*$/i;
 
-  // Pattern 1b-ii: Space-separated roleplay prefix followed by content asterisk
-  // When space separates prefix from content AND content starts with its own asterisk,
-  // the asterisks are separate elements - strip prefix entirely (including its asterisk)
-  // Example: "*Name: [ts] *giggles*" → "*giggles*"
-  // Uses positive lookahead (?=\\*) to match without consuming the content asterisk
-  const spaceSeparatedRoleplayPattern = new RegExp(
-    `^\\*${escapedName}:\\s*(?:\\[[^\\]]+?\\])?\\s+(?=\\*)`,
-    'i'
-  );
+  // === LEADING ARTIFACTS (strip from start) ===
 
-  // Pattern 1b-iii: Open roleplay asterisk before name - preserve the asterisk
-  // When only the leading asterisk exists, it continues into the content
-  // Example: "*COLD: content" → "*content"
-  const openRoleplayNamePattern = new RegExp(
-    `^(\\*)${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
-    'i'
-  );
+  // Pattern: XML message tag prefix
+  // Example: '<message speaker="Emily">Hello' → 'Hello'
+  // Example: '<message speaker="Emily" time="now">Hello' → 'Hello'
+  const xmlMessagePrefix = new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i');
 
-  // Pattern 1c: Plain name prefix - strip entirely
-  // Example: "Lilith: [2m ago] content" → "content"
-  const plainNamePattern = new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
+  // Pattern: Simple "Name:" prefix (models may still do this)
+  // Example: "Emily: Hello" → "Hello"
+  // Example: "Emily: [now] Hello" → "Hello" (with optional timestamp)
+  const simpleNamePrefix = new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
 
-  // Pattern 2: Standalone "[timestamp]" at the start (no name prefix)
-  // Example: "[2m ago] content" - happens when AI strips name but leaves timestamp
-  const standaloneTimestampPattern = /^\[[^\]]+?\]\s*/;
+  // Pattern: Standalone timestamp at start (no name)
+  // Example: "[2m ago] Hello" → "Hello"
+  const standaloneTimestamp = /^\[[^\]]+?\]\s*/;
 
-  // Keep stripping until no more prefixes found
+  // Keep stripping until no more artifacts found
   while (strippedCount < maxIterations) {
     const beforeStrip = cleaned;
 
-    // Try patterns in order of specificity
-    // 1. Markdown bold (**NAME:**) - strip entirely
-    cleaned = cleaned.replace(boldNamePattern, '').trim();
+    // Strip trailing </message> tags first
+    cleaned = cleaned.replace(trailingMessageTag, '').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
       continue;
     }
 
-    // 2a. Closed roleplay asterisk (*NAME:*) - strip entirely
-    cleaned = cleaned.replace(closedRoleplayNamePattern, '').trim();
+    // Strip leading XML message tag
+    cleaned = cleaned.replace(xmlMessagePrefix, '').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
       continue;
     }
 
-    // 2b. Space-separated roleplay (*NAME: *content) - strip prefix entirely
-    // Must come before open pattern since it's more specific
-    cleaned = cleaned.replace(spaceSeparatedRoleplayPattern, '').trim();
+    // Strip simple name prefix
+    cleaned = cleaned.replace(simpleNamePrefix, '').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
       continue;
     }
 
-    // 2c. Open roleplay asterisk (*NAME:) - preserve the asterisk
-    cleaned = cleaned.replace(openRoleplayNamePattern, '$1').trim();
+    // Strip standalone timestamp
+    cleaned = cleaned.replace(standaloneTimestamp, '').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
       continue;
     }
 
-    // 3. Plain name prefix (NAME:) - strip entirely
-    cleaned = cleaned.replace(plainNamePattern, '').trim();
-    if (cleaned !== beforeStrip) {
-      strippedCount++;
-      continue;
-    }
-
-    // 4. Standalone timestamp
-    cleaned = cleaned.replace(standaloneTimestampPattern, '').trim();
-    if (cleaned === beforeStrip) {
-      // No more prefixes found
-      break;
-    }
-
-    strippedCount++;
+    // No more artifacts found
+    break;
   }
 
-  // Log if we stripped anything (but skip if only whitespace was removed)
+  // Log if we stripped anything meaningful
   if (cleaned !== originalContent) {
-    const strippedPrefix = originalContent
-      .substring(0, originalContent.length - cleaned.length)
-      .trim();
+    const lengthDiff = originalContent.length - cleaned.length;
 
-    // Only log if we actually stripped meaningful content (not just whitespace)
-    if (strippedPrefix.length > 0) {
-      logger.warn(
-        {
-          personalityName,
-          strippedPrefix,
-          strippedCount,
-          wasStripped: true,
-        },
-        `[ResponseCleanup] Stripped ${strippedCount} prefix(es) from response. ` +
-          `LLM learned the prefix pattern from conversation history. ` +
-          `Prefix(es): "${strippedPrefix.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}${strippedPrefix.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW ? '...' : ''}"`
+    if (lengthDiff > 0) {
+      // Determine what was stripped for logging
+      const strippedFromStart = originalContent.substring(
+        0,
+        originalContent.indexOf(cleaned.substring(0, 20)) || lengthDiff
       );
+      const strippedFromEnd = originalContent.endsWith(cleaned)
+        ? ''
+        : originalContent.substring(originalContent.lastIndexOf(cleaned) + cleaned.length);
+
+      const strippedContent = (strippedFromStart + strippedFromEnd).trim();
+
+      if (strippedContent.length > 0) {
+        logger.warn(
+          {
+            personalityName,
+            strippedContent:
+              strippedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW) +
+              (strippedContent.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW ? '...' : ''),
+            strippedCount,
+            wasStripped: true,
+          },
+          `[ResponseCleanup] Stripped ${strippedCount} artifact(s) from response. ` +
+            `LLM learned pattern from conversation history.`
+        );
+      }
     }
   }
 
