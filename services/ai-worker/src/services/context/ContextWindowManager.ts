@@ -22,6 +22,7 @@ import {
   formatConversationHistoryAsXml,
   getFormattedMessageCharLength,
 } from '../../jobs/utils/conversationUtils.js';
+import { MemoryBudgetManager, type MemorySelectionResult } from './MemoryBudgetManager.js';
 
 const logger = createLogger('ContextWindowManager');
 
@@ -48,6 +49,12 @@ export interface ContextWindowInput {
 }
 
 export class ContextWindowManager {
+  private memoryBudgetManager: MemoryBudgetManager;
+
+  constructor(memoryBudgetManager?: MemoryBudgetManager) {
+    this.memoryBudgetManager = memoryBudgetManager ?? new MemoryBudgetManager();
+  }
+
   /**
    * Build a PromptContext with token budget applied
    *
@@ -319,5 +326,49 @@ export class ContextWindowManager {
       0,
       contextWindowTokens - systemPromptBaseTokens - currentMessageTokens - memoryTokens
     );
+  }
+
+  /**
+   * Select memories that fit within a token budget
+   *
+   * Delegates to MemoryBudgetManager for the actual selection logic.
+   * See MemoryBudgetManager.selectMemoriesWithinBudget for details.
+   */
+  selectMemoriesWithinBudget(
+    memories: MemoryDocument[],
+    tokenBudget: number,
+    timezone?: string
+  ): MemorySelectionResult {
+    return this.memoryBudgetManager.selectMemoriesWithinBudget(memories, tokenBudget, timezone);
+  }
+
+  /**
+   * Calculate the token budget for memories
+   *
+   * Delegates to MemoryBudgetManager for the actual calculation.
+   * See MemoryBudgetManager.calculateMemoryBudget for details.
+   */
+  calculateMemoryBudget(
+    contextWindowTokens: number,
+    systemPromptBaseTokens?: number,
+    currentMessageTokens?: number,
+    historyTokens?: number
+  ): number {
+    return this.memoryBudgetManager.calculateMemoryBudget(
+      contextWindowTokens,
+      systemPromptBaseTokens,
+      currentMessageTokens,
+      historyTokens
+    );
+  }
+
+  /**
+   * Count total tokens in conversation history
+   *
+   * Delegates to MemoryBudgetManager for the actual counting.
+   * See MemoryBudgetManager.countHistoryTokens for details.
+   */
+  countHistoryTokens(rawHistory: RawHistoryEntry[] | undefined, personalityName: string): number {
+    return this.memoryBudgetManager.countHistoryTokens(rawHistory, personalityName);
   }
 }
