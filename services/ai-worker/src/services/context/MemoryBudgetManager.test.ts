@@ -19,6 +19,7 @@ vi.mock('@tzurot/common-types', () => ({
   }),
   AI_DEFAULTS: {
     MEMORY_TOKEN_BUDGET_RATIO: 0.25,
+    RESPONSE_SAFETY_MARGIN_RATIO: 0.05,
   },
 }));
 
