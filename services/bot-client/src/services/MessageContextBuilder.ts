@@ -232,6 +232,7 @@ export class MessageContextBuilder {
     // (they don't affect LTM scoping or context in the same way as channels)
 
     // Convert conversation history to API format
+    // Include messageMetadata so referenced messages can be formatted at prompt time
     const conversationHistory = history.map(msg => ({
       id: msg.id,
       role: msg.role,
@@ -239,6 +240,7 @@ export class MessageContextBuilder {
       createdAt: msg.createdAt.toISOString(),
       personaId: msg.personaId,
       personaName: msg.personaName,
+      messageMetadata: msg.messageMetadata,
     }));
 
     // Extract attachments (images, audio, etc) from direct attachments

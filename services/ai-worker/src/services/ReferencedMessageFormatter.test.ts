@@ -109,6 +109,12 @@ describe('ReferencedMessageFormatter', () => {
       const closeTags = (result.match(/<\/contextual_references>/g) || []).length;
       expect(openTags).toBe(1);
       expect(closeTags).toBe(1);
+
+      // Each reference should have opening and closing tags
+      const refOpenTags = (result.match(/<quote number="/g) || []).length;
+      const refCloseTags = (result.match(/<\/quote>/g) || []).length;
+      expect(refOpenTags).toBe(2);
+      expect(refCloseTags).toBe(2);
     });
 
     it('should place content inside XML tags', async () => {
@@ -137,7 +143,7 @@ describe('ReferencedMessageFormatter', () => {
       expect(contentIndex).toBeLessThan(closeTagIndex);
     });
 
-    it('should include relative time delta in timestamp', async () => {
+    it('should include relative time delta in timestamp using XML attributes', async () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
@@ -154,16 +160,13 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      // Should contain both absolute date and relative time with em dash separator
-      expect(result).toContain('Time:');
-      expect(result).toContain('—'); // Em dash separator
-      expect(result).toContain('Fri, Dec 6, 2025'); // Mocked absolute
-      expect(result).toContain('just now'); // Mocked relative
+      // Should contain time tag with absolute and relative attributes
+      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
     });
   });
 
   describe('formatReferencedMessages', () => {
-    it('should format a simple text message', async () => {
+    it('should format a simple text message in XML', async () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
@@ -180,13 +183,15 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('## Referenced Messages');
-      expect(result).toContain('[Reference 1]');
-      expect(result).toContain('From: Test User (@testuser)');
-      expect(result).toContain('Location:\nTest Guild > #general');
+      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('</quote>');
+      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
+      // Note: > is NOT escaped because escapeXmlContent uses targeted escaping
+      // (only escapes protected XML tags, not regular content like "Guild > #general")
+      expect(result).toContain('<location>Test Guild > #general</location>');
       // Time now includes both absolute date and relative time (mocked)
-      expect(result).toContain('Time: Fri, Dec 6, 2025 — just now');
-      expect(result).toContain('Message Text:\nHello world!');
+      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
+      expect(result).toContain('<content>Hello world!</content>');
     });
 
     it('should format message with embeds', async () => {
@@ -206,9 +211,8 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('Message Text:\nCheck this out');
-      expect(result).toContain('Message Embeds (structured data from Discord):\n');
-      expect(result).toContain('Title: Cool Embed\nDescription: Embed content');
+      expect(result).toContain('<content>Check this out</content>');
+      expect(result).toContain('<embeds>Title: Cool Embed\nDescription: Embed content</embeds>');
     });
 
     it('should handle message with no content', async () => {
@@ -228,9 +232,10 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('[Reference 1]');
-      expect(result).toContain('From: Test User (@testuser)');
-      expect(result).not.toContain('Message Text:');
+      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
+      // Empty content should not generate <content> tag
+      expect(result).not.toContain('<content>');
     });
 
     it('should format multiple references', async () => {
@@ -261,12 +266,12 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('[Reference 1]');
-      expect(result).toContain('From: User One (@user1)');
+      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<author display_name="User One" username="user1"/>');
       expect(result).toContain('First message');
 
-      expect(result).toContain('[Reference 2]');
-      expect(result).toContain('From: User Two (@user2)');
+      expect(result).toContain('<quote number="2">');
+      expect(result).toContain('<author display_name="User Two" username="user2"/>');
       expect(result).toContain('Second message');
     });
   });
@@ -601,8 +606,9 @@ describe('ReferencedMessageFormatter', () => {
     it('should handle empty references array', async () => {
       const result = await formatter.formatReferencedMessages([], mockPersonality);
 
-      expect(result).toContain('## Referenced Messages');
-      expect(result).toContain('The user is referencing the following messages:');
+      // Empty array still gets wrapped in XML tags
+      expect(result).toContain('<contextual_references>');
+      expect(result).toContain('</contextual_references>');
     });
 
     it('should handle reference with no attachments', async () => {
@@ -623,9 +629,9 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('[Reference 1]');
+      expect(result).toContain('<quote number="1">');
       expect(result).toContain('Just text');
-      expect(result).not.toContain('Attachments:');
+      expect(result).not.toContain('<attachments>');
     });
 
     it('should handle reference with undefined attachments', async () => {
@@ -645,12 +651,12 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('[Reference 1]');
+      expect(result).toContain('<quote number="1">');
       expect(result).toContain('Just text');
-      expect(result).not.toContain('Attachments:');
+      expect(result).not.toContain('<attachments>');
     });
 
-    it('should format forwarded messages with [FORWARDED MESSAGE] indicator', async () => {
+    it('should format forwarded messages with forwarded attribute', async () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
@@ -668,14 +674,16 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      // Should have forwarded indicator
-      expect(result).toContain('[Reference 1] [FORWARDED MESSAGE]');
-      expect(result).toContain('[Author unavailable - this message was forwarded]');
+      // Should have forwarded attribute
+      expect(result).toContain('<quote number="1" forwarded="true">');
+      expect(result).toContain(
+        '<author unavailable="true">Author unavailable - forwarded message</author>'
+      );
       expect(result).toContain('This is a forwarded message');
       expect(result).toContain('(forwarded message)');
     });
 
-    it('should format regular (non-forwarded) messages without indicator', async () => {
+    it('should format regular (non-forwarded) messages without forwarded attribute', async () => {
       const references: ReferencedMessage[] = [
         {
           referenceNumber: 1,
@@ -693,11 +701,11 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      // Should NOT have forwarded indicator
-      expect(result).toContain('[Reference 1]');
-      expect(result).not.toContain('[FORWARDED MESSAGE]');
-      expect(result).toContain('From: Test User (@testuser)');
-      expect(result).not.toContain('[Author unavailable');
+      // Should NOT have forwarded attribute
+      expect(result).toContain('<quote number="1">');
+      expect(result).not.toContain('forwarded="true"');
+      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
+      expect(result).not.toContain('unavailable="true"');
     });
 
     it('should handle mixed forwarded and regular references', async () => {
@@ -730,12 +738,14 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       // First reference - regular
-      expect(result).toContain('[Reference 1]');
-      expect(result).toContain('From: Test User (@testuser)');
+      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
 
       // Second reference - forwarded
-      expect(result).toContain('[Reference 2] [FORWARDED MESSAGE]');
-      expect(result).toContain('[Author unavailable - this message was forwarded]');
+      expect(result).toContain('<quote number="2" forwarded="true">');
+      expect(result).toContain(
+        '<author unavailable="true">Author unavailable - forwarded message</author>'
+      );
     });
   });
 

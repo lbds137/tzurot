@@ -8,12 +8,20 @@
  * - Calculate token budgets for all prompt components
  * - Select history messages within budget (recency-based strategy)
  * - Provide detailed token allocation metadata for debugging
+ *
+ * NEW ARCHITECTURE (2025-12): History is now serialized as XML inside the system prompt,
+ * not as separate LangChain messages. This prevents identity bleeding.
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
 import { countTextTokens, createLogger } from '@tzurot/common-types';
 import type { PromptContext, MemoryDocument, TokenBudget } from './PromptContext.js';
 import { formatSingleMemory } from '../prompt/MemoryFormatter.js';
+import type { RawHistoryEntry } from '../../jobs/utils/conversationUtils.js';
+import {
+  formatConversationHistoryAsXml,
+  getFormattedMessageLength,
+} from '../../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('ContextWindowManager');
 
@@ -216,5 +224,100 @@ export class ContextWindowManager {
     }
 
     return totalTokens;
+  }
+
+  /**
+   * Select and serialize conversation history as XML
+   *
+   * NEW ARCHITECTURE (2025-12): History is serialized inside the system prompt
+   * rather than as separate LangChain messages. This prevents identity bleeding.
+   *
+   * @param rawHistory - Raw conversation history entries
+   * @param personalityName - Name of the AI personality (for marking its messages)
+   * @param historyBudget - Maximum tokens to use for history
+   * @returns Serialized XML string and metadata about selection
+   */
+  selectAndSerializeHistory(
+    rawHistory: RawHistoryEntry[] | undefined,
+    personalityName: string,
+    historyBudget: number
+  ): {
+    serializedHistory: string;
+    historyTokensUsed: number;
+    messagesIncluded: number;
+    messagesDropped: number;
+  } {
+    if (rawHistory === undefined || rawHistory.length === 0 || historyBudget <= 0) {
+      return {
+        serializedHistory: '',
+        historyTokensUsed: 0,
+        messagesIncluded: 0,
+        messagesDropped: rawHistory?.length ?? 0,
+      };
+    }
+
+    // Work backwards from newest message, selecting messages that fit in budget
+    const selectedEntries: RawHistoryEntry[] = [];
+    let estimatedTokens = 0;
+
+    // Account for <chat_log> wrapper overhead
+    const wrapperOverhead = countTextTokens('<chat_log>\n</chat_log>');
+    const budgetRemaining = historyBudget - wrapperOverhead;
+
+    for (let i = rawHistory.length - 1; i >= 0 && budgetRemaining > 0; i--) {
+      const entry = rawHistory[i];
+
+      // Use cached token count if available, otherwise estimate from formatted length
+      const entryTokens =
+        entry.tokenCount ?? Math.ceil(getFormattedMessageLength(entry, personalityName) / 4);
+
+      if (estimatedTokens + entryTokens > budgetRemaining) {
+        logger.debug(
+          `[CWM] Stopping history selection: would exceed budget (${estimatedTokens + entryTokens} > ${budgetRemaining})`
+        );
+        break;
+      }
+
+      selectedEntries.unshift(entry); // Add to front to maintain chronological order
+      estimatedTokens += entryTokens;
+    }
+
+    // Serialize the selected entries as XML
+    const serializedHistory = formatConversationHistoryAsXml(selectedEntries, personalityName);
+    const actualTokens = countTextTokens(serializedHistory) + wrapperOverhead;
+
+    logger.info(
+      `[CWM] Selected ${selectedEntries.length}/${rawHistory.length} history messages (${actualTokens} tokens, budget: ${historyBudget})`
+    );
+
+    return {
+      serializedHistory,
+      historyTokensUsed: actualTokens,
+      messagesIncluded: selectedEntries.length,
+      messagesDropped: rawHistory.length - selectedEntries.length,
+    };
+  }
+
+  /**
+   * Calculate history token budget
+   *
+   * Returns the number of tokens available for conversation history
+   * after accounting for system prompt base, current message, and memories.
+   *
+   * @param contextWindowTokens - Total context window size
+   * @param systemPromptBaseTokens - Tokens for system prompt WITHOUT history
+   * @param currentMessageTokens - Tokens for current user message
+   * @param memoryTokens - Tokens for relevant memories
+   */
+  calculateHistoryBudget(
+    contextWindowTokens: number,
+    systemPromptBaseTokens: number,
+    currentMessageTokens: number,
+    memoryTokens: number
+  ): number {
+    return Math.max(
+      0,
+      contextWindowTokens - systemPromptBaseTokens - currentMessageTokens - memoryTokens
+    );
   }
 }

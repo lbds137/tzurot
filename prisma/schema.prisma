@@ -269,6 +269,10 @@ model ConversationHistory {
   content          String
   tokenCount       Int?           @map("token_count") // Cached token count (null for old messages)
   discordMessageId String[]       @default([]) @map("discord_message_id") // Discord snowflake IDs for chunked messages (deduplication)
+  /// Structured metadata for the message (referenced messages, attachments, etc.)
+  /// Separates semantic content (in 'content') from contextual data
+  /// See MessageMetadata interface in common-types for schema
+  messageMetadata  Json?          @default("{}") @map("message_metadata")
   createdAt        DateTime       @default(now()) @map("created_at")
   persona          Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality      Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)

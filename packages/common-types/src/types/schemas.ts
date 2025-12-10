@@ -70,6 +70,9 @@ export const apiConversationMessageSchema = z.object({
   // Persona info for multi-participant conversations
   personaId: z.string().optional(),
   personaName: z.string().optional(),
+  // Structured metadata (referenced messages, attachments, etc.)
+  // Separates semantic content from contextual data
+  messageMetadata: z.record(z.string(), z.unknown()).optional(), // Flexible JSON, validated when needed
 });
 
 /**
@@ -89,6 +92,45 @@ export const referencedMessageSchema = z.object({
   locationContext: z.string(), // Rich formatted location context (Server/Category/Channel/Thread)
   attachments: z.array(attachmentMetadataSchema).optional(), // Attachments from referenced message
   isForwarded: z.boolean().optional(), // True if this is a forwarded message (author info unavailable)
+});
+
+/**
+ * Stored referenced message schema
+ * Snapshot of a referenced message stored in message_metadata JSONB column
+ * Preserves the state of the message at the time it was referenced (receipt perspective)
+ */
+export const storedReferencedMessageSchema = z.object({
+  discordMessageId: z.string(),
+  authorUsername: z.string(),
+  authorDisplayName: z.string(),
+  content: z.string(),
+  embeds: z.string().optional(),
+  timestamp: z.string(), // ISO 8601 timestamp
+  locationContext: z.string(),
+  attachments: z.array(attachmentMetadataSchema).optional(),
+  isForwarded: z.boolean().optional(),
+});
+
+/**
+ * Message metadata schema
+ * Structured metadata stored in conversation_history.message_metadata JSONB column
+ * Separates semantic content (in 'content' column) from contextual data
+ */
+export const messageMetadataSchema = z.object({
+  // Referenced messages (replies, message links) - snapshot at time of message
+  referencedMessages: z.array(storedReferencedMessageSchema).optional(),
+  // Processed attachment descriptions (voice transcriptions, image descriptions)
+  attachmentDescriptions: z
+    .array(
+      z.object({
+        type: z.enum(['audio', 'image', 'file']),
+        description: z.string(),
+        originalUrl: z.string(),
+        name: z.string().optional(),
+      })
+    )
+    .optional(),
+  // Future expansion: sentiment, mood, topic tags, etc.
 });
 
 /**
@@ -300,6 +342,8 @@ export type ErrorInfo = z.infer<typeof errorInfoSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
+export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
+export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;

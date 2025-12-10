@@ -20,7 +20,6 @@ import {
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
 
@@ -137,7 +136,13 @@ export class PromptBuilder {
       );
     }
 
+    // Capture content BEFORE adding referenced messages
+    // Storage should contain only semantic content (user message + attachment descriptions)
+    // Referenced messages are stored structurally as ReferencedMessage[] and formatted at prompt time
+    const contentForStorage = messageContent;
+
     // Append referenced messages (with vision/transcription already processed)
+    // This is ONLY for the LLM prompt, NOT for storage
     if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
       messageContent =
         messageContent.length > 0
@@ -148,28 +153,30 @@ export class PromptBuilder {
         {
           referencesLength: referencedMessagesDescriptions.length,
         },
-        'Appended referenced messages to current message'
+        'Appended referenced messages to prompt (not storage)'
       );
     }
 
-    // Capture content BEFORE adding prompt engineering header
-    // This is what should be stored in conversation history/memory
-    const contentForStorage = messageContent;
+    // Wrap in <current_turn> XML for clear semantic structure
+    // This is the "trigger" that tells the AI to respond
+    // NOTE: This wrapper is ONLY for the LLM prompt, NOT for storage
+    const senderName =
+      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'User';
 
-    // Add "Current Message" section to clarify who is speaking
-    // This leverages recency bias - the LLM processes this RIGHT BEFORE the message
-    // NOTE: This header is ONLY for the LLM prompt, NOT for storage
-    if (
-      activePersonaName !== undefined &&
-      activePersonaName.length > 0 &&
-      messageContent.trim().length > 0
-    ) {
-      const currentMessageHeader = `---\n## Current Message\nYou are now responding to: **${activePersonaName}**\n\n`;
-      messageContent = currentMessageHeader + messageContent;
-    }
+    // Escape the message content to prevent XML injection
+    const safeContent = escapeXmlContent(messageContent);
+
+    const wrappedMessage = `<current_turn>
+<incoming_message sender="${senderName}">
+${safeContent}
+</incoming_message>
+<instruction>
+Respond to ${senderName} now. Do not simulate other users. Stop after your response.
+</instruction>
+</current_turn>`;
 
     return {
-      message: new HumanMessage(messageContent),
+      message: new HumanMessage(wrappedMessage),
       contentForStorage,
     };
   }
@@ -177,21 +184,27 @@ export class PromptBuilder {
   /**
    * Build full system prompt with personas, memories, and date context
    *
-   * Section ordering leverages U-shaped attention (LLMs pay most attention to beginning and end):
-   * 1. <persona> - Identity & personality (who am I) - START for primacy
-   * 2. Date/time context - When is now
-   * 3. <current_situation> - Environment context (where)
-   * 4. <participants> - Who is involved
-   * 5. <memory_archive> - Historical memories (middle = less attention = good for archives)
-   * 6. <contextual_references> - Referenced messages from replies/links
-   * 7. <protocol> - Behavior rules - END for recency bias (highest impact)
+   * NEW ARCHITECTURE (2025-12): Full XML structure to prevent identity bleeding
+   *
+   * Section ordering follows Gemini's "XML Containment & Sandwich Method":
+   * 1. <system_identity> - Identity, character, AND constraints (who am I, what I must NOT do)
+   * 2. <context> - Date/time and location (when and where)
+   * 3. <participants> - Who else is involved (NOT including self)
+   * 4. <memory_archive> - Historical memories (middle = less attention = good for archives)
+   * 5. <contextual_references> - Referenced messages from replies/links
+   * 6. <chat_log> - Serialized conversation history with XML tags per message
+   * 7. <protocol> - Behavior rules (END for recency bias)
+   *
+   * The key change is conversation history is now INSIDE the system prompt as XML,
+   * not as separate LangChain messages. This prevents identity bleeding.
    */
   buildFullSystemPrompt(
     personality: LoadedPersonality,
     participantPersonas: Map<string, { content: string; isActive: boolean }>,
     relevantMemories: MemoryDocument[],
     context: ConversationContext,
-    referencedMessagesFormatted?: string
+    referencedMessagesFormatted?: string,
+    serializedHistory?: string
   ): SystemMessage {
     const { persona, protocol } = this.buildSystemPrompt(
       personality,
@@ -204,22 +217,34 @@ export class PromptBuilder {
       `[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
     );
 
-    // Wrap persona in XML tags (START of prompt - primacy)
-    // Escape user-generated content to prevent prompt injection via XML tag breaking
-    const personaSection = `<persona>\n${escapeXmlContent(persona)}\n</persona>`;
+    // Build <system_identity> section with identity AND constraints
+    // This is the START of the prompt - primacy effect
+    const identityConstraints = this.buildIdentityConstraints(personality.name);
+    const identitySection = `<system_identity>
+<role>
+You are ${personality.name}.
+</role>
+<character>
+${escapeXmlContent(persona)}
+</character>
+<constraints>
+${identityConstraints}
+</constraints>
+</system_identity>`;
 
-    // Current date/time context
-    // Use user's preferred timezone if available
-    const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date(), context.userTimezone)}`;
-
-    // Discord environment context (where conversation is happening)
-    // Already wrapped in <current_situation> by formatEnvironmentContext
-    const environmentContext =
+    // Current date/time and environment context wrapped in <context>
+    const datetime = formatFullDateTime(new Date(), context.userTimezone);
+    const locationInfo =
       context.environment !== undefined && context.environment !== null
-        ? `\n\n${formatEnvironmentContext(context.environment)}`
-        : '';
+        ? this.formatLocationForContext(context.environment)
+        : 'Direct Message (private chat)';
 
-    // Conversation participants - ALL people involved
+    const contextSection = `\n\n<context>
+<datetime>${datetime}</datetime>
+<location>${locationInfo}</location>
+</context>`;
+
+    // Conversation participants - ALL people involved (excluding self)
     // Already wrapped in <participants> by formatParticipantsContext
     const participantsContext = formatParticipantsContext(
       participantPersonas,
@@ -245,17 +270,27 @@ export class PromptBuilder {
       );
     }
 
+    // Conversation history as XML - THIS IS THE KEY CHANGE
+    // History is now serialized inside the system prompt, not as separate messages
+    const chatLogSection =
+      serializedHistory !== undefined && serializedHistory.length > 0
+        ? `\n\n<chat_log>
+${serializedHistory}
+</chat_log>`
+        : '';
+
     // Wrap protocol in XML tags (END of prompt - recency bias for highest impact)
     // Escape user-generated content to prevent prompt injection via XML tag breaking
     const protocolSection =
       protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 
     // Assemble in correct order for U-shaped attention optimization
-    const fullSystemPrompt = `${personaSection}${dateContext}${environmentContext}${participantsContext}${memoryContext}${referencesContext}${protocolSection}`;
+    const fullSystemPrompt = `${identitySection}${contextSection}${participantsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}`;
 
     // Basic prompt composition logging (always)
+    const historyLength = serializedHistory?.length ?? 0;
     logger.info(
-      `[PromptBuilder] Prompt composition: persona=${persona.length} protocol=${protocol.length} dateContext=${dateContext.length} environment=${environmentContext.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`
+      `[PromptBuilder] Prompt composition: identity=${identitySection.length} context=${contextSection.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} history=${historyLength} protocol=${protocolSection.length} total=${fullSystemPrompt.length} chars`
     );
 
     // Detailed prompt assembly logging (development only)
@@ -285,7 +320,7 @@ export class PromptBuilder {
               : 'unknown'
           ),
           totalMemoryChars: memoryContext.length,
-          dateContextLength: dateContext.length,
+          historyLength,
           totalSystemPromptLength: fullSystemPrompt.length,
           // Include STM info for duplication detection
           stmCount: context.conversationHistory?.length ?? 0,
@@ -316,6 +351,55 @@ export class PromptBuilder {
   }
 
   /**
+   * Build identity constraints for the system_identity section
+   *
+   * These constraints are critical for preventing identity bleeding
+   * where the AI responds as another participant instead of itself.
+   */
+  private buildIdentityConstraints(personalityName: string): string {
+    return `You are ONE participant in this conversation.
+You are ${personalityName}. You are NEVER any other participant.
+Do not generate dialogue for other users.
+If you see messages from others, reply TO them, do not simulate them.
+Output ONLY your response text.
+NEVER prefix your response with "${personalityName}:" or any name.
+NEVER output XML tags in your response.`;
+  }
+
+  /**
+   * Format Discord environment for the context section
+   */
+  private formatLocationForContext(environment: ConversationContext['environment']): string {
+    if (environment === undefined || environment === null) {
+      return 'Direct Message (private chat)';
+    }
+
+    if (environment.type === 'dm') {
+      return 'Direct Message (private chat)';
+    }
+
+    const parts: string[] = [];
+    if (environment.guild !== undefined && environment.guild !== null) {
+      parts.push(`Server: ${escapeXmlContent(environment.guild.name)}`);
+    }
+    if (
+      environment.category !== undefined &&
+      environment.category !== null &&
+      environment.category.name.length > 0
+    ) {
+      parts.push(`Category: ${escapeXmlContent(environment.category.name)}`);
+    }
+    parts.push(
+      `Channel: #${escapeXmlContent(environment.channel.name)} (${environment.channel.type})`
+    );
+    if (environment.thread !== undefined && environment.thread !== null) {
+      parts.push(`Thread: ${escapeXmlContent(environment.thread.name)}`);
+    }
+
+    return parts.join(', ');
+  }
+
+  /**
    * Build comprehensive system prompt from personality character fields
    *
    * Returns separate persona and protocol sections:
@@ -332,66 +416,89 @@ export class PromptBuilder {
   ): { persona: string; protocol: string } {
     const personaSections: string[] = [];
 
-    // Add explicit identity statement
-    personaSections.push(
-      `## Your Identity\nYou are ${personality.displayName !== undefined && personality.displayName.length > 0 ? personality.displayName : personality.name}.`
-    );
+    // Each personality field gets its own XML tag
+    // Tag names match database column names (snake_case) for consistency
 
-    // Add character info (who they are, their history)
+    // Identity - who they are (display name or name)
+    const displayName =
+      personality.displayName !== undefined && personality.displayName.length > 0
+        ? personality.displayName
+        : personality.name;
+    personaSections.push(`<display_name>You are ${escapeXmlContent(displayName)}.</display_name>`);
+
+    // Character info (backstory, who they are)
     if (personality.characterInfo !== undefined && personality.characterInfo.length > 0) {
-      personaSections.push(`\n## Character Information\n${personality.characterInfo}`);
+      personaSections.push(
+        `<character_info>${escapeXmlContent(personality.characterInfo)}</character_info>`
+      );
     }
 
-    // Add personality traits
+    // Personality traits
     if (personality.personalityTraits !== undefined && personality.personalityTraits.length > 0) {
-      personaSections.push(`\n## Personality Traits\n${personality.personalityTraits}`);
+      personaSections.push(
+        `<personality_traits>${escapeXmlContent(personality.personalityTraits)}</personality_traits>`
+      );
     }
 
-    // Add tone/style
+    // Tone/style
     if (personality.personalityTone !== undefined && personality.personalityTone.length > 0) {
-      personaSections.push(`\n## Conversational Tone\n${personality.personalityTone}`);
+      personaSections.push(
+        `<personality_tone>${escapeXmlContent(personality.personalityTone)}</personality_tone>`
+      );
     }
 
-    // Add age
+    // Age
     if (personality.personalityAge !== undefined && personality.personalityAge.length > 0) {
-      personaSections.push(`\n## Age\n${personality.personalityAge}`);
+      personaSections.push(
+        `<personality_age>${escapeXmlContent(personality.personalityAge)}</personality_age>`
+      );
     }
 
-    // Add appearance
+    // Appearance
     if (
       personality.personalityAppearance !== undefined &&
       personality.personalityAppearance.length > 0
     ) {
-      personaSections.push(`\n## Physical Appearance\n${personality.personalityAppearance}`);
+      personaSections.push(
+        `<personality_appearance>${escapeXmlContent(personality.personalityAppearance)}</personality_appearance>`
+      );
     }
 
-    // Add likes
+    // Likes
     if (personality.personalityLikes !== undefined && personality.personalityLikes.length > 0) {
-      personaSections.push(`\n## What I Like\n${personality.personalityLikes}`);
+      personaSections.push(
+        `<personality_likes>${escapeXmlContent(personality.personalityLikes)}</personality_likes>`
+      );
     }
 
-    // Add dislikes
+    // Dislikes
     if (
       personality.personalityDislikes !== undefined &&
       personality.personalityDislikes.length > 0
     ) {
-      personaSections.push(`\n## What I Dislike\n${personality.personalityDislikes}`);
+      personaSections.push(
+        `<personality_dislikes>${escapeXmlContent(personality.personalityDislikes)}</personality_dislikes>`
+      );
     }
 
-    // Add conversational goals
+    // Conversational goals
     if (
       personality.conversationalGoals !== undefined &&
       personality.conversationalGoals.length > 0
     ) {
-      personaSections.push(`\n## Conversational Goals\n${personality.conversationalGoals}`);
+      personaSections.push(
+        `<conversational_goals>${escapeXmlContent(personality.conversationalGoals)}</conversational_goals>`
+      );
     }
 
-    // Add conversational examples
+    // Conversational examples
     if (
       personality.conversationalExamples !== undefined &&
       personality.conversationalExamples.length > 0
     ) {
-      personaSections.push(`\n## Conversational Examples\n${personality.conversationalExamples}`);
+      personaSections.push(
+        `<conversational_examples>${escapeXmlContent(personality.conversationalExamples)}</conversational_examples>`
+      );
     }
 
     // Protocol is the systemPrompt (behavior rules/jailbreak)

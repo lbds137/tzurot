@@ -267,11 +267,16 @@ describe('PromptBuilder', () => {
   });
 
   describe('buildHumanMessage', () => {
-    it('should create simple text message', () => {
+    it('should create simple text message wrapped in current_turn XML', () => {
       const result = promptBuilder.buildHumanMessage('Hello world', []);
 
       expect(result.message).toBeInstanceOf(HumanMessage);
-      expect(result.message.content).toBe('Hello world');
+      // NEW: Message is now wrapped in XML structure
+      expect(result.message.content).toContain('<current_turn>');
+      expect(result.message.content).toContain('<incoming_message');
+      expect(result.message.content).toContain('Hello world');
+      expect(result.message.content).toContain('</current_turn>');
+      // Storage remains unwrapped
       expect(result.contentForStorage).toBe('Hello world');
     });
 
@@ -286,7 +291,9 @@ describe('PromptBuilder', () => {
 
       const result = promptBuilder.buildHumanMessage('Hello', attachments);
 
-      expect(result.message.content).toBe('Voice transcription here');
+      // Message contains transcription in XML wrapper
+      expect(result.message.content).toContain('Voice transcription here');
+      expect(result.message.content).toContain('<current_turn>');
       expect(result.contentForStorage).toBe('Voice transcription here');
     });
 
@@ -301,40 +308,48 @@ describe('PromptBuilder', () => {
 
       const result = promptBuilder.buildHumanMessage('Look at this', attachments);
 
-      expect(result.message.content).toBe('Look at this\n\nImage description');
+      // Message contains both in XML wrapper
+      expect(result.message.content).toContain('Look at this');
+      expect(result.message.content).toContain('Image description');
+      expect(result.message.content).toContain('<current_turn>');
       expect(result.contentForStorage).toBe('Look at this\n\nImage description');
     });
 
-    it('should append referenced messages', () => {
+    it('should append referenced messages to prompt but not to storage', () => {
       const references = '**Referenced Message**: Some earlier message';
       const result = promptBuilder.buildHumanMessage('Reply text', [], undefined, references);
 
-      expect(result.message.content).toBe(
-        'Reply text\n\n**Referenced Message**: Some earlier message'
-      );
-      expect(result.contentForStorage).toBe(
-        'Reply text\n\n**Referenced Message**: Some earlier message'
-      );
+      // Message contains references in XML wrapper for the LLM
+      expect(result.message.content).toContain('Reply text');
+      expect(result.message.content).toContain('**Referenced Message**: Some earlier message');
+      expect(result.message.content).toContain('<current_turn>');
+
+      // Storage has ONLY semantic content (references stored in messageMetadata)
+      expect(result.contentForStorage).toBe('Reply text');
+      expect(result.contentForStorage).not.toContain('**Referenced Message**');
     });
 
-    it('should add current message header when activePersonaName provided', () => {
+    it('should add sender attribute in incoming_message when activePersonaName provided', () => {
       const result = promptBuilder.buildHumanMessage('Hello', [], 'Alice');
 
-      // Message should have header
-      expect(result.message.content).toContain('## Current Message');
-      expect(result.message.content).toContain('You are now responding to: **Alice**');
+      // NEW: Message uses sender attribute in XML instead of header
+      expect(result.message.content).toContain('<current_turn>');
+      expect(result.message.content).toContain('sender="Alice"');
+      expect(result.message.content).toContain('<instruction>');
+      expect(result.message.content).toContain('Respond to Alice now');
       expect(result.message.content).toContain('Hello');
 
-      // Storage should NOT have header
+      // Storage should NOT have XML wrapper
       expect(result.contentForStorage).toBe('Hello');
-      expect(result.contentForStorage).not.toContain('## Current Message');
+      expect(result.contentForStorage).not.toContain('<current_turn>');
     });
 
-    it('should not add header when activePersonaName is empty', () => {
+    it('should use default sender when activePersonaName is empty', () => {
       const result = promptBuilder.buildHumanMessage('Hello', [], '');
 
-      expect(result.message.content).toBe('Hello');
-      expect(result.message.content).not.toContain('## Current Message');
+      expect(result.message.content).toContain('<current_turn>');
+      expect(result.message.content).toContain('sender="User"');
+      expect(result.message.content).toContain('Hello');
     });
 
     it('should handle complex combination: attachments + references + activePersona', () => {
@@ -349,13 +364,15 @@ describe('PromptBuilder', () => {
 
       const result = promptBuilder.buildHumanMessage('My text', attachments, 'Bob', references);
 
-      // Message has header
-      expect(result.message.content).toContain('## Current Message');
-      expect(result.message.content).toContain('Bob');
+      // Message has XML structure with sender
+      expect(result.message.content).toContain('<current_turn>');
+      expect(result.message.content).toContain('sender="Bob"');
 
-      // Storage doesn't have header but has everything else
-      expect(result.contentForStorage).toBe('My text\n\nAn image\n\n**Ref**: Earlier message');
-      expect(result.contentForStorage).not.toContain('## Current Message');
+      // Storage has user message + attachments ONLY (references go in messageMetadata)
+      // This is the storage philosophy: content = semantic text, metadata = contextual data
+      expect(result.contentForStorage).toBe('My text\n\nAn image');
+      expect(result.contentForStorage).not.toContain('<current_turn>');
+      expect(result.contentForStorage).not.toContain('**Ref**'); // References stored structurally, not in content
     });
   });
 
@@ -380,7 +397,7 @@ describe('PromptBuilder', () => {
     };
 
     describe('XML structure and ordering', () => {
-      it('should wrap persona in <persona> tags', () => {
+      it('should wrap persona in <system_identity> tags with sub-sections', () => {
         const result = promptBuilder.buildFullSystemPrompt(
           minimalPersonality,
           new Map(),
@@ -390,8 +407,15 @@ describe('PromptBuilder', () => {
 
         const content = result.content as string;
 
-        expect(content).toContain('<persona>');
-        expect(content).toContain('</persona>');
+        // NEW: Uses <system_identity> with <role>, <character>, and <constraints>
+        expect(content).toContain('<system_identity>');
+        expect(content).toContain('</system_identity>');
+        expect(content).toContain('<role>');
+        expect(content).toContain('</role>');
+        expect(content).toContain('<character>');
+        expect(content).toContain('</character>');
+        expect(content).toContain('<constraints>');
+        expect(content).toContain('</constraints>');
       });
 
       it('should wrap protocol in <protocol> tags when systemPrompt exists', () => {
@@ -428,7 +452,7 @@ describe('PromptBuilder', () => {
         expect(content).not.toContain('</protocol>');
       });
 
-      it('should place persona at the START of the prompt (U-shaped attention)', () => {
+      it('should place system_identity at the START of the prompt (U-shaped attention)', () => {
         const result = promptBuilder.buildFullSystemPrompt(
           minimalPersonality,
           new Map(),
@@ -438,8 +462,8 @@ describe('PromptBuilder', () => {
 
         const content = result.content as string;
 
-        // Persona should be at the very beginning
-        expect(content.startsWith('<persona>')).toBe(true);
+        // system_identity should be at the very beginning
+        expect(content.startsWith('<system_identity>')).toBe(true);
       });
 
       it('should place protocol at the END of the prompt (recency bias)', () => {
@@ -488,19 +512,19 @@ describe('PromptBuilder', () => {
 
         const content = result.content as string;
 
-        // Get positions of each section
-        const personaStart = content.indexOf('<persona>');
-        const dateContext = content.indexOf('## Current Context');
-        const environment = content.indexOf('<current_situation>');
+        // Get positions of each section - NEW structure
+        const identityStart = content.indexOf('<system_identity>');
+        const contextSection = content.indexOf('<context>');
+        const locationSection = content.indexOf('<location>');
         const participantsPos = content.indexOf('<participants>');
         const memories_pos = content.indexOf('<memory_archive>');
         const references = content.indexOf('<contextual_references>');
         const protocolPos = content.indexOf('<protocol>');
 
-        // Verify ordering: persona → date → environment → participants → memories → references → protocol
-        expect(personaStart).toBeLessThan(dateContext);
-        expect(dateContext).toBeLessThan(environment);
-        expect(environment).toBeLessThan(participantsPos);
+        // Verify ordering: system_identity → context (with location) → participants → memories → references → protocol
+        expect(identityStart).toBeLessThan(contextSection);
+        expect(contextSection).toBeLessThan(locationSection);
+        expect(locationSection).toBeLessThan(participantsPos);
         expect(participantsPos).toBeLessThan(memories_pos);
         expect(memories_pos).toBeLessThan(references);
         expect(references).toBeLessThan(protocolPos);
@@ -516,14 +540,14 @@ describe('PromptBuilder', () => {
 
         const content = result.content as string;
 
-        // Count opening and closing tags
-        const personaOpen = (content.match(/<persona>/g) || []).length;
-        const personaClose = (content.match(/<\/persona>/g) || []).length;
+        // Count opening and closing tags - NEW structure
+        const identityOpen = (content.match(/<system_identity>/g) || []).length;
+        const identityClose = (content.match(/<\/system_identity>/g) || []).length;
         const protocolOpen = (content.match(/<protocol>/g) || []).length;
         const protocolClose = (content.match(/<\/protocol>/g) || []).length;
 
-        expect(personaOpen).toBe(1);
-        expect(personaClose).toBe(1);
+        expect(identityOpen).toBe(1);
+        expect(identityClose).toBe(1);
         expect(protocolOpen).toBe(1);
         expect(protocolClose).toBe(1);
       });
@@ -540,16 +564,24 @@ describe('PromptBuilder', () => {
       expect(result).toBeInstanceOf(SystemMessage);
       const content = result.content as string;
 
-      // Should contain core sections
-      expect(content).toContain('You are a helpful assistant');
-      expect(content).toContain('## Your Identity');
+      // Should contain core XML sections
+      expect(content).toContain('<system_identity>');
+      expect(content).toContain('<role>');
+      expect(content).toContain('You are TestBot');
+      expect(content).toContain('<character>');
+      // XML tags inside <character> match database column names
+      expect(content).toContain('<display_name>');
       expect(content).toContain('You are Test Bot');
-      expect(content).toContain('## Character Information');
+      expect(content).toContain('<character_info>');
       expect(content).toContain('A test character');
-      expect(content).toContain('## Personality Traits');
+      expect(content).toContain('<personality_traits>');
       expect(content).toContain('Friendly and helpful');
-      expect(content).toContain('## Current Context');
-      expect(content).toContain('Current date and time:');
+      // Context now in <context> section
+      expect(content).toContain('<context>');
+      expect(content).toContain('<datetime>');
+      // Protocol section
+      expect(content).toContain('<protocol>');
+      expect(content).toContain('You are a helpful assistant');
     });
 
     it('should include all personality fields when present', () => {
@@ -573,19 +605,20 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('## Conversational Tone');
+      // XML tags match database column names
+      expect(content).toContain('<personality_tone>');
       expect(content).toContain('Casual and friendly');
-      expect(content).toContain('## Age');
+      expect(content).toContain('<personality_age>');
       expect(content).toContain('25 years old');
-      expect(content).toContain('## Physical Appearance');
+      expect(content).toContain('<personality_appearance>');
       expect(content).toContain('Tall with blue eyes');
-      expect(content).toContain('## What I Like');
+      expect(content).toContain('<personality_likes>');
       expect(content).toContain('Coding and music');
-      expect(content).toContain('## What I Dislike');
+      expect(content).toContain('<personality_dislikes>');
       expect(content).toContain('Bugs and deadlines');
-      expect(content).toContain('## Conversational Goals');
+      expect(content).toContain('<conversational_goals>');
       expect(content).toContain('Help users learn');
-      expect(content).toContain('## Conversational Examples');
+      expect(content).toContain('<conversational_examples>');
       expect(content).toContain('How can I help?');
     });
 
@@ -678,7 +711,7 @@ describe('PromptBuilder', () => {
       expect(content).toContain('**Referenced**: Some earlier context');
     });
 
-    it('should include DM environment context', () => {
+    it('should include DM environment context in location XML', () => {
       const dmEnvironment: DiscordEnvironment = {
         type: 'dm',
         channel: {
@@ -702,12 +735,14 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('## Conversation Location');
+      // NEW: Environment context is now in <context><location>
+      expect(content).toContain('<context>');
+      expect(content).toContain('<location>');
       expect(content).toContain('Direct Message');
-      expect(content).toContain('private one-on-one chat');
+      expect(content).toContain('private chat');
     });
 
-    it('should include guild environment context', () => {
+    it('should include guild environment context in location XML', () => {
       const guildEnvironment: DiscordEnvironment = {
         type: 'guild',
         guild: {
@@ -739,11 +774,12 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('## Conversation Location');
-      expect(content).toContain('Discord server');
-      expect(content).toContain('**Server**: Test Server');
-      expect(content).toContain('**Category**: Community');
-      expect(content).toContain('**Channel**: #general');
+      // NEW: Environment context is now in <context><location>
+      expect(content).toContain('<context>');
+      expect(content).toContain('<location>');
+      expect(content).toContain('Server: Test Server');
+      expect(content).toContain('Category: Community');
+      expect(content).toContain('Channel: #general');
     });
 
     it('should include thread context when in thread', () => {
@@ -778,7 +814,9 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('**Thread**: Discussion Thread');
+      // NEW: Thread context in location XML
+      expect(content).toContain('<location>');
+      expect(content).toContain('Thread: Discussion Thread');
     });
   });
 
