@@ -28,7 +28,7 @@ const logger = createLogger('ResponseCleanup');
  *
  * @example
  * ```typescript
- * stripResponseArtifacts('Hello there!</message>', 'Emily')
+ * stripPersonalityPrefix('Hello there!</message>', 'Emily')
  * // Returns: 'Hello there!'
  * ```
  */
