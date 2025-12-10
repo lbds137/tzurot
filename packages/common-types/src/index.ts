@@ -52,6 +52,14 @@ export {
   sanitizeLogHook,
 } from './utils/logSanitizer.js';
 export { escapeXmlContent, containsXmlTags } from './utils/promptSanitizer.js';
+export {
+  escapeXml,
+  xml,
+  xmlAttrs,
+  xmlElement,
+  xmlSelfClosing,
+  XML_TAGS,
+} from './utils/xmlBuilder.js';
 
 // Export services
 export * from './services/prisma.js';

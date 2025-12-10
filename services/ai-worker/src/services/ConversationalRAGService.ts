@@ -598,9 +598,13 @@ export class ConversationalRAGService {
     // Add stop sequence for the AI itself (prevent "Lilith: [third person]" then self-quoting)
     stopSequences.push(`\n${personalityName}:`);
 
-    // Add XML tag stop sequence to prevent AI from outputting chat_log structure
-    stopSequences.push('<msg ');
-    stopSequences.push('<msg>');
+    // Add XML tag stop sequences to prevent AI from outputting chat_log structure
+    // Must match actual tags used in formatConversationHistoryAsXml()
+    stopSequences.push('<message ');
+    stopSequences.push('<message>');
+    stopSequences.push('</message>');
+    stopSequences.push('<chat_log>');
+    stopSequences.push('</chat_log>');
 
     // Log summary
     if (stopSequences.length > 0) {
