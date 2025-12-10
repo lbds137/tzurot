@@ -14,6 +14,7 @@ import {
   TEXT_LIMITS,
   RETRY_CONFIG,
   formatTimestampWithDelta,
+  escapeXml,
   escapeXmlContent,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
@@ -108,7 +109,7 @@ export class ReferencedMessageFormatter {
         refLines.push(`<author unavailable="true">Author unavailable - forwarded message</author>`);
       } else {
         refLines.push(
-          `<author display_name="${escapeXmlContent(ref.authorDisplayName)}" username="${escapeXmlContent(ref.authorUsername)}"/>`
+          `<author display_name="${escapeXml(ref.authorDisplayName)}" username="${escapeXml(ref.authorUsername)}"/>`
         );
       }
 
@@ -119,10 +120,10 @@ export class ReferencedMessageFormatter {
       const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
       if (absolute.length > 0 && relative.length > 0) {
         refLines.push(
-          `<time absolute="${escapeXmlContent(absolute)}" relative="${escapeXmlContent(relative)}"/>`
+          `<time absolute="${escapeXml(absolute)}" relative="${escapeXml(relative)}"/>`
         );
       } else {
-        refLines.push(`<time>${ref.timestamp}</time>`);
+        refLines.push(`<time>${escapeXmlContent(ref.timestamp)}</time>`);
       }
 
       // Message content
