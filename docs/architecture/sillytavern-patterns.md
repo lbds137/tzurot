@@ -338,7 +338,7 @@ messages = this.insertAuthorsNote(messages, authorsNote, 3);
 ### Existing Pattern (Expand This)
 
 ```typescript
-// Current: stripPersonalityPrefix() removes "Character: [timestamp]"
+// Current: stripResponseArtifacts() removes XML tags and legacy prefixes
 // Expand to configurable pipeline:
 
 interface RegexRule {
