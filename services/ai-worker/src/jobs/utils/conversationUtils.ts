@@ -202,6 +202,70 @@ ${safeContent}${embedsSection}${attachmentsSection}
 }
 
 /**
+ * Format a single history entry as XML
+ *
+ * This is the single source of truth for history message formatting.
+ * Used by both formatConversationHistoryAsXml (for prompt generation) and
+ * MemoryBudgetManager (for token counting).
+ *
+ * Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
+ *
+ * @param msg - Raw history entry to format
+ * @param personalityName - Name of the AI personality (for marking its own messages)
+ * @returns Formatted XML string, or empty string if message should be skipped
+ */
+export function formatSingleHistoryEntryAsXml(
+  msg: RawHistoryEntry,
+  personalityName: string
+): string {
+  // Determine the speaker name
+  let speakerName: string;
+  let role: 'user' | 'assistant';
+
+  // Compare against string literals to handle both enum and string values
+  if (msg.role === 'user') {
+    // User message - use persona name if available
+    speakerName =
+      msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
+    role = 'user';
+  } else if (msg.role === 'assistant') {
+    // Assistant message - use personality name
+    speakerName = personalityName;
+    role = 'assistant';
+  } else {
+    // System or unknown - skip
+    return '';
+  }
+
+  // Format the timestamp (escape for use in attribute)
+  const timeAttr =
+    msg.createdAt !== undefined && msg.createdAt.length > 0
+      ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}"`
+      : '';
+
+  // Escape content to prevent XML injection
+  const safeContent = escapeXmlContent(msg.content);
+  // Escape speaker name for use in attribute (quotes could break the XML)
+  const safeSpeaker = escapeXml(speakerName);
+
+  // Format referenced messages from messageMetadata (user messages only)
+  let quotedSection = '';
+  if (
+    msg.role === 'user' &&
+    msg.messageMetadata?.referencedMessages !== undefined &&
+    msg.messageMetadata.referencedMessages.length > 0
+  ) {
+    const formattedRefs = msg.messageMetadata.referencedMessages
+      .map((ref, idx) => formatStoredReferencedMessage(ref, idx))
+      .join('\n');
+    quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
+  }
+
+  // Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
+  return `<message from="${safeSpeaker}" role="${role}"${timeAttr}>${safeContent}${quotedSection}</message>`;
+}
+
+/**
  * Format conversation history as XML for inclusion in system prompt
  *
  * Uses semantic XML structure with <message> tags for each message.
@@ -226,53 +290,10 @@ export function formatConversationHistoryAsXml(
   const messages: string[] = [];
 
   for (const msg of history) {
-    // Determine the speaker name
-    let speakerName: string;
-    let role: 'user' | 'assistant';
-
-    // Compare against string literals to handle both enum and string values
-    if (msg.role === 'user') {
-      // User message - use persona name if available
-      speakerName =
-        msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
-      role = 'user';
-    } else if (msg.role === 'assistant') {
-      // Assistant message - use personality name
-      speakerName = personalityName;
-      role = 'assistant';
-    } else {
-      // System or unknown - skip
-      continue;
+    const formatted = formatSingleHistoryEntryAsXml(msg, personalityName);
+    if (formatted.length > 0) {
+      messages.push(formatted);
     }
-
-    // Format the timestamp (escape for use in attribute)
-    const timeAttr =
-      msg.createdAt !== undefined && msg.createdAt.length > 0
-        ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}"`
-        : '';
-
-    // Escape content to prevent XML injection
-    const safeContent = escapeXmlContent(msg.content);
-    // Escape speaker name for use in attribute (quotes could break the XML)
-    const safeSpeaker = escapeXml(speakerName);
-
-    // Format referenced messages from messageMetadata (user messages only)
-    let quotedSection = '';
-    if (
-      msg.role === 'user' &&
-      msg.messageMetadata?.referencedMessages !== undefined &&
-      msg.messageMetadata.referencedMessages.length > 0
-    ) {
-      const formattedRefs = msg.messageMetadata.referencedMessages
-        .map((ref, idx) => formatStoredReferencedMessage(ref, idx))
-        .join('\n');
-      quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
-    }
-
-    // Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
-    messages.push(
-      `<message from="${safeSpeaker}" role="${role}"${timeAttr}>${safeContent}${quotedSection}</message>`
-    );
   }
 
   return messages.join('\n');
