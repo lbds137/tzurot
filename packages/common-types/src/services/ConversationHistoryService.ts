@@ -7,6 +7,7 @@ import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
+import type { MessageMetadata } from '../types/schemas.js';
 
 const logger = createLogger('ConversationHistoryService');
 
@@ -19,6 +20,7 @@ export interface ConversationMessage {
   personaId: string;
   personaName?: string; // The persona's name for display in context
   discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
+  messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
 }
 
 export class ConversationHistoryService {
@@ -35,6 +37,7 @@ export class ConversationHistoryService {
    *                  PostgreSQL timestamp. This is used to maintain chronological ordering when
    *                  creating assistant messages after Discord send completes, ensuring the
    *                  assistant timestamp is slightly after the user message timestamp.
+   * @param messageMetadata Optional structured metadata (referenced messages, attachment descriptions)
    */
   async addMessage(
     channelId: string,
@@ -44,7 +47,8 @@ export class ConversationHistoryService {
     content: string,
     guildId?: string | null,
     discordMessageId?: string | string[],
-    timestamp?: Date
+    timestamp?: Date,
+    messageMetadata?: MessageMetadata
   ): Promise<void> {
     try {
       // Normalize discordMessageId to array format
@@ -71,11 +75,13 @@ export class ConversationHistoryService {
           discordMessageId: messageIds,
           // Use provided timestamp if given, otherwise let PostgreSQL use default (now())
           ...(timestamp !== undefined && { createdAt: timestamp }),
+          // Store structured metadata (referenced messages, attachments)
+          ...(messageMetadata !== undefined && { messageMetadata }),
         },
       });
 
       logger.debug(
-        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId ?? 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp !== undefined ? 'explicit' : 'default'}, tokens: ${tokenCount})`
+        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId ?? 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp !== undefined ? 'explicit' : 'default'}, tokens: ${tokenCount}, hasMetadata: ${messageMetadata !== undefined})`
       );
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);
@@ -86,12 +92,16 @@ export class ConversationHistoryService {
   /**
    * Update the most recent message for a persona in a channel
    * Used to enrich user messages with attachment descriptions after AI processing
+   *
+   * @param newContent Updated plain text content (user message + attachment descriptions)
+   * @param newMetadata Optional updated metadata (with processed attachment descriptions)
    */
   async updateLastUserMessage(
     channelId: string,
     personalityId: string,
     personaId: string,
-    newContent: string
+    newContent: string,
+    newMetadata?: MessageMetadata
   ): Promise<boolean> {
     try {
       // Find the most recent user message for this persona
@@ -118,7 +128,7 @@ export class ConversationHistoryService {
       // Recompute token count for enriched content
       const tokenCount = countTextTokens(newContent);
 
-      // Update the content and token count
+      // Update the content, token count, and optionally metadata
       await this.prisma.conversationHistory.update({
         where: {
           id: lastMessage.id,
@@ -126,11 +136,13 @@ export class ConversationHistoryService {
         data: {
           content: newContent,
           tokenCount, // Update token count to match enriched content
+          // Update metadata if provided (merges with existing)
+          ...(newMetadata !== undefined && { messageMetadata: newMetadata }),
         },
       });
 
       logger.debug(
-        `Updated user message ${lastMessage.id} with enriched content (tokens: ${tokenCount})`
+        `Updated user message ${lastMessage.id} with enriched content (tokens: ${tokenCount}, hasMetadata: ${newMetadata !== undefined})`
       );
       return true;
     } catch (error) {
@@ -166,6 +178,7 @@ export class ConversationHistoryService {
           createdAt: true,
           personaId: true,
           discordMessageId: true,
+          messageMetadata: true, // Include structured metadata
           persona: {
             select: {
               name: true,
@@ -187,6 +200,7 @@ export class ConversationHistoryService {
           personaId: msg.personaId,
           personaName: msg.persona.preferredName ?? msg.persona.name,
           discordMessageId: msg.discordMessageId,
+          messageMetadata: (msg.messageMetadata as MessageMetadata) ?? undefined,
         })
       );
 
@@ -242,6 +256,7 @@ export class ConversationHistoryService {
           createdAt: true,
           personaId: true,
           discordMessageId: true,
+          messageMetadata: true, // Include structured metadata
           persona: {
             select: {
               name: true,
@@ -267,6 +282,7 @@ export class ConversationHistoryService {
           personaId: msg.personaId,
           personaName: msg.persona.preferredName ?? msg.persona.name,
           discordMessageId: msg.discordMessageId,
+          messageMetadata: (msg.messageMetadata as MessageMetadata) ?? undefined,
         })
       );
 
@@ -364,6 +380,7 @@ export class ConversationHistoryService {
           createdAt: true,
           personaId: true,
           discordMessageId: true,
+          messageMetadata: true, // Include structured metadata
           persona: {
             select: {
               name: true,
@@ -386,6 +403,7 @@ export class ConversationHistoryService {
         personaId: message.personaId,
         personaName: message.persona.preferredName ?? message.persona.name,
         discordMessageId: message.discordMessageId,
+        messageMetadata: (message.messageMetadata as MessageMetadata) ?? undefined,
       };
     } catch (error) {
       logger.error({ err: error, discordMessageId }, `Failed to get message by Discord message ID`);

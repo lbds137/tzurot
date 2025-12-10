@@ -19,6 +19,8 @@ export type {
   ReferencedChannel,
   RequestContext,
   ReferencedMessage,
+  StoredReferencedMessage,
+  MessageMetadata,
   GenerationPayload,
   LLMGenerationResult,
 } from './schemas.js';
@@ -34,6 +36,8 @@ export {
   referencedChannelSchema,
   requestContextSchema,
   referencedMessageSchema,
+  storedReferencedMessageSchema,
+  messageMetadataSchema,
   generationPayloadSchema,
   llmGenerationResultSchema,
 } from './schemas.js';

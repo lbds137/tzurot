@@ -90,6 +90,8 @@ vi.mock('./PromptBuilder.js', () => ({
       message: new HumanMessage('human message'),
       contentForStorage: 'content for storage',
     });
+    countTokens = vi.fn().mockReturnValue(100);
+    countMemoryTokens = vi.fn().mockReturnValue(50);
     constructor() {
       mockPromptBuilderInstance = this;
     }
@@ -129,6 +131,13 @@ vi.mock('./context/ContextWindowManager.js', () => ({
         historyBudget: 7250,
         selectedHistoryTokens: 0,
       },
+    });
+    calculateHistoryBudget = vi.fn().mockReturnValue(7000);
+    selectAndSerializeHistory = vi.fn().mockReturnValue({
+      serializedHistory: '<msg user="Lila" role="user">Previous message</msg>',
+      historyTokensUsed: 50,
+      messagesIncluded: 1,
+      messagesDropped: 0,
     });
     constructor() {
       mockContextWindowManagerInstance = this;
@@ -243,11 +252,9 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test message', context);
 
-      expect(mockContextWindowManagerInstance.buildContext).toHaveBeenCalledWith(
-        expect.objectContaining({
-          contextWindowTokens: 8192,
-        })
-      );
+      // NEW: ContextWindowManager is now called via calculateHistoryBudget and selectAndSerializeHistory
+      expect(mockContextWindowManagerInstance.calculateHistoryBudget).toHaveBeenCalled();
+      expect(mockContextWindowManagerInstance.selectAndSerializeHistory).toHaveBeenCalled();
     });
 
     it('should invoke LLM via LLMInvoker', async () => {
@@ -282,12 +289,14 @@ describe('ConversationalRAGService', () => {
 
       const result = await service.generateResponse(personality, 'Recall something', context);
 
+      // buildFullSystemPrompt is called twice: once for base tokens, once with history
       expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith(
         personality,
         expect.any(Map),
         memories,
         context,
-        undefined
+        undefined, // referencedMessagesFormatted
+        expect.anything() // serializedHistory (undefined first call, string second call)
       );
       expect(result.retrievedMemories).toBe(2);
     });
@@ -305,12 +314,14 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
+      // buildFullSystemPrompt is called twice: once for base tokens, once with history
       expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith(
         personality,
         participantMap,
         expect.any(Array),
         context,
-        undefined
+        undefined, // referencedMessagesFormatted
+        expect.anything() // serializedHistory
       );
     });
 
@@ -474,12 +485,14 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Respond to Dave', context);
 
+      // buildFullSystemPrompt is called twice: once for base tokens, once with history
       expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith(
         personality,
         expect.any(Map),
         expect.any(Array),
         context,
-        'formatted references'
+        'formatted references',
+        expect.anything() // serializedHistory
       );
     });
 
@@ -800,13 +813,14 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
-      // invokeWithRetry should be called with imageCount=2, audioCount=1
+      // invokeWithRetry should be called with imageCount=2, audioCount=1, and stop sequences
       expect(mockLLMInvokerInstance.invokeWithRetry).toHaveBeenCalledWith(
         expect.anything(),
         expect.any(Array),
         'test-model',
         2, // imageCount
-        1 // audioCount
+        1, // audioCount
+        expect.any(Array) // stopSequences for identity bleeding prevention
       );
     });
 

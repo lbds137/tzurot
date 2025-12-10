@@ -116,6 +116,7 @@ describe('ConversationHistoryService Component Test', () => {
         content TEXT NOT NULL,
         token_count INTEGER,
         discord_message_id TEXT[] DEFAULT '{}',
+        message_metadata JSONB DEFAULT '{}',
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);

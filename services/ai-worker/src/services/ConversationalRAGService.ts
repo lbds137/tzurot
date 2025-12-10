@@ -301,16 +301,10 @@ export class ConversationalRAGService {
       );
 
       // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
-      // Build system prompt and current message first
-      // Use processedPersonality which has user references resolved in systemPrompt
-      const systemPrompt = this.promptBuilder.buildFullSystemPrompt(
-        processedPersonality,
-        participantPersonas,
-        relevantMemories,
-        context,
-        referencedMessagesDescriptions
-      );
+      // NEW ARCHITECTURE (2025-12): History is serialized inside the system prompt as XML
+      // This prevents identity bleeding where the AI responds as another participant
 
+      // Step 1: Build current message first (needed for token budget calculation)
       const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
         userMessage,
         processedAttachments,
@@ -318,22 +312,64 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions
       );
 
-      // Use ContextWindowManager to calculate budget and select history
-      const promptContext = this.contextWindowManager.buildContext({
-        systemPrompt,
-        currentMessage,
+      // Step 2: Build system prompt WITHOUT history to get base token count
+      const systemPromptBase = this.promptBuilder.buildFullSystemPrompt(
+        processedPersonality,
+        participantPersonas,
         relevantMemories,
-        conversationHistory: context.conversationHistory ?? [],
-        rawConversationHistory: context.rawConversationHistory,
-        contextWindowTokens: personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
-      });
+        context,
+        referencedMessagesDescriptions,
+        undefined // No history yet
+      );
 
-      // Build final messages array from prompt context
-      const messages: BaseMessage[] = [
-        promptContext.systemPrompt,
-        ...promptContext.selectedHistory,
-        promptContext.currentMessage,
-      ];
+      // Step 3: Calculate token budget for history
+      const contextWindowTokens =
+        personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
+      const systemPromptBaseTokens = this.promptBuilder.countTokens(
+        systemPromptBase.content as string
+      );
+      const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
+      const memoryTokens = this.promptBuilder.countMemoryTokens(relevantMemories);
+
+      const historyBudget = this.contextWindowManager.calculateHistoryBudget(
+        contextWindowTokens,
+        systemPromptBaseTokens,
+        currentMessageTokens,
+        memoryTokens
+      );
+
+      // Step 4: Select and serialize history as XML within budget
+      const {
+        serializedHistory,
+        historyTokensUsed,
+        messagesIncluded: _messagesIncluded,
+        messagesDropped,
+      } = this.contextWindowManager.selectAndSerializeHistory(
+        context.rawConversationHistory,
+        personality.name,
+        historyBudget
+      );
+
+      // Step 5: Rebuild system prompt WITH serialized history
+      const systemPrompt = this.promptBuilder.buildFullSystemPrompt(
+        processedPersonality,
+        participantPersonas,
+        relevantMemories,
+        context,
+        referencedMessagesDescriptions,
+        serializedHistory
+      );
+
+      // Log token allocation
+      logger.info(
+        `[RAG] Token budget: total=${contextWindowTokens}, system=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokens}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
+      );
+      if (messagesDropped > 0) {
+        logger.debug(`[RAG] Dropped ${messagesDropped} history messages due to token budget`);
+      }
+
+      // Step 6: Build final messages array - just system + current (no separate history)
+      const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
       // Get the appropriate model (provider determined by AI_PROVIDER env var)
       // Pass all LLM sampling parameters from personality config
@@ -359,6 +395,10 @@ export class ConversationalRAGService {
           att => att.contentType.startsWith('audio/') || att.isVoiceMessage === true
         ).length ?? 0;
 
+      // Generate stop sequences for identity bleeding prevention
+      // These sequences will cause the model to stop if it tries to speak as another participant
+      const stopSequences = this.generateStopSequences(personality.name, participantPersonas);
+
       // Invoke the model with timeout and retry logic
       // LLMInvoker handles censored responses automatically with retry
       const response = await this.llmInvoker.invokeWithRetry(
@@ -366,7 +406,8 @@ export class ConversationalRAGService {
         messages,
         modelName,
         imageCount,
-        audioCount
+        audioCount,
+        stopSequences
       );
 
       const rawContent = response.content as string;
@@ -406,9 +447,18 @@ export class ConversationalRAGService {
       );
 
       if (personaResult !== null) {
+        // Build content for LTM embedding: includes references for semantic search
+        // References are stored structurally in chat_log.messageMetadata but SHOULD be
+        // embedded in LTM so users can jog a personality's memory by referencing content
+        const contentForEmbedding =
+          referencedMessagesTextForSearch !== undefined &&
+          referencedMessagesTextForSearch.length > 0
+            ? `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`
+            : contentForStorage;
+
         await this.longTermMemory.storeInteraction(
           personality,
-          contentForStorage,
+          contentForEmbedding,
           content,
           context,
           personaResult.personaId
@@ -515,5 +565,55 @@ export class ConversationalRAGService {
     );
 
     return formatted;
+  }
+
+  /**
+   * Generate stop sequences for identity bleeding prevention
+   *
+   * These sequences tell the LLM to stop generating if it starts speaking as another participant.
+   * This is a technical kill-switch that works at the API level, complementing the XML structure
+   * and prompt instructions.
+   *
+   * Stop sequences include:
+   * - "\nParticipantName:" for each participant (users)
+   * - "\nPersonalityName:" for the AI itself (prevent third-person then self-quoting)
+   * - "<msg " to prevent outputting XML structure
+   *
+   * @param personalityName - Name of the AI personality
+   * @param participantPersonas - Map of participant names to their persona info
+   * @returns Array of stop sequences
+   */
+  private generateStopSequences(
+    personalityName: string,
+    participantPersonas: Map<string, { content: string; isActive: boolean }>
+  ): string[] {
+    const stopSequences: string[] = [];
+
+    // Add stop sequence for each participant (users)
+    // Use newline prefix to catch the common "Name:" pattern at line start
+    for (const participantName of participantPersonas.keys()) {
+      stopSequences.push(`\n${participantName}:`);
+    }
+
+    // Add stop sequence for the AI itself (prevent "Lilith: [third person]" then self-quoting)
+    stopSequences.push(`\n${personalityName}:`);
+
+    // Add XML tag stop sequence to prevent AI from outputting chat_log structure
+    stopSequences.push('<msg ');
+    stopSequences.push('<msg>');
+
+    // Log summary
+    if (stopSequences.length > 0) {
+      logger.info(
+        {
+          count: stopSequences.length,
+          participants: Array.from(participantPersonas.keys()),
+          personalityName,
+        },
+        '[RAG] Generated stop sequences for identity bleeding prevention'
+      );
+    }
+
+    return stopSequences;
   }
 }

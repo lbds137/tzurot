@@ -70,19 +70,22 @@ export class LLMInvoker {
    * - Dynamic global timeout based on attachment count
    * - Per-attempt timeout using LLM_PER_ATTEMPT constant
    * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
+   * - Stop sequences to prevent identity bleeding (e.g., ["\nLila:", "\nLeviathan:"])
    *
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
    * @param modelName - Model name for logging
    * @param imageCount - Number of images in the request (for timeout calculation)
    * @param audioCount - Number of audio attachments in the request (for timeout calculation)
+   * @param stopSequences - Optional array of sequences that will stop generation (identity bleeding prevention)
    */
   async invokeWithRetry(
     model: BaseChatModel,
     messages: BaseMessage[],
     modelName: string,
     imageCount = 0,
-    audioCount = 0
+    audioCount = 0,
+    stopSequences?: string[]
   ): Promise<BaseMessage> {
     // Calculate job timeout for logging (attachments processed in separate jobs)
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);
@@ -117,14 +120,22 @@ export class LLMInvoker {
         isReasoningModel,
         originalMessageCount: messages.length,
         transformedMessageCount: transformedMessages.length,
+        stopSequenceCount: stopSequences?.length ?? 0,
       },
       `[LLMInvoker] Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
 
+    if (stopSequences && stopSequences.length > 0) {
+      logger.debug(
+        { stopSequences },
+        '[LLMInvoker] Using stop sequences for identity bleeding prevention'
+      );
+    }
+
     // Use retryService for consistent retry behavior
     // Fast-fail on permanent errors (auth, quota, content policy, etc.)
     const result = await withRetry(
-      () => this.invokeSingleAttempt(model, transformedMessages, modelName),
+      () => this.invokeSingleAttempt(model, transformedMessages, modelName, stopSequences),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         globalTimeoutMs,
@@ -199,16 +210,28 @@ export class LLMInvoker {
    * @param model - LangChain chat model to invoke
    * @param messages - Message array to send to the model
    * @param modelName - Model name for logging
+   * @param stopSequences - Optional stop sequences for identity bleeding prevention
    * @throws Error on timeout, network errors, empty responses, or censored responses
    * @private
    */
   private async invokeSingleAttempt(
     model: BaseChatModel,
     messages: BaseMessage[],
-    modelName: string
+    modelName: string,
+    stopSequences?: string[]
   ): Promise<BaseMessage> {
+    // Build invoke options with timeout and optional stop sequences
+    const invokeOptions: { timeout: number; stop?: string[] } = {
+      timeout: TIMEOUTS.LLM_PER_ATTEMPT,
+    };
+
+    // Add stop sequences if provided (identity bleeding prevention)
+    if (stopSequences && stopSequences.length > 0) {
+      invokeOptions.stop = stopSequences;
+    }
+
     // Invoke with per-attempt timeout (3 minutes per attempt)
-    const response = await model.invoke(messages, { timeout: TIMEOUTS.LLM_PER_ATTEMPT });
+    const response = await model.invoke(messages, invokeOptions);
 
     // Guard against empty responses (treat as retryable error)
     // Handle both string content and multimodal array content
