@@ -600,9 +600,10 @@ interface MockMessageOptions {
   noTypingSupport?: boolean;
 }
 
-function createMockAttachmentsMap(
-  attachmentsList: MockSnapshotAttachment[] | null
-): Map<string, MockSnapshotAttachment> & {
+function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<
+  string,
+  MockSnapshotAttachment
+> & {
   some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean;
 } {
   const map = new Map<string, MockSnapshotAttachment>();

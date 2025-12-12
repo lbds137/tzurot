@@ -98,6 +98,8 @@ export interface ConversationContext {
   // Active speaker - the persona making the current request
   activePersonaId?: string;
   activePersonaName?: string;
+  /** Discord username (e.g., 'lbds137') - used for disambiguation when persona name matches personality name */
+  discordUsername?: string;
   conversationHistory?: BaseMessage[];
   // Raw conversation history (for accessing tokenCount before BaseMessage conversion)
   rawConversationHistory?: {

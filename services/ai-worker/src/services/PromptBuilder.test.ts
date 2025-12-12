@@ -41,6 +41,8 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
+
 vi.mock('../utils/promptPlaceholders.js', () => ({
   replacePromptPlaceholders: vi.fn((text: string) =>
     text.replace('{user}', 'TestUser').replace('{assistant}', 'TestBot')
@@ -820,6 +822,49 @@ describe('PromptBuilder', () => {
       // NEW: Thread context in location XML
       expect(content).toContain('<location>');
       expect(content).toContain('Thread: Discussion Thread');
+    });
+
+    describe('name collision disambiguation', () => {
+      it('should pass discordUsername to replacePromptPlaceholders for collision detection', () => {
+        const contextWithDiscordUsername: ConversationContext = {
+          ...minimalContext,
+          activePersonaName: 'Lila',
+          discordUsername: 'lbds137',
+        };
+
+        promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: contextWithDiscordUsername,
+        });
+
+        // Verify replacePromptPlaceholders was called with discordUsername
+        // The 4th argument should be the discordUsername for collision detection
+        expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+          minimalPersonality.systemPrompt,
+          'Lila', // activePersonaName
+          'TestBot', // personality.name
+          'lbds137' // discordUsername
+        );
+      });
+
+      it('should pass undefined discordUsername when not provided', () => {
+        promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
+
+        // Verify replacePromptPlaceholders was called with undefined discordUsername
+        expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+          minimalPersonality.systemPrompt,
+          'User', // Default when activePersonaName not set
+          'TestBot', // personality.name
+          undefined // No discordUsername
+        );
+      });
     });
   });
 
