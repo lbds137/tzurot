@@ -2,7 +2,7 @@
 
 This document tracks which features from Tzurot v2 have been ported to v3, which are planned, and which are intentionally avoided.
 
-**Last Updated:** 2025-12-08
+**Last Updated:** 2025-12-11
 
 ## Legend
 
@@ -50,12 +50,13 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 | --------------------- | ---------- | ------------------------------------------------ |
 | @personality mentions | ✅ Ported  | @lilith triggers personality                     |
 | Bot @mentions         | ✅ Ported  | Shows help message                               |
-| DM support            | ✅ Ported  | Falls back to regular replies                    |
+| DM personality chat   | 📋 Planned | v2 had full DM support with personality prefix parsing - **USER REQUESTED** |
 | Guild channel support | ✅ Ported  | Uses webhooks                                    |
 | Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing |
 | Reply detection       | ✅ Ported  | Reply to bot to continue conversation            |
 | Conversation history  | ✅ Ported  | ConversationPersistence service                  |
-| Auto-response system  | 📋 Planned | v2 had activated channels                        |
+| Auto-response system  | 📋 Planned | v2 had activated channels (`/activate`, `/deactivate`) |
+| Reset conversation    | 📋 Planned | v2 had `/reset` command (clear history with personality) |
 
 ### AI Integration
 
@@ -125,39 +126,55 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ## Remaining Features to Port
 
-### High Priority 🔥
+### High Priority 🔥 (User-Requested)
 
-1. **Auto-Response System** - Activated channels
-   - Channel activation/deactivation
-   - Personality assignment per channel
-   - Message history tracking
+1. **DM Personality Chat** - Talk to characters in DMs
+   - **v3 Improvement**: Use conversation history table for personality matching (not name-based like v2, since multiple personalities can have same name)
+   - Parse `**PersonalityName:** ` prefix for display only
+   - Multi-chunk reply detection
+   - Falls back to regular bot messages (no webhooks in DMs)
+   - **Requested multiple times by loyal beta user**
 
-2. **Rate Limiting** - Token bucket algorithm
+2. **Auto-Response System** - Activated channels
+   - `/activate <personality>` - Enable in channel
+   - `/deactivate` - Disable in channel
+   - Personality responds to ALL messages in activated channel
+   - Requires NSFW channel + ManageMessages permission (v2 pattern)
+
+3. **Reset Conversation** - Clear history command
+   - `/history clear <personality>` - Clear conversation with specific personality
+   - v2 had `/reset` command
+
+### Medium Priority 📋
+
+4. **Rate Limiting** - Token bucket algorithm
    - Per-user rate limits
    - Per-channel rate limits
    - Graceful degradation
 
-### Medium Priority 📋
-
-3. **Request Deduplication** - Prevent duplicate processing
+5. **Request Deduplication** - Prevent duplicate processing
    - Track recent message IDs
    - Simple Map-based cache
    - TTL-based cleanup
 
-4. **NSFW Verification** - Age verification system
+6. **NSFW Verification** - Age verification system
    - One-time verification per user (not per-channel like v2)
    - Auto-verify by using bot in NSFW-marked Discord channel
    - Store verified user IDs persistently
 
 ### Low Priority ⏸️
 
-5. **Personality Aliases** - Alternative names for personalities
-   - Just Map<alias, personalityName>
-   - Case-insensitive lookup
+7. **Personality Aliases** - User-managed alternative names
+   - Schema migration needed (add ownerId to PersonalityAlias)
+   - `/alias add/remove/list` commands
 
-6. **Release Notifications** - Notify about bot updates
+8. **Release Notifications** - Notify about bot updates
    - Nice UX feature
-   - Low priority for now
+   - v2 had NotificationsCommand
+
+9. **Backup/Export** - Data portability
+   - v2 had comprehensive backup with shapes.inc
+   - Need to adapt for v3's PostgreSQL-based storage
 
 ---
 
