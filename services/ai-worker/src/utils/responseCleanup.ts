@@ -6,6 +6,7 @@
  *
  * With XML-formatted prompts, models may:
  * - Append </message> tags (learning from chat_log structure)
+ * - Append </current_turn> tags (learning from prompt structure)
  * - Add <message speaker="Name"> prefixes
  * - Still occasionally add "Name:" prefixes
  */
@@ -48,6 +49,11 @@ export function stripResponseArtifacts(content: string, personalityName: string)
   // Example: "Hello!</message>\n" → "Hello!"
   const trailingMessageTag = /<\/message>\s*$/i;
 
+  // Pattern: Trailing </current_turn> tag (with optional whitespace)
+  // Example: "Hello!</current_turn>" → "Hello!"
+  // LLM learns this from the <current_turn>...</current_turn> wrapper in prompts
+  const trailingCurrentTurnTag = /<\/current_turn>\s*$/i;
+
   // === LEADING ARTIFACTS (strip from start) ===
 
   // Pattern: XML message tag prefix
@@ -70,6 +76,13 @@ export function stripResponseArtifacts(content: string, personalityName: string)
 
     // Strip trailing </message> tags first
     cleaned = cleaned.replace(trailingMessageTag, '').trim();
+    if (cleaned !== beforeStrip) {
+      strippedCount++;
+      continue;
+    }
+
+    // Strip trailing </current_turn> tags
+    cleaned = cleaned.replace(trailingCurrentTurnTag, '').trim();
     if (cleaned !== beforeStrip) {
       strippedCount++;
       continue;

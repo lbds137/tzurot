@@ -33,6 +33,31 @@ describe('stripResponseArtifacts', () => {
       const content = 'The </message> tag is used for XML';
       expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
     });
+
+    it('should strip trailing </current_turn> tag', () => {
+      expect(stripResponseArtifacts('Hello there!</current_turn>', 'Emily')).toBe('Hello there!');
+    });
+
+    it('should strip trailing </current_turn> with whitespace', () => {
+      expect(stripResponseArtifacts('Hello!</current_turn>\n', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</current_turn>  ', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</current_turn>\n\n', 'Emily')).toBe('Hello!');
+    });
+
+    it('should be case-insensitive for </current_turn> tag', () => {
+      expect(stripResponseArtifacts('Hello!</CURRENT_TURN>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</Current_Turn>', 'Emily')).toBe('Hello!');
+    });
+
+    it('should NOT strip </current_turn> in middle of content', () => {
+      const content = 'The </current_turn> tag is used for XML';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    });
+
+    it('should strip both </message> and </current_turn> if present', () => {
+      expect(stripResponseArtifacts('Hello!</current_turn></message>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</message></current_turn>', 'Emily')).toBe('Hello!');
+    });
   });
 
   describe('XML leading tag stripping', () => {
@@ -184,6 +209,21 @@ describe('stripResponseArtifacts', () => {
       expect(cleaned).toBe('Hello! How are you?');
       expect(cleaned).not.toContain('<message');
       expect(cleaned).not.toContain('</message>');
+    });
+
+    it('should strip </current_turn> learned from prompt structure', () => {
+      // LLM sees <current_turn>...</current_turn> wrapper in prompts and learns to append the closing tag
+      const content = '*waves enthusiastically* Hey there!</current_turn>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('*waves enthusiastically* Hey there!');
+    });
+
+    it('should clean mixed artifacts from prompt structure', () => {
+      // LLM might combine multiple learned artifacts
+      const rawResponse = 'Emily: How are you today?</current_turn>';
+      const cleaned = stripResponseArtifacts(rawResponse, 'Emily');
+      expect(cleaned).toBe('How are you today?');
+      expect(cleaned).not.toContain('Emily:');
+      expect(cleaned).not.toContain('</current_turn>');
     });
   });
 });
