@@ -51,6 +51,8 @@ export interface JobContext {
   userId: string;
   userInternalId?: string;
   userName?: string;
+  /** Discord username (e.g., 'lbds137') - used for disambiguation when persona name matches personality name */
+  discordUsername?: string;
   /** User's preferred timezone (IANA format, e.g., 'America/New_York') */
   userTimezone?: string;
   channelId?: string;
@@ -243,6 +245,7 @@ export const jobContextSchema = z.object({
   userId: z.string(),
   userInternalId: z.string().optional(),
   userName: z.string().optional(),
+  discordUsername: z.string().optional(),
   userTimezone: z.string().optional(),
   channelId: z.string().optional(),
   serverId: z.string().optional(),

@@ -173,6 +173,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           persona: {
             name: 'Bot',
             preferredName: null,
+            owner: { username: 'botuser' },
           },
         },
         {
@@ -186,6 +187,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           persona: {
             name: 'Alice',
             preferredName: 'Alice Smith',
+            owner: { username: 'aliceuser' },
           },
         },
       ];
@@ -223,6 +225,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           persona: {
             name: 'Bot',
             preferredName: null,
+            owner: { username: 'botuser' },
           },
         },
         {
@@ -236,6 +239,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           persona: {
             name: 'Alice',
             preferredName: null,
+            owner: { username: 'aliceuser' },
           },
         },
       ];
@@ -266,6 +270,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           persona: {
             name: 'Bot',
             preferredName: null,
+            owner: { username: 'botuser' },
           },
         },
         {
@@ -279,6 +284,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           persona: {
             name: 'Alice',
             preferredName: 'Alice Smith',
+            owner: { username: 'aliceuser' },
           },
         },
       ];
@@ -313,7 +319,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date('2025-11-08T10:01:00Z'),
           personaId: 'persona-456',
           discordMessageId: ['discord-new-2'],
-          persona: { name: 'Bot', preferredName: null },
+          persona: { name: 'Bot', preferredName: null, owner: { username: 'botuser' } },
         },
         {
           id: 'msg-new-1',
@@ -323,7 +329,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date('2025-11-08T10:00:00Z'),
           personaId: 'persona-456',
           discordMessageId: ['discord-new-1'],
-          persona: { name: 'Bot', preferredName: null },
+          persona: { name: 'Bot', preferredName: null, owner: { username: 'botuser' } },
         },
         {
           id: 'msg-old-2',
@@ -333,7 +339,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date('2025-01-02T00:00:00Z'),
           personaId: 'persona-123',
           discordMessageId: ['discord-old-2'],
-          persona: { name: 'Alice', preferredName: null },
+          persona: { name: 'Alice', preferredName: null, owner: { username: 'aliceuser' } },
         },
         {
           id: 'msg-old-1',
@@ -343,7 +349,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date('2025-01-01T00:00:00Z'),
           personaId: 'persona-123',
           discordMessageId: ['discord-old-1'],
-          persona: { name: 'Alice', preferredName: null },
+          persona: { name: 'Alice', preferredName: null, owner: { username: 'aliceuser' } },
         },
       ];
 
@@ -503,7 +509,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date(),
           personaId: 'persona-123',
           discordMessageId: ['discord-1'],
-          persona: { name: 'Alice', preferredName: null },
+          persona: { name: 'Alice', preferredName: null, owner: { username: 'aliceuser' } },
         },
       ];
 
@@ -531,6 +537,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         persona: {
           name: 'Alice',
           preferredName: 'Alice Smith',
+          owner: { username: 'aliceuser' },
         },
       };
 
@@ -566,6 +573,11 @@ describe('ConversationHistoryService - Token Count Caching', () => {
             select: {
               name: true,
               preferredName: true,
+              owner: {
+                select: {
+                  username: true,
+                },
+              },
             },
           },
         }),
@@ -601,6 +613,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         persona: {
           name: 'Bob',
           preferredName: null,
+          owner: { username: 'bobuser' },
         },
       };
 
@@ -625,6 +638,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         persona: {
           name: 'Bob',
           preferredName: null, // No preferred name set
+          owner: { username: 'bobuser' },
         },
       };
 
@@ -674,6 +688,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         persona: {
           name: 'Lilith',
           preferredName: null,
+          owner: { username: 'lilithuser' },
         },
       };
 
@@ -714,7 +729,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         createdAt: new Date(`2025-11-08T10:${(20 - i).toString().padStart(2, '0')}:00Z`),
         personaId: `persona-${20 - i}`,
         discordMessageId: [`discord-${20 - i}`],
-        persona: { name: 'User', preferredName: null },
+        persona: { name: 'User', preferredName: null, owner: { username: 'testuser' } },
       }));
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
@@ -736,7 +751,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         createdAt: new Date(`2025-11-08T10:${i.toString().padStart(2, '0')}:00Z`),
         personaId: `persona-${i}`,
         discordMessageId: [`discord-${i}`],
-        persona: { name: 'User', preferredName: null },
+        persona: { name: 'User', preferredName: null, owner: { username: 'testuser' } },
       }));
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);

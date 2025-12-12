@@ -70,6 +70,8 @@ export const apiConversationMessageSchema = z.object({
   // Persona info for multi-participant conversations
   personaId: z.string().optional(),
   personaName: z.string().optional(),
+  // Discord username for disambiguation when persona name matches personality name
+  discordUsername: z.string().optional(),
   // Structured metadata (referenced messages, attachments, etc.)
   // Separates semantic content from contextual data
   messageMetadata: z.record(z.string(), z.unknown()).optional(), // Flexible JSON, validated when needed
@@ -222,6 +224,8 @@ export const requestContextSchema = z.object({
   userId: z.string(), // Discord ID (for BYOK API key resolution)
   userInternalId: z.string().optional(), // Internal UUID (for usage logging)
   userName: z.string().optional(),
+  // Discord username (e.g., 'lbds137') - for disambiguation when persona name matches personality name
+  discordUsername: z.string().optional(),
   // User's preferred timezone (IANA format, e.g., 'America/New_York')
   userTimezone: z.string().optional(),
   channelId: z.string().optional(),

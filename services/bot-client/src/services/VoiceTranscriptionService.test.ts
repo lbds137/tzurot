@@ -600,7 +600,11 @@ interface MockMessageOptions {
   noTypingSupport?: boolean;
 }
 
-function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<string, MockSnapshotAttachment> & { some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean } {
+function createMockAttachmentsMap(
+  attachmentsList: MockSnapshotAttachment[] | null
+): Map<string, MockSnapshotAttachment> & {
+  some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean;
+} {
   const map = new Map<string, MockSnapshotAttachment>();
 
   if (attachmentsList) {
@@ -619,7 +623,9 @@ function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | nu
     return false;
   };
 
-  return map as Map<string, MockSnapshotAttachment> & { some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean };
+  return map as Map<string, MockSnapshotAttachment> & {
+    some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean;
+  };
 }
 
 function createMockMessage(options: MockMessageOptions = {}): Message {
@@ -647,7 +653,9 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
   };
 
   // Create messageSnapshots if provided
-  let messageSnapshots: Map<string, { attachments: ReturnType<typeof createMockAttachmentsMap> }> | undefined;
+  let messageSnapshots:
+    | Map<string, { attachments: ReturnType<typeof createMockAttachmentsMap> }>
+    | undefined;
   if (options.messageSnapshots && options.messageSnapshots.length > 0) {
     messageSnapshots = new Map();
     options.messageSnapshots.forEach((snapshot, index) => {

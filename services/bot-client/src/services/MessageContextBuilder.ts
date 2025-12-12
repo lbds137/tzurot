@@ -234,6 +234,7 @@ export class MessageContextBuilder {
     // Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
+    // Include discordUsername for disambiguation when persona name matches personality name
     const conversationHistory = history.map(msg => ({
       id: msg.id,
       role: msg.role,
@@ -242,6 +243,7 @@ export class MessageContextBuilder {
       createdAt: msg.createdAt.toISOString(),
       personaId: msg.personaId,
       personaName: msg.personaName,
+      discordUsername: msg.discordUsername, // For collision detection in prompt building
       messageMetadata: msg.messageMetadata,
     }));
 
@@ -261,10 +263,12 @@ export class MessageContextBuilder {
     // Build complete context
     // Note: userId is the Discord ID (for BYOK resolution)
     // userInternalId is the internal UUID (for usage logging and database operations)
+    // discordUsername is used for disambiguation when persona name matches personality name
     const context: MessageContext = {
       userId: discordUserId,
       userInternalId: internalUserId,
       userName: message.author.username,
+      discordUsername: message.author.username, // For collision detection in prompt building
       userTimezone: userTimezone, // User's timezone preference for date/time formatting
       channelId: message.channel.id,
       serverId: message.guild?.id,
