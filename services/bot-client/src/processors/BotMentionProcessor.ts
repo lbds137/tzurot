@@ -35,6 +35,7 @@ export class BotMentionProcessor implements IMessageProcessor {
         `**How to chat:**`,
         `• Mention a personality: \`${mentionChar}personality your message\``,
         `• Reply to a personality's message to continue the conversation`,
+        `• Use \`/character chat\` to start a conversation via slash command`,
         ``,
         `Use \`/character list\` to see available personalities.`,
       ].join('\n'),
