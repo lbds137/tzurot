@@ -338,9 +338,9 @@ describe('handlePersonalityAutocomplete', () => {
       await handlePersonalityAutocomplete(interaction);
 
       expect(mockRespond).toHaveBeenCalledWith([
-        { name: '🌐 Public Owned', value: 'public-owned' },
-        { name: '🔒 Private Owned', value: 'private-owned' },
-        { name: '📖 Public Not Owned', value: 'public-not-owned' },
+        { name: '🌐 Public Owned (public-owned)', value: 'public-owned' },
+        { name: '🔒 Private Owned (private-owned)', value: 'private-owned' },
+        { name: '📖 Public Not Owned (public-not-owned)', value: 'public-not-owned' },
       ]);
     });
 
@@ -364,7 +364,7 @@ describe('handlePersonalityAutocomplete', () => {
       await handlePersonalityAutocomplete(interaction);
 
       expect(mockRespond).toHaveBeenCalledWith([
-        { name: '🌐 Beautiful Display Name', value: 'test' },
+        { name: '🌐 Beautiful Display Name (test)', value: 'test' },
       ]);
     });
 
@@ -387,7 +387,9 @@ describe('handlePersonalityAutocomplete', () => {
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction);
 
-      expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 Fallback Name', value: 'fallback' }]);
+      expect(mockRespond).toHaveBeenCalledWith([
+        { name: '🔒 Fallback Name (fallback)', value: 'fallback' },
+      ]);
     });
 
     it('should omit visibility indicators when showVisibility is false', async () => {
@@ -408,7 +410,7 @@ describe('handlePersonalityAutocomplete', () => {
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction, { showVisibility: false });
 
-      expect(mockRespond).toHaveBeenCalledWith([{ name: 'Test', value: 'test' }]);
+      expect(mockRespond).toHaveBeenCalledWith([{ name: 'Test (test)', value: 'test' }]);
     });
   });
 

@@ -1,0 +1,76 @@
+/**
+ * Tests for Character Template Subcommand
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { handleTemplate } from './template.js';
+import { MessageFlags, AttachmentBuilder } from 'discord.js';
+import { CHARACTER_JSON_TEMPLATE } from './import.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
+import type { EnvConfig } from '@tzurot/common-types';
+
+describe('handleTemplate', () => {
+  const mockReply = vi.fn();
+  const mockConfig = {} as EnvConfig;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockReply.mockResolvedValue(undefined);
+  });
+
+  function createMockInteraction(): ChatInputCommandInteraction {
+    return {
+      reply: mockReply,
+    } as unknown as ChatInputCommandInteraction;
+  }
+
+  it('should reply with a JSON file attachment', async () => {
+    await handleTemplate(createMockInteraction(), mockConfig);
+
+    expect(mockReply).toHaveBeenCalledTimes(1);
+    const replyCall = mockReply.mock.calls[0][0];
+
+    // Should include files array with one attachment
+    expect(replyCall.files).toBeDefined();
+    expect(replyCall.files).toHaveLength(1);
+    expect(replyCall.files[0]).toBeInstanceOf(AttachmentBuilder);
+  });
+
+  it('should name the file character_card_template.json', async () => {
+    await handleTemplate(createMockInteraction(), mockConfig);
+
+    const replyCall = mockReply.mock.calls[0][0];
+    const attachment = replyCall.files[0] as AttachmentBuilder;
+
+    // Check the attachment name
+    expect(attachment.name).toBe('character_card_template.json');
+  });
+
+  it('should include the template content in the attachment', async () => {
+    await handleTemplate(createMockInteraction(), mockConfig);
+
+    const replyCall = mockReply.mock.calls[0][0];
+    const attachment = replyCall.files[0] as AttachmentBuilder;
+
+    // The attachment should be a Buffer with the template content
+    const buffer = attachment.attachment as Buffer;
+    expect(buffer.toString('utf-8')).toBe(CHARACTER_JSON_TEMPLATE);
+  });
+
+  it('should reply with ephemeral message', async () => {
+    await handleTemplate(createMockInteraction(), mockConfig);
+
+    const replyCall = mockReply.mock.calls[0][0];
+    expect(replyCall.flags).toBe(MessageFlags.Ephemeral);
+  });
+
+  it('should include helpful instructions in the message', async () => {
+    await handleTemplate(createMockInteraction(), mockConfig);
+
+    const replyCall = mockReply.mock.calls[0][0];
+    expect(replyCall.content).toContain('Character Import Template');
+    expect(replyCall.content).toContain('Required fields');
+    expect(replyCall.content).toContain('Slug format');
+    expect(replyCall.content).toContain('/character import');
+  });
+});
