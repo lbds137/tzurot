@@ -197,14 +197,13 @@ describe('MessageHandler', () => {
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
 
       // Should update user message with enriched content
-      expect(mockPersistence.updateUserMessage).toHaveBeenCalledWith(
-        mockMessage,
-        mockContext.personality,
-        'persona-456',
-        'User message',
-        '[Image: cat.jpg]\nA cute cat',
-        '[Previous message context]'
-      );
+      expect(mockPersistence.updateUserMessage).toHaveBeenCalledWith({
+        message: mockMessage,
+        personality: mockContext.personality,
+        personaId: 'persona-456',
+        messageContent: 'User message',
+        attachmentDescriptions: '[Image: cat.jpg]\nA cute cat',
+      });
 
       // Should send response to Discord
       expect(mockResponseSender.sendResponse).toHaveBeenCalledWith({
