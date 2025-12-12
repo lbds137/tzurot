@@ -131,17 +131,16 @@ export class ConversationPersistence {
     }
 
     // Save atomically with placeholder descriptions and structured metadata
-    await this.conversationHistory.addMessage(
-      message.channel.id,
-      personality.id,
+    await this.conversationHistory.addMessage({
+      channelId: message.channel.id,
+      personalityId: personality.id,
       personaId,
-      MessageRole.User,
-      userMessageContent,
-      message.guild?.id ?? null,
-      message.id, // Discord message ID for deduplication
-      undefined, // timestamp (use default)
-      metadata // Structured metadata with referenced messages
-    );
+      role: MessageRole.User,
+      content: userMessageContent,
+      guildId: message.guild?.id ?? null,
+      discordMessageId: message.id, // Discord message ID for deduplication
+      messageMetadata: metadata, // Structured metadata with referenced messages
+    });
 
     logger.debug(
       {
@@ -244,16 +243,16 @@ export class ConversationPersistence {
       '[ConversationPersistence] Creating assistant message with Discord chunk IDs'
     );
 
-    await this.conversationHistory.addMessage(
-      message.channel.id,
-      personality.id,
+    await this.conversationHistory.addMessage({
+      channelId: message.channel.id,
+      personalityId: personality.id,
       personaId,
-      MessageRole.Assistant,
+      role: MessageRole.Assistant,
       content, // Clean content without model indicator
-      message.guild?.id ?? null,
-      chunkMessageIds, // Array of Discord message IDs
-      assistantMessageTime // Explicit timestamp for chronological ordering
-    );
+      guildId: message.guild?.id ?? null,
+      discordMessageId: chunkMessageIds, // Array of Discord message IDs
+      timestamp: assistantMessageTime, // Explicit timestamp for chronological ordering
+    });
 
     logger.info(
       { chunks: chunkMessageIds.length },
