@@ -61,6 +61,74 @@ export function truncateText(
   return text.slice(0, maxLength - ellipsis.length) + ellipsis;
 }
 
+/** State for chunk accumulation during splitting */
+interface ChunkState {
+  chunks: string[];
+  currentChunk: string;
+}
+
+/**
+ * Force-splits a long word (like a URL) that exceeds maxLength
+ * @internal
+ */
+function splitLongWord(word: string, maxLength: number): string[] {
+  const wordChunks: string[] = [];
+  const chunkSize = maxLength - 10; // Leave room for "..."
+  for (let i = 0; i < word.length; i += chunkSize) {
+    wordChunks.push(word.slice(i, i + chunkSize) + '...');
+  }
+  return wordChunks;
+}
+
+/**
+ * Processes words into chunks, handling long words by force-splitting
+ * @internal
+ */
+function processWordsIntoChunks(words: string[], maxLength: number, state: ChunkState): void {
+  for (const word of words) {
+    if (word.length > maxLength) {
+      // Flush current chunk before adding split word pieces
+      if (state.currentChunk) {
+        state.chunks.push(state.currentChunk.trim());
+        state.currentChunk = '';
+      }
+      state.chunks.push(...splitLongWord(word, maxLength));
+    } else if ((state.currentChunk + ' ' + word).length > maxLength) {
+      state.chunks.push(state.currentChunk.trim());
+      state.currentChunk = word;
+    } else {
+      state.currentChunk = state.currentChunk ? state.currentChunk + ' ' + word : word;
+    }
+  }
+}
+
+/**
+ * Processes sentences into chunks, splitting on words if needed
+ * @internal
+ */
+function processSentencesIntoChunks(
+  sentences: string[],
+  maxLength: number,
+  state: ChunkState
+): void {
+  for (const sentence of sentences) {
+    if (sentence.length > maxLength) {
+      // Flush current chunk before word splitting
+      if (state.currentChunk) {
+        state.chunks.push(state.currentChunk.trim());
+        state.currentChunk = '';
+      }
+      const words = sentence.split(/\s+/);
+      processWordsIntoChunks(words, maxLength, state);
+    } else if ((state.currentChunk + ' ' + sentence).length > maxLength) {
+      state.chunks.push(state.currentChunk.trim());
+      state.currentChunk = sentence;
+    } else {
+      state.currentChunk = state.currentChunk ? state.currentChunk + ' ' + sentence : sentence;
+    }
+  }
+}
+
 /**
  * Internal helper: splits text at natural boundaries (paragraphs, sentences, words)
  * This is an implementation detail - use splitMessage() for the public API
@@ -74,77 +142,37 @@ function splitAtNaturalBoundaries(
     return [content];
   }
 
-  const chunks: string[] = [];
+  const state: ChunkState = { chunks: [], currentChunk: '' };
 
   // First try to split on double newlines (paragraphs)
   const paragraphs = content.split(/\n\n+/);
-  let currentChunk = '';
 
   for (const paragraph of paragraphs) {
-    // If a single paragraph is too long, we need to split it further
     if (paragraph.length > maxLength) {
-      // Flush current chunk if any
-      if (currentChunk) {
-        chunks.push(currentChunk.trim());
-        currentChunk = '';
+      // Flush current chunk before processing long paragraph
+      if (state.currentChunk) {
+        state.chunks.push(state.currentChunk.trim());
+        state.currentChunk = '';
       }
-
-      // Split long paragraph on sentences (preserving all text including unpunctuated parts)
+      // Split long paragraph on sentences
       const sentences = paragraph.split(/(?<=[.!?])\s+/);
-
-      for (const sentence of sentences) {
-        // If even a sentence is too long, split on words
-        if (sentence.length > maxLength) {
-          // Flush current chunk
-          if (currentChunk) {
-            chunks.push(currentChunk.trim());
-            currentChunk = '';
-          }
-
-          // Split on word boundaries
-          const words = sentence.split(/\s+/);
-          for (const word of words) {
-            // If even a single word is too long (like a URL), split it forcefully
-            if (word.length > maxLength) {
-              if (currentChunk) {
-                chunks.push(currentChunk.trim());
-                currentChunk = '';
-              }
-
-              // Force split long word/URL
-              for (let i = 0; i < word.length; i += maxLength - 10) {
-                chunks.push(word.slice(i, i + maxLength - 10) + '...');
-              }
-            } else if ((currentChunk + ' ' + word).length > maxLength) {
-              chunks.push(currentChunk.trim());
-              currentChunk = word;
-            } else {
-              currentChunk = currentChunk ? currentChunk + ' ' + word : word;
-            }
-          }
-        } else if ((currentChunk + ' ' + sentence).length > maxLength) {
-          chunks.push(currentChunk.trim());
-          currentChunk = sentence;
-        } else {
-          currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
-        }
-      }
-    } else if ((currentChunk + '\n\n' + paragraph).length > maxLength) {
+      processSentencesIntoChunks(sentences, maxLength, state);
+    } else if ((state.currentChunk + '\n\n' + paragraph).length > maxLength) {
       // Paragraph fits but would exceed limit with current chunk
-      chunks.push(currentChunk.trim());
-      currentChunk = paragraph;
+      state.chunks.push(state.currentChunk.trim());
+      state.currentChunk = paragraph;
     } else {
       // Add paragraph to current chunk
-      currentChunk = currentChunk ? currentChunk + '\n\n' + paragraph : paragraph;
+      state.currentChunk = state.currentChunk ? state.currentChunk + '\n\n' + paragraph : paragraph;
     }
   }
 
   // Don't forget the last chunk
-  if (currentChunk) {
-    chunks.push(currentChunk.trim());
+  if (state.currentChunk) {
+    state.chunks.push(state.currentChunk.trim());
   }
 
-  return chunks.filter(chunk => chunk.length > 0);
+  return state.chunks.filter(chunk => chunk.length > 0);
 }
 
 /**

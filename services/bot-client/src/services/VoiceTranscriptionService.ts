@@ -12,6 +12,58 @@ import { voiceTranscriptCache } from '../redis.js';
 
 const logger = createLogger('VoiceTranscriptionService');
 
+/** Attachment info for transcription */
+interface TranscriptionAttachment {
+  url: string;
+  contentType: string;
+  name: string;
+  size: number;
+  isVoiceMessage: boolean;
+  duration: number | undefined;
+  waveform: string | undefined;
+}
+
+/**
+ * Extract audio attachments from a message snapshot
+ * @internal
+ */
+function extractAudioFromSnapshot(snapshot: {
+  attachments?: ReadonlyMap<
+    string,
+    {
+      url: string;
+      contentType: string | null;
+      name: string;
+      size: number;
+      duration: number | null;
+      waveform?: string | null;
+    }
+  > | null;
+}): TranscriptionAttachment[] {
+  if (!snapshot.attachments || snapshot.attachments.size === 0) {
+    return [];
+  }
+
+  return Array.from(snapshot.attachments.values())
+    .filter(
+      a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
+    )
+    .map(attachment => ({
+      url: attachment.url,
+      contentType:
+        attachment.contentType !== null &&
+        attachment.contentType !== undefined &&
+        attachment.contentType.length > 0
+          ? attachment.contentType
+          : CONTENT_TYPES.BINARY,
+      name: attachment.name,
+      size: attachment.size,
+      isVoiceMessage: attachment.duration !== null,
+      duration: attachment.duration ?? undefined,
+      waveform: attachment.waveform ?? undefined,
+    }));
+}
+
 /**
  * Result of voice transcription
  */
@@ -104,44 +156,13 @@ export class VoiceTranscriptionService {
       }));
 
       // If no direct audio attachments, check forwarded message snapshots
-      if (
-        attachments.length === 0 &&
-        message.messageSnapshots !== null &&
-        message.messageSnapshots !== undefined &&
-        message.messageSnapshots.size > 0
-      ) {
+      if (attachments.length === 0 && message.messageSnapshots?.size) {
         for (const snapshot of message.messageSnapshots.values()) {
-          if (
-            snapshot.attachments !== null &&
-            snapshot.attachments !== undefined &&
-            snapshot.attachments.size > 0
-          ) {
-            const snapshotAttachments = Array.from(snapshot.attachments.values())
-              .filter(
-                a =>
-                  (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
-                  a.duration !== null
-              )
-              .map(attachment => ({
-                url: attachment.url,
-                contentType:
-                  attachment.contentType !== null &&
-                  attachment.contentType !== undefined &&
-                  attachment.contentType.length > 0
-                    ? attachment.contentType
-                    : CONTENT_TYPES.BINARY,
-                name: attachment.name,
-                size: attachment.size,
-                isVoiceMessage: attachment.duration !== null,
-                duration: attachment.duration ?? undefined,
-                waveform: attachment.waveform ?? undefined,
-              }));
-
-            if (snapshotAttachments.length > 0) {
-              attachments = snapshotAttachments;
-              logger.debug('[VoiceTranscriptionService] Found audio in forwarded message snapshot');
-              break; // Use first snapshot with audio
-            }
+          const snapshotAttachments = extractAudioFromSnapshot(snapshot);
+          if (snapshotAttachments.length > 0) {
+            attachments = snapshotAttachments;
+            logger.debug('[VoiceTranscriptionService] Found audio in forwarded message snapshot');
+            break; // Use first snapshot with audio
           }
         }
       }
