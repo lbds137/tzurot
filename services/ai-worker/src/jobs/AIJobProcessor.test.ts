@@ -136,7 +136,7 @@ describe('AIJobProcessor', () => {
         providerUsed: 'openrouter',
       },
     });
-    processor = new AIJobProcessor(mockPrisma, undefined, mockRAGService);
+    processor = new AIJobProcessor({ prisma: mockPrisma, ragService: mockRAGService });
   });
 
   afterEach(() => {

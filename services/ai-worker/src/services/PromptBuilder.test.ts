@@ -398,12 +398,12 @@ describe('PromptBuilder', () => {
 
     describe('XML structure and ordering', () => {
       it('should wrap persona in <system_identity> tags with sub-sections', () => {
-        const result = promptBuilder.buildFullSystemPrompt(
-          minimalPersonality,
-          new Map(),
-          [],
-          minimalContext
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
 
         const content = result.content as string;
 
@@ -419,12 +419,12 @@ describe('PromptBuilder', () => {
       });
 
       it('should wrap protocol in <protocol> tags when systemPrompt exists', () => {
-        const result = promptBuilder.buildFullSystemPrompt(
-          minimalPersonality,
-          new Map(),
-          [],
-          minimalContext
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
 
         const content = result.content as string;
 
@@ -439,12 +439,12 @@ describe('PromptBuilder', () => {
           systemPrompt: '',
         };
 
-        const result = promptBuilder.buildFullSystemPrompt(
-          personalityNoProtocol,
-          new Map(),
-          [],
-          minimalContext
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: personalityNoProtocol,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
 
         const content = result.content as string;
 
@@ -453,12 +453,12 @@ describe('PromptBuilder', () => {
       });
 
       it('should place system_identity at the START of the prompt (U-shaped attention)', () => {
-        const result = promptBuilder.buildFullSystemPrompt(
-          minimalPersonality,
-          new Map(),
-          [],
-          minimalContext
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
 
         const content = result.content as string;
 
@@ -467,12 +467,12 @@ describe('PromptBuilder', () => {
       });
 
       it('should place protocol at the END of the prompt (recency bias)', () => {
-        const result = promptBuilder.buildFullSystemPrompt(
-          minimalPersonality,
-          new Map(),
-          [],
-          minimalContext
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
 
         const content = result.content as string;
 
@@ -502,13 +502,14 @@ describe('PromptBuilder', () => {
           environment: guildEnvironment,
         };
 
-        const result = promptBuilder.buildFullSystemPrompt(
-          minimalPersonality,
-          participants,
-          memories,
-          contextWithEnv,
-          '<contextual_references>Referenced content</contextual_references>'
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: participants,
+          relevantMemories: memories,
+          context: contextWithEnv,
+          referencedMessagesFormatted:
+            '<contextual_references>Referenced content</contextual_references>',
+        });
 
         const content = result.content as string;
 
@@ -531,12 +532,12 @@ describe('PromptBuilder', () => {
       });
 
       it('should have properly closed XML tags', () => {
-        const result = promptBuilder.buildFullSystemPrompt(
-          minimalPersonality,
-          new Map(),
-          [],
-          minimalContext
-        );
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: minimalContext,
+        });
 
         const content = result.content as string;
 
@@ -554,12 +555,12 @@ describe('PromptBuilder', () => {
     });
 
     it('should create basic system prompt with minimal personality', () => {
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        new Map(),
-        [],
-        minimalContext
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: minimalContext,
+      });
 
       expect(result).toBeInstanceOf(SystemMessage);
       const content = result.content as string;
@@ -596,12 +597,12 @@ describe('PromptBuilder', () => {
         conversationalExamples: 'Example: "How can I help?"',
       };
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        fullPersonality,
-        new Map(),
-        [],
-        minimalContext
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: fullPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: minimalContext,
+      });
 
       const content = result.content as string;
 
@@ -628,12 +629,12 @@ describe('PromptBuilder', () => {
         ['Bob', { content: 'A designer', isActive: false }],
       ]);
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        participants,
-        [],
-        minimalContext
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: participants,
+        relevantMemories: [],
+        context: minimalContext,
+      });
 
       const content = result.content as string;
 
@@ -650,12 +651,12 @@ describe('PromptBuilder', () => {
         ['Alice', { content: 'A software developer', isActive: true }],
       ]);
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        participants,
-        [],
-        minimalContext
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: participants,
+        relevantMemories: [],
+        context: minimalContext,
+      });
 
       const content = result.content as string;
 
@@ -681,12 +682,12 @@ describe('PromptBuilder', () => {
         },
       ];
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        new Map(),
-        memories,
-        minimalContext
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: memories,
+        context: minimalContext,
+      });
 
       const content = result.content as string;
 
@@ -700,13 +701,13 @@ describe('PromptBuilder', () => {
     it('should include referenced messages when provided', () => {
       const references = '**Referenced**: Some earlier context';
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        new Map(),
-        [],
-        minimalContext,
-        references
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: minimalContext,
+        referencedMessagesFormatted: references,
+      });
 
       const content = result.content as string;
 
@@ -728,12 +729,12 @@ describe('PromptBuilder', () => {
         environment: dmEnvironment,
       };
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        new Map(),
-        [],
-        contextWithEnv
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: contextWithEnv,
+      });
 
       const content = result.content as string;
 
@@ -767,12 +768,12 @@ describe('PromptBuilder', () => {
         environment: guildEnvironment,
       };
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        new Map(),
-        [],
-        contextWithEnv
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: contextWithEnv,
+      });
 
       const content = result.content as string;
 
@@ -807,12 +808,12 @@ describe('PromptBuilder', () => {
         environment: threadEnvironment,
       };
 
-      const result = promptBuilder.buildFullSystemPrompt(
-        minimalPersonality,
-        new Map(),
-        [],
-        contextWithEnv
-      );
+      const result = promptBuilder.buildFullSystemPrompt({
+        personality: minimalPersonality,
+        participantPersonas: new Map(),
+        relevantMemories: [],
+        context: contextWithEnv,
+      });
 
       const content = result.content as string;
 

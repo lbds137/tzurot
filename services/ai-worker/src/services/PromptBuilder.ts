@@ -26,6 +26,22 @@ import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
 
+/** Options for building a full system prompt */
+export interface BuildFullSystemPromptOptions {
+  /** The personality configuration */
+  personality: LoadedPersonality;
+  /** Map of participant personas (userId -> { content, isActive }) */
+  participantPersonas: Map<string, { content: string; isActive: boolean }>;
+  /** Retrieved relevant memories to include */
+  relevantMemories: MemoryDocument[];
+  /** Conversation context (user info, environment, etc.) */
+  context: ConversationContext;
+  /** Optional: Pre-formatted referenced messages string */
+  referencedMessagesFormatted?: string;
+  /** Optional: Pre-serialized conversation history as XML */
+  serializedHistory?: string;
+}
+
 export class PromptBuilder {
   /**
    * Build search query for memory retrieval
@@ -198,14 +214,16 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
    * The key change is conversation history is now INSIDE the system prompt as XML,
    * not as separate LangChain messages. This prevents identity bleeding.
    */
-  buildFullSystemPrompt(
-    personality: LoadedPersonality,
-    participantPersonas: Map<string, { content: string; isActive: boolean }>,
-    relevantMemories: MemoryDocument[],
-    context: ConversationContext,
-    referencedMessagesFormatted?: string,
-    serializedHistory?: string
-  ): SystemMessage {
+  buildFullSystemPrompt(options: BuildFullSystemPromptOptions): SystemMessage {
+    const {
+      personality,
+      participantPersonas,
+      relevantMemories,
+      context,
+      referencedMessagesFormatted,
+      serializedHistory,
+    } = options;
+
     const { persona, protocol } = this.buildSystemPrompt(
       personality,
       context.activePersonaName !== undefined && context.activePersonaName.length > 0
