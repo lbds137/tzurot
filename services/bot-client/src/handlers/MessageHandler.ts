@@ -164,14 +164,13 @@ export class MessageHandler {
 
     try {
       // Upgrade user message from placeholders to rich descriptions
-      await this.persistence.updateUserMessage(
+      await this.persistence.updateUserMessage({
         message,
         personality,
         personaId,
-        userMessageContent,
-        result.attachmentDescriptions,
-        result.referencedMessagesDescriptions
-      );
+        messageContent: userMessageContent,
+        attachmentDescriptions: result.attachmentDescriptions,
+      });
 
       // Send AI response to Discord
       const { chunkMessageIds } = await this.responseSender.sendResponse({
