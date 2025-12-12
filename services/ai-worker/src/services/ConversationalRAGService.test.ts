@@ -828,14 +828,14 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, '', context);
 
       // invokeWithRetry should be called with imageCount=2, audioCount=1, and stop sequences
-      expect(mockLLMInvokerInstance.invokeWithRetry).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.any(Array),
-        'test-model',
-        2, // imageCount
-        1, // audioCount
-        expect.any(Array) // stopSequences for identity bleeding prevention
-      );
+      expect(mockLLMInvokerInstance.invokeWithRetry).toHaveBeenCalledWith({
+        model: expect.anything(),
+        messages: expect.any(Array),
+        modelName: 'test-model',
+        imageCount: 2,
+        audioCount: 1,
+        stopSequences: expect.any(Array), // stopSequences for identity bleeding prevention
+      });
     });
 
     it('should propagate LLMInvoker errors', async () => {

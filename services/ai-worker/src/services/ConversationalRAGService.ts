@@ -450,14 +450,14 @@ export class ConversationalRAGService {
 
       // Invoke the model with timeout and retry logic
       // LLMInvoker handles censored responses automatically with retry
-      const response = await this.llmInvoker.invokeWithRetry(
+      const response = await this.llmInvoker.invokeWithRetry({
         model,
         messages,
         modelName,
         imageCount,
         audioCount,
-        stopSequences
-      );
+        stopSequences,
+      });
 
       const rawContent = response.content as string;
 

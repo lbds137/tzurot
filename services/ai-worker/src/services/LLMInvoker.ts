@@ -37,6 +37,24 @@ import {
 
 const logger = createLogger('LLMInvoker');
 
+/**
+ * Options for invoking an LLM with retry logic
+ */
+export interface InvokeWithRetryOptions {
+  /** LangChain chat model to invoke */
+  model: BaseChatModel;
+  /** Message array to send to the model */
+  messages: BaseMessage[];
+  /** Model name for logging */
+  modelName: string;
+  /** Number of images in the request (for timeout calculation) */
+  imageCount?: number;
+  /** Number of audio attachments in the request (for timeout calculation) */
+  audioCount?: number;
+  /** Optional array of sequences that will stop generation (identity bleeding prevention) */
+  stopSequences?: string[];
+}
+
 export class LLMInvoker {
   private models = new Map<string, ChatModelResult>();
 
@@ -71,22 +89,9 @@ export class LLMInvoker {
    * - Per-attempt timeout using LLM_PER_ATTEMPT constant
    * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
    * - Stop sequences to prevent identity bleeding (e.g., ["\nLila:", "\nLeviathan:"])
-   *
-   * @param model - LangChain chat model to invoke
-   * @param messages - Message array to send to the model
-   * @param modelName - Model name for logging
-   * @param imageCount - Number of images in the request (for timeout calculation)
-   * @param audioCount - Number of audio attachments in the request (for timeout calculation)
-   * @param stopSequences - Optional array of sequences that will stop generation (identity bleeding prevention)
    */
-  async invokeWithRetry(
-    model: BaseChatModel,
-    messages: BaseMessage[],
-    modelName: string,
-    imageCount = 0,
-    audioCount = 0,
-    stopSequences?: string[]
-  ): Promise<BaseMessage> {
+  async invokeWithRetry(options: InvokeWithRetryOptions): Promise<BaseMessage> {
+    const { model, messages, modelName, imageCount = 0, audioCount = 0, stopSequences } = options;
     // Calculate job timeout for logging (attachments processed in separate jobs)
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);
     // LLM always gets full independent timeout budget (480s = 8 minutes)
