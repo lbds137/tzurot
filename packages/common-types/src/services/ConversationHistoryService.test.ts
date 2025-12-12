@@ -46,15 +46,15 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         tokenCount: expectedTokenCount,
       });
 
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.User,
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.User,
         content,
-        'guild-111',
-        'discord-msg-123'
-      );
+        guildId: 'guild-111',
+        discordMessageId: 'discord-msg-123',
+      });
 
       // Verify token counter was called
       expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
@@ -80,15 +80,15 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         tokenCount: expectedTokenCount,
       });
 
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.Assistant,
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.Assistant,
         content,
-        null,
-        ['discord-msg-1', 'discord-msg-2'] // Chunked message
-      );
+        guildId: null,
+        discordMessageId: ['discord-msg-1', 'discord-msg-2'], // Chunked message
+      });
 
       expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
@@ -111,13 +111,13 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         tokenCount: expectedTokenCount,
       });
 
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.User,
-        longContent
-      );
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.User,
+        content: longContent,
+      });
 
       expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(longContent);
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
@@ -139,13 +139,13 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         tokenCount: expectedTokenCount,
       });
 
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.User,
-        content
-      );
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.User,
+        content,
+      });
 
       expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
       expect(mockPrismaClient.conversationHistory.create).toHaveBeenCalledWith({
@@ -457,27 +457,27 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       });
 
       // Add 3 messages
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.User,
-        content1
-      );
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.Assistant,
-        content2
-      );
-      await service.addMessage(
-        'channel-123',
-        'personality-456',
-        'persona-789',
-        MessageRole.User,
-        content3
-      );
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.User,
+        content: content1,
+      });
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.Assistant,
+        content: content2,
+      });
+      await service.addMessage({
+        channelId: 'channel-123',
+        personalityId: 'personality-456',
+        personaId: 'persona-789',
+        role: MessageRole.User,
+        content: content3,
+      });
 
       // Verify token counter was called exactly 3 times (once per message)
       expect(tokenCounter.countTextTokens).toHaveBeenCalledTimes(3);
@@ -993,13 +993,13 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.create.mockRejectedValue(error);
 
       await expect(
-        service.addMessage(
-          'channel-123',
-          'personality-456',
-          'persona-789',
-          MessageRole.User,
-          'test message'
-        )
+        service.addMessage({
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+          role: MessageRole.User,
+          content: 'test message',
+        })
       ).rejects.toThrow('Database connection failed');
     });
 
