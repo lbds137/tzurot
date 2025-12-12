@@ -22,9 +22,13 @@ import { PLACEHOLDERS } from '@tzurot/common-types';
  * Placeholder matching is case-insensitive: {{Char}}, {{CHAR}}, and {{char}}
  * are all treated the same.
  *
+ * When userName matches assistantName (case-insensitive), the discordUsername
+ * is used to disambiguate: "Lila (@lbds137)" instead of just "Lila".
+ *
  * @param text - Text containing placeholders
  * @param userName - The user/persona name to replace user placeholders with
  * @param assistantName - The assistant/personality name to replace assistant placeholders with
+ * @param discordUsername - Optional Discord username for disambiguation when names collide
  * @returns Text with all placeholders replaced
  *
  * @example
@@ -37,14 +41,30 @@ import { PLACEHOLDERS } from '@tzurot/common-types';
  * const text2 = "{{User}}: Hello\n{{Char}}: Hi!";
  * const result2 = replacePromptPlaceholders(text2, "Bob", "Eve");
  * // Result: "Bob: Hello\nEve: Hi!"
+ *
+ * // Name collision with disambiguation:
+ * const text3 = "{user}: Hello\n{assistant}: Hi!";
+ * const result3 = replacePromptPlaceholders(text3, "Lila", "Lila", "lbds137");
+ * // Result: "Lila (@lbds137): Hello\nLila: Hi!"
  * ```
  */
 export function replacePromptPlaceholders(
   text: string,
   userName: string,
-  assistantName: string
+  assistantName: string,
+  discordUsername?: string
 ): string {
   let result = text;
+
+  // Determine the effective user name (disambiguate if it matches assistant name)
+  let effectiveUserName = userName;
+  if (
+    userName.toLowerCase() === assistantName.toLowerCase() &&
+    discordUsername !== undefined &&
+    discordUsername.length > 0
+  ) {
+    effectiveUserName = `${userName} (@${discordUsername})`;
+  }
 
   // Replace all user placeholder variations (case-insensitive)
   // Process longer placeholders first to avoid partial replacements
@@ -52,7 +72,7 @@ export function replacePromptPlaceholders(
   for (const placeholder of userPlaceholders) {
     // Escape special regex characters in placeholder
     const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
-    result = result.replace(new RegExp(escapedPlaceholder, 'gi'), userName);
+    result = result.replace(new RegExp(escapedPlaceholder, 'gi'), effectiveUserName);
   }
 
   // Replace all assistant placeholder variations (case-insensitive)

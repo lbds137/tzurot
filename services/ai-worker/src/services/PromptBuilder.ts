@@ -229,7 +229,8 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
       context.activePersonaName !== undefined && context.activePersonaName.length > 0
         ? context.activePersonaName
         : 'User',
-      personality.name
+      personality.name,
+      context.discordUsername
     );
     logger.debug(
       `[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
@@ -430,7 +431,8 @@ NEVER output XML tags in your response.`;
   private buildSystemPrompt(
     personality: LoadedPersonality,
     userName: string,
-    assistantName: string
+    assistantName: string,
+    discordUsername?: string
   ): { persona: string; protocol: string } {
     const personaSections: string[] = [];
 
@@ -521,9 +523,15 @@ NEVER output XML tags in your response.`;
 
     // Protocol is the systemPrompt (behavior rules/jailbreak)
     // Replace {user} and {assistant} placeholders with actual names
+    // discordUsername enables disambiguation when user persona name matches personality name
     let protocol = '';
     if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
-      protocol = replacePromptPlaceholders(personality.systemPrompt, userName, assistantName);
+      protocol = replacePromptPlaceholders(
+        personality.systemPrompt,
+        userName,
+        assistantName,
+        discordUsername
+      );
     }
 
     return {

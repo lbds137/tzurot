@@ -49,6 +49,7 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
     createdAt?: string;
     personaId?: string; // Which persona said this message
     personaName?: string; // Persona's name for context
+    discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
   }[];
 }
 

@@ -38,6 +38,7 @@ export interface ConversationMessage {
   createdAt: Date;
   personaId: string;
   personaName?: string; // The persona's name for display in context
+  discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
   discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
   messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
 }
@@ -227,6 +228,13 @@ export class ConversationHistoryService {
             select: {
               name: true,
               preferredName: true,
+              // Include owner to get Discord username for disambiguation
+              // when persona name matches personality name
+              owner: {
+                select: {
+                  username: true,
+                },
+              },
             },
           },
         },
@@ -243,6 +251,7 @@ export class ConversationHistoryService {
           createdAt: msg.createdAt,
           personaId: msg.personaId,
           personaName: msg.persona.preferredName ?? msg.persona.name,
+          discordUsername: msg.persona.owner.username, // For disambiguation when name matches personality
           discordMessageId: msg.discordMessageId,
           messageMetadata: parseMessageMetadata(msg.messageMetadata),
         })
@@ -305,6 +314,13 @@ export class ConversationHistoryService {
             select: {
               name: true,
               preferredName: true,
+              // Include owner to get Discord username for disambiguation
+              // when persona name matches personality name
+              owner: {
+                select: {
+                  username: true,
+                },
+              },
             },
           },
         },
@@ -325,6 +341,7 @@ export class ConversationHistoryService {
           createdAt: msg.createdAt,
           personaId: msg.personaId,
           personaName: msg.persona.preferredName ?? msg.persona.name,
+          discordUsername: msg.persona.owner.username, // For disambiguation when name matches personality
           discordMessageId: msg.discordMessageId,
           messageMetadata: parseMessageMetadata(msg.messageMetadata),
         })
@@ -429,6 +446,13 @@ export class ConversationHistoryService {
             select: {
               name: true,
               preferredName: true,
+              // Include owner to get Discord username for disambiguation
+              // when persona name matches personality name
+              owner: {
+                select: {
+                  username: true,
+                },
+              },
             },
           },
         },
@@ -446,6 +470,7 @@ export class ConversationHistoryService {
         createdAt: message.createdAt,
         personaId: message.personaId,
         personaName: message.persona.preferredName ?? message.persona.name,
+        discordUsername: message.persona.owner.username, // For disambiguation when name matches personality
         discordMessageId: message.discordMessageId,
         messageMetadata: parseMessageMetadata(message.messageMetadata),
       };

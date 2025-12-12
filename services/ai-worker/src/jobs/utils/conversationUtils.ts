@@ -161,6 +161,8 @@ export interface RawHistoryEntry {
   createdAt?: string;
   personaId?: string;
   personaName?: string;
+  /** Discord username for disambiguation when persona name matches personality name */
+  discordUsername?: string;
   tokenCount?: number;
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
   messageMetadata?: {
@@ -210,6 +212,9 @@ ${safeContent}${embedsSection}${attachmentsSection}
  *
  * Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
  *
+ * When a user's persona name matches the AI personality name (e.g., both "Lila"),
+ * the user's name is disambiguated as "Lila (@discordUsername)" to prevent confusion.
+ *
  * @param msg - Raw history entry to format
  * @param personalityName - Name of the AI personality (for marking its own messages)
  * @returns Formatted XML string, or empty string if message should be skipped
@@ -227,6 +232,17 @@ export function formatSingleHistoryEntryAsXml(
     // User message - use persona name if available
     speakerName =
       msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
+
+    // Disambiguate when persona name matches personality name (e.g., both "Lila")
+    // Format: "Lila (@lbds137)" to make it clear who is who
+    if (
+      speakerName.toLowerCase() === personalityName.toLowerCase() &&
+      msg.discordUsername !== undefined &&
+      msg.discordUsername.length > 0
+    ) {
+      speakerName = `${speakerName} (@${msg.discordUsername})`;
+    }
+
     role = 'user';
   } else if (msg.role === 'assistant') {
     // Assistant message - use personality name
@@ -348,6 +364,16 @@ export function getFormattedMessageCharLength(
   if (msg.role === 'user') {
     speakerName =
       msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
+
+    // Account for disambiguation when persona name matches personality name
+    if (
+      speakerName.toLowerCase() === personalityName.toLowerCase() &&
+      msg.discordUsername !== undefined &&
+      msg.discordUsername.length > 0
+    ) {
+      speakerName = `${speakerName} (@${msg.discordUsername})`;
+    }
+
     role = 'user';
   } else if (msg.role === 'assistant') {
     speakerName = personalityName;

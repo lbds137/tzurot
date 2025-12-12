@@ -889,5 +889,169 @@ describe('Conversation Utilities', () => {
       // Forwarded includes extra ' forwarded="true"' attribute
       expect(forwarded).toBeGreaterThan(normal);
     });
+
+    it('should disambiguate when persona name matches personality name (case-insensitive)', () => {
+      const msg: RawHistoryEntry = {
+        role: 'user',
+        content: 'Hello!',
+        personaName: 'Lila', // Same as personality name
+        discordUsername: 'lbds137',
+      };
+
+      // When persona name matches personality name, format should include Discord username
+      const result = getFormattedMessageCharLength(msg, 'Lila');
+
+      // Length should include the disambiguation: "Lila (@lbds137)"
+      const msgWithDifferentName: RawHistoryEntry = {
+        role: 'user',
+        content: 'Hello!',
+        personaName: 'Lila',
+      };
+      const resultWithoutDiscord = getFormattedMessageCharLength(msgWithDifferentName, 'Lila');
+
+      // With disambiguation, length should be greater
+      expect(result).toBeGreaterThan(resultWithoutDiscord);
+    });
+
+    it('should not disambiguate when names are different', () => {
+      const msg: RawHistoryEntry = {
+        role: 'user',
+        content: 'Hello!',
+        personaName: 'Alice',
+        discordUsername: 'aliceuser',
+      };
+
+      const result = getFormattedMessageCharLength(msg, 'Lilith');
+
+      // Length should NOT include disambiguation since names are different
+      const msgWithoutDiscord: RawHistoryEntry = {
+        role: 'user',
+        content: 'Hello!',
+        personaName: 'Alice',
+      };
+      const resultWithoutDiscord = getFormattedMessageCharLength(msgWithoutDiscord, 'Lilith');
+
+      // Lengths should be the same since no disambiguation needed
+      expect(result).toBe(resultWithoutDiscord);
+    });
+  });
+
+  describe('Persona/Personality Name Collision Detection', () => {
+    it('should disambiguate user messages when persona name matches personality name', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello from the user!',
+          personaName: 'Lila', // Same as personality name
+          discordUsername: 'lbds137',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lila');
+
+      // Should include disambiguation format: "Lila (@lbds137)"
+      expect(result).toContain('from="Lila (@lbds137)"');
+      expect(result).toContain('role="user"');
+    });
+
+    it('should handle case-insensitive name matching', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'LILA', // Uppercase
+          discordUsername: 'lbds137',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'lila'); // Lowercase
+
+      // Should still disambiguate despite case difference
+      expect(result).toContain('from="LILA (@lbds137)"');
+    });
+
+    it('should not disambiguate when names are different', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Alice',
+          discordUsername: 'aliceuser',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lilith');
+
+      // Should NOT include disambiguation since names are different
+      expect(result).toContain('from="Alice"');
+      expect(result).not.toContain('(@aliceuser)');
+    });
+
+    it('should not disambiguate when discordUsername is not provided', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Lila',
+          // No discordUsername provided
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lila');
+
+      // Should just use the name without disambiguation
+      expect(result).toContain('from="Lila"');
+      expect(result).not.toContain('(@');
+    });
+
+    it('should not disambiguate assistant messages (personality uses its own name)', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Hello from the assistant!',
+          personaName: 'Lila', // Even if persona name matches
+          discordUsername: 'lbds137',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lila');
+
+      // Assistant messages always use personality name without disambiguation
+      expect(result).toContain('from="Lila"');
+      expect(result).not.toContain('(@lbds137)');
+      expect(result).toContain('role="assistant"');
+    });
+
+    it('should handle mixed conversation with collision', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello, I am also Lila!',
+          personaName: 'Lila',
+          discordUsername: 'lbds137',
+        },
+        {
+          role: 'assistant',
+          content: 'Hi! Yes, we share the same name.',
+        },
+        {
+          role: 'user',
+          content: 'That could be confusing!',
+          personaName: 'Lila',
+          discordUsername: 'lbds137',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'Lila');
+
+      // User messages should have disambiguation
+      expect(result).toContain('from="Lila (@lbds137)" role="user"');
+      // Assistant messages should NOT have disambiguation
+      expect(result).toContain('from="Lila" role="assistant"');
+
+      // Verify both user messages are disambiguated
+      const userOccurrences = (result.match(/from="Lila \(@lbds137\)" role="user"/g) || []).length;
+      expect(userOccurrences).toBe(2);
+    });
   });
 });
