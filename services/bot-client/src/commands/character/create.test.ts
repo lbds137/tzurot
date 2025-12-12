@@ -368,14 +368,14 @@ describe('Character Create', () => {
 
       await handleSeedModalSubmit(mockInteraction, mockConfig);
 
-      expect(mockSessionManager.set).toHaveBeenCalledWith(
-        'user-123',
-        'character',
-        'test-slug',
-        expect.any(Object),
-        'message-123',
-        'channel-123'
-      );
+      expect(mockSessionManager.set).toHaveBeenCalledWith({
+        userId: 'user-123',
+        entityType: 'character',
+        entityId: 'test-slug',
+        data: expect.any(Object),
+        messageId: 'message-123',
+        channelId: 'channel-123',
+      });
     });
   });
 });

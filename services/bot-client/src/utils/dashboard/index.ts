@@ -60,4 +60,5 @@ export {
   DashboardSessionManager,
   getSessionManager,
   shutdownSessionManager,
+  type SetSessionOptions,
 } from './SessionManager.js';

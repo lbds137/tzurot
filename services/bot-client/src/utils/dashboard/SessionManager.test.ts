@@ -33,14 +33,14 @@ describe('DashboardSessionManager', () => {
     it('should create a new session', () => {
       const data: TestData = { name: 'test', value: 42 };
 
-      const session = manager.set<TestData>(
-        'user123',
-        'character',
-        'entity456',
+      const session = manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
         data,
-        'msg789',
-        'channel111'
-      );
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       expect(session.userId).toBe('user123');
       expect(session.entityType).toBe('character');
@@ -54,7 +54,14 @@ describe('DashboardSessionManager', () => {
 
     it('should retrieve an existing session', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       const retrieved = manager.get<TestData>('user123', 'character', 'entity456');
 
@@ -71,8 +78,22 @@ describe('DashboardSessionManager', () => {
       const data1: TestData = { name: 'first', value: 1 };
       const data2: TestData = { name: 'second', value: 2 };
 
-      manager.set<TestData>('user123', 'character', 'entity456', data1, 'msg1', 'channel1');
-      manager.set<TestData>('user123', 'character', 'entity456', data2, 'msg2', 'channel2');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data: data1,
+        messageId: 'msg1',
+        channelId: 'channel1',
+      });
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data: data2,
+        messageId: 'msg2',
+        channelId: 'channel2',
+      });
 
       const retrieved = manager.get<TestData>('user123', 'character', 'entity456');
 
@@ -84,8 +105,22 @@ describe('DashboardSessionManager', () => {
       const charData: TestData = { name: 'character', value: 1 };
       const profileData: TestData = { name: 'profile', value: 2 };
 
-      manager.set<TestData>('user123', 'character', 'entity1', charData, 'msg1', 'ch1');
-      manager.set<TestData>('user123', 'profile', 'entity2', profileData, 'msg2', 'ch2');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity1',
+        data: charData,
+        messageId: 'msg1',
+        channelId: 'ch1',
+      });
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'profile',
+        entityId: 'entity2',
+        data: profileData,
+        messageId: 'msg2',
+        channelId: 'ch2',
+      });
 
       const charSession = manager.get<TestData>('user123', 'character', 'entity1');
       const profileSession = manager.get<TestData>('user123', 'profile', 'entity2');
@@ -98,7 +133,14 @@ describe('DashboardSessionManager', () => {
   describe('session expiry', () => {
     it('should return null for expired sessions', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       // Advance time past the timeout
       vi.advanceTimersByTime(16 * 60 * 1000);
@@ -109,7 +151,14 @@ describe('DashboardSessionManager', () => {
 
     it('should keep session alive if accessed within timeout', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       // Advance time but within timeout
       vi.advanceTimersByTime(10 * 60 * 1000);
@@ -123,7 +172,14 @@ describe('DashboardSessionManager', () => {
   describe('update', () => {
     it('should update session data', () => {
       const data: TestData = { name: 'original', value: 1 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       const updated = manager.update<TestData>('user123', 'character', 'entity456', {
         value: 99,
@@ -136,14 +192,14 @@ describe('DashboardSessionManager', () => {
 
     it('should update lastActivityAt on update', () => {
       const data: TestData = { name: 'test', value: 42 };
-      const session = manager.set<TestData>(
-        'user123',
-        'character',
-        'entity456',
+      const session = manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
         data,
-        'msg789',
-        'channel111'
-      );
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
       const originalActivity = session.lastActivityAt.getTime();
 
       vi.advanceTimersByTime(5000);
@@ -160,7 +216,14 @@ describe('DashboardSessionManager', () => {
 
     it('should return null when updating expired session', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       vi.advanceTimersByTime(16 * 60 * 1000);
 
@@ -172,7 +235,14 @@ describe('DashboardSessionManager', () => {
   describe('touch', () => {
     it('should update lastActivityAt without changing data', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       vi.advanceTimersByTime(5000);
 
@@ -190,7 +260,14 @@ describe('DashboardSessionManager', () => {
 
     it('should extend session lifetime', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       // Advance 10 minutes
       vi.advanceTimersByTime(10 * 60 * 1000);
@@ -209,7 +286,14 @@ describe('DashboardSessionManager', () => {
   describe('delete', () => {
     it('should delete an existing session', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       const result = manager.delete('user123', 'character', 'entity456');
 
@@ -226,7 +310,14 @@ describe('DashboardSessionManager', () => {
   describe('findByMessageId', () => {
     it('should find session by message ID', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       const found = manager.findByMessageId<TestData>('msg789');
 
@@ -242,7 +333,14 @@ describe('DashboardSessionManager', () => {
 
     it('should return null for expired session', () => {
       const data: TestData = { name: 'test', value: 42 };
-      manager.set<TestData>('user123', 'character', 'entity456', data, 'msg789', 'channel111');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity456',
+        data,
+        messageId: 'msg789',
+        channelId: 'channel111',
+      });
 
       vi.advanceTimersByTime(16 * 60 * 1000);
 
@@ -253,23 +351,30 @@ describe('DashboardSessionManager', () => {
 
   describe('getUserSessions', () => {
     it('should return all sessions for a user', () => {
-      manager.set<TestData>(
-        'user123',
-        'character',
-        'entity1',
-        { name: 'c1', value: 1 },
-        'm1',
-        'ch1'
-      );
-      manager.set<TestData>('user123', 'profile', 'entity2', { name: 'p1', value: 2 }, 'm2', 'ch2');
-      manager.set<TestData>(
-        'user456',
-        'character',
-        'entity3',
-        { name: 'c2', value: 3 },
-        'm3',
-        'ch3'
-      );
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity1',
+        data: { name: 'c1', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'profile',
+        entityId: 'entity2',
+        data: { name: 'p1', value: 2 },
+        messageId: 'm2',
+        channelId: 'ch2',
+      });
+      manager.set<TestData>({
+        userId: 'user456',
+        entityType: 'character',
+        entityId: 'entity3',
+        data: { name: 'c2', value: 3 },
+        messageId: 'm3',
+        channelId: 'ch3',
+      });
 
       const sessions = manager.getUserSessions('user123');
 
@@ -283,18 +388,25 @@ describe('DashboardSessionManager', () => {
     });
 
     it('should exclude expired sessions', () => {
-      manager.set<TestData>(
-        'user123',
-        'character',
-        'entity1',
-        { name: 'c1', value: 1 },
-        'm1',
-        'ch1'
-      );
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'character',
+        entityId: 'entity1',
+        data: { name: 'c1', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
 
       vi.advanceTimersByTime(16 * 60 * 1000);
 
-      manager.set<TestData>('user123', 'profile', 'entity2', { name: 'p1', value: 2 }, 'm2', 'ch2');
+      manager.set<TestData>({
+        userId: 'user123',
+        entityType: 'profile',
+        entityId: 'entity2',
+        data: { name: 'p1', value: 2 },
+        messageId: 'm2',
+        channelId: 'ch2',
+      });
 
       const sessions = manager.getUserSessions('user123');
 
@@ -307,10 +419,24 @@ describe('DashboardSessionManager', () => {
     it('should return correct session count', () => {
       expect(manager.getSessionCount()).toBe(0);
 
-      manager.set<TestData>('user1', 'character', 'e1', { name: 'a', value: 1 }, 'm1', 'ch1');
+      manager.set<TestData>({
+        userId: 'user1',
+        entityType: 'character',
+        entityId: 'e1',
+        data: { name: 'a', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
       expect(manager.getSessionCount()).toBe(1);
 
-      manager.set<TestData>('user2', 'character', 'e2', { name: 'b', value: 2 }, 'm2', 'ch2');
+      manager.set<TestData>({
+        userId: 'user2',
+        entityType: 'character',
+        entityId: 'e2',
+        data: { name: 'b', value: 2 },
+        messageId: 'm2',
+        channelId: 'ch2',
+      });
       expect(manager.getSessionCount()).toBe(2);
 
       manager.delete('user1', 'character', 'e1');
@@ -320,8 +446,22 @@ describe('DashboardSessionManager', () => {
 
   describe('clear', () => {
     it('should remove all sessions', () => {
-      manager.set<TestData>('user1', 'character', 'e1', { name: 'a', value: 1 }, 'm1', 'ch1');
-      manager.set<TestData>('user2', 'profile', 'e2', { name: 'b', value: 2 }, 'm2', 'ch2');
+      manager.set<TestData>({
+        userId: 'user1',
+        entityType: 'character',
+        entityId: 'e1',
+        data: { name: 'a', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
+      manager.set<TestData>({
+        userId: 'user2',
+        entityType: 'profile',
+        entityId: 'e2',
+        data: { name: 'b', value: 2 },
+        messageId: 'm2',
+        channelId: 'ch2',
+      });
 
       manager.clear();
 
@@ -335,7 +475,14 @@ describe('DashboardSessionManager', () => {
     it('should cleanup expired sessions periodically', () => {
       manager.startCleanup();
 
-      manager.set<TestData>('user1', 'character', 'e1', { name: 'a', value: 1 }, 'm1', 'ch1');
+      manager.set<TestData>({
+        userId: 'user1',
+        entityType: 'character',
+        entityId: 'e1',
+        data: { name: 'a', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
 
       // Advance past session timeout
       vi.advanceTimersByTime(16 * 60 * 1000);
@@ -363,7 +510,14 @@ describe('DashboardSessionManager', () => {
       manager.startCleanup();
       manager.stopCleanup();
 
-      manager.set<TestData>('user1', 'character', 'e1', { name: 'a', value: 1 }, 'm1', 'ch1');
+      manager.set<TestData>({
+        userId: 'user1',
+        entityType: 'character',
+        entityId: 'e1',
+        data: { name: 'a', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
 
       // Advance past both session timeout and cleanup interval
       vi.advanceTimersByTime(25 * 60 * 1000);
@@ -378,7 +532,14 @@ describe('DashboardSessionManager', () => {
     it('should respect custom timeout value', () => {
       const shortManager = new DashboardSessionManager(1000); // 1 second timeout
 
-      shortManager.set<TestData>('user1', 'character', 'e1', { name: 'a', value: 1 }, 'm1', 'ch1');
+      shortManager.set<TestData>({
+        userId: 'user1',
+        entityType: 'character',
+        entityId: 'e1',
+        data: { name: 'a', value: 1 },
+        messageId: 'm1',
+        channelId: 'ch1',
+      });
 
       vi.advanceTimersByTime(500);
       expect(shortManager.get('user1', 'character', 'e1')).not.toBeNull();
@@ -413,7 +574,14 @@ describe('Singleton functions', () => {
   describe('shutdownSessionManager', () => {
     it('should clear sessions and stop cleanup', () => {
       const manager = getSessionManager();
-      manager.set('user1', 'test', 'entity1', { foo: 'bar' }, 'msg1', 'ch1');
+      manager.set({
+        userId: 'user1',
+        entityType: 'test',
+        entityId: 'entity1',
+        data: { foo: 'bar' },
+        messageId: 'msg1',
+        channelId: 'ch1',
+      });
 
       expect(manager.getSessionCount()).toBe(1);
 

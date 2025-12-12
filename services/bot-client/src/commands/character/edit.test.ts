@@ -152,14 +152,14 @@ describe('Character Edit Handler', () => {
 
       await handleEdit(mockInteraction, mockConfig);
 
-      expect(mockSessionManager.set).toHaveBeenCalledWith(
-        'user-123',
-        'character',
-        'my-char',
-        mockCharacter,
-        'reply-123',
-        'channel-456'
-      );
+      expect(mockSessionManager.set).toHaveBeenCalledWith({
+        userId: 'user-123',
+        entityType: 'character',
+        entityId: 'my-char',
+        data: mockCharacter,
+        messageId: 'reply-123',
+        channelId: 'channel-456',
+      });
     });
 
     it('should handle fetch errors gracefully', async () => {

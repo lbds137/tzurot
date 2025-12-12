@@ -62,14 +62,14 @@ export async function handleEdit(
 
     // Create session for tracking (keyed by slug)
     const sessionManager = getSessionManager();
-    sessionManager.set(
-      interaction.user.id,
-      'character',
-      character.slug,
-      character,
-      reply.id,
-      interaction.channelId
-    );
+    sessionManager.set({
+      userId: interaction.user.id,
+      entityType: 'character',
+      entityId: character.slug,
+      data: character,
+      messageId: reply.id,
+      channelId: interaction.channelId,
+    });
 
     logger.info(
       { userId: interaction.user.id, slug: character.slug },
