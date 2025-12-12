@@ -42,33 +42,58 @@ export interface ConversationMessage {
   messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
 }
 
+/**
+ * Options for adding a message to conversation history
+ */
+export interface AddMessageOptions {
+  /** Discord channel ID */
+  channelId: string;
+  /** Personality ID */
+  personalityId: string;
+  /** User's persona ID */
+  personaId: string;
+  /** Message role (user or assistant) */
+  role: MessageRole;
+  /** Message content */
+  content: string;
+  /** Discord guild ID (null for DMs) */
+  guildId?: string | null;
+  /**
+   * Discord message ID(s). Can be:
+   * - string: single message ID (user messages, single-chunk assistant messages)
+   * - string[]: multiple message IDs (chunked assistant messages)
+   * - undefined: no Discord message ID yet
+   */
+  discordMessageId?: string | string[];
+  /**
+   * Optional timestamp for the message. If provided, overrides the default
+   * PostgreSQL timestamp. Used to maintain chronological ordering when
+   * creating assistant messages after Discord send completes.
+   */
+  timestamp?: Date;
+  /** Optional structured metadata (referenced messages, attachment descriptions) */
+  messageMetadata?: MessageMetadata;
+}
+
 export class ConversationHistoryService {
   constructor(private prisma: PrismaClient) {}
 
   /**
    * Add a message to conversation history
-   *
-   * @param discordMessageId Discord message ID(s). Can be:
-   *                         - string: single message ID (user messages, single-chunk assistant messages)
-   *                         - string[]: multiple message IDs (chunked assistant messages)
-   *                         - undefined: no Discord message ID yet
-   * @param timestamp Optional timestamp for the message. If provided, overrides the default
-   *                  PostgreSQL timestamp. This is used to maintain chronological ordering when
-   *                  creating assistant messages after Discord send completes, ensuring the
-   *                  assistant timestamp is slightly after the user message timestamp.
-   * @param messageMetadata Optional structured metadata (referenced messages, attachment descriptions)
    */
-  async addMessage(
-    channelId: string,
-    personalityId: string,
-    personaId: string,
-    role: MessageRole,
-    content: string,
-    guildId?: string | null,
-    discordMessageId?: string | string[],
-    timestamp?: Date,
-    messageMetadata?: MessageMetadata
-  ): Promise<void> {
+  async addMessage(options: AddMessageOptions): Promise<void> {
+    const {
+      channelId,
+      personalityId,
+      personaId,
+      role,
+      content,
+      guildId,
+      discordMessageId,
+      timestamp,
+      messageMetadata,
+    } = options;
+
     try {
       // Normalize discordMessageId to array format
       const messageIds =

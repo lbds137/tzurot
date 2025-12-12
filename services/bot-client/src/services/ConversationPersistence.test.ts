@@ -75,18 +75,17 @@ describe('ConversationPersistence', () => {
         messageContent: 'Hello bot!',
       });
 
-      // New storage format: content + guild + discordMessageId + timestamp + metadata
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.User,
-        'Hello bot!',
-        'guild-123',
-        'discord-msg-123',
-        undefined, // timestamp
-        undefined // messageMetadata (no references)
-      );
+      // New storage format: options object
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.User,
+        content: 'Hello bot!',
+        guildId: 'guild-123',
+        discordMessageId: 'discord-msg-123',
+        messageMetadata: undefined, // no references
+      });
     });
 
     it('should use default content when message content is empty', async () => {
@@ -103,17 +102,16 @@ describe('ConversationPersistence', () => {
         messageContent: '',
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.User,
-        '[no text content]',
-        null,
-        'discord-msg-123',
-        undefined, // timestamp
-        undefined // messageMetadata
-      );
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.User,
+        content: '[no text content]',
+        guildId: null,
+        discordMessageId: 'discord-msg-123',
+        messageMetadata: undefined,
+      });
     });
 
     it('should include attachment placeholders', async () => {
@@ -133,17 +131,16 @@ describe('ConversationPersistence', () => {
         attachments,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.User,
-        'Check this image\n\n[Placeholder: 1 attachment(s)]',
-        'guild-123',
-        'discord-msg-123',
-        undefined, // timestamp
-        undefined // messageMetadata (no references)
-      );
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.User,
+        content: 'Check this image\n\n[Placeholder: 1 attachment(s)]',
+        guildId: 'guild-123',
+        discordMessageId: 'discord-msg-123',
+        messageMetadata: undefined, // no references
+      });
     });
 
     it('should store references in messageMetadata, not content', async () => {
@@ -176,16 +173,15 @@ describe('ConversationPersistence', () => {
       });
 
       // Content should NOT contain references - they go in messageMetadata
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.User,
-        'Replying to [Reference 1]', // Just the text, no reference content
-        'guild-123',
-        'discord-msg-123',
-        undefined, // timestamp
-        {
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.User,
+        content: 'Replying to [Reference 1]', // Just the text, no reference content
+        guildId: 'guild-123',
+        discordMessageId: 'discord-msg-123',
+        messageMetadata: {
           referencedMessages: [
             {
               discordMessageId: 'ref-msg-1',
@@ -199,8 +195,8 @@ describe('ConversationPersistence', () => {
               isForwarded: undefined,
             },
           ],
-        }
-      );
+        },
+      });
     });
 
     it('should store both attachments in content and references in metadata', async () => {
@@ -236,19 +232,18 @@ describe('ConversationPersistence', () => {
       });
 
       // Attachments go in content (as placeholders), references go in metadata
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.User,
-        'Image with reference\n\n[Placeholder: 1 attachment(s)]', // Attachments in content
-        'guild-123',
-        'discord-msg-123',
-        undefined, // timestamp
-        {
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.User,
+        content: 'Image with reference\n\n[Placeholder: 1 attachment(s)]', // Attachments in content
+        guildId: 'guild-123',
+        discordMessageId: 'discord-msg-123',
+        messageMetadata: {
           referencedMessages: expect.any(Array), // References in metadata
-        }
-      );
+        },
+      });
     });
   });
 
@@ -384,16 +379,16 @@ describe('ConversationPersistence', () => {
         userMessageTime,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.Assistant,
-        'Assistant response',
-        'guild-123',
-        ['chunk-1'],
-        expectedAssistantTime
-      );
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.Assistant,
+        content: 'Assistant response',
+        guildId: 'guild-123',
+        discordMessageId: ['chunk-1'],
+        timestamp: expectedAssistantTime,
+      });
     });
 
     it('should handle multiple chunk message IDs', async () => {
@@ -414,16 +409,16 @@ describe('ConversationPersistence', () => {
         userMessageTime,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.Assistant,
-        'Long response that was chunked',
-        'guild-123',
-        ['chunk-1', 'chunk-2', 'chunk-3'],
-        expect.any(Date)
-      );
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.Assistant,
+        content: 'Long response that was chunked',
+        guildId: 'guild-123',
+        discordMessageId: ['chunk-1', 'chunk-2', 'chunk-3'],
+        timestamp: expect.any(Date),
+      });
     });
 
     it('should not save if no chunk message IDs', async () => {
@@ -465,16 +460,16 @@ describe('ConversationPersistence', () => {
         userMessageTime,
       });
 
-      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
-        'dm-channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        MessageRole.Assistant,
-        'DM response',
-        null,
-        ['chunk-1'],
-        expect.any(Date)
-      );
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'dm-channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.Assistant,
+        content: 'DM response',
+        guildId: null,
+        discordMessageId: ['chunk-1'],
+        timestamp: expect.any(Date),
+      });
     });
   });
 });

@@ -160,14 +160,14 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('addMessage', () => {
     it('should add user message to database', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Hello bot!',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Hello bot!',
+        guildId: testGuildId,
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history).toHaveLength(1);
@@ -178,14 +178,14 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should add assistant message to database', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.Assistant,
-        'Hello human!',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Hello human!',
+        guildId: testGuildId,
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history).toHaveLength(1);
@@ -194,30 +194,30 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should add message with Discord message ID', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Test message',
-        testGuildId,
-        'discord-msg-123'
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Test message',
+        guildId: testGuildId,
+        discordMessageId: 'discord-msg-123',
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history[0].discordMessageId).toEqual(['discord-msg-123']);
     });
 
     it('should add message with multiple Discord message IDs (chunked)', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.Assistant,
-        'Long response that was chunked',
-        testGuildId,
-        ['chunk-1', 'chunk-2', 'chunk-3']
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Long response that was chunked',
+        guildId: testGuildId,
+        discordMessageId: ['chunk-1', 'chunk-2', 'chunk-3'],
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history[0].discordMessageId).toEqual(['chunk-1', 'chunk-2', 'chunk-3']);
@@ -225,14 +225,14 @@ describe('ConversationHistoryService Component Test', () => {
 
     it('should cache token count when adding message', async () => {
       const content = 'This is a test message with some tokens';
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
         content,
-        testGuildId
-      );
+        guildId: testGuildId,
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history[0].tokenCount).toBeDefined();
@@ -240,14 +240,14 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should handle DM messages (null guildId)', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'DM message',
-        null // DM = no guild
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'DM message',
+        guildId: null, // DM = no guild
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history).toHaveLength(1);
@@ -258,30 +258,30 @@ describe('ConversationHistoryService Component Test', () => {
   describe('getRecentHistory', () => {
     it('should return messages in chronological order (oldest first)', async () => {
       // Sequential awaits ensure created_at timestamps preserve insertion order
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'First message',
-        testGuildId
-      );
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.Assistant,
-        'Second message',
-        testGuildId
-      );
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Third message',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'First message',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Second message',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Third message',
+        guildId: testGuildId,
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
 
@@ -294,14 +294,14 @@ describe('ConversationHistoryService Component Test', () => {
     it('should respect limit parameter', async () => {
       // Add 5 messages
       for (let i = 0; i < 5; i++) {
-        await service.addMessage(
-          testChannelId,
-          testPersonalityId,
-          testPersonaId,
-          MessageRole.User,
-          `Message ${i}`,
-          testGuildId
-        );
+        await service.addMessage({
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Message ${i}`,
+          guildId: testGuildId,
+        });
       }
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 3);
@@ -321,14 +321,14 @@ describe('ConversationHistoryService Component Test', () => {
     it('should filter by personality', async () => {
       // This test requires another personality, but we can test that the filter works
       // by ensuring we only get messages for the specified personality
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Message to TestBot',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Message to TestBot',
+        guildId: testGuildId,
+      });
 
       const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       expect(history).toHaveLength(1);
@@ -347,14 +347,14 @@ describe('ConversationHistoryService Component Test', () => {
     it('should return paginated results with cursor', async () => {
       // Add 5 messages
       for (let i = 0; i < 5; i++) {
-        await service.addMessage(
-          testChannelId,
-          testPersonalityId,
-          testPersonaId,
-          MessageRole.User,
-          `Page message ${i}`,
-          testGuildId
-        );
+        await service.addMessage({
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Page message ${i}`,
+          guildId: testGuildId,
+        });
       }
 
       // Get first page (2 items)
@@ -366,22 +366,22 @@ describe('ConversationHistoryService Component Test', () => {
 
     it('should indicate no more pages when exhausted', async () => {
       // Add 2 messages
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Only message 1',
-        testGuildId
-      );
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Only message 2',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Only message 1',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Only message 2',
+        guildId: testGuildId,
+      });
 
       // Request more than exist
       const result = await service.getHistory(testChannelId, testPersonalityId, 10);
@@ -393,14 +393,14 @@ describe('ConversationHistoryService Component Test', () => {
     it('should enforce max limit of 100', async () => {
       // Add a few messages
       for (let i = 0; i < 5; i++) {
-        await service.addMessage(
-          testChannelId,
-          testPersonalityId,
-          testPersonaId,
-          MessageRole.User,
-          `Limit test ${i}`,
-          testGuildId
-        );
+        await service.addMessage({
+          channelId: testChannelId,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Limit test ${i}`,
+          guildId: testGuildId,
+        });
       }
 
       // Request more than max (200)
@@ -412,14 +412,14 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('updateLastUserMessage', () => {
     it('should update content of last user message', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Original content',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Original content',
+        guildId: testGuildId,
+      });
 
       const success = await service.updateLastUserMessage(
         testChannelId,
@@ -449,14 +449,14 @@ describe('ConversationHistoryService Component Test', () => {
       const shortContent = 'Short';
       const longContent = 'This is a much longer content with many more tokens than before';
 
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        shortContent,
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: shortContent,
+        guildId: testGuildId,
+      });
 
       const historyBefore = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
       const tokensBefore = historyBefore[0].tokenCount;
@@ -477,14 +477,14 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('updateLastAssistantMessageId', () => {
     it('should update Discord message IDs for last assistant message', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.Assistant,
-        'Bot response',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Bot response',
+        guildId: testGuildId,
+      });
 
       const success = await service.updateLastAssistantMessageId(
         testChannelId,
@@ -513,15 +513,15 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getMessageByDiscordId', () => {
     it('should find message by Discord ID', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Findable message',
-        testGuildId,
-        'unique-discord-id'
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Findable message',
+        guildId: testGuildId,
+        discordMessageId: 'unique-discord-id',
+      });
 
       const message = await service.getMessageByDiscordId('unique-discord-id');
 
@@ -536,15 +536,15 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should find message when ID is in array of chunked IDs', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.Assistant,
-        'Chunked response',
-        testGuildId,
-        ['chunk-a', 'chunk-b', 'chunk-c']
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Chunked response',
+        guildId: testGuildId,
+        discordMessageId: ['chunk-a', 'chunk-b', 'chunk-c'],
+      });
 
       // Should find by any chunk ID
       const message = await service.getMessageByDiscordId('chunk-b');
@@ -557,22 +557,22 @@ describe('ConversationHistoryService Component Test', () => {
   describe('clearHistory', () => {
     it('should clear all messages for channel + personality', async () => {
       // Add messages
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Message 1',
-        testGuildId
-      );
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.Assistant,
-        'Message 2',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Message 1',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Message 2',
+        guildId: testGuildId,
+      });
 
       const deletedCount = await service.clearHistory(testChannelId, testPersonalityId);
 
@@ -602,14 +602,14 @@ describe('ConversationHistoryService Component Test', () => {
       `);
 
       // Add a recent message
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Recent message',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Recent message',
+        guildId: testGuildId,
+      });
 
       // Cleanup messages older than 30 days
       const deletedCount = await service.cleanupOldHistory(30);
@@ -623,14 +623,14 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should not delete recent messages', async () => {
-      await service.addMessage(
-        testChannelId,
-        testPersonalityId,
-        testPersonaId,
-        MessageRole.User,
-        'Fresh message',
-        testGuildId
-      );
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Fresh message',
+        guildId: testGuildId,
+      });
 
       const deletedCount = await service.cleanupOldHistory(30);
 
