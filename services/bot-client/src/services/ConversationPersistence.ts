@@ -86,6 +86,22 @@ export interface SaveAssistantMessageOptions {
 }
 
 /**
+ * Options for updating a user message with rich descriptions
+ */
+export interface UpdateUserMessageOptions {
+  /** Discord message */
+  message: Message;
+  /** Personality being addressed */
+  personality: LoadedPersonality;
+  /** User's persona ID */
+  personaId: string;
+  /** Original message content */
+  messageContent: string;
+  /** Rich attachment descriptions from AI processing */
+  attachmentDescriptions?: string;
+}
+
+/**
  * Manages conversation history storage and updates
  */
 export class ConversationPersistence {
@@ -165,16 +181,10 @@ export class ConversationPersistence {
    * - Only attachment descriptions go in `content` (user message + attachments)
    * - Referenced messages are already in `messageMetadata` (from saveUserMessage)
    * - Referenced message descriptions are NOT stored - they're formatted at prompt time
-   * - The `referencedMessagesDescriptions` parameter is now ignored for storage
    */
-  async updateUserMessage(
-    message: Message,
-    personality: LoadedPersonality,
-    personaId: string,
-    messageContent: string,
-    attachmentDescriptions?: string,
-    _referencedMessagesDescriptions?: string // Ignored - references are in metadata
-  ): Promise<void> {
+  async updateUserMessage(options: UpdateUserMessageOptions): Promise<void> {
+    const { message, personality, personaId, messageContent, attachmentDescriptions } = options;
+
     // Only update if we have attachment descriptions
     // Referenced messages are already in metadata, not content
     if (

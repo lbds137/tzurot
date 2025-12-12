@@ -255,12 +255,12 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
       });
 
-      await persistence.updateUserMessage(
-        mockMessage,
-        mockPersonality,
-        'persona-uuid-123',
-        'Message content'
-      );
+      await persistence.updateUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Message content',
+      });
 
       expect(mockConversationHistory.updateLastUserMessage).not.toHaveBeenCalled();
     });
@@ -272,13 +272,13 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
       });
 
-      await persistence.updateUserMessage(
-        mockMessage,
-        mockPersonality,
-        'persona-uuid-123',
-        'Message content',
-        'Rich image description from AI'
-      );
+      await persistence.updateUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Message content',
+        attachmentDescriptions: 'Rich image description from AI',
+      });
 
       expect(mockConversationHistory.updateLastUserMessage).toHaveBeenCalledWith(
         'channel-123',
@@ -288,51 +288,25 @@ describe('ConversationPersistence', () => {
       );
     });
 
-    it('should ignore reference descriptions (references are in messageMetadata)', async () => {
+    it('should not update when no attachment descriptions provided', async () => {
       const mockMessage = createMockMessage({
         id: 'discord-msg-123',
         channelId: 'channel-123',
         guildId: 'guild-123',
       });
 
-      // Passing only reference descriptions should NOT trigger an update
-      // References are already stored in messageMetadata during saveUserMessage
-      await persistence.updateUserMessage(
-        mockMessage,
-        mockPersonality,
-        'persona-uuid-123',
-        'Message content',
-        undefined, // no attachment descriptions
-        'Rich reference context' // this is ignored
-      );
+      // References are stored in messageMetadata during saveUserMessage,
+      // so not having attachment descriptions means no update needed
+      await persistence.updateUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Message content',
+        // no attachment descriptions
+      });
 
       // Should NOT call update since there's no attachment description
       expect(mockConversationHistory.updateLastUserMessage).not.toHaveBeenCalled();
-    });
-
-    it('should upgrade with attachment descriptions only (ignore references)', async () => {
-      const mockMessage = createMockMessage({
-        id: 'discord-msg-123',
-        channelId: 'channel-123',
-        guildId: 'guild-123',
-      });
-
-      await persistence.updateUserMessage(
-        mockMessage,
-        mockPersonality,
-        'persona-uuid-123',
-        'Message content',
-        'Rich image description from AI',
-        'Rich reference context' // this is ignored - references are in metadata
-      );
-
-      // Only attachment descriptions go in content update
-      expect(mockConversationHistory.updateLastUserMessage).toHaveBeenCalledWith(
-        'channel-123',
-        'personality-123',
-        'persona-uuid-123',
-        'Message content\n\nRich image description from AI'
-      );
     });
 
     it('should handle empty message content with descriptions', async () => {
@@ -342,13 +316,13 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
       });
 
-      await persistence.updateUserMessage(
-        mockMessage,
-        mockPersonality,
-        'persona-uuid-123',
-        '',
-        'Voice transcription'
-      );
+      await persistence.updateUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: '',
+        attachmentDescriptions: 'Voice transcription',
+      });
 
       expect(mockConversationHistory.updateLastUserMessage).toHaveBeenCalledWith(
         'channel-123',

@@ -23,6 +23,48 @@ export const CUSTOM_ID_DELIMITER = '::';
 // CHARACTER COMMAND
 // ============================================================================
 
+/** Result type for CharacterCustomIds.parse */
+interface CharacterParseResult {
+  command: 'character';
+  action: string;
+  characterId?: string;
+  sectionId?: string;
+  page?: number;
+  viewPage?: number;
+  fieldName?: string;
+}
+
+/** Parse list action parameters */
+function parseListAction(parts: string[], result: CharacterParseResult): void {
+  if (parts[2] !== 'info' && parts[2] !== undefined) {
+    const pageNum = parseInt(parts[2], 10);
+    if (!isNaN(pageNum)) {
+      result.page = pageNum;
+    }
+  }
+}
+
+/** Parse view action parameters */
+function parseViewAction(parts: string[], result: CharacterParseResult): void {
+  if (parts[2] !== undefined) {
+    result.characterId = parts[2];
+    if (parts[3] !== undefined && parts[3] !== 'info') {
+      const pageNum = parseInt(parts[3], 10);
+      if (!isNaN(pageNum)) {
+        result.viewPage = pageNum;
+      }
+    }
+  }
+}
+
+/** Parse expand action parameters */
+function parseExpandAction(parts: string[], result: CharacterParseResult): void {
+  if (parts[2] !== undefined) {
+    result.characterId = parts[2];
+    result.fieldName = parts[3];
+  }
+}
+
 export const CharacterCustomIds = {
   /** Build seed modal customId (create new character) */
   seed: () => 'character::seed' as const,
@@ -62,54 +104,21 @@ export const CharacterCustomIds = {
   deleteCancel: (slug: string) => `character::delete_cancel::${slug}` as const,
 
   /** Parse character customId */
-  parse: (
-    customId: string
-  ): {
-    command: 'character';
-    action: string;
-    characterId?: string;
-    sectionId?: string;
-    page?: number;
-    viewPage?: number;
-    fieldName?: string;
-  } | null => {
+  parse: (customId: string): CharacterParseResult | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
     if (parts[0] !== 'character' || parts.length < 2) {
       return null;
     }
 
     const action = parts[1];
-    const result: ReturnType<typeof CharacterCustomIds.parse> = {
-      command: 'character',
-      action,
-    };
+    const result: CharacterParseResult = { command: 'character', action };
 
     if (action === 'list') {
-      if (parts[2] === 'info') {
-        // Info button - no page number
-      } else if (parts[2] !== undefined) {
-        const pageNum = parseInt(parts[2], 10);
-        if (!isNaN(pageNum)) {
-          result.page = pageNum;
-        }
-      }
+      parseListAction(parts, result);
     } else if (action === 'view') {
-      // Format: character::view::{slug}::{page|info}
-      if (parts[2] !== undefined) {
-        result.characterId = parts[2];
-        if (parts[3] !== undefined && parts[3] !== 'info') {
-          const pageNum = parseInt(parts[3], 10);
-          if (!isNaN(pageNum)) {
-            result.viewPage = pageNum;
-          }
-        }
-      }
+      parseViewAction(parts, result);
     } else if (action === 'expand') {
-      // Format: character::expand::{slug}::{fieldName}
-      if (parts[2] !== undefined) {
-        result.characterId = parts[2];
-        result.fieldName = parts[3];
-      }
+      parseExpandAction(parts, result);
     } else if (parts[2] !== undefined) {
       result.characterId = parts[2];
       if (parts[3] !== undefined) {
