@@ -1,858 +1,220 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-11
-> **Philosophy**: Launch, Stabilize, Evolve
-> **Context**: Solo dev + AI, must avoid decision fatigue and context switching
+> **Last Updated**: 2025-12-12
+> **Current Version**: v3.0.0-beta.17
+> **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
 
-## 🎯 IMMEDIATE FOCUS: Close the Loops
+## Current Focus: Close the Loops
 
-**The Problem**: Public beta is live, but several features are half-baked. Users hit dead ends. This creates support burden and cognitive overhead.
+**The Problem**: Public beta is live, but some features are half-baked. Users hit dead ends.
 
 **The Solution**: Finish what's started before adding new things.
 
-### 🔴 Priority 1: Close UX Dead Ends (This Week)
+### Priority 1: UX Dead Ends
 
-| Task                     | What's Broken                              | Fix                           |
-| ------------------------ | ------------------------------------------ | ----------------------------- |
-| **`/preset edit`**       | Users can create presets but NOT edit them | Add edit command (Sprint 7.4) |
-| **`advancedParameters`** | Schema exists, API routes ignore it        | Wire up in llm-config routes  |
-| **Memory scope**         | Feature exists but unused                  | Implement proper scoping      |
+| Task                     | What's Broken                                   | Sprint |
+| ------------------------ | ----------------------------------------------- | ------ |
+| **`/preset edit`**       | Users can create/delete presets but NOT edit    | 7.4    |
+| **`advancedParameters`** | Schema exists, API routes ignore it             | 7.15   |
 
-### 🟡 Priority 2: User Self-Service (Next 2-3 Sessions)
+### Priority 2: User Self-Service
 
-| Task                    | User Pain                       | Fix                |
-| ----------------------- | ------------------------------- | ------------------ |
-| **`/persona` commands** | Can only manage personas via DB | Sprint 5.0.1-5.0.7 |
-| **`/history clear`**    | No way to reset conversation    | Sprint 7.6         |
+| Task                 | User Pain                    | Sprint |
+| -------------------- | ---------------------------- | ------ |
+| **`/history clear`** | No way to reset conversation | 7.6    |
 
-### 🟢 Priority 3: User Requests (After Above)
+### Priority 3: User Requests (After Above)
 
-| Request                 | Source                        | Sprint           |
-| ----------------------- | ----------------------------- | ---------------- |
-| **DM Personality Chat** | Beta user (multiple requests) | Sprint 6.5       |
-| PluralKit JSON import   | User request                  | Sprint 10.4      |
-| Shapes.inc import       | Future planning               | Sprint 7.17-7.19 |
+| Request                 | Source                        | Sprint    |
+| ----------------------- | ----------------------------- | --------- |
+| **DM Personality Chat** | Beta user (multiple requests) | 6.5       |
+| PluralKit JSON import   | User request                  | 10.4      |
+| Shapes.inc import       | Future planning               | 7.17-7.19 |
 
 **Rule**: Do NOT start Priority 3 until Priority 1 and 2 are done.
 
 ---
 
-## 🧠 Current Context
+## Completed Phases
 
-- **Status**: Public Beta (BYOK enabled, Guest Mode available)
-- **Deployment**: Stable on Railway (v3.0.0-beta.15)
-- **Milestone Achieved**: BYOK complete - users can bring their own API keys
-- **Constraint**: Solo dev workflow - minimize open loops, avoid context switching
+### Phase 0: Foundation (Complete)
 
-## 🎯 The Strategy: "Launch, Stabilize, Evolve"
+- Contract tests for BullMQ jobs and API endpoints
+- Component tests with PGlite (in-memory Postgres)
+- Message reference handling with BFS traversal
+- Scripts directory reorganization
 
-**Gemini's Hard Truth**: You must put sophisticated cognitive architecture (OpenMemory) in a box until you have a sustainable billing model. Build the **Wallet** (BYOK) first, then build the **Brain** (OpenMemory).
+### Phase 1: Gatekeeper (Complete)
 
-**Prioritization Order**:
-
-1. **Business Value** (unblock launch)
-2. **Risk Mitigation** (prevent production fires)
-3. **Innovation** (advanced features)
-
----
-
-## 🛠️ Phase 0: "Foundation" - Stabilize Before Building
-
-**Goal**: ~~Update dependencies,~~ establish integration test coverage ~~, and stabilize foundation before major schema changes~~.
-
-**Why First**: Cannot safely refactor database schema or add complex features without ~~stable dependencies and~~ integration tests. Risk mitigation before risk-taking.
-
-**CRITICAL FINDING (2025-11-22)**: All 6 Dependabot PRs blocked by Prisma 7.0 migration. **Deferred to Phase 1** (consolidate with schema changes).
-
-**Revised Estimated Timeline**: 2-3 sessions (focus on integration tests only)
-
-### Sprint 0: ~~Dependency Updates &~~ Integration Test Coverage (2-3 sessions)
-
-**Dependabot PRs** ~~to Review & Merge~~ **DEFERRED TO PHASE 1** (6 PRs from Nov 19-21):
-
-- [x] ~~**Task 0.1**: Review PR #262~~ - **BLOCKED**: Contains Prisma 7.0 (requires schema migration)
-- [x] ~~**Task 0.2**: Review PR #261~~ - **BLOCKED**: Contains Prisma 7.0
-- [x] ~~**Task 0.3**: Review PR #255~~ - **BLOCKED**: Contains Prisma 7.0 + uuid 11→13
-- [x] ~~**Task 0.4**: Review PR #254~~ - **BLOCKED**: Contains Prisma 7.0
-- [x] ~~**Task 0.5**: Review PR #252~~ - **BLOCKED**: Contains Prisma 7.0
-- [x] ~~**Task 0.6**: Review PR #251~~ - **BLOCKED**: Outdated (created before alpha.47)
-
-**Decision**: Integrate Prisma 7.0 into Phase 1 Sprint 2 (already doing schema changes). Dependency updates will happen AFTER Prisma migration.
-
-**Integration Test Coverage** (Safety Net):
-
-- [x] **Task 0.7**: Inventory critical paths lacking integration tests ✅
-  - Created: docs/planning/INTEGRATION_TEST_PLAN.md
-  - Finding: 80 component tests exist, 0 contract tests, 0 live dependency tests
-  - **Revised Strategy**: Focus on contract tests (realistic), defer live dependency tests
-
-**Message Reference Handling** (Foundation Work):
-
-- [x] **Task 0.8.1**: Implement nested reference extraction with BFS ✅
-  - Refactored flat reference extraction to BFS traversal (depth-based ordering)
-  - Implemented Strategy Pattern for extensible reference types (Reply, Link)
-  - Added deduplication against conversation history (exact ID + time-based fallback)
-  - Fixed all ESLint strict mode violations (nullish coalescing, explicit null checks)
-  - **Files Modified**: ReferenceCrawler.ts, ReferenceFormatter.ts, 2 strategy implementations
-  - **Result**: 422 tests passing in bot-client (including new reference tests)
-  - Completed: 2025-11-23
-
-- [x] **Task 0.8.2**: Standardize development tooling ✅
-  - Added missing package.json scripts across all packages/services
-  - Scripts: `lint:fix`, `format`, `typecheck`, `test:watch`
-  - **Result**: Consistent development interface across monorepo
-  - Completed: 2025-11-23
-
-- [x] **Task 0.8.3**: Organize scripts directory ✅
-  - Reorganized 60+ flat scripts into 8 categorized subdirectories
-  - Archived 16 obsolete Qdrant scripts, 2 v2 migration scripts
-  - Created comprehensive README.md in each subdirectory
-  - Fixed .gitignore to prevent accidental data commits
-  - **Result**: Maintainable script organization with documentation
-  - Completed: 2025-11-23
-
-**Contract Tests** (Priority 1 - catches breaking changes at service boundaries):
-
-- [x] **Task 0.9**: BullMQ Job Contract Test ✅
-  - Verify: api-gateway job creation matches ai-worker consumption
-  - Verify: Shared Zod schema for job payload
-  - **Catches**: Breaking changes during Phase 1 schema refactor
-  - All 15 tests passing (AudioTranscriptionJobData, ImageDescriptionJobData, LLMGenerationJobData, discriminated union, version field)
-  - Test file: `packages/common-types/src/types/jobs.contract.test.ts`
-  - Completed: 2025-11-23
-- [x] **Task 0.10**: API Endpoint Contract Tests ✅
-  - Verify: `/ai/generate`, `/ai/confirmDelivery`, `/ai/jobStatus` schemas
-  - **Catches**: Breaking changes in API contracts
-  - All 18 tests passing (request validation, response documentation, shared schema components, producer-consumer contract)
-  - Test file: `packages/common-types/src/types/api.contract.test.ts`
-  - Completed: 2025-11-23
-
-**Component Tests** (Priority 2 - single service with real DB/Redis):
-
-- [x] **Task 0.11**: AIJobProcessor Component Test ✅
-  - Test job processing logic with mocked AI provider
-  - Uses PGlite (in-memory Postgres) for database operations
-  - All 6 tests passing (job routing, processing, error handling, persistence)
-  - Test file: `services/ai-worker/src/jobs/AIJobProcessor.component.test.ts`
-  - Completed: 2025-11-23
-- [x] **Task 0.12**: Verify CI/CD pipeline catches regressions ✅
-  - Fixed integration test CI detection (pre-push hook compatibility)
-  - All 95 integration tests passing (0 skipped)
-  - Pre-push hook runs both unit and integration tests
-  - Completed: 2025-11-23
-
-**🎉 MILESTONE 0: Stable Foundation** ✅
-
-- ~~All dependencies up to date~~ **DEFERRED** (Prisma 7.0 in Phase 1)
-- Contract tests catch breaking changes at service boundaries ✅
-- Component tests cover critical job processing logic ✅
-- CI/CD catches regressions ✅
-- Safe to proceed with Phase 1 schema changes ✅
+- **Prisma 7.0 migration** - Modern ORM with driver adapter pattern
+- **BYOK infrastructure** - Encrypted API key storage (AES-256-GCM)
+- **User API key management** - `/wallet` commands (set, list, remove, test)
+- **LLM config system** - `/preset` and `/me model` commands
+- **Usage tracking** - `/admin usage` command with token stats
+- **Timezone support** - `/me timezone` commands
+- **Guest mode** - Free model fallback for users without API keys
+- **Reasoning model support** - OpenAI o1/o3, Claude 3.7+, Gemini thinking models
+- **Persona management** - `/me profile` commands (create, edit, list, default, view, override, share-ltm)
+- **Memory scope** - `shareLtmAcrossPersonalities` via `/me profile share-ltm`
+- **Custom error messages** - Per-personality error messages
 
 ---
 
-## 🚧 Phase 1: "Gatekeeper" - Public Beta Launch
-
-**Goal**: Enable BYOK and stabilize core systems to allow public invites without bankruptcy risk.
-
-**Estimated Timeline**: 15-20 sessions (4-6 weeks)
-**Prerequisites**: Phase 0 complete (stable dependencies, integration tests)
-
-### Sprint 1: Testing Baseline & BYOK Foundation (5-7 sessions)
-
-**Why Testing First**: Cannot safely refactor schema without tests. This is the safety net.
-
-- [x] **Task 1.1**: Write tests for `LlmConfig` parsing and retrieval
-  - ✅ Already covered: 25 tests in `PersonalityValidator.test.ts` (LlmConfigSchema)
-- [x] **Task 1.2**: Write tests for `Personality` loading and mention detection
-  - ✅ Already covered: 35+ tests across `PersonalityLoader.test.ts`, `personalityMentionParser.test.ts`, `PersonalityMentionProcessor.test.ts`, `PersonalityService.test.ts`
-- [x] **Task 1.3**: Write tests for `ConversationManager` (158 lines - next target)
-  - ✅ Created: `ConversationManager.test.ts` (23 tests)
-- [x] **Task 1.4**: Write tests for `CommandHandler` (149 lines - slash command routing)
-  - ✅ Already covered: 14 tests in `CommandHandler.test.ts`
-- [x] **Task 1.5**: Add component test for `ConversationHistoryService`
-  - ✅ Created: `ConversationHistoryService.component.test.ts` (25 tests)
-  - Uses PGlite for real PostgreSQL testing
-  - Tests: addMessage, getRecentHistory, pagination, updateLastUserMessage, updateLastAssistantMessageId, getMessageByDiscordId, clearHistory, cleanupOldHistory
-
-### Sprint 2: BYOK Schema Migration (7-10 sessions remaining)
-
-**Why This Order**: Schema changes are risky - tests catch regressions. Code preparation before migrations.
-
-**Note**: Sprint 2 BYOK implementation is complete. See git history for implementation details.
-
-**Prisma 7.0 Migration** ✅ COMPLETE (2025-11-24):
-
-- [x] **Task 2.0.1**: Upgrade Prisma 6.x → 7.0.0 in all package.json files
-- [x] **Task 2.0.2**: Update driver adapter pattern (`PrismaPg`, `PrismaPGlite`)
-- [x] **Task 2.0.3**: Update 20+ files to use new adapter imports
-- [x] **Task 2.0.4**: Run `prisma generate` and verify generated client
-- [x] **Task 2.0.5**: Run full test suite (1715+ tests passing)
-- [x] **Task 2.0.6**: Deploy to development environment, smoke test
-- [x] **Task 2.0.7**: Dependabot PRs auto-closed (develop had latest versions)
-
-**Preparation** (Code First - per Gemini consultation 2025-11-25):
-
-- [x] **Task 2.P1**: Create encryption utilities (`packages/common-types/src/utils/encryption.ts`) ✅
-  - `encryptApiKey()`, `decryptApiKey()`, `isValidEncryptedData()` using AES-256-GCM
-  - Master key from Railway environment (`API_KEY_ENCRYPTION_KEY`)
-  - 32 tests covering round-trip, tamper detection, validation
-  - **Completed**: 2025-11-26
-- [x] **Task 2.P2**: Create Zod schemas for `advancedParameters` validation ✅
-  - Unified OpenRouter schema (sampling, reasoning, output, routing params)
-  - `AdvancedParamsSchema` with helpers: `validateAdvancedParams()`, `hasReasoningEnabled()`
-  - 64 tests covering all param types and real-world scenarios
-  - **Completed**: 2025-11-26
-
-**Database Migrations** (Dependency Order - per Gemini consultation):
-
-- [x] **Task 2.1**: Update `User` table (ROOT DEPENDENCY - do first) ✅
-  - Add `timezone` (String, default "UTC")
-  - Add `isSuperuser` (Boolean, default false) - bot owner flag
-  - Relationships: apiKeys, usageLogs, ownedPersonalities
-  - **Completed**: 2025-11-26
-- [x] **Task 2.2**: Create `UserApiKey` table (depends on User) ✅
-  - Fields: iv, content, tag, provider, isActive, lastUsedAt
-  - Unique constraint: (userId, provider)
-  - **Completed**: 2025-11-26
-- [x] **Task 2.3**: Update `Personality` table (depends on User for ownerId) ✅
-  - Add `errorMessage` (String?, Text) - migrate from `custom_fields.errorMessage`
-  - Add `birthday` (DateTime?, Date) - extract from shapes.inc backups
-  - Add `ownerId` (String?) - nullable initially, user who created personality
-  - Add `isPublic` (Boolean, default true) - visibility control
-  - **Completed**: 2025-11-26
-- [x] **Task 2.4**: Refactor `LlmConfig` table (hybrid schema, 2-step process) ✅
-  - ✅ Step A: Add `provider`, `advancedParameters` (JSONB), `maxReferencedMessages` - **Completed**: 2025-11-26
-  - [ ] Step B: Run data migration script (columns → JSONB) - future work
-  - [ ] Step C: Drop old columns in separate migration after verification - future work
-- [x] **Task 2.5**: Create `PersonalityAlias` table (leaf node) ✅
-  - Fields: alias, personalityId
-  - Unique constraint on alias (prevent overlap)
-  - **Completed**: 2025-11-26
-- [x] **Task 2.6**: Create `UsageLog` table (leaf node) ✅
-  - Fields: userId, provider, model, tokensIn, tokensOut, requestType, timestamp
-  - Prevent infrastructure abuse even with BYOK
-  - **Completed**: 2025-11-26
-
-**Data Migration** (After Schema):
-
-- [x] **Task 2.7**: Move `custom_fields.errorMessage` → `Personality.errorMessage` ✅
-  - SQL migration: `prisma/migrations/20251126190000_migrate_error_message_data/migration.sql`
-  - Script migration: `scripts/migrations/sprint2-data-migration.ts --task=2.7`
-- [x] **Task 2.8**: Extract aliases from display names → PersonalityAlias table ✅
-  - Script: `scripts/migrations/sprint2-data-migration.ts --task=2.8`
-- [x] **Task 2.9**: Import birthdays from shapes.inc → Personality.birthday ✅
-  - Script: `scripts/migrations/sprint2-data-migration.ts --task=2.9`
-  - Note: Only rich-fairbank has birthday defined ("09-18")
-- [x] **Task 2.10**: Assign ownership to existing personalities ✅
-  - Script: `scripts/migrations/sprint2-data-migration.ts --task=2.10`
-  - Prerequisites: Superuser must exist in users table with isSuperuser=true
-
-**Application Code** (After Data Migration):
-
-- [x] **Task 2.11**: Add log sanitization middleware ✅
-  - Created `packages/common-types/src/utils/logSanitizer.ts`
-  - Integrated sanitization into `createLogger()` via Pino formatters
-  - Patterns: `sk-*`, `sk-or-*`, `sk-ant-*`, `AIza*`, Bearer tokens, DB URLs
-  - 21 new tests, all passing
-- [x] **Task 2.12**: Update ai-worker to use decrypted user API keys ✅
-  - **CRITICAL**: Only pass userId in BullMQ job, NOT decrypted key (Redis stores plaintext)
-  - Created `ApiKeyResolver` service at `services/ai-worker/src/services/ApiKeyResolver.ts`
-  - Integrated into `LLMGenerationHandler` to resolve keys at runtime
-  - Implements hierarchical inheritance (user key → system fallback)
-  - 15 new tests for ApiKeyResolver, 2 new BYOK tests for LLMGenerationHandler
-- [x] **Task 2.13**: Add key validation service (dry run API calls before storage) ✅
-  - Created `services/ai-worker/src/services/KeyValidationService.ts`
-  - Custom error classes: InvalidApiKeyError, QuotaExceededError, ValidationTimeoutError
-  - OpenRouter validation via `/auth/key` endpoint (includes credit balance)
-  - OpenAI validation via `/models` endpoint (lightweight read-only)
-  - 17 new tests, all passing
-- [x] **Task 2.14**: Implement thinking/reasoning model runtime handling in `LLMInvoker` ✅
-  - Created `services/ai-worker/src/utils/reasoningModelUtils.ts`
-  - Detects reasoning models: OpenAI o1/o3, Claude 3.7+, Gemini 2.0 Flash Thinking
-  - Transforms system messages to user messages for o-series (no system role support)
-  - Strips `<thinking>` tags from output for all reasoning models
-  - Integrated into `LLMInvoker.invokeWithRetry()` for automatic handling
-  - 37 new tests for reasoning model utilities
-
-### Sprint 3: Slash Commands for BYOK (3-4 sessions)
-
-**Why Now**: Users need a UI to input their keys. Do this immediately after backend support.
-
-- [x] **Task 3.1**: `/wallet set <provider>` - Modal input (ephemeral, secure) ✅
-  - Opens Discord Modal for API key input (more secure than slash command args)
-  - Validates key with dry run API call before storing (OpenRouter /auth/key, OpenAI /models)
-  - Encrypts and stores if valid
-  - **Completed**: 2025-11-26
-- [x] **Task 3.2**: `/wallet list` - Show configured providers (ephemeral) ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.3**: `/wallet remove <provider>` - Delete API key ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.4**: `/wallet test <provider>` - Validate key still works (quota check) ✅
-  - Returns credit balance for OpenRouter
-  - **Completed**: 2025-11-26
-- [x] **Task 3.5**: `/llm-config create` - Create user LLM config override ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.6**: `/llm-config list` - Show available configs (global + user) ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.7**: `/llm-config delete` - Delete user config override ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.8**: `/model set <personality> <config>` - Override model for personality ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.9**: `/model reset <personality>` - Remove override, use default ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.10**: `/timezone set` - Dropdown of common timezones (user-level setting) ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.11**: `/timezone get` - Show current timezone ✅
-  - **Completed**: 2025-11-26
-- [x] **Task 3.12**: `/usage` - Daily/weekly/monthly token stats ✅
-  - **Completed**: 2025-11-26
-
-**Integration**: Ownership model (isSuperuser, ownerId) integrated into schema.
-
-**🎉 MILESTONE 1: Public Beta Launch**
-
-- Users can add their own API keys
-- Bot owner no longer pays for all API costs
-- Can invite users without bankruptcy risk
-- Modern AI features supported (Claude 3.7, Gemini 3.0 Pro thinking_level, OpenAI o1/o3)
-
----
-
-## 📋 Phase 2: "Refinement" - Retention & Usability
+## Phase 2: Refinement (Current)
 
 **Goal**: Quick wins and v2 feature parity to improve user experience and retention.
 
-**Estimated Timeline**: 12-18 sessions (3-5 weeks)
+### Sprint 4: Voice Enhancements (Not Started)
 
-### Sprint 4: Voice Enhancements (5-7 sessions)
+- [ ] Create `VoiceConfig` table (ElevenLabs settings per personality)
+- [ ] Create `VoiceConfigSample` table (voice cloning samples)
+- [ ] Extract voice settings from shapes.inc backups
+- [ ] `/voice enable/disable/reset` commands
+- [ ] ElevenLabs Instant Voice Cloning integration
 
-**Why Now**: Users are paying for their own keys, they'll want expensive features (Voice Cloning).
+### Sprint 5: Quick Wins & Polish (Partial)
 
-**Database Changes**:
+**Remaining**:
+- [ ] **5.1**: Transcription cleanup (LLM post-processing for Whisper)
+- [ ] **5.3**: Birthday awareness (Personality.birthday in responses)
+- [ ] **5.4**: Author's Note / Depth Prompting (combat "Lost in the Middle")
+- [ ] **5.5**: Define `SkillDefinition` interface (groundwork for Sprint 9)
+- [ ] **5.6**: Configurable regex response cleanup pipeline
 
-- [ ] **Task 4.1**: Create `VoiceConfig` table (ElevenLabs settings per personality)
-  - Fields: voiceId, voiceModel, stability, similarity, style, frequency
-  - 1:1 relationship with Personality
-- [ ] **Task 4.2**: Create `VoiceConfigSample` table (voice cloning samples)
-  - Fields: personalityId, sampleData (bytea), fileSize, mimeType, duration
-  - Up to 25 samples per personality (10MB limit each for Instant Voice Cloning)
-- [ ] **Task 4.3**: Create `UserPreferences` table (user-level overrides)
-  - Fields: userId, voiceEnabled (Boolean?) - null = use personality default
+### Sprint 6: V2 Feature Parity (Not Started)
 
-**Data Migration**:
+- [ ] **6.1**: Auto-Response System (`/channel activate/deactivate`)
+- [ ] **6.2**: Rate Limiting (token bucket algorithm)
+- [ ] **6.3**: Request Deduplication (prevent duplicate processing)
+- [ ] **6.4**: NSFW Verification (one-time per-user)
+- [ ] **6.5**: DM Personality Chat (USER REQUESTED - use conversation history for matching)
 
-- [ ] **Task 4.4**: Extract voice settings from shapes.inc backups → VoiceConfig table (66 personalities)
-  - voice_id, voice_model, voice_stability, voice_similarity, voice_style, voice_frequency
+### Sprint 7: Slash Command Architecture Redesign (Not Started)
 
-**Application Code**:
+**Phase A: Foundation**
+- [ ] **7.1-7.3**: Session manager abstraction, Redis storage, dashboard pattern spec
 
-- [ ] **Task 4.5**: Update voice synthesis service to query VoiceConfig table
-- [ ] **Task 4.6**: Add voice sample upload endpoint (validate size ≤10MB, format MP3/WAV)
-- [ ] **Task 4.7**: Add ElevenLabs Instant Voice Cloning integration
-- [ ] **Task 4.8**: Implement user preference override logic
+**Phase B: User Self-Service**
+- [ ] **7.4**: `/preset edit` for regular users
+- [ ] **7.5**: `/me profile` dashboard upgrade
+- [ ] **7.6-7.7**: `/history clear` and `/history undo` with Context Epochs
+- [ ] **7.8-7.9**: `/memory search` and `/memory purge`
 
-**Slash Commands**:
+**Phase C: Alias Consolidation**
+- [ ] **7.10-7.13**: Alias schema migration, auto-create on personality create, refactor tagging
 
-- [ ] **Task 4.9**: `/voice enable` - Enable voice for current user (override)
-- [ ] **Task 4.10**: `/voice disable` - Disable voice for current user (override)
-- [ ] **Task 4.11**: `/voice reset` - Remove user override (use personality default)
-- [ ] **Task 4.12**: (Admin) `/personality voice-sample upload <personality> <file>`
+**Phase D: Admin & Advanced**
+- [ ] **7.14**: `/admin system-prompt` CRUD
+- [ ] **7.15**: Complete advancedParameters JSONB wiring
+- [ ] **7.16**: API route naming audit
 
-### Sprint 5: Quick Wins & Polish (3-5 sessions)
-
-**Why**: Low effort, high visible impact features.
-
-**Free Model Guest Mode** (PRIORITY - Enables public usage without BYOK):
-
-> **Context**: Users without an OpenRouter API key ("guests") should still be able to use the bot, but only with free models (`:free` suffix on OpenRouter). This allows public usage without the bot owner paying for API costs.
-
-**Database Changes**:
-
-- [x] **Task 5.G1**: Add `isFreeDefault` boolean to `LlmConfig` table ✅
-  - Migration: `20251128220000_add_is_free_default_to_llm_config`
-  - Marks one free LlmConfig as the default for guest users
-  - **Completed**: 2025-11-28
-
-**Application Code**:
-
-- [x] **Task 5.G2**: Add `isFreeModel()` utility to detect free models ✅
-  - Location: `packages/common-types/src/constants/ai.ts`
-  - **Completed**: 2025-11-28
-- [x] **Task 5.G3**: Update `ApiKeyResolver` to detect "guest mode" ✅
-  - Returns `isGuestMode: boolean` in `ApiKeyResolutionResult`
-  - **Completed**: 2025-11-28
-- [x] **Task 5.G4**: Update `LlmConfigResolver` to enforce free-model-only for guests ✅
-  - Added `getFreeDefaultConfig()` method for DB-driven free defaults
-  - **Completed**: 2025-11-28
-- [x] **Task 5.G5**: Add "Guest Mode" footer indicator in AI responses ✅
-  - `DiscordResponseSender.ts` appends `GUEST_MODE.FOOTER_MESSAGE`
-  - **Completed**: 2025-11-28
-
-**Slash Commands**:
-
-- [x] **Task 5.G6**: Update `/llm-config list` to show free configs for guests ✅
-  - Shows 🆓 badges on free models, dims paid models for guests
-  - **Completed**: 2025-11-28
-- [x] **Task 5.G7**: Update `/model set` and `/model set-default` to validate free-model-only for guests ✅
-  - Both commands show "Premium Model Not Available" error for guests selecting paid models
-  - **Completed**: 2025-11-28
-
-**Hardcoded Fallback**:
-
-- [x] **Task 5.G8**: Research most future-proof free model for hardcoded fallback ✅
-  - Selected: `x-ai/grok-4.1-fast:free` (2M context, vision support)
-  - Alternatives: `nvidia/nemotron-nano-12b-v2-vl:free`, `tngtech/tng-r1t-chimera:free`
-  - **Completed**: 2025-11-28
-- [x] **Task 5.G9**: Implement hardcoded fallback free model config ✅
-  - Location: `packages/common-types/src/constants/ai.ts` - `GUEST_MODE` constant
-  - Includes `DEFAULT_MODEL`, `FREE_MODELS` array, `FOOTER_MESSAGE`
-  - **Completed**: 2025-11-28
-
-**User Persona Management** (Reduces manual DB work):
-
-- [ ] **Task 5.0.1**: Create persona API routes (`/user/persona`)
-  - GET `/user/persona` - List user's personas
-  - POST `/user/persona` - Create new persona
-  - PUT `/user/persona/:id` - Edit persona (name, description, content, preferredName, pronouns)
-  - DELETE `/user/persona/:id` - Delete persona (cascade memories)
-  - PUT `/user/persona/:id/set-default` - Set as user's default persona
-- [ ] **Task 5.0.2**: `/persona create` - Create a new persona (modal input)
-  - Fields: name (required), preferredName, pronouns, content/description
-- [ ] **Task 5.0.3**: `/persona edit <persona>` - Edit existing persona (modal)
-  - Autocomplete for user's personas
-- [ ] **Task 5.0.4**: `/persona list` - Show user's personas with default indicator
-- [ ] **Task 5.0.5**: `/persona set-default <persona>` - Set default persona
-- [ ] **Task 5.0.6**: `/persona delete <persona>` - Delete persona (with confirmation)
-  - Warn: Deleting persona removes associated memories
-- [ ] **Task 5.0.7**: `/persona set-personality <personality> <persona>` - Override persona for specific personality
-  - Uses `UserPersonalityConfig.personaId` for per-personality persona override
-  - Enables different identities with different AI personalities
-
-**Quick Wins**:
-
-- [ ] **Task 5.1**: Transcription Cleanup (LLM post-processing for Whisper)
-  - Add punctuation and formatting to transcriptions
-  - Use cheap model (Claude Haiku)
-  - Makes bot feel "smarter" immediately
-- [x] **Task 5.2**: Custom error messages (use Personality.errorMessage) ✅
-  - Already migrated in Sprint 2, wiring complete
-  - LLMGenerationHandler passes `personalityErrorMessage` on errors
-  - MessageHandler uses it for webhook error responses
-  - **Completed**: 2025-11-30
-- [ ] **Task 5.3**: Birthday awareness (use Personality.birthday)
-  - Personalities can reference their birthday in responses
-  - Time-aware responses using User.timezone
-- [ ] **Task 5.4**: Author's Note / Depth Prompting
-  - Inject style reminders at variable depth (2-4 messages from bottom) not just top
-  - Combats "Lost in the Middle" syndrome in long conversations
-  - Simple `PromptBuilder` change (~20 lines)
-- [ ] **Task 5.5**: Define `SkillDefinition` interface and `SkillRegistry` (groundwork)
-  - Create `services/ai-worker/src/skills/interfaces.ts`
-  - Define: name, description, parameters, isStealth, autoMemorize
-  - No runtime cost - just architectural foundation for Sprint 8
-- [ ] **Task 5.6**: Expand response cleanup to configurable regex pipeline
-  - Current: `responseCleanup.ts` → `stripResponseArtifacts()` removes XML tags and legacy prefixes
-  - Add: Configurable regex rules (per personality or global)
-  - Add: `<thinking>` tag removal integrated with Task 2.16
-  - Reference: SillyTavern's `regex/engine.js`
-
-### Sprint 6: V2 Feature Parity - Core Systems (4-6 sessions)
-
-**Why**: Essential features for retention and UX.
-
-**From V2_FEATURE_TRACKING.md - High Priority**:
-
-- [ ] **Task 6.1**: Auto-Response System (activated channels)
-  - `/channel activate <personality>` - Enable auto-response in channel
-  - `/channel deactivate` - Disable auto-response
-  - Personality responds to every message in activated channel
-- [ ] **Task 6.2**: Rate Limiting (token bucket algorithm)
-  - Per-user rate limits (prevent API spam)
-  - Per-channel rate limits
-  - Graceful degradation (show friendly message)
-- [ ] **Task 6.3**: Request Deduplication (prevent duplicate processing)
-  - Track recent message IDs (simple Map-based cache)
-  - TTL-based cleanup
-- [ ] **Task 6.4**: NSFW Verification (age verification)
-  - One-time per-user verification (not per-channel)
-  - Auto-verify by using bot in NSFW-marked Discord channel
-  - Prevent access to NSFW personalities without verification
-- [ ] **Task 6.5**: DM Personality Chat (USER REQUESTED)
-  - Talk to characters in DMs (no webhooks available)
-  - Parse `**PersonalityName:** ` prefix for display
-  - **v3 Improvement**: Use conversation history table for personality matching (not name-based like v2, since multiple personalities can have same name)
-  - Falls back to regular bot messages instead of webhooks
-  - Reference: `docs/reference/v2-patterns-reference.md`
-
-**🎉 MILESTONE 2: Feature Parity**
-
-- All critical v2 features ported
-- Voice synthesis fully configurable
-- Users can customize their experience
-- Production-ready for sustained growth
-
-### Sprint 7: Slash Command Architecture Redesign (8-12 sessions)
-
-**Why**: Standardize UX patterns, enable user self-service, prepare for advanced features.
-
-**Reference**: [docs/planning/SLASH_COMMAND_ARCHITECTURE.md](docs/planning/SLASH_COMMAND_ARCHITECTURE.md)
-
-**Comprehensive plan covering**:
-
-- Dashboard pattern standardization (Tier 0-3 system)
-- Redis-backed session management (horizontal scaling)
-- Aliases as single source of truth for personality tagging
-- User self-service (history clear, memory management)
-- Admin tools (system prompts)
-- Advanced LLM parameters UI
-- Shapes.inc data import (future)
-
-**Phase A: Foundation** (Sessions 1-2):
-
-- [ ] **Task 7.1**: Abstract SessionManager behind interface
-- [ ] **Task 7.2**: Implement RedisSessionStorage
-- [ ] **Task 7.3**: Document dashboard pattern specification
-
-**Phase B: User Self-Service** (Sessions 3-5):
-
-- [ ] **Task 7.4**: `/preset edit` dashboard (Tier 2)
-- [ ] **Task 7.5**: `/me profile` upgrade to dashboard framework
-- [ ] **Task 7.6**: `/history clear` with Context Epochs (soft/hard)
-- [ ] **Task 7.7**: `/history undo` (move epoch timestamp back)
-- [ ] **Task 7.8**: `/memory search` semantic search (Tier 3)
-- [ ] **Task 7.9**: `/memory purge` bulk deletion
-
-**Phase C: Alias Consolidation** (Sessions 6-7):
-
-- [ ] **Task 7.10**: Schema migration (scopeType, scopeId, isAutoCreated)
-- [ ] **Task 7.11**: Auto-create aliases on personality create/rename
-- [ ] **Task 7.12**: Refactor tagging logic to use aliases only
-- [ ] **Task 7.13**: `/alias add/remove/list` commands
-
-**Phase D: Admin & Advanced** (Sessions 8-9):
-
-- [ ] **Task 7.14**: `/admin system-prompt` CRUD
-- [ ] **Task 7.15**: Complete advancedParameters JSONB migration
-- [ ] **Task 7.16**: API route naming audit and refactor
-
-**Phase E: Shapes Import** (Sessions 10-12, future):
-
-- [ ] **Task 7.17**: Redis credential storage with TTL (encrypted appSession)
-- [ ] **Task 7.18**: `/shapes backup` - Export shapes.inc data
-- [ ] **Task 7.19**: `/shapes import` wizard - Selective import with ownership validation
-
-**🎉 MILESTONE 3: User Self-Service**
-
-- Users can manage their own history and memories
-- Consistent dashboard UX across all entity commands
-- Single alias-based tagging system
-- Scalable session management
+**Phase E: Shapes Import** (Future)
+- [ ] **7.17-7.19**: Shapes.inc backup and import wizard
 
 ---
 
-## 🧊 Phase 3: "Evolution" - Advanced Architecture
+## Phase 3: Evolution (Icebox)
 
-**Goal**: Deep architecture changes and advanced features. Only start when Phase 1 & 2 are stable and you have real user data.
+**Goal**: Deep architecture changes. Only start when Phase 2 is stable with real user data.
 
-**Estimated Timeline**: 15-23 sessions (4-6 weeks)
+### Sprint 8: OpenMemory Migration
 
-### Sprint 8: OpenMemory Migration - Foundation (10-15 sessions)
+Waypoint graph memory system with multi-sector storage (episodic, semantic, emotional, procedural, reflective). Hybrid scoring with decay system.
 
-**Why Later**: Massive rewrite. By doing this after launch, you'll have real user data to test the new memory graph against.
+Reference: [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)
 
-**Reference**: [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)
+### Sprint 9: Agentic Features
 
-**Database Changes** (PostgreSQL + pgvector):
+Skill system with agentic loop, web research skill, URL scraper, memory search tool, "Free Will" autonomous actions.
 
-- [ ] **Task 7.1**: Design waypoint graph schema
-  - `waypoints` table (nodes in memory graph)
-  - `waypoint_connections` table (edges with weights)
-  - `memory_sectors` table (episodic, semantic, emotional, procedural, reflective)
-- [ ] **Task 7.2**: Implement multi-sector memory storage
-- [ ] **Task 7.3**: Add decay system (daily REM sleep simulation)
+### Sprint 10: Advanced Features
 
-**Application Code**:
-
-- [ ] **Task 7.4**: Build waypoint graph system with associative learning
-- [ ] **Task 7.5**: Implement hybrid scoring (60% similarity + 20% overlap + 15% waypoints + 5% recency)
-- [ ] **Task 7.6**: Add adaptive query expansion
-- [ ] **Task 7.7**: Implement deterministic reflection (no LLM censorship concerns)
-
-**Migration**:
-
-- [ ] **Task 7.8**: Migrate existing pgvector memories to OpenMemory structure
-- [ ] **Task 7.9**: Run parallel systems (old + new) for validation
-- [ ] **Task 7.10**: Cut over to OpenMemory, deprecate old system
-
-### Sprint 9: Agentic Features (8-12 sessions, expanded)
-
-**Why**: Natural extension of sophisticated memory - let personalities be more autonomous. Builds on Skill groundwork from Sprint 5.
-
-**Reference**: SillyTavern's `tool-calling.js`, `scrapers.js` patterns
-
-**Skill System Implementation** (builds on Task 5.5 groundwork):
-
-- [ ] **Task 8.1**: Implement `SkillRegistry` for loading/retrieving skills
-  - Register skills at startup
-  - Retrieve by name for execution
-  - Folder: `services/ai-worker/src/skills/`
-- [ ] **Task 8.2**: Implement agentic loop in `ConversationalRAGService`
-  - Handle `finish_reason === 'tool_calls'` with recursion
-  - Execute skill → append result to context → call LLM again
-  - MAX_STEPS limit (3-5) to prevent infinite loops
-- [ ] **Task 8.3**: Stealth reasoning support
-  - Tool calls visible to LLM context but NOT saved to `conversation_history`
-  - Keeps user-facing chat clean while AI reasons behind the scenes
-  - `isStealth` flag on SkillDefinition
-
-**Skills Implementation**:
-
-- [ ] **Task 8.4**: Web Research skill (the "learning" implementation)
-  - Search via DuckDuckGo (`duck-duck-scrape`) or similar
-  - `autoMemorize: true` → results written to LongTermMemory with `LORE_RESEARCH` tag
-  - Enables characters to research post-cutoff info (e.g., Hazbin Hotel S2)
-- [ ] **Task 8.5**: URL Scraper skill
-  - User pastes link → AI fetches, reads, and summarizes content
-  - Optional memory storage for future reference
-- [ ] **Task 8.6**: Memory Search skill (internal tool for AI)
-  - AI can explicitly search its own memories
-  - Different from automatic RAG retrieval
-
-**Autonomy & Commands**:
-
-- [ ] **Task 8.7**: "Free Will" loop (unsolicited personality actions)
-  - Check-in messages
-  - Spontaneous reflections
-  - Memory consolidation triggers
-- [ ] **Task 8.8**: Memory management slash commands
-  - `/memory search <query>` - User searches personality's memories
-  - `/memory prune <threshold>` - Clean low-relevance memories
-  - `/memory stats` - Show memory counts and health
-
-### Sprint 10: Advanced Features (Variable - as desired)
-
-**Why**: Fun experiments and nice-to-haves.
-
-- [ ] **Task 9.1**: Image Generation (if tool calling infrastructure ready)
-  - Only Gemini models available on OpenRouter
-  - Wait for proper tool call architecture
-- [ ] **Task 9.2**: Multi-Personality Response
-  - `@Lilith @Sarcastic hey both of you` → Both respond
-  - Complex conversation history tracking
-- [ ] **Task 9.3**: Natural Order Group Orchestration (for group chats)
-  - Deterministic speaker selection WITHOUT expensive LLM router calls
-  - **Heuristics** (from SillyTavern's `group-chats.js`):
-    - Direct mention detection: "Hey Alastor" → Alastor responds
-    - Talkativeness RNG: Each personality has `talkativeness` score (0-1)
-    - Anti-repetition: Deprioritize last speaker
-  - Enables organic multi-personality conversations at low cost
-- [ ] **Task 9.4**: PluralKit Proxy Support
-  - Detect PluralKit proxies
-  - Link system members to Discord users
-  - Simplified vs v2's elaborate system
-- [ ] **Task 9.5**: Release Notifications
-  - Notify about bot updates
-  - Port from v2
-
-**🎉 MILESTONE 3: AGI-lite**
-
-- Sophisticated cognitive architecture operational
-- Personalities have autonomy and memory graphs
-- Advanced features for power users
+Image generation, multi-personality response, natural order group orchestration, PluralKit proxy support, release notifications.
 
 ---
 
-## 🧊 Icebox - Ideas for Later
+## Icebox - Ideas for Later
 
-**Rule**: If you have an idea, it goes here. Close all other tabs/docs. Resist the shiny object.
+**Rule**: New ideas go here. Resist the shiny object.
 
-**From SillyTavern Analysis (2025-11-24)**:
+### From Code Reviews
 
-- Character Card Import (V2/V3 PNG community format) - read personality data from PNG metadata
-- Local Embeddings (`@xenova/transformers`) - eliminate OpenAI embedding costs
-- OpenRouter Embeddings - simplify setup by using OpenRouter for embeddings too
-- Robust Chat Templates - better local model support (Llama, Mistral via Ollama)
-- Slash Command Piping - output of one command feeds another (`/search | /summarize`)
-- Lorebooks / Sticky Context - deterministic keyword-triggered lore (complements OpenMemory)
-  - Logic gates: AND_ANY, NOT_ALL for precise context injection
-  - Timed effects: "Sticky" (stays X turns), "Cooldown" (can't retrigger for Y turns)
+- Extract modal customIds to constants (DRY improvement)
+- Personality Access Allowlist (`/character allowlist add @user`)
+- Investigate XML/sanitization libraries vs hand-rolled
+- Add Zod schema for `UpdatePersonalityBody`
+- Correlation IDs for cache invalidation logging
 
-**From Channel/Role Mention PR Review (2025-11-25)**:
+### From SillyTavern Analysis
 
-- Database-configurable limits for mention resolution (per-personality or per-guild)
-  - Currently hardcoded: MAX_CHANNELS_PER_MESSAGE (5), MAX_ROLES_PER_MESSAGE (5), CHANNEL_MEMORY_BUDGET_RATIO (0.5)
-  - Allows tuning for different use cases without code changes
+- Character Card Import (V2/V3 PNG metadata)
+- Local Embeddings (`@xenova/transformers`)
+- OpenRouter Embeddings
+- Robust Chat Templates (Llama, Mistral via Ollama)
+- Slash Command Piping (`/search | /summarize`)
+- Lorebooks / Sticky Context (keyword-triggered lore)
 
-**From Command Structure Phase 2 PR Review (2025-12-04)**:
+### Original Ideas
 
-- Extract modal customIds to constants
-  - Currently hardcoded strings like `create_character_modal`, `create_preset_modal_step1`, etc.
-  - Extract to `DISCORD_CUSTOM_IDS` or similar constants object in common-types
-  - Benefits: DRY, centralized, easier to find all modal handlers
-
-**From Access Control Implementation (2025-12-04)**:
-
-- Personality Access Allowlist - Let personality owners grant access to specific users via slash command
-  - Enables sharing private personalities with trusted users
-  - `/character allowlist add @user` / `/character allowlist remove @user`
-  - Requires new database table: `PersonalityAccessGrant(personalityId, userId, grantedBy, grantedAt)`
-
-**From PR #318 Code Review (2025-12-06)**:
-
-- Investigate XML/sanitization libraries instead of rolling our own
-  - Current `escapeXmlContent()` is hand-rolled regex-based sanitization
-  - Consider established libraries: `he` (HTML entities), `xss`, `DOMPurify`, `sanitize-html`
-  - General principle: prefer battle-tested libraries over custom implementations for security-critical utilities
-  - Also applies to other utilities we write - check npm first before reinventing
-
-**From PR #334 Code Review (2025-12-08)**:
-
-- Add Zod schema for `UpdatePersonalityBody` in personality update handler
-  - Currently using TypeScript interface only - no runtime validation
-  - Would catch request body type mismatches at runtime
-  - Aligns with API contract enforcement strategy (see `docs/improvements/api-contract-enforcement.md`)
-- Add correlation IDs for cache invalidation logging
-  - Would improve distributed tracing in cache invalidation flows
-  - Helps debug cross-service cache sync issues
-  - Aligns with `tzurot-observability` skill patterns
-
-**Original Ideas**:
-
-- Streaming responses (real-time message updates)
+- Streaming responses
 - Metrics & monitoring (Prometheus)
 - Advanced caching strategies
 - Multi-language support
-- Custom personality training data
-- Personality collaboration features
 - Dream sequences (personality self-reflection)
 - Emotion tracking over time
-- Relationship graphs between users and personalities
+- Relationship graphs
 
 ---
 
-## 📝 Technical Debt / Maintenance
+## Technical Debt
 
-**Ongoing**: These don't block features but improve quality of life.
+**Code Quality:**
+- [ ] 142 lint warnings - mostly complexity issues (functions >15 complexity, >100 lines)
+- [ ] DRY violation - `me/model/autocomplete.ts` duplicates shared autocomplete utility
+- [ ] Autocomplete UX - include slug in parentheses for same-name personalities
 
-- [ ] Consolidate `scripts/data/import-personality/` - Currently a separate workspace package with its own node_modules. Options: absorb into api-gateway, move to packages/, or document as intentionally standalone.
-- [x] ~~Investigate npm warning: "Unknown project config public-hoist-pattern"~~ FIXED: Moved pnpm config to package.json
-- [ ] Full schema consistency review - naming conventions, missing fields, type alignment
-- [x] ~~Migrate embedding to native @db.Vector~~ INVALID: Prisma 7.0.0 does NOT support @db.Vector type
-- [ ] Investigate Atlas (atlasgo.io) for composite schema management - prevents Prisma pgvector index drift by allowing manual SQL + Prisma schema to coexist
-- [ ] Increase test coverage for `WebhookManager` (249 lines)
-- [ ] Refactor `MessageHandler` if it grows beyond 468 lines (consider splitting)
+**Infrastructure:**
+- [ ] Consolidate `scripts/data/import-personality/` workspace
+- [ ] Full schema consistency review
+- [ ] Investigate Atlas for composite schema management
+- [ ] Document `advancedParameters` JSONB structures
+
+**Testing:**
+- [ ] Increase test coverage for `WebhookManager`
 - [ ] Add integration tests for end-to-end flows
-- [ ] Document all `advancedParameters` JSONB structures per provider
-- [ ] Create GitHub Release with proper notes for each release
+
+**Operations:**
 - [ ] Rotate encryption keys every 90 days
 - [ ] Database backups before major migrations
 
 ---
 
-## 🎯 How to Use This Roadmap
+## How to Use This Roadmap
 
-### For AI Sessions:
+### For AI Sessions
 
-1. **Start Every Session**: Read the **current sprint** section
-2. **Context Injection**: Paste the active tasks into your AI prompt
-   - _Example_: "We are working on Sprint 2, Task 2.11 (encryption utilities). Here is the context..."
-3. **Resist Shiny Objects**: If your brain says "Let's design the cognitive architecture," look at the Roadmap. Is Phase 1 done? If no, write it down in the Icebox and go back to work.
+1. **Start**: Read the **Current Focus** section
+2. **Work**: Pick the next unchecked task in current sprint
+3. **Resist**: New ideas go in Icebox, not current sprint
 
-### For Planning Sessions:
+### For Context Switching
 
-1. **Update Status**: Mark tasks as complete [ → x]
-2. **Add New Ideas**: Add to Icebox, don't derail current sprint
-3. **Reprioritize**: Only if a production fire requires it
+1. **Before Break**: Update CURRENT_WORK.md
+2. **After Break**: Read CURRENT_WORK.md, then this roadmap
 
-### For Context Switching:
+### Emergency Procedures
 
-1. **Before Break**: Update CURRENT_WORK.md with "Last worked on: Sprint X, Task Y"
-2. **After Break**: Read CURRENT_WORK.md, then jump to that sprint in ROADMAP.md
-
----
-
-## 📊 Progress Tracking
-
-### Phase 0: "Foundation" 🚧 CURRENT PRIORITY
-
-- **Sprint 0**: Dependency Updates & Test Coverage → 📋 Not Started
-- **Estimated Completion**: 1-2 weeks
-- **Risk Mitigation**: Stable dependencies + integration tests before schema changes ✅
-
-### Phase 1: "Gatekeeper" 📋 PLANNED (after Phase 0)
-
-- **Sprint 1**: Testing Baseline → 📋 Blocked on Phase 0
-- **Sprint 2**: Prisma 7.0 + BYOK Schema Migration → 📋 Blocked on Phase 0
-- **Sprint 3**: Slash Commands → 📋 Blocked on Phase 0
-- **Estimated Completion**: 5-7 weeks after Phase 0 (increased due to Prisma 7.0 migration)
-- **Blocker Removal**: BYOK enables public launch ✅
-- **Dependency Updates**: Unblocked after Prisma 7.0 migration in Sprint 2
-
-### Phase 2: "Refinement" 📋 PLANNED
-
-- **Sprint 4**: Voice Enhancements → 📋 Not Started
-- **Sprint 5**: Quick Wins → 📋 Not Started
-- **Sprint 6**: V2 Feature Parity → 📋 Not Started
-- **Estimated Completion**: 3-5 weeks after Phase 1
-- **Value**: Feature parity + retention
-
-### Phase 3: "Evolution" 🧊 ICEBOX
-
-- **Sprint 7**: OpenMemory Foundation → 🧊 Blocked on Phase 1 & 2
-- **Sprint 8**: Agentic Features → 🧊 Blocked on Sprint 7
-- **Sprint 9**: Advanced Features → 🧊 Blocked on infrastructure
-- **Estimated Completion**: 4-6 weeks after Phase 2
-- **Value**: Innovation, differentiation
+**Production Fire**: Stop → Fix → Write test → Resume sprint
+**Overwhelmed**: Look at current sprint, do ONE task
+**Scope Creep**: Write in Icebox → Ask "does this help launch?" → Resume
 
 ---
 
-## 🚨 Emergency Procedures
+## Related Documentation
 
-### If Production is On Fire:
-
-1. Stop everything
-2. Fix the fire
-3. Write a test that would have caught it
-4. Update this roadmap with lessons learned
-5. Resume current sprint
-
-### If Feeling Overwhelmed:
-
-1. Close all docs except ROADMAP.md and CURRENT_WORK.md
-2. Look at current sprint - what's the next checkbox?
-3. Do that one task
-4. Don't think about anything else
-
-### If Scope Creep Detected:
-
-1. Write the idea in Icebox
-2. Ask: "Does this help launch the public beta?" If no → Icebox
-3. Ask: "Does this prevent a production fire?" If no → Icebox
-4. Resume current sprint
-
----
-
-## 📚 Related Documentation
-
-### Planning Docs
-
-- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - OpenMemory architecture (Phase 3)
-- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - v2 feature parity tracking
-- [docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md](docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md) - Future shapes.inc import command
-
-### Reference Docs
-
-- [docs/reference/v2-patterns-reference.md](docs/reference/v2-patterns-reference.md) - V2 patterns worth porting (PluralKit, deduplication, rate limiting, DM chat)
-
-### Architecture
-
-- [docs/architecture/llm-hyperparameters-research.md](docs/architecture/llm-hyperparameters-research.md) - Advanced LLM parameters
-- [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
-- [docs/architecture/sillytavern-patterns.md](docs/architecture/sillytavern-patterns.md) - Implementation patterns from SillyTavern
-
----
-
-**The One Document Rule**: If you have an idea, it goes into the Icebox section of this document. Focus on the current sprint.
+- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - Phase 3 architecture
+- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - Feature parity tracking
+- [docs/planning/SLASH_COMMAND_ARCHITECTURE.md](docs/planning/SLASH_COMMAND_ARCHITECTURE.md) - Sprint 7 detailed plan
+- [docs/reference/v2-patterns-reference.md](docs/reference/v2-patterns-reference.md) - V2 patterns worth porting
