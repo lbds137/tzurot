@@ -1,34 +1,38 @@
 /**
  * Character Template Subcommand
- * Handles /character template - shows the JSON template for import
+ * Handles /character template - provides a downloadable JSON template for import
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
+import { MessageFlags, AttachmentBuilder } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
 
 /**
  * Handle /character template subcommand
- * Shows the JSON template that users can copy-paste for import
+ * Provides a downloadable JSON template file for character import
  */
 export async function handleTemplate(
   interaction: ChatInputCommandInteraction,
   _config: EnvConfig
 ): Promise<void> {
+  // Create JSON attachment
+  const jsonBuffer = Buffer.from(CHARACTER_JSON_TEMPLATE, 'utf-8');
+  const jsonAttachment = new AttachmentBuilder(jsonBuffer, {
+    name: 'character_card_template.json',
+    description: 'Template JSON file for character import',
+  });
+
   const message =
     '**📋 Character Import Template**\n\n' +
-    'Copy and paste this JSON template, fill in your values, save as a `.json` file, ' +
-    'then use `/character import` to upload it.\n\n' +
-    '```json\n' +
-    CHARACTER_JSON_TEMPLATE +
-    '\n```\n\n' +
+    'Fill in your values in the downloaded template, then use `/character import` to upload it.\n\n' +
     '**Required fields:** `name`, `slug`, `characterInfo`, `personalityTraits`\n' +
     '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)\n' +
     '**Avatar:** Upload a separate image file when importing using the `avatar` option';
 
   await interaction.reply({
     content: message,
+    files: [jsonAttachment],
     flags: MessageFlags.Ephemeral,
   });
 }

@@ -8,11 +8,11 @@ import {
   createLogger,
   DISCORD_LIMITS,
   isFreeModel,
-  type PersonalitySummary,
   type LlmConfigSummary,
   type AIProvider,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
 /**
  * Special value for the "Unlock All Models" upsell option
@@ -38,7 +38,16 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 
   try {
     if (focusedOption.name === 'personality') {
-      await handlePersonalityAutocomplete(interaction, focusedOption.value, userId);
+      // Use shared utility with id as value (model override API expects personality ID)
+      const handled = await handlePersonalityAutocomplete(interaction, {
+        optionName: 'personality',
+        ownedOnly: false,
+        showVisibility: true,
+        valueField: 'id',
+      });
+      if (!handled) {
+        await interaction.respond([]);
+      }
     } else if (focusedOption.name === 'config') {
       await handleConfigAutocomplete(interaction, focusedOption.value, userId);
     } else {
@@ -59,47 +68,6 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     );
     await interaction.respond([]);
   }
-}
-
-/**
- * Handle personality autocomplete
- */
-async function handlePersonalityAutocomplete(
-  interaction: AutocompleteInteraction,
-  query: string,
-  userId: string
-): Promise<void> {
-  const result = await callGatewayApi<{ personalities: PersonalitySummary[] }>(
-    '/user/personality',
-    { userId }
-  );
-
-  if (!result.ok) {
-    logger.warn({ userId, error: result.error }, '[Me/Model] Failed to fetch personalities');
-    await interaction.respond([]);
-    return;
-  }
-
-  const queryLower = query.toLowerCase();
-  const filtered = result.data.personalities
-    .filter(
-      p =>
-        p.name.toLowerCase().includes(queryLower) ||
-        p.slug.toLowerCase().includes(queryLower) ||
-        (p.displayName?.toLowerCase().includes(queryLower) ?? false)
-    )
-    .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
-
-  // Explicitly check for null/undefined/empty string (displayName could be '')
-  const choices = filtered.map(p => ({
-    name:
-      p.displayName !== null && p.displayName !== undefined && p.displayName !== ''
-        ? p.displayName
-        : p.name,
-    value: p.id,
-  }));
-
-  await interaction.respond(choices);
 }
 
 /**
