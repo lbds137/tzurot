@@ -12,14 +12,14 @@
 
 ## Next Up
 
-| # | Feature | Why |
-|---|---------|-----|
-| 1 | **Shapes.inc Import** | Unblocks v2 deletion - users need migration path |
-| 2 | **DM Personality Chat** | Biggest v2 feature gap, user-requested |
-| 3 | **Dashboard Pattern** | Fix UX before adding complex features |
-| 4 | **NSFW Verification** | User-level, one-time via age-gated channel |
-| 5 | **LTM & Context Mgmt** | /history clear, /memory search, optimization |
-| 6 | **Agentic Scaffolding** | Build capabilities before OpenMemory |
+| #   | Feature                 | Why                                              |
+| --- | ----------------------- | ------------------------------------------------ |
+| 1   | **Shapes.inc Import**   | Unblocks v2 deletion - users need migration path |
+| 2   | **DM Personality Chat** | Biggest v2 feature gap, user-requested           |
+| 3   | **Dashboard Pattern**   | Fix UX before adding complex features            |
+| 4   | **NSFW Verification**   | User-level, one-time via age-gated channel       |
+| 5   | **LTM & Context Mgmt**  | /history clear, /memory search, optimization     |
+| 6   | **Agentic Scaffolding** | Build capabilities before OpenMemory             |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
@@ -42,6 +42,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 ## Features Working
 
 **Core:**
+
 - @personality mentions + reply detection
 - Message references (Discord message links + reply context)
 - Webhook management (unique avatar/name per personality)
@@ -49,6 +50,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 - Image attachment + voice transcription support
 
 **User Management:**
+
 - `/wallet` - API key management (set, list, remove, test)
 - `/me profile` - Persona management (create, edit, list, default, view, override, share-ltm)
 - `/me model` - Model overrides (set, reset, list, set-default, clear-default)
@@ -56,6 +58,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 - `/preset` - User presets (create, list, delete) - **missing: edit**
 
 **Admin:**
+
 - `/admin` - Bot owner commands (ping, db-sync, servers, kick, usage)
 - `/preset global` - Global preset management
 - `/character` - Personality CRUD (create, edit, delete, view, list, avatar, export, chat)

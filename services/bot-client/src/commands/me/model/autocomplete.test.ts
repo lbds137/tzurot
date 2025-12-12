@@ -80,7 +80,7 @@ describe('handleAutocomplete', () => {
   });
 
   describe('personality autocomplete', () => {
-    it('should respond with filtered personalities', async () => {
+    it('should respond with filtered personalities with visibility and slug', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: 'test',
@@ -89,8 +89,22 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: {
           personalities: [
-            { id: 'p1', name: 'TestBot', displayName: 'Test Bot', slug: 'testbot', isOwned: true },
-            { id: 'p2', name: 'OtherBot', displayName: null, slug: 'otherbot', isOwned: false },
+            {
+              id: 'p1',
+              name: 'TestBot',
+              displayName: 'Test Bot',
+              slug: 'testbot',
+              isOwned: true,
+              isPublic: false,
+            },
+            {
+              id: 'p2',
+              name: 'OtherBot',
+              displayName: null,
+              slug: 'otherbot',
+              isOwned: false,
+              isPublic: true,
+            },
           ],
         },
       });
@@ -98,7 +112,10 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(callGatewayApi).toHaveBeenCalledWith('/user/personality', { userId: 'user-123' });
-      expect(mockInteraction.respond).toHaveBeenCalledWith([{ name: 'Test Bot', value: 'p1' }]);
+      // 🔒 = owned + private, includes slug in parentheses, value is id
+      expect(mockInteraction.respond).toHaveBeenCalledWith([
+        { name: '🔒 Test Bot (testbot)', value: 'p1' },
+      ]);
     });
 
     it('should use name when displayName is null', async () => {
@@ -110,14 +127,23 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: {
           personalities: [
-            { id: 'p1', name: 'TestBot', displayName: null, slug: 'testbot', isOwned: true },
+            {
+              id: 'p1',
+              name: 'TestBot',
+              displayName: null,
+              slug: 'testbot',
+              isOwned: true,
+              isPublic: false,
+            },
           ],
         },
       });
 
       await handleAutocomplete(mockInteraction);
 
-      expect(mockInteraction.respond).toHaveBeenCalledWith([{ name: 'TestBot', value: 'p1' }]);
+      expect(mockInteraction.respond).toHaveBeenCalledWith([
+        { name: '🔒 TestBot (testbot)', value: 'p1' },
+      ]);
     });
 
     it('should filter by slug', async () => {
@@ -129,15 +155,61 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: {
           personalities: [
-            { id: 'p1', name: 'Lilith', displayName: 'Lilith Bot', slug: 'lilith', isOwned: true },
-            { id: 'p2', name: 'Other', displayName: 'Other Bot', slug: 'other', isOwned: false },
+            {
+              id: 'p1',
+              name: 'Lilith',
+              displayName: 'Lilith Bot',
+              slug: 'lilith',
+              isOwned: true,
+              isPublic: true,
+            },
+            {
+              id: 'p2',
+              name: 'Other',
+              displayName: 'Other Bot',
+              slug: 'other',
+              isOwned: false,
+              isPublic: true,
+            },
           ],
         },
       });
 
       await handleAutocomplete(mockInteraction);
 
-      expect(mockInteraction.respond).toHaveBeenCalledWith([{ name: 'Lilith Bot', value: 'p1' }]);
+      // 🌐 = owned + public
+      expect(mockInteraction.respond).toHaveBeenCalledWith([
+        { name: '🌐 Lilith Bot (lilith)', value: 'p1' },
+      ]);
+    });
+
+    it('should show 📖 icon for public personalities not owned', async () => {
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'personality',
+        value: '',
+      });
+      vi.mocked(callGatewayApi).mockResolvedValue({
+        ok: true,
+        data: {
+          personalities: [
+            {
+              id: 'p1',
+              name: 'SharedBot',
+              displayName: 'Shared Bot',
+              slug: 'sharedbot',
+              isOwned: false,
+              isPublic: true,
+            },
+          ],
+        },
+      });
+
+      await handleAutocomplete(mockInteraction);
+
+      // 📖 = not owned (read-only)
+      expect(mockInteraction.respond).toHaveBeenCalledWith([
+        { name: '📖 Shared Bot (sharedbot)', value: 'p1' },
+      ]);
     });
 
     it('should respond with empty array on API error', async () => {
@@ -167,6 +239,7 @@ describe('handleAutocomplete', () => {
         displayName: null,
         slug: `personality${i}`,
         isOwned: true,
+        isPublic: false,
       }));
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,

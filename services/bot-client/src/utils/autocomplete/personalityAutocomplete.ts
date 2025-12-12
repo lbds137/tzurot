@@ -26,6 +26,8 @@ export interface PersonalityAutocompleteOptions {
   showVisibility?: boolean;
   /** Option name to match (defaults to 'personality' or 'character') */
   optionName?: string | string[];
+  /** Which field to return as the value (defaults to 'slug') */
+  valueField?: 'slug' | 'id';
 }
 
 /**
@@ -35,6 +37,7 @@ const DEFAULT_OPTIONS: Required<PersonalityAutocompleteOptions> = {
   ownedOnly: false,
   showVisibility: true,
   optionName: ['personality', 'character'],
+  valueField: 'slug',
 };
 
 /**
@@ -109,17 +112,19 @@ export async function handlePersonalityAutocomplete(
           ? p.displayName
           : p.name;
 
-      // Add visibility indicator if enabled
+      // Build label: [visibility] DisplayName (slug)
       let label = displayName;
       if (mergedOptions.showVisibility) {
         // 🌐 = Public and owned, 🔒 = Private and owned, 📖 = Public not owned
         const visibility = p.isOwned ? (p.isPublic ? '🌐' : '🔒') : '📖';
         label = `${visibility} ${displayName}`;
       }
+      // Always append slug in parentheses for disambiguation
+      label = `${label} (${p.slug})`;
 
       return {
         name: label,
-        value: p.slug,
+        value: mergedOptions.valueField === 'id' ? p.id : p.slug,
       };
     });
 
