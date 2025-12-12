@@ -14,10 +14,10 @@
 
 ### Priority 1: UX Dead Ends
 
-| Task                   | What's Broken                                | Status      |
-| ---------------------- | -------------------------------------------- | ----------- |
-| `/preset edit`         | Users can create/delete presets but NOT edit | Not started |
-| `advancedParameters`   | Schema exists, API routes ignore it          | Not started |
+| Task                 | What's Broken                                | Status      |
+| -------------------- | -------------------------------------------- | ----------- |
+| `/preset edit`       | Users can create/delete presets but NOT edit | Not started |
+| `advancedParameters` | Schema exists, API routes ignore it          | Not started |
 
 ### Priority 2: User Self-Service
 
@@ -58,6 +58,7 @@
 ## Features Working
 
 **Core:**
+
 - @personality mentions + reply detection
 - Message references (Discord message links + reply context)
 - Webhook management (unique avatar/name per personality)
@@ -65,6 +66,7 @@
 - Image attachment + voice transcription support
 
 **User Management:**
+
 - `/wallet` - API key management (set, list, remove, test)
 - `/me profile` - Persona management (create, edit, list, default, view, override, share-ltm)
 - `/me model` - Model overrides (set, reset, list, set-default, clear-default)
@@ -72,11 +74,13 @@
 - `/preset` - User presets (create, list, delete) - **missing: edit**
 
 **Admin:**
+
 - `/admin` - Bot owner commands (ping, db-sync, servers, kick, usage)
 - `/preset global` - Global preset management (create, edit, set-default, set-free-default)
 - `/character` - Personality CRUD (create, edit, delete, view, list, avatar, import, export, chat)
 
 **Special:**
+
 - BYOK (Bring Your Own Key) via `/wallet` commands
 - Free model guest mode
 - Custom error messages per personality
