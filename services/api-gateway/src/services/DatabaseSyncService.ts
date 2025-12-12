@@ -24,6 +24,29 @@ interface SyncOptions {
 
 /**
  * Options for upserting a row during sync
+ *
+ * @example
+ * // Basic upsert with UUID columns
+ * await upsertRow({
+ *   client: devClient,
+ *   tableName: 'users',
+ *   row: userData,
+ *   pkField: 'id',
+ *   uuidColumns: ['id'],
+ * });
+ *
+ * @example
+ * // Handling circular FK with deferredFkColumns
+ * // Pass 1: Insert user, defer self-referencing FK
+ * await upsertRow({
+ *   client: devClient,
+ *   tableName: 'users',
+ *   row: userData,
+ *   pkField: 'id',
+ *   uuidColumns: ['id', 'referred_by'],
+ *   deferredFkColumns: ['referred_by'], // Circular FK to users.id, set NULL in pass 1
+ * });
+ * // Pass 2: Update deferred FK after all users exist
  */
 interface UpsertRowOptions {
   /** Prisma client to use */
@@ -38,7 +61,10 @@ interface UpsertRowOptions {
   uuidColumns?: readonly string[];
   /** Columns that are timestamp type (need ::timestamptz cast) */
   timestampColumns?: readonly string[];
-  /** FK columns to defer to pass 2 (set to NULL in pass 1) */
+  /**
+   * FK columns to defer to pass 2 (set to NULL in pass 1).
+   * Use for circular foreign keys that reference rows not yet inserted.
+   */
   deferredFkColumns?: readonly string[];
 }
 
