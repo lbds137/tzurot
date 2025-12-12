@@ -192,6 +192,21 @@ describe('Help Command', () => {
       expect(interactionField?.value).toContain(`${mockConfig.BOT_MENTION_CHAR}PersonalityName`);
     });
 
+    it('should include /character chat reference in personality interactions', async () => {
+      const interaction = createMockInteraction(null);
+      const commands = createMockCommands();
+
+      await execute(interaction, commands);
+
+      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const json = embed.toJSON();
+
+      const interactionField = json.fields.find((f: { name: string }) =>
+        f.name.includes('Personality')
+      );
+      expect(interactionField?.value).toContain('/character chat');
+    });
+
     it('should use custom mention char from config', async () => {
       // Change mention char to dev mode
       mockConfig.BOT_MENTION_CHAR = '&';
