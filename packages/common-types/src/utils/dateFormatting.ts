@@ -8,6 +8,13 @@
 import { APP_SETTINGS } from '../constants/index.js';
 
 /**
+ * Format a time delta with proper singular/plural form
+ */
+function formatTimeUnit(value: number, unit: string): string {
+  return value === 1 ? `1 ${unit} ago` : `${value} ${unit}s ago`;
+}
+
+/**
  * Format a date with full context: day of week, date, time, timezone
  *
  * Example: "Monday, January 27, 2025, 02:45 AM EST"
@@ -217,15 +224,15 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
 
   // Within an hour
   if (diffMinutes < 60) {
-    return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+    return formatTimeUnit(diffMinutes, 'minute');
   }
 
   // Within a day
   if (diffHours < 24) {
-    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+    return formatTimeUnit(diffHours, 'hour');
   }
 
-  // Yesterday
+  // Yesterday (special case)
   if (diffDays === 1) {
     return 'yesterday';
   }
@@ -237,16 +244,16 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
 
   // Within a month (use weeks)
   if (diffWeeks < 4) {
-    return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+    return formatTimeUnit(diffWeeks, 'week');
   }
 
   // Within a year (use months)
   if (diffMonths < 12) {
-    return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
+    return formatTimeUnit(diffMonths, 'month');
   }
 
   // Years
-  return diffYears === 1 ? '1 year ago' : `${diffYears} years ago`;
+  return formatTimeUnit(diffYears, 'year');
 }
 
 /**
