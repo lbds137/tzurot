@@ -183,7 +183,8 @@ async function showAllCommands(
     name: '💬 Personality Interactions',
     value:
       `• \`${mentionChar}PersonalityName your message\` - Start a conversation\n` +
-      '• Reply to their messages to continue chatting',
+      '• Reply to their messages to continue chatting\n' +
+      '• Use `/character chat` to start via slash command',
     inline: false,
   });
 
