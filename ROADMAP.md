@@ -14,10 +14,10 @@
 
 ### Priority 1: UX Dead Ends
 
-| Task                     | What's Broken                                   | Sprint |
-| ------------------------ | ----------------------------------------------- | ------ |
-| **`/preset edit`**       | Users can create/delete presets but NOT edit    | 7.4    |
-| **`advancedParameters`** | Schema exists, API routes ignore it             | 7.15   |
+| Task                     | What's Broken                                | Sprint |
+| ------------------------ | -------------------------------------------- | ------ |
+| **`/preset edit`**       | Users can create/delete presets but NOT edit | 7.4    |
+| **`advancedParameters`** | Schema exists, API routes ignore it          | 7.15   |
 
 ### Priority 2: User Self-Service
 
@@ -77,6 +77,7 @@
 ### Sprint 5: Quick Wins & Polish (Partial)
 
 **Remaining**:
+
 - [ ] **5.1**: Transcription cleanup (LLM post-processing for Whisper)
 - [ ] **5.3**: Birthday awareness (Personality.birthday in responses)
 - [ ] **5.4**: Author's Note / Depth Prompting (combat "Lost in the Middle")
@@ -94,23 +95,28 @@
 ### Sprint 7: Slash Command Architecture Redesign (Not Started)
 
 **Phase A: Foundation**
+
 - [ ] **7.1-7.3**: Session manager abstraction, Redis storage, dashboard pattern spec
 
 **Phase B: User Self-Service**
+
 - [ ] **7.4**: `/preset edit` for regular users
 - [ ] **7.5**: `/me profile` dashboard upgrade
 - [ ] **7.6-7.7**: `/history clear` and `/history undo` with Context Epochs
 - [ ] **7.8-7.9**: `/memory search` and `/memory purge`
 
 **Phase C: Alias Consolidation**
+
 - [ ] **7.10-7.13**: Alias schema migration, auto-create on personality create, refactor tagging
 
 **Phase D: Admin & Advanced**
+
 - [ ] **7.14**: `/admin system-prompt` CRUD
 - [ ] **7.15**: Complete advancedParameters JSONB wiring
 - [ ] **7.16**: API route naming audit
 
 **Phase E: Shapes Import** (Future)
+
 - [ ] **7.17-7.19**: Shapes.inc backup and import wizard
 
 ---
@@ -171,21 +177,25 @@ Image generation, multi-personality response, natural order group orchestration,
 ## Technical Debt
 
 **Code Quality:**
+
 - [ ] 142 lint warnings - mostly complexity issues (functions >15 complexity, >100 lines)
 - [ ] DRY violation - `me/model/autocomplete.ts` duplicates shared autocomplete utility
 - [ ] Autocomplete UX - include slug in parentheses for same-name personalities
 
 **Infrastructure:**
+
 - [ ] Consolidate `scripts/data/import-personality/` workspace
 - [ ] Full schema consistency review
 - [ ] Investigate Atlas for composite schema management
 - [ ] Document `advancedParameters` JSONB structures
 
 **Testing:**
+
 - [ ] Increase test coverage for `WebhookManager`
 - [ ] Add integration tests for end-to-end flows
 
 **Operations:**
+
 - [ ] Rotate encryption keys every 90 days
 - [ ] Database backups before major migrations
 
