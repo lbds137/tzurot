@@ -263,4 +263,78 @@ Lilith: You're welcome! Let me know if you need anything else.`;
       expect(result).not.toContain('{assistant}');
     });
   });
+
+  describe('Name collision disambiguation', () => {
+    it('should disambiguate when userName matches assistantName', () => {
+      const text = '{user}: Hello there!\n{assistant}: Hi!';
+      // Both names are "Lila" - collision!
+      const result = replacePromptPlaceholders(text, 'Lila', 'Lila', 'lbds137');
+      expect(result).toBe('Lila (@lbds137): Hello there!\nLila: Hi!');
+    });
+
+    it('should handle case-insensitive name matching', () => {
+      const text = '{user}: Hello!';
+      // "LILA" matches "lila" case-insensitively
+      const result = replacePromptPlaceholders(text, 'LILA', 'lila', 'lbds137');
+      expect(result).toBe('LILA (@lbds137): Hello!');
+    });
+
+    it('should not disambiguate when names are different', () => {
+      const text = '{user}: Hello there!\n{assistant}: Hi!';
+      // Different names - no collision
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith', 'aliceuser');
+      expect(result).toBe('Alice: Hello there!\nLilith: Hi!');
+    });
+
+    it('should not disambiguate when discordUsername is not provided', () => {
+      const text = '{user}: Hello!';
+      // Same names but no discord username provided
+      const result = replacePromptPlaceholders(text, 'Lila', 'Lila');
+      expect(result).toBe('Lila: Hello!');
+    });
+
+    it('should not disambiguate when discordUsername is empty', () => {
+      const text = '{user}: Hello!';
+      // Same names but empty discord username
+      const result = replacePromptPlaceholders(text, 'Lila', 'Lila', '');
+      expect(result).toBe('Lila: Hello!');
+    });
+
+    it('should preserve assistant name without disambiguation', () => {
+      const text = '{assistant}: I am the personality.';
+      // Even with collision, assistant name should NOT be disambiguated
+      const result = replacePromptPlaceholders(text, 'Lila', 'Lila', 'lbds137');
+      expect(result).toBe('Lila: I am the personality.');
+    });
+
+    it('should handle mixed user and assistant placeholders with collision', () => {
+      const text = '{user}: Hello!\n{assistant}: Hi!\n{{user}}: How are you?\n{{char}}: Great!';
+      const result = replacePromptPlaceholders(text, 'Lila', 'Lila', 'lbds137');
+      expect(result).toBe(
+        'Lila (@lbds137): Hello!\nLila: Hi!\nLila (@lbds137): How are you?\nLila: Great!'
+      );
+    });
+
+    it('should handle real-world Character.AI format with name collision', () => {
+      const characterCard = `{{char}}'s Persona: A helpful personality named Lila.
+
+{{char}} helps {{user}} with questions.
+When {{user}} asks, {{char}} responds thoughtfully.`;
+
+      const result = replacePromptPlaceholders(characterCard, 'Lila', 'Lila', 'lbds137');
+
+      const expected = `Lila's Persona: A helpful personality named Lila.
+
+Lila helps Lila (@lbds137) with questions.
+When Lila (@lbds137) asks, Lila responds thoughtfully.`;
+
+      expect(result).toBe(expected);
+    });
+
+    it('should handle special characters in discord username', () => {
+      const text = '{user}: Hello!';
+      const result = replacePromptPlaceholders(text, 'Lila', 'Lila', 'user_123');
+      expect(result).toBe('Lila (@user_123): Hello!');
+    });
+  });
 });

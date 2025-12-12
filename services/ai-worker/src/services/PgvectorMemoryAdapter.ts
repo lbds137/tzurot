@@ -125,6 +125,7 @@ interface MemoryQueryResult {
   content: string;
   persona_id: string;
   persona_name: string;
+  owner_username: string; // Discord username for disambiguation when persona name matches personality name
   personality_id: string;
   personality_name: string;
   session_id: string | null;
@@ -263,9 +264,11 @@ export class PgvectorMemoryAdapter {
               m.senders,
               m.created_at,
               COALESCE(persona.preferred_name, persona.name) as persona_name,
+              owner.username as owner_username,
               COALESCE(personality.display_name, personality.name) as personality_name
             FROM memories m
             JOIN personas persona ON m.persona_id = persona.id
+            JOIN users owner ON persona.owner_id = owner.id
             JOIN personalities personality ON m.personality_id = personality.id
             WHERE `,
           whereClause,
@@ -296,10 +299,12 @@ export class PgvectorMemoryAdapter {
       // Convert to MemoryDocument format and inject persona/personality names
       const documents: MemoryDocument[] = memories.map(memory => {
         // Replace {user} and {assistant} tokens with actual names
+        // Pass owner_username for disambiguation when persona name matches personality name
         const content = replacePromptPlaceholders(
           memory.content,
           memory.persona_name,
-          memory.personality_name
+          memory.personality_name,
+          memory.owner_username
         );
 
         return {

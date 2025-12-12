@@ -473,7 +473,12 @@ export class ConversationalRAGService {
           : context.activePersonaName !== undefined && context.activePersonaName.length > 0
             ? context.activePersonaName
             : 'User';
-      content = replacePromptPlaceholders(content, userName, personality.name);
+      content = replacePromptPlaceholders(
+        content,
+        userName,
+        personality.name,
+        context.discordUsername
+      );
 
       logger.debug(
         {
