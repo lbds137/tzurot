@@ -13,26 +13,26 @@
 
 ### Priority 1: Close UX Dead Ends
 
-| Task | What's Broken | Status |
-|------|---------------|--------|
-| `/preset edit` | Users can create presets but NOT edit them | 🔴 Not started |
-| `advancedParameters` | Schema exists, API routes ignore it | 🔴 Not started |
-| Memory scope | Feature exists but unused | 🔴 Not started |
+| Task                 | What's Broken                              | Status         |
+| -------------------- | ------------------------------------------ | -------------- |
+| `/preset edit`       | Users can create presets but NOT edit them | 🔴 Not started |
+| `advancedParameters` | Schema exists, API routes ignore it        | 🔴 Not started |
+| Memory scope         | Feature exists but unused                  | 🔴 Not started |
 
 ### Priority 2: User Self-Service
 
-| Task | User Pain | Status |
-|------|-----------|--------|
+| Task                | User Pain                       | Status         |
+| ------------------- | ------------------------------- | -------------- |
 | `/persona` commands | Can only manage personas via DB | 🔴 Not started |
-| `/history clear` | No way to reset conversation | 🔴 Not started |
+| `/history clear`    | No way to reset conversation    | 🔴 Not started |
 
 ### Priority 3: User Requests (DO NOT START YET)
 
-| Request | Source |
-|---------|--------|
+| Request                 | Source                        |
+| ----------------------- | ----------------------------- |
 | **DM Personality Chat** | Beta user (multiple requests) |
-| PluralKit JSON import | User request |
-| Shapes.inc import | Future planning |
+| PluralKit JSON import   | User request                  |
+| Shapes.inc import       | Future planning               |
 
 ---
 
