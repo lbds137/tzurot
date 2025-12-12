@@ -8,6 +8,24 @@
 import { type DashboardSession } from './types.js';
 
 /**
+ * Options for creating or updating a session
+ */
+export interface SetSessionOptions<T> {
+  /** User ID */
+  userId: string;
+  /** Entity type (e.g., 'character', 'profile') */
+  entityType: string;
+  /** Entity ID */
+  entityId: string;
+  /** Session data */
+  data: T;
+  /** Discord message ID */
+  messageId: string;
+  /** Discord channel ID */
+  channelId: string;
+}
+
+/**
  * Default session timeout (15 minutes)
  */
 const DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
@@ -65,14 +83,8 @@ export class DashboardSessionManager {
   /**
    * Create or update a session
    */
-  set<T>(
-    userId: string,
-    entityType: string,
-    entityId: string,
-    data: T,
-    messageId: string,
-    channelId: string
-  ): DashboardSession<T> {
+  set<T>(options: SetSessionOptions<T>): DashboardSession<T> {
+    const { userId, entityType, entityId, data, messageId, channelId } = options;
     const key = this.getSessionKey(userId, entityType, entityId);
     const now = new Date();
 

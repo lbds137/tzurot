@@ -171,14 +171,14 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       }
       characterData = character;
       // Create new session
-      sessionManager.set(
-        interaction.user.id,
-        'character',
+      sessionManager.set({
+        userId: interaction.user.id,
+        entityType: 'character',
         entityId,
-        character,
-        interaction.message.id,
-        interaction.channelId
-      );
+        data: character,
+        messageId: interaction.message.id,
+        channelId: interaction.channelId,
+      });
     }
 
     // Build and show section modal
@@ -296,14 +296,14 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     // Update session
     const sessionManager = getSessionManager();
-    sessionManager.set(
-      interaction.user.id,
-      'character',
+    sessionManager.set({
+      userId: interaction.user.id,
+      entityType: 'character',
       entityId,
-      character,
-      interaction.message.id,
-      interaction.channelId
-    );
+      data: character,
+      messageId: interaction.message.id,
+      channelId: interaction.channelId,
+    });
 
     // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(characterDashboardConfig, character);
