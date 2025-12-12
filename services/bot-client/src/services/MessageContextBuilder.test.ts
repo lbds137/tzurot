@@ -198,6 +198,7 @@ describe('MessageContextBuilder', () => {
           createdAt: new Date('2025-01-01T00:00:00Z'),
           personaId: 'persona-123',
           personaName: 'Test Persona',
+          discordUsername: 'prevuser', // Discord username for collision detection
           discordMessageId: ['prev-msg-123'],
         },
       ]);
@@ -233,6 +234,7 @@ describe('MessageContextBuilder', () => {
       expect(result.context).toMatchObject({
         userId: 'user-123', // Discord ID for BYOK resolution
         userName: 'testuser',
+        discordUsername: 'testuser', // For name collision disambiguation
         channelId: 'channel-123',
         serverId: 'guild-123',
         messageContent: 'Hello world',
@@ -244,6 +246,7 @@ describe('MessageContextBuilder', () => {
       expect(result.context.conversationHistory[0]).toMatchObject({
         role: MessageRole.User,
         content: 'Previous message',
+        discordUsername: 'prevuser', // Should be passed through for collision detection
       });
 
       // Verify return values
