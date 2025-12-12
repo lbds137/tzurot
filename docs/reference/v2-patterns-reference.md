@@ -11,11 +11,13 @@
 **Location**: `tzurot-legacy/src/utils/pluralkitMessageStore.js`
 
 **What it does**:
+
 - Tracks user messages before PluralKit processes them
 - When message is deleted (PluralKit auto-deletes originals), stores content
 - When PluralKit webhook arrives, matches by content to identify original user
 
 **Key pattern**:
+
 ```
 User sends message → Store message data
 Message deleted → Move to "deleted" storage
@@ -24,6 +26,7 @@ PluralKit webhook arrives → Find matching deleted message by content
 ```
 
 **v3 considerations**:
+
 - Content matching is fuzzy (handles proxy tag stripping)
 - Needs 50%+ content match ratio to prevent false positives
 - 5-second expiration (PluralKit processes in 1-2 seconds)
@@ -36,11 +39,13 @@ PluralKit webhook arrives → Find matching deleted message by content
 **Location**: `tzurot-legacy/src/messageTracker.js`
 
 **What it does**:
+
 - Prevents duplicate message processing
 - Prevents duplicate reply/send operations
 - Auto-cleanup after 10 minutes
 
 **Key pattern**:
+
 ```javascript
 track(messageId, type) → returns false if already tracked
 trackOperation(channelId, operationType, optionsSignature) → prevents duplicate operations within 5s
@@ -55,19 +60,21 @@ trackOperation(channelId, operationType, optionsSignature) → prevents duplicat
 **Location**: `tzurot-legacy/src/utils/rateLimiter.js`
 
 **What it does**:
+
 - Request queue with configurable spacing (default 6s between requests)
 - Exponential backoff on 429 errors
 - Global cooldown after consecutive rate limits
 - Per-request context tracking
 
 **Key pattern**:
+
 ```javascript
 // Configurable options
-minRequestSpacing: 6000      // Time between requests
-maxConcurrent: 1             // Concurrent request limit
-maxConsecutiveRateLimits: 3  // Before global cooldown
-cooldownPeriod: 60000        // Global cooldown duration
-maxRetries: 5                // Retry limit per request
+minRequestSpacing: 6000; // Time between requests
+maxConcurrent: 1; // Concurrent request limit
+maxConsecutiveRateLimits: 3; // Before global cooldown
+cooldownPeriod: 60000; // Global cooldown duration
+maxRetries: 5; // Retry limit per request
 
 // Usage
 await rateLimiter.enqueue(async () => {
@@ -87,12 +94,14 @@ await rateLimiter.handleRateLimit(identifier, retryAfterSeconds, retryCount);
 **Location**: `tzurot-legacy/src/domain/ai/AIRequestDeduplicator.js`
 
 **What it does**:
+
 - Prevents identical AI requests from being sent concurrently
 - SHA-256 signature based on: personality, content, userAuth, conversationId
 - Error blackout periods (1 minute default) after failures
 - Returns existing promise if duplicate request detected
 
 **Key pattern**:
+
 ```javascript
 // Check for duplicate
 const existingPromise = await deduplicator.checkDuplicate(personality, content, context);
@@ -112,12 +121,14 @@ deduplicator.registerPending(personality, content, context, promise);
 **Location**: `tzurot-legacy/src/handlers/dmHandler.js`
 
 **What it does**:
+
 - Handles personality conversations in DMs (no webhooks available)
 - Parses `**PersonalityName:** ` prefix from bot messages to identify personality
 - Multi-chunk reply detection (when AI response spans multiple messages)
 - Falls back to regular bot messages instead of webhooks
 
 **Key pattern**:
+
 ```javascript
 // Parse personality from bot message format
 const dmFormatMatch = content.match(/^\*\*([^:]+):\*\* /);
@@ -138,16 +149,18 @@ if (dmFormatMatch) {
 **Location**: `tzurot-legacy/src/handlers/dmHandler.js` (lines 20-50)
 
 **What it does**:
+
 - One-time verification per user before NSFW content
 - Auto-verifies if user uses bot in NSFW-marked Discord channel
 - Persistent storage of verified user IDs
 
 **Key pattern**:
+
 ```javascript
 // Check if user is verified
 const isVerified = await authService.isNsfwVerified(userId);
 if (!isVerified && personality.isNsfw) {
-  return "Please verify your age first...";
+  return 'Please verify your age first...';
 }
 
 // Auto-verify in NSFW channels
@@ -165,19 +178,21 @@ if (channel.nsfw) {
 **Location**: `tzurot-legacy/src/application/commands/conversation/ActivateCommand.js`
 
 **What it does**:
+
 - `/activate <personality>` - Enable personality auto-response in channel
 - `/deactivate` - Disable auto-response
 - Personality responds to ALL messages in activated channel
 - Requires NSFW channel + ManageMessages permission
 
 **Key pattern**:
+
 ```javascript
 // Activate check
 if (!channel.nsfw) {
-  return "Auto-response only works in NSFW channels";
+  return 'Auto-response only works in NSFW channels';
 }
 if (!hasPermission(ManageMessages)) {
-  return "Need ManageMessages permission";
+  return 'Need ManageMessages permission';
 }
 
 // Store activation
@@ -199,6 +214,7 @@ if (conversationManager.isActivated(channelId)) {
 **Location**: `tzurot-legacy/src/application/commands/utility/BackupCommand.js`
 
 **What it does**:
+
 - Exports user data (personalities, settings)
 - Uses session cookies for authenticated API calls
 - Creates ZIP archive with JSON data

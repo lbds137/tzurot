@@ -14,26 +14,26 @@
 
 ### 🔴 Priority 1: Close UX Dead Ends (This Week)
 
-| Task | What's Broken | Fix |
-|------|---------------|-----|
-| **`/preset edit`** | Users can create presets but NOT edit them | Add edit command (Sprint 7.4) |
-| **`advancedParameters`** | Schema exists, API routes ignore it | Wire up in llm-config routes |
-| **Memory scope** | Feature exists but unused | Implement proper scoping |
+| Task                     | What's Broken                              | Fix                           |
+| ------------------------ | ------------------------------------------ | ----------------------------- |
+| **`/preset edit`**       | Users can create presets but NOT edit them | Add edit command (Sprint 7.4) |
+| **`advancedParameters`** | Schema exists, API routes ignore it        | Wire up in llm-config routes  |
+| **Memory scope**         | Feature exists but unused                  | Implement proper scoping      |
 
 ### 🟡 Priority 2: User Self-Service (Next 2-3 Sessions)
 
-| Task | User Pain | Fix |
-|------|-----------|-----|
+| Task                    | User Pain                       | Fix                |
+| ----------------------- | ------------------------------- | ------------------ |
 | **`/persona` commands** | Can only manage personas via DB | Sprint 5.0.1-5.0.7 |
-| **`/history clear`** | No way to reset conversation | Sprint 7.6 |
+| **`/history clear`**    | No way to reset conversation    | Sprint 7.6         |
 
 ### 🟢 Priority 3: User Requests (After Above)
 
-| Request | Source | Sprint |
-|---------|--------|--------|
-| **DM Personality Chat** | Beta user (multiple requests) | Sprint 6.5 |
-| PluralKit JSON import | User request | Sprint 10.4 |
-| Shapes.inc import | Future planning | Sprint 7.17-7.19 |
+| Request                 | Source                        | Sprint           |
+| ----------------------- | ----------------------------- | ---------------- |
+| **DM Personality Chat** | Beta user (multiple requests) | Sprint 6.5       |
+| PluralKit JSON import   | User request                  | Sprint 10.4      |
+| Shapes.inc import       | Future planning               | Sprint 7.17-7.19 |
 
 **Rule**: Do NOT start Priority 3 until Priority 1 and 2 are done.
 
@@ -501,6 +501,7 @@
 **Reference**: [docs/planning/SLASH_COMMAND_ARCHITECTURE.md](docs/planning/SLASH_COMMAND_ARCHITECTURE.md)
 
 **Comprehensive plan covering**:
+
 - Dashboard pattern standardization (Tier 0-3 system)
 - Redis-backed session management (horizontal scaling)
 - Aliases as single source of truth for personality tagging

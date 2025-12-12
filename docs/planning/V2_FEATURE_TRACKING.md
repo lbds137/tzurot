@@ -46,17 +46,17 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ### Message Handling
 
-| Feature               | Status     | Notes                                            |
-| --------------------- | ---------- | ------------------------------------------------ |
-| @personality mentions | ✅ Ported  | @lilith triggers personality                     |
-| Bot @mentions         | ✅ Ported  | Shows help message                               |
+| Feature               | Status     | Notes                                                                       |
+| --------------------- | ---------- | --------------------------------------------------------------------------- |
+| @personality mentions | ✅ Ported  | @lilith triggers personality                                                |
+| Bot @mentions         | ✅ Ported  | Shows help message                                                          |
 | DM personality chat   | 📋 Planned | v2 had full DM support with personality prefix parsing - **USER REQUESTED** |
-| Guild channel support | ✅ Ported  | Uses webhooks                                    |
-| Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing |
-| Reply detection       | ✅ Ported  | Reply to bot to continue conversation            |
-| Conversation history  | ✅ Ported  | ConversationPersistence service                  |
-| Auto-response system  | 📋 Planned | v2 had activated channels (`/activate`, `/deactivate`) |
-| Reset conversation    | 📋 Planned | v2 had `/reset` command (clear history with personality) |
+| Guild channel support | ✅ Ported  | Uses webhooks                                                               |
+| Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing                            |
+| Reply detection       | ✅ Ported  | Reply to bot to continue conversation                                       |
+| Conversation history  | ✅ Ported  | ConversationPersistence service                                             |
+| Auto-response system  | 📋 Planned | v2 had activated channels (`/activate`, `/deactivate`)                      |
+| Reset conversation    | 📋 Planned | v2 had `/reset` command (clear history with personality)                    |
 
 ### AI Integration
 
