@@ -1,15 +1,50 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-08
+> **Last Updated**: 2025-12-11
 > **Philosophy**: Launch, Stabilize, Evolve
 > **Context**: Solo dev + AI, must avoid decision fatigue and context switching
 
+---
+
+## 🎯 IMMEDIATE FOCUS: Close the Loops
+
+**The Problem**: Public beta is live, but several features are half-baked. Users hit dead ends. This creates support burden and cognitive overhead.
+
+**The Solution**: Finish what's started before adding new things.
+
+### 🔴 Priority 1: Close UX Dead Ends (This Week)
+
+| Task | What's Broken | Fix |
+|------|---------------|-----|
+| **`/preset edit`** | Users can create presets but NOT edit them | Add edit command (Sprint 7.4) |
+| **`advancedParameters`** | Schema exists, API routes ignore it | Wire up in llm-config routes |
+| **Memory scope** | Feature exists but unused | Implement proper scoping |
+
+### 🟡 Priority 2: User Self-Service (Next 2-3 Sessions)
+
+| Task | User Pain | Fix |
+|------|-----------|-----|
+| **`/persona` commands** | Can only manage personas via DB | Sprint 5.0.1-5.0.7 |
+| **`/history clear`** | No way to reset conversation | Sprint 7.6 |
+
+### 🟢 Priority 3: User Requests (After Above)
+
+| Request | Source | Sprint |
+|---------|--------|--------|
+| **DM Personality Chat** | Beta user (multiple requests) | Sprint 6.5 |
+| PluralKit JSON import | User request | Sprint 10.4 |
+| Shapes.inc import | Future planning | Sprint 7.17-7.19 |
+
+**Rule**: Do NOT start Priority 3 until Priority 1 and 2 are done.
+
+---
+
 ## 🧠 Current Context
 
-- **Status**: Public Beta (BYOK enabled)
-- **Deployment**: Stable and operational on Railway
+- **Status**: Public Beta (BYOK enabled, Guest Mode available)
+- **Deployment**: Stable on Railway (v3.0.0-beta.15)
 - **Milestone Achieved**: BYOK complete - users can bring their own API keys
-- **Constraint**: Solo dev workflow - prioritize focus over feature count
+- **Constraint**: Solo dev workflow - minimize open loops, avoid context switching
 
 ## 🎯 The Strategy: "Launch, Stabilize, Evolve"
 
@@ -445,6 +480,12 @@
   - One-time per-user verification (not per-channel)
   - Auto-verify by using bot in NSFW-marked Discord channel
   - Prevent access to NSFW personalities without verification
+- [ ] **Task 6.5**: DM Personality Chat (USER REQUESTED)
+  - Talk to characters in DMs (no webhooks available)
+  - Parse `**PersonalityName:** ` prefix for display
+  - **v3 Improvement**: Use conversation history table for personality matching (not name-based like v2, since multiple personalities can have same name)
+  - Falls back to regular bot messages instead of webhooks
+  - Reference: `docs/reference/v2-patterns-reference.md`
 
 **🎉 MILESTONE 2: Feature Parity**
 
@@ -452,6 +493,62 @@
 - Voice synthesis fully configurable
 - Users can customize their experience
 - Production-ready for sustained growth
+
+### Sprint 7: Slash Command Architecture Redesign (8-12 sessions)
+
+**Why**: Standardize UX patterns, enable user self-service, prepare for advanced features.
+
+**Reference**: [docs/planning/SLASH_COMMAND_ARCHITECTURE.md](docs/planning/SLASH_COMMAND_ARCHITECTURE.md)
+
+**Comprehensive plan covering**:
+- Dashboard pattern standardization (Tier 0-3 system)
+- Redis-backed session management (horizontal scaling)
+- Aliases as single source of truth for personality tagging
+- User self-service (history clear, memory management)
+- Admin tools (system prompts)
+- Advanced LLM parameters UI
+- Shapes.inc data import (future)
+
+**Phase A: Foundation** (Sessions 1-2):
+
+- [ ] **Task 7.1**: Abstract SessionManager behind interface
+- [ ] **Task 7.2**: Implement RedisSessionStorage
+- [ ] **Task 7.3**: Document dashboard pattern specification
+
+**Phase B: User Self-Service** (Sessions 3-5):
+
+- [ ] **Task 7.4**: `/preset edit` dashboard (Tier 2)
+- [ ] **Task 7.5**: `/me profile` upgrade to dashboard framework
+- [ ] **Task 7.6**: `/history clear` with Context Epochs (soft/hard)
+- [ ] **Task 7.7**: `/history undo` (move epoch timestamp back)
+- [ ] **Task 7.8**: `/memory search` semantic search (Tier 3)
+- [ ] **Task 7.9**: `/memory purge` bulk deletion
+
+**Phase C: Alias Consolidation** (Sessions 6-7):
+
+- [ ] **Task 7.10**: Schema migration (scopeType, scopeId, isAutoCreated)
+- [ ] **Task 7.11**: Auto-create aliases on personality create/rename
+- [ ] **Task 7.12**: Refactor tagging logic to use aliases only
+- [ ] **Task 7.13**: `/alias add/remove/list` commands
+
+**Phase D: Admin & Advanced** (Sessions 8-9):
+
+- [ ] **Task 7.14**: `/admin system-prompt` CRUD
+- [ ] **Task 7.15**: Complete advancedParameters JSONB migration
+- [ ] **Task 7.16**: API route naming audit and refactor
+
+**Phase E: Shapes Import** (Sessions 10-12, future):
+
+- [ ] **Task 7.17**: Redis credential storage with TTL (encrypted appSession)
+- [ ] **Task 7.18**: `/shapes backup` - Export shapes.inc data
+- [ ] **Task 7.19**: `/shapes import` wizard - Selective import with ownership validation
+
+**🎉 MILESTONE 3: User Self-Service**
+
+- Users can manage their own history and memories
+- Consistent dashboard UX across all entity commands
+- Single alias-based tagging system
+- Scalable session management
 
 ---
 
@@ -461,7 +558,7 @@
 
 **Estimated Timeline**: 15-23 sessions (4-6 weeks)
 
-### Sprint 7: OpenMemory Migration - Foundation (10-15 sessions)
+### Sprint 8: OpenMemory Migration - Foundation (10-15 sessions)
 
 **Why Later**: Massive rewrite. By doing this after launch, you'll have real user data to test the new memory graph against.
 
@@ -489,7 +586,7 @@
 - [ ] **Task 7.9**: Run parallel systems (old + new) for validation
 - [ ] **Task 7.10**: Cut over to OpenMemory, deprecate old system
 
-### Sprint 8: Agentic Features (8-12 sessions, expanded)
+### Sprint 9: Agentic Features (8-12 sessions, expanded)
 
 **Why**: Natural extension of sophisticated memory - let personalities be more autonomous. Builds on Skill groundwork from Sprint 5.
 
@@ -534,7 +631,7 @@
   - `/memory prune <threshold>` - Clean low-relevance memories
   - `/memory stats` - Show memory counts and health
 
-### Sprint 9: Advanced Features (Variable - as desired)
+### Sprint 10: Advanced Features (Variable - as desired)
 
 **Why**: Fun experiments and nice-to-haves.
 
@@ -744,6 +841,10 @@
 - [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md) - OpenMemory architecture (Phase 3)
 - [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - v2 feature parity tracking
 - [docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md](docs/planning/SHAPES_INC_SLASH_COMMAND_DESIGN.md) - Future shapes.inc import command
+
+### Reference Docs
+
+- [docs/reference/v2-patterns-reference.md](docs/reference/v2-patterns-reference.md) - V2 patterns worth porting (PluralKit, deduplication, rate limiting, DM chat)
 
 ### Architecture
 
