@@ -1,70 +1,53 @@
 # Current Work
 
-> Last updated: 2025-12-11
+> Last updated: 2025-12-12
 
-## Status: Documentation Cleanup Complete, Ready for Implementation
+## Status: Public Beta Live
 
-**Current Priority**: Finish half-baked features before adding new ones
-**Why**: Users hit dead ends, creates support burden and cognitive overhead
+**Version**: v3.0.0-beta.17
+**Deployment**: Railway (stable)
+**Priority**: Close half-baked features before adding new ones
 
 ---
 
-## 🎯 Immediate Focus (This Session Forward)
+## Immediate Focus
 
-### Priority 1: Close UX Dead Ends
+### Priority 1: UX Dead Ends
 
-| Task                 | What's Broken                              | Status         |
-| -------------------- | ------------------------------------------ | -------------- |
-| `/preset edit`       | Users can create presets but NOT edit them | 🔴 Not started |
-| `advancedParameters` | Schema exists, API routes ignore it        | 🔴 Not started |
-| Memory scope         | Feature exists but unused                  | 🔴 Not started |
+| Task                   | What's Broken                                | Status      |
+| ---------------------- | -------------------------------------------- | ----------- |
+| `/preset edit`         | Users can create/delete presets but NOT edit | Not started |
+| `advancedParameters`   | Schema exists, API routes ignore it          | Not started |
 
 ### Priority 2: User Self-Service
 
-| Task                | User Pain                       | Status         |
-| ------------------- | ------------------------------- | -------------- |
-| `/persona` commands | Can only manage personas via DB | 🔴 Not started |
-| `/history clear`    | No way to reset conversation    | 🔴 Not started |
+| Task             | User Pain                    | Status      |
+| ---------------- | ---------------------------- | ----------- |
+| `/history clear` | No way to reset conversation | Not started |
 
 ### Priority 3: User Requests (DO NOT START YET)
 
-| Request                 | Source                        |
-| ----------------------- | ----------------------------- |
-| **DM Personality Chat** | Beta user (multiple requests) |
-| PluralKit JSON import   | User request                  |
-| Shapes.inc import       | Future planning               |
+- DM Personality Chat (multiple user requests)
+- PluralKit JSON import
+- Shapes.inc import
 
 ---
 
-## Recent Session: Documentation Cleanup (2025-12-11)
+## Recent Releases
 
-### What Was Done
+### v3.0.0-beta.17 (2025-12-12)
 
-1. **Deleted outdated docs**:
-   - `docs/planning/V2_FEATURES_TO_PORT.md` (severely outdated - showed BYOK as "not started")
-   - `docs/planning/V3_REFINEMENT_ROADMAP.md` (superseded by ROADMAP.md)
+- **Name collision disambiguation** - Shows `Name (@username)` when persona name matches personality name
+- **Help command update** - Added `/character chat` reference for consistency
 
-2. **Updated V2_FEATURE_TRACKING.md**:
-   - Added DM Personality Chat as high priority (user-requested)
-   - Added v3 improvement note: use conversation history table for DM personality matching (not name-based like v2)
-   - Added Reset Conversation feature
-   - Updated auto-response system details
+### v3.0.0-beta.16 (2025-12-11)
 
-3. **Created v2-patterns-reference.md**:
-   - Consolidated valuable v2 patterns: PluralKit, deduplication, rate limiting, DM handling
-   - Lean reference doc, not code to copy
-
-4. **Updated ROADMAP.md**:
-   - Added DM Personality Chat to Priority 3 and Sprint 6.5
-   - Added reference to new v2-patterns-reference.md
-
-### Key Finding
-
-DM personality chat should use conversation history table for matching, not name-based matching (v2's approach fails when multiple personalities have the same name).
+- Lint cleanup (max-depth, max-params warnings eliminated)
+- Bot mention help message with `/character chat` guidance
 
 ---
 
-## Known Issues to Address
+## Known Issues
 
 - **142 lint warnings** - mostly complexity issues (functions >15 complexity, >100 lines)
 - **DRY violation** - `me/model/autocomplete.ts` duplicates shared autocomplete utility
@@ -72,55 +55,40 @@ DM personality chat should use conversation history table for matching, not name
 
 ---
 
-## v3 Current State
+## Features Working
 
-**Deployment**: Railway development environment (public beta)
-**Version**: v3.0.0-beta.15
-**Status**: Stable and operational
-
-### Features Working
-
+**Core:**
 - @personality mentions + reply detection
 - Message references (Discord message links + reply context)
 - Webhook management (unique avatar/name per personality)
 - Long-term memory via pgvector
 - Image attachment + voice transcription support
-- Slash commands (admin, character, wallet, preset, model, settings, profile)
-- BYOK (Bring Your Own Key)
+
+**User Management:**
+- `/wallet` - API key management (set, list, remove, test)
+- `/me profile` - Persona management (create, edit, list, default, view, override, share-ltm)
+- `/me model` - Model overrides (set, reset, list, set-default, clear-default)
+- `/me timezone` - Timezone settings (set, get)
+- `/preset` - User presets (create, list, delete) - **missing: edit**
+
+**Admin:**
+- `/admin` - Bot owner commands (ping, db-sync, servers, kick, usage)
+- `/preset global` - Global preset management (create, edit, set-default, set-free-default)
+- `/character` - Personality CRUD (create, edit, delete, view, list, avatar, import, export, chat)
+
+**Special:**
+- BYOK (Bring Your Own Key) via `/wallet` commands
 - Free model guest mode
-
-### Half-Baked (Priority 1)
-
-- `/preset edit` - can create but NOT edit
-- `advancedParameters` - schema exists, API ignores it
-- Memory scope - feature unused
-
-### Not Started (Priority 2+)
-
-- User aliases (schema migration needed)
-- `/history clear` (no `/wack` equivalent)
-- `/persona` commands (user self-service)
-- DM personality chat (user-requested)
-- Auto-response, rate limiting, NSFW verification
+- Custom error messages per personality
+- Memory scope via `/me profile share-ltm`
 
 ---
 
 ## Quick Links
 
-### Priority Documents
-
-- **[ROADMAP.md](ROADMAP.md)** - THE source of truth (see "Immediate Focus" section at top)
+- **[ROADMAP.md](ROADMAP.md)** - Master roadmap with all sprints
 - [CLAUDE.md](CLAUDE.md) - AI assistant rules and project context
-
-### Reference Docs
-
-- [docs/reference/v2-patterns-reference.md](docs/reference/v2-patterns-reference.md) - V2 patterns worth porting
 - [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - Feature parity tracking
-
-### Supporting Docs
-
-- [docs/planning/SLASH_COMMAND_ARCHITECTURE.md](docs/planning/SLASH_COMMAND_ARCHITECTURE.md) - Sprint 7 detailed plan
-- [docs/improvements/TECH_DEBT_PRIORITIZATION_2025-11-20.md](docs/improvements/TECH_DEBT_PRIORITIZATION_2025-11-20.md) - Tech debt analysis
 
 ---
 
