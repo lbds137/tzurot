@@ -282,8 +282,14 @@ export class ReferencedMessageFormatter {
   private async processSingleAttachment(
     options: ProcessSingleAttachmentOptions
   ): Promise<ProcessedAttachmentResult> {
-    const { attachment, index, referenceNumber, personality, isGuestMode, preprocessedAttachments } =
-      options;
+    const {
+      attachment,
+      index,
+      referenceNumber,
+      personality,
+      isGuestMode,
+      preprocessedAttachments,
+    } = options;
 
     // Check for preprocessed result first (avoids API calls)
     const preprocessed = this.findPreprocessedByUrl(attachment.url, preprocessedAttachments);
