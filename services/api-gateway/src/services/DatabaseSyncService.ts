@@ -22,6 +22,26 @@ interface SyncOptions {
   dryRun: boolean;
 }
 
+/**
+ * Options for upserting a row during sync
+ */
+interface UpsertRowOptions {
+  /** Prisma client to use */
+  client: PrismaClient;
+  /** Table name */
+  tableName: string;
+  /** Row data to upsert */
+  row: unknown;
+  /** Primary key field(s) */
+  pkField: string | readonly string[];
+  /** Columns that are UUID type (need ::uuid cast) */
+  uuidColumns?: readonly string[];
+  /** Columns that are timestamp type (need ::timestamptz cast) */
+  timestampColumns?: readonly string[];
+  /** FK columns to defer to pass 2 (set to NULL in pass 1) */
+  deferredFkColumns?: readonly string[];
+}
+
 export class DatabaseSyncService {
   constructor(
     private devClient: PrismaClient,
@@ -149,29 +169,29 @@ export class DatabaseSyncService {
       if (devRow === undefined && prodRow !== undefined) {
         // Row only in prod - copy to dev
         if (!dryRun) {
-          await this.upsertRow(
-            this.devClient,
+          await this.upsertRow({
+            client: this.devClient,
             tableName,
-            prodRow,
-            config.pk,
-            config.uuidColumns,
-            config.timestampColumns ?? [],
-            deferredFkColumns
-          );
+            row: prodRow,
+            pkField: config.pk,
+            uuidColumns: config.uuidColumns,
+            timestampColumns: config.timestampColumns ?? [],
+            deferredFkColumns,
+          });
         }
         prodToDev++;
       } else if (devRow !== undefined && prodRow === undefined) {
         // Row only in dev - copy to prod
         if (!dryRun) {
-          await this.upsertRow(
-            this.prodClient,
+          await this.upsertRow({
+            client: this.prodClient,
             tableName,
-            devRow,
-            config.pk,
-            config.uuidColumns,
-            config.timestampColumns ?? [],
-            deferredFkColumns
-          );
+            row: devRow,
+            pkField: config.pk,
+            uuidColumns: config.uuidColumns,
+            timestampColumns: config.timestampColumns ?? [],
+            deferredFkColumns,
+          });
         }
         devToProd++;
       } else if (devRow !== undefined && prodRow !== undefined) {
@@ -180,29 +200,29 @@ export class DatabaseSyncService {
 
         if (comparison === 'dev-newer') {
           if (!dryRun) {
-            await this.upsertRow(
-              this.prodClient,
+            await this.upsertRow({
+              client: this.prodClient,
               tableName,
-              devRow,
-              config.pk,
-              config.uuidColumns,
-              config.timestampColumns ?? [],
-              deferredFkColumns
-            );
+              row: devRow,
+              pkField: config.pk,
+              uuidColumns: config.uuidColumns,
+              timestampColumns: config.timestampColumns ?? [],
+              deferredFkColumns,
+            });
           }
           devToProd++;
           conflicts++;
         } else if (comparison === 'prod-newer') {
           if (!dryRun) {
-            await this.upsertRow(
-              this.devClient,
+            await this.upsertRow({
+              client: this.devClient,
               tableName,
-              prodRow,
-              config.pk,
-              config.uuidColumns,
-              config.timestampColumns ?? [],
-              deferredFkColumns
-            );
+              row: prodRow,
+              pkField: config.pk,
+              uuidColumns: config.uuidColumns,
+              timestampColumns: config.timestampColumns ?? [],
+              deferredFkColumns,
+            });
           }
           prodToDev++;
           conflicts++;
@@ -398,18 +418,18 @@ export class DatabaseSyncService {
 
   /**
    * Upsert a row into a table using raw SQL
-   *
-   * @param deferredFkColumns - FK columns to set to NULL during pass 1 (will be updated in pass 2)
    */
-  private async upsertRow(
-    client: PrismaClient,
-    tableName: string,
-    row: unknown,
-    pkField: string | readonly string[],
-    uuidColumns: readonly string[] = [],
-    timestampColumns: readonly string[] = [],
-    deferredFkColumns: readonly string[] = []
-  ): Promise<void> {
+  private async upsertRow(options: UpsertRowOptions): Promise<void> {
+    const {
+      client,
+      tableName,
+      row,
+      pkField,
+      uuidColumns = [],
+      timestampColumns = [],
+      deferredFkColumns = [],
+    } = options;
+
     if (typeof row !== 'object' || row === null) {
       throw new Error('Row is not an object');
     }
