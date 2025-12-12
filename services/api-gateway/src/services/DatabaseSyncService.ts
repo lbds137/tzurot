@@ -68,6 +68,22 @@ interface UpsertRowOptions {
   deferredFkColumns?: readonly string[];
 }
 
+/** Options for updating a single FK column (pass 2 of two-pass sync) */
+interface UpdateFkColumnOptions {
+  /** Prisma client to use */
+  client: PrismaClient;
+  /** Table name */
+  tableName: string;
+  /** FK column to update */
+  fkColumn: string;
+  /** Value to set for the FK column */
+  value: string;
+  /** Primary key column names */
+  pkColumns: string[];
+  /** Primary key values for the row */
+  pkValues: unknown[];
+}
+
 export class DatabaseSyncService {
   constructor(
     private devClient: PrismaClient,
@@ -577,28 +593,28 @@ export class DatabaseSyncService {
         if (comparison === 'dev-newer' || comparison === 'same') {
           // Update prod with dev's FK value
           if (devValue !== null && devValue !== undefined) {
-            await this.updateFkColumn(
-              this.prodClient,
+            await this.updateFkColumn({
+              client: this.prodClient,
               tableName,
               fkColumn,
-              devValue as string,
+              value: devValue as string,
               pkColumns,
-              pkValues
-            );
+              pkValues,
+            });
           }
         }
 
         if (comparison === 'prod-newer' || comparison === 'same') {
           // Update dev with prod's FK value
           if (prodValue !== null && prodValue !== undefined) {
-            await this.updateFkColumn(
-              this.devClient,
+            await this.updateFkColumn({
+              client: this.devClient,
               tableName,
               fkColumn,
-              prodValue as string,
+              value: prodValue as string,
               pkColumns,
-              pkValues
-            );
+              pkValues,
+            });
           }
         }
       }
@@ -616,14 +632,14 @@ export class DatabaseSyncService {
       for (const fkColumn of deferredFkColumns) {
         const prodValue = prodObj[fkColumn];
         if (prodValue !== null && prodValue !== undefined) {
-          await this.updateFkColumn(
-            this.devClient,
+          await this.updateFkColumn({
+            client: this.devClient,
             tableName,
             fkColumn,
-            prodValue as string,
+            value: prodValue as string,
             pkColumns,
-            pkValues
-          );
+            pkValues,
+          });
         }
       }
     }
@@ -640,14 +656,14 @@ export class DatabaseSyncService {
       for (const fkColumn of deferredFkColumns) {
         const devValue = devObj[fkColumn];
         if (devValue !== null && devValue !== undefined) {
-          await this.updateFkColumn(
-            this.prodClient,
+          await this.updateFkColumn({
+            client: this.prodClient,
             tableName,
             fkColumn,
-            devValue as string,
+            value: devValue as string,
             pkColumns,
-            pkValues
-          );
+            pkValues,
+          });
         }
       }
     }
@@ -656,14 +672,9 @@ export class DatabaseSyncService {
   /**
    * Update a single FK column for a specific row (pass 2 of two-pass sync)
    */
-  private async updateFkColumn(
-    client: PrismaClient,
-    tableName: string,
-    fkColumn: string,
-    value: string,
-    pkColumns: string[],
-    pkValues: unknown[]
-  ): Promise<void> {
+  private async updateFkColumn(options: UpdateFkColumnOptions): Promise<void> {
+    const { client, tableName, fkColumn, value, pkColumns, pkValues } = options;
+
     // Build WHERE clause for primary key
     const whereClause = pkColumns.map((col, i) => `"${col}" = $${i + 2}::uuid`).join(' AND ');
 

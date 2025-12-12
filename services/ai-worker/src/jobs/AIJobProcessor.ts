@@ -141,20 +141,35 @@ export interface AIJobResult {
   };
 }
 
+/** Options for constructing AIJobProcessor */
+export interface AIJobProcessorOptions {
+  /** Required: Prisma client for database operations */
+  prisma: PrismaClient;
+  /** Optional: Memory manager for pgvector operations (for DI in tests) */
+  memoryManager?: PgvectorMemoryAdapter;
+  /** Optional: RAG service instance (for DI in tests) */
+  ragService?: ConversationalRAGService;
+  /** Optional: API key resolver (for DI in tests) */
+  apiKeyResolver?: ApiKeyResolver;
+  /** Optional: LLM config resolver (for DI in tests) */
+  configResolver?: LlmConfigResolver;
+  /** Optional: Persona resolver for persona-based memory retrieval (for DI in tests) */
+  personaResolver?: PersonaResolver;
+}
+
 export class AIJobProcessor {
+  private prisma: PrismaClient;
   private ragService: ConversationalRAGService;
   private llmGenerationHandler: LLMGenerationHandler;
   private apiKeyResolver: ApiKeyResolver;
   private configResolver: LlmConfigResolver;
 
-  constructor(
-    private prisma: PrismaClient,
-    memoryManager?: PgvectorMemoryAdapter,
-    ragService?: ConversationalRAGService,
-    apiKeyResolver?: ApiKeyResolver,
-    configResolver?: LlmConfigResolver,
-    personaResolver?: PersonaResolver
-  ) {
+  constructor(options: AIJobProcessorOptions) {
+    const { prisma, memoryManager, ragService, apiKeyResolver, configResolver, personaResolver } =
+      options;
+
+    this.prisma = prisma;
+
     // Use provided RAGService (for testing) or create new one (for production)
     // Note: PersonaResolver is passed through to MemoryRetriever for persona-based memory retrieval
     this.ragService = ragService ?? new ConversationalRAGService(memoryManager, personaResolver);

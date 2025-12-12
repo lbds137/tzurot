@@ -200,16 +200,13 @@ async function main(): Promise<void> {
   }
 
   // Initialize job processor with injected dependencies
-  // Note: third param is ragService (undefined = use default), fourth is apiKeyResolver,
-  // fifth is llmConfigResolver, sixth is personaResolver
-  const jobProcessor = new AIJobProcessor(
+  const jobProcessor = new AIJobProcessor({
     prisma,
     memoryManager,
-    undefined,
     apiKeyResolver,
-    llmConfigResolver,
-    personaResolver
-  );
+    configResolver: llmConfigResolver,
+    personaResolver,
+  });
 
   // Create BullMQ worker
   logger.info('[AIWorker] Creating BullMQ worker...');

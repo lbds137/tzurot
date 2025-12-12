@@ -320,14 +320,14 @@ export class ConversationalRAGService {
       );
 
       // Step 2: Build system prompt WITHOUT memories OR history to get base token count
-      const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt(
-        processedPersonality,
+      const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
+        personality: processedPersonality,
         participantPersonas,
-        [], // No memories yet - we need base tokens first
+        relevantMemories: [], // No memories yet - we need base tokens first
         context,
-        referencedMessagesDescriptions,
-        undefined // No history yet
-      );
+        referencedMessagesFormatted: referencedMessagesDescriptions,
+        // No history yet
+      });
 
       // Step 3: Count tokens for budget calculation
       const systemPromptBaseTokens = this.promptBuilder.countTokens(
@@ -367,14 +367,14 @@ export class ConversationalRAGService {
       }
 
       // Step 6: Build system prompt with selected memories (but no history yet)
-      const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt(
-        processedPersonality,
+      const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
+        personality: processedPersonality,
         participantPersonas,
         relevantMemories,
         context,
-        referencedMessagesDescriptions,
-        undefined // No history yet
-      );
+        referencedMessagesFormatted: referencedMessagesDescriptions,
+        // No history yet
+      });
 
       // Step 7: Calculate history budget (using actual memory tokens)
       const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
@@ -400,14 +400,14 @@ export class ConversationalRAGService {
       );
 
       // Step 9: Rebuild system prompt WITH memories AND serialized history
-      const systemPrompt = this.promptBuilder.buildFullSystemPrompt(
-        processedPersonality,
+      const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
+        personality: processedPersonality,
         participantPersonas,
         relevantMemories,
         context,
-        referencedMessagesDescriptions,
-        serializedHistory
-      );
+        referencedMessagesFormatted: referencedMessagesDescriptions,
+        serializedHistory,
+      });
 
       // Log token allocation
       logger.info(
