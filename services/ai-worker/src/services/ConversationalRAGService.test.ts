@@ -304,14 +304,14 @@ describe('ConversationalRAGService', () => {
       const result = await service.generateResponse(personality, 'Recall something', context);
 
       // buildFullSystemPrompt is called twice: once for base tokens, once with history
-      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith(
+      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith({
         personality,
-        expect.any(Map),
-        memories,
+        participantPersonas: expect.any(Map),
+        relevantMemories: memories,
         context,
-        undefined, // referencedMessagesFormatted
-        expect.anything() // serializedHistory (undefined first call, string second call)
-      );
+        referencedMessagesFormatted: undefined,
+        serializedHistory: expect.anything(), // undefined first call, string second call
+      });
       expect(result.retrievedMemories).toBe(2);
     });
 
@@ -329,14 +329,14 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Hello', context);
 
       // buildFullSystemPrompt is called twice: once for base tokens, once with history
-      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith(
+      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith({
         personality,
-        participantMap,
-        expect.any(Array),
+        participantPersonas: participantMap,
+        relevantMemories: expect.any(Array),
         context,
-        undefined, // referencedMessagesFormatted
-        expect.anything() // serializedHistory
-      );
+        referencedMessagesFormatted: undefined,
+        serializedHistory: expect.anything(),
+      });
     });
 
     it('should handle empty memory results gracefully', async () => {
@@ -500,14 +500,14 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Respond to Dave', context);
 
       // buildFullSystemPrompt is called twice: once for base tokens, once with history
-      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith(
+      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith({
         personality,
-        expect.any(Map),
-        expect.any(Array),
+        participantPersonas: expect.any(Map),
+        relevantMemories: expect.any(Array),
         context,
-        'formatted references',
-        expect.anything() // serializedHistory
-      );
+        referencedMessagesFormatted: 'formatted references',
+        serializedHistory: expect.anything(),
+      });
     });
 
     it('should not format references when none present', async () => {

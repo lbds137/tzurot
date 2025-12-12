@@ -194,7 +194,7 @@ describe('AIJobProcessor Component Test', () => {
     } as unknown as ConversationalRAGService;
 
     // Create job processor with mocked RAG service
-    jobProcessor = new AIJobProcessor(prisma, undefined, mockRagService);
+    jobProcessor = new AIJobProcessor({ prisma, ragService: mockRagService });
   });
 
   afterAll(async () => {
