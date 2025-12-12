@@ -95,7 +95,11 @@ describe('LLMInvoker', () => {
         new HumanMessage('Hello'),
       ];
 
-      const result = await invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const result = await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       expect(result.content).toBe('Success!');
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
@@ -114,7 +118,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       // Fast-forward through retry delay
       await vi.runAllTimersAsync();
@@ -139,7 +147,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -163,7 +175,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -187,7 +203,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -215,7 +235,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -236,7 +260,9 @@ describe('LLMInvoker', () => {
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
       // Should fail immediately without retrying
-      await expect(invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' })).rejects.toThrow();
+      await expect(
+        invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' })
+      ).rejects.toThrow();
 
       // Only called once because permanent errors fast-fail
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
@@ -249,7 +275,9 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      await expect(invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' })).rejects.toThrow();
+      await expect(
+        invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' })
+      ).rejects.toThrow();
 
       // Only called once because quota exceeded is permanent
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
@@ -262,7 +290,9 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      await expect(invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' })).rejects.toThrow();
+      await expect(
+        invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' })
+      ).rejects.toThrow();
 
       // Only called once because daily limit is permanent
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
@@ -277,7 +307,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       // Attach rejection handler BEFORE advancing timers to avoid unhandled rejection warning
       const rejectionPromise = expect(promise).rejects.toThrow();
@@ -307,7 +341,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       // First retry: 2^0 * 1000ms = 1000ms
       await vi.advanceTimersByTimeAsync(1000);
@@ -348,7 +386,11 @@ describe('LLMInvoker', () => {
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-        const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+        const promise = invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
 
         // Attach rejection handler BEFORE advancing timers to avoid unhandled rejection warning
         const rejectionPromise = expect(promise).rejects.toThrow(/exceeded global timeout/i);
@@ -392,7 +434,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -416,7 +462,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -440,7 +490,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -466,7 +520,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -487,7 +545,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const result = await invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const result = await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       expect(result.content).toEqual([{ text: 'Part 1' }, { text: ' Part 2' }]);
       expect(mockModel.invoke).toHaveBeenCalledTimes(1); // No retry needed
@@ -505,7 +567,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const result = await invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const result = await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       // Should succeed because there's at least some text content
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
@@ -520,7 +586,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       // Attach rejection handler BEFORE advancing timers
       const rejectionPromise = expect(promise).rejects.toThrow();
@@ -547,7 +617,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       await vi.runAllTimersAsync();
 
@@ -568,7 +642,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const promise = invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       // Attach rejection handler BEFORE advancing timers
       // The retry service wraps errors in RetryError after exhausting attempts
@@ -591,7 +669,11 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const result = await invoker.invokeWithRetry({ model: mockModel, messages, modelName: 'test-model' });
+      const result = await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
 
       expect(result.content).toBe('The file has a .ext extension');
       expect(mockModel.invoke).toHaveBeenCalledTimes(1); // No retry needed
