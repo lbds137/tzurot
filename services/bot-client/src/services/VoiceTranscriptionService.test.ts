@@ -98,6 +98,95 @@ describe('VoiceTranscriptionService', () => {
 
       expect(service.hasVoiceAttachment(message)).toBe(false);
     });
+
+    it('should detect voice attachment in forwarded message snapshot', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice.ogg',
+                size: 50000,
+                duration: 5.2,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(true);
+    });
+
+    it('should detect voice attachment in snapshot by duration', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded.bin',
+                contentType: 'application/octet-stream',
+                name: 'voice.bin',
+                size: 50000,
+                duration: 10.0,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(true);
+    });
+
+    it('should return false when forwarded snapshot has no audio', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/image.png',
+                contentType: 'image/png',
+                name: 'image.png',
+                size: 50000,
+                duration: null,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
+
+    it('should return false when forwarded snapshot has empty attachments', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [],
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
+
+    it('should return false when forwarded snapshot has null attachments', () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: null,
+          },
+        ],
+      });
+
+      expect(service.hasVoiceAttachment(message)).toBe(false);
+    });
   });
 
   describe('transcribe', () => {
@@ -363,6 +452,122 @@ describe('VoiceTranscriptionService', () => {
       // Should not have called sendTyping
       expect(message.channel.sendTyping).toBeUndefined();
     });
+
+    it('should transcribe voice from forwarded message snapshot when no direct attachments', async () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                contentType: 'audio/ogg',
+                name: 'forwarded-voice.ogg',
+                size: 45000,
+                duration: 8.5,
+                waveform: 'forwardedWaveformData',
+              },
+            ],
+          },
+        ],
+      });
+
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Transcribed from forwarded message',
+      });
+
+      const result = await service.transcribe(message, false, false);
+
+      expect(result).toEqual({
+        transcript: 'Transcribed from forwarded message',
+        continueToPersonalityHandler: false,
+      });
+
+      // Should call gateway transcribe with forwarded attachment metadata
+      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith([
+        {
+          url: 'https://cdn.discord.com/voice/forwarded.ogg',
+          contentType: 'audio/ogg',
+          name: 'forwarded-voice.ogg',
+          size: 45000,
+          isVoiceMessage: true,
+          duration: 8.5,
+          waveform: 'forwardedWaveformData',
+        },
+      ]);
+
+      // Should cache in Redis with forwarded attachment URL
+      expect(voiceTranscriptCache.store).toHaveBeenCalledWith(
+        'https://cdn.discord.com/voice/forwarded.ogg',
+        'Transcribed from forwarded message'
+      );
+    });
+
+    it('should handle forwarded snapshot with null contentType', async () => {
+      const message = createMockMessage({
+        attachments: [],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded.bin',
+                contentType: null,
+                name: 'forwarded-voice.bin',
+                size: 45000,
+                duration: 5.0,
+              },
+            ],
+          },
+        ],
+      });
+
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Transcribed with fallback content type',
+      });
+
+      await service.transcribe(message, false, false);
+
+      // Should use CONTENT_TYPES.BINARY as fallback
+      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      expect(call[0].contentType).toBe(CONTENT_TYPES.BINARY);
+    });
+
+    it('should prefer direct attachments over forwarded snapshots', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/direct.ogg',
+            contentType: 'audio/ogg',
+            name: 'direct-voice.ogg',
+            size: 30000,
+            duration: 3.0,
+          },
+        ],
+        messageSnapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                contentType: 'audio/ogg',
+                name: 'forwarded-voice.ogg',
+                size: 45000,
+                duration: 8.5,
+              },
+            ],
+          },
+        ],
+      });
+
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Transcribed direct attachment',
+      });
+
+      await service.transcribe(message, false, false);
+
+      // Should use direct attachment, not forwarded
+      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      expect(call[0].url).toBe('https://cdn.discord.com/voice/direct.ogg');
+    });
   });
 });
 
@@ -373,12 +578,48 @@ interface MockAttachment {
   name?: string;
   size?: number;
   duration?: number | null;
-  waveform?: string;
+  waveform?: string | null;
+}
+
+interface MockSnapshotAttachment {
+  url: string;
+  contentType: string | null;
+  name: string;
+  size: number;
+  duration: number | null;
+  waveform?: string | null;
+}
+
+interface MockMessageSnapshot {
+  attachments: MockSnapshotAttachment[] | null;
 }
 
 interface MockMessageOptions {
   attachments?: MockAttachment[];
+  messageSnapshots?: MockMessageSnapshot[];
   noTypingSupport?: boolean;
+}
+
+function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<string, MockSnapshotAttachment> & { some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean } {
+  const map = new Map<string, MockSnapshotAttachment>();
+
+  if (attachmentsList) {
+    attachmentsList.forEach((att, index) => {
+      map.set(`snapshot-att-${index}`, att);
+    });
+  }
+
+  // Add Collection-like methods
+  (map as any).some = function (predicate: (a: MockSnapshotAttachment) => boolean) {
+    for (const value of this.values()) {
+      if (predicate(value)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return map as Map<string, MockSnapshotAttachment> & { some: (predicate: (a: MockSnapshotAttachment) => boolean) => boolean };
 }
 
 function createMockMessage(options: MockMessageOptions = {}): Message {
@@ -405,6 +646,17 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     return false;
   };
 
+  // Create messageSnapshots if provided
+  let messageSnapshots: Map<string, { attachments: ReturnType<typeof createMockAttachmentsMap> }> | undefined;
+  if (options.messageSnapshots && options.messageSnapshots.length > 0) {
+    messageSnapshots = new Map();
+    options.messageSnapshots.forEach((snapshot, index) => {
+      messageSnapshots!.set(`snapshot-${index}`, {
+        attachments: createMockAttachmentsMap(snapshot.attachments),
+      });
+    });
+  }
+
   const channel: any = options.noTypingSupport
     ? {}
     : {
@@ -413,6 +665,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
 
   return {
     attachments,
+    messageSnapshots,
     channel,
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;
