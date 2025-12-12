@@ -56,8 +56,8 @@ export interface AddMessageOptions {
   role: MessageRole;
   /** Message content */
   content: string;
-  /** Discord guild ID (null for DMs) */
-  guildId?: string | null;
+  /** Discord guild ID (null for DMs). Required to explicitly handle DM vs guild context. */
+  guildId: string | null;
   /**
    * Discord message ID(s). Can be:
    * - string: single message ID (user messages, single-chunk assistant messages)

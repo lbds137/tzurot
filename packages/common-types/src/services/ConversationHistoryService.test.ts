@@ -117,6 +117,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         personaId: 'persona-789',
         role: MessageRole.User,
         content: longContent,
+        guildId: null,
       });
 
       expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(longContent);
@@ -145,6 +146,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         personaId: 'persona-789',
         role: MessageRole.User,
         content,
+        guildId: null,
       });
 
       expect(tokenCounter.countTextTokens).toHaveBeenCalledWith(content);
@@ -463,6 +465,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         personaId: 'persona-789',
         role: MessageRole.User,
         content: content1,
+        guildId: null,
       });
       await service.addMessage({
         channelId: 'channel-123',
@@ -470,6 +473,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         personaId: 'persona-789',
         role: MessageRole.Assistant,
         content: content2,
+        guildId: null,
       });
       await service.addMessage({
         channelId: 'channel-123',
@@ -477,6 +481,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         personaId: 'persona-789',
         role: MessageRole.User,
         content: content3,
+        guildId: null,
       });
 
       // Verify token counter was called exactly 3 times (once per message)
@@ -999,6 +1004,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           personaId: 'persona-789',
           role: MessageRole.User,
           content: 'test message',
+          guildId: null,
         })
       ).rejects.toThrow('Database connection failed');
     });
