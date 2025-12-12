@@ -33,6 +33,24 @@ interface ProcessedAttachmentResult {
 }
 
 /**
+ * Options for processing a single attachment
+ */
+interface ProcessSingleAttachmentOptions {
+  /** Attachment to process */
+  attachment: NonNullable<ReferencedMessage['attachments']>[0];
+  /** Index in the attachments array */
+  index: number;
+  /** Reference number for logging */
+  referenceNumber: number;
+  /** Personality configuration */
+  personality: LoadedPersonality;
+  /** Whether the user is in guest mode (no BYOK API key) */
+  isGuestMode: boolean;
+  /** Pre-processed attachments for this reference (optional) */
+  preprocessedAttachments?: ProcessedAttachment[];
+}
+
+/**
  * Referenced Message Formatter
  *
  * Handles formatting of referenced messages with parallel attachment processing
@@ -209,14 +227,14 @@ export class ReferencedMessageFormatter {
 
     // Create promises for all attachments that need processing
     const processingPromises = attachments.map((attachment, index) =>
-      this.processSingleAttachment(
+      this.processSingleAttachment({
         attachment,
         index,
         referenceNumber,
         personality,
         isGuestMode,
-        preprocessedAttachments
-      )
+        preprocessedAttachments,
+      })
     );
 
     // Process all attachments in parallel
@@ -260,23 +278,13 @@ export class ReferencedMessageFormatter {
    *
    * Handles vision model or transcription processing with graceful error handling.
    * If preprocessed data is available, uses it instead of making API calls.
-   *
-   * @param attachment - Attachment to process
-   * @param index - Index in the attachments array
-   * @param referenceNumber - Reference number for logging
-   * @param personality - Personality configuration
-   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
-   * @param preprocessedAttachments - Pre-processed attachments for this reference (optional)
-   * @returns Processed attachment result
    */
   private async processSingleAttachment(
-    attachment: NonNullable<ReferencedMessage['attachments']>[0],
-    index: number,
-    referenceNumber: number,
-    personality: LoadedPersonality,
-    isGuestMode: boolean,
-    preprocessedAttachments?: ProcessedAttachment[]
+    options: ProcessSingleAttachmentOptions
   ): Promise<ProcessedAttachmentResult> {
+    const { attachment, index, referenceNumber, personality, isGuestMode, preprocessedAttachments } =
+      options;
+
     // Check for preprocessed result first (avoids API calls)
     const preprocessed = this.findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 

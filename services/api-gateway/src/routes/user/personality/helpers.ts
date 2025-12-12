@@ -6,6 +6,24 @@
 import { type PrismaClient, isBotOwner } from '@tzurot/common-types';
 
 /**
+ * Options for checking if user can view a personality
+ */
+export interface CanUserViewPersonalityOptions {
+  /** Prisma client instance */
+  prisma: PrismaClient;
+  /** Internal database user ID (null if not found) */
+  userId: string | null;
+  /** Personality ID to check */
+  personalityId: string;
+  /** Whether the personality is public */
+  isPublic: boolean;
+  /** Owner ID of the personality (null if no owner) */
+  ownerId: string | null;
+  /** Discord user ID (for bot owner check) */
+  discordUserId: string;
+}
+
+/**
  * Get or create internal user from Discord ID
  */
 export async function getOrCreateInternalUser(
@@ -87,13 +105,10 @@ export async function canUserEditPersonality(
  * - User is in PersonalityOwner table
  */
 export async function canUserViewPersonality(
-  prisma: PrismaClient,
-  userId: string | null,
-  personalityId: string,
-  isPublic: boolean,
-  ownerId: string | null,
-  discordUserId: string
+  options: CanUserViewPersonalityOptions
 ): Promise<boolean> {
+  const { prisma, userId, personalityId, isPublic, ownerId, discordUserId } = options;
+
   // Bot owner can view any personality
   if (isBotOwner(discordUserId)) {
     return true;
