@@ -179,6 +179,7 @@ vi.mock('../utils/errorHandling.js', () => ({
 
 // Import mocks for assertions
 import { processAttachments } from './MultimodalProcessor.js';
+import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
 // Test fixtures
 function createMockPersonality(overrides?: Partial<LoadedPersonality>): LoadedPersonality {
@@ -848,6 +849,82 @@ describe('ConversationalRAGService', () => {
 
       await expect(service.generateResponse(personality, 'Test', context)).rejects.toThrow(
         'All retries exhausted'
+      );
+    });
+  });
+
+  describe('name collision disambiguation', () => {
+    it('should pass discordUsername to replacePromptPlaceholders for response cleanup', async () => {
+      const personality = createMockPersonality({ name: 'Lila' });
+      const context = createMockContext({
+        userName: 'TestUser',
+        activePersonaName: 'Lila', // Same as personality name - collision!
+        discordUsername: 'lbds137',
+      });
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      // replacePromptPlaceholders is called to strip placeholders from AI response
+      // It should receive discordUsername for collision detection
+      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+        'AI response', // The mock AI response content
+        'TestUser', // userName from context (preferred over activePersonaName)
+        'Lila', // personality.name
+        'lbds137' // discordUsername for collision detection
+      );
+    });
+
+    it('should use activePersonaName when userName is empty', async () => {
+      const personality = createMockPersonality({ name: 'TestBot' });
+      const context = createMockContext({
+        userName: '', // Empty userName
+        activePersonaName: 'Alice',
+        discordUsername: 'alice123',
+      });
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      // Should fall back to activePersonaName
+      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+        'AI response',
+        'Alice', // Fell back to activePersonaName
+        'TestBot',
+        'alice123'
+      );
+    });
+
+    it('should use default "User" when both userName and activePersonaName are empty', async () => {
+      const personality = createMockPersonality({ name: 'TestBot' });
+      const context = createMockContext({
+        userName: '',
+        activePersonaName: '',
+        discordUsername: 'someuser',
+      });
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+        'AI response',
+        'User', // Default fallback
+        'TestBot',
+        'someuser'
+      );
+    });
+
+    it('should pass undefined discordUsername when not provided', async () => {
+      const personality = createMockPersonality({ name: 'TestBot' });
+      const context = createMockContext({
+        userName: 'TestUser',
+        // No discordUsername
+      });
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+        'AI response',
+        'TestUser',
+        'TestBot',
+        undefined // No discordUsername
       );
     });
   });
