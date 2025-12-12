@@ -48,6 +48,33 @@ interface SavePersonaResponse {
 }
 
 /**
+ * Fetch the user's default persona if one exists
+ * @internal
+ */
+async function fetchDefaultPersona(discordId: string): Promise<PersonaDetails | null> {
+  const listResult = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
+    userId: discordId,
+  });
+
+  if (!listResult.ok) {
+    return null;
+  }
+
+  const defaultPersona = listResult.data.personas.find(p => p.isDefault);
+  if (defaultPersona === undefined) {
+    return null;
+  }
+
+  // Fetch full details of default persona
+  const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
+    `/user/persona/${defaultPersona.id}`,
+    { userId: discordId }
+  );
+
+  return detailsResult.ok ? detailsResult.data.persona : null;
+}
+
+/**
  * Handle /me profile edit [profile] command - shows modal
  *
  * @param interaction - The command interaction
@@ -81,24 +108,8 @@ export async function handleEditPersona(
 
       persona = result.data.persona;
     } else {
-      // Find default persona from list
-      const listResult = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
-        userId: discordId,
-      });
-
-      if (listResult.ok) {
-        const defaultPersona = listResult.data.personas.find(p => p.isDefault);
-        if (defaultPersona !== undefined) {
-          // Fetch full details of default persona
-          const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
-            `/user/persona/${defaultPersona.id}`,
-            { userId: discordId }
-          );
-          if (detailsResult.ok) {
-            persona = detailsResult.data.persona;
-          }
-        }
-      }
+      // Find and fetch default persona
+      persona = await fetchDefaultPersona(discordId);
     }
 
     // Build the modal
