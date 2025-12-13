@@ -23,6 +23,15 @@ export type {
   MessageMetadata,
   GenerationPayload,
   LLMGenerationResult,
+  // History API types
+  HistoryClearRequest,
+  HistoryClearResponse,
+  HistoryUndoRequest,
+  HistoryUndoResponse,
+  HistoryStatsQuery,
+  HistoryStatsResponse,
+  HistoryHardDeleteRequest,
+  HistoryHardDeleteResponse,
 } from './schemas.js';
 
 // Re-export schemas for runtime validation
@@ -40,6 +49,15 @@ export {
   messageMetadataSchema,
   generationPayloadSchema,
   llmGenerationResultSchema,
+  // History API schemas
+  historyClearRequestSchema,
+  historyClearResponseSchema,
+  historyUndoRequestSchema,
+  historyUndoResponseSchema,
+  historyStatsQuerySchema,
+  historyStatsResponseSchema,
+  historyHardDeleteRequestSchema,
+  historyHardDeleteResponseSchema,
 } from './schemas.js';
 
 /**
