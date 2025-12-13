@@ -502,20 +502,38 @@ export class ConversationHistoryService {
 
   /**
    * Clear conversation history for a channel + personality
-   * (useful for /reset command)
+   * Optionally filter by personaId for per-persona deletion
+   * (useful for /reset and /history hard-delete commands)
+   *
+   * @param channelId Channel ID
+   * @param personalityId Personality ID
+   * @param personaId Optional persona ID - if provided, only deletes messages for that persona
    */
-  async clearHistory(channelId: string, personalityId: string): Promise<number> {
+  async clearHistory(
+    channelId: string,
+    personalityId: string,
+    personaId?: string
+  ): Promise<number> {
     try {
+      const where: { channelId: string; personalityId: string; personaId?: string } = {
+        channelId,
+        personalityId,
+      };
+
+      if (personaId !== undefined && personaId.length > 0) {
+        where.personaId = personaId;
+      }
+
       const result = await this.prisma.conversationHistory.deleteMany({
-        where: {
-          channelId,
-          personalityId,
-        },
+        where,
       });
 
-      logger.info(
-        `Cleared ${result.count} messages from history (channel: ${channelId}, personality: ${personalityId})`
-      );
+      const scopeInfo =
+        personaId !== undefined && personaId.length > 0
+          ? `channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...`
+          : `channel: ${channelId}, personality: ${personalityId}`;
+
+      logger.info(`Cleared ${result.count} messages from history (${scopeInfo})`);
       return result.count;
     } catch (error) {
       logger.error({ err: error }, `Failed to clear conversation history`);

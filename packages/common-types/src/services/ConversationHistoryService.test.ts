@@ -909,6 +909,21 @@ describe('ConversationHistoryService - Token Count Caching', () => {
         'Database connection failed'
       );
     });
+
+    it('should delete only messages for specific persona when personaId provided', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 10 });
+
+      const count = await service.clearHistory('channel-123', 'personality-456', 'persona-789');
+
+      expect(count).toBe(10);
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+      });
+    });
   });
 
   describe('cleanupOldHistory', () => {

@@ -721,7 +721,7 @@ describe('/user/history routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should delete history and return count', async () => {
+    it('should delete history for resolved persona by default', async () => {
       mockClearHistory.mockResolvedValue(15);
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
@@ -733,12 +733,18 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockClearHistory).toHaveBeenCalledWith(TEST_CHANNEL_ID, TEST_PERSONALITY_ID);
+      // Should include personaId for per-persona deletion
+      expect(mockClearHistory).toHaveBeenCalledWith(
+        TEST_CHANNEL_ID,
+        TEST_PERSONALITY_ID,
+        TEST_PERSONA_ID
+      );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
           deletedCount: 15,
+          personaId: TEST_PERSONA_ID,
           message: 'Permanently deleted 15 messages from conversation history.',
         })
       );
@@ -763,8 +769,8 @@ describe('/user/history routes', () => {
       );
     });
 
-    it('should clear all per-persona history configs', async () => {
-      mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 2 });
+    it('should clear only per-persona history config by default', async () => {
+      mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 1 });
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/hard-delete');
@@ -775,11 +781,12 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      // Should delete ALL per-persona configs for this user+personality
+      // Should delete only the resolved persona's config
       expect(mockPrisma.userPersonaHistoryConfig.deleteMany).toHaveBeenCalledWith({
         where: {
           userId: TEST_USER_ID,
           personalityId: TEST_PERSONALITY_ID,
+          personaId: TEST_PERSONA_ID,
         },
       });
 
