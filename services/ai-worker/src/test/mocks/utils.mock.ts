@@ -4,43 +4,43 @@
  * Simple function mocks for utilities that don't have complex class structures.
  */
 
-import { vi } from 'vitest';
+import { type Mock, vi } from 'vitest';
 
 /**
  * Mock for MultimodalProcessor.processAttachments
  */
-export const mockProcessAttachments = vi.fn().mockResolvedValue([]);
+export const mockProcessAttachments: Mock = vi.fn().mockResolvedValue([]);
 
-export const mockMultimodalProcessor = {
+export const mockMultimodalProcessor: { processAttachments: Mock } = {
   processAttachments: mockProcessAttachments,
 };
 
 /**
  * Mock for responseCleanup.stripResponseArtifacts
  */
-export const mockStripResponseArtifacts = vi.fn((content: string) => content);
+export const mockStripResponseArtifacts: Mock = vi.fn((content: string) => content);
 
-export const mockResponseCleanup = {
+export const mockResponseCleanup: { stripResponseArtifacts: Mock } = {
   stripResponseArtifacts: mockStripResponseArtifacts,
 };
 
 /**
  * Mock for promptPlaceholders.replacePromptPlaceholders
  */
-export const mockReplacePromptPlaceholders = vi.fn((content: string) => content);
+export const mockReplacePromptPlaceholders: Mock = vi.fn((content: string) => content);
 
-export const mockPromptPlaceholders = {
+export const mockPromptPlaceholders: { replacePromptPlaceholders: Mock } = {
   replacePromptPlaceholders: mockReplacePromptPlaceholders,
 };
 
 /**
  * Mock for errorHandling.logAndThrow
  */
-export const mockLogAndThrow = vi.fn((_logger: unknown, _msg: string, error: unknown) => {
+export const mockLogAndThrow: Mock = vi.fn((_logger: unknown, _msg: string, error: unknown) => {
   throw error;
 });
 
-export const mockErrorHandling = {
+export const mockErrorHandling: { logAndThrow: Mock } = {
   logAndThrow: mockLogAndThrow,
 };
 
