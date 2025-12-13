@@ -48,6 +48,7 @@ ORDER BY created_at DESC
 ### 2. Explicit Consent for Destructive Operations
 
 Truly destructive operations (LTM purge, hard STM delete) require:
+
 - Red danger button (Discord `ButtonStyle.Danger`)
 - Confirmation modal
 - Typed confirmation phrase for high-risk operations
@@ -55,6 +56,7 @@ Truly destructive operations (LTM purge, hard STM delete) require:
 ### 3. Semantic Search Over Pagination
 
 For memory browsing, prioritize semantic search using pgvector:
+
 - User queries in natural language
 - System finds semantically similar memories
 - Pagination as fallback, not primary UX
@@ -62,6 +64,7 @@ For memory browsing, prioritize semantic search using pgvector:
 ### 4. Incognito as Session State
 
 Incognito mode is a **timed session state**, not a permanent toggle:
+
 - Explicit enable/disable
 - Optional auto-expire timer
 - Visual indicator when active
@@ -73,35 +76,41 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 
 ### `/history` - Short-Term Memory Management
 
-| Subcommand | Description | Tier | Options |
-|------------|-------------|------|---------|
-| `clear` | Soft reset conversation context | 0 | `personality:`, `scope:[channel\|all]` |
-| `undo` | Restore cleared context | 0 | `personality:` |
-| `hard-delete` | Permanently delete conversation history | 0 | `personality:`, `timeframe:`, **requires confirmation** |
-| `stats` | View conversation statistics | 0 | `personality:` |
+| Subcommand    | Description                             | Tier | Options                                                 |
+| ------------- | --------------------------------------- | ---- | ------------------------------------------------------- |
+| `clear`       | Soft reset conversation context         | 0    | `personality:`, `scope:[channel\|all]`                  |
+| `undo`        | Restore cleared context                 | 0    | `personality:`                                          |
+| `hard-delete` | Permanently delete conversation history | 0    | `personality:`, `timeframe:`, **requires confirmation** |
+| `stats`       | View conversation statistics            | 0    | `personality:`                                          |
 
 ### `/memory` - Long-Term Memory Management
 
-| Subcommand | Description | Tier | Options |
-|------------|-------------|------|---------|
-| `search` | Semantic search through memories | 3 | `query:`, `personality:`, `persona:`, `date-range:`, `server:`, `channel:` |
-| `browse` | Paginated memory list | 2 | `personality:`, `persona:`, `page:` |
-| `view` | View single memory details | 1 | `memory-id:` |
-| `edit` | Edit memory content | 1 | `memory-id:` (opens modal) |
-| `delete` | Delete single memory | 0 | `memory-id:`, **requires confirmation** |
-| `purge` | Bulk delete memories | 1 | `personality:`, `persona:`, `timeframe:`, **requires typed confirmation** |
-| `stats` | View memory statistics | 0 | `personality:` |
-| `lock` | Mark memory as "core" (immune to purge) | 0 | `memory-id:` |
-| `unlock` | Remove core memory protection | 0 | `memory-id:` |
+**Design Principle**: `/memory browse` opens a dashboard-style navigator. Individual memory operations (edit, delete, lock) happen within the browse UI via buttons. Standalone `/memory delete` and `/memory purge` are for **batch operations**.
+
+| Subcommand | Description                                 | Tier | Options                                                                    |
+| ---------- | ------------------------------------------- | ---- | -------------------------------------------------------------------------- |
+| `search`   | Semantic search → opens browser at results  | 3    | `query:`, `personality:`, `persona:`, `date-range:`, `server:`, `channel:` |
+| `browse`   | Open memory browser dashboard               | 2    | `personality:`, `persona:` (filters applied before browsing)               |
+| `delete`   | **Batch** delete with filters               | 1    | `personality:`, `persona:`, `timeframe:`, **requires confirmation**        |
+| `purge`    | Delete ALL memories for personality         | 1    | `personality:`, **requires typed confirmation**                            |
+| `stats`    | View memory statistics                      | 0    | `personality:`                                                             |
+
+**From within Browse Dashboard** (buttons, not subcommands):
+
+- `[⏪ Prev]` / `[Next ⏩]` - Navigate through memories
+- `[✏️ Edit]` - Open modal to edit current memory content
+- `[🗑️ Delete]` - Delete current memory (with confirmation)
+- `[🔒 Lock]` / `[🔓 Unlock]` - Toggle core memory protection
+- `[❌ Close]` - Exit browser
 
 ### `/incognito` - Privacy Mode
 
-| Subcommand | Description | Tier | Options |
-|------------|-------------|------|---------|
-| `enable` | Start incognito session | 0 | `personality:[specific\|all]`, `duration:[30m\|1h\|4h\|until-disable]` |
-| `disable` | End incognito session | 0 | - |
-| `status` | Check current incognito state | 0 | - |
-| `forget` | Retroactively delete recent LTM | 1 | `timeframe:[5m\|15m\|1h]`, **requires confirmation** |
+| Subcommand | Description                     | Tier | Options                                                                |
+| ---------- | ------------------------------- | ---- | ---------------------------------------------------------------------- |
+| `enable`   | Start incognito session         | 0    | `personality:[specific\|all]`, `duration:[30m\|1h\|4h\|until-disable]` |
+| `disable`  | End incognito session           | 0    | -                                                                      |
+| `status`   | Check current incognito state   | 0    | -                                                                      |
+| `forget`   | Retroactively delete recent LTM | 1    | `timeframe:[5m\|15m\|1h]`, **requires confirmation**                   |
 
 ---
 
@@ -112,18 +121,21 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 **Mechanism**: Store `lastContextReset` timestamp on UserPersonalityConfig
 
 **Soft Clear Flow**:
+
 1. User runs `/history clear personality:Lilith`
 2. System sets `lastContextReset = NOW()` for that user-personality pair
 3. All queries for conversation history filter by `created_at > lastContextReset`
 4. Old messages still exist but aren't included in context
 
 **Undo Flow**:
+
 1. User runs `/history undo personality:Lilith`
 2. System stores previous `lastContextReset` in `previousContextReset` before clearing
 3. Undo restores the previous timestamp (or null to include all)
 4. Only one level of undo supported
 
 **Scope Options**:
+
 - `channel` - Clear only current channel (requires channel-specific epoch)
 - `all` - Clear all channels for that personality
 
@@ -132,6 +144,7 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 **When Needed**: User wants to permanently remove embarrassing/private messages
 
 **Flow**:
+
 1. User runs `/history hard-delete personality:Lilith timeframe:24h`
 2. System shows warning: "This will permanently delete {N} messages. This cannot be undone."
 3. Red "Delete Permanently" button
@@ -141,47 +154,56 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 ### F3: LTM Reset/Purge
 
 **Per-Personality Purge**:
+
 ```
 /memory purge personality:Lilith
 ```
+
 - Deletes all pgvector memories for that personality-user pair
 - Requires typed confirmation: "Type 'DELETE LILITH MEMORIES' to confirm"
 
 **All-Personality Purge**:
+
 ```
 /memory purge personality:all
 ```
+
 - Nuclear option - deletes ALL memories for the user
 - Requires typed confirmation: "Type 'DELETE ALL MEMORIES' to confirm"
 
 **Timeframe Purge**:
+
 ```
 /memory purge timeframe:7d personality:Lilith
 ```
+
 - Delete memories older than 7 days
 - Options: 1h, 24h, 7d, 30d, 1y, all
 
 ### F4: Incognito Mode
 
 **Session State Model**:
+
 ```typescript
 interface IncognitoSession {
   userId: string;
   personalityId: string | 'all';
   startedAt: Date;
-  expiresAt: Date | null;  // null = manual disable only
+  expiresAt: Date | null; // null = manual disable only
 }
 ```
 
 **Storage**: Redis with TTL for auto-expiration
 
 **Behavior When Active**:
+
 - Messages are processed normally (STM works)
 - No new memories are written to LTM
 - Visual indicator in bot responses (ghost emoji or similar)
 - Optional: Different response style acknowledging incognito
 
 **Auto-Expire Options**:
+
 - 30 minutes, 1 hour, 4 hours
 - "Until I turn it off" (no auto-expire)
 
@@ -190,6 +212,7 @@ interface IncognitoSession {
 **Use Case**: User said something they wish hadn't been recorded
 
 **Flow**:
+
 1. `/incognito forget timeframe:15m`
 2. Deletes all LTM entries created in last 15 minutes
 3. Requires confirmation: "This will delete {N} memories from the last 15 minutes"
@@ -204,6 +227,7 @@ interface IncognitoSession {
 ```
 
 **Flow**:
+
 1. Generate embedding for query text
 2. pgvector cosine similarity search
 3. Filter by additional criteria (personality, persona, date range, server, channel)
@@ -212,21 +236,22 @@ interface IncognitoSession {
 6. Buttons: [View Full] [Edit] [Delete]
 
 **Advanced Filters** (autocomplete-driven):
+
 - `personality:` - Which character
 - `persona:` - Which user profile
 - `date-range:` - Options: today, last-week, last-month, custom
 - `server:` - Which Discord server (shows server names)
 - `channel:` - Which channel (shows channel names)
 
-### F7: Memory Browsing
+### F7: Memory Browsing (Dashboard Pattern)
 
-**Fallback UI**: Paginated list when search isn't appropriate
+**Primary Interface**: Dashboard-style navigator similar to `/character edit`
 
 ```
 /memory browse personality:Lilith persona:default
 ```
 
-**UI Pattern**: "Memory Deck" with navigation
+**UI Pattern**: "Memory Deck" with navigation and inline actions
 
 ```
 ┌─────────────────────────────────────────┐
@@ -243,12 +268,21 @@ interface IncognitoSession {
 │ 🔒 Core Memory: No                      │
 ├─────────────────────────────────────────┤
 │ [⏪ Prev] [Next ⏩] [✏️ Edit] [🗑️ Del]  │
+│ [🔒 Lock] [❌ Close]                    │
 └─────────────────────────────────────────┘
 ```
+
+**Dashboard Session**: Uses the existing `SessionManager` pattern:
+- Tracks current memory index, filter state, total count
+- Buttons update the session and refresh the embed
+- 15-minute inactivity timeout (configurable)
+
+**Search Integration**: `/memory search` returns results, clicking a result opens browser at that memory
 
 ### F8: Memory Editing
 
 **Flow**:
+
 1. User clicks [Edit] on a memory
 2. Modal opens with current content in text field
 3. User modifies content
@@ -256,6 +290,7 @@ interface IncognitoSession {
 5. Update memory record
 
 **Constraints**:
+
 - Maximum 2000 characters (Discord modal limit)
 - For longer memories, show truncated in modal with warning
 
@@ -268,6 +303,7 @@ interface IncognitoSession {
 ```
 
 **Behavior**:
+
 - Locked memories shown with 🔒 indicator
 - `/memory purge` skips locked memories
 - Must explicitly unlock before purge affects them
@@ -319,7 +355,7 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 ```typescript
 // Redis key pattern
 `incognito:${userId}:${personalityId}` // value: { startedAt, expiresAt }
-`incognito:${userId}:all`              // global incognito
+`incognito:${userId}:all`; // global incognito
 ```
 
 ---
@@ -350,28 +386,31 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 - [ ] Add visual indicator to responses when incognito
 - [ ] Implement `/incognito forget` (retroactive delete)
 
-### Phase 3: Memory Search & Browse (Sessions 4-5)
+### Phase 3: Memory Browser Dashboard (Sessions 4-5)
 
-**Goal**: Users can find and view their memories
+**Goal**: Users can browse, view, and manage individual memories via dashboard
 
-- [ ] Add source tracking fields to memory schema
-- [ ] Implement `/memory search` with semantic search
-- [ ] Build autocomplete for server/channel names
-- [ ] Implement `/memory browse` with pagination
-- [ ] Implement `/memory view` for single memory detail
-- [ ] Create memory card embed component
-- [ ] Add [View Full], [Edit], [Delete] button handlers
+- [ ] Add source tracking fields to memory schema (`sourceServerId`, `sourceChannelId`, `isLocked`)
+- [ ] Create `MemoryBrowserSession` type (extends dashboard session pattern)
+- [ ] Implement `/memory browse` dashboard with navigation buttons
+- [ ] Build memory card embed component with metadata display
+- [ ] Add [Edit] button → modal for editing memory content
+- [ ] Add [Delete] button → confirmation for single memory deletion
+- [ ] Add [Lock/Unlock] button → toggle core memory protection
+- [ ] Regenerate embeddings on edit (call ai-worker)
+- [ ] Build autocomplete for server/channel name resolution
 
-### Phase 4: Memory Editing & Deletion (Session 6)
+### Phase 4: Memory Search & Batch Operations (Session 6)
 
-**Goal**: Users can modify their memories
+**Goal**: Users can search memories and perform batch operations
 
-- [ ] Implement `/memory edit` with modal
-- [ ] Regenerate embeddings on edit
-- [ ] Implement `/memory delete` with confirmation
-- [ ] Implement `/memory purge` with typed confirmation
-- [ ] Implement `/memory lock` and `/memory unlock`
-- [ ] Add isLocked check to purge flow
+- [ ] Implement `/memory search` with semantic search via pgvector
+- [ ] Search results show numbered list with [View] buttons
+- [ ] Clicking [View] opens browser at that memory
+- [ ] Implement `/memory delete` for batch deletion with filters
+- [ ] Implement `/memory purge` with typed confirmation modal
+- [ ] Add isLocked check to batch operations (skip locked memories)
+- [ ] Implement `/memory stats` for memory statistics
 
 ### Phase 5: Hard Delete & Polish (Sessions 7-8)
 
@@ -391,6 +430,7 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 ### Destructive Operation Confirmation Flow
 
 **Level 1 - Simple Confirm** (single memory delete):
+
 ```
 ┌─────────────────────────────────────────┐
 │ ⚠️ Delete Memory?                       │
@@ -404,6 +444,7 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 ```
 
 **Level 2 - Modal Warning** (bulk purge):
+
 ```
 ┌─────────────────────────────────────────┐
 │ ⚠️ DANGER: Purge All Memories           │
@@ -463,24 +504,40 @@ When incognito is active, bot responses include:
 
 ### Gateway Routes (New)
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| POST | `/user/history/clear` | Set context epoch |
-| POST | `/user/history/undo` | Restore previous epoch |
-| DELETE | `/user/history` | Hard delete (with confirmation token) |
-| GET | `/user/history/stats` | Get conversation statistics |
-| POST | `/user/memory/search` | Semantic memory search |
-| GET | `/user/memory/list` | Paginated memory list |
-| GET | `/user/memory/:id` | Get single memory |
-| PATCH | `/user/memory/:id` | Update memory content |
-| DELETE | `/user/memory/:id` | Delete single memory |
-| POST | `/user/memory/purge` | Bulk delete (with confirmation token) |
-| POST | `/user/memory/:id/lock` | Lock memory |
-| DELETE | `/user/memory/:id/lock` | Unlock memory |
-| POST | `/user/incognito` | Enable incognito |
-| DELETE | `/user/incognito` | Disable incognito |
-| GET | `/user/incognito` | Get incognito status |
-| POST | `/user/incognito/forget` | Retroactive delete |
+**STM (History) Routes:**
+
+| Method | Route                 | Description                           |
+| ------ | --------------------- | ------------------------------------- |
+| POST   | `/user/history/clear` | Set context epoch                     |
+| POST   | `/user/history/undo`  | Restore previous epoch                |
+| DELETE | `/user/history`       | Hard delete (with confirmation token) |
+| GET    | `/user/history/stats` | Get conversation statistics           |
+
+**LTM (Memory) Routes:**
+
+| Method | Route                   | Description                                  |
+| ------ | ----------------------- | -------------------------------------------- |
+| POST   | `/user/memory/search`   | Semantic memory search                       |
+| GET    | `/user/memory/list`     | Paginated memory list (for browse dashboard) |
+| GET    | `/user/memory/:id`      | Get single memory                            |
+| PATCH  | `/user/memory/:id`      | Update memory content + regenerate embedding |
+| DELETE | `/user/memory/:id`      | Delete single memory                         |
+| POST   | `/user/memory/delete`   | Batch delete with filters                    |
+| POST   | `/user/memory/purge`    | Delete all (with typed confirmation)         |
+| POST   | `/user/memory/:id/lock` | Lock memory (core memory)                    |
+| DELETE | `/user/memory/:id/lock` | Unlock memory                                |
+| GET    | `/user/memory/stats`    | Memory statistics                            |
+
+**Incognito Routes:**
+
+| Method | Route                    | Description        |
+| ------ | ------------------------ | ------------------ |
+| POST   | `/user/incognito`        | Enable incognito   |
+| DELETE | `/user/incognito`        | Disable incognito  |
+| GET    | `/user/incognito`        | Get incognito status |
+| POST   | `/user/incognito/forget` | Retroactive delete |
+
+**Note**: Browse dashboard session state is managed client-side (in bot-client) using the `SessionManager` pattern, not via API. Only data fetching goes through gateway.
 
 ### Confirmation Token Pattern
 
@@ -507,6 +564,7 @@ For destructive operations, use two-step flow:
 ### Audit Logging
 
 Log all destructive operations:
+
 ```typescript
 interface MemoryAuditLog {
   userId: string;
@@ -529,24 +587,32 @@ interface MemoryAuditLog {
 ## Future Enhancements (Icebox)
 
 ### Memory Consolidation
+
 Summarize STM into condensed LTM entries (like "sleeping on it"):
+
 - End of day consolidation job
 - Keep important facts, discard noise
 - User-triggered consolidation option
 
 ### Facts vs Vibes Separation
+
 Semantic categorization of memories:
+
 - **Facts**: User's name, preferences, important dates
 - **Vibes**: Emotional context, relationship dynamics
 - Different retention policies for each
 
 ### Memory Sharing
+
 Allow users to share specific memories between personalities:
+
 - "Copy this memory to all characters"
 - "This fact applies to everyone"
 
 ### Memory Export
+
 Download all memories as JSON/CSV:
+
 - For data portability
 - For backup purposes
 - GDPR compliance
