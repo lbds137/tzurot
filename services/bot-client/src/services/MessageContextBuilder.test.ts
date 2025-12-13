@@ -95,8 +95,12 @@ describe('MessageContextBuilder', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create mock Prisma client
-    mockPrisma = {} as PrismaClient;
+    // Create mock Prisma client with userPersonaHistoryConfig
+    mockPrisma = {
+      userPersonaHistoryConfig: {
+        findUnique: vi.fn().mockResolvedValue(null), // No epoch by default
+      },
+    } as unknown as PrismaClient;
 
     // Create builder instance with mock PersonaResolver
     builder = new MessageContextBuilder(mockPrisma, mockPersonaResolver as any);
@@ -222,11 +226,12 @@ describe('MessageContextBuilder', () => {
         'personality-123'
       );
 
-      // Verify history retrieval
+      // Verify history retrieval (4th arg is contextEpoch - undefined when no STM clear)
       expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
         'channel-123',
         'personality-123',
-        100
+        100,
+        undefined
       );
 
       // Verify context structure
@@ -605,6 +610,80 @@ describe('MessageContextBuilder', () => {
 
       // Verify mentionedPersonas is undefined when no users were mentioned
       expect(result.context.mentionedPersonas).toBeUndefined();
+    });
+
+    it('should apply context epoch filter when user has cleared history (STM)', async () => {
+      const contextEpoch = new Date('2025-01-15T12:00:00Z');
+
+      // Set up the epoch in UserPersonaHistoryConfig
+      vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue({
+        lastContextReset: contextEpoch,
+      } as any);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello after clear',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello after clear',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello after clear');
+
+      // Verify the epoch was looked up
+      expect(mockPrisma.userPersonaHistoryConfig.findUnique).toHaveBeenCalledWith({
+        where: {
+          userId_personalityId_personaId: {
+            userId: 'user-uuid-123',
+            personalityId: 'personality-123',
+            personaId: 'persona-123',
+          },
+        },
+        select: {
+          lastContextReset: true,
+        },
+      });
+
+      // Verify history was fetched WITH the context epoch
+      expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
+        'channel-123',
+        'personality-123',
+        100,
+        contextEpoch
+      );
+    });
+
+    it('should not apply epoch filter when user has not cleared history', async () => {
+      // No epoch set (default mock returns null)
+      vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue(null);
+
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello');
+
+      // Verify history was fetched WITHOUT epoch (undefined)
+      expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
+        'channel-123',
+        'personality-123',
+        100,
+        undefined
+      );
     });
   });
 });

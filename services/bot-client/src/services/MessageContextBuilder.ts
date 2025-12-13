@@ -120,12 +120,37 @@ export class MessageContextBuilder {
       '[MessageContextBuilder] User persona lookup complete'
     );
 
+    // Look up user's context epoch for this persona (STM clear feature)
+    // Messages before this timestamp are excluded from AI context
+    const historyConfig = await this.prisma.userPersonaHistoryConfig.findUnique({
+      where: {
+        userId_personalityId_personaId: {
+          userId: internalUserId,
+          personalityId: personality.id,
+          personaId,
+        },
+      },
+      select: {
+        lastContextReset: true,
+      },
+    });
+    const contextEpoch = historyConfig?.lastContextReset ?? undefined;
+
+    if (contextEpoch !== undefined && contextEpoch !== null) {
+      logger.debug(
+        { personaId, contextEpoch: contextEpoch.toISOString() },
+        '[MessageContextBuilder] Applying context epoch filter (STM clear)'
+      );
+    }
+
     // Get conversation history from PostgreSQL
     // Retrieve more than needed - AI worker will trim based on token budget
+    // Apply context epoch filter if user has cleared history
     const history = await this.conversationHistory.getRecentHistory(
       message.channel.id,
       personality.id,
-      MESSAGE_LIMITS.MAX_HISTORY_FETCH
+      MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+      contextEpoch
     );
 
     // Extract Discord message IDs and timestamps for deduplication
