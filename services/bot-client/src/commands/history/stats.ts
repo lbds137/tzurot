@@ -18,6 +18,7 @@ const logger = createLogger('history-stats');
 interface StatsResponse {
   channelId: string;
   personalitySlug: string;
+  personaId: string;
   visible: {
     totalMessages: number;
     userMessages: number;
@@ -60,6 +61,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
   const userId = interaction.user.id;
   const channelId = interaction.channelId;
   const personalitySlug = interaction.options.getString('personality', true);
+  const personaId = interaction.options.getString('profile', false); // Optional profile/persona
 
   await deferEphemeral(interaction);
 
@@ -69,6 +71,11 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       personalitySlug,
       channelId,
     });
+
+    // Add optional personaId if explicitly provided
+    if (personaId !== null && personaId.length > 0) {
+      params.set('personaId', personaId);
+    }
 
     const result = await callGatewayApi<StatsResponse>(`/user/history/stats?${params.toString()}`, {
       userId,

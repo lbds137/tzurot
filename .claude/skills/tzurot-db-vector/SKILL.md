@@ -504,6 +504,22 @@ cat prisma/migrations/<timestamp>_test_feature/migration.sql
 npx prisma migrate deploy
 ```
 
+**5. Handle schema drift carefully**
+
+Prisma may generate DROP statements for indexes it can't represent (e.g., pgvector HNSW indexes). Always review generated migrations!
+
+```bash
+# Check the generated SQL for unwanted DROPs
+grep -i "DROP INDEX" prisma/migrations/<timestamp>/migration.sql
+```
+
+**Known drift issues are documented in:** `docs/database/PRISMA_DRIFT_ISSUES.md`
+
+Currently documented:
+
+- `idx_memories_embedding` - pgvector HNSW index (Unsupported types can't use vector operators)
+- GIN indexes are now supported natively in Prisma 6+ (fixed in schema)
+
 ### Database Scripts (`@tzurot/scripts`)
 
 The `scripts/` folder is a pnpm workspace package. Use TypeScript scripts in `scripts/src/` for database operations:

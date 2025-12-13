@@ -29,6 +29,7 @@ model User {
   personalityOwners    PersonalityOwner[]
   ownedPersonas        Persona[]               @relation("PersonaOwner")
   personalityConfigs   UserPersonalityConfig[]
+  personaHistoryConfigs UserPersonaHistoryConfig[]
 
   @@index([discordId])
   @@index([defaultLlmConfigId])
@@ -96,6 +97,7 @@ model Persona {
   usersWithAsDefault          User[]                  @relation("UserDefaultPersona")
   shapesPersonaMappings       ShapesPersonaMapping[]
   personalityConfigs          UserPersonalityConfig[]
+  historyConfigs              UserPersonaHistoryConfig[] @relation("personaHistoryConfigs")
 
   @@index([ownerId])
   @@map("personas")
@@ -205,6 +207,7 @@ model Personality {
   defaultConfigLink      PersonalityDefaultConfig?
   owners                 PersonalityOwner[]
   userConfigs            UserPersonalityConfig[]
+  personaHistoryConfigs  UserPersonaHistoryConfig[]
 
   @@index([slug])
   @@index([ownerId])
@@ -266,6 +269,33 @@ model UserPersonalityConfig {
   @@map("user_personality_configs")
 }
 
+/// Per-persona history configuration (epoch tracking for memory commands)
+/// This enables each persona to have independent conversation history cutoffs
+/// See ADR-003 in docs/planning/SLASH_COMMAND_ARCHITECTURE.md
+model UserPersonaHistoryConfig {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  personalityId String      @map("personality_id") @db.Uuid
+  personaId     String      @map("persona_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // STM Epoch System - Non-destructive conversation history filtering per-persona
+  // Messages older than lastContextReset are excluded from AI context
+  lastContextReset     DateTime? @map("last_context_reset")
+  previousContextReset DateTime? @map("previous_context_reset") // For undo support
+
+  persona       Persona     @relation("personaHistoryConfigs", fields: [personaId], references: [id], onDelete: Cascade)
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, personalityId, personaId])
+  @@index([userId])
+  @@index([personalityId])
+  @@index([personaId])
+  @@map("user_persona_history_configs")
+}
+
 model ConversationHistory {
   id               String         @id @default(uuid()) @db.Uuid
   channelId        String         @map("channel_id") @db.VarChar(20)
@@ -288,6 +318,7 @@ model ConversationHistory {
   @@index([channelId, personalityId, createdAt(sort: Desc)])
   @@index([personaId])
   @@index([discordMessageId])
+  @@index([messageMetadata], map: "conversation_history_message_metadata_idx", type: Gin)
   @@map("conversation_history")
 }
 
@@ -361,6 +392,9 @@ model Memory {
   @@index([isSummarized])
   @@index([legacyShapesUserId])
   @@index([sourceSystem])
+  // NOTE: The HNSW vector index (idx_memories_embedding) is managed outside Prisma
+  // because Unsupported types don't support vector-specific operators (VectorCosineOps)
+  // See: docs/database/PRISMA_DRIFT_ISSUES.md
   @@map("memories")
 }
 
