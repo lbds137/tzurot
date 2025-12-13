@@ -465,8 +465,11 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const { personalitySlug, channelId, personaId: explicitPersonaId } =
-        req.body as HardDeleteRequest;
+      const {
+        personalitySlug,
+        channelId,
+        personaId: explicitPersonaId,
+      } = req.body as HardDeleteRequest;
 
       // Validate required fields
       if (
