@@ -11,7 +11,7 @@ import type {
   ConversationalRAGService,
   RAGResponse,
 } from '../../../../services/ConversationalRAGService.js';
-import { RetryError } from '../../../../utils/retryService.js';
+import { RetryError } from '../../../../utils/retry.js';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {

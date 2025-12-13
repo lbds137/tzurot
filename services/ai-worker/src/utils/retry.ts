@@ -1,7 +1,7 @@
 /**
- * Retry Service Utilities
+ * Retry Utilities
  *
- * Centralized retry and timeout patterns for ai-worker service.
+ * Centralized retry and timeout patterns for ai-worker.
  * Handles exponential backoff, parallel retries, and timeout management.
  *
  * Features:

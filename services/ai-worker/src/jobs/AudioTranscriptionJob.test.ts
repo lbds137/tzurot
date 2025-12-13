@@ -13,13 +13,13 @@ vi.mock('../services/MultimodalProcessor.js', () => ({
   transcribeAudio: vi.fn(),
 }));
 
-vi.mock('../utils/retryService.js', () => ({
+vi.mock('../utils/retry.js', () => ({
   withRetry: vi.fn(),
 }));
 
 // Import the mocked modules
 import { transcribeAudio } from '../services/MultimodalProcessor.js';
-import { withRetry } from '../utils/retryService.js';
+import { withRetry } from '../utils/retry.js';
 
 // Get mocked functions
 const mockTranscribeAudio = vi.mocked(transcribeAudio);

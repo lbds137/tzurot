@@ -11,7 +11,7 @@
  */
 
 import { createLogger, AIProvider, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
-import { withTimeout } from '../utils/retryService.js';
+import { withTimeout } from '../utils/retry.js';
 
 const logger = createLogger('KeyValidationService');
 

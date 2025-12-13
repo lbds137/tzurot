@@ -18,7 +18,7 @@ import {
   escapeXmlContent,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
-import { withRetry } from '../utils/retryService.js';
+import { withRetry } from '../utils/retry.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
 
@@ -269,6 +269,82 @@ export class ReferencedMessageFormatter {
     return preprocessedAttachments.find(p => p.originalUrl === url);
   }
 
+  /** Process voice message attachment */
+  private async processVoiceAttachment(
+    attachment: ProcessSingleAttachmentOptions['attachment'],
+    index: number,
+    referenceNumber: number,
+    personality: LoadedPersonality,
+    preprocessed?: ProcessedAttachment
+  ): Promise<ProcessedAttachmentResult> {
+    if (preprocessed?.description !== undefined && preprocessed.description !== '') {
+      logger.debug(
+        { referenceNumber, url: attachment.url },
+        '[ReferencedMessageFormatter] Using preprocessed voice transcription'
+      );
+      return {
+        index,
+        line: `- Voice Message (${attachment.duration}s): "${preprocessed.description}"`,
+      };
+    }
+
+    try {
+      logger.info(
+        { referenceNumber, url: attachment.url, duration: attachment.duration },
+        '[ReferencedMessageFormatter] Transcribing voice message'
+      );
+      const result = await withRetry(() => transcribeAudio(attachment, personality), {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        logger,
+        operationName: `Voice transcription (reference ${referenceNumber})`,
+      });
+      return { index, line: `- Voice Message (${attachment.duration}s): "${result.value}"` };
+    } catch (error) {
+      logger.error(
+        { err: error, referenceNumber, url: attachment.url },
+        '[ReferencedMessageFormatter] Voice transcription failed'
+      );
+      return { index, line: `- Voice Message (${attachment.duration}s) [transcription failed]` };
+    }
+  }
+
+  /** Process image attachment */
+  private async processImageAttachment(
+    attachment: ProcessSingleAttachmentOptions['attachment'],
+    index: number,
+    referenceNumber: number,
+    personality: LoadedPersonality,
+    isGuestMode: boolean,
+    preprocessed?: ProcessedAttachment
+  ): Promise<ProcessedAttachmentResult> {
+    if (preprocessed?.description !== undefined && preprocessed.description !== '') {
+      logger.debug(
+        { referenceNumber, url: attachment.url },
+        '[ReferencedMessageFormatter] Using preprocessed image description'
+      );
+      return { index, line: `- Image (${attachment.name}): ${preprocessed.description}` };
+    }
+
+    try {
+      logger.info(
+        { referenceNumber, url: attachment.url, name: attachment.name },
+        '[ReferencedMessageFormatter] Processing image (inline fallback)'
+      );
+      const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        logger,
+        operationName: `Image description (reference ${referenceNumber})`,
+      });
+      return { index, line: `- Image (${attachment.name}): ${result.value}` };
+    } catch (error) {
+      logger.error(
+        { err: error, referenceNumber, url: attachment.url },
+        '[ReferencedMessageFormatter] Image processing failed'
+      );
+      return { index, line: `- Image (${attachment.name}) [vision processing failed]` };
+    }
+  }
+
   /**
    * Process a single attachment (image or voice message)
    *
@@ -286,117 +362,29 @@ export class ReferencedMessageFormatter {
       isGuestMode,
       preprocessedAttachments,
     } = options;
-
-    // Check for preprocessed result first (avoids API calls)
     const preprocessed = this.findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
-    // Handle voice messages - transcribe them for AI context
     if (attachment.isVoiceMessage === true) {
-      // Check if we have preprocessed transcription
-      if (preprocessed?.description !== undefined && preprocessed.description !== '') {
-        logger.debug(
-          { referenceNumber, url: attachment.url },
-          '[ReferencedMessageFormatter] Using preprocessed voice transcription'
-        );
-        return {
-          index,
-          line: `- Voice Message (${attachment.duration}s): "${preprocessed.description}"`,
-        };
-      }
-
-      try {
-        logger.info(
-          {
-            referenceNumber,
-            url: attachment.url,
-            duration: attachment.duration,
-          },
-          '[ReferencedMessageFormatter] Transcribing voice message in referenced message'
-        );
-
-        const result = await withRetry(() => transcribeAudio(attachment, personality), {
-          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-          logger,
-          operationName: `Voice transcription (reference ${referenceNumber})`,
-        });
-
-        return {
-          index,
-          line: `- Voice Message (${attachment.duration}s): "${result.value}"`,
-        };
-      } catch (error) {
-        logger.error(
-          {
-            err: error,
-            referenceNumber,
-            url: attachment.url,
-          },
-          '[ReferencedMessageFormatter] Failed to transcribe voice message in referenced message after retries'
-        );
-
-        return {
-          index,
-          line: `- Voice Message (${attachment.duration}s) [transcription failed]`,
-        };
-      }
+      return this.processVoiceAttachment(
+        attachment,
+        index,
+        referenceNumber,
+        personality,
+        preprocessed
+      );
     }
 
-    // Process images through vision model
     if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-      // Check if we have preprocessed image description
-      if (preprocessed?.description !== undefined && preprocessed.description !== '') {
-        logger.debug(
-          { referenceNumber, url: attachment.url },
-          '[ReferencedMessageFormatter] Using preprocessed image description'
-        );
-        return {
-          index,
-          line: `- Image (${attachment.name}): ${preprocessed.description}`,
-        };
-      }
-
-      // Fall back to inline processing (shouldn't happen if preprocessing is enabled)
-      try {
-        logger.info(
-          {
-            referenceNumber,
-            url: attachment.url,
-            name: attachment.name,
-          },
-          '[ReferencedMessageFormatter] Processing image in referenced message through vision model (inline fallback)'
-        );
-
-        const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
-          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-          logger,
-          operationName: `Image description (reference ${referenceNumber})`,
-        });
-
-        return {
-          index,
-          line: `- Image (${attachment.name}): ${result.value}`,
-        };
-      } catch (error) {
-        logger.error(
-          {
-            err: error,
-            referenceNumber,
-            url: attachment.url,
-          },
-          '[ReferencedMessageFormatter] Failed to process image in referenced message after retries'
-        );
-
-        return {
-          index,
-          line: `- Image (${attachment.name}) [vision processing failed]`,
-        };
-      }
+      return this.processImageAttachment(
+        attachment,
+        index,
+        referenceNumber,
+        personality,
+        isGuestMode,
+        preprocessed
+      );
     }
 
-    // For other attachments, just note them
-    return {
-      index,
-      line: `- File: ${attachment.name} (${attachment.contentType})`,
-    };
+    return { index, line: `- File: ${attachment.name} (${attachment.contentType})` };
   }
 }

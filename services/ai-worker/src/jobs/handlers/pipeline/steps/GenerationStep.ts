@@ -4,16 +4,29 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
-import { createLogger, MessageContent, type LLMGenerationResult } from '@tzurot/common-types';
+import { createLogger, MessageContent } from '@tzurot/common-types';
 import type {
   ConversationalRAGService,
   RAGResponse,
 } from '../../../../services/ConversationalRAGService.js';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
-import { RetryError } from '../../../../utils/retryService.js';
+import { RetryError } from '../../../../utils/retry.js';
 
 const logger = createLogger('GenerationStep');
+
+/** Validate that required pipeline steps have run */
+function validatePrerequisites(context: GenerationContext): void {
+  if (!context.config) {
+    throw new Error('[GenerationStep] ConfigStep must run before GenerationStep');
+  }
+  if (!context.auth) {
+    throw new Error('[GenerationStep] AuthStep must run before GenerationStep');
+  }
+  if (!context.preparedContext) {
+    throw new Error('[GenerationStep] ContextStep must run before GenerationStep');
+  }
+}
 
 export class GenerationStep implements IPipelineStep {
   readonly name = 'Generation';
@@ -21,29 +34,26 @@ export class GenerationStep implements IPipelineStep {
   constructor(private readonly ragService: ConversationalRAGService) {}
 
   async process(context: GenerationContext): Promise<GenerationContext> {
-    const { job, startTime, preprocessing, config, auth, preparedContext } = context;
+    const { job, startTime, preprocessing } = context;
     const { requestId, personality, message, context: jobContext } = job.data;
 
-    // Validate prerequisites
-    if (!config) {
-      throw new Error('[GenerationStep] ConfigStep must run before GenerationStep');
-    }
-    if (!auth) {
-      throw new Error('[GenerationStep] AuthStep must run before GenerationStep');
-    }
-    if (!preparedContext) {
-      throw new Error('[GenerationStep] ContextStep must run before GenerationStep');
+    validatePrerequisites(context);
+
+    // After validation, we know these are defined
+    const config = context.config;
+    const auth = context.auth;
+    const preparedContext = context.preparedContext;
+    if (!config || !auth || !preparedContext) {
+      throw new Error('[GenerationStep] Prerequisites validation failed');
     }
 
     const { effectivePersonality, configSource } = config;
     const { apiKey, provider, isGuestMode } = auth;
 
-    // Debug log for referenced messages
     logger.info(
       {
         jobId: job.id,
-        hasReferencedMessages:
-          jobContext.referencedMessages !== undefined && jobContext.referencedMessages !== null,
+        hasReferencedMessages: !!jobContext.referencedMessages,
         referencedMessagesCount: jobContext.referencedMessages?.length ?? 0,
       },
       '[GenerationStep] Processing with context'
@@ -88,65 +98,48 @@ export class GenerationStep implements IPipelineStep {
       );
 
       const processingTimeMs = Date.now() - startTime;
-
       logger.info({ jobId: job.id, processingTimeMs }, '[GenerationStep] Generation completed');
-
-      const result: LLMGenerationResult = {
-        requestId,
-        success: true,
-        content: response.content,
-        attachmentDescriptions: response.attachmentDescriptions,
-        referencedMessagesDescriptions: response.referencedMessagesDescriptions,
-        metadata: {
-          retrievedMemories: response.retrievedMemories,
-          tokensIn: response.tokensIn,
-          tokensOut: response.tokensOut,
-          processingTimeMs,
-          modelUsed: response.modelUsed,
-          providerUsed: provider,
-          configSource,
-          isGuestMode,
-        },
-      };
 
       return {
         ...context,
-        result,
+        result: {
+          requestId,
+          success: true,
+          content: response.content,
+          attachmentDescriptions: response.attachmentDescriptions,
+          referencedMessagesDescriptions: response.referencedMessagesDescriptions,
+          metadata: {
+            retrievedMemories: response.retrievedMemories,
+            tokensIn: response.tokensIn,
+            tokensOut: response.tokensOut,
+            processingTimeMs,
+            modelUsed: response.modelUsed,
+            providerUsed: provider,
+            configSource,
+            isGuestMode,
+          },
+        },
       };
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
-
-      // Unwrap RetryError to get the underlying API error for proper classification
       const underlyingError = error instanceof RetryError ? error.lastError : error;
-
-      // Parse error for classification and user messaging
       const errorInfo = parseApiError(underlyingError);
-      const errorLogContext = getErrorLogContext(underlyingError);
 
-      // Enhanced error logging with structured context
       logger.error(
-        {
-          err: error,
-          jobId: job.id,
-          ...errorLogContext,
-        },
+        { err: error, jobId: job.id, ...getErrorLogContext(underlyingError) },
         `[GenerationStep] Generation failed: ${errorInfo.category}`
       );
 
-      const result: LLMGenerationResult = {
-        requestId,
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        personalityErrorMessage: personality.errorMessage,
-        errorInfo,
-        metadata: {
-          processingTimeMs,
-        },
-      };
-
       return {
         ...context,
-        result,
+        result: {
+          requestId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          personalityErrorMessage: personality.errorMessage,
+          errorInfo,
+          metadata: { processingTimeMs },
+        },
       };
     }
   }

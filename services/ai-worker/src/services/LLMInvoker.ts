@@ -25,7 +25,7 @@ import {
   type ChatModelResult,
   type ModelConfig,
 } from './ModelFactory.js';
-import { withRetry } from '../utils/retryService.js';
+import { withRetry } from '../utils/retry.js';
 import { shouldRetryError } from '../utils/apiErrorParser.js';
 import {
   getReasoningModelConfig,
