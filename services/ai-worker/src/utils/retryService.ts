@@ -92,7 +92,10 @@ function checkGlobalTimeout(ctx: TimeoutCheckContext): void {
       attempt - 1,
       lastError
     );
-    logger?.error({ err: error, elapsed, attempts: attempt - 1 }, `[Retry] Global timeout exceeded`);
+    logger?.error(
+      { err: error, elapsed, attempts: attempt - 1 },
+      `[Retry] Global timeout exceeded`
+    );
     throw error;
   }
 }
@@ -216,21 +219,43 @@ export async function withRetry<T>(
       const totalTimeMs = Date.now() - startTime;
 
       if (attempt > 1) {
-        logger?.info({ attempt, totalTimeMs }, `[Retry] ${operationName} succeeded after ${attempt} attempts`);
+        logger?.info(
+          { attempt, totalTimeMs },
+          `[Retry] ${operationName} succeeded after ${attempt} attempts`
+        );
       }
 
       return { value, attempts: attempt, totalTimeMs };
     } catch (error) {
       lastError = error;
       checkRetryableError({ error, shouldRetry, attempt, startTime, operationName, logger });
-      logger?.warn({ err: error, attempt, maxAttempts }, `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`);
-      await waitBeforeRetry({ attempt, maxAttempts, initialDelayMs, maxDelayMs, backoffMultiplier, logger, startTime, operationName });
+      logger?.warn(
+        { err: error, attempt, maxAttempts },
+        `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`
+      );
+      await waitBeforeRetry({
+        attempt,
+        maxAttempts,
+        initialDelayMs,
+        maxDelayMs,
+        backoffMultiplier,
+        logger,
+        startTime,
+        operationName,
+      });
     }
   }
 
   const totalTimeMs = Date.now() - startTime;
-  const error = new RetryError(`${operationName} failed after ${maxAttempts} attempts`, maxAttempts, lastError);
-  logger?.error({ err: error, attempts: maxAttempts, totalTimeMs }, `[Retry] ${operationName} exhausted all retry attempts`);
+  const error = new RetryError(
+    `${operationName} failed after ${maxAttempts} attempts`,
+    maxAttempts,
+    lastError
+  );
+  logger?.error(
+    { err: error, attempts: maxAttempts, totalTimeMs },
+    `[Retry] ${operationName} exhausted all retry attempts`
+  );
   throw error;
 }
 
