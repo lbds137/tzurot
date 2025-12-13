@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from 'pino';
-import { withRetry, withTimeout, withParallelRetry, RetryError } from './retryService.js';
+import { withRetry, withTimeout, withParallelRetry, RetryError } from './retry.js';
 
 describe('retryService', () => {
   let mockLogger: Logger;

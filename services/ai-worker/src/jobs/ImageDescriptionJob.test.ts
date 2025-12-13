@@ -14,13 +14,13 @@ vi.mock('../services/MultimodalProcessor.js', () => ({
   describeImage: vi.fn(),
 }));
 
-vi.mock('../utils/retryService.js', () => ({
+vi.mock('../utils/retry.js', () => ({
   withRetry: vi.fn(),
 }));
 
 // Import the mocked modules
 import { describeImage } from '../services/MultimodalProcessor.js';
-import { withRetry } from '../utils/retryService.js';
+import { withRetry } from '../utils/retry.js';
 
 // Get mocked functions
 const mockDescribeImage = vi.mocked(describeImage);
