@@ -19,6 +19,7 @@ interface StatsResponse {
   channelId: string;
   personalitySlug: string;
   personaId: string;
+  personaName: string;
   visible: {
     totalMessages: number;
     userMessages: number;
@@ -94,8 +95,8 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
 
     const data = result.data;
 
-    // Build description
-    let description = `Conversation statistics for **${personalitySlug}** in this channel.`;
+    // Build description with persona info
+    let description = `Conversation statistics for **${personalitySlug}** in this channel.\nProfile: **${data.personaName}**`;
 
     if (data.contextEpoch !== null) {
       description += '\n\n*Some messages are hidden due to a context clear.*';

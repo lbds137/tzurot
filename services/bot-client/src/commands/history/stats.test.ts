@@ -69,6 +69,8 @@ describe('handleStats', () => {
       data: {
         channelId: 'channel-123',
         personalitySlug: 'lilith',
+        personaId: 'persona-123',
+        personaName: 'My Profile',
         visible: {
           totalMessages: 10,
           userMessages: 5,
@@ -107,6 +109,8 @@ describe('handleStats', () => {
       data: {
         channelId: 'channel-123',
         personalitySlug: 'lilith',
+        personaId: 'persona-123',
+        personaName: 'My Profile',
         visible: {
           totalMessages: 7,
           userMessages: 4,
@@ -139,6 +143,8 @@ describe('handleStats', () => {
       data: {
         channelId: 'channel-123',
         personalitySlug: 'lilith',
+        personaId: 'persona-123',
+        personaName: 'My Profile',
         visible: {
           totalMessages: 10,
           userMessages: 5,
@@ -175,6 +181,8 @@ describe('handleStats', () => {
       data: {
         channelId: 'channel-123',
         personalitySlug: 'lilith',
+        personaId: 'persona-123',
+        personaName: 'My Profile',
         visible: {
           totalMessages: 5,
           userMessages: 3,
@@ -210,6 +218,8 @@ describe('handleStats', () => {
       data: {
         channelId: 'channel-123',
         personalitySlug: 'lilith',
+        personaId: 'persona-123',
+        personaName: 'My Profile',
         visible: {
           totalMessages: 0,
           userMessages: 0,
