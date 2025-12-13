@@ -73,10 +73,7 @@ export async function validateSyncConfig(
     if (!schemaMap.has(row.table_name)) {
       schemaMap.set(row.table_name, new Set());
     }
-    const columnSet = schemaMap.get(row.table_name);
-    if (columnSet !== undefined) {
-      columnSet.add(row.column_name);
-    }
+    schemaMap.get(row.table_name)!.add(row.column_name);
   }
 
   // Check each table in SYNC_CONFIG
