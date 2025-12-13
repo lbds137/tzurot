@@ -540,12 +540,12 @@ describe('MyService', () => {
 
 Understanding when to use different reset functions is critical for test isolation:
 
-| Function | What It Does | When to Use |
-|----------|--------------|-------------|
-| `vi.clearAllMocks()` | Clears call history (`.mock.calls`, `.mock.results`) but **keeps mock implementations** | In `beforeEach()` to reset call counts between tests while preserving mock behavior |
-| `vi.resetAllMocks()` | Clears call history AND **resets implementations to `undefined`** | When you need to completely reset mock behavior (rarely needed with factory pattern) |
-| `vi.restoreAllMocks()` | Restores original implementations (for `vi.spyOn` only) | In `afterEach()` to clean up spies |
-| `resetAllMocks()` (factory) | Sets instance references to `null` | When testing service instantiation errors or re-initialization |
+| Function                    | What It Does                                                                            | When to Use                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `vi.clearAllMocks()`        | Clears call history (`.mock.calls`, `.mock.results`) but **keeps mock implementations** | In `beforeEach()` to reset call counts between tests while preserving mock behavior  |
+| `vi.resetAllMocks()`        | Clears call history AND **resets implementations to `undefined`**                       | When you need to completely reset mock behavior (rarely needed with factory pattern) |
+| `vi.restoreAllMocks()`      | Restores original implementations (for `vi.spyOn` only)                                 | In `afterEach()` to clean up spies                                                   |
+| `resetAllMocks()` (factory) | Sets instance references to `null`                                                      | When testing service instantiation errors or re-initialization                       |
 
 **Recommended Pattern:**
 
