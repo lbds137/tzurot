@@ -39,7 +39,8 @@ vi.mock('./LongTermMemoryService.js', async () => {
   return mockLongTermMemoryService;
 });
 vi.mock('./ReferencedMessageFormatter.js', async () => {
-  const { mockReferencedMessageFormatter } = await import('../test/mocks/ReferencedMessageFormatter.mock.js');
+  const { mockReferencedMessageFormatter } =
+    await import('../test/mocks/ReferencedMessageFormatter.mock.js');
   return mockReferencedMessageFormatter;
 });
 vi.mock('./MultimodalProcessor.js', async () => {
@@ -376,9 +377,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(
-        getReferencedMessageFormatterMock().formatReferencedMessages
-      ).not.toHaveBeenCalled();
+      expect(getReferencedMessageFormatterMock().formatReferencedMessages).not.toHaveBeenCalled();
     });
 
     it('should not format references when array is empty', async () => {
@@ -387,9 +386,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(
-        getReferencedMessageFormatterMock().formatReferencedMessages
-      ).not.toHaveBeenCalled();
+      expect(getReferencedMessageFormatterMock().formatReferencedMessages).not.toHaveBeenCalled();
     });
   });
 

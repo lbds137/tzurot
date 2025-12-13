@@ -44,9 +44,7 @@ export const mockLongTermMemoryService = {
  */
 export function getLongTermMemoryServiceMock(): MockLongTermMemoryServiceInstance {
   if (!mockInstance) {
-    throw new Error(
-      'LongTermMemoryService mock not yet instantiated. Create the service first.'
-    );
+    throw new Error('LongTermMemoryService mock not yet instantiated. Create the service first.');
   }
   return mockInstance;
 }

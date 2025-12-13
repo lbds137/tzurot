@@ -16,9 +16,7 @@ import type { LoadedPersonality } from '@tzurot/common-types';
  * const custom = createMockPersonality({ name: 'CustomBot', temperature: 0.9 });
  * ```
  */
-export function createMockPersonality(
-  overrides?: Partial<LoadedPersonality>
-): LoadedPersonality {
+export function createMockPersonality(overrides?: Partial<LoadedPersonality>): LoadedPersonality {
   return {
     id: 'personality-123',
     name: 'TestBot',

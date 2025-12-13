@@ -87,9 +87,7 @@ export const mockContextWindowManager = {
  */
 export function getContextWindowManagerMock(): MockContextWindowManagerInstance {
   if (!mockInstance) {
-    throw new Error(
-      'ContextWindowManager mock not yet instantiated. Create the service first.'
-    );
+    throw new Error('ContextWindowManager mock not yet instantiated. Create the service first.');
   }
   return mockInstance;
 }

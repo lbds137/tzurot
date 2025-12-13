@@ -68,9 +68,7 @@ export const mockPromptBuilder = {
  */
 export function getPromptBuilderMock(): MockPromptBuilderInstance {
   if (!mockInstance) {
-    throw new Error(
-      'PromptBuilder mock not yet instantiated. Create the service first.'
-    );
+    throw new Error('PromptBuilder mock not yet instantiated. Create the service first.');
   }
   return mockInstance;
 }
