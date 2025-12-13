@@ -52,9 +52,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     const data = presetResult.data;
 
     // Check if user is in guest mode (no active wallet keys)
-    const hasActiveWallet =
-      walletResult.ok && walletResult.data.keys.some(k => k.isActive === true);
-    const isGuestMode = !hasActiveWallet;
+    const isGuestMode = !(walletResult.ok && walletResult.data.keys.some(k => k.isActive === true));
 
     const embed = new EmbedBuilder()
       .setTitle('🔧 Model Presets')

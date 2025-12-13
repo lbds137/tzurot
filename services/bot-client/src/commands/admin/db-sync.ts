@@ -64,15 +64,14 @@ export async function handleDbSync(interaction: ChatInputCommandInteraction): Pr
     if (result.stats) {
       summary.push('\n**Sync Statistics**:');
       for (const [table, stats] of Object.entries(result.stats)) {
-        const tableStats = stats as { devToProd?: number; prodToDev?: number; conflicts?: number };
         summary.push(
           `\`${table}\`: ` +
-            `${tableStats.devToProd ?? 0} dev→prod, ` +
-            `${tableStats.prodToDev ?? 0} prod→dev` +
-            (tableStats.conflicts !== undefined &&
-            tableStats.conflicts !== null &&
-            tableStats.conflicts > 0
-              ? `, ${tableStats.conflicts} conflicts`
+            `${stats.devToProd ?? 0} dev→prod, ` +
+            `${stats.prodToDev ?? 0} prod→dev` +
+            (stats.conflicts !== undefined &&
+            stats.conflicts !== null &&
+            stats.conflicts > 0
+              ? `, ${stats.conflicts} conflicts`
               : '')
         );
       }
