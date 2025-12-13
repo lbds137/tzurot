@@ -39,15 +39,12 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   try {
     if (focusedOption.name === 'personality') {
       // Use shared utility with id as value (model override API expects personality ID)
-      const handled = await handlePersonalityAutocomplete(interaction, {
+      await handlePersonalityAutocomplete(interaction, {
         optionName: 'personality',
         ownedOnly: false,
         showVisibility: true,
         valueField: 'id',
       });
-      if (!handled) {
-        await interaction.respond([]);
-      }
     } else if (focusedOption.name === 'config') {
       await handleConfigAutocomplete(interaction, focusedOption.value, userId);
     } else {
