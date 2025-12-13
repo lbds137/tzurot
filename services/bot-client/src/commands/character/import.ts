@@ -45,13 +45,11 @@ const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 
 /**
  * Build the template help message
+ * Points users to /character template for a downloadable template file
  */
 function buildTemplateMessage(): string {
   return (
-    '**Expected JSON Structure:**\n' +
-    '```json\n' +
-    CHARACTER_JSON_TEMPLATE +
-    '\n```\n' +
+    '💡 **Tip:** Use `/character template` to download a template JSON file.\n\n' +
     '**Required fields:** `name`, `slug`, `characterInfo`, `personalityTraits`\n' +
     '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)\n' +
     '**Avatar:** Upload an image separately using the `avatar` option'

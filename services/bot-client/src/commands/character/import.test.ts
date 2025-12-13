@@ -324,8 +324,7 @@ describe('handleImport', () => {
 
       const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to parse JSON file');
-      expect(editReplyArg).toContain('**Expected JSON Structure:**');
-      expect(editReplyArg).toContain('```json');
+      expect(editReplyArg).toContain('/character template');
     });
 
     it('should show error with template when JSON is invalid', async () => {
@@ -339,7 +338,7 @@ describe('handleImport', () => {
 
       const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to parse JSON file');
-      expect(editReplyArg).toContain('**Expected JSON Structure:**');
+      expect(editReplyArg).toContain('/character template');
     });
   });
 
@@ -362,7 +361,7 @@ describe('handleImport', () => {
 
       const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Missing required fields: name');
-      expect(editReplyArg).toContain('**Expected JSON Structure:**');
+      expect(editReplyArg).toContain('/character template');
     });
 
     it('should list all missing fields', async () => {
