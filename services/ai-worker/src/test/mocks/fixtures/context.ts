@@ -5,7 +5,7 @@
  * These are pure data factories - no vi.fn() or mocking involved.
  */
 
-import type { ConversationContext } from '../../services/ConversationalRAGService.js';
+import type { ConversationContext } from '../../../services/ConversationalRAGService.js';
 
 /**
  * Create a mock ConversationContext with sensible defaults
@@ -37,12 +37,15 @@ export function createContextWithReferences(
   return createMockContext({
     referencedMessages: [
       {
-        id: 'ref-1',
-        authorId: 'author-1',
-        authorName: 'RefUser',
+        referenceNumber: 1,
+        discordMessageId: 'ref-1',
+        discordUserId: 'author-1',
+        authorUsername: 'refuser',
+        authorDisplayName: 'RefUser',
         content: 'Referenced message content',
-        timestamp: Date.now(),
-        referenceType: 'reply',
+        embeds: '',
+        timestamp: new Date().toISOString(),
+        locationContext: '#general in Test Server',
       },
     ],
     ...overrides,
