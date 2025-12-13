@@ -400,11 +400,13 @@ describe('/user/history routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should return error when no previous epoch exists', async () => {
+    it('should restore full visibility when previousContextReset is null (first clear undo)', async () => {
+      // After first clear: record exists with lastContextReset set, previousContextReset is null
+      // Undo should restore to full visibility (set lastContextReset to null)
       mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
         id: 'config-id',
-        lastContextReset: new Date(),
-        previousContextReset: null, // No previous epoch
+        lastContextReset: new Date('2024-01-02'),
+        previousContextReset: null, // First clear - no previous epoch
       });
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
@@ -413,10 +415,25 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      // Should succeed and restore to full visibility (null epoch)
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.userPersonaHistoryConfig.update).toHaveBeenCalledWith({
+        where: {
+          userId_personalityId_personaId: {
+            userId: TEST_USER_ID,
+            personalityId: TEST_PERSONALITY_ID,
+            personaId: TEST_PERSONA_ID,
+          },
+        },
+        data: {
+          lastContextReset: null, // Restored to full visibility
+          previousContextReset: null,
+        },
+      });
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('No previous context'),
+          success: true,
+          restoredEpoch: null, // null means full visibility
         })
       );
     });
@@ -431,6 +448,29 @@ describe('/user/history routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should return error when already at full visibility (lastContextReset is null)', async () => {
+      // After undo to full visibility, lastContextReset is null
+      // Another undo should fail
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        lastContextReset: null, // Already at full visibility
+        previousContextReset: null,
+      });
+
+      const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/undo');
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('No previous context'),
+        })
+      );
     });
 
     it('should restore previous epoch successfully', async () => {
