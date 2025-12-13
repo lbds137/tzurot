@@ -59,6 +59,7 @@ export const mockLLMInvoker = {
       const fns = createMockFunctions();
       this.getModel = fns.getModel;
       this.invokeWithRetry = fns.invokeWithRetry;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },

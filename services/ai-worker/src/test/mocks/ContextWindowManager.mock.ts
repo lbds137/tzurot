@@ -77,6 +77,7 @@ export const mockContextWindowManager = {
       this.countHistoryTokens = fns.countHistoryTokens;
       this.calculateMemoryBudget = fns.calculateMemoryBudget;
       this.selectMemoriesWithinBudget = fns.selectMemoriesWithinBudget;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },

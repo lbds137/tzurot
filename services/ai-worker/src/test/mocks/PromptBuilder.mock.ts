@@ -58,6 +58,7 @@ export const mockPromptBuilder = {
       this.buildHumanMessage = fns.buildHumanMessage;
       this.countTokens = fns.countTokens;
       this.countMemoryTokens = fns.countMemoryTokens;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },
