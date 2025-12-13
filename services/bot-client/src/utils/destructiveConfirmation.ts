@@ -105,9 +105,7 @@ export function buildDestructiveWarning(config: DestructiveConfirmationConfig): 
  */
 export function buildConfirmationModal(config: DestructiveConfirmationConfig): ModalBuilder {
   const modal = new ModalBuilder()
-    .setCustomId(
-      DestructiveCustomIds.modalSubmit(config.source, config.operation, config.entityId)
-    )
+    .setCustomId(DestructiveCustomIds.modalSubmit(config.source, config.operation, config.entityId))
     .setTitle(config.modalTitle);
 
   const confirmationInput = new TextInputBuilder()
