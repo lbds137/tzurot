@@ -21,12 +21,14 @@
 **Reference**: [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md)
 
 **Short-Term Memory (STM):**
+
 - [ ] Context epoch system (timestamp-based soft reset with undo)
 - [ ] `/history clear` - soft reset conversation context
 - [ ] `/history undo` - restore cleared context
 - [ ] `/history hard-delete` - permanent deletion with confirmation
 
 **Long-Term Memory (LTM):**
+
 - [ ] `/memory search` - semantic search with filtering
 - [ ] `/memory browse` - paginated memory deck UI
 - [ ] `/memory edit` - edit memory content (regenerate embedding)
@@ -35,6 +37,7 @@
 - [ ] `/memory lock/unlock` - core memory protection
 
 **Incognito Mode:**
+
 - [ ] `/incognito enable` - timed session to disable LTM
 - [ ] `/incognito disable` - end incognito session
 - [ ] `/incognito status` - check current state

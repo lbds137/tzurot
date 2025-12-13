@@ -15,6 +15,7 @@
 **Planning completed**. Implementation plan at [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md).
 
 Key features:
+
 - **STM**: Context epochs for non-destructive clearing with undo
 - **LTM**: Search, browse, edit, delete, purge with filtering
 - **Incognito Mode**: Timed session to disable LTM recording
@@ -26,14 +27,14 @@ Key features:
 
 ## Next Up
 
-| #   | Feature                       | Why                                              |
-| --- | ----------------------------- | ------------------------------------------------ |
-| 1   | **Memory Management** ⬅️      | User-requested, retention value, privacy control |
-| 2   | **Shapes.inc Import**         | Unblocks v2 deletion - users need migration path |
-| 3   | **DM Personality Chat**       | Biggest v2 feature gap, user-requested           |
-| 4   | **Dashboard Pattern**         | Fix UX before adding complex features            |
-| 5   | **NSFW Verification**         | User-level, one-time via age-gated channel       |
-| 6   | **Agentic Scaffolding**       | Build capabilities before OpenMemory             |
+| #   | Feature                  | Why                                              |
+| --- | ------------------------ | ------------------------------------------------ |
+| 1   | **Memory Management** ⬅️ | User-requested, retention value, privacy control |
+| 2   | **Shapes.inc Import**    | Unblocks v2 deletion - users need migration path |
+| 3   | **DM Personality Chat**  | Biggest v2 feature gap, user-requested           |
+| 4   | **Dashboard Pattern**    | Fix UX before adding complex features            |
+| 5   | **NSFW Verification**    | User-level, one-time via age-gated channel       |
+| 6   | **Agentic Scaffolding**  | Build capabilities before OpenMemory             |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
