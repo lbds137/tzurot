@@ -26,6 +26,8 @@ const logger = createLogger('PersonaResolver');
 export interface ResolvedPersona {
   /** Persona UUID */
   personaId: string;
+  /** Persona name (profile name) */
+  personaName: string;
   /** User's preferred name */
   preferredName: string | null;
   /** User's pronouns */
@@ -49,6 +51,7 @@ export interface PersonaMemoryInfo {
  */
 const SYSTEM_DEFAULT_PERSONA: ResolvedPersona = {
   personaId: '',
+  personaName: '',
   preferredName: null,
   pronouns: null,
   content: '',
@@ -103,6 +106,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
         defaultPersona: {
           select: {
             id: true,
+            name: true,
             preferredName: true,
             pronouns: true,
             content: true,
@@ -112,6 +116,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
         ownedPersonas: {
           select: {
             id: true,
+            name: true,
             preferredName: true,
             pronouns: true,
             content: true,
@@ -140,6 +145,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
           persona: {
             select: {
               id: true,
+              name: true,
               preferredName: true,
               pronouns: true,
               content: true,
@@ -218,6 +224,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
    */
   private mapToResolvedPersona(persona: {
     id: string;
+    name: string;
     preferredName: string | null;
     pronouns: string | null;
     content: string;
@@ -225,6 +232,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   }): ResolvedPersona {
     return {
       personaId: persona.id,
+      personaName: persona.name,
       preferredName: persona.preferredName,
       pronouns: persona.pronouns,
       content: persona.content,

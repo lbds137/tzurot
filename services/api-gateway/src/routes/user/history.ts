@@ -50,8 +50,8 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
   const personaResolver = new PersonaResolver(prisma);
 
   /**
-   * Helper to get user, personality, and resolved persona IDs
-   * Returns only IDs - callers fetch historyConfig separately as needed
+   * Helper to get user, personality, and resolved persona info
+   * Returns IDs and persona name - callers fetch historyConfig separately as needed
    */
   async function getHistoryContext(
     discordUserId: string,
@@ -61,6 +61,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
     userId: string;
     personalityId: string;
     personaId: string;
+    personaName: string;
   } | null> {
     // Find user
     const user = await prisma.user.findFirst({
@@ -82,6 +83,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
 
     // Resolve persona: use explicit ID or resolve via PersonaResolver
     let personaId: string;
+    let personaName: string;
     if (
       explicitPersonaId !== undefined &&
       explicitPersonaId !== null &&
@@ -102,6 +104,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return null;
       }
       personaId = explicitPersonaId;
+      personaName = persona.name;
     } else {
       // Resolve persona using the resolver (considers personality override + user default)
       const resolved = await personaResolver.resolve(discordUserId, personality.id);
@@ -110,12 +113,14 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return null;
       }
       personaId = resolved.config.personaId;
+      personaName = resolved.config.personaName ?? 'Unknown';
     }
 
     return {
       userId: user.id,
       personalityId: personality.id,
       personaId,
+      personaName,
     };
   }
 
@@ -375,7 +380,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      const { userId, personalityId, personaId } = context;
+      const { userId, personalityId, personaId, personaName } = context;
 
       // Fetch history config for epoch info
       const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
@@ -424,6 +429,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
           channelId,
           personalitySlug,
           personaId,
+          personaName,
           // Visible messages (in AI context)
           visible: {
             totalMessages: visibleStats.totalMessages,

@@ -406,25 +406,60 @@ function formatUsername(username: string): string {
 
 **Extract reusable utilities when patterns repeat across commands**
 
-### Example: Autocomplete Utilities
+### 🚨 CRITICAL: Autocomplete Utilities
 
-When multiple slash commands need similar autocomplete behavior, extract to shared utilities:
+**ALWAYS check for existing shared autocomplete utilities before writing autocomplete handlers.**
+
+Available shared utilities in `bot-client/src/utils/autocomplete/`:
+
+| Utility                         | Purpose                   | Option Names               |
+| ------------------------------- | ------------------------- | -------------------------- |
+| `handlePersonalityAutocomplete` | Personality selection     | `personality`, `character` |
+| `handlePersonaAutocomplete`     | Profile/persona selection | `profile`, `persona`       |
+
+**When adding a new command with autocomplete:**
+
+1. **CHECK FIRST**: Look in `bot-client/src/utils/autocomplete/` for existing utilities
+2. **REUSE**: Import and delegate to the shared utility with appropriate options
+3. **DON'T DUPLICATE**: Never copy-paste autocomplete logic from other commands
 
 ```typescript
-// ✅ GOOD - Shared utility in bot-client/src/utils/autocomplete/
-// services/bot-client/src/utils/autocomplete/personaAutocomplete.ts
-export async function handlePersonaAutocomplete(
-  interaction: AutocompleteInteraction,
-  options: {
-    optionName?: string;
-    includeCreateNew?: boolean;
-    logPrefix?: string;
-  } = {}
+// ❌ BAD - Writing custom autocomplete that duplicates shared utility
+export async function handlePersonalityAutocomplete(
+  interaction: AutocompleteInteraction
 ): Promise<void> {
-  // Reusable logic for persona selection
+  const userId = interaction.user.id;
+  const focusedValue = interaction.options.getFocused().toLowerCase();
+
+  // ... 50+ lines of duplicate logic ...
+
+  await interaction.respond(choices);
 }
 
-// Usage in command handlers
+// ✅ GOOD - Delegate to shared utility
+import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
+
+export async function handlePersonalityAutocomplete(
+  interaction: AutocompleteInteraction
+): Promise<void> {
+  await sharedPersonalityAutocomplete(interaction, {
+    optionName: 'personality',
+    showVisibility: true,
+    ownedOnly: false,
+  });
+}
+```
+
+**Shared utility benefits:**
+
+- Consistent UX (visibility icons, formatting, filtering)
+- Bug fixes apply everywhere
+- Tests live with the utility, not duplicated per command
+
+### Example: Persona Autocomplete
+
+```typescript
+// services/bot-client/src/utils/autocomplete/personaAutocomplete.ts
 await handlePersonaAutocomplete(interaction, {
   optionName: 'profile',
   includeCreateNew: false,
