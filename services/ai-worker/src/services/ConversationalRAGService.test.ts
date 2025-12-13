@@ -12,209 +12,73 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
-import type { ConversationContext, MemoryDocument } from './ConversationalRAGService.js';
-import type {
-  LoadedPersonality,
-  AttachmentMetadata,
-  ReferencedMessage,
-} from '@tzurot/common-types';
+import type { MemoryDocument } from './ConversationalRAGService.js';
+import type { AttachmentMetadata, ReferencedMessage } from '@tzurot/common-types';
 import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types';
 
-// Instance trackers for mock classes (populated when ConversationalRAGService is instantiated)
-let mockLLMInvokerInstance: {
-  getModel: ReturnType<typeof vi.fn>;
-  invokeWithRetry: ReturnType<typeof vi.fn>;
-};
-let mockMemoryRetrieverInstance: {
-  retrieveRelevantMemories: ReturnType<typeof vi.fn>;
-  getAllParticipantPersonas: ReturnType<typeof vi.fn>;
-  getUserPersonaForPersonality: ReturnType<typeof vi.fn>;
-};
-let mockPromptBuilderInstance: {
-  formatUserMessage: ReturnType<typeof vi.fn>;
-  buildSearchQuery: ReturnType<typeof vi.fn>;
-  buildFullSystemPrompt: ReturnType<typeof vi.fn>;
-  buildHumanMessage: ReturnType<typeof vi.fn>;
-};
-let mockLongTermMemoryInstance: {
-  storeInteraction: ReturnType<typeof vi.fn>;
-};
-let mockReferencedMessageFormatterInstance: {
-  formatReferencedMessages: ReturnType<typeof vi.fn>;
-  extractTextForSearch: ReturnType<typeof vi.fn>;
-};
-let mockContextWindowManagerInstance: {
-  buildContext: ReturnType<typeof vi.fn>;
-  calculateHistoryBudget: ReturnType<typeof vi.fn>;
-  selectAndSerializeHistory: ReturnType<typeof vi.fn>;
-  countHistoryTokens: ReturnType<typeof vi.fn>;
-  calculateMemoryBudget: ReturnType<typeof vi.fn>;
-  selectMemoriesWithinBudget: ReturnType<typeof vi.fn>;
-};
+// Set up mocks using async factories (vi.mock is hoisted before imports)
+vi.mock('./LLMInvoker.js', async () => {
+  const { mockLLMInvoker } = await import('../test/mocks/LLMInvoker.mock.js');
+  return mockLLMInvoker;
+});
+vi.mock('./MemoryRetriever.js', async () => {
+  const { mockMemoryRetriever } = await import('../test/mocks/MemoryRetriever.mock.js');
+  return mockMemoryRetriever;
+});
+vi.mock('./PromptBuilder.js', async () => {
+  const { mockPromptBuilder } = await import('../test/mocks/PromptBuilder.mock.js');
+  return mockPromptBuilder;
+});
+vi.mock('./context/ContextWindowManager.js', async () => {
+  const { mockContextWindowManager } = await import('../test/mocks/ContextWindowManager.mock.js');
+  return mockContextWindowManager;
+});
+vi.mock('./LongTermMemoryService.js', async () => {
+  const { mockLongTermMemoryService } = await import('../test/mocks/LongTermMemoryService.mock.js');
+  return mockLongTermMemoryService;
+});
+vi.mock('./ReferencedMessageFormatter.js', async () => {
+  const { mockReferencedMessageFormatter } = await import('../test/mocks/ReferencedMessageFormatter.mock.js');
+  return mockReferencedMessageFormatter;
+});
+vi.mock('./MultimodalProcessor.js', async () => {
+  const { mockMultimodalProcessor } = await import('../test/mocks/utils.mock.js');
+  return mockMultimodalProcessor;
+});
+vi.mock('../utils/responseCleanup.js', async () => {
+  const { mockResponseCleanup } = await import('../test/mocks/utils.mock.js');
+  return mockResponseCleanup;
+});
+vi.mock('../utils/promptPlaceholders.js', async () => {
+  const { mockPromptPlaceholders } = await import('../test/mocks/utils.mock.js');
+  return mockPromptPlaceholders;
+});
+vi.mock('../utils/errorHandling.js', async () => {
+  const { mockErrorHandling } = await import('../test/mocks/utils.mock.js');
+  return mockErrorHandling;
+});
 
-// Mock all dependencies using class syntax for proper constructor behavior
-vi.mock('./LLMInvoker.js', () => ({
-  LLMInvoker: class MockLLMInvoker {
-    getModel = vi.fn().mockReturnValue({
-      model: {
-        invoke: vi.fn().mockResolvedValue({ content: 'AI response' }),
-      },
-      modelName: 'test-model',
-    });
-    invokeWithRetry = vi.fn().mockResolvedValue({
-      content: 'AI response',
-    });
-    constructor() {
-      mockLLMInvokerInstance = this;
-    }
-  },
-}));
-
-vi.mock('./MemoryRetriever.js', () => ({
-  MemoryRetriever: class MockMemoryRetriever {
-    retrieveRelevantMemories = vi.fn().mockResolvedValue([]);
-    getAllParticipantPersonas = vi.fn().mockResolvedValue(new Map());
-    resolvePersonaForMemory = vi.fn().mockResolvedValue({
-      personaId: 'persona-123',
-      shareLtmAcrossPersonalities: false,
-    });
-    constructor() {
-      mockMemoryRetrieverInstance = this;
-    }
-  },
-}));
-
-vi.mock('./PromptBuilder.js', () => ({
-  PromptBuilder: class MockPromptBuilder {
-    formatUserMessage = vi.fn().mockReturnValue('formatted user message');
-    buildSearchQuery = vi.fn().mockReturnValue('search query');
-    buildFullSystemPrompt = vi.fn().mockReturnValue(new SystemMessage('system prompt'));
-    buildHumanMessage = vi.fn().mockReturnValue({
-      message: new HumanMessage('human message'),
-      contentForStorage: 'content for storage',
-    });
-    countTokens = vi.fn().mockReturnValue(100);
-    countMemoryTokens = vi.fn().mockReturnValue(50);
-    constructor() {
-      mockPromptBuilderInstance = this;
-    }
-  },
-}));
-
-vi.mock('./LongTermMemoryService.js', () => ({
-  LongTermMemoryService: class MockLongTermMemoryService {
-    storeInteraction = vi.fn().mockResolvedValue(undefined);
-    constructor() {
-      mockLongTermMemoryInstance = this;
-    }
-  },
-}));
-
-vi.mock('./ReferencedMessageFormatter.js', () => ({
-  ReferencedMessageFormatter: class MockReferencedMessageFormatter {
-    formatReferencedMessages = vi.fn().mockResolvedValue('formatted references');
-    extractTextForSearch = vi.fn().mockReturnValue('reference text for search');
-    constructor() {
-      mockReferencedMessageFormatterInstance = this;
-    }
-  },
-}));
-
-vi.mock('./context/ContextWindowManager.js', () => ({
-  ContextWindowManager: class MockContextWindowManager {
-    buildContext = vi.fn().mockReturnValue({
-      systemPrompt: new SystemMessage('system prompt'),
-      selectedHistory: [],
-      currentMessage: new HumanMessage('current message'),
-      budgetInfo: {
-        totalBudget: 8000,
-        systemPromptTokens: 500,
-        memoriesTokens: 200,
-        currentMessageTokens: 50,
-        historyBudget: 7250,
-        selectedHistoryTokens: 0,
-      },
-    });
-    calculateHistoryBudget = vi.fn().mockReturnValue(7000);
-    selectAndSerializeHistory = vi.fn().mockReturnValue({
-      serializedHistory: '<msg user="Lila" role="user">Previous message</msg>',
-      historyTokensUsed: 50,
-      messagesIncluded: 1,
-      messagesDropped: 0,
-    });
-    // New memory budget methods
-    countHistoryTokens = vi.fn().mockReturnValue(100);
-    calculateMemoryBudget = vi.fn().mockReturnValue(32000); // 25% of 128k
-    selectMemoriesWithinBudget = vi.fn().mockImplementation((memories: unknown[]) => ({
-      selectedMemories: memories, // Return all memories by default
-      tokensUsed: 500,
-      memoriesDropped: 0,
-      droppedDueToSize: 0,
-    }));
-    constructor() {
-      mockContextWindowManagerInstance = this;
-    }
-  },
-}));
-
-vi.mock('./MultimodalProcessor.js', () => ({
-  processAttachments: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../utils/responseCleanup.js', () => ({
-  stripResponseArtifacts: vi.fn((content: string) => content),
-}));
-
-vi.mock('../utils/promptPlaceholders.js', () => ({
-  replacePromptPlaceholders: vi.fn((content: string) => content),
-}));
-
-vi.mock('../utils/errorHandling.js', () => ({
-  logAndThrow: vi.fn((logger: unknown, msg: string, error: unknown) => {
-    throw error;
-  }),
-}));
-
-// Import mocks for assertions
-import { processAttachments } from './MultimodalProcessor.js';
-import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
-
-// Test fixtures
-function createMockPersonality(overrides?: Partial<LoadedPersonality>): LoadedPersonality {
-  return {
-    id: 'personality-123',
-    name: 'TestBot',
-    displayName: 'Test Bot',
-    slug: 'testbot',
-    systemPrompt: 'You are a helpful test bot.',
-    model: 'test-model',
-    temperature: 0.7,
-    maxTokens: 2000,
-    contextWindowTokens: 8192,
-    characterInfo: 'A friendly test bot',
-    personalityTraits: 'Helpful, kind, knowledgeable',
-    ...overrides,
-  } as LoadedPersonality;
-}
-
-function createMockContext(overrides?: Partial<ConversationContext>): ConversationContext {
-  return {
-    userId: 'user-123',
-    channelId: 'channel-456',
-    serverId: 'server-789',
-    userName: 'TestUser',
-    ...overrides,
-  };
-}
+// Import mock accessors and fixtures (after vi.mock declarations)
+import {
+  getLLMInvokerMock,
+  getMemoryRetrieverMock,
+  getPromptBuilderMock,
+  getContextWindowManagerMock,
+  getLongTermMemoryServiceMock,
+  getReferencedMessageFormatterMock,
+  mockProcessAttachments,
+  mockReplacePromptPlaceholders,
+  createMockPersonality,
+  createMockContext,
+} from '../test/mocks/index.js';
 
 describe('ConversationalRAGService', () => {
   let service: ConversationalRAGService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Create service - this populates the mock instance trackers via constructors
+    // Create service - this populates the mock instances via constructors
     service = new ConversationalRAGService();
   });
 
@@ -242,7 +106,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test message', context);
 
-      expect(mockPromptBuilderInstance.formatUserMessage).toHaveBeenCalledWith(
+      expect(getPromptBuilderMock().formatUserMessage).toHaveBeenCalledWith(
         'Test message',
         context
       );
@@ -254,7 +118,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test message', context);
 
-      expect(mockMemoryRetrieverInstance.retrieveRelevantMemories).toHaveBeenCalledWith(
+      expect(getMemoryRetrieverMock().retrieveRelevantMemories).toHaveBeenCalledWith(
         personality,
         'search query',
         context
@@ -267,9 +131,8 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test message', context);
 
-      // NEW: ContextWindowManager is now called via calculateHistoryBudget and selectAndSerializeHistory
-      expect(mockContextWindowManagerInstance.calculateHistoryBudget).toHaveBeenCalled();
-      expect(mockContextWindowManagerInstance.selectAndSerializeHistory).toHaveBeenCalled();
+      expect(getContextWindowManagerMock().calculateHistoryBudget).toHaveBeenCalled();
+      expect(getContextWindowManagerMock().selectAndSerializeHistory).toHaveBeenCalled();
     });
 
     it('should invoke LLM via LLMInvoker', async () => {
@@ -278,7 +141,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test message', context);
 
-      expect(mockLLMInvokerInstance.invokeWithRetry).toHaveBeenCalled();
+      expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalled();
     });
 
     it('should return model name in response', async () => {
@@ -297,21 +160,20 @@ describe('ConversationalRAGService', () => {
         { pageContent: 'Memory 1', metadata: { id: 'm1' } },
         { pageContent: 'Memory 2', metadata: { id: 'm2' } },
       ];
-      mockMemoryRetrieverInstance.retrieveRelevantMemories = vi.fn().mockResolvedValue(memories);
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue(memories);
 
       const personality = createMockPersonality();
       const context = createMockContext();
 
       const result = await service.generateResponse(personality, 'Recall something', context);
 
-      // buildFullSystemPrompt is called twice: once for base tokens, once with history
-      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith({
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: memories,
         context,
         referencedMessagesFormatted: undefined,
-        serializedHistory: expect.anything(), // undefined first call, string second call
+        serializedHistory: expect.anything(),
       });
       expect(result.retrievedMemories).toBe(2);
     });
@@ -320,17 +182,14 @@ describe('ConversationalRAGService', () => {
       const participantMap = new Map([
         ['user-123', { personaId: 'persona-1', personaName: 'Alice', isActive: true }],
       ]);
-      mockMemoryRetrieverInstance.getAllParticipantPersonas = vi
-        .fn()
-        .mockResolvedValue(participantMap);
+      getMemoryRetrieverMock().getAllParticipantPersonas.mockResolvedValue(participantMap);
 
       const personality = createMockPersonality();
       const context = createMockContext();
 
       await service.generateResponse(personality, 'Hello', context);
 
-      // buildFullSystemPrompt is called twice: once for base tokens, once with history
-      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith({
         personality,
         participantPersonas: participantMap,
         relevantMemories: expect.any(Array),
@@ -341,7 +200,7 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should handle empty memory results gracefully', async () => {
-      mockMemoryRetrieverInstance.retrieveRelevantMemories = vi.fn().mockResolvedValue([]);
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue([]);
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -355,16 +214,17 @@ describe('ConversationalRAGService', () => {
 
   describe('LTM storage integration', () => {
     it('should store interaction to LTM when persona exists', async () => {
-      mockMemoryRetrieverInstance.getUserPersonaForPersonality = vi
-        .fn()
-        .mockResolvedValue({ personaId: 'persona-123', shareLtmAcrossPersonalities: false });
+      getMemoryRetrieverMock().getUserPersonaForPersonality.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
 
       const personality = createMockPersonality();
       const context = createMockContext();
 
       await service.generateResponse(personality, 'Remember this', context);
 
-      expect(mockLongTermMemoryInstance.storeInteraction).toHaveBeenCalledWith(
+      expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
         personality,
         'content for storage',
         'AI response',
@@ -374,28 +234,28 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should skip LTM storage when no persona found', async () => {
-      mockMemoryRetrieverInstance.resolvePersonaForMemory = vi.fn().mockResolvedValue(null);
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue(null);
 
       const personality = createMockPersonality();
       const context = createMockContext();
 
       await service.generateResponse(personality, 'Test', context);
 
-      expect(mockLongTermMemoryInstance.storeInteraction).not.toHaveBeenCalled();
+      expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
     });
 
     it('should store LTM with shareLtmAcrossPersonalities enabled', async () => {
-      mockMemoryRetrieverInstance.resolvePersonaForMemory = vi
-        .fn()
-        .mockResolvedValue({ personaId: 'persona-456', shareLtmAcrossPersonalities: true });
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-456',
+        shareLtmAcrossPersonalities: true,
+      });
 
       const personality = createMockPersonality();
       const context = createMockContext();
 
       await service.generateResponse(personality, 'Test', context);
 
-      // Should still store to LTM - the sharing flag is handled in MemoryRetriever
-      expect(mockLongTermMemoryInstance.storeInteraction).toHaveBeenCalledWith(
+      expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
         personality,
         'content for storage',
         'AI response',
@@ -431,11 +291,11 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Reply to this', context);
 
-      expect(mockReferencedMessageFormatterInstance.formatReferencedMessages).toHaveBeenCalledWith(
+      expect(getReferencedMessageFormatterMock().formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
         personality,
-        false, // isGuestMode (default)
-        undefined // preprocessedReferenceAttachments
+        false,
+        undefined
       );
     });
 
@@ -455,7 +315,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'What about this?', context);
 
-      expect(mockReferencedMessageFormatterInstance.extractTextForSearch).toHaveBeenCalledWith(
+      expect(getReferencedMessageFormatterMock().extractTextForSearch).toHaveBeenCalledWith(
         'formatted references'
       );
     });
@@ -476,11 +336,11 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Follow up', context);
 
-      expect(mockPromptBuilderInstance.buildSearchQuery).toHaveBeenCalledWith(
+      expect(getPromptBuilderMock().buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
         expect.any(Array),
         'reference text for search',
-        undefined // recentHistoryWindow - no rawConversationHistory in context
+        undefined
       );
     });
 
@@ -500,8 +360,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Respond to Dave', context);
 
-      // buildFullSystemPrompt is called twice: once for base tokens, once with history
-      expect(mockPromptBuilderInstance.buildFullSystemPrompt).toHaveBeenCalledWith({
+      expect(getPromptBuilderMock().buildFullSystemPrompt).toHaveBeenCalledWith({
         personality,
         participantPersonas: expect.any(Map),
         relevantMemories: expect.any(Array),
@@ -518,7 +377,7 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Hello', context);
 
       expect(
-        mockReferencedMessageFormatterInstance.formatReferencedMessages
+        getReferencedMessageFormatterMock().formatReferencedMessages
       ).not.toHaveBeenCalled();
     });
 
@@ -529,7 +388,7 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Hello', context);
 
       expect(
-        mockReferencedMessageFormatterInstance.formatReferencedMessages
+        getReferencedMessageFormatterMock().formatReferencedMessages
       ).not.toHaveBeenCalled();
     });
   });
@@ -549,7 +408,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'What is this?', context);
 
-      expect(processAttachments).toHaveBeenCalledWith(attachments, personality);
+      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality);
     });
 
     it('should process audio attachments', async () => {
@@ -568,7 +427,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
-      expect(processAttachments).toHaveBeenCalledWith(attachments, personality);
+      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality);
     });
 
     it('should include processed attachments in search query', async () => {
@@ -579,7 +438,7 @@ describe('ConversationalRAGService', () => {
           metadata: { url: 'https://example.com/cat.png', name: 'cat.png' },
         },
       ];
-      vi.mocked(processAttachments).mockResolvedValue(processedAttachments);
+      mockProcessAttachments.mockResolvedValue(processedAttachments);
 
       const attachments: AttachmentMetadata[] = [
         {
@@ -594,11 +453,11 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'What do you see?', context);
 
-      expect(mockPromptBuilderInstance.buildSearchQuery).toHaveBeenCalledWith(
+      expect(getPromptBuilderMock().buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
         processedAttachments,
         undefined,
-        undefined // recentHistoryWindow - no rawConversationHistory in context
+        undefined
       );
     });
 
@@ -615,7 +474,7 @@ describe('ConversationalRAGService', () => {
           },
         },
       ];
-      vi.mocked(processAttachments).mockResolvedValue(processedAttachments);
+      mockProcessAttachments.mockResolvedValue(processedAttachments);
 
       const attachments: AttachmentMetadata[] = [
         {
@@ -632,7 +491,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
-      expect(mockPromptBuilderInstance.buildHumanMessage).toHaveBeenCalledWith(
+      expect(getPromptBuilderMock().buildHumanMessage).toHaveBeenCalledWith(
         'formatted user message',
         processedAttachments,
         undefined,
@@ -648,7 +507,7 @@ describe('ConversationalRAGService', () => {
           metadata: { url: 'https://example.com/sunset.jpg', name: 'sunset.jpg' },
         },
       ];
-      vi.mocked(processAttachments).mockResolvedValue(processedAttachments);
+      mockProcessAttachments.mockResolvedValue(processedAttachments);
 
       const attachments: AttachmentMetadata[] = [
         {
@@ -673,7 +532,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'No attachments', context);
 
-      expect(processAttachments).not.toHaveBeenCalled();
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
     });
 
     it('should not process attachments when array is empty', async () => {
@@ -682,12 +541,10 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Empty attachments', context);
 
-      expect(processAttachments).not.toHaveBeenCalled();
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
     });
 
     it('should use preprocessed attachments instead of calling processAttachments', async () => {
-      // Preprocessed attachments from dependency jobs (ImageDescriptionJob)
-      // should be used directly, avoiding duplicate vision API calls
       const preprocessedAttachments = [
         {
           type: AttachmentType.Image,
@@ -717,11 +574,8 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Check this image', context);
 
-      // Should NOT call processAttachments when preprocessedAttachments is provided
-      expect(processAttachments).not.toHaveBeenCalled();
-
-      // Verify the preprocessed description is used in prompt building
-      expect(mockPromptBuilderInstance.buildSearchQuery).toHaveBeenCalledWith(
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
+      expect(getPromptBuilderMock().buildSearchQuery).toHaveBeenCalledWith(
         expect.any(String),
         preprocessedAttachments,
         undefined,
@@ -737,8 +591,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context);
 
-      // The service uses invokeWithRetry which handles censored responses internally
-      expect(mockLLMInvokerInstance.invokeWithRetry).toHaveBeenCalled();
+      expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalled();
     });
 
     it('should pass correct model parameters to LLMInvoker', async () => {
@@ -747,7 +600,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context);
 
-      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
+      expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
           modelName: 'claude-3-sonnet',
           apiKey: undefined,
@@ -763,7 +616,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context, userApiKey);
 
-      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
+      expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
           modelName: 'test-model',
           apiKey: userApiKey,
@@ -787,7 +640,7 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context);
 
-      expect(mockLLMInvokerInstance.getModel).toHaveBeenCalledWith(
+      expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({
           modelName: 'claude-3-sonnet',
           temperature: 0.8,
@@ -828,21 +681,18 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
-      // invokeWithRetry should be called with imageCount=2, audioCount=1, and stop sequences
-      expect(mockLLMInvokerInstance.invokeWithRetry).toHaveBeenCalledWith({
+      expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalledWith({
         model: expect.anything(),
         messages: expect.any(Array),
         modelName: 'test-model',
         imageCount: 2,
         audioCount: 1,
-        stopSequences: expect.any(Array), // stopSequences for identity bleeding prevention
+        stopSequences: expect.any(Array),
       });
     });
 
     it('should propagate LLMInvoker errors', async () => {
-      mockLLMInvokerInstance.invokeWithRetry = vi
-        .fn()
-        .mockRejectedValue(new Error('All retries exhausted'));
+      getLLMInvokerMock().invokeWithRetry.mockRejectedValue(new Error('All retries exhausted'));
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -858,36 +708,33 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality({ name: 'Lila' });
       const context = createMockContext({
         userName: 'TestUser',
-        activePersonaName: 'Lila', // Same as personality name - collision!
+        activePersonaName: 'Lila',
         discordUsername: 'lbds137',
       });
 
       await service.generateResponse(personality, 'Hello', context);
 
-      // replacePromptPlaceholders is called to strip placeholders from AI response
-      // It should receive discordUsername for collision detection
-      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
-        'AI response', // The mock AI response content
-        'TestUser', // userName from context (preferred over activePersonaName)
-        'Lila', // personality.name
-        'lbds137' // discordUsername for collision detection
+      expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
+        'AI response',
+        'TestUser',
+        'Lila',
+        'lbds137'
       );
     });
 
     it('should use activePersonaName when userName is empty', async () => {
       const personality = createMockPersonality({ name: 'TestBot' });
       const context = createMockContext({
-        userName: '', // Empty userName
+        userName: '',
         activePersonaName: 'Alice',
         discordUsername: 'alice123',
       });
 
       await service.generateResponse(personality, 'Hello', context);
 
-      // Should fall back to activePersonaName
-      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+      expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
-        'Alice', // Fell back to activePersonaName
+        'Alice',
         'TestBot',
         'alice123'
       );
@@ -903,9 +750,9 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+      expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
-        'User', // Default fallback
+        'User',
         'TestBot',
         'someuser'
       );
@@ -915,25 +762,24 @@ describe('ConversationalRAGService', () => {
       const personality = createMockPersonality({ name: 'TestBot' });
       const context = createMockContext({
         userName: 'TestUser',
-        // No discordUsername
       });
 
       await service.generateResponse(personality, 'Hello', context);
 
-      expect(replacePromptPlaceholders).toHaveBeenCalledWith(
+      expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
         'AI response',
         'TestUser',
         'TestBot',
-        undefined // No discordUsername
+        undefined
       );
     });
   });
 
   describe('error handling', () => {
     it('should propagate errors from memory retrieval', async () => {
-      mockMemoryRetrieverInstance.retrieveRelevantMemories = vi
-        .fn()
-        .mockRejectedValue(new Error('Memory service unavailable'));
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockRejectedValue(
+        new Error('Memory service unavailable')
+      );
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -944,7 +790,7 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should propagate errors from attachment processing', async () => {
-      vi.mocked(processAttachments).mockRejectedValue(new Error('Vision API error'));
+      mockProcessAttachments.mockRejectedValue(new Error('Vision API error'));
 
       const attachments: AttachmentMetadata[] = [
         {
