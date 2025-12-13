@@ -46,7 +46,10 @@ describe('handleStats', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personalitySlug: string = 'lilith', channelId: string = 'channel-123') {
+  function createMockInteraction(
+    personalitySlug: string = 'lilith',
+    channelId: string = 'channel-123'
+  ) {
     return {
       user: { id: '123456789' },
       channelId,
