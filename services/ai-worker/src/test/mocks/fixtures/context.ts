@@ -1,0 +1,78 @@
+/**
+ * Mock Context Fixtures
+ *
+ * Factory functions for creating ConversationContext test data.
+ * These are pure data factories - no vi.fn() or mocking involved.
+ */
+
+import type { ConversationContext } from '../../services/ConversationalRAGService.js';
+
+/**
+ * Create a mock ConversationContext with sensible defaults
+ *
+ * @example
+ * ```typescript
+ * const context = createMockContext();
+ * const withAttachments = createMockContext({
+ *   attachments: [{ url: '...', contentType: 'image/png', name: 'img.png', size: 1024 }]
+ * });
+ * ```
+ */
+export function createMockContext(
+  overrides?: Partial<ConversationContext>
+): ConversationContext {
+  return {
+    userId: 'user-123',
+    channelId: 'channel-456',
+    serverId: 'server-789',
+    userName: 'TestUser',
+    ...overrides,
+  };
+}
+
+/**
+ * Create a context with referenced messages (for reply testing)
+ */
+export function createContextWithReferences(
+  overrides?: Partial<ConversationContext>
+): ConversationContext {
+  return createMockContext({
+    referencedMessages: [
+      {
+        id: 'ref-1',
+        authorId: 'author-1',
+        authorName: 'RefUser',
+        content: 'Referenced message content',
+        timestamp: Date.now(),
+        referenceType: 'reply',
+      },
+    ],
+    ...overrides,
+  });
+}
+
+/**
+ * Create a context for DM conversations (no server)
+ */
+export function createDMContext(
+  overrides?: Partial<ConversationContext>
+): ConversationContext {
+  return createMockContext({
+    serverId: undefined,
+    ...overrides,
+  });
+}
+
+/**
+ * Create a context with name collision scenario
+ */
+export function createNameCollisionContext(
+  overrides?: Partial<ConversationContext>
+): ConversationContext {
+  return createMockContext({
+    userName: 'TestUser',
+    activePersonaName: 'Lila', // Matches personality name - collision!
+    discordUsername: 'lbds137',
+    ...overrides,
+  });
+}

@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Comprehensive testing patterns for Tzurot v3 - Vitest configuration, fake timers, promise handling, mocking strategies, test organization, and coverage commands. Use this when writing or modifying tests.
-lastUpdated: '2025-11-24'
+lastUpdated: '2025-12-12'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -356,6 +356,182 @@ function createMockAIProvider() {
   };
 }
 ```
+
+## Mock Factory Pattern
+
+**IMPORTANT:** For complex services with many dependencies, use the centralized mock factory pattern to reduce boilerplate and improve test maintainability.
+
+### Directory Structure
+
+```
+services/<service>/src/test/mocks/
+├── index.ts              # Re-exports all mocks
+├── LLMInvoker.mock.ts    # Service mock + instance accessor
+├── MemoryRetriever.mock.ts
+├── PromptBuilder.mock.ts
+├── utils.mock.ts         # Simple function mocks
+└── fixtures/
+    ├── index.ts          # Re-exports all fixtures
+    ├── personality.ts    # createMockPersonality()
+    └── context.ts        # createMockContext()
+```
+
+### Mock Factory Structure
+
+Each mock factory exports:
+1. **Mock module** - The object to pass to `vi.mock()`
+2. **Instance accessor** - Function to get the mock instance for assertions
+3. **Reset function** - Optional cleanup function
+
+```typescript
+// LLMInvoker.mock.ts
+import { vi } from 'vitest';
+
+export interface MockLLMInvokerInstance {
+  getModel: ReturnType<typeof vi.fn>;
+  invokeWithRetry: ReturnType<typeof vi.fn>;
+}
+
+let mockInstance: MockLLMInvokerInstance | null = null;
+
+function createMockFunctions(): MockLLMInvokerInstance {
+  return {
+    getModel: vi.fn().mockReturnValue({
+      model: { invoke: vi.fn().mockResolvedValue({ content: 'AI response' }) },
+      modelName: 'test-model',
+    }),
+    invokeWithRetry: vi.fn().mockResolvedValue({ content: 'AI response' }),
+  };
+}
+
+export const mockLLMInvoker = {
+  LLMInvoker: class MockLLMInvoker {
+    getModel: ReturnType<typeof vi.fn>;
+    invokeWithRetry: ReturnType<typeof vi.fn>;
+
+    constructor() {
+      const fns = createMockFunctions();
+      this.getModel = fns.getModel;
+      this.invokeWithRetry = fns.invokeWithRetry;
+      mockInstance = this;
+    }
+  },
+};
+
+export function getLLMInvokerMock(): MockLLMInvokerInstance {
+  if (!mockInstance) throw new Error('Mock not instantiated');
+  return mockInstance;
+}
+
+export function resetLLMInvokerMock(): void {
+  mockInstance = null;
+}
+```
+
+### Using Mock Factories with vi.mock()
+
+**CRITICAL:** Because `vi.mock()` calls are hoisted before imports, you MUST use async factory functions with dynamic imports:
+
+```typescript
+// ❌ WRONG - Import happens after vi.mock is hoisted
+import { mockLLMInvoker } from '../test/mocks/index.js';
+vi.mock('./LLMInvoker.js', () => mockLLMInvoker); // Error!
+
+// ✅ CORRECT - Async factory with dynamic import
+vi.mock('./LLMInvoker.js', async () => {
+  const { mockLLMInvoker } = await import('../test/mocks/LLMInvoker.mock.js');
+  return mockLLMInvoker;
+});
+
+// Import accessors AFTER vi.mock declarations
+import { getLLMInvokerMock, createMockPersonality } from '../test/mocks/index.js';
+```
+
+### Complete Test File Example
+
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MyService } from './MyService.js';
+
+// Set up mocks using async factories
+vi.mock('./LLMInvoker.js', async () => {
+  const { mockLLMInvoker } = await import('../test/mocks/LLMInvoker.mock.js');
+  return mockLLMInvoker;
+});
+vi.mock('./MemoryRetriever.js', async () => {
+  const { mockMemoryRetriever } = await import('../test/mocks/MemoryRetriever.mock.js');
+  return mockMemoryRetriever;
+});
+
+// Import accessors and fixtures after vi.mock
+import {
+  getLLMInvokerMock,
+  getMemoryRetrieverMock,
+  createMockPersonality,
+  createMockContext,
+} from '../test/mocks/index.js';
+
+describe('MyService', () => {
+  let service: MyService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new MyService(); // Instantiates mock dependencies
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should call LLM with correct parameters', async () => {
+    const personality = createMockPersonality({ model: 'claude-3' });
+    const context = createMockContext();
+
+    await service.generateResponse(personality, 'Hello', context);
+
+    // Access mock instance for assertions
+    expect(getLLMInvokerMock().invokeWithRetry).toHaveBeenCalled();
+  });
+
+  it('should handle memory retrieval', async () => {
+    // Override default mock behavior for this test
+    getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue([
+      { pageContent: 'Memory 1', metadata: { id: 'm1' } },
+    ]);
+
+    const result = await service.generateResponse(
+      createMockPersonality(),
+      'Recall',
+      createMockContext()
+    );
+
+    expect(result.retrievedMemories).toBe(1);
+  });
+});
+```
+
+### Available Mock Factories
+
+**bot-client:** `services/bot-client/src/test/mocks/`
+- `Discord.mock.ts` - Message, Channel, Guild, User factories
+- `PersonalityService.mock.ts` - PersonalityService mock
+
+**ai-worker:** `services/ai-worker/src/test/mocks/`
+- `LLMInvoker.mock.ts` - LLM invocation
+- `MemoryRetriever.mock.ts` - Memory retrieval
+- `PromptBuilder.mock.ts` - Prompt construction
+- `ContextWindowManager.mock.ts` - Token budgeting
+- `LongTermMemoryService.mock.ts` - LTM storage
+- `ReferencedMessageFormatter.mock.ts` - Reference formatting
+- `utils.mock.ts` - Simple function mocks (processAttachments, etc.)
+- `fixtures/` - Data factories (personality, context)
+
+### When to Create New Mock Factories
+
+1. **Same mock used in 2+ test files** - Extract to factory
+2. **Mock has complex setup** - Centralize default configuration
+3. **Mock needs instance tracking** - Use the factory pattern above
+4. **Mock represents external service** - Create dedicated factory
 
 ## Service Testing Patterns
 
