@@ -18,6 +18,7 @@ const logger = createLogger('history-undo');
 interface UndoResponse {
   success: boolean;
   restoredEpoch: string | null;
+  personaId: string;
   message: string;
 }
 
@@ -27,14 +28,21 @@ interface UndoResponse {
 export async function handleUndo(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const personalitySlug = interaction.options.getString('personality', true);
+  const personaId = interaction.options.getString('profile', false); // Optional profile/persona
 
   await deferEphemeral(interaction);
 
   try {
+    // Build request body, only include personaId if explicitly provided
+    const body: { personalitySlug: string; personaId?: string } = { personalitySlug };
+    if (personaId !== null && personaId.length > 0) {
+      body.personaId = personaId;
+    }
+
     const result = await callGatewayApi<UndoResponse>('/user/history/undo', {
       userId,
       method: 'POST',
-      body: { personalitySlug },
+      body,
     });
 
     if (!result.ok) {

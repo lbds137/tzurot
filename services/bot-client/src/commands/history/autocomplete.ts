@@ -1,11 +1,12 @@
 /**
  * History Command Autocomplete
- * Handles autocomplete for personality selection
+ * Handles autocomplete for personality and profile selection
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { handlePersonaAutocomplete } from '../../utils/autocomplete/personaAutocomplete.js';
 
 const logger = createLogger('history-autocomplete');
 
@@ -71,4 +72,18 @@ export async function handlePersonalityAutocomplete(
     logger.error({ err: error, userId }, '[History] Autocomplete error');
     await interaction.respond([]);
   }
+}
+
+/**
+ * Handle profile autocomplete for history commands
+ * Shows user's personas for optional profile selection
+ */
+export async function handleProfileAutocomplete(
+  interaction: AutocompleteInteraction
+): Promise<void> {
+  await handlePersonaAutocomplete(interaction, {
+    optionName: 'profile',
+    includeCreateNew: false,
+    logPrefix: '[History]',
+  });
 }

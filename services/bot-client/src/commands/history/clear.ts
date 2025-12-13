@@ -18,6 +18,7 @@ const logger = createLogger('history-clear');
 interface ClearResponse {
   success: boolean;
   epoch: string;
+  personaId: string;
   canUndo: boolean;
   message: string;
 }
@@ -28,14 +29,21 @@ interface ClearResponse {
 export async function handleClear(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const personalitySlug = interaction.options.getString('personality', true);
+  const personaId = interaction.options.getString('profile', false); // Optional profile/persona
 
   await deferEphemeral(interaction);
 
   try {
+    // Build request body, only include personaId if explicitly provided
+    const body: { personalitySlug: string; personaId?: string } = { personalitySlug };
+    if (personaId !== null && personaId.length > 0) {
+      body.personaId = personaId;
+    }
+
     const result = await callGatewayApi<ClearResponse>('/user/history/clear', {
       userId,
       method: 'POST',
-      body: { personalitySlug },
+      body,
     });
 
     if (!result.ok) {

@@ -22,7 +22,7 @@ import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
 import { handleHardDelete, parseHardDeleteEntityId } from './hard-delete.js';
-import { handlePersonalityAutocomplete } from './autocomplete.js';
+import { handlePersonalityAutocomplete, handleProfileAutocomplete } from './autocomplete.js';
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 import {
   handleDestructiveCancel,
@@ -53,6 +53,13 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .setAutocomplete(true)
       )
+      .addStringOption(option =>
+        option
+          .setName('profile')
+          .setDescription('The profile/persona to use (defaults to your active profile)')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
   )
   .addSubcommand(subcommand =>
     subcommand
@@ -65,6 +72,13 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .setAutocomplete(true)
       )
+      .addStringOption(option =>
+        option
+          .setName('profile')
+          .setDescription('The profile/persona to use (defaults to your active profile)')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
   )
   .addSubcommand(subcommand =>
     subcommand
@@ -75,6 +89,13 @@ export const data = new SlashCommandBuilder()
           .setName('personality')
           .setDescription('The personality to view stats for')
           .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('profile')
+          .setDescription('The profile/persona to use (defaults to your active profile)')
+          .setRequired(false)
           .setAutocomplete(true)
       )
   )
@@ -205,13 +226,15 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
 }
 
 /**
- * Autocomplete handler for personality option
+ * Autocomplete handler for personality and profile options
  */
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
 
   if (focusedOption.name === 'personality') {
     await handlePersonalityAutocomplete(interaction);
+  } else if (focusedOption.name === 'profile') {
+    await handleProfileAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
