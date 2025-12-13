@@ -267,18 +267,23 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
               personaId,
             },
           },
-          select: { previousContextReset: true },
+          select: { lastContextReset: true, previousContextReset: true },
         });
 
-        // Check if there's a previous epoch to restore
-        if (
-          currentConfig?.previousContextReset === null ||
-          currentConfig?.previousContextReset === undefined
-        ) {
-          return { success: false as const };
+        // Check if there's anything to undo:
+        // - No record = never cleared, nothing to undo
+        // - Record exists but lastContextReset is null = already at full visibility
+        // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
+        if (currentConfig === null || currentConfig.lastContextReset === null) {
+          return { success: false as const, reason: 'no-clear' as const };
         }
 
-        // Restore previous epoch, clear the backup
+        // Two cases for undo:
+        // 1. previousContextReset is null = first clear, restore to full visibility (null epoch)
+        // 2. previousContextReset is set = restore to that epoch
+        const restoredEpoch = currentConfig.previousContextReset; // null means full visibility
+
+        // Restore previous epoch (or null for full visibility), clear the backup
         await tx.userPersonaHistoryConfig.update({
           where: {
             userId_personalityId_personaId: {
@@ -288,14 +293,14 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
             },
           },
           data: {
-            lastContextReset: currentConfig.previousContextReset,
+            lastContextReset: restoredEpoch, // null = no filtering (full visibility)
             previousContextReset: null, // Clear backup - only one undo level
           },
         });
 
         return {
           success: true as const,
-          restoredEpoch: currentConfig.previousContextReset,
+          restoredEpoch,
         };
       });
 
