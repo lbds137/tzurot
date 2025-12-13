@@ -55,6 +55,37 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 
 If a change breaks something, that's fine - you'll fix it in the next commit. Clean code > compatibility.
 
+## No "Not My Problem" Excuses
+
+**If tests fail or lint errors exist, FIX THEM. No exceptions.**
+
+- **NEVER** say "my changes didn't break it" as justification to skip fixing
+- **NEVER** use `--no-verify` to bypass failing checks
+- **NEVER** dismiss pre-existing issues as "someone else's problem"
+- **ALWAYS** leave the codebase better than you found it
+
+**This applies regardless of who introduced the issue:**
+
+- Previous session broke it? Fix it now.
+- Pre-existing lint warnings? Fix them or file a tracking issue.
+- Flaky test? Investigate and fix, don't skip.
+- "It was already broken"? Doesn't matter. Fix it.
+
+**The anti-pattern this prevents:**
+
+```
+"The lint errors are pre-existing, not from my changes. Let me push with --no-verify."
+```
+
+This attitude leads to permanent technical debt. Every session says "not my problem" and nothing ever gets fixed.
+
+**The correct approach:**
+
+1. If checks fail, understand why
+2. Fix the issues (even if you didn't cause them)
+3. If fixing is genuinely out of scope, create a tracking issue AND get explicit user approval to proceed
+4. Never silently bypass checks
+
 ## Development Strategy: "Launch, Stabilize, Evolve"
 
 **THE CRITICAL INSIGHT** (from Gemini consultation, 2025-11-22):
