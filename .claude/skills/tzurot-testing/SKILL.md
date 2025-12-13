@@ -22,15 +22,15 @@ lastUpdated: '2025-12-13'
 
 ### Decision Matrix: Which Tests to Write
 
-| Change Type                   | Unit Tests | Contract Tests | Integration Tests |
-| ----------------------------- | ---------- | -------------- | ----------------- |
-| New API endpoint              | ✅ Yes     | ✅ Yes         | Consider          |
-| New service/class             | ✅ Yes     | If shared      | Consider          |
-| New utility function          | ✅ Yes     | No             | No                |
-| New slash command             | ✅ Yes     | If uses API    | Consider          |
-| Bug fix                       | ✅ Yes     | If contract    | If integration    |
-| Refactoring (no behavior Δ)   | Verify     | Verify         | Verify            |
-| Schema/type changes           | Update     | ✅ Yes         | Update            |
+| Change Type                 | Unit Tests | Contract Tests | Integration Tests |
+| --------------------------- | ---------- | -------------- | ----------------- |
+| New API endpoint            | ✅ Yes     | ✅ Yes         | Consider          |
+| New service/class           | ✅ Yes     | If shared      | Consider          |
+| New utility function        | ✅ Yes     | No             | No                |
+| New slash command           | ✅ Yes     | If uses API    | Consider          |
+| Bug fix                     | ✅ Yes     | If contract    | If integration    |
+| Refactoring (no behavior Δ) | Verify     | Verify         | Verify            |
+| Schema/type changes         | Update     | ✅ Yes         | Update            |
 
 ### Contract Tests - When to Add Them
 
@@ -50,7 +50,7 @@ lastUpdated: '2025-12-13'
 
 - `api.contract.test.ts` - POST /ai/generate, job status endpoints
 - `jobs.contract.test.ts` - BullMQ job payloads (LLM generation, audio transcription, etc.)
-- `history.contract.test.ts` - /user/history/* endpoints (clear, undo, stats, hard-delete)
+- `history.contract.test.ts` - /user/history/\* endpoints (clear, undo, stats, hard-delete)
 
 **Example - Adding contract tests for a new endpoint:**
 
@@ -63,7 +63,9 @@ export const myEndpointRequestSchema = z.object({
 
 export const myEndpointResponseSchema = z.object({
   success: z.boolean(),
-  data: z.object({ /* ... */ }),
+  data: z.object({
+    /* ... */
+  }),
 });
 
 // 2. Create contract test
@@ -108,7 +110,12 @@ describe('POST /user/my-endpoint - Request Schema', () => {
 ```typescript
 describe('handleMyCommand', () => {
   it('should succeed with valid input', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { /* ... */ } });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        /* ... */
+      },
+    });
     await handleMyCommand(interaction);
     expect(mockEditReply).toHaveBeenCalled();
   });
@@ -116,7 +123,10 @@ describe('handleMyCommand', () => {
   it('should handle not found (404)', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404 });
     await handleMyCommand(interaction);
-    expect(mockReplyWithError).toHaveBeenCalledWith(interaction, expect.stringContaining('not found'));
+    expect(mockReplyWithError).toHaveBeenCalledWith(
+      interaction,
+      expect.stringContaining('not found')
+    );
   });
 
   it('should handle generic API error', async () => {
