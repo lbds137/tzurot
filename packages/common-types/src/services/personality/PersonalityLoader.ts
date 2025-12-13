@@ -73,10 +73,15 @@ export class PersonalityLoader {
    */
   private buildAccessFilter(
     ownerUuid?: string
-  ): { OR: ({ isPublic: boolean } | { ownerId: string })[] } | undefined {
+  ): { OR: ({ isPublic: boolean } | { ownerId: string })[] } | { isPublic: true } | undefined {
     if (ownerUuid === undefined || ownerUuid === '') {
       // No access control - internal operations or bot owner bypass
       return undefined;
+    }
+
+    // User not in database - can only access public personalities
+    if (ownerUuid === PersonalityLoader.PUBLIC_ONLY_SENTINEL) {
+      return { isPublic: true };
     }
 
     // User must have access: personality is public OR user is owner
@@ -86,10 +91,16 @@ export class PersonalityLoader {
   }
 
   /**
+   * Sentinel value indicating user should only see public personalities.
+   * Used when user doesn't exist in database yet.
+   */
+  private static readonly PUBLIC_ONLY_SENTINEL = '__PUBLIC_ONLY__';
+
+  /**
    * Resolve Discord user ID to database UUID for ownership checks
    *
    * @param discordUserId - Discord user ID
-   * @returns User's database UUID, or undefined if user not found or is bot owner
+   * @returns User's database UUID, sentinel for public-only, or undefined for no filtering
    */
   private async resolveOwnerUuid(discordUserId?: string): Promise<string | undefined> {
     if (discordUserId === undefined || discordUserId === '') {
@@ -114,11 +125,12 @@ export class PersonalityLoader {
     if (user === null) {
       logger.debug(
         { discordUserId },
-        '[PersonalityLoader] User not found in database - treating as no access'
+        '[PersonalityLoader] User not found in database - public personalities only'
       );
-      // Return a placeholder that won't match any ownerId
-      // This ensures the user can only access public personalities
-      return 'user-not-found';
+      // Return sentinel that buildAccessFilter recognizes as "public only"
+      // This ensures the user can only access public personalities without causing
+      // a Prisma error (ownerId is a UUID column, can't compare to arbitrary string)
+      return PersonalityLoader.PUBLIC_ONLY_SENTINEL;
     }
 
     return user.id;
