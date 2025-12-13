@@ -66,6 +66,111 @@ export class RetryError extends Error {
   }
 }
 
+interface TimeoutCheckContext {
+  globalTimeoutMs: number | undefined;
+  startTime: number;
+  attempt: number;
+  operationName: string;
+  lastError: unknown;
+  logger?: Logger;
+}
+
+/**
+ * Check if global timeout has been exceeded
+ */
+function checkGlobalTimeout(ctx: TimeoutCheckContext): void {
+  const { globalTimeoutMs, startTime, attempt, operationName, lastError, logger } = ctx;
+
+  if (globalTimeoutMs === undefined || globalTimeoutMs <= 0) {
+    return;
+  }
+
+  const elapsed = Date.now() - startTime;
+  if (elapsed >= globalTimeoutMs) {
+    const error = new RetryError(
+      `${operationName} exceeded global timeout of ${globalTimeoutMs}ms after ${attempt - 1} attempts`,
+      attempt - 1,
+      lastError
+    );
+    logger?.error({ err: error, elapsed, attempts: attempt - 1 }, `[Retry] Global timeout exceeded`);
+    throw error;
+  }
+}
+
+/**
+ * Handle a non-retryable error by throwing a RetryError
+ */
+function handleNonRetryableError(
+  error: unknown,
+  attempt: number,
+  startTime: number,
+  operationName: string,
+  logger?: Logger
+): never {
+  const totalTimeMs = Date.now() - startTime;
+  logger?.warn(
+    { err: error, attempt, totalTimeMs },
+    `[Retry] ${operationName} failed with non-retryable error, fast-failing`
+  );
+  throw new RetryError(`${operationName} failed with non-retryable error`, attempt, error);
+}
+
+/**
+ * Calculate delay for exponential backoff
+ */
+function calculateBackoffDelay(
+  attempt: number,
+  initialDelayMs: number,
+  maxDelayMs: number,
+  backoffMultiplier: number
+): number {
+  const baseDelay = initialDelayMs * Math.pow(backoffMultiplier, attempt - 1);
+  return Math.min(baseDelay, maxDelayMs);
+}
+
+interface RetryContext {
+  attempt: number;
+  startTime: number;
+  operationName: string;
+  logger?: Logger;
+}
+
+interface ErrorCheckContext extends RetryContext {
+  error: unknown;
+  shouldRetry?: (error: unknown) => boolean;
+}
+
+/**
+ * Check if error should be retried and handle accordingly
+ */
+function checkRetryableError(ctx: ErrorCheckContext): void {
+  const { error, shouldRetry, attempt, startTime, operationName, logger } = ctx;
+  const errorShouldRetry = shouldRetry === undefined || shouldRetry(error);
+  if (!errorShouldRetry) {
+    handleNonRetryableError(error, attempt, startTime, operationName, logger);
+  }
+}
+
+interface DelayContext extends RetryContext {
+  maxAttempts: number;
+  initialDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+}
+
+/**
+ * Wait before next retry attempt if not the last attempt
+ */
+async function waitBeforeRetry(ctx: DelayContext): Promise<void> {
+  const { attempt, maxAttempts, initialDelayMs, maxDelayMs, backoffMultiplier, logger } = ctx;
+  if (attempt >= maxAttempts) {
+    return;
+  }
+  const delay = calculateBackoffDelay(attempt, initialDelayMs, maxDelayMs, backoffMultiplier);
+  logger?.debug({ delay, attempt }, `[Retry] Waiting before retry`);
+  await sleep(delay);
+}
+
 /**
  * Execute an async function with exponential backoff retry logic
  *
@@ -104,84 +209,28 @@ export async function withRetry<T>(
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    // Check global timeout
-    if (globalTimeoutMs !== undefined && globalTimeoutMs > 0) {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= globalTimeoutMs) {
-        const error = new RetryError(
-          `${operationName} exceeded global timeout of ${globalTimeoutMs}ms after ${attempt - 1} attempts`,
-          attempt - 1,
-          lastError
-        );
-        logger?.error(
-          { err: error, elapsed, attempts: attempt - 1 },
-          `[Retry] Global timeout exceeded`
-        );
-        throw error;
-      }
-    }
+    checkGlobalTimeout({ globalTimeoutMs, startTime, attempt, operationName, lastError, logger });
 
     try {
       const value = await fn();
       const totalTimeMs = Date.now() - startTime;
 
       if (attempt > 1) {
-        logger?.info(
-          { attempt, totalTimeMs },
-          `[Retry] ${operationName} succeeded after ${attempt} attempts`
-        );
+        logger?.info({ attempt, totalTimeMs }, `[Retry] ${operationName} succeeded after ${attempt} attempts`);
       }
 
       return { value, attempts: attempt, totalTimeMs };
     } catch (error) {
       lastError = error;
-
-      // Check if this error should be retried (fast-fail for permanent errors)
-      const errorShouldRetry = shouldRetry === undefined || shouldRetry(error);
-
-      if (!errorShouldRetry) {
-        const totalTimeMs = Date.now() - startTime;
-        logger?.warn(
-          { err: error, attempt, totalTimeMs },
-          `[Retry] ${operationName} failed with non-retryable error, fast-failing`
-        );
-        // Wrap in RetryError to maintain consistent error type
-        const retryError = new RetryError(
-          `${operationName} failed with non-retryable error`,
-          attempt,
-          error
-        );
-        throw retryError;
-      }
-
-      logger?.warn(
-        { err: error, attempt, maxAttempts },
-        `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`
-      );
-
-      // Don't wait after the last attempt
-      if (attempt < maxAttempts) {
-        // Calculate delay with exponential backoff
-        const baseDelay = initialDelayMs * Math.pow(backoffMultiplier, attempt - 1);
-        const delay = Math.min(baseDelay, maxDelayMs);
-
-        logger?.debug({ delay, attempt }, `[Retry] Waiting before retry`);
-        await sleep(delay);
-      }
+      checkRetryableError({ error, shouldRetry, attempt, startTime, operationName, logger });
+      logger?.warn({ err: error, attempt, maxAttempts }, `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`);
+      await waitBeforeRetry({ attempt, maxAttempts, initialDelayMs, maxDelayMs, backoffMultiplier, logger, startTime, operationName });
     }
   }
 
-  // All attempts failed
   const totalTimeMs = Date.now() - startTime;
-  const error = new RetryError(
-    `${operationName} failed after ${maxAttempts} attempts`,
-    maxAttempts,
-    lastError
-  );
-  logger?.error(
-    { err: error, attempts: maxAttempts, totalTimeMs },
-    `[Retry] ${operationName} exhausted all retry attempts`
-  );
+  const error = new RetryError(`${operationName} failed after ${maxAttempts} attempts`, maxAttempts, lastError);
+  logger?.error({ err: error, attempts: maxAttempts, totalTimeMs }, `[Retry] ${operationName} exhausted all retry attempts`);
   throw error;
 }
 
