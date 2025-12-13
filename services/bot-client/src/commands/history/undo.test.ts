@@ -93,7 +93,10 @@ describe('handleUndo', () => {
     const interaction = createMockInteraction('unknown');
     await handleUndo(interaction);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(interaction, 'Personality "unknown" not found.');
+    expect(mockReplyWithError).toHaveBeenCalledWith(
+      interaction,
+      'Personality "unknown" not found.'
+    );
   });
 
   it('should handle no previous context (400)', async () => {
