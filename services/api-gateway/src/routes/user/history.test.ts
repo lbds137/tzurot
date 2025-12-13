@@ -67,10 +67,7 @@ const TEST_PERSONALITY_SLUG = 'test-personality';
 const TEST_CHANNEL_ID = '123456789012345678';
 
 // Helper to create mock request/response
-function createMockReqRes(
-  body: Record<string, unknown> = {},
-  query: Record<string, unknown> = {}
-) {
+function createMockReqRes(body: Record<string, unknown> = {}, query: Record<string, unknown> = {}) {
   const req = {
     body,
     query,
@@ -142,7 +139,9 @@ describe('/user/history routes', () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
 
       const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { post?: boolean } } }>
+        router.stack as unknown as Array<{
+          route?: { path?: string; methods?: { post?: boolean } };
+        }>
       ).find(layer => layer.route?.path === '/clear' && layer.route?.methods?.post);
       expect(route).toBeDefined();
     });
@@ -151,7 +150,9 @@ describe('/user/history routes', () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
 
       const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { post?: boolean } } }>
+        router.stack as unknown as Array<{
+          route?: { path?: string; methods?: { post?: boolean } };
+        }>
       ).find(layer => layer.route?.path === '/undo' && layer.route?.methods?.post);
       expect(route).toBeDefined();
     });

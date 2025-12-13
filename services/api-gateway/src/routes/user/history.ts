@@ -9,11 +9,7 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  type PrismaClient,
-  ConversationHistoryService,
-} from '@tzurot/common-types';
+import { createLogger, type PrismaClient, ConversationHistoryService } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -115,10 +111,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const result = await getUserPersonalityConfig(discordUserId, personalitySlug);
 
       if (!result) {
-        return sendError(
-          res,
-          ErrorResponses.notFound('User or personality not found')
-        );
+        return sendError(res, ErrorResponses.notFound('User or personality not found'));
       }
 
       const { userId, personalityId, config } = result;
@@ -158,7 +151,8 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
           success: true,
           epoch: now.toISOString(),
           canUndo: previousEpoch !== null,
-          message: 'Conversation context cleared. Previous messages will not be included in AI context.',
+          message:
+            'Conversation context cleared. Previous messages will not be included in AI context.',
         },
         StatusCodes.OK
       );
@@ -184,10 +178,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const result = await getUserPersonalityConfig(discordUserId, personalitySlug);
 
       if (!result) {
-        return sendError(
-          res,
-          ErrorResponses.notFound('User or personality not found')
-        );
+        return sendError(res, ErrorResponses.notFound('User or personality not found'));
       }
 
       const { userId, personalityId, config } = result;
@@ -196,7 +187,9 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       if (config?.previousContextReset === null || config?.previousContextReset === undefined) {
         return sendError(
           res,
-          ErrorResponses.validationError('No previous context to restore. Undo is only available after a clear operation.')
+          ErrorResponses.validationError(
+            'No previous context to restore. Undo is only available after a clear operation.'
+          )
         );
       }
 
@@ -215,7 +208,11 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       });
 
       logger.info(
-        { discordUserId, personalitySlug, restoredEpoch: config.previousContextReset?.toISOString() },
+        {
+          discordUserId,
+          personalitySlug,
+          restoredEpoch: config.previousContextReset?.toISOString(),
+        },
         '[History] Context restored (undo)'
       );
 
@@ -247,20 +244,27 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       };
 
       // Validate required fields
-      if (personalitySlug === undefined || personalitySlug === null || personalitySlug.length === 0) {
-        return sendError(res, ErrorResponses.validationError('personalitySlug query parameter is required'));
+      if (
+        personalitySlug === undefined ||
+        personalitySlug === null ||
+        personalitySlug.length === 0
+      ) {
+        return sendError(
+          res,
+          ErrorResponses.validationError('personalitySlug query parameter is required')
+        );
       }
       if (channelId === undefined || channelId === null || channelId.length === 0) {
-        return sendError(res, ErrorResponses.validationError('channelId query parameter is required'));
+        return sendError(
+          res,
+          ErrorResponses.validationError('channelId query parameter is required')
+        );
       }
 
       const result = await getUserPersonalityConfig(discordUserId, personalitySlug);
 
       if (!result) {
-        return sendError(
-          res,
-          ErrorResponses.notFound('User or personality not found')
-        );
+        return sendError(res, ErrorResponses.notFound('User or personality not found'));
       }
 
       const { personalityId, config } = result;
@@ -286,10 +290,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       // Calculate hidden messages
       const hiddenMessages = totalStats.totalMessages - visibleStats.totalMessages;
 
-      logger.debug(
-        { discordUserId, personalitySlug, channelId },
-        '[History] Stats retrieved'
-      );
+      logger.debug({ discordUserId, personalitySlug, channelId }, '[History] Stats retrieved');
 
       sendCustomSuccess(
         res,
@@ -315,7 +316,8 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
           },
           // Epoch info
           contextEpoch: epoch?.toISOString() ?? null,
-          canUndo: config?.previousContextReset !== null && config?.previousContextReset !== undefined,
+          canUndo:
+            config?.previousContextReset !== null && config?.previousContextReset !== undefined,
         },
         StatusCodes.OK
       );
@@ -335,7 +337,11 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const { personalitySlug, channelId } = req.body as HardDeleteRequest;
 
       // Validate required fields
-      if (personalitySlug === undefined || personalitySlug === null || personalitySlug.length === 0) {
+      if (
+        personalitySlug === undefined ||
+        personalitySlug === null ||
+        personalitySlug.length === 0
+      ) {
         return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
       }
       if (channelId === undefined || channelId === null || channelId.length === 0) {
@@ -345,10 +351,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const result = await getUserPersonalityConfig(discordUserId, personalitySlug);
 
       if (!result) {
-        return sendError(
-          res,
-          ErrorResponses.notFound('User or personality not found')
-        );
+        return sendError(res, ErrorResponses.notFound('User or personality not found'));
       }
 
       const { userId, personalityId, config } = result;

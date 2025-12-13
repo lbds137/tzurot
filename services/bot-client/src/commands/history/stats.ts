@@ -94,24 +94,23 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       description += '\n\n*Some messages are hidden due to a context clear.*';
     }
 
-    const embed = createInfoEmbed('Conversation Statistics', description)
-      .addFields(
-        {
-          name: 'Visible Messages',
-          value: `${data.visible.totalMessages} messages\n(${data.visible.userMessages} from you, ${data.visible.assistantMessages} from AI)`,
-          inline: true,
-        },
-        {
-          name: 'Hidden Messages',
-          value: data.hidden.count > 0 ? `${data.hidden.count} messages` : 'None',
-          inline: true,
-        },
-        {
-          name: 'Total Stored',
-          value: `${data.total.totalMessages} messages`,
-          inline: true,
-        }
-      );
+    const embed = createInfoEmbed('Conversation Statistics', description).addFields(
+      {
+        name: 'Visible Messages',
+        value: `${data.visible.totalMessages} messages\n(${data.visible.userMessages} from you, ${data.visible.assistantMessages} from AI)`,
+        inline: true,
+      },
+      {
+        name: 'Hidden Messages',
+        value: data.hidden.count > 0 ? `${data.hidden.count} messages` : 'None',
+        inline: true,
+      },
+      {
+        name: 'Total Stored',
+        value: `${data.total.totalMessages} messages`,
+        inline: true,
+      }
+    );
 
     // Add date range if there are visible messages
     if (data.visible.totalMessages > 0) {

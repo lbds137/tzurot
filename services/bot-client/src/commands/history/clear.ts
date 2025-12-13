@@ -54,15 +54,13 @@ export async function handleClear(interaction: ChatInputCommandInteraction): Pro
       'Context Cleared',
       `Conversation context with **${personalitySlug}** has been cleared.\n\n` +
         'Previous messages will no longer be included in AI responses.'
-    ).addFields(
-      {
-        name: 'Undo Available',
-        value: data.canUndo
-          ? 'Use `/history undo` to restore the previous context.'
-          : 'This was your first clear, no previous context to restore.',
-        inline: false,
-      }
-    );
+    ).addFields({
+      name: 'Undo Available',
+      value: data.canUndo
+        ? 'Use `/history undo` to restore the previous context.'
+        : 'This was your first clear, no previous context to restore.',
+      inline: false,
+    });
 
     await interaction.editReply({ embeds: [embed] });
 

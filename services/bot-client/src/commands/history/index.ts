@@ -246,9 +246,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
       if (parsed.action === 'confirm_button') {
         // Parse the entityId to get personalitySlug and channelId
-        const entityInfo = parsed.entityId !== undefined
-          ? parseHardDeleteEntityId(parsed.entityId)
-          : null;
+        const entityInfo =
+          parsed.entityId !== undefined ? parseHardDeleteEntityId(parsed.entityId) : null;
 
         if (entityInfo === null) {
           logger.warn({ entityId: parsed.entityId }, '[History] Failed to parse entityId');
