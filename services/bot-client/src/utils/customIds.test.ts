@@ -12,6 +12,7 @@ import {
   MeCustomIds,
   WalletCustomIds,
   PresetCustomIds,
+  DestructiveCustomIds,
   getCommandFromCustomId,
 } from './customIds.js';
 
@@ -553,6 +554,148 @@ describe('customIds', () => {
     describe('PresetCustomIds - all builders must use :: delimiter', () => {
       it('menu', () => assertValidCustomId(PresetCustomIds.menu('test'), 'preset'));
       it('modal', () => assertValidCustomId(PresetCustomIds.modal('test', 'section'), 'preset'));
+    });
+
+    describe('DestructiveCustomIds - all builders must use :: delimiter', () => {
+      it('confirmButton with entityId', () => {
+        const customId = DestructiveCustomIds.confirmButton('history', 'hard-delete', 'entity-123');
+        expect(customId).toContain('::');
+        expect(customId.startsWith('history::')).toBe(true);
+      });
+      it('confirmButton without entityId', () => {
+        const customId = DestructiveCustomIds.confirmButton('history', 'hard-delete');
+        expect(customId).toContain('::');
+        expect(customId.startsWith('history::')).toBe(true);
+      });
+      it('cancelButton', () => {
+        const customId = DestructiveCustomIds.cancelButton('history', 'hard-delete', 'entity-123');
+        expect(customId).toContain('::');
+        expect(customId.startsWith('history::')).toBe(true);
+      });
+      it('modalSubmit', () => {
+        const customId = DestructiveCustomIds.modalSubmit('history', 'hard-delete', 'entity-123');
+        expect(customId).toContain('::');
+        expect(customId.startsWith('history::')).toBe(true);
+      });
+    });
+  });
+
+  describe('DestructiveCustomIds', () => {
+    describe('builders', () => {
+      it('should build confirmButton with entityId', () => {
+        expect(
+          DestructiveCustomIds.confirmButton('history', 'hard-delete', 'lilith_channel-123')
+        ).toBe('history::destructive::confirm_button::hard-delete::lilith_channel-123');
+      });
+
+      it('should build confirmButton without entityId', () => {
+        expect(DestructiveCustomIds.confirmButton('history', 'hard-delete')).toBe(
+          'history::destructive::confirm_button::hard-delete'
+        );
+      });
+
+      it('should build cancelButton with entityId', () => {
+        expect(
+          DestructiveCustomIds.cancelButton('history', 'hard-delete', 'lilith_channel-123')
+        ).toBe('history::destructive::cancel_button::hard-delete::lilith_channel-123');
+      });
+
+      it('should build cancelButton without entityId', () => {
+        expect(DestructiveCustomIds.cancelButton('history', 'hard-delete')).toBe(
+          'history::destructive::cancel_button::hard-delete'
+        );
+      });
+
+      it('should build modalSubmit with entityId', () => {
+        expect(
+          DestructiveCustomIds.modalSubmit('history', 'hard-delete', 'lilith_channel-123')
+        ).toBe('history::destructive::modal_submit::hard-delete::lilith_channel-123');
+      });
+
+      it('should build modalSubmit without entityId', () => {
+        expect(DestructiveCustomIds.modalSubmit('history', 'hard-delete')).toBe(
+          'history::destructive::modal_submit::hard-delete'
+        );
+      });
+    });
+
+    describe('parse', () => {
+      it('should parse confirm_button action with entityId', () => {
+        const result = DestructiveCustomIds.parse(
+          'history::destructive::confirm_button::hard-delete::lilith_channel-123'
+        );
+        expect(result).toEqual({
+          source: 'history',
+          action: 'confirm_button',
+          operation: 'hard-delete',
+          entityId: 'lilith_channel-123',
+        });
+      });
+
+      it('should parse cancel_button action', () => {
+        const result = DestructiveCustomIds.parse(
+          'history::destructive::cancel_button::hard-delete::entity-123'
+        );
+        expect(result).toEqual({
+          source: 'history',
+          action: 'cancel_button',
+          operation: 'hard-delete',
+          entityId: 'entity-123',
+        });
+      });
+
+      it('should parse modal_submit action', () => {
+        const result = DestructiveCustomIds.parse(
+          'history::destructive::modal_submit::hard-delete::entity-123'
+        );
+        expect(result).toEqual({
+          source: 'history',
+          action: 'modal_submit',
+          operation: 'hard-delete',
+          entityId: 'entity-123',
+        });
+      });
+
+      it('should parse without entityId', () => {
+        const result = DestructiveCustomIds.parse(
+          'history::destructive::confirm_button::hard-delete'
+        );
+        expect(result).toEqual({
+          source: 'history',
+          action: 'confirm_button',
+          operation: 'hard-delete',
+          entityId: undefined,
+        });
+      });
+
+      it('should return null for non-destructive customId', () => {
+        expect(DestructiveCustomIds.parse('character::seed')).toBeNull();
+      });
+
+      it('should return null for malformed destructive customId (too short)', () => {
+        expect(DestructiveCustomIds.parse('history::destructive::confirm')).toBeNull();
+      });
+    });
+
+    describe('isDestructive', () => {
+      it('should return true for destructive customIds', () => {
+        expect(
+          DestructiveCustomIds.isDestructive(
+            'history::destructive::confirm_button::hard-delete::entity'
+          )
+        ).toBe(true);
+      });
+
+      it('should return true regardless of source command', () => {
+        expect(
+          DestructiveCustomIds.isDestructive('character::destructive::confirm_button::delete')
+        ).toBe(true);
+      });
+
+      it('should return false for non-destructive customIds', () => {
+        expect(DestructiveCustomIds.isDestructive('character::seed')).toBe(false);
+        expect(DestructiveCustomIds.isDestructive('me::profile::create')).toBe(false);
+      });
     });
   });
 });

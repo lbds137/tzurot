@@ -1,7 +1,7 @@
 ---
 name: tzurot-architecture
 description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
-lastUpdated: '2025-12-08'
+lastUpdated: '2025-12-13'
 ---
 
 # Tzurot v3 Architecture
@@ -401,6 +401,66 @@ function formatUsername(username: string): string {
   return `@${username}`;
 }
 ```
+
+## Reusable Utility Patterns
+
+**Extract reusable utilities when patterns repeat across commands**
+
+### Example: Autocomplete Utilities
+
+When multiple slash commands need similar autocomplete behavior, extract to shared utilities:
+
+```typescript
+// ✅ GOOD - Shared utility in bot-client/src/utils/autocomplete/
+// services/bot-client/src/utils/autocomplete/personaAutocomplete.ts
+export async function handlePersonaAutocomplete(
+  interaction: AutocompleteInteraction,
+  options: {
+    optionName?: string;
+    includeCreateNew?: boolean;
+    logPrefix?: string;
+  } = {}
+): Promise<void> {
+  // Reusable logic for persona selection
+}
+
+// Usage in command handlers
+await handlePersonaAutocomplete(interaction, {
+  optionName: 'profile',
+  includeCreateNew: false,
+  logPrefix: '[History]',
+});
+```
+
+### Example: Destructive Confirmation Flow
+
+For dangerous operations (delete, hard-reset), use the standardized confirmation flow:
+
+```typescript
+// services/bot-client/src/utils/destructiveConfirmation.ts
+// Button → Modal → Typed confirmation pattern
+
+// Usage:
+const config = createHardDeleteConfig({
+  entityType: 'conversation history',
+  entityName: personalitySlug,
+  source: 'history',
+  operation: 'hard-delete',
+  entityId: `${personalitySlug}_${channelId}`,
+});
+await sendDestructiveConfirmation(interaction, config);
+```
+
+**When to extract utilities:**
+
+- Pattern used by 2+ commands
+- Complex logic that benefits from centralization
+- Consistent UX is important (autocomplete, confirmation flows)
+
+**Where to put utilities:**
+
+- Command-specific utils → `bot-client/src/utils/`
+- Shared across services → `common-types/src/utils/`
 
 ## Database Access Patterns
 

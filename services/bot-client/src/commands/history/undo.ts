@@ -65,7 +65,8 @@ export async function handleUndo(interaction: ChatInputCommandInteraction): Prom
     const embed = createSuccessEmbed(
       'Context Restored',
       `Previous conversation context with **${personalitySlug}** has been restored.\n\n` +
-        'The last clear operation has been undone.'
+        'The last clear operation has been undone.\n\n' +
+        '*Note: Only one level of undo is supported.*'
     );
 
     await interaction.editReply({ embeds: [embed] });
