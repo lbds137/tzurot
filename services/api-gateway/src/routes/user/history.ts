@@ -41,6 +41,7 @@ interface UndoHistoryRequest {
 interface HardDeleteRequest {
   personalitySlug: string;
   channelId: string;
+  personaId?: string; // Optional - if not provided, uses resolved persona
 }
 
 export function createHistoryRoutes(prisma: PrismaClient): Router {
@@ -453,18 +454,19 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
 
   /**
    * DELETE /user/history/hard-delete
-   * Permanently delete conversation history for a channel + personality
+   * Permanently delete conversation history for a channel + personality + persona
    * This is a destructive operation - data cannot be recovered
    *
-   * Note: This deletes ALL messages for the channel regardless of persona.
-   * All per-persona epoch configs for this user+personality are also cleared.
+   * Deletes messages for the resolved persona (consistent with clear/undo/stats).
+   * Optional personaId parameter allows targeting a specific persona.
    */
   router.delete(
     '/hard-delete',
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const { personalitySlug, channelId } = req.body as HardDeleteRequest;
+      const { personalitySlug, channelId, personaId: explicitPersonaId } =
+        req.body as HardDeleteRequest;
 
       // Validate required fields
       if (
@@ -478,38 +480,44 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return sendError(res, ErrorResponses.validationError('channelId is required'));
       }
 
-      // Find user
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-      });
+      // Use getHistoryContext for consistency with other history commands
+      const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
 
-      if (!user) {
-        return sendError(res, ErrorResponses.notFound('User not found'));
+      if (!context) {
+        return sendError(
+          res,
+          ErrorResponses.notFound(
+            'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
+          )
+        );
       }
 
-      // Find personality by slug
-      const personality = await prisma.personality.findUnique({
-        where: { slug: personalitySlug },
-      });
+      const { userId, personalityId, personaId } = context;
 
-      if (!personality) {
-        return sendError(res, ErrorResponses.notFound('Personality not found'));
-      }
+      // Delete only messages for resolved/specified persona
+      const deletedCount = await conversationHistoryService.clearHistory(
+        channelId,
+        personalityId,
+        personaId
+      );
 
-      // Delete conversation history for this channel + personality
-      const deletedCount = await conversationHistoryService.clearHistory(channelId, personality.id);
-
-      // Clear ALL per-persona epoch configs for this user+personality
-      // (since all history is gone, the epochs are meaningless)
+      // Clear only this persona's epoch config
       await prisma.userPersonaHistoryConfig.deleteMany({
         where: {
-          userId: user.id,
-          personalityId: personality.id,
+          userId,
+          personalityId,
+          personaId,
         },
       });
 
       logger.info(
-        { discordUserId, personalitySlug, channelId, deletedCount },
+        {
+          discordUserId,
+          personalitySlug,
+          channelId,
+          personaId: personaId.substring(0, 8),
+          deletedCount,
+        },
         '[History] Hard delete completed'
       );
 
@@ -518,6 +526,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         {
           success: true,
           deletedCount,
+          personaId,
           message: `Permanently deleted ${deletedCount} message${deletedCount === 1 ? '' : 's'} from conversation history.`,
         },
         StatusCodes.OK
