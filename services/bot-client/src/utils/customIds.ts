@@ -275,6 +275,95 @@ export const PresetCustomIds = {
 } as const;
 
 // ============================================================================
+// DESTRUCTIVE CONFIRMATION (Reusable pattern for dangerous operations)
+// ============================================================================
+
+/**
+ * Parsed result for destructive confirmation custom IDs
+ *
+ * Format: {source}::destructive::{action}::{operation}::{entityId}
+ * This format ensures the customId routes to the source command's handleButton.
+ */
+interface DestructiveParseResult {
+  /** The source command (e.g., 'history', 'character') */
+  source: string;
+  /** The action type */
+  action: 'confirm_button' | 'cancel_button' | 'modal_submit';
+  /** Operation identifier (e.g., 'hard-delete', 'delete') */
+  operation: string;
+  /** Entity identifier (personality slug, etc.) */
+  entityId?: string;
+}
+
+export const DestructiveCustomIds = {
+  /**
+   * Build confirm button customId
+   * Format: {source}::destructive::confirm_button::{operation}::{entityId}
+   * @param source - Source command (e.g., 'history', 'character')
+   * @param operation - Operation name (e.g., 'hard-delete')
+   * @param entityId - Optional entity identifier
+   */
+  confirmButton: (source: string, operation: string, entityId?: string) =>
+    entityId !== undefined
+      ? (`${source}::destructive::confirm_button::${operation}::${entityId}` as const)
+      : (`${source}::destructive::confirm_button::${operation}` as const),
+
+  /**
+   * Build cancel button customId
+   * Format: {source}::destructive::cancel_button::{operation}::{entityId}
+   * @param source - Source command (e.g., 'history', 'character')
+   * @param operation - Operation name (e.g., 'hard-delete')
+   * @param entityId - Optional entity identifier
+   */
+  cancelButton: (source: string, operation: string, entityId?: string) =>
+    entityId !== undefined
+      ? (`${source}::destructive::cancel_button::${operation}::${entityId}` as const)
+      : (`${source}::destructive::cancel_button::${operation}` as const),
+
+  /**
+   * Build modal submit customId
+   * Format: {source}::destructive::modal_submit::{operation}::{entityId}
+   * @param source - Source command (e.g., 'history', 'character')
+   * @param operation - Operation name (e.g., 'hard-delete')
+   * @param entityId - Optional entity identifier
+   */
+  modalSubmit: (source: string, operation: string, entityId?: string) =>
+    entityId !== undefined
+      ? (`${source}::destructive::modal_submit::${operation}::${entityId}` as const)
+      : (`${source}::destructive::modal_submit::${operation}` as const),
+
+  /**
+   * Parse destructive customId
+   * Expected format: {source}::destructive::{action}::{operation}::{entityId?}
+   */
+  parse: (customId: string): DestructiveParseResult | null => {
+    const parts = customId.split(CUSTOM_ID_DELIMITER);
+    // Format: source::destructive::action::operation[::entityId]
+    if (parts.length < 4 || parts[1] !== 'destructive') {
+      return null;
+    }
+
+    const source = parts[0];
+    const action = parts[2] as 'confirm_button' | 'cancel_button' | 'modal_submit';
+    const operation = parts[3];
+    const entityId = parts[4];
+
+    return {
+      source,
+      action,
+      operation,
+      entityId,
+    };
+  },
+
+  /**
+   * Check if customId belongs to destructive confirmation flow
+   * Checks for "::destructive::" pattern anywhere in the customId
+   */
+  isDestructive: (customId: string): boolean => customId.includes('::destructive::'),
+} as const;
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 

@@ -87,13 +87,13 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 
 **Design Principle**: `/memory browse` opens a dashboard-style navigator. Individual memory operations (edit, delete, lock) happen within the browse UI via buttons. Standalone `/memory delete` and `/memory purge` are for **batch operations**.
 
-| Subcommand | Description                                 | Tier | Options                                                                    |
-| ---------- | ------------------------------------------- | ---- | -------------------------------------------------------------------------- |
-| `search`   | Semantic search → opens browser at results  | 3    | `query:`, `personality:`, `persona:`, `date-range:`, `server:`, `channel:` |
-| `browse`   | Open memory browser dashboard               | 2    | `personality:`, `persona:` (filters applied before browsing)               |
-| `delete`   | **Batch** delete with filters               | 1    | `personality:`, `persona:`, `timeframe:`, **requires confirmation**        |
-| `purge`    | Delete ALL memories for personality         | 1    | `personality:`, **requires typed confirmation**                            |
-| `stats`    | View memory statistics                      | 0    | `personality:`                                                             |
+| Subcommand | Description                                | Tier | Options                                                                    |
+| ---------- | ------------------------------------------ | ---- | -------------------------------------------------------------------------- |
+| `search`   | Semantic search → opens browser at results | 3    | `query:`, `personality:`, `persona:`, `date-range:`, `server:`, `channel:` |
+| `browse`   | Open memory browser dashboard              | 2    | `personality:`, `persona:` (filters applied before browsing)               |
+| `delete`   | **Batch** delete with filters              | 1    | `personality:`, `persona:`, `timeframe:`, **requires confirmation**        |
+| `purge`    | Delete ALL memories for personality        | 1    | `personality:`, **requires typed confirmation**                            |
+| `stats`    | View memory statistics                     | 0    | `personality:`                                                             |
 
 **From within Browse Dashboard** (buttons, not subcommands):
 
@@ -273,6 +273,7 @@ interface IncognitoSession {
 ```
 
 **Dashboard Session**: Uses the existing `SessionManager` pattern:
+
 - Tracks current memory index, filter state, total count
 - Buttons update the session and refresh the embed
 - 15-minute inactivity timeout (configurable)
@@ -530,12 +531,12 @@ When incognito is active, bot responses include:
 
 **Incognito Routes:**
 
-| Method | Route                    | Description        |
-| ------ | ------------------------ | ------------------ |
-| POST   | `/user/incognito`        | Enable incognito   |
-| DELETE | `/user/incognito`        | Disable incognito  |
+| Method | Route                    | Description          |
+| ------ | ------------------------ | -------------------- |
+| POST   | `/user/incognito`        | Enable incognito     |
+| DELETE | `/user/incognito`        | Disable incognito    |
 | GET    | `/user/incognito`        | Get incognito status |
-| POST   | `/user/incognito/forget` | Retroactive delete |
+| POST   | `/user/incognito/forget` | Retroactive delete   |
 
 **Note**: Browse dashboard session state is managed client-side (in bot-client) using the `SessionManager` pattern, not via API. Only data fetching goes through gateway.
 

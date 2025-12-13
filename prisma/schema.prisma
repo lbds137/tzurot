@@ -248,6 +248,13 @@ model UserPersonalityConfig {
   llmConfigId   String?     @map("llm_config_id") @db.Uuid
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // STM Epoch System - Non-destructive conversation history filtering
+  // Messages older than lastContextReset are excluded from AI context
+  // See ADR-003 in docs/planning/SLASH_COMMAND_ARCHITECTURE.md
+  lastContextReset     DateTime? @map("last_context_reset")
+  previousContextReset DateTime? @map("previous_context_reset") // For undo support
+
   llmConfig     LlmConfig?  @relation(fields: [llmConfigId], references: [id])
   persona       Persona?    @relation(fields: [personaId], references: [id])
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)

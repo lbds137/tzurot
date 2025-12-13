@@ -31,6 +31,9 @@
  * - GET /user/persona/override - List persona overrides
  * - PUT /user/persona/override/:personalitySlug - Set persona override
  * - DELETE /user/persona/override/:personalitySlug - Clear persona override
+ * - POST /user/history/clear - Clear context (set epoch timestamp)
+ * - POST /user/history/undo - Restore previous context epoch
+ * - GET /user/history/stats - Get conversation history statistics
  */
 
 import { Router } from 'express';
@@ -45,6 +48,7 @@ import { createPersonalityRoutes } from './personality/index.js';
 import { createLlmConfigRoutes } from './llm-config.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
+import { createHistoryRoutes } from './history.js';
 
 /**
  * Create user router with injected dependencies
@@ -76,6 +80,9 @@ export function createUserRouter(
 
   // Persona routes (user profiles that tell AI about the user)
   router.use('/persona', createPersonaRoutes(prisma));
+
+  // History routes (STM management via context epochs)
+  router.use('/history', createHistoryRoutes(prisma));
 
   return router;
 }
