@@ -199,17 +199,29 @@ export class ConversationHistoryService {
   /**
    * Get recent conversation history for a channel + personality
    * Returns messages in chronological order (oldest first)
+   *
+   * @param channelId Channel ID
+   * @param personalityId Personality ID
+   * @param limit Number of messages to fetch (default: 20)
+   * @param contextEpoch Optional epoch timestamp - messages before this time are excluded (STM reset)
    */
   async getRecentHistory(
     channelId: string,
     personalityId: string,
-    limit = 20
+    limit = 20,
+    contextEpoch?: Date
   ): Promise<ConversationMessage[]> {
     try {
       const messages = await this.prisma.conversationHistory.findMany({
         where: {
           channelId,
           personalityId,
+          // Filter by context epoch if provided (STM reset feature)
+          ...(contextEpoch !== undefined && {
+            createdAt: {
+              gt: contextEpoch,
+            },
+          }),
         },
         orderBy: {
           createdAt: 'desc',
@@ -275,13 +287,15 @@ export class ConversationHistoryService {
    * @param personalityId Personality ID
    * @param limit Number of messages to fetch (default: 20, max: 100)
    * @param cursor Optional cursor (message ID) to fetch messages before
+   * @param contextEpoch Optional epoch timestamp - messages before this time are excluded (STM reset)
    * @returns Paginated messages and cursor for next page
    */
   async getHistory(
     channelId: string,
     personalityId: string,
     limit = 20,
-    cursor?: string
+    cursor?: string,
+    contextEpoch?: Date
   ): Promise<{
     messages: ConversationMessage[];
     hasMore: boolean;
@@ -295,6 +309,12 @@ export class ConversationHistoryService {
         where: {
           channelId,
           personalityId,
+          // Filter by context epoch if provided (STM reset feature)
+          ...(contextEpoch !== undefined && {
+            createdAt: {
+              gt: contextEpoch,
+            },
+          }),
         },
         orderBy: {
           createdAt: 'desc',
@@ -500,6 +520,75 @@ export class ConversationHistoryService {
     } catch (error) {
       logger.error({ err: error }, `Failed to clear conversation history`);
       throw error;
+    }
+  }
+
+  /**
+   * Get conversation history statistics for a channel + personality
+   * Used for /history stats command
+   *
+   * @param channelId Channel ID
+   * @param personalityId Personality ID
+   * @param contextEpoch Optional epoch timestamp - messages before this time are excluded
+   * @returns Statistics about the conversation history
+   */
+  async getHistoryStats(
+    channelId: string,
+    personalityId: string,
+    contextEpoch?: Date
+  ): Promise<{
+    totalMessages: number;
+    userMessages: number;
+    assistantMessages: number;
+    oldestMessage?: Date;
+    newestMessage?: Date;
+  }> {
+    try {
+      const whereClause = {
+        channelId,
+        personalityId,
+        ...(contextEpoch !== undefined && {
+          createdAt: {
+            gt: contextEpoch,
+          },
+        }),
+      };
+
+      // Get counts by role
+      const [total, userCount, assistantCount, oldest, newest] = await Promise.all([
+        this.prisma.conversationHistory.count({ where: whereClause }),
+        this.prisma.conversationHistory.count({
+          where: { ...whereClause, role: MessageRole.User },
+        }),
+        this.prisma.conversationHistory.count({
+          where: { ...whereClause, role: MessageRole.Assistant },
+        }),
+        this.prisma.conversationHistory.findFirst({
+          where: whereClause,
+          orderBy: { createdAt: 'asc' },
+          select: { createdAt: true },
+        }),
+        this.prisma.conversationHistory.findFirst({
+          where: whereClause,
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      ]);
+
+      return {
+        totalMessages: total,
+        userMessages: userCount,
+        assistantMessages: assistantCount,
+        oldestMessage: oldest?.createdAt,
+        newestMessage: newest?.createdAt,
+      };
+    } catch (error) {
+      logger.error({ err: error }, `Failed to get conversation history stats`);
+      return {
+        totalMessages: 0,
+        userMessages: 0,
+        assistantMessages: 0,
+      };
     }
   }
 

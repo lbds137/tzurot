@@ -12,16 +12,22 @@
 
 ## Active: Memory Management Commands
 
-**Planning completed**. Implementation plan at [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md).
+**Phase 1 COMPLETE**: STM Management implemented. See [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md).
 
-Key features:
+**Completed in Phase 1:**
 
-- **STM**: Context epochs for non-destructive clearing with undo
-- **LTM**: Search, browse, edit, delete, purge with filtering
-- **Incognito Mode**: Timed session to disable LTM recording
-- **Memory locking**: Protect "core memories" from bulk purge
+- Schema migration: Added `lastContextReset` and `previousContextReset` to UserPersonalityConfig
+- ConversationHistoryService: Epoch filtering for getRecentHistory, getHistory, and new getHistoryStats
+- Gateway routes: POST /user/history/clear, POST /user/history/undo, GET /user/history/stats
+- Slash commands: `/history clear`, `/history undo`, `/history stats`
 
-**Next implementation step**: Phase 1 - STM Management (schema migration + `/history` commands)
+**Remaining features:**
+
+- **LTM**: Search, browse, edit, delete, purge with filtering (Phase 2)
+- **Incognito Mode**: Timed session to disable LTM recording (Phase 3)
+- **Memory locking**: Protect "core memories" from bulk purge (Phase 3)
+
+**Next step**: Deploy migration to apply epoch fields to production database
 
 ---
 
@@ -71,6 +77,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 - `/me model` - Model overrides (set, reset, list, set-default, clear-default)
 - `/me timezone` - Timezone settings (set, get)
 - `/preset` - User presets (create, list, delete) - **missing: edit**
+- `/history` - Conversation history (clear, undo, stats) - **NEW**
 
 **Admin:**
 
