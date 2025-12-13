@@ -17,10 +17,97 @@ import {
   imageDescriptionJobDataSchema,
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
-import { withRetry } from '../utils/retryService.js';
+import { withRetry } from '../utils/retry.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
+
+/** Result of processing a single image */
+interface ImageProcessResult {
+  url: string;
+  description?: string;
+  error?: string;
+  success: boolean;
+}
+
+/**
+ * Resolve guest mode status via BYOK lookup
+ */
+async function resolveGuestModeStatus(
+  apiKeyResolver: ApiKeyResolver | undefined,
+  userId: string
+): Promise<boolean> {
+  if (!apiKeyResolver) {
+    return false;
+  }
+
+  try {
+    const keyResult = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
+    logger.debug(
+      { userId, isGuestMode: keyResult.isGuestMode },
+      '[ImageDescriptionJob] Resolved guest mode status'
+    );
+    return keyResult.isGuestMode;
+  } catch (error) {
+    logger.warn(
+      { err: error, userId },
+      '[ImageDescriptionJob] Failed to resolve API key, defaulting to guest mode'
+    );
+    return true;
+  }
+}
+
+/**
+ * Process a single image attachment with retry logic
+ */
+async function processSingleImage(
+  attachment: ImageDescriptionJobData['attachments'][0],
+  personality: ImageDescriptionJobData['personality'],
+  isGuestMode: boolean
+): Promise<ImageProcessResult> {
+  try {
+    const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
+      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      logger,
+      operationName: `Image description (${attachment.name})`,
+    });
+    return { url: attachment.url, description: result.value, success: true };
+  } catch (error) {
+    logger.warn(
+      { url: attachment.url, err: error },
+      'Image description failed after retries - continuing with other images'
+    );
+    return {
+      url: attachment.url,
+      error: error instanceof Error ? error.message : String(error),
+      success: false,
+    };
+  }
+}
+
+/**
+ * Build error result when all images fail
+ */
+function buildAllFailedResult(
+  requestId: string,
+  results: ImageProcessResult[],
+  totalImages: number,
+  sourceReferenceNumber?: number
+): ImageDescriptionResult {
+  const failureDetails = results
+    .filter(r => !r.success)
+    .map(r => `${r.url}: ${r.error}`)
+    .join('; ');
+
+  logger.error({ requestId, totalImages, failureDetails }, 'All image descriptions failed');
+
+  return {
+    requestId,
+    success: false,
+    error: `All images failed processing. Details: ${failureDetails}`,
+    sourceReferenceNumber,
+  };
+}
 
 /**
  * Process image description job
@@ -38,44 +125,17 @@ export async function processImageDescriptionJob(
   const validation = imageDescriptionJobDataSchema.safeParse(job.data);
   if (!validation.success) {
     logger.error(
-      {
-        jobId: job.id,
-        errors: validation.error.format(),
-      },
+      { jobId: job.id, errors: validation.error.format() },
       '[ImageDescriptionJob] Job validation failed'
     );
     throw new Error(`Image description job validation failed: ${validation.error.message}`);
   }
 
   const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
-
-  // Resolve guest mode status via BYOK lookup
-  let isGuestMode = false;
-  if (apiKeyResolver) {
-    try {
-      const keyResult = await apiKeyResolver.resolveApiKey(context.userId, AIProvider.OpenRouter);
-      isGuestMode = keyResult.isGuestMode;
-      logger.debug(
-        { userId: context.userId, isGuestMode },
-        '[ImageDescriptionJob] Resolved guest mode status'
-      );
-    } catch (error) {
-      // If resolution fails, default to guest mode (use free vision model)
-      isGuestMode = true;
-      logger.warn(
-        { err: error, userId: context.userId },
-        '[ImageDescriptionJob] Failed to resolve API key, defaulting to guest mode'
-      );
-    }
-  }
+  const isGuestMode = await resolveGuestModeStatus(apiKeyResolver, context.userId);
 
   logger.info(
-    {
-      jobId: job.id,
-      requestId,
-      imageCount: attachments.length,
-      personalityName: personality.name,
-    },
+    { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
     '[ImageDescriptionJob] Processing image description job'
   );
 
@@ -87,63 +147,25 @@ export async function processImageDescriptionJob(
       }
     }
 
-    // Process all images in parallel with graceful degradation (partial failures allowed)
-    const descriptionPromises = attachments.map(async attachment => {
-      try {
-        const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
-          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-          logger,
-          operationName: `Image description (${attachment.name})`,
-        });
-        return {
-          url: attachment.url,
-          description: result.value,
-          success: true as const,
-        };
-      } catch (error) {
-        logger.warn(
-          { url: attachment.url, err: error },
-          'Image description failed after retries - continuing with other images'
-        );
-        return {
-          url: attachment.url,
-          error: error instanceof Error ? error.message : String(error),
-          success: false as const,
-        };
-      }
-    });
+    // Process all images in parallel with graceful degradation
+    const results = await Promise.all(
+      attachments.map(attachment => processSingleImage(attachment, personality, isGuestMode))
+    );
 
-    const results = await Promise.all(descriptionPromises);
-
-    // Filter for successful descriptions only
+    // Filter for successful descriptions
     const descriptions = results
-      .filter((r): r is Extract<typeof r, { success: true }> => r.success)
+      .filter(
+        (r): r is ImageProcessResult & { description: string } =>
+          r.success && r.description !== undefined
+      )
       .map(r => ({ url: r.url, description: r.description }));
 
     const failedCount = results.length - descriptions.length;
 
-    // If ALL images failed, return error with details
     if (descriptions.length === 0) {
-      // Collect error details for debugging
-      const failureDetails = results
-        .filter((r): r is Extract<typeof r, { success: false }> => !r.success)
-        .map(r => `${r.url}: ${r.error}`)
-        .join('; ');
-
-      logger.error(
-        { requestId, totalImages: attachments.length, failureDetails },
-        'All image descriptions failed'
-      );
-
-      return {
-        requestId,
-        success: false,
-        error: `All images failed processing. Details: ${failureDetails}`,
-        sourceReferenceNumber,
-      };
+      return buildAllFailedResult(requestId, results, attachments.length, sourceReferenceNumber);
     }
 
-    // Log partial failure warning if some failed
     if (failedCount > 0) {
       logger.warn(
         { requestId, successCount: descriptions.length, failedCount },
@@ -152,14 +174,8 @@ export async function processImageDescriptionJob(
     }
 
     const processingTimeMs = Date.now() - startTime;
-
     logger.info(
-      {
-        jobId: job.id,
-        requestId,
-        processingTimeMs,
-        imageCount: descriptions.length,
-      },
+      { jobId: job.id, requestId, processingTimeMs, imageCount: descriptions.length },
       '[ImageDescriptionJob] Image description completed'
     );
 
@@ -168,15 +184,10 @@ export async function processImageDescriptionJob(
       success: true,
       descriptions,
       sourceReferenceNumber,
-      metadata: {
-        processingTimeMs,
-        imageCount: descriptions.length,
-        failedCount,
-      },
+      metadata: { processingTimeMs, imageCount: descriptions.length, failedCount },
     };
   } catch (error) {
     const processingTimeMs = Date.now() - startTime;
-
     logger.error(
       { err: error, jobId: job.id, requestId },
       '[ImageDescriptionJob] Image description failed'
@@ -187,10 +198,7 @@ export async function processImageDescriptionJob(
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
       sourceReferenceNumber,
-      metadata: {
-        processingTimeMs,
-        imageCount: attachments.length,
-      },
+      metadata: { processingTimeMs, imageCount: attachments.length },
     };
   }
 }

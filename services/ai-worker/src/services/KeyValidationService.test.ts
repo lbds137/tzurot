@@ -29,8 +29,8 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock the retryService withTimeout function
-vi.mock('../utils/retryService.js', async () => {
+// Mock the retry withTimeout function
+vi.mock('../utils/retry.js', async () => {
   return {
     withTimeout: async <T>(
       fn: (signal: AbortSignal) => Promise<T>,
