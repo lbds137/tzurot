@@ -272,9 +272,11 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
 
         // Check if there's anything to undo:
         // - No record = never cleared, nothing to undo
+        if (currentConfig === null) {
+          return { success: false as const, reason: 'no-clear' as const };
+        }
         // - Record exists but lastContextReset is null = already at full visibility
-        // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
-        if (currentConfig === null || currentConfig.lastContextReset === null) {
+        if (currentConfig.lastContextReset === null) {
           return { success: false as const, reason: 'no-clear' as const };
         }
 
