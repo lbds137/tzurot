@@ -38,9 +38,7 @@ describe('buildDestructiveWarning', () => {
     expect(result.embeds).toHaveLength(1);
     const embed = result.embeds[0];
     expect(embed.data.title).toBe('Delete History');
-    expect(embed.data.description).toBe(
-      'This will permanently delete your conversation history.'
-    );
+    expect(embed.data.description).toBe('This will permanently delete your conversation history.');
   });
 
   it('should build buttons with correct styles', () => {
