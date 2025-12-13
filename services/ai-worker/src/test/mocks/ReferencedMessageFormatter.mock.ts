@@ -18,6 +18,12 @@ let mockInstance: MockReferencedMessageFormatterInstance | null = null;
 
 /**
  * Create fresh mock functions with default implementations
+ *
+ * **Default Behaviors:**
+ * - `formatReferencedMessages()` → Resolves to `'formatted references'`
+ * - `extractTextForSearch()` → Returns `'reference text for search'`
+ *
+ * Override in tests: `getReferencedMessageFormatterMock().formatReferencedMessages.mockResolvedValue('custom')`
  */
 function createMockFunctions(): MockReferencedMessageFormatterInstance {
   return {
@@ -38,7 +44,6 @@ export const mockReferencedMessageFormatter = {
       const fns = createMockFunctions();
       this.formatReferencedMessages = fns.formatReferencedMessages;
       this.extractTextForSearch = fns.extractTextForSearch;
-      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },

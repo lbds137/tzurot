@@ -32,6 +32,12 @@ let mockInstance: MockLLMInvokerInstance | null = null;
 
 /**
  * Create fresh mock functions with default implementations
+ *
+ * **Default Behaviors:**
+ * - `getModel()` → Returns `{ model: { invoke: fn }, modelName: 'test-model' }`
+ * - `invokeWithRetry()` → Resolves to `{ content: 'AI response' }`
+ *
+ * Override in tests: `getLLMInvokerMock().invokeWithRetry.mockResolvedValue({ content: 'Custom' })`
  */
 function createMockFunctions(): MockLLMInvokerInstance {
   return {
@@ -59,7 +65,6 @@ export const mockLLMInvoker = {
       const fns = createMockFunctions();
       this.getModel = fns.getModel;
       this.invokeWithRetry = fns.invokeWithRetry;
-      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },

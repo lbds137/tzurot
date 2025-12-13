@@ -31,6 +31,14 @@ let mockInstance: MockMemoryRetrieverInstance | null = null;
 
 /**
  * Create fresh mock functions with default implementations
+ *
+ * **Default Behaviors:**
+ * - `retrieveRelevantMemories()` → Resolves to `[]` (empty memories - tests can add via override)
+ * - `getAllParticipantPersonas()` → Resolves to empty `Map()` (no participants)
+ * - `resolvePersonaForMemory()` → Resolves to `{ personaId: 'persona-123', shareLtmAcrossPersonalities: false }`
+ * - `getUserPersonaForPersonality()` → Same as resolvePersonaForMemory
+ *
+ * Override in tests: `getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue([...])`
  */
 function createMockFunctions(): MockMemoryRetrieverInstance {
   return {
@@ -63,7 +71,6 @@ export const mockMemoryRetriever = {
       this.getAllParticipantPersonas = fns.getAllParticipantPersonas;
       this.resolvePersonaForMemory = fns.resolvePersonaForMemory;
       this.getUserPersonaForPersonality = fns.getUserPersonaForPersonality;
-      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },

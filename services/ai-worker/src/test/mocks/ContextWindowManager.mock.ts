@@ -23,6 +23,16 @@ let mockInstance: MockContextWindowManagerInstance | null = null;
 
 /**
  * Create fresh mock functions with default implementations
+ *
+ * **Default Behaviors:**
+ * - `buildContext()` → Returns complete context with 8000 token budget, empty history
+ * - `calculateHistoryBudget()` → Returns `7000` tokens
+ * - `selectAndSerializeHistory()` → Returns serialized history with 1 message, 50 tokens
+ * - `countHistoryTokens()` → Returns `100` tokens
+ * - `calculateMemoryBudget()` → Returns `32000` tokens (25% of 128k)
+ * - `selectMemoriesWithinBudget(memories)` → Returns ALL memories (no budget filtering by default)
+ *
+ * Override in tests: `getContextWindowManagerMock().calculateHistoryBudget.mockReturnValue(1000)`
  */
 function createMockFunctions(): MockContextWindowManagerInstance {
   return {
@@ -77,7 +87,6 @@ export const mockContextWindowManager = {
       this.countHistoryTokens = fns.countHistoryTokens;
       this.calculateMemoryBudget = fns.calculateMemoryBudget;
       this.selectMemoriesWithinBudget = fns.selectMemoriesWithinBudget;
-      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },
