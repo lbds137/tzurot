@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Comprehensive testing patterns for Tzurot v3 - Vitest configuration, fake timers, promise handling, mocking strategies, test organization, and coverage commands. Use this when writing or modifying tests.
-lastUpdated: '2025-12-12'
+lastUpdated: '2025-12-13'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -15,6 +15,162 @@ lastUpdated: '2025-12-12'
 3. **Mock all external dependencies** - Discord.js, Redis, database, AI providers
 4. **Use fake timers** - Never use real timeouts or delays in tests
 5. **Colocated tests** - Test files live next to source files (e.g., `MyService.test.ts` next to `MyService.ts`)
+
+## When to Add Tests
+
+**This section helps you decide WHAT type of tests to add for different changes.**
+
+### Decision Matrix: Which Tests to Write
+
+| Change Type                   | Unit Tests | Contract Tests | Integration Tests |
+| ----------------------------- | ---------- | -------------- | ----------------- |
+| New API endpoint              | ✅ Yes     | ✅ Yes         | Consider          |
+| New service/class             | ✅ Yes     | If shared      | Consider          |
+| New utility function          | ✅ Yes     | No             | No                |
+| New slash command             | ✅ Yes     | If uses API    | Consider          |
+| Bug fix                       | ✅ Yes     | If contract    | If integration    |
+| Refactoring (no behavior Δ)   | Verify     | Verify         | Verify            |
+| Schema/type changes           | Update     | ✅ Yes         | Update            |
+
+### Contract Tests - When to Add Them
+
+**Add contract tests when you create API contracts between services.**
+
+**What they test:** Zod schemas that define request/response shapes. Both producer (bot-client) and consumer (api-gateway) use shared schemas.
+
+**When to add:**
+
+1. **New API endpoint** - Create Zod schemas + contract tests for request/response shapes
+2. **Schema changes** - Update contract tests to verify both sides agree
+3. **Service boundary changes** - When changing what data crosses service boundaries
+
+**Location:** `packages/common-types/src/types/*.contract.test.ts`
+
+**Existing contract tests:**
+
+- `api.contract.test.ts` - POST /ai/generate, job status endpoints
+- `jobs.contract.test.ts` - BullMQ job payloads (LLM generation, audio transcription, etc.)
+- `history.contract.test.ts` - /user/history/* endpoints (clear, undo, stats, hard-delete)
+
+**Example - Adding contract tests for a new endpoint:**
+
+```typescript
+// 1. Define schemas in schemas.ts
+export const myEndpointRequestSchema = z.object({
+  field1: z.string(),
+  field2: z.number().optional(),
+});
+
+export const myEndpointResponseSchema = z.object({
+  success: z.boolean(),
+  data: z.object({ /* ... */ }),
+});
+
+// 2. Create contract test
+describe('POST /user/my-endpoint - Request Schema', () => {
+  it('should validate valid request', () => {
+    const validRequest = { field1: 'value', field2: 42 };
+    const result = myEndpointRequestSchema.safeParse(validRequest);
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject invalid request', () => {
+    const invalidRequest = { field2: 42 }; // Missing field1
+    const result = myEndpointRequestSchema.safeParse(invalidRequest);
+    expect(result.success).toBe(false);
+  });
+});
+```
+
+### Unit Tests - When to Add Them
+
+**Add unit tests for all new code with logic.**
+
+**What they test:** Individual functions, methods, and classes in isolation.
+
+**When to add:**
+
+1. **New service/class** - Test public methods
+2. **New utility function** - Test input/output behavior
+3. **New slash command handler** - Test API calls, error handling, response formatting
+4. **Bug fixes** - Write test that would have caught the bug
+
+**Location:** Next to source file (`MyService.test.ts` next to `MyService.ts`)
+
+**Minimum coverage:**
+
+- Happy path (success case)
+- Error handling (API failures, validation errors)
+- Edge cases (empty data, null values)
+
+**Example - Slash command handler tests:**
+
+```typescript
+describe('handleMyCommand', () => {
+  it('should succeed with valid input', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { /* ... */ } });
+    await handleMyCommand(interaction);
+    expect(mockEditReply).toHaveBeenCalled();
+  });
+
+  it('should handle not found (404)', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404 });
+    await handleMyCommand(interaction);
+    expect(mockReplyWithError).toHaveBeenCalledWith(interaction, expect.stringContaining('not found'));
+  });
+
+  it('should handle generic API error', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500 });
+    await handleMyCommand(interaction);
+    expect(mockReplyWithError).toHaveBeenCalled();
+  });
+
+  it('should handle exceptions', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    await handleMyCommand(interaction);
+    expect(mockHandleCommandError).toHaveBeenCalled();
+  });
+});
+```
+
+### Integration Tests - When to Add Them
+
+**Add integration tests sparingly for critical paths.**
+
+**What they test:** Multiple components working together with real (or realistic) dependencies.
+
+**When to add:**
+
+1. **Critical user flows** - Authentication, payment, data integrity
+2. **Complex interactions** - Multiple services, external APIs
+3. **After production bugs** - To prevent regression
+
+**Location:** `tests/integration/` directory
+
+**Considerations:**
+
+- Integration tests are slower and more brittle
+- Use Docker/testcontainers for external services
+- Run in CI, not necessarily on every local commit
+
+### Test Checklist for New Features
+
+Before considering a feature "done," verify:
+
+- [ ] **Unit tests** for all new functions/methods
+- [ ] **Contract tests** for any new API endpoints or schema changes
+- [ ] **Error handling tests** for all failure modes
+- [ ] **Edge case tests** for boundary conditions
+- [ ] **All existing tests pass** (`pnpm test`)
+
+### When NOT to Write Tests
+
+Skip tests for:
+
+- **Pure type definitions** (TypeScript provides type safety)
+- **Configuration files** (JSON, YAML)
+- **Constants/enums** (unless they encode business logic)
+- **Trivial getters/setters** (unless they have validation)
 
 ## Test File Organization
 
