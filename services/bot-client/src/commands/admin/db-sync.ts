@@ -68,9 +68,7 @@ export async function handleDbSync(interaction: ChatInputCommandInteraction): Pr
           `\`${table}\`: ` +
             `${stats.devToProd ?? 0} dev→prod, ` +
             `${stats.prodToDev ?? 0} prod→dev` +
-            (stats.conflicts !== undefined &&
-            stats.conflicts !== null &&
-            stats.conflicts > 0
+            (stats.conflicts !== undefined && stats.conflicts !== null && stats.conflicts > 0
               ? `, ${stats.conflicts} conflicts`
               : '')
         );
