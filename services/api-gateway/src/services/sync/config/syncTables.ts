@@ -35,6 +35,7 @@ export type SyncTableName =
   | 'personality_owners'
   | 'personality_aliases'
   | 'user_personality_configs'
+  | 'user_persona_history_configs'
   | 'conversation_history'
   | 'activated_channels'
   | 'memories'
@@ -109,6 +110,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
     timestampColumns: ['created_at', 'updated_at'],
   },
+  user_persona_history_configs: {
+    pk: 'id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id'],
+    timestampColumns: ['created_at', 'updated_at', 'last_context_reset', 'previous_context_reset'],
+  },
   conversation_history: {
     pk: 'id',
     createdAt: 'created_at',
@@ -160,6 +168,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * - personality_owners: personality_id → personalities, user_id → users
  * - personality_aliases: personality_id → personalities
  * - user_personality_configs: user_id → users, personality_id → personalities, etc.
+ * - user_persona_history_configs: user_id → users, personality_id → personalities, persona_id → personas
  * - conversation_history: persona_id → personas, personality_id → personalities
  * - activated_channels: personality_id → personalities, created_by → users
  * - memories: persona_id → personas, personality_id → personalities
@@ -185,6 +194,7 @@ export const SYNC_TABLE_ORDER: SyncTableName[] = [
   'personality_owners',
   'personality_aliases',
   'user_personality_configs',
+  'user_persona_history_configs',
   // Data tables
   'conversation_history',
   'activated_channels',
