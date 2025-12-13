@@ -17,6 +17,11 @@ let mockInstance: MockLongTermMemoryServiceInstance | null = null;
 
 /**
  * Create fresh mock functions with default implementations
+ *
+ * **Default Behaviors:**
+ * - `storeInteraction()` → Resolves to `undefined` (success, no return value)
+ *
+ * Override to simulate failure: `getLongTermMemoryServiceMock().storeInteraction.mockRejectedValue(new Error('DB error'))`
  */
 function createMockFunctions(): MockLongTermMemoryServiceInstance {
   return {
@@ -34,7 +39,6 @@ export const mockLongTermMemoryService = {
     constructor() {
       const fns = createMockFunctions();
       this.storeInteraction = fns.storeInteraction;
-      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },
