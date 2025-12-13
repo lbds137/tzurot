@@ -38,6 +38,7 @@ export const mockReferencedMessageFormatter = {
       const fns = createMockFunctions();
       this.formatReferencedMessages = fns.formatReferencedMessages;
       this.extractTextForSearch = fns.extractTextForSearch;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },
