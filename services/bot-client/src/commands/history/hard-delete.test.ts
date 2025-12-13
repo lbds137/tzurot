@@ -24,7 +24,7 @@ const mockBuildDestructiveWarning = vi.fn();
 const mockCreateHardDeleteConfig = vi.fn(() => ({
   source: 'history',
   operation: 'hard-delete',
-  entityId: 'lilith::channel-123',
+  entityId: 'lilith|channel-123',
 }));
 vi.mock('../../utils/destructiveConfirmation.js', () => ({
   buildDestructiveWarning: (...args: unknown[]) => mockBuildDestructiveWarning(...args),
@@ -78,7 +78,7 @@ describe('handleHardDelete', () => {
       additionalWarning: expect.stringContaining('PERMANENT'),
       source: 'history',
       operation: 'hard-delete',
-      entityId: 'lilith::channel-123',
+      entityId: 'lilith|channel-123',
     });
     expect(mockBuildDestructiveWarning).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -93,7 +93,7 @@ describe('handleHardDelete', () => {
 
     expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith(
       expect.objectContaining({
-        entityId: 'test-personality::channel-456',
+        entityId: 'test-personality|channel-456',
       })
     );
   });
@@ -115,7 +115,7 @@ describe('handleHardDelete', () => {
 
 describe('parseHardDeleteEntityId', () => {
   it('should parse valid entityId', () => {
-    const result = parseHardDeleteEntityId('lilith::channel-123');
+    const result = parseHardDeleteEntityId('lilith|channel-123');
 
     expect(result).toEqual({
       personalitySlug: 'lilith',
@@ -124,7 +124,7 @@ describe('parseHardDeleteEntityId', () => {
   });
 
   it('should handle entityId with complex personality slug', () => {
-    const result = parseHardDeleteEntityId('my-custom-personality::123456789012345678');
+    const result = parseHardDeleteEntityId('my-custom-personality|123456789012345678');
 
     expect(result).toEqual({
       personalitySlug: 'my-custom-personality',
@@ -139,7 +139,7 @@ describe('parseHardDeleteEntityId', () => {
   });
 
   it('should return null for invalid entityId (too many separators)', () => {
-    const result = parseHardDeleteEntityId('lilith::channel::123');
+    const result = parseHardDeleteEntityId('lilith|channel|123');
 
     expect(result).toBeNull();
   });
@@ -151,7 +151,7 @@ describe('parseHardDeleteEntityId', () => {
   });
 
   it('should return null for entityId with only separator', () => {
-    const result = parseHardDeleteEntityId('::');
+    const result = parseHardDeleteEntityId('|');
 
     expect(result).toEqual({
       personalitySlug: '',

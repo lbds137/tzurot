@@ -45,7 +45,8 @@ export async function handleHardDelete(interaction: ChatInputCommandInteraction)
       source: 'history',
       operation: 'hard-delete',
       // Include channelId in entityId so button handler knows which channel
-      entityId: `${personalitySlug}::${channelId}`,
+      // Use | delimiter since :: is used by customId parsing
+      entityId: `${personalitySlug}|${channelId}`,
     });
 
     // Build and send the warning
@@ -67,12 +68,13 @@ export async function handleHardDelete(interaction: ChatInputCommandInteraction)
 
 /**
  * Parse the entityId back to personalitySlug and channelId
+ * Uses | as delimiter to avoid conflict with :: in customId parsing
  */
 export function parseHardDeleteEntityId(entityId: string): {
   personalitySlug: string;
   channelId: string;
 } | null {
-  const parts = entityId.split('::');
+  const parts = entityId.split('|');
   if (parts.length !== 2) {
     return null;
   }
