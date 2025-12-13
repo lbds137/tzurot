@@ -165,8 +165,7 @@ export async function handleDeleteButton(
     return;
   }
 
-  const deleteResponse = parseResult.data;
-  const counts = deleteResponse.deletedCounts;
+  const { deletedCounts: counts, deletedName, deletedSlug } = parseResult.data;
 
   // Build success message with deletion counts
   const countLines: string[] = [];
@@ -188,7 +187,7 @@ export async function handleDeleteButton(
     countLines.push(`• ${counts.aliases} alias(es)`);
   }
 
-  let successMessage = `✅ Character \`${deleteResponse.deletedName}\` has been permanently deleted.`;
+  let successMessage = `✅ Character \`${deletedName}\` has been permanently deleted.`;
   if (countLines.length > 0) {
     successMessage += '\n\n**Deleted data:**\n' + countLines.join('\n');
   }
@@ -200,11 +199,7 @@ export async function handleDeleteButton(
   });
 
   logger.info(
-    {
-      userId: interaction.user.id,
-      slug: deleteResponse.deletedSlug,
-      counts,
-    },
+    { userId: interaction.user.id, slug: deletedSlug, counts },
     '[Character] Successfully deleted character'
   );
 }

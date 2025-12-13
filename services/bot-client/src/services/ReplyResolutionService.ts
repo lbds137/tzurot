@@ -33,24 +33,17 @@ export class ReplyResolutionService {
    */
   async resolvePersonality(message: Message, userId: string): Promise<LoadedPersonality | null> {
     try {
-      if (
-        message.reference?.messageId === undefined ||
-        message.reference.messageId === null ||
-        message.reference.messageId.length === 0
-      ) {
+      const messageId = message.reference?.messageId;
+      if (messageId === undefined || messageId === null || messageId.length === 0) {
         logger.warn({}, '[ReplyResolutionService] Called with message that has no reference');
         return null;
       }
 
       // Fetch the message being replied to
-      const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
+      const referencedMessage = await message.channel.messages.fetch(messageId);
 
       // Check if it's from a webhook (personality message)
-      if (
-        referencedMessage.webhookId === undefined ||
-        referencedMessage.webhookId === null ||
-        referencedMessage.webhookId.length === 0
-      ) {
+      if (referencedMessage.webhookId === undefined || referencedMessage.webhookId === null) {
         logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
         return null;
       }

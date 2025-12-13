@@ -180,21 +180,17 @@ export class ReferencedMessageFormatter {
     const formattedText = referenceElements.join('\n');
 
     logger.info(
-      `[ReferencedMessageFormatter] Formatted ${references.length} referenced message(s) for prompt`
+      {
+        count: references.length,
+        preview:
+          formattedText.length > 0
+            ? formattedText.substring(0, TEXT_LIMITS.REFERENCE_PREVIEW) +
+              (formattedText.length > TEXT_LIMITS.REFERENCE_PREVIEW ? '...' : '')
+            : undefined,
+        totalLength: formattedText.length,
+      },
+      '[ReferencedMessageFormatter] Formatted referenced messages for prompt'
     );
-
-    // Log preview for debugging
-    if (formattedText.length > 0) {
-      logger.info(
-        {
-          preview:
-            formattedText.substring(0, TEXT_LIMITS.REFERENCE_PREVIEW) +
-            (formattedText.length > TEXT_LIMITS.REFERENCE_PREVIEW ? '...' : ''),
-          totalLength: formattedText.length,
-        },
-        '[ReferencedMessageFormatter] Reference formatting preview'
-      );
-    }
 
     // Wrap in outer XML tag
     return `<contextual_references>\n${formattedText}\n</contextual_references>`;
