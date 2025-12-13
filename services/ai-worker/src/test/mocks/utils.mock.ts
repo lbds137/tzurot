@@ -36,11 +36,9 @@ export const mockPromptPlaceholders = {
 /**
  * Mock for errorHandling.logAndThrow
  */
-export const mockLogAndThrow = vi.fn(
-  (_logger: unknown, _msg: string, error: unknown) => {
-    throw error;
-  }
-);
+export const mockLogAndThrow = vi.fn((_logger: unknown, _msg: string, error: unknown) => {
+  throw error;
+});
 
 export const mockErrorHandling = {
   logAndThrow: mockLogAndThrow,
@@ -53,9 +51,9 @@ export function resetUtilityMocks(): void {
   mockProcessAttachments.mockReset().mockResolvedValue([]);
   mockStripResponseArtifacts.mockReset().mockImplementation((content: string) => content);
   mockReplacePromptPlaceholders.mockReset().mockImplementation((content: string) => content);
-  mockLogAndThrow.mockReset().mockImplementation(
-    (_logger: unknown, _msg: string, error: unknown) => {
+  mockLogAndThrow
+    .mockReset()
+    .mockImplementation((_logger: unknown, _msg: string, error: unknown) => {
       throw error;
-    }
-  );
+    });
 }

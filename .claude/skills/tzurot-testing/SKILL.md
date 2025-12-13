@@ -379,6 +379,7 @@ services/<service>/src/test/mocks/
 ### Mock Factory Structure
 
 Each mock factory exports:
+
 1. **Mock module** - The object to pass to `vi.mock()`
 2. **Instance accessor** - Function to get the mock instance for assertions
 3. **Reset function** - Optional cleanup function
@@ -513,10 +514,12 @@ describe('MyService', () => {
 ### Available Mock Factories
 
 **bot-client:** `services/bot-client/src/test/mocks/`
+
 - `Discord.mock.ts` - Message, Channel, Guild, User factories
 - `PersonalityService.mock.ts` - PersonalityService mock
 
 **ai-worker:** `services/ai-worker/src/test/mocks/`
+
 - `LLMInvoker.mock.ts` - LLM invocation
 - `MemoryRetriever.mock.ts` - Memory retrieval
 - `PromptBuilder.mock.ts` - Prompt construction

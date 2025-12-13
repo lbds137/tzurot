@@ -73,9 +73,7 @@ export const mockMemoryRetriever = {
  */
 export function getMemoryRetrieverMock(): MockMemoryRetrieverInstance {
   if (!mockInstance) {
-    throw new Error(
-      'MemoryRetriever mock not yet instantiated. Create the service first.'
-    );
+    throw new Error('MemoryRetriever mock not yet instantiated. Create the service first.');
   }
   return mockInstance;
 }
