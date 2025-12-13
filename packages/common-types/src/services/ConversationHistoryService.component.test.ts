@@ -588,6 +588,230 @@ describe('ConversationHistoryService Component Test', () => {
     });
   });
 
+  describe('getRecentHistory with contextEpoch', () => {
+    it('should filter out messages before epoch', async () => {
+      // Add first message
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Old message before epoch',
+        guildId: testGuildId,
+      });
+
+      // Wait a bit to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const epochTime = new Date();
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Add second message after epoch
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'New message after epoch',
+        guildId: testGuildId,
+      });
+
+      // Without epoch - should see both
+      const allHistory = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      expect(allHistory).toHaveLength(2);
+
+      // With epoch - should only see message after epoch
+      const filteredHistory = await service.getRecentHistory(
+        testChannelId,
+        testPersonalityId,
+        10,
+        epochTime
+      );
+      expect(filteredHistory).toHaveLength(1);
+      expect(filteredHistory[0].content).toBe('New message after epoch');
+    });
+
+    it('should return empty array when all messages are before epoch', async () => {
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Old message',
+        guildId: testGuildId,
+      });
+
+      // Set epoch to future
+      const futureEpoch = new Date();
+      futureEpoch.setDate(futureEpoch.getDate() + 1);
+
+      const history = await service.getRecentHistory(
+        testChannelId,
+        testPersonalityId,
+        10,
+        futureEpoch
+      );
+      expect(history).toEqual([]);
+    });
+  });
+
+  describe('getHistory (paginated) with contextEpoch', () => {
+    it('should filter paginated results by epoch', async () => {
+      // Add messages before epoch
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Before epoch 1',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Before epoch 2',
+        guildId: testGuildId,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const epochTime = new Date();
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Add messages after epoch
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'After epoch 1',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'After epoch 2',
+        guildId: testGuildId,
+      });
+
+      // Without epoch - should see all 4
+      const allResult = await service.getHistory(testChannelId, testPersonalityId, 10);
+      expect(allResult.messages).toHaveLength(4);
+
+      // With epoch - should only see 2 messages after epoch
+      const filteredResult = await service.getHistory(
+        testChannelId,
+        testPersonalityId,
+        10,
+        undefined,
+        epochTime
+      );
+      expect(filteredResult.messages).toHaveLength(2);
+      expect(filteredResult.messages[0].content).toBe('After epoch 1');
+      expect(filteredResult.messages[1].content).toBe('After epoch 2');
+    });
+  });
+
+  describe('getHistoryStats', () => {
+    it('should return correct message counts', async () => {
+      // Add user messages
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'User message 1',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'User message 2',
+        guildId: testGuildId,
+      });
+
+      // Add assistant messages
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Assistant message 1',
+        guildId: testGuildId,
+      });
+
+      const stats = await service.getHistoryStats(testChannelId, testPersonalityId);
+
+      expect(stats.totalMessages).toBe(3);
+      expect(stats.userMessages).toBe(2);
+      expect(stats.assistantMessages).toBe(1);
+      expect(stats.oldestMessage).toBeDefined();
+      expect(stats.newestMessage).toBeDefined();
+    });
+
+    it('should return zeros for empty channel', async () => {
+      const stats = await service.getHistoryStats('empty-channel', testPersonalityId);
+
+      expect(stats.totalMessages).toBe(0);
+      expect(stats.userMessages).toBe(0);
+      expect(stats.assistantMessages).toBe(0);
+      expect(stats.oldestMessage).toBeUndefined();
+      expect(stats.newestMessage).toBeUndefined();
+    });
+
+    it('should filter stats by epoch', async () => {
+      // Add messages before epoch
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Before epoch',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Before epoch response',
+        guildId: testGuildId,
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const epochTime = new Date();
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Add messages after epoch
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'After epoch',
+        guildId: testGuildId,
+      });
+
+      // Stats without epoch
+      const allStats = await service.getHistoryStats(testChannelId, testPersonalityId);
+      expect(allStats.totalMessages).toBe(3);
+
+      // Stats with epoch - should only count message after epoch
+      const filteredStats = await service.getHistoryStats(
+        testChannelId,
+        testPersonalityId,
+        epochTime
+      );
+      expect(filteredStats.totalMessages).toBe(1);
+      expect(filteredStats.userMessages).toBe(1);
+      expect(filteredStats.assistantMessages).toBe(0);
+    });
+  });
+
   describe('cleanupOldHistory', () => {
     it('should delete messages older than specified days', async () => {
       // Add a message with explicit old timestamp
