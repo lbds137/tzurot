@@ -68,6 +68,10 @@ const mockPrisma = {
     update: vi.fn(),
     deleteMany: vi.fn(),
   },
+  // Transaction mock - executes callback with mockPrisma as transaction client
+  $transaction: vi.fn(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
+    return callback(mockPrisma);
+  }),
 };
 
 import { createHistoryRoutes } from './history.js';
