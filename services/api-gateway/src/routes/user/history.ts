@@ -49,8 +49,8 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
   const personaResolver = new PersonaResolver(prisma);
 
   /**
-   * Helper to get user, personality, and resolved persona
-   * Returns IDs and per-persona history config
+   * Helper to get user, personality, and resolved persona IDs
+   * Returns only IDs - callers fetch historyConfig separately as needed
    */
   async function getHistoryContext(
     discordUserId: string,
@@ -60,11 +60,6 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
     userId: string;
     personalityId: string;
     personaId: string;
-    historyConfig: {
-      id: string;
-      lastContextReset: Date | null;
-      previousContextReset: Date | null;
-    } | null;
   } | null> {
     // Find user
     const user = await prisma.user.findFirst({
@@ -116,27 +111,10 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       personaId = resolved.config.personaId;
     }
 
-    // Find per-persona history config
-    const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
-      where: {
-        userId_personalityId_personaId: {
-          userId: user.id,
-          personalityId: personality.id,
-          personaId,
-        },
-      },
-      select: {
-        id: true,
-        lastContextReset: true,
-        previousContextReset: true,
-      },
-    });
-
     return {
       userId: user.id,
       personalityId: personality.id,
       personaId,
-      historyConfig,
     };
   }
 
@@ -162,35 +140,57 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
-        return sendError(res, ErrorResponses.notFound('User, personality, or persona not found'));
+        return sendError(
+          res,
+          ErrorResponses.notFound(
+            'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
+          )
+        );
       }
 
-      const { userId, personalityId, personaId, historyConfig } = context;
+      const { userId, personalityId, personaId } = context;
       const now = new Date();
 
-      // Store current epoch as previous (for undo), set new epoch
-      const previousEpoch = historyConfig?.lastContextReset ?? null;
+      // Use transaction for atomic read-modify-write to prevent race condition
+      // where concurrent clears could lose undo history
+      const { previousEpoch } = await prisma.$transaction(async tx => {
+        // Read current config inside transaction
+        const currentConfig = await tx.userPersonaHistoryConfig.findUnique({
+          where: {
+            userId_personalityId_personaId: {
+              userId,
+              personalityId,
+              personaId,
+            },
+          },
+          select: { lastContextReset: true },
+        });
 
-      // Upsert the per-persona history config with new epoch
-      await prisma.userPersonaHistoryConfig.upsert({
-        where: {
-          userId_personalityId_personaId: {
+        const prevEpoch = currentConfig?.lastContextReset ?? null;
+
+        // Upsert with the atomically-read previous epoch
+        await tx.userPersonaHistoryConfig.upsert({
+          where: {
+            userId_personalityId_personaId: {
+              userId,
+              personalityId,
+              personaId,
+            },
+          },
+          update: {
+            lastContextReset: now,
+            previousContextReset: prevEpoch,
+          },
+          create: {
             userId,
             personalityId,
             personaId,
+            lastContextReset: now,
+            previousContextReset: null,
           },
-        },
-        update: {
-          lastContextReset: now,
-          previousContextReset: previousEpoch,
-        },
-        create: {
-          userId,
-          personalityId,
-          personaId,
-          lastContextReset: now,
-          previousContextReset: null,
-        },
+        });
+
+        return { previousEpoch: prevEpoch };
       });
 
       logger.info(
@@ -239,16 +239,61 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
-        return sendError(res, ErrorResponses.notFound('User, personality, or persona not found'));
+        return sendError(
+          res,
+          ErrorResponses.notFound(
+            'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
+          )
+        );
       }
 
-      const { userId, personalityId, personaId, historyConfig } = context;
+      const { userId, personalityId, personaId } = context;
 
-      // Check if there's a previous epoch to restore
-      if (
-        historyConfig?.previousContextReset === null ||
-        historyConfig?.previousContextReset === undefined
-      ) {
+      // Use transaction for atomic read-modify-write to prevent race condition
+      // where a clear could happen between check and update
+      const result = await prisma.$transaction(async tx => {
+        // Read current config inside transaction
+        const currentConfig = await tx.userPersonaHistoryConfig.findUnique({
+          where: {
+            userId_personalityId_personaId: {
+              userId,
+              personalityId,
+              personaId,
+            },
+          },
+          select: { previousContextReset: true },
+        });
+
+        // Check if there's a previous epoch to restore
+        if (
+          currentConfig?.previousContextReset === null ||
+          currentConfig?.previousContextReset === undefined
+        ) {
+          return { success: false as const };
+        }
+
+        // Restore previous epoch, clear the backup
+        await tx.userPersonaHistoryConfig.update({
+          where: {
+            userId_personalityId_personaId: {
+              userId,
+              personalityId,
+              personaId,
+            },
+          },
+          data: {
+            lastContextReset: currentConfig.previousContextReset,
+            previousContextReset: null, // Clear backup - only one undo level
+          },
+        });
+
+        return {
+          success: true as const,
+          restoredEpoch: currentConfig.previousContextReset,
+        };
+      });
+
+      if (!result.success) {
         return sendError(
           res,
           ErrorResponses.validationError(
@@ -257,27 +302,12 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      // Restore previous epoch, clear the backup
-      await prisma.userPersonaHistoryConfig.update({
-        where: {
-          userId_personalityId_personaId: {
-            userId,
-            personalityId,
-            personaId,
-          },
-        },
-        data: {
-          lastContextReset: historyConfig.previousContextReset,
-          previousContextReset: null, // Clear backup - only one undo level
-        },
-      });
-
       logger.info(
         {
           discordUserId,
           personalitySlug,
           personaId: personaId.substring(0, 8),
-          restoredEpoch: historyConfig.previousContextReset?.toISOString(),
+          restoredEpoch: result.restoredEpoch?.toISOString(),
         },
         '[History] Context restored (undo)'
       );
@@ -286,7 +316,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         res,
         {
           success: true,
-          restoredEpoch: historyConfig.previousContextReset?.toISOString() ?? null,
+          restoredEpoch: result.restoredEpoch?.toISOString() ?? null,
           personaId,
           message: 'Previous context restored. The last clear operation has been undone.',
         },
@@ -336,10 +366,30 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
-        return sendError(res, ErrorResponses.notFound('User, personality, or persona not found'));
+        return sendError(
+          res,
+          ErrorResponses.notFound(
+            'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
+          )
+        );
       }
 
-      const { personalityId, personaId, historyConfig } = context;
+      const { userId, personalityId, personaId } = context;
+
+      // Fetch history config for epoch info
+      const historyConfig = await prisma.userPersonaHistoryConfig.findUnique({
+        where: {
+          userId_personalityId_personaId: {
+            userId,
+            personalityId,
+            personaId,
+          },
+        },
+        select: {
+          lastContextReset: true,
+          previousContextReset: true,
+        },
+      });
 
       // Get stats from ConversationHistoryService
       // Pass epoch if set (to show visible vs hidden messages)

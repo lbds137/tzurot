@@ -398,7 +398,7 @@ describe('PersonalityLoader', () => {
 
         expect(result).toBeNull();
 
-        // Verify filter uses placeholder that won't match any ownerId
+        // Verify filter only allows public personalities (no ownerId check since user doesn't exist)
         expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
           where: {
             AND: [
@@ -408,7 +408,7 @@ describe('PersonalityLoader', () => {
                   { slug: 'private-bot' },
                 ],
               },
-              { OR: [{ isPublic: true }, { ownerId: 'user-not-found' }] },
+              { isPublic: true },
             ],
           },
           orderBy: { createdAt: 'asc' },
