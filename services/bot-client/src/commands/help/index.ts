@@ -32,9 +32,10 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: '🎭', order: 1 },
   Me: { emoji: '👤', order: 2 },
   Preset: { emoji: '⚙️', order: 3 },
-  Wallet: { emoji: '🔑', order: 4 },
-  Admin: { emoji: '🛡️', order: 5 },
-  Help: { emoji: '❓', order: 6 },
+  History: { emoji: '📜', order: 4 },
+  Wallet: { emoji: '🔑', order: 5 },
+  Admin: { emoji: '🛡️', order: 6 },
+  Help: { emoji: '❓', order: 7 },
   Other: { emoji: '📦', order: 99 },
 };
 
