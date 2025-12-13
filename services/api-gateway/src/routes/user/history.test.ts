@@ -2,6 +2,7 @@
  * Tests for /user/history routes
  *
  * Tests STM (Short-Term Memory) management via context epochs.
+ * Updated for per-persona epoch tracking via UserPersonaHistoryConfig.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -10,6 +11,9 @@ import type { Request, Response } from 'express';
 // Mock ConversationHistoryService instance methods
 const mockGetHistoryStats = vi.fn();
 const mockClearHistory = vi.fn();
+
+// Mock PersonaResolver instance methods
+const mockResolve = vi.fn();
 
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
@@ -21,6 +25,11 @@ vi.mock('@tzurot/common-types', async () => {
     clearHistory = mockClearHistory;
   }
 
+  // Mock PersonaResolver class
+  class MockPersonaResolver {
+    resolve = mockResolve;
+  }
+
   return {
     ...actual,
     createLogger: () => ({
@@ -30,6 +39,7 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     ConversationHistoryService: MockConversationHistoryService,
+    PersonaResolver: MockPersonaResolver,
   };
 });
 
@@ -49,10 +59,14 @@ const mockPrisma = {
   personality: {
     findUnique: vi.fn(),
   },
-  userPersonalityConfig: {
+  persona: {
+    findFirst: vi.fn(),
+  },
+  userPersonaHistoryConfig: {
     findUnique: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
+    deleteMany: vi.fn(),
   },
 };
 
@@ -62,6 +76,7 @@ import type { PrismaClient } from '@tzurot/common-types';
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
 const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000002';
+const TEST_PERSONA_ID = '00000000-0000-0000-0000-000000000003';
 const TEST_DISCORD_USER_ID = 'discord-user-123';
 const TEST_PERSONALITY_SLUG = 'test-personality';
 const TEST_CHANNEL_ID = '123456789012345678';
@@ -112,9 +127,27 @@ describe('/user/history routes', () => {
       slug: TEST_PERSONALITY_SLUG,
     });
 
-    mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
-    mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
-    mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
+    // Default PersonaResolver mock - returns a user-default persona
+    mockResolve.mockResolvedValue({
+      source: 'user-default',
+      config: {
+        personaId: TEST_PERSONA_ID,
+        personaName: 'Test Persona',
+      },
+    });
+
+    // Persona mock for explicit personaId validation
+    mockPrisma.persona.findFirst.mockResolvedValue({
+      id: TEST_PERSONA_ID,
+      ownerId: TEST_USER_ID,
+      name: 'Test Persona',
+    });
+
+    // Per-persona history config mocks
+    mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue(null);
+    mockPrisma.userPersonaHistoryConfig.upsert.mockResolvedValue({});
+    mockPrisma.userPersonaHistoryConfig.update.mockResolvedValue({});
+    mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 0 });
 
     mockGetHistoryStats.mockResolvedValue({
       totalMessages: 10,
@@ -218,6 +251,22 @@ describe('/user/history routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
+    it('should return 404 when no persona found (system-default)', async () => {
+      // PersonaResolver returns system-default (no persona for user)
+      mockResolve.mockResolvedValue({
+        source: 'system-default',
+        config: {},
+      });
+
+      const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/clear');
+      const { req, res } = createMockReqRes({ personalitySlug: TEST_PERSONALITY_SLUG });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
     it('should set epoch on new config', async () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/clear');
@@ -225,11 +274,12 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith({
+      expect(mockPrisma.userPersonaHistoryConfig.upsert).toHaveBeenCalledWith({
         where: {
-          userId_personalityId: {
+          userId_personalityId_personaId: {
             userId: TEST_USER_ID,
             personalityId: TEST_PERSONALITY_ID,
+            personaId: TEST_PERSONA_ID,
           },
         },
         update: expect.objectContaining({
@@ -239,6 +289,7 @@ describe('/user/history routes', () => {
         create: expect.objectContaining({
           userId: TEST_USER_ID,
           personalityId: TEST_PERSONALITY_ID,
+          personaId: TEST_PERSONA_ID,
           lastContextReset: expect.any(Date),
           previousContextReset: null,
         }),
@@ -249,6 +300,7 @@ describe('/user/history routes', () => {
         expect.objectContaining({
           success: true,
           epoch: expect.any(String),
+          personaId: TEST_PERSONA_ID,
           canUndo: false,
         })
       );
@@ -256,7 +308,7 @@ describe('/user/history routes', () => {
 
     it('should preserve previous epoch for undo', async () => {
       const previousEpoch = new Date('2024-01-01');
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         lastContextReset: previousEpoch,
         previousContextReset: null,
@@ -268,7 +320,7 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith({
+      expect(mockPrisma.userPersonaHistoryConfig.upsert).toHaveBeenCalledWith({
         where: expect.anything(),
         update: expect.objectContaining({
           lastContextReset: expect.any(Date),
@@ -282,6 +334,42 @@ describe('/user/history routes', () => {
           canUndo: true,
         })
       );
+    });
+
+    it('should use explicit personaId when provided', async () => {
+      const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/clear');
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        personaId: TEST_PERSONA_ID,
+      });
+
+      await handler(req, res);
+
+      // Should verify persona ownership via prisma.persona.findFirst
+      expect(mockPrisma.persona.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: TEST_PERSONA_ID,
+          ownerId: TEST_USER_ID,
+        },
+      });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should return 404 for explicit personaId not owned by user', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue(null); // Persona not found or not owned
+
+      const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/clear');
+      const { req, res } = createMockReqRes({
+        personalitySlug: TEST_PERSONALITY_SLUG,
+        personaId: 'not-owned-persona-id',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
     });
   });
 
@@ -309,7 +397,7 @@ describe('/user/history routes', () => {
     });
 
     it('should return error when no previous epoch exists', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         lastContextReset: new Date(),
         previousContextReset: null, // No previous epoch
@@ -330,7 +418,7 @@ describe('/user/history routes', () => {
     });
 
     it('should return error when config does not exist', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue(null);
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/undo');
@@ -343,7 +431,7 @@ describe('/user/history routes', () => {
 
     it('should restore previous epoch successfully', async () => {
       const previousEpoch = new Date('2024-01-01');
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         lastContextReset: new Date('2024-01-02'),
         previousContextReset: previousEpoch,
@@ -355,11 +443,12 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith({
+      expect(mockPrisma.userPersonaHistoryConfig.update).toHaveBeenCalledWith({
         where: {
-          userId_personalityId: {
+          userId_personalityId_personaId: {
             userId: TEST_USER_ID,
             personalityId: TEST_PERSONALITY_ID,
+            personaId: TEST_PERSONA_ID,
           },
         },
         data: {
@@ -372,6 +461,7 @@ describe('/user/history routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
+          personaId: TEST_PERSONA_ID,
           restoredEpoch: previousEpoch.toISOString(),
         })
       );
@@ -447,6 +537,7 @@ describe('/user/history routes', () => {
         expect.objectContaining({
           channelId: TEST_CHANNEL_ID,
           personalitySlug: TEST_PERSONALITY_SLUG,
+          personaId: TEST_PERSONA_ID,
           visible: expect.objectContaining({
             totalMessages: 10,
             userMessages: 5,
@@ -463,7 +554,7 @@ describe('/user/history routes', () => {
 
     it('should return stats with epoch filtering', async () => {
       const epoch = new Date('2024-01-01T12:00:00Z');
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         lastContextReset: epoch,
         previousContextReset: null,
@@ -516,6 +607,7 @@ describe('/user/history routes', () => {
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          personaId: TEST_PERSONA_ID,
           visible: expect.objectContaining({
             totalMessages: 5,
           }),
@@ -528,7 +620,7 @@ describe('/user/history routes', () => {
     });
 
     it('should show canUndo when previousContextReset exists', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+      mockPrisma.userPersonaHistoryConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         lastContextReset: new Date('2024-01-02'),
         previousContextReset: new Date('2024-01-01'), // Has previous epoch
@@ -667,12 +759,8 @@ describe('/user/history routes', () => {
       );
     });
 
-    it('should clear epoch when config exists', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        id: 'config-id',
-        lastContextReset: new Date('2024-01-01'),
-        previousContextReset: new Date('2024-01-02'),
-      });
+    it('should clear all per-persona history configs', async () => {
+      mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 2 });
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/hard-delete');
@@ -683,22 +771,19 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith({
+      // Should delete ALL per-persona configs for this user+personality
+      expect(mockPrisma.userPersonaHistoryConfig.deleteMany).toHaveBeenCalledWith({
         where: {
-          userId_personalityId: {
-            userId: TEST_USER_ID,
-            personalityId: TEST_PERSONALITY_ID,
-          },
-        },
-        data: {
-          lastContextReset: null,
-          previousContextReset: null,
+          userId: TEST_USER_ID,
+          personalityId: TEST_PERSONALITY_ID,
         },
       });
+
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should not update config when it does not exist', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
+    it('should succeed even when no configs exist to delete', async () => {
+      mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 0 });
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/hard-delete');
@@ -712,8 +797,8 @@ describe('/user/history routes', () => {
       // clearHistory should still be called
       expect(mockClearHistory).toHaveBeenCalled();
 
-      // But config update should NOT be called since config is null
-      expect(mockPrisma.userPersonalityConfig.update).not.toHaveBeenCalled();
+      // deleteMany should always be called (even if nothing to delete)
+      expect(mockPrisma.userPersonaHistoryConfig.deleteMany).toHaveBeenCalled();
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
