@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2025-12-12
+> Last updated: 2025-12-13
 
 ## Status: Public Beta Live
 
@@ -10,16 +10,30 @@
 
 ---
 
+## Active: Memory Management Commands
+
+**Planning completed**. Implementation plan at [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md).
+
+Key features:
+- **STM**: Context epochs for non-destructive clearing with undo
+- **LTM**: Search, browse, edit, delete, purge with filtering
+- **Incognito Mode**: Timed session to disable LTM recording
+- **Memory locking**: Protect "core memories" from bulk purge
+
+**Next implementation step**: Phase 1 - STM Management (schema migration + `/history` commands)
+
+---
+
 ## Next Up
 
-| #   | Feature                 | Why                                              |
-| --- | ----------------------- | ------------------------------------------------ |
-| 1   | **Shapes.inc Import**   | Unblocks v2 deletion - users need migration path |
-| 2   | **DM Personality Chat** | Biggest v2 feature gap, user-requested           |
-| 3   | **Dashboard Pattern**   | Fix UX before adding complex features            |
-| 4   | **NSFW Verification**   | User-level, one-time via age-gated channel       |
-| 5   | **LTM & Context Mgmt**  | /history clear, /memory search, optimization     |
-| 6   | **Agentic Scaffolding** | Build capabilities before OpenMemory             |
+| #   | Feature                       | Why                                              |
+| --- | ----------------------------- | ------------------------------------------------ |
+| 1   | **Memory Management** ⬅️      | User-requested, retention value, privacy control |
+| 2   | **Shapes.inc Import**         | Unblocks v2 deletion - users need migration path |
+| 3   | **DM Personality Chat**       | Biggest v2 feature gap, user-requested           |
+| 4   | **Dashboard Pattern**         | Fix UX before adding complex features            |
+| 5   | **NSFW Verification**         | User-level, one-time via age-gated channel       |
+| 6   | **Agentic Scaffolding**       | Build capabilities before OpenMemory             |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 

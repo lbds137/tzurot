@@ -1,6 +1,6 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-12
+> **Last Updated**: 2025-12-13
 > **Current Version**: v3.0.0-beta.17
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
@@ -14,9 +14,36 @@
 
 ## Next Up (In Order)
 
-### 1. Shapes.inc Import
+### 1. Memory Management Commands ⬅️ ACTIVE
 
-**Why first**: Can't kill v2 until users can migrate their data. This unblocks everything.
+**Why first**: User-requested, high retention value. Comprehensive memory control enables privacy features.
+
+**Reference**: [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md)
+
+**Short-Term Memory (STM):**
+- [ ] Context epoch system (timestamp-based soft reset with undo)
+- [ ] `/history clear` - soft reset conversation context
+- [ ] `/history undo` - restore cleared context
+- [ ] `/history hard-delete` - permanent deletion with confirmation
+
+**Long-Term Memory (LTM):**
+- [ ] `/memory search` - semantic search with filtering
+- [ ] `/memory browse` - paginated memory deck UI
+- [ ] `/memory edit` - edit memory content (regenerate embedding)
+- [ ] `/memory delete` - single memory deletion
+- [ ] `/memory purge` - bulk deletion with typed confirmation
+- [ ] `/memory lock/unlock` - core memory protection
+
+**Incognito Mode:**
+- [ ] `/incognito enable` - timed session to disable LTM
+- [ ] `/incognito disable` - end incognito session
+- [ ] `/incognito status` - check current state
+- [ ] `/incognito forget` - retroactive LTM deletion
+- [ ] Visual indicator in responses when active
+
+### 2. Shapes.inc Import
+
+**Why**: Can't kill v2 until users can migrate their data. This unblocks deletion.
 
 - [ ] Parse shapes.inc backup JSON format
 - [ ] Import wizard slash command (`/character import`)
@@ -24,7 +51,7 @@
 - [ ] Handle avatar migration
 - [ ] Validation and preview before import
 
-### 2. DM Personality Chat
+### 3. DM Personality Chat
 
 **Why**: Biggest feature gap from v2. Multiple user requests.
 
@@ -33,7 +60,7 @@
 - [ ] Allow personality selection in DMs (`/character chat` in DMs)
 - [ ] Handle first-time DM (no history yet)
 
-### 3. Slash Command Dashboard Pattern
+### 4. Slash Command Dashboard Pattern
 
 **Why**: Fix UX before adding complex features like NSFW settings.
 
@@ -43,7 +70,7 @@
 - [ ] `/me profile` dashboard upgrade
 - [ ] Standardize modal/button patterns across commands
 
-### 4. NSFW Verification
+### 5. NSFW Verification
 
 **Why**: Required for certain content. Keep it simple and TOS-compliant.
 
@@ -52,17 +79,6 @@
 - [ ] Track `nsfwVerified` boolean on User record
 - [ ] "Handshake" verification: user must interact with bot in a Discord age-gated channel
 - [ ] Once verified, NSFW content unlocked globally for that user
-- [ ] Consider "Incognito Mode" toggle (disable LTM for NSFW chats - privacy feature)
-
-### 5. LTM & Context Management
-
-**Why**: Retention feature. Better memory = better conversations.
-
-- [ ] `/history clear` - reset conversation context
-- [ ] `/memory search` - find specific memories
-- [ ] `/memory purge` - delete memories
-- [ ] Context window optimization
-- [ ] Consider summary compression (cheap model summarizes before injection)
 
 ### 6. Agentic Scaffolding
 
