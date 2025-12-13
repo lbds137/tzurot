@@ -104,48 +104,44 @@ export async function modelSupportsVision(modelId: string, redis: Redis): Promis
 }
 
 /**
+ * Vision model patterns for fallback detection
+ * Each pattern has a required term and optional additional terms (any must match)
+ */
+const VISION_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
+  // OpenAI vision models (gpt-4 + vision/4o/turbo)
+  { required: 'gpt-4', additional: ['vision', '4o', 'turbo'] },
+  // Anthropic Claude 3+ models
+  { required: 'claude-3' },
+  { required: 'claude-4' },
+  // Google Gemini models (gemini + 1.5/2./vision)
+  { required: 'gemini', additional: ['1.5', '2.', 'vision'] },
+  // Google Gemma 3 models
+  { required: 'gemma-3' },
+  { required: 'gemma3' },
+  // Llama vision models
+  { required: 'llama', additional: ['vision'] },
+  // Qwen VL models
+  { required: 'qwen', additional: ['vl', 'vision'] },
+];
+
+/**
  * Fallback pattern matching for vision support detection
  * Used when Redis cache is unavailable
  */
 function hasVisionSupportFallback(modelName: string): boolean {
   const normalized = modelName.toLowerCase();
 
-  // OpenAI vision models
-  if (
-    normalized.includes('gpt-4') &&
-    (normalized.includes('vision') || normalized.includes('4o') || normalized.includes('turbo'))
-  ) {
-    return true;
-  }
-
-  // Anthropic Claude 3+ models
-  if (normalized.includes('claude-3') || normalized.includes('claude-4')) {
-    return true;
-  }
-
-  // Google Gemini models (1.5+, 2.0+)
-  if (normalized.includes('gemini')) {
-    if (normalized.includes('1.5') || normalized.includes('2.') || normalized.includes('vision')) {
+  return VISION_MODEL_PATTERNS.some(pattern => {
+    if (!normalized.includes(pattern.required)) {
+      return false;
+    }
+    // If no additional terms required, the required term is sufficient
+    if (!pattern.additional) {
       return true;
     }
-  }
-
-  // Google Gemma 3 models (multimodal)
-  if (normalized.includes('gemma-3') || normalized.includes('gemma3')) {
-    return true;
-  }
-
-  // Llama vision models
-  if (normalized.includes('llama') && normalized.includes('vision')) {
-    return true;
-  }
-
-  // Qwen VL models
-  if (normalized.includes('qwen') && (normalized.includes('vl') || normalized.includes('vision'))) {
-    return true;
-  }
-
-  return false;
+    // At least one additional term must match
+    return pattern.additional.some(term => normalized.includes(term));
+  });
 }
 
 /**
