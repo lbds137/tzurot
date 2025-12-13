@@ -23,6 +23,16 @@ let mockInstance: MockPromptBuilderInstance | null = null;
 
 /**
  * Create fresh mock functions with default implementations
+ *
+ * **Default Behaviors:**
+ * - `formatUserMessage()` → Returns `'formatted user message'`
+ * - `buildSearchQuery()` → Returns `'search query'`
+ * - `buildFullSystemPrompt()` → Returns `SystemMessage('system prompt')`
+ * - `buildHumanMessage()` → Returns `{ message: HumanMessage, contentForStorage: string }`
+ * - `countTokens()` → Returns `100` tokens
+ * - `countMemoryTokens()` → Returns `50` tokens
+ *
+ * Override in tests: `getPromptBuilderMock().countTokens.mockReturnValue(500)`
  */
 function createMockFunctions(): MockPromptBuilderInstance {
   return {
@@ -58,7 +68,6 @@ export const mockPromptBuilder = {
       this.buildHumanMessage = fns.buildHumanMessage;
       this.countTokens = fns.countTokens;
       this.countMemoryTokens = fns.countMemoryTokens;
-      // eslint-disable-next-line @typescript-eslint/no-this-alias -- Intentional: mock factories need to capture instance for test access
       mockInstance = this;
     }
   },

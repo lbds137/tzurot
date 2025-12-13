@@ -62,6 +62,16 @@ export default tseslint.config(
     },
   },
 
+  // Mock factory files - allow this aliasing for instance tracking pattern
+  {
+    files: ['**/test/mocks/**/*.ts'],
+    rules: {
+      // Mock factories intentionally alias 'this' to track instances for test assertions
+      // Pattern: mockInstance = this; (in constructor)
+      '@typescript-eslint/no-this-alias': 'off',
+    },
+  },
+
   // Configuration for TypeScript files
   {
     files: ['**/*.ts'],
