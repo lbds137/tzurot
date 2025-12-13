@@ -16,6 +16,58 @@ import { createLogger } from '@tzurot/common-types';
 const logger = createLogger('ResponseCleanup');
 
 /**
+ * Build artifact patterns for a given personality name
+ */
+function buildArtifactPatterns(personalityName: string): RegExp[] {
+  const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  return [
+    // Trailing </message> tag: "Hello!</message>" → "Hello!"
+    /<\/message>\s*$/i,
+    // Trailing </current_turn> tag: "Hello!</current_turn>" → "Hello!"
+    /<\/current_turn>\s*$/i,
+    // XML message prefix: '<message speaker="Emily">Hello' → 'Hello'
+    new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i'),
+    // Simple name prefix: "Emily: Hello" → "Hello"
+    new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i'),
+    // Standalone timestamp: "[2m ago] Hello" → "Hello"
+    /^\[[^\]]+?\]\s*/,
+  ];
+}
+
+/**
+ * Apply patterns iteratively until no more matches
+ */
+function applyPatternsIteratively(
+  content: string,
+  patterns: RegExp[],
+  maxIterations: number
+): { cleaned: string; strippedCount: number } {
+  let cleaned = content;
+  let strippedCount = 0;
+
+  while (strippedCount < maxIterations) {
+    const beforeStrip = cleaned;
+    let matched = false;
+
+    for (const pattern of patterns) {
+      cleaned = cleaned.replace(pattern, '').trim();
+      if (cleaned !== beforeStrip) {
+        strippedCount++;
+        matched = true;
+        break; // Restart pattern matching from beginning
+      }
+    }
+
+    if (!matched) {
+      break;
+    }
+  }
+
+  return { cleaned, strippedCount };
+}
+
+/**
  * Clean AI response by stripping learned artifacts
  *
  * Models learn patterns from conversation history. With XML format, they may add:
@@ -34,94 +86,13 @@ const logger = createLogger('ResponseCleanup');
  * ```
  */
 export function stripResponseArtifacts(content: string, personalityName: string): string {
-  const originalContent = content;
-  let cleaned = content;
-  let strippedCount = 0;
-  const maxIterations = 5; // Prevent infinite loop on malformed content
+  const patterns = buildArtifactPatterns(personalityName);
+  const { cleaned, strippedCount } = applyPatternsIteratively(content, patterns, 5);
 
-  // Escape special regex characters in personality name
-  const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  // === TRAILING ARTIFACTS (strip from end) ===
-
-  // Pattern: Trailing </message> tag (with optional whitespace)
-  // Example: "Hello!</message>" → "Hello!"
-  // Example: "Hello!</message>\n" → "Hello!"
-  const trailingMessageTag = /<\/message>\s*$/i;
-
-  // Pattern: Trailing </current_turn> tag (with optional whitespace)
-  // Example: "Hello!</current_turn>" → "Hello!"
-  // LLM learns this from the <current_turn>...</current_turn> wrapper in prompts
-  const trailingCurrentTurnTag = /<\/current_turn>\s*$/i;
-
-  // === LEADING ARTIFACTS (strip from start) ===
-
-  // Pattern: XML message tag prefix
-  // Example: '<message speaker="Emily">Hello' → 'Hello'
-  // Example: '<message speaker="Emily" time="now">Hello' → 'Hello'
-  const xmlMessagePrefix = new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i');
-
-  // Pattern: Simple "Name:" prefix (models may still do this)
-  // Example: "Emily: Hello" → "Hello"
-  // Example: "Emily: [now] Hello" → "Hello" (with optional timestamp)
-  const simpleNamePrefix = new RegExp(`^${escapedName}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`, 'i');
-
-  // Pattern: Standalone timestamp at start (no name)
-  // Example: "[2m ago] Hello" → "Hello"
-  const standaloneTimestamp = /^\[[^\]]+?\]\s*/;
-
-  // Keep stripping until no more artifacts found
-  while (strippedCount < maxIterations) {
-    const beforeStrip = cleaned;
-
-    // Strip trailing </message> tags first
-    cleaned = cleaned.replace(trailingMessageTag, '').trim();
-    if (cleaned !== beforeStrip) {
-      strippedCount++;
-      continue;
-    }
-
-    // Strip trailing </current_turn> tags
-    cleaned = cleaned.replace(trailingCurrentTurnTag, '').trim();
-    if (cleaned !== beforeStrip) {
-      strippedCount++;
-      continue;
-    }
-
-    // Strip leading XML message tag
-    cleaned = cleaned.replace(xmlMessagePrefix, '').trim();
-    if (cleaned !== beforeStrip) {
-      strippedCount++;
-      continue;
-    }
-
-    // Strip simple name prefix
-    cleaned = cleaned.replace(simpleNamePrefix, '').trim();
-    if (cleaned !== beforeStrip) {
-      strippedCount++;
-      continue;
-    }
-
-    // Strip standalone timestamp
-    cleaned = cleaned.replace(standaloneTimestamp, '').trim();
-    if (cleaned !== beforeStrip) {
-      strippedCount++;
-      continue;
-    }
-
-    // No more artifacts found
-    break;
-  }
-
-  // Log if we stripped anything
   if (strippedCount > 0) {
-    const charsRemoved = originalContent.length - cleaned.length;
+    const charsRemoved = content.length - cleaned.length;
     logger.warn(
-      {
-        personalityName,
-        strippedCount,
-        charsRemoved,
-      },
+      { personalityName, strippedCount, charsRemoved },
       `[ResponseCleanup] Stripped ${strippedCount} artifact(s) (${charsRemoved} chars) from response. ` +
         `LLM learned pattern from conversation history.`
     );
