@@ -18,9 +18,7 @@ import type { ConversationContext } from '../../services/ConversationalRAGServic
  * });
  * ```
  */
-export function createMockContext(
-  overrides?: Partial<ConversationContext>
-): ConversationContext {
+export function createMockContext(overrides?: Partial<ConversationContext>): ConversationContext {
   return {
     userId: 'user-123',
     channelId: 'channel-456',
@@ -54,9 +52,7 @@ export function createContextWithReferences(
 /**
  * Create a context for DM conversations (no server)
  */
-export function createDMContext(
-  overrides?: Partial<ConversationContext>
-): ConversationContext {
+export function createDMContext(overrides?: Partial<ConversationContext>): ConversationContext {
   return createMockContext({
     serverId: undefined,
     ...overrides,

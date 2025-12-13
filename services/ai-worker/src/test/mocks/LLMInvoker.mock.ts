@@ -71,9 +71,7 @@ export const mockLLMInvoker = {
  */
 export function getLLMInvokerMock(): MockLLMInvokerInstance {
   if (!mockInstance) {
-    throw new Error(
-      'LLMInvoker mock not yet instantiated. Create the service first.'
-    );
+    throw new Error('LLMInvoker mock not yet instantiated. Create the service first.');
   }
   return mockInstance;
 }
