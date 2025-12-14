@@ -655,7 +655,9 @@ export class ConversationHistoryService {
    * Call this periodically to prevent unbounded growth.
    * Creates tombstones to prevent db-sync from restoring deleted messages.
    */
-  async cleanupOldHistory(daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY): Promise<number> {
+  async cleanupOldHistory(
+    daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY
+  ): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
