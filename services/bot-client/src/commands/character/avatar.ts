@@ -81,10 +81,7 @@ export async function handleAvatar(
 
     // Resize if the image is too large for the API gateway
     if (imageBuffer.length > TARGET_SIZE_BYTES) {
-      logger.info(
-        { originalSize: imageBuffer.length, slug },
-        'Resizing large avatar image'
-      );
+      logger.info({ originalSize: imageBuffer.length, slug }, 'Resizing large avatar image');
 
       // Resize to 1024x1024 max and convert to JPEG for better compression
       imageBuffer = await sharp(imageBuffer)
@@ -95,10 +92,7 @@ export async function handleAvatar(
         .jpeg({ quality: 85 })
         .toBuffer();
 
-      logger.info(
-        { newSize: imageBuffer.length, slug },
-        'Avatar image resized successfully'
-      );
+      logger.info({ newSize: imageBuffer.length, slug }, 'Avatar image resized successfully');
     }
 
     const base64Image = imageBuffer.toString('base64');
