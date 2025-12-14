@@ -100,16 +100,16 @@ This project syncs data between dev and prod environments. Random UUIDs cause sy
 
 **Available generators:**
 
-| Entity | Function | Seed Pattern |
-|--------|----------|--------------|
-| User | `generateUserUuid` | `discord:{discordId}` |
-| Personality | `generatePersonalityUuid` | `personality:{slug}` |
-| Persona | `generatePersonaUuid` | `persona:{ownerId}:{name}` |
-| SystemPrompt | `generateSystemPromptUuid` | `system_prompt:{name}` |
-| LlmConfig | `generateLlmConfigUuid` | `llm_config:{name}` |
-| UserPersonalityConfig | `generateUserPersonalityConfigUuid` | `user_personality_settings:{userId}:{personalityId}` |
-| ConversationHistory | `generateConversationHistoryUuid` | `conversation_history:{channelId}:{personalityId}:{userId}:{timestamp}` |
-| ActivatedChannel | `generateActivatedChannelUuid` | `activated_channel:{channelId}:{personalityId}` |
+| Entity                | Function                            | Seed Pattern                                                            |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| User                  | `generateUserUuid`                  | `discord:{discordId}`                                                   |
+| Personality           | `generatePersonalityUuid`           | `personality:{slug}`                                                    |
+| Persona               | `generatePersonaUuid`               | `persona:{ownerId}:{name}`                                              |
+| SystemPrompt          | `generateSystemPromptUuid`          | `system_prompt:{name}`                                                  |
+| LlmConfig             | `generateLlmConfigUuid`             | `llm_config:{name}`                                                     |
+| UserPersonalityConfig | `generateUserPersonalityConfigUuid` | `user_personality_settings:{userId}:{personalityId}`                    |
+| ConversationHistory   | `generateConversationHistoryUuid`   | `conversation_history:{channelId}:{personalityId}:{userId}:{timestamp}` |
+| ActivatedChannel      | `generateActivatedChannelUuid`      | `activated_channel:{channelId}:{personalityId}`                         |
 
 **When creating a new entity type:**
 
