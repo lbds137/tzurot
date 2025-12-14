@@ -210,7 +210,7 @@ export async function handleImport(
 
     const payload = {
       name: characterData.name,
-      slug: characterData.slug,
+      slug: slug, // Use normalized slug (appends username for non-bot-owners)
       characterInfo: characterData.characterInfo,
       personalityTraits: characterData.personalityTraits,
       displayName: characterData.displayName ?? undefined,

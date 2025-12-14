@@ -824,6 +824,87 @@ describe('handleImport', () => {
     });
   });
 
+  describe('slug normalization for non-bot-owners', () => {
+    // Import commonTypes once for spying
+    let isBotOwnerSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(async () => {
+      const commonTypes = await import('@tzurot/common-types');
+      isBotOwnerSpy = vi.spyOn(commonTypes, 'isBotOwner').mockReturnValue(false);
+    });
+
+    afterEach(() => {
+      // Restore to default mock (bot owner = true) after each test
+      isBotOwnerSpy.mockReturnValue(true);
+    });
+
+    it('should append username to slug for non-bot-owners in API payload', async () => {
+
+      const interaction = createMockInteraction();
+      (interaction.user as any).id = 'regular-user-456';
+      (interaction.user as any).username = 'cooluser';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(interaction, mockConfig);
+
+      // Verify the normalized slug is used in the POST payload
+      expect(callGatewayApi).toHaveBeenCalledWith(
+        '/user/personality',
+        expect.objectContaining({
+          userId: 'regular-user-456',
+          method: 'POST',
+          body: expect.objectContaining({
+            slug: 'test-character-cooluser', // Username appended
+          }),
+        })
+      );
+    });
+
+    it('should use normalized slug for existence check', async () => {
+      const interaction = createMockInteraction();
+      (interaction.user as any).id = 'regular-user-456';
+      (interaction.user as any).username = 'testuser';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(interaction, mockConfig);
+
+      // First call should check with normalized slug
+      expect(callGatewayApi).toHaveBeenNthCalledWith(
+        1,
+        '/user/personality/test-character-testuser', // Normalized slug in URL
+        expect.objectContaining({
+          method: 'GET',
+        })
+      );
+    });
+
+    it('should show normalized slug in success message', async () => {
+      const interaction = createMockInteraction();
+      (interaction.user as any).id = 'regular-user-456';
+      (interaction.user as any).username = 'myuser';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(interaction, mockConfig);
+
+      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embed = embedArg.embeds[0];
+      const json = embed.toJSON();
+      expect(json.description).toContain('test-character-myuser');
+    });
+  });
+
   describe('unexpected errors', () => {
     it('should handle unexpected exceptions gracefully', async () => {
       const interaction = createMockInteraction();
