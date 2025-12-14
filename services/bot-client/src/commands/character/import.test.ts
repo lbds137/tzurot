@@ -839,7 +839,6 @@ describe('handleImport', () => {
     });
 
     it('should append username to slug for non-bot-owners in API payload', async () => {
-
       const interaction = createMockInteraction();
       (interaction.user as any).id = 'regular-user-456';
       (interaction.user as any).username = 'cooluser';
