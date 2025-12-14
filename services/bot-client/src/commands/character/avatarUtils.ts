@@ -90,12 +90,18 @@ export async function processAvatarBuffer(
         break;
       }
 
-      logger.info({ size: resized.length, quality, context }, 'Resize still too large, trying lower quality');
+      logger.info(
+        { size: resized.length, quality, context },
+        'Resize still too large, trying lower quality'
+      );
     }
 
     // Final check - if still too large after all quality levels, reject
     if (!resized || resized.length > TARGET_SIZE_BYTES) {
-      logger.warn({ size: resized?.length, context }, 'Image still too large after all compression attempts');
+      logger.warn(
+        { size: resized?.length, context },
+        'Image still too large after all compression attempts'
+      );
       return {
         success: false,
         error: 'too_large',
@@ -115,7 +121,8 @@ export async function processAvatarBuffer(
     return {
       success: false,
       error: 'processing_failed',
-      message: 'Failed to process the image. Please try a different image format (PNG, JPG, or WebP).',
+      message:
+        'Failed to process the image. Please try a different image format (PNG, JPG, or WebP).',
     };
   }
 }

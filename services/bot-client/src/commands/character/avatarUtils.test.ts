@@ -17,7 +17,7 @@ vi.mock('sharp', () => ({
 }));
 
 // Mock logger
-vi.mock('@tzurot/common-types', async (importOriginal) => {
+vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
   return {
     ...(actual as Record<string, unknown>),
@@ -78,7 +78,9 @@ describe('Avatar Utils', () => {
       const mockToBuffer = vi.fn().mockResolvedValue(resizedBuffer);
       const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
       const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<typeof mockSharp.default>);
+      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
+        typeof mockSharp.default
+      >);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
@@ -106,7 +108,9 @@ describe('Avatar Utils', () => {
         .mockResolvedValueOnce(smallEnoughBuffer); // Second attempt at 70%
       const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
       const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<typeof mockSharp.default>);
+      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
+        typeof mockSharp.default
+      >);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
@@ -128,7 +132,9 @@ describe('Avatar Utils', () => {
       const mockToBuffer = vi.fn().mockResolvedValue(stillLargeBuffer);
       const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
       const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<typeof mockSharp.default>);
+      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
+        typeof mockSharp.default
+      >);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
@@ -146,7 +152,9 @@ describe('Avatar Utils', () => {
       const mockResize = vi.fn().mockImplementation(() => {
         throw new Error('Sharp processing failed');
       });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<typeof mockSharp.default>);
+      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
+        typeof mockSharp.default
+      >);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 

@@ -172,7 +172,10 @@ export async function handleImport(
         const rawBuffer = Buffer.from(await avatarResponse.arrayBuffer());
 
         // Process avatar (resize if needed)
-        const result = await processAvatarBuffer(rawBuffer, avatarAttachment.name ?? 'import-avatar');
+        const result = await processAvatarBuffer(
+          rawBuffer,
+          avatarAttachment.name ?? 'import-avatar'
+        );
         if (!result.success) {
           await interaction.editReply(`❌ ${result.message}`);
           return;
