@@ -52,7 +52,7 @@ export type ProcessAvatarResult = AvatarProcessingResult | AvatarProcessingError
 
 /**
  * Apply format-specific compression to a sharp pipeline.
- * Preserves PNG transparency and WebP quality, converts GIF to JPEG.
+ * Preserves PNG transparency, WebP quality, and GIF animations.
  */
 function applyFormatCompression(
   pipeline: sharp.Sharp,
@@ -71,7 +71,7 @@ function applyFormatCompression(
     case 'gif':
       // Preserve GIF format to maintain animations
       // Note: sharp's gif() uses { colors } for palette size, not quality
-      // Lower quality = fewer colors: 85 → 256, 70 → 128, 55 → 64, 40 → 32
+      // Formula: 256 * (quality/100), so 85→217, 70→179, 55→140, 40→102
       return pipeline.gif({ colors: Math.max(32, Math.floor(256 * (quality / 100))) });
     case 'jpeg':
     default:
