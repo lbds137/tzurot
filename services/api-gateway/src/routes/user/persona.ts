@@ -24,7 +24,12 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  generateUserPersonalityConfigUuid,
+  type PrismaClient,
+  DISCORD_LIMITS,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -768,7 +773,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      // Upsert the override
+      // Upsert the override (use deterministic UUID for cross-env sync)
       await prisma.userPersonalityConfig.upsert({
         where: {
           userId_personalityId: {
@@ -777,6 +782,7 @@ export function createPersonaRoutes(prisma: PrismaClient): Router {
           },
         },
         create: {
+          id: generateUserPersonalityConfigUuid(user.id, personality.id),
           userId: user.id,
           personalityId: personality.id,
           personaId: personaIdValue,

@@ -1,8 +1,21 @@
 /**
  * Deterministic UUID Generation
  *
- * Ensures all entities have consistent UUIDs across dev/staging/prod environments.
- * Uses UUID v5 with entity-specific namespaces and seed patterns.
+ * 🚨 CRITICAL: ALL database entities MUST use these generators, not Prisma's @default(uuid()).
+ *
+ * WHY: This project syncs data between dev and prod. Random UUIDs cause sync failures
+ * because the same logical entity (e.g., user X's config for personality Y) gets
+ * different IDs in each environment, violating unique constraints during sync.
+ *
+ * HOW: Each generator creates a v5 UUID from a deterministic seed based on the
+ * entity's natural/business key (e.g., discordId for users, slug for personalities).
+ *
+ * WHEN ADDING NEW ENTITIES:
+ * 1. Add a generator function here with a unique seed prefix
+ * 2. Update CLAUDE.md's "Deterministic UUIDs Required" section
+ * 3. Always pass the `id` field explicitly in Prisma create/upsert calls
+ *
+ * @see CLAUDE.md for the full list of generators and usage patterns
  */
 
 import { v5 as uuidv5 } from 'uuid';

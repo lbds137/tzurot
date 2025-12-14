@@ -634,7 +634,19 @@ describe('/user/persona routes', () => {
       );
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalled();
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            // Verify deterministic UUID is generated (v5 format check)
+            id: expect.stringMatching(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+            ),
+            userId: MOCK_USER_ID,
+            personalityId: MOCK_PERSONALITY_ID,
+            personaId: MOCK_PERSONA_ID_2,
+          }),
+        })
+      );
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         personality: {

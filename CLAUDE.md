@@ -86,6 +86,60 @@ This attitude leads to permanent technical debt. Every session says "not my prob
 3. If fixing is genuinely out of scope, create a tracking issue AND get explicit user approval to proceed
 4. Never silently bypass checks
 
+## 🚨 CRITICAL: Deterministic UUIDs Required
+
+**NEVER use random UUIDs (v4). ALWAYS use deterministic UUIDs (v5) for database entities.**
+
+This project syncs data between dev and prod environments. Random UUIDs cause sync failures because the same logical entity gets different IDs in each environment.
+
+**Required approach:**
+
+1. Use functions from `packages/common-types/src/utils/deterministicUuid.ts`
+2. Each entity type has a specific generator function (e.g., `generateUserPersonalityConfigUuid`)
+3. The generator uses a deterministic seed based on the entity's natural key
+
+**Available generators:**
+
+| Entity | Function | Seed Pattern |
+|--------|----------|--------------|
+| User | `generateUserUuid` | `discord:{discordId}` |
+| Personality | `generatePersonalityUuid` | `personality:{slug}` |
+| Persona | `generatePersonaUuid` | `persona:{ownerId}:{name}` |
+| SystemPrompt | `generateSystemPromptUuid` | `system_prompt:{name}` |
+| LlmConfig | `generateLlmConfigUuid` | `llm_config:{name}` |
+| UserPersonalityConfig | `generateUserPersonalityConfigUuid` | `user_personality_settings:{userId}:{personalityId}` |
+| ConversationHistory | `generateConversationHistoryUuid` | `conversation_history:{channelId}:{personalityId}:{userId}:{timestamp}` |
+| ActivatedChannel | `generateActivatedChannelUuid` | `activated_channel:{channelId}:{personalityId}` |
+
+**When creating a new entity type:**
+
+1. Add a generator function to `deterministicUuid.ts`
+2. Use the natural/business key as the seed (not auto-generated values)
+3. Always pass the `id` field explicitly in Prisma `create` calls
+
+**Anti-pattern (causes sync failures):**
+
+```typescript
+// ❌ WRONG - Prisma generates random UUID
+await prisma.userPersonalityConfig.upsert({
+  create: { userId, personalityId, llmConfigId },  // No id specified!
+  ...
+});
+```
+
+**Correct pattern:**
+
+```typescript
+// ✅ CORRECT - Deterministic UUID
+await prisma.userPersonalityConfig.upsert({
+  create: {
+    id: generateUserPersonalityConfigUuid(userId, personalityId),
+    userId, personalityId, llmConfigId
+  },
+  ...
+});
+```
+
 ## Development Strategy: "Launch, Stabilize, Evolve"
 
 **THE CRITICAL INSIGHT** (from Gemini consultation, 2025-11-22):

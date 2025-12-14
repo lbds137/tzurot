@@ -105,7 +105,10 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     timestampColumns: ['created_at'],
   },
   user_personality_configs: {
-    pk: 'id',
+    // Use composite unique key for sync - the business key is (user_id, personality_id),
+    // not the surrogate id. This prevents duplicate key errors when dev and prod have
+    // different UUIDs for the same user+personality combination.
+    pk: ['user_id', 'personality_id'],
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],

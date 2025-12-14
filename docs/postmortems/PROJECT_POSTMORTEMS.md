@@ -12,6 +12,7 @@
 | 2025-07-16 | DDD migration broke features  | Test actual behavior, not just units    |
 | 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch   |
 | 2025-12-06 | API contract mismatch         | Use shared Zod schemas for contracts    |
+| 2025-12-14 | Random UUIDs broke db-sync    | Use deterministic v5 UUIDs for all entities |
 
 ---
 
@@ -196,3 +197,45 @@
 - More time fixing architecture than building features
 
 **v3 Approach**: Simple classes, constructor injection, clear responsibilities. Ship features, not architecture.
+
+---
+
+## 2025-12-14 - Random UUIDs Broke Database Sync
+
+**What Happened**: Database sync between dev and prod failed with duplicate key constraint violation on `user_personality_configs`.
+
+**Error**:
+```
+duplicate key value violates unique constraint "user_personality_configs_user_id_personality_id_key"
+```
+
+**Impact**:
+- Database sync completely blocked
+- Manual intervention required to fix UUIDs in both databases
+
+**Root Cause**:
+- `UserPersonalityConfig` records were created with Prisma's `@default(uuid())` instead of deterministic UUIDs
+- A function `generateUserPersonalityConfigUuid()` existed but was never used
+- Same user + personality combo got different random UUIDs in dev vs prod
+- Sync tried to insert dev's record into prod, violating the `(user_id, personality_id)` unique constraint
+
+**Why It Wasn't Caught**:
+- The deterministic UUID generator existed but wasn't imported/used in the route handlers
+- No lint rule or test to enforce deterministic UUID usage
+- Tests passed because they mocked Prisma, not the actual ID generation
+
+**Prevention Measures**:
+1. **Fixed**: Updated `model-override.ts` and `persona.ts` to explicitly pass deterministic IDs
+2. **Added CLAUDE.md Section**: "Deterministic UUIDs Required" with examples and anti-patterns
+3. **Updated deterministicUuid.ts**: Added prominent header warning
+4. **Added Test Assertions**: Tests now verify v5 UUID format in create calls
+5. **Sync Config**: Changed `user_personality_configs` pk to composite `[user_id, personality_id]` as fallback
+
+**Manual Remediation**:
+```sql
+-- Computed deterministic UUIDs using generateUserPersonalityConfigUuid()
+-- Applied to both dev and prod databases
+UPDATE user_personality_configs SET id = '<v5-uuid>' WHERE user_id = '...' AND personality_id = '...';
+```
+
+**Universal Lesson**: When a deterministic UUID generator exists, it MUST be used at all creation points. Having the function is useless if the code doesn't call it.
