@@ -149,6 +149,26 @@ export const CACHE_CONTROL = {
 } as const;
 
 /**
+ * Cleanup defaults for database maintenance
+ *
+ * These values are used for scheduled cleanup of old data to prevent
+ * unbounded growth while preserving recent history for context.
+ */
+export const CLEANUP_DEFAULTS = {
+  /** Default days to keep conversation history before cleanup (30 days) */
+  DAYS_TO_KEEP_HISTORY: 30,
+  /**
+   * Default days to keep tombstones before cleanup (30 days)
+   * Tombstones only need to exist long enough for db-sync to propagate deletions
+   */
+  DAYS_TO_KEEP_TOMBSTONES: 30,
+  /** Minimum allowed days to keep (1 day) */
+  MIN_DAYS: 1,
+  /** Maximum allowed days to keep (365 days) */
+  MAX_DAYS: 365,
+} as const;
+
+/**
  * External API validation timeouts
  */
 export const VALIDATION_TIMEOUTS = {
