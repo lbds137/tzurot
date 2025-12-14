@@ -21,8 +21,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('tombstoneUtils', () => {
-  let devClient: { $queryRawUnsafe: ReturnType<typeof vi.fn>; $executeRawUnsafe: ReturnType<typeof vi.fn> };
-  let prodClient: { $queryRawUnsafe: ReturnType<typeof vi.fn>; $executeRawUnsafe: ReturnType<typeof vi.fn> };
+  let devClient: {
+    $queryRawUnsafe: ReturnType<typeof vi.fn>;
+    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+  };
+  let prodClient: {
+    $queryRawUnsafe: ReturnType<typeof vi.fn>;
+    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     devClient = {
