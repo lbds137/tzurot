@@ -2,10 +2,12 @@
  * Character Avatar Handler
  *
  * Handles avatar upload and update for characters.
+ * Automatically resizes large images to fit within the API gateway's body limit.
  */
 
 import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
+import sharp from 'sharp';
 import { createLogger, type EnvConfig } from '@tzurot/common-types';
 import { fetchCharacter, updateCharacter } from './api.js';
 
@@ -13,8 +15,15 @@ const logger = createLogger('character-avatar');
 
 // Avatar validation constants
 const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-const MAX_SIZE_MB = 8;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+// Max input size - we'll resize anything larger than this
+const MAX_INPUT_SIZE_MB = 25;
+const MAX_INPUT_SIZE_BYTES = MAX_INPUT_SIZE_MB * 1024 * 1024;
+// Target size for base64 payload (accounting for ~33% base64 overhead)
+// API gateway has 10MB limit, so target 7MB raw → ~9.3MB base64
+const TARGET_SIZE_BYTES = 7 * 1024 * 1024;
+// Resize dimensions - large enough for quality, small enough to fit
+const RESIZE_WIDTH = 1024;
+const RESIZE_HEIGHT = 1024;
 
 /**
  * Handle avatar upload subcommand
@@ -36,10 +45,10 @@ export async function handleAvatar(
     return;
   }
 
-  // Check file size
-  if (attachment.size > MAX_SIZE_BYTES) {
+  // Check file size - reject extremely large files
+  if (attachment.size > MAX_INPUT_SIZE_BYTES) {
     await interaction.editReply(
-      `❌ Image too large. Please upload an image under ${MAX_SIZE_MB}MB.`
+      `❌ Image too large. Please upload an image under ${MAX_INPUT_SIZE_MB}MB.`
     );
     return;
   }
@@ -68,7 +77,30 @@ export async function handleAvatar(
       return;
     }
 
-    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    let imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+
+    // Resize if the image is too large for the API gateway
+    if (imageBuffer.length > TARGET_SIZE_BYTES) {
+      logger.info(
+        { originalSize: imageBuffer.length, slug },
+        'Resizing large avatar image'
+      );
+
+      // Resize to 1024x1024 max and convert to JPEG for better compression
+      imageBuffer = await sharp(imageBuffer)
+        .resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+
+      logger.info(
+        { newSize: imageBuffer.length, slug },
+        'Avatar image resized successfully'
+      );
+    }
+
     const base64Image = imageBuffer.toString('base64');
 
     // Update character with new avatar
@@ -88,6 +120,9 @@ export async function handleAvatar(
 // Export constants for testing
 export const _testExports = {
   VALID_IMAGE_TYPES,
-  MAX_SIZE_MB,
-  MAX_SIZE_BYTES,
+  MAX_INPUT_SIZE_MB,
+  MAX_INPUT_SIZE_BYTES,
+  TARGET_SIZE_BYTES,
+  RESIZE_WIDTH,
+  RESIZE_HEIGHT,
 };

@@ -16,7 +16,8 @@ import * as api from './api.js';
 import type { ChatInputCommandInteraction, Attachment } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
-const { VALID_IMAGE_TYPES, MAX_SIZE_MB, MAX_SIZE_BYTES } = _testExports;
+const { VALID_IMAGE_TYPES, MAX_INPUT_SIZE_MB, MAX_INPUT_SIZE_BYTES, TARGET_SIZE_BYTES } =
+  _testExports;
 
 // Mock dependencies
 vi.mock('./api.js', () => ({
@@ -93,9 +94,13 @@ describe('Character Avatar Handler', () => {
       expect(VALID_IMAGE_TYPES).toContain('image/webp');
     });
 
-    it('should have 8MB max size', () => {
-      expect(MAX_SIZE_MB).toBe(8);
-      expect(MAX_SIZE_BYTES).toBe(8 * 1024 * 1024);
+    it('should have 25MB max input size', () => {
+      expect(MAX_INPUT_SIZE_MB).toBe(25);
+      expect(MAX_INPUT_SIZE_BYTES).toBe(25 * 1024 * 1024);
+    });
+
+    it('should have 7MB target size for base64 payload', () => {
+      expect(TARGET_SIZE_BYTES).toBe(7 * 1024 * 1024);
     });
   });
 
@@ -134,8 +139,8 @@ describe('Character Avatar Handler', () => {
       );
     });
 
-    it('should reject images larger than 8MB', async () => {
-      const attachment = createMockAttachment({ size: 9 * 1024 * 1024 }); // 9MB
+    it('should reject images larger than 25MB', async () => {
+      const attachment = createMockAttachment({ size: 26 * 1024 * 1024 }); // 26MB
       const mockInteraction = createMockInteraction('test-char', attachment);
 
       await handleAvatar(mockInteraction, mockConfig);
