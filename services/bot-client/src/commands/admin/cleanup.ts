@@ -30,6 +30,7 @@ export async function handleCleanup(interaction: ChatInputCommandInteraction): P
     const response = await adminPostJson('/admin/cleanup', {
       daysToKeep,
       target,
+      ownerId: interaction.user.id,
     });
 
     if (!response.ok) {
