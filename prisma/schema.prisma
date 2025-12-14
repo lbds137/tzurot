@@ -322,6 +322,21 @@ model ConversationHistory {
   @@map("conversation_history")
 }
 
+/// Tombstone records for hard-deleted conversation history messages
+/// Used by db-sync to prevent resurrection of deleted messages
+/// The actual message data is deleted; this just records the deletion event
+model ConversationHistoryTombstone {
+  id            String   @id @db.Uuid // Same ID as the deleted message
+  channelId     String   @map("channel_id") @db.VarChar(20)
+  personalityId String   @map("personality_id") @db.Uuid
+  personaId     String   @map("persona_id") @db.Uuid
+  deletedAt     DateTime @default(now()) @map("deleted_at")
+
+  @@index([channelId, personalityId, personaId])
+  @@index([deletedAt]) // For periodic cleanup of old tombstones
+  @@map("conversation_history_tombstones")
+}
+
 model PendingMemory {
   id                    String               @id @default(uuid()) @db.Uuid
   conversationHistoryId String?              @unique @map("conversation_history_id") @db.Uuid

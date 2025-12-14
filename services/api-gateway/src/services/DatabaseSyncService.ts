@@ -8,6 +8,8 @@ import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
+import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
+import { prepareLlmConfigSingletonFlags } from './sync/utils/llmConfigSingletons.js';
 
 const logger = createLogger('db-sync');
 
@@ -126,6 +128,9 @@ export class DatabaseSyncService {
         config: (typeof SYNC_CONFIG)[keyof typeof SYNC_CONFIG];
       }[] = [];
 
+      // Load tombstone IDs once for conversation_history sync
+      const tombstoneIds = await loadTombstoneIds(this.devClient, this.prodClient);
+
       // PASS 1: Sync each table in FK-dependency order (with deferred FKs set to NULL)
       logger.info('[Sync] Pass 1: Syncing tables with deferred FK columns');
       for (const tableName of SYNC_TABLE_ORDER) {
@@ -134,10 +139,27 @@ export class DatabaseSyncService {
 
         // Special handling for llm_configs: resolve singleton flags before syncing
         if (tableName === 'llm_configs' && !options.dryRun) {
-          await this.prepareLlmConfigSingletonFlags();
+          await prepareLlmConfigSingletonFlags(this.devClient, this.prodClient);
         }
 
-        const tableStats = await this.syncTable(tableName, config, options.dryRun);
+        // Special handling for conversation_history: respect tombstones
+        // First delete any messages that have tombstones, then sync normally
+        // (tombstones are synced BEFORE conversation_history in SYNC_TABLE_ORDER)
+        if (tableName === 'conversation_history') {
+          const { devDeleted, prodDeleted } = await deleteMessagesWithTombstones(
+            this.devClient,
+            this.prodClient,
+            tombstoneIds,
+            options.dryRun
+          );
+          if (devDeleted > 0 || prodDeleted > 0) {
+            warnings.push(
+              `conversation_history: ${devDeleted + prodDeleted} messages deleted (had tombstones)`
+            );
+          }
+        }
+
+        const tableStats = await this.syncTable(tableName, config, options.dryRun, tombstoneIds);
 
         stats[tableName] = tableStats;
 
@@ -180,11 +202,15 @@ export class DatabaseSyncService {
 
   /**
    * Sync a single table using last-write-wins strategy
+   *
+   * @param tombstoneIds - Set of message IDs that have been hard-deleted.
+   *                       For conversation_history, rows with these IDs are skipped.
    */
   private async syncTable(
     tableName: string,
     config: (typeof SYNC_CONFIG)[keyof typeof SYNC_CONFIG],
-    dryRun: boolean
+    dryRun: boolean,
+    tombstoneIds?: Set<string>
   ): Promise<{ devToProd: number; prodToDev: number; conflicts: number }> {
     // Fetch all rows from both databases
     const devRows = await this.fetchAllRows(this.devClient, tableName);
@@ -204,7 +230,15 @@ export class DatabaseSyncService {
     // Find rows that need syncing
     const allKeys = new Set([...devMap.keys(), ...prodMap.keys()]);
 
+    // For conversation_history, skip rows that have tombstones (already deleted)
+    const shouldSkipTombstones = tableName === 'conversation_history' && tombstoneIds !== undefined;
+
     for (const key of allKeys) {
+      // Skip messages that have been hard-deleted (tombstoned)
+      if (shouldSkipTombstones && tombstoneIds?.has(key) === true) {
+        continue;
+      }
+
       const devRow = devMap.get(key);
       const prodRow = prodMap.get(key);
 
@@ -274,94 +308,6 @@ export class DatabaseSyncService {
     }
 
     return { devToProd, prodToDev, conflicts };
-  }
-
-  /**
-   * Prepare llm_configs singleton flags before syncing
-   *
-   * The llm_configs table has partial unique indexes that only allow one row
-   * with is_default=true and one row with is_free_default=true. Before syncing,
-   * we need to resolve conflicts by using the most recently updated value.
-   */
-  private async prepareLlmConfigSingletonFlags(): Promise<void> {
-    interface LlmConfigFlags {
-      id: string;
-      is_default: boolean;
-      is_free_default: boolean;
-      updated_at: Date;
-    }
-
-    // Fetch llm_configs with singleton flags from both databases
-    const devConfigs = await this.devClient.$queryRawUnsafe<LlmConfigFlags[]>(`
-      SELECT id, is_default, is_free_default, updated_at
-      FROM llm_configs
-      WHERE is_default = true OR is_free_default = true
-    `);
-
-    const prodConfigs = await this.prodClient.$queryRawUnsafe<LlmConfigFlags[]>(`
-      SELECT id, is_default, is_free_default, updated_at
-      FROM llm_configs
-      WHERE is_default = true OR is_free_default = true
-    `);
-
-    // Handle is_default singleton
-    await this.resolveSingletonFlag(devConfigs, prodConfigs, 'is_default');
-
-    // Handle is_free_default singleton
-    await this.resolveSingletonFlag(devConfigs, prodConfigs, 'is_free_default');
-  }
-
-  /**
-   * Resolve a singleton boolean flag between dev and prod
-   * Clears the flag on the "losing" config (older updated_at)
-   */
-  private async resolveSingletonFlag(
-    devConfigs: { id: string; is_default: boolean; is_free_default: boolean; updated_at: Date }[],
-    prodConfigs: { id: string; is_default: boolean; is_free_default: boolean; updated_at: Date }[],
-    flagName: 'is_default' | 'is_free_default'
-  ): Promise<void> {
-    const devWithFlag = devConfigs.find(c => c[flagName]);
-    const prodWithFlag = prodConfigs.find(c => c[flagName]);
-
-    // No conflict if only one database has the flag set
-    if (!devWithFlag || !prodWithFlag) {
-      return;
-    }
-
-    // Same config has the flag in both - no conflict
-    if (devWithFlag.id === prodWithFlag.id) {
-      return;
-    }
-
-    // Different configs have the flag - resolve using updated_at
-    const devTime = new Date(devWithFlag.updated_at).getTime();
-    const prodTime = new Date(prodWithFlag.updated_at).getTime();
-
-    logger.info(
-      {
-        flagName,
-        devConfigId: devWithFlag.id,
-        devUpdatedAt: devWithFlag.updated_at,
-        prodConfigId: prodWithFlag.id,
-        prodUpdatedAt: prodWithFlag.updated_at,
-        winner: devTime >= prodTime ? 'dev' : 'prod',
-      },
-      '[Sync] Resolving llm_configs singleton flag conflict'
-    );
-
-    if (devTime >= prodTime) {
-      // Dev wins - clear the flag in prod (so dev's config can be synced)
-      await this.prodClient.$executeRawUnsafe(
-        `UPDATE llm_configs SET ${flagName} = false, updated_at = NOW() WHERE id = $1::uuid`,
-        prodWithFlag.id
-      );
-    } else {
-      // Prod wins - clear the flag in dev (so prod's config can be synced)
-      await this.devClient.$executeRawUnsafe(
-        `UPDATE llm_configs SET ${flagName} = false, updated_at = NOW() WHERE id = $1::uuid`,
-        devWithFlag.id
-      );
-    }
   }
 
   /**

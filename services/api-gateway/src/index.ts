@@ -23,6 +23,7 @@ import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  ConversationHistoryService,
 } from '@tzurot/common-types';
 
 // Routes
@@ -132,6 +133,7 @@ async function main(): Promise<void> {
   logger.info('[Gateway] Request deduplication cache initialized with Redis');
 
   const personalityService = new PersonalityService(prisma);
+  const conversationHistoryService = new ConversationHistoryService(prisma);
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
   await cacheInvalidationService.subscribe();
   logger.info('[Gateway] Subscribed to personality cache invalidation events');
@@ -200,7 +202,12 @@ async function main(): Promise<void> {
 
   app.use(
     '/admin',
-    createAdminRouter(prisma, cacheInvalidationService, llmConfigCacheInvalidation)
+    createAdminRouter(
+      prisma,
+      cacheInvalidationService,
+      llmConfigCacheInvalidation,
+      conversationHistoryService
+    )
   );
   logger.info('[Gateway] Admin routes registered');
 

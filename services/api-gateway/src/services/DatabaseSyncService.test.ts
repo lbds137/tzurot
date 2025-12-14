@@ -1008,15 +1008,21 @@ describe('DatabaseSyncService', () => {
     });
 
     it('should sync tables in SYNC_TABLE_ORDER order', async () => {
-      // Track the order of table syncs by capturing SELECT queries
+      // Track the order of table syncs by capturing SELECT * queries
+      // (excludes SELECT id queries like loadTombstoneIds which runs before the sync loop)
       const syncedTables: string[] = [];
 
       devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
-        // Match SELECT * FROM "tablename" pattern
-        const match = queryStr.match(/FROM "([^"]+)"/);
-        if (match && !queryStr.includes('is_default')) {
-          syncedTables.push(match[1]);
+        // Match SELECT * FROM "tablename" pattern (full row fetches during sync)
+        // Also match the special memories query (uses explicit columns due to vector type)
+        // Excludes: SELECT id FROM (tombstone loading), SELECT ... is_default (llm_config prep)
+        const selectStarMatch = queryStr.match(/SELECT \* FROM "([^"]+)"/);
+        const memoriesMatch = queryStr.match(/SELECT\s+id,.*FROM "memories"/s);
+        if (selectStarMatch) {
+          syncedTables.push(selectStarMatch[1]);
+        } else if (memoriesMatch) {
+          syncedTables.push('memories');
         }
         return [];
       });
@@ -1043,8 +1049,9 @@ describe('DatabaseSyncService', () => {
 
       devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
-        const match = queryStr.match(/FROM "([^"]+)"/);
-        if (match && !queryStr.includes('is_default')) {
+        // Match SELECT * FROM (full row fetches during sync loop)
+        const match = queryStr.match(/SELECT \* FROM "([^"]+)"/);
+        if (match) {
           syncedTables.push(match[1]);
         }
         return [];
