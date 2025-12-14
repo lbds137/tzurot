@@ -1,6 +1,10 @@
+/* eslint-disable max-lines */
 /**
  * ConversationHistoryService
  * Manages short-term conversation history in PostgreSQL
+ *
+ * Note: This service consolidates all conversation history operations (CRUD, pagination,
+ * cleanup, tombstones) in one file for cohesion. The 500-line limit is exceeded by design.
  */
 
 import type { PrismaClient } from './prisma.js';
@@ -505,6 +509,9 @@ export class ConversationHistoryService {
    * Optionally filter by personaId for per-persona deletion
    * (useful for /reset and /history hard-delete commands)
    *
+   * Creates tombstone records for deleted messages to prevent db-sync from
+   * restoring them. Tombstones are small (just IDs) and can be periodically purged.
+   *
    * @param channelId Channel ID
    * @param personalityId Personality ID
    * @param personaId Optional persona ID - if provided, only deletes messages for that persona
@@ -524,8 +531,41 @@ export class ConversationHistoryService {
         where.personaId = personaId;
       }
 
-      const result = await this.prisma.conversationHistory.deleteMany({
-        where,
+      // Use transaction to ensure tombstones are created before messages are deleted
+      const result = await this.prisma.$transaction(async tx => {
+        // Fetch messages that will be deleted (need IDs for tombstones)
+        const messagesToDelete = await tx.conversationHistory.findMany({
+          where,
+          select: {
+            id: true,
+            channelId: true,
+            personalityId: true,
+            personaId: true,
+          },
+        });
+
+        if (messagesToDelete.length === 0) {
+          return { count: 0 };
+        }
+
+        // Create tombstones for all messages being deleted
+        // This prevents db-sync from restoring them
+        await tx.conversationHistoryTombstone.createMany({
+          data: messagesToDelete.map(msg => ({
+            id: msg.id,
+            channelId: msg.channelId,
+            personalityId: msg.personalityId,
+            personaId: msg.personaId,
+          })),
+          skipDuplicates: true, // In case tombstone already exists
+        });
+
+        // Delete the actual messages
+        const deleteResult = await tx.conversationHistory.deleteMany({
+          where,
+        });
+
+        return deleteResult;
       });
 
       const scopeInfo =
@@ -533,7 +573,9 @@ export class ConversationHistoryService {
           ? `channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...`
           : `channel: ${channelId}, personality: ${personalityId}`;
 
-      logger.info(`Cleared ${result.count} messages from history (${scopeInfo})`);
+      logger.info(
+        `Cleared ${result.count} messages from history with tombstones (${scopeInfo})`
+      );
       return result.count;
     } catch (error) {
       logger.error({ err: error }, `Failed to clear conversation history`);
@@ -631,6 +673,32 @@ export class ConversationHistoryService {
       return result.count;
     } catch (error) {
       logger.error({ err: error }, `Failed to cleanup old conversation history`);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up old tombstones (older than X days)
+   * Tombstones only need to exist long enough for db-sync to propagate deletions.
+   * Call this periodically to prevent unbounded growth.
+   */
+  async cleanupOldTombstones(daysToKeep = 30): Promise<number> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+      const result = await this.prisma.conversationHistoryTombstone.deleteMany({
+        where: {
+          deletedAt: {
+            lt: cutoffDate,
+          },
+        },
+      });
+
+      logger.info(`Cleaned up ${result.count} old tombstones (older than ${daysToKeep} days)`);
+      return result.count;
+    } catch (error) {
+      logger.error({ err: error }, `Failed to cleanup old tombstones`);
       throw error;
     }
   }

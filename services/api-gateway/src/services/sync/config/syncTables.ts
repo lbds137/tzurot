@@ -37,6 +37,7 @@ export type SyncTableName =
   | 'user_personality_configs'
   | 'user_persona_history_configs'
   | 'conversation_history'
+  | 'conversation_history_tombstones'
   | 'activated_channels'
   | 'memories'
   | 'shapes_persona_mappings';
@@ -124,6 +125,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'persona_id', 'personality_id'],
     timestampColumns: ['created_at'],
   },
+  conversation_history_tombstones: {
+    pk: 'id',
+    createdAt: 'deleted_at', // Use deleted_at as the timestamp for sync
+    // No updatedAt - tombstones are immutable
+    uuidColumns: ['id', 'persona_id', 'personality_id'],
+    timestampColumns: ['deleted_at'],
+  },
   activated_channels: {
     pk: 'id',
     createdAt: 'created_at',
@@ -195,6 +203,9 @@ export const SYNC_TABLE_ORDER: SyncTableName[] = [
   'personality_aliases',
   'user_personality_configs',
   'user_persona_history_configs',
+  // Tombstones MUST be synced BEFORE conversation_history
+  // so sync can check tombstones and skip/delete tombstoned messages
+  'conversation_history_tombstones',
   // Data tables
   'conversation_history',
   'activated_channels',
