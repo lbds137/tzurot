@@ -8,6 +8,12 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
+import {
+  VALID_IMAGE_TYPES,
+  MAX_INPUT_SIZE_MB,
+  MAX_INPUT_SIZE_BYTES,
+  processAvatarBuffer,
+} from './avatarUtils.js';
 
 const logger = createLogger('character-import');
 
@@ -37,11 +43,6 @@ export const CHARACTER_JSON_TEMPLATE = `{
  * Required fields for character import
  */
 export const REQUIRED_IMPORT_FIELDS = ['name', 'slug', 'characterInfo', 'personalityTraits'];
-
-/**
- * Valid image MIME types for avatar upload
- */
-const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
 /**
  * Build the template help message
@@ -154,25 +155,39 @@ export async function handleImport(
         return;
       }
 
-      // Validate avatar size (max 8MB)
-      const MAX_AVATAR_SIZE = 8 * 1024 * 1024;
-      if (avatarAttachment.size > MAX_AVATAR_SIZE) {
-        await interaction.editReply('❌ Avatar image is too large. Maximum size is 8MB.');
+      // Validate avatar size
+      if (avatarAttachment.size > MAX_INPUT_SIZE_BYTES) {
+        await interaction.editReply(
+          `❌ Avatar image is too large. Maximum size is ${MAX_INPUT_SIZE_MB}MB.`
+        );
         return;
       }
 
-      // Download and convert to base64
+      // Download, resize if needed, and convert to base64
       try {
         const avatarResponse = await fetch(avatarAttachment.url);
         if (!avatarResponse.ok) {
           throw new Error(`HTTP ${avatarResponse.status}`);
         }
-        const avatarBuffer = Buffer.from(await avatarResponse.arrayBuffer());
-        avatarData = avatarBuffer.toString('base64');
+        const rawBuffer = Buffer.from(await avatarResponse.arrayBuffer());
+
+        // Process avatar (resize if needed)
+        const result = await processAvatarBuffer(rawBuffer, avatarAttachment.name ?? 'import-avatar');
+        if (!result.success) {
+          await interaction.editReply(`❌ ${result.message}`);
+          return;
+        }
+
+        avatarData = result.buffer.toString('base64');
 
         logger.info(
-          { filename: avatarAttachment.name, sizeKb: (avatarAttachment.size / 1024).toFixed(2) },
-          '[Character/Import] Downloaded avatar image'
+          {
+            filename: avatarAttachment.name,
+            originalSizeKb: (avatarAttachment.size / 1024).toFixed(2),
+            finalSizeKb: (result.buffer.length / 1024).toFixed(2),
+            wasResized: result.wasResized,
+          },
+          '[Character/Import] Processed avatar image'
         );
       } catch (avatarError) {
         logger.error({ err: avatarError }, '[Character/Import] Failed to download avatar');

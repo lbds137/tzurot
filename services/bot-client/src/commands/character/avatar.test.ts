@@ -11,13 +11,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleAvatar, _testExports } from './avatar.js';
+import { handleAvatar } from './avatar.js';
+import {
+  VALID_IMAGE_TYPES,
+  MAX_INPUT_SIZE_MB,
+  MAX_INPUT_SIZE_BYTES,
+  TARGET_SIZE_BYTES,
+} from './avatarUtils.js';
 import * as api from './api.js';
 import type { ChatInputCommandInteraction, Attachment } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
-
-const { VALID_IMAGE_TYPES, MAX_INPUT_SIZE_MB, MAX_INPUT_SIZE_BYTES, TARGET_SIZE_BYTES } =
-  _testExports;
 
 // Mock dependencies
 vi.mock('./api.js', () => ({
