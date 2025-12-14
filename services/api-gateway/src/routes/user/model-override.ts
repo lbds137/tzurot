@@ -15,6 +15,7 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  generateUserPersonalityConfigUuid,
   type PrismaClient,
   type ModelOverrideSummary,
   type LlmConfigCacheInvalidationService,
@@ -160,7 +161,7 @@ export function createModelOverrideRoutes(
         return sendError(res, ErrorResponses.notFound('Config not found or not accessible'));
       }
 
-      // Upsert the UserPersonalityConfig
+      // Upsert the UserPersonalityConfig (use deterministic UUID for cross-env sync)
       const override = await prisma.userPersonalityConfig.upsert({
         where: {
           userId_personalityId: {
@@ -169,6 +170,7 @@ export function createModelOverrideRoutes(
           },
         },
         create: {
+          id: generateUserPersonalityConfigUuid(user.id, body.personalityId),
           userId: user.id,
           personalityId: body.personalityId,
           llmConfigId: body.configId,

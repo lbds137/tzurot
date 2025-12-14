@@ -333,6 +333,12 @@ describe('/user/model-override routes', () => {
             },
           },
           create: expect.objectContaining({
+            // Verify deterministic UUID is generated (v5 format check)
+            id: expect.stringMatching(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+            ),
+            userId: 'user-uuid-123',
+            personalityId: 'personality-1',
             llmConfigId: 'config-1',
           }),
           update: expect.objectContaining({
