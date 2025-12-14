@@ -18,9 +18,7 @@ export interface CleanupResult {
   daysKept: number;
 }
 
-export function createCleanupRoute(
-  conversationHistoryService: ConversationHistoryService
-): Router {
+export function createCleanupRoute(conversationHistoryService: ConversationHistoryService): Router {
   const router = Router();
 
   router.post(
@@ -55,18 +53,12 @@ export function createCleanupRoute(
 
       if (target === 'history' || target === 'all') {
         historyDeleted = await conversationHistoryService.cleanupOldHistory(daysToKeep);
-        logger.info(
-          { historyDeleted, daysToKeep },
-          '[Admin] Cleaned up old conversation history'
-        );
+        logger.info({ historyDeleted, daysToKeep }, '[Admin] Cleaned up old conversation history');
       }
 
       if (target === 'tombstones' || target === 'all') {
         tombstonesDeleted = await conversationHistoryService.cleanupOldTombstones(daysToKeep);
-        logger.info(
-          { tombstonesDeleted, daysToKeep },
-          '[Admin] Cleaned up old tombstones'
-        );
+        logger.info({ tombstonesDeleted, daysToKeep }, '[Admin] Cleaned up old tombstones');
       }
 
       const result: CleanupResult = {

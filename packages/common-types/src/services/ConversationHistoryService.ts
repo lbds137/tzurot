@@ -573,9 +573,7 @@ export class ConversationHistoryService {
           ? `channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...`
           : `channel: ${channelId}, personality: ${personalityId}`;
 
-      logger.info(
-        `Cleared ${result.count} messages from history with tombstones (${scopeInfo})`
-      );
+      logger.info(`Cleared ${result.count} messages from history with tombstones (${scopeInfo})`);
       return result.count;
     } catch (error) {
       logger.error({ err: error }, `Failed to clear conversation history`);
