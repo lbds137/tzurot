@@ -60,11 +60,12 @@ function applyFormatCompression(
   quality: number
 ): sharp.Sharp {
   switch (format) {
-    case 'png':
+    case 'png': {
       // Preserve PNG with transparency, use compression level based on quality
       // quality 85 → level 6, quality 40 → level 9
       const compressionLevel = Math.min(9, Math.floor((100 - quality) / 10) + 6);
       return pipeline.png({ compressionLevel });
+    }
     case 'webp':
       return pipeline.webp({ quality });
     case 'jpeg':
