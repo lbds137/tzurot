@@ -6,7 +6,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags, AttachmentBuilder } from 'discord.js';
-import { createLogger, type EnvConfig, getConfig } from '@tzurot/common-types';
+import { createLogger, type EnvConfig, getConfig, isBotOwner } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
 
@@ -120,7 +120,17 @@ export async function handleExport(
     }
 
     const character = result.data.personality;
+    const canEdit = result.data.canEdit;
     const displayName = character.displayName ?? character.name;
+
+    // Check ownership - only character owner or bot owner can export
+    if (!canEdit && !isBotOwner(interaction.user.id)) {
+      await interaction.editReply(
+        `❌ You don't have permission to export \`${slug}\`.\n` +
+          'You can only export characters you own.'
+      );
+      return;
+    }
 
     // Build export data (excludes avatar)
     const exportData = buildExportData(character);
