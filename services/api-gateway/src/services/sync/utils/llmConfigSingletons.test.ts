@@ -21,8 +21,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('llmConfigSingletons', () => {
-  let devClient: { $queryRawUnsafe: ReturnType<typeof vi.fn>; $executeRawUnsafe: ReturnType<typeof vi.fn> };
-  let prodClient: { $queryRawUnsafe: ReturnType<typeof vi.fn>; $executeRawUnsafe: ReturnType<typeof vi.fn> };
+  let devClient: {
+    $queryRawUnsafe: ReturnType<typeof vi.fn>;
+    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+  };
+  let prodClient: {
+    $queryRawUnsafe: ReturnType<typeof vi.fn>;
+    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     devClient = {
@@ -171,12 +177,32 @@ describe('llmConfigSingletons', () => {
 
     it('should handle both flags having conflicts independently', async () => {
       const devConfigs = [
-        { id: 'dev-default', is_default: true, is_free_default: false, updated_at: new Date('2025-01-02') },
-        { id: 'dev-free', is_default: false, is_free_default: true, updated_at: new Date('2025-01-01') },
+        {
+          id: 'dev-default',
+          is_default: true,
+          is_free_default: false,
+          updated_at: new Date('2025-01-02'),
+        },
+        {
+          id: 'dev-free',
+          is_default: false,
+          is_free_default: true,
+          updated_at: new Date('2025-01-01'),
+        },
       ];
       const prodConfigs = [
-        { id: 'prod-default', is_default: true, is_free_default: false, updated_at: new Date('2025-01-01') },
-        { id: 'prod-free', is_default: false, is_free_default: true, updated_at: new Date('2025-01-02') },
+        {
+          id: 'prod-default',
+          is_default: true,
+          is_free_default: false,
+          updated_at: new Date('2025-01-01'),
+        },
+        {
+          id: 'prod-free',
+          is_default: false,
+          is_free_default: true,
+          updated_at: new Date('2025-01-02'),
+        },
       ];
       devClient.$queryRawUnsafe.mockResolvedValue(devConfigs);
       prodClient.$queryRawUnsafe.mockResolvedValue(prodConfigs);

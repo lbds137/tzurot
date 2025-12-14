@@ -27,16 +27,16 @@ The codebase is functional and well-structured for a microservices architecture,
 
 ### Large Files (Potential SRP Violations)
 
-| File                                                  | Lines | Concerns                                                           |
-| ----------------------------------------------------- | ----- | ------------------------------------------------------------------ |
+| File                                                      | Lines | Concerns                                                               |
+| --------------------------------------------------------- | ----- | ---------------------------------------------------------------------- |
 | `common-types/src/services/ConversationHistoryService.ts` | 704   | CRUD, pagination, cleanup, tombstones - has `eslint-disable max-lines` |
-| `api-gateway/src/index.ts`                            | 558   | Mixes Express config, routes, validation, startup logic            |
-| `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts` | 617   | Handles context, dependencies, BYOK, config resolution, generation |
-| `ai-worker/src/services/PgvectorMemoryAdapter.ts`     | 565   | Mixes SQL, vector logic, and memory management                     |
-| `bot-client/src/services/MentionResolver.ts`          | 511   | Complex mention resolution logic                                   |
-| `ai-worker/src/services/ConversationalRAGService.ts`  | 475   | Orchestrates many concerns                                         |
-| `ai-worker/src/services/LlmConfigResolver.ts`         | 466   | Config resolution + caching                                        |
-| `ai-worker/src/services/PromptBuilder.ts`             | 461   | Large prompt construction                                          |
+| `api-gateway/src/index.ts`                                | 558   | Mixes Express config, routes, validation, startup logic                |
+| `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts`     | 617   | Handles context, dependencies, BYOK, config resolution, generation     |
+| `ai-worker/src/services/PgvectorMemoryAdapter.ts`         | 565   | Mixes SQL, vector logic, and memory management                         |
+| `bot-client/src/services/MentionResolver.ts`              | 511   | Complex mention resolution logic                                       |
+| `ai-worker/src/services/ConversationalRAGService.ts`      | 475   | Orchestrates many concerns                                             |
+| `ai-worker/src/services/LlmConfigResolver.ts`             | 466   | Config resolution + caching                                            |
+| `ai-worker/src/services/PromptBuilder.ts`                 | 461   | Large prompt construction                                              |
 
 ### Stateful Services (Scaling Blockers)
 
@@ -275,12 +275,14 @@ await queue.add(
 ```
 
 **Benefits**:
+
 - Automatic, consistent cleanup without manual intervention
 - Single job execution even with multiple workers (BullMQ handles deduplication)
 - Resilient to worker restarts
 - Easy to monitor via BullMQ dashboard
 
 **Files to modify**:
+
 - `services/ai-worker/src/index.ts` - Register repeatable job on startup
 - `services/ai-worker/src/jobs/` - Create `ScheduledCleanupJob.ts` handler
 
