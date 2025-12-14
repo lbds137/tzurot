@@ -996,21 +996,56 @@ describe('ConversationHistoryService - Token Count Caching', () => {
   });
 
   describe('cleanupOldHistory', () => {
-    it('should delete messages older than specified days', async () => {
+    it('should delete messages older than specified days and create tombstones', async () => {
       // Use fake timers to control the date
       vi.useFakeTimers();
       const fixedDate = new Date('2025-11-18T00:00:00Z');
       vi.setSystemTime(fixedDate);
 
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 15 });
+      const mockOldMessages = [
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+        {
+          id: 'msg-2',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+      ];
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockOldMessages);
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 2 });
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 2 });
 
       const count = await service.cleanupOldHistory(30);
 
-      expect(count).toBe(15);
+      expect(count).toBe(2);
 
       // Calculate expected cutoff the same way the implementation does
       const expectedCutoff = new Date(fixedDate);
       expectedCutoff.setDate(expectedCutoff.getDate() - 30);
+
+      // Verify tombstones were created
+      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            id: 'msg-1',
+            channelId: 'channel-123',
+            personalityId: 'personality-456',
+            personaId: 'persona-789',
+          },
+          {
+            id: 'msg-2',
+            channelId: 'channel-123',
+            personalityId: 'personality-456',
+            personaId: 'persona-789',
+          },
+        ],
+        skipDuplicates: true,
+      });
 
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
         where: {
@@ -1028,22 +1063,29 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const fixedDate = new Date('2025-11-18T00:00:00Z');
       vi.setSystemTime(fixedDate);
 
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 5 });
+      const mockOldMessages = [
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: null,
+        },
+      ];
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockOldMessages);
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
 
       const count = await service.cleanupOldHistory(); // No argument = default 30
 
-      expect(count).toBe(5);
+      expect(count).toBe(1);
 
       // Calculate expected cutoff the same way the implementation does
       const expectedCutoff = new Date(fixedDate);
       expectedCutoff.setDate(expectedCutoff.getDate() - 30);
 
-      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
-        where: {
-          createdAt: {
-            lt: expectedCutoff,
-          },
-        },
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
+        where: { createdAt: { lt: expectedCutoff } },
+        select: { id: true, channelId: true, personalityId: true, personaId: true },
       });
 
       vi.useRealTimers();
@@ -1054,40 +1096,76 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const fixedDate = new Date('2025-11-18T00:00:00Z');
       vi.setSystemTime(fixedDate);
 
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 3 });
+      const mockOldMessages = [
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+      ];
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockOldMessages);
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
 
       const count = await service.cleanupOldHistory(7); // 7 days
 
-      expect(count).toBe(3);
+      expect(count).toBe(1);
 
       // Calculate expected cutoff the same way the implementation does
       const expectedCutoff = new Date(fixedDate);
       expectedCutoff.setDate(expectedCutoff.getDate() - 7);
 
-      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
-        where: {
-          createdAt: {
-            lt: expectedCutoff,
-          },
-        },
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
+        where: { createdAt: { lt: expectedCutoff } },
+        select: { id: true, channelId: true, personalityId: true, personaId: true },
       });
 
       vi.useRealTimers();
     });
 
     it('should return 0 when no old messages to delete', async () => {
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
       const count = await service.cleanupOldHistory(30);
 
       expect(count).toBe(0);
+      // Should not create tombstones or delete when no messages found
+      expect(mockPrismaClient.conversationHistoryTombstone.createMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
     });
 
     it('should throw error on database failure', async () => {
       const error = new Error('Database connection failed');
-      mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
+      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
 
       await expect(service.cleanupOldHistory(30)).rejects.toThrow('Database connection failed');
+    });
+
+    it('should create tombstones before deleting messages (within transaction)', async () => {
+      // This test verifies the transaction ordering - tombstones created before deletion
+      const mockMessages = [
+        { id: 'msg-1', channelId: 'ch-1', personalityId: 'p-1', personaId: null },
+      ];
+
+      const callOrder: string[] = [];
+      mockPrismaClient.conversationHistory.findMany.mockImplementation(async () => {
+        callOrder.push('findMany');
+        return mockMessages;
+      });
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockImplementation(async () => {
+        callOrder.push('createMany');
+        return { count: 1 };
+      });
+      mockPrismaClient.conversationHistory.deleteMany.mockImplementation(async () => {
+        callOrder.push('deleteMany');
+        return { count: 1 };
+      });
+
+      await service.cleanupOldHistory(30);
+
+      // Verify order: find messages, create tombstones, then delete
+      expect(callOrder).toEqual(['findMany', 'createMany', 'deleteMany']);
     });
   });
 

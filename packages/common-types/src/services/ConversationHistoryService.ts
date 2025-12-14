@@ -652,22 +652,62 @@ export class ConversationHistoryService {
 
   /**
    * Clean up old history (older than X days)
-   * Call this periodically to prevent unbounded growth
+   * Call this periodically to prevent unbounded growth.
+   * Creates tombstones to prevent db-sync from restoring deleted messages.
    */
   async cleanupOldHistory(daysToKeep = 30): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      const result = await this.prisma.conversationHistory.deleteMany({
-        where: {
-          createdAt: {
-            lt: cutoffDate,
+      // Use transaction to ensure tombstones are created before messages are deleted
+      const result = await this.prisma.$transaction(async tx => {
+        // Fetch messages that will be deleted (need IDs for tombstones)
+        const messagesToDelete = await tx.conversationHistory.findMany({
+          where: {
+            createdAt: {
+              lt: cutoffDate,
+            },
           },
-        },
+          select: {
+            id: true,
+            channelId: true,
+            personalityId: true,
+            personaId: true,
+          },
+        });
+
+        if (messagesToDelete.length === 0) {
+          return { count: 0 };
+        }
+
+        // Create tombstones for all messages being deleted
+        // This prevents db-sync from restoring them
+        await tx.conversationHistoryTombstone.createMany({
+          data: messagesToDelete.map(msg => ({
+            id: msg.id,
+            channelId: msg.channelId,
+            personalityId: msg.personalityId,
+            personaId: msg.personaId,
+          })),
+          skipDuplicates: true, // In case tombstone already exists
+        });
+
+        // Delete the actual messages
+        const deleteResult = await tx.conversationHistory.deleteMany({
+          where: {
+            createdAt: {
+              lt: cutoffDate,
+            },
+          },
+        });
+
+        return deleteResult;
       });
 
-      logger.info(`Cleaned up ${result.count} old messages (older than ${daysToKeep} days)`);
+      logger.info(
+        `Cleaned up ${result.count} old messages with tombstones (older than ${daysToKeep} days)`
+      );
       return result.count;
     } catch (error) {
       logger.error({ err: error }, `Failed to cleanup old conversation history`);
