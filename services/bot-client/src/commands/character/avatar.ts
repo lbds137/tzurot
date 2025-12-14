@@ -84,13 +84,14 @@ export async function handleAvatar(
       logger.info({ originalSize: imageBuffer.length, slug }, 'Resizing large avatar image');
 
       // Resize to 1024x1024 max and convert to JPEG for better compression
-      imageBuffer = await sharp(imageBuffer)
+      const resized = await sharp(imageBuffer)
         .resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
           fit: 'inside',
           withoutEnlargement: true,
         })
         .jpeg({ quality: 85 })
         .toBuffer();
+      imageBuffer = Buffer.from(resized);
 
       logger.info({ newSize: imageBuffer.length, slug }, 'Avatar image resized successfully');
     }
