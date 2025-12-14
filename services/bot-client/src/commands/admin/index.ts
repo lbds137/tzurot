@@ -20,6 +20,7 @@ import { handleDbSync } from './db-sync.js';
 import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
+import { handleCleanup } from './cleanup.js';
 
 const logger = createLogger('admin-command');
 
@@ -73,6 +74,30 @@ export const data = new SlashCommandBuilder()
             { name: 'Last 30 days', value: '30d' }
           )
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('cleanup')
+      .setDescription('Clean up old conversation history and tombstones')
+      .addIntegerOption(option =>
+        option
+          .setName('days')
+          .setDescription('Keep history from the last N days (default: 30)')
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(365)
+      )
+      .addStringOption(option =>
+        option
+          .setName('target')
+          .setDescription('What to clean up (default: all)')
+          .setRequired(false)
+          .addChoices(
+            { name: 'All (history + tombstones)', value: 'all' },
+            { name: 'History only', value: 'history' },
+            { name: 'Tombstones only', value: 'tombstones' }
+          )
+      )
   );
 
 /**
@@ -86,6 +111,7 @@ function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Prom
       servers: handleServers,
       kick: handleKick,
       usage: handleUsage,
+      cleanup: handleCleanup,
     },
     { logger, logPrefix: '[Admin]' }
   );

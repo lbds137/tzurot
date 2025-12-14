@@ -29,6 +29,7 @@ The codebase is functional and well-structured for a microservices architecture,
 
 | File                                                  | Lines | Concerns                                                           |
 | ----------------------------------------------------- | ----- | ------------------------------------------------------------------ |
+| `common-types/src/services/ConversationHistoryService.ts` | 704   | CRUD, pagination, cleanup, tombstones - has `eslint-disable max-lines` |
 | `api-gateway/src/index.ts`                            | 558   | Mixes Express config, routes, validation, startup logic            |
 | `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts` | 617   | Handles context, dependencies, BYOK, config resolution, generation |
 | `ai-worker/src/services/PgvectorMemoryAdapter.ts`     | 565   | Mixes SQL, vector logic, and memory management                     |
@@ -254,6 +255,34 @@ Timer-based cleanup patterns that prevent horizontal scaling (documented in CLAU
 - `DatabaseNotificationListener.ts` - reconnection timeout
 
 Consider migrating to BullMQ repeatable jobs or Redis-based coordination.
+
+### Scheduled Cleanup Jobs
+
+**Current State**: Manual cleanup via `/admin cleanup` command and `POST /admin/cleanup` endpoint.
+
+**Recommended Migration**: Use BullMQ repeatable jobs for automatic scheduled cleanup:
+
+```typescript
+// Instead of relying on manual cleanup commands
+await queue.add(
+  'scheduled-cleanup',
+  { daysToKeep: 30, target: 'all' },
+  {
+    repeat: { cron: '0 3 * * *' }, // Daily at 3 AM
+    jobId: 'scheduled-history-cleanup', // Prevent duplicates
+  }
+);
+```
+
+**Benefits**:
+- Automatic, consistent cleanup without manual intervention
+- Single job execution even with multiple workers (BullMQ handles deduplication)
+- Resilient to worker restarts
+- Easy to monitor via BullMQ dashboard
+
+**Files to modify**:
+- `services/ai-worker/src/index.ts` - Register repeatable job on startup
+- `services/ai-worker/src/jobs/` - Create `ScheduledCleanupJob.ts` handler
 
 ---
 

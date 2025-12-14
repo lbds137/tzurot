@@ -11,6 +11,7 @@ import {
   type PrismaClient,
   type CacheInvalidationService,
   type LlmConfigCacheInvalidationService,
+  type ConversationHistoryService,
 } from '@tzurot/common-types';
 import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';
@@ -18,17 +19,20 @@ import { createUpdatePersonalityRoute } from './updatePersonality.js';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
 import { createAdminUsageRoutes } from './usage.js';
+import { createCleanupRoute } from './cleanup.js';
 
 /**
  * Create admin router with injected dependencies
  * @param prisma - Prisma client for database operations
  * @param cacheInvalidationService - Service for invalidating personality caches across all services
  * @param llmConfigCacheInvalidation - Service for invalidating LLM config caches across all services
+ * @param conversationHistoryService - Service for conversation history operations (cleanup)
  */
 export function createAdminRouter(
   prisma: PrismaClient,
   cacheInvalidationService: CacheInvalidationService,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
+  conversationHistoryService?: ConversationHistoryService
 ): Router {
   const router = Router();
 
@@ -49,6 +53,11 @@ export function createAdminRouter(
 
   // Usage statistics endpoint
   router.use('/usage', createAdminUsageRoutes(prisma));
+
+  // Cleanup endpoint (for conversation history and tombstones)
+  if (conversationHistoryService !== undefined) {
+    router.use('/cleanup', createCleanupRoute(conversationHistoryService));
+  }
 
   return router;
 }

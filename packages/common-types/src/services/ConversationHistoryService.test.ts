@@ -9,15 +9,25 @@ import { MessageRole } from '../constants/index.js';
 import * as tokenCounter from '../utils/tokenCounter.js';
 
 // Create mock Prisma client
-const createMockPrismaClient = () => ({
-  conversationHistory: {
-    create: vi.fn(),
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    update: vi.fn(),
-    deleteMany: vi.fn(),
-  },
-});
+const createMockPrismaClient = () => {
+  const client = {
+    conversationHistory: {
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    conversationHistoryTombstone: {
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    // $transaction executes the callback with the mock client as the transaction
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
+      return callback(client);
+    }),
+  };
+  return client;
+};
 
 const mockPrismaClient = createMockPrismaClient();
 
@@ -880,11 +890,47 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
   describe('clearHistory', () => {
     it('should delete all messages for channel and personality', async () => {
+      // Mock findMany to return messages that will be deleted
+      const mockMessages = [
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-1',
+        },
+        {
+          id: 'msg-2',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-1',
+        },
+      ];
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 42 });
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 2 });
 
       const count = await service.clearHistory('channel-123', 'personality-456');
 
       expect(count).toBe(42);
+      // Verify findMany was called to get messages for tombstones
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+        },
+        select: { id: true, channelId: true, personalityId: true, personaId: true },
+      });
+      // Verify tombstones were created
+      expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
+        data: mockMessages.map(msg => ({
+          id: msg.id,
+          channelId: msg.channelId,
+          personalityId: msg.personalityId,
+          personaId: msg.personaId,
+        })),
+        skipDuplicates: true,
+      });
+      // Verify deleteMany was called
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
         where: {
           channelId: 'channel-123',
@@ -894,16 +940,21 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
 
     it('should return 0 when no messages to delete', async () => {
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 0 });
+      // Mock findMany to return empty array (no messages to delete)
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
       const count = await service.clearHistory('channel-empty', 'personality-456');
 
       expect(count).toBe(0);
+      // Should not call createMany or deleteMany when no messages found
+      expect(mockPrismaClient.conversationHistoryTombstone.createMany).not.toHaveBeenCalled();
+      expect(mockPrismaClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
     });
 
     it('should throw error on database failure', async () => {
       const error = new Error('Database connection failed');
-      mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
+      // Mock findMany to throw error (simulating database failure)
+      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
 
       await expect(service.clearHistory('channel-123', 'personality-456')).rejects.toThrow(
         'Database connection failed'
@@ -911,11 +962,29 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
 
     it('should delete only messages for specific persona when personaId provided', async () => {
+      const mockMessages = [
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+      ];
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 10 });
+      mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
 
       const count = await service.clearHistory('channel-123', 'personality-456', 'persona-789');
 
       expect(count).toBe(10);
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+        select: { id: true, channelId: true, personalityId: true, personaId: true },
+      });
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
         where: {
           channelId: 'channel-123',

@@ -121,6 +121,18 @@ describe('ConversationHistoryService Component Test', () => {
       )
     `);
 
+    // Tombstones table for tracking hard-deleted conversation history
+    // Used to prevent db-sync from restoring deleted messages
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS conversation_history_tombstones (
+        id UUID PRIMARY KEY,
+        channel_id VARCHAR(20) NOT NULL,
+        personality_id UUID NOT NULL,
+        persona_id UUID NOT NULL,
+        deleted_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // Seed test data
     await prisma.$executeRawUnsafe(`
       INSERT INTO users (id, discord_id, username)
