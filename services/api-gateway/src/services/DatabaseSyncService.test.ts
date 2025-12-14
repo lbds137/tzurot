@@ -16,6 +16,13 @@ const createMockPrismaClient = () => ({
   $queryRawUnsafe: vi.fn().mockResolvedValue([]),
   $executeRaw: vi.fn().mockResolvedValue(0),
   $executeRawUnsafe: vi.fn().mockResolvedValue(0),
+  // Typed Prisma methods for tombstone operations
+  conversationHistoryTombstone: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
+  conversationHistory: {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
 });
 
 describe('DatabaseSyncService', () => {

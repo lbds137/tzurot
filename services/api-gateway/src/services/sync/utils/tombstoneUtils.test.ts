@@ -22,29 +22,51 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 describe('tombstoneUtils', () => {
   let devClient: {
-    $queryRawUnsafe: ReturnType<typeof vi.fn>;
-    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+    conversationHistoryTombstone: {
+      findMany: ReturnType<typeof vi.fn>;
+    };
+    conversationHistory: {
+      deleteMany: ReturnType<typeof vi.fn>;
+    };
   };
   let prodClient: {
-    $queryRawUnsafe: ReturnType<typeof vi.fn>;
-    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+    conversationHistoryTombstone: {
+      findMany: ReturnType<typeof vi.fn>;
+    };
+    conversationHistory: {
+      deleteMany: ReturnType<typeof vi.fn>;
+    };
   };
 
   beforeEach(() => {
     devClient = {
-      $queryRawUnsafe: vi.fn(),
-      $executeRawUnsafe: vi.fn(),
+      conversationHistoryTombstone: {
+        findMany: vi.fn(),
+      },
+      conversationHistory: {
+        deleteMany: vi.fn(),
+      },
     };
     prodClient = {
-      $queryRawUnsafe: vi.fn(),
-      $executeRawUnsafe: vi.fn(),
+      conversationHistoryTombstone: {
+        findMany: vi.fn(),
+      },
+      conversationHistory: {
+        deleteMany: vi.fn(),
+      },
     };
   });
 
   describe('loadTombstoneIds', () => {
     it('should load tombstone IDs from both databases', async () => {
-      devClient.$queryRawUnsafe.mockResolvedValue([{ id: 'dev-id-1' }, { id: 'dev-id-2' }]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([{ id: 'prod-id-1' }, { id: 'dev-id-1' }]); // dev-id-1 is in both
+      devClient.conversationHistoryTombstone.findMany.mockResolvedValue([
+        { id: 'dev-id-1' },
+        { id: 'dev-id-2' },
+      ]);
+      prodClient.conversationHistoryTombstone.findMany.mockResolvedValue([
+        { id: 'prod-id-1' },
+        { id: 'dev-id-1' }, // dev-id-1 is in both
+      ]);
 
       const result = await loadTombstoneIds(
         devClient as unknown as PrismaClient,
@@ -59,8 +81,8 @@ describe('tombstoneUtils', () => {
     });
 
     it('should return empty set when no tombstones exist', async () => {
-      devClient.$queryRawUnsafe.mockResolvedValue([]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+      devClient.conversationHistoryTombstone.findMany.mockResolvedValue([]);
+      prodClient.conversationHistoryTombstone.findMany.mockResolvedValue([]);
 
       const result = await loadTombstoneIds(
         devClient as unknown as PrismaClient,
@@ -70,21 +92,35 @@ describe('tombstoneUtils', () => {
       expect(result.size).toBe(0);
     });
 
-    it('should query the correct table', async () => {
-      devClient.$queryRawUnsafe.mockResolvedValue([]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+    it('should query with correct select clause', async () => {
+      devClient.conversationHistoryTombstone.findMany.mockResolvedValue([]);
+      prodClient.conversationHistoryTombstone.findMany.mockResolvedValue([]);
 
       await loadTombstoneIds(
         devClient as unknown as PrismaClient,
         prodClient as unknown as PrismaClient
       );
 
-      expect(devClient.$queryRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('conversation_history_tombstones')
+      expect(devClient.conversationHistoryTombstone.findMany).toHaveBeenCalledWith({
+        select: { id: true },
+      });
+      expect(prodClient.conversationHistoryTombstone.findMany).toHaveBeenCalledWith({
+        select: { id: true },
+      });
+    });
+
+    it('should load from both databases in parallel', async () => {
+      devClient.conversationHistoryTombstone.findMany.mockResolvedValue([{ id: 'dev-1' }]);
+      prodClient.conversationHistoryTombstone.findMany.mockResolvedValue([{ id: 'prod-1' }]);
+
+      await loadTombstoneIds(
+        devClient as unknown as PrismaClient,
+        prodClient as unknown as PrismaClient
       );
-      expect(prodClient.$queryRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('conversation_history_tombstones')
-      );
+
+      // Both should be called (Promise.all runs in parallel)
+      expect(devClient.conversationHistoryTombstone.findMany).toHaveBeenCalled();
+      expect(prodClient.conversationHistoryTombstone.findMany).toHaveBeenCalled();
     });
   });
 
@@ -98,8 +134,8 @@ describe('tombstoneUtils', () => {
       );
 
       expect(result).toEqual({ devDeleted: 0, prodDeleted: 0 });
-      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
-      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(devClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
+      expect(prodClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
     });
 
     it('should not delete when dryRun is true', async () => {
@@ -113,14 +149,14 @@ describe('tombstoneUtils', () => {
       );
 
       expect(result).toEqual({ devDeleted: 0, prodDeleted: 0 });
-      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
-      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(devClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
+      expect(prodClient.conversationHistory.deleteMany).not.toHaveBeenCalled();
     });
 
     it('should delete messages with tombstones from both databases', async () => {
       const tombstoneIds = new Set(['id-1', 'id-2', 'id-3']);
-      devClient.$executeRawUnsafe.mockResolvedValue(2); // 2 deleted from dev
-      prodClient.$executeRawUnsafe.mockResolvedValue(3); // 3 deleted from prod
+      devClient.conversationHistory.deleteMany.mockResolvedValue({ count: 2 }); // 2 deleted from dev
+      prodClient.conversationHistory.deleteMany.mockResolvedValue({ count: 3 }); // 3 deleted from prod
 
       const result = await deleteMessagesWithTombstones(
         devClient as unknown as PrismaClient,
@@ -130,30 +166,29 @@ describe('tombstoneUtils', () => {
       );
 
       expect(result).toEqual({ devDeleted: 2, prodDeleted: 3 });
-      expect(devClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM "conversation_history"'),
-        expect.arrayContaining(['id-1', 'id-2', 'id-3'])
-      );
-      expect(prodClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM "conversation_history"'),
-        expect.arrayContaining(['id-1', 'id-2', 'id-3'])
-      );
+      expect(devClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: expect.arrayContaining(['id-1', 'id-2', 'id-3']) } },
+      });
+      expect(prodClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: expect.arrayContaining(['id-1', 'id-2', 'id-3']) } },
+      });
     });
 
-    it('should handle non-numeric delete results', async () => {
+    it('should delete from both databases in parallel', async () => {
       const tombstoneIds = new Set(['id-1']);
-      devClient.$executeRawUnsafe.mockResolvedValue({ count: 1 }); // Object instead of number
-      prodClient.$executeRawUnsafe.mockResolvedValue(undefined);
+      devClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
+      prodClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
 
-      const result = await deleteMessagesWithTombstones(
+      await deleteMessagesWithTombstones(
         devClient as unknown as PrismaClient,
         prodClient as unknown as PrismaClient,
         tombstoneIds,
         false
       );
 
-      // Should default to 0 when result is not a number
-      expect(result).toEqual({ devDeleted: 0, prodDeleted: 0 });
+      // Both should be called (Promise.all runs in parallel)
+      expect(devClient.conversationHistory.deleteMany).toHaveBeenCalled();
+      expect(prodClient.conversationHistory.deleteMany).toHaveBeenCalled();
     });
   });
 });

@@ -9,7 +9,7 @@
 
 import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
-import { MessageRole } from '../constants/index.js';
+import { MessageRole, CLEANUP_DEFAULTS } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
 import { messageMetadataSchema, type MessageMetadata } from '../types/schemas.js';
 
@@ -655,7 +655,7 @@ export class ConversationHistoryService {
    * Call this periodically to prevent unbounded growth.
    * Creates tombstones to prevent db-sync from restoring deleted messages.
    */
-  async cleanupOldHistory(daysToKeep = 30): Promise<number> {
+  async cleanupOldHistory(daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
@@ -720,7 +720,9 @@ export class ConversationHistoryService {
    * Tombstones only need to exist long enough for db-sync to propagate deletions.
    * Call this periodically to prevent unbounded growth.
    */
-  async cleanupOldTombstones(daysToKeep = 30): Promise<number> {
+  async cleanupOldTombstones(
+    daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_TOMBSTONES
+  ): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);

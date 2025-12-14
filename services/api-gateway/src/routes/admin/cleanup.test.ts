@@ -8,9 +8,9 @@ import type { ConversationHistoryService } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
 
-// Mock logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+// Mock logger but preserve CLEANUP_DEFAULTS
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
     createLogger: () => ({

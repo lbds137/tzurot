@@ -4,7 +4,11 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { createLogger, type ConversationHistoryService } from '@tzurot/common-types';
+import {
+  createLogger,
+  CLEANUP_DEFAULTS,
+  type ConversationHistoryService,
+} from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -16,6 +20,26 @@ export interface CleanupResult {
   historyDeleted: number;
   tombstonesDeleted: number;
   daysKept: number;
+}
+
+/**
+ * Build a human-readable cleanup message based on target
+ */
+function buildCleanupMessage(
+  target: 'history' | 'tombstones' | 'all',
+  historyDeleted: number,
+  tombstonesDeleted: number,
+  daysToKeep: number
+): string {
+  const suffix = `(older than ${daysToKeep} days)`;
+  switch (target) {
+    case 'history':
+      return `Cleanup complete: ${historyDeleted} history messages deleted ${suffix}`;
+    case 'tombstones':
+      return `Cleanup complete: ${tombstonesDeleted} tombstones deleted ${suffix}`;
+    case 'all':
+      return `Cleanup complete: ${historyDeleted} history messages and ${tombstonesDeleted} tombstones deleted ${suffix}`;
+  }
 }
 
 export function createCleanupRoute(conversationHistoryService: ConversationHistoryService): Router {
@@ -30,13 +54,19 @@ export function createCleanupRoute(conversationHistoryService: ConversationHisto
         daysToKeep?: number;
         target?: 'history' | 'tombstones' | 'all';
       };
-      const { daysToKeep = 30, target = 'all' } = body;
+      const { daysToKeep = CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY, target = 'all' } = body;
 
       // Validate daysToKeep
-      if (typeof daysToKeep !== 'number' || daysToKeep < 1 || daysToKeep > 365) {
+      if (
+        typeof daysToKeep !== 'number' ||
+        daysToKeep < CLEANUP_DEFAULTS.MIN_DAYS ||
+        daysToKeep > CLEANUP_DEFAULTS.MAX_DAYS
+      ) {
         return sendError(
           res,
-          ErrorResponses.validationError('daysToKeep must be a number between 1 and 365')
+          ErrorResponses.validationError(
+            `daysToKeep must be a number between ${CLEANUP_DEFAULTS.MIN_DAYS} and ${CLEANUP_DEFAULTS.MAX_DAYS}`
+          )
         );
       }
 
@@ -70,7 +100,7 @@ export function createCleanupRoute(conversationHistoryService: ConversationHisto
       sendCustomSuccess(res, {
         success: true,
         ...result,
-        message: `Cleanup complete: ${historyDeleted} history messages and ${tombstonesDeleted} tombstones deleted (older than ${daysToKeep} days)`,
+        message: buildCleanupMessage(target, historyDeleted, tombstonesDeleted, daysToKeep),
         timestamp: new Date().toISOString(),
       });
     })
