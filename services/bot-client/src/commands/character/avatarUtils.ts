@@ -23,6 +23,11 @@ const RESIZE_WIDTH = 1024;
 const RESIZE_HEIGHT = 1024;
 // Quality levels to try progressively
 const QUALITY_LEVELS = [85, 70, 55, 40];
+// Maximum pixel count to prevent image bombs (100 megapixels)
+const MAX_PIXEL_COUNT = 100_000_000;
+// Valid sharp formats we support
+const SUPPORTED_FORMATS = ['png', 'jpeg', 'gif', 'webp'] as const;
+type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
 
 /**
  * Result of avatar processing
@@ -39,14 +44,41 @@ export interface AvatarProcessingResult {
  */
 export interface AvatarProcessingError {
   success: false;
-  error: 'too_large' | 'processing_failed';
+  error: 'too_large' | 'processing_failed' | 'invalid_format' | 'dimensions_too_large';
   message: string;
 }
 
 export type ProcessAvatarResult = AvatarProcessingResult | AvatarProcessingError;
 
 /**
+ * Apply format-specific compression to a sharp pipeline.
+ * Preserves PNG transparency and WebP quality, converts GIF to JPEG.
+ */
+function applyFormatCompression(
+  pipeline: sharp.Sharp,
+  format: SupportedFormat,
+  quality: number
+): sharp.Sharp {
+  switch (format) {
+    case 'png':
+      // Preserve PNG with transparency, use compression level based on quality
+      // quality 85 → level 6, quality 40 → level 9
+      const compressionLevel = Math.min(9, Math.floor((100 - quality) / 10) + 6);
+      return pipeline.png({ compressionLevel });
+    case 'webp':
+      return pipeline.webp({ quality });
+    case 'jpeg':
+    case 'gif':
+      // GIF → JPEG (loses animation but that's acceptable for static avatars)
+      return pipeline.jpeg({ quality });
+    default:
+      return pipeline.jpeg({ quality });
+  }
+}
+
+/**
  * Process an avatar image buffer, resizing if necessary to fit within target size.
+ * Preserves format when possible (PNG transparency, WebP quality).
  *
  * @param imageBuffer - The raw image buffer
  * @param context - Logging context (e.g., slug or filename)
@@ -68,30 +100,57 @@ export async function processAvatarBuffer(
   logger.info({ originalSize: imageBuffer.length, context }, 'Resizing large avatar image');
 
   try {
+    // Validate image metadata before processing
+    const metadata = await sharp(imageBuffer).metadata();
+
+    // Check format is supported
+    if (!metadata.format || !SUPPORTED_FORMATS.includes(metadata.format as SupportedFormat)) {
+      logger.warn({ format: metadata.format, context }, 'Unsupported image format');
+      return {
+        success: false,
+        error: 'invalid_format',
+        message: 'Unsupported image format. Please use PNG, JPG, GIF, or WebP.',
+      };
+    }
+
+    // Check dimensions to prevent image bombs
+    if (metadata.width && metadata.height && metadata.width * metadata.height > MAX_PIXEL_COUNT) {
+      logger.warn(
+        { width: metadata.width, height: metadata.height, context },
+        'Image dimensions too large'
+      );
+      return {
+        success: false,
+        error: 'dimensions_too_large',
+        message: 'Image dimensions are too large. Please use an image smaller than 10000x10000.',
+      };
+    }
+
+    const format = metadata.format as SupportedFormat;
+
     // Progressively reduce quality until image fits within target size
     let resized: Buffer | null = null;
     let finalQuality: number | undefined;
 
     for (const quality of QUALITY_LEVELS) {
-      resized = await sharp(imageBuffer)
-        .resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality })
-        .toBuffer();
+      const pipeline = sharp(imageBuffer).resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+
+      resized = await applyFormatCompression(pipeline, format, quality).toBuffer();
 
       if (resized.length <= TARGET_SIZE_BYTES) {
         finalQuality = quality;
         logger.info(
-          { newSize: resized.length, quality, context },
+          { newSize: resized.length, quality, format, context },
           'Avatar image resized successfully'
         );
         break;
       }
 
       logger.info(
-        { size: resized.length, quality, context },
+        { size: resized.length, quality, format, context },
         'Resize still too large, trying lower quality'
       );
     }
@@ -99,7 +158,7 @@ export async function processAvatarBuffer(
     // Final check - if still too large after all quality levels, reject
     if (!resized || resized.length > TARGET_SIZE_BYTES) {
       logger.warn(
-        { size: resized?.length, context },
+        { size: resized?.length, format, context },
         'Image still too large after all compression attempts'
       );
       return {
@@ -112,7 +171,7 @@ export async function processAvatarBuffer(
 
     return {
       success: true,
-      buffer: Buffer.from(resized),
+      buffer: resized,
       wasResized: true,
       finalQuality,
     };

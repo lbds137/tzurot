@@ -68,19 +68,19 @@ describe('Avatar Utils', () => {
       }
     });
 
-    it('should resize large buffers', async () => {
-      // Create a buffer larger than TARGET_SIZE_BYTES
+    it('should resize large JPEG buffers', async () => {
       const largeBuffer = Buffer.alloc(8 * 1024 * 1024); // 8MB
       const resizedBuffer = Buffer.from('resized data');
 
-      // Mock sharp to return a small resized buffer
       const mockSharp = await import('sharp');
       const mockToBuffer = vi.fn().mockResolvedValue(resizedBuffer);
       const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
       const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
-        typeof mockSharp.default
-      >);
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'jpeg', width: 2000, height: 2000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
@@ -96,21 +96,91 @@ describe('Avatar Utils', () => {
       expect(mockJpeg).toHaveBeenCalledWith({ quality: 85 });
     });
 
+    it('should preserve PNG format with compression level', async () => {
+      const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
+      const resizedBuffer = Buffer.from('resized png');
+
+      const mockSharp = await import('sharp');
+      const mockToBuffer = vi.fn().mockResolvedValue(resizedBuffer);
+      const mockPng = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
+      const mockResize = vi.fn().mockReturnValue({ png: mockPng });
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'png', width: 2000, height: 2000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
+
+      const result = await processAvatarBuffer(largeBuffer, 'test-context');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.wasResized).toBe(true);
+      }
+      // PNG uses compressionLevel instead of quality
+      expect(mockPng).toHaveBeenCalledWith({ compressionLevel: 7 }); // quality 85 → level 7
+    });
+
+    it('should preserve WebP format with quality', async () => {
+      const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
+      const resizedBuffer = Buffer.from('resized webp');
+
+      const mockSharp = await import('sharp');
+      const mockToBuffer = vi.fn().mockResolvedValue(resizedBuffer);
+      const mockWebp = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
+      const mockResize = vi.fn().mockReturnValue({ webp: mockWebp });
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'webp', width: 2000, height: 2000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
+
+      const result = await processAvatarBuffer(largeBuffer, 'test-context');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.wasResized).toBe(true);
+      }
+      expect(mockWebp).toHaveBeenCalledWith({ quality: 85 });
+    });
+
+    it('should convert GIF to JPEG (loses animation)', async () => {
+      const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
+      const resizedBuffer = Buffer.from('converted gif');
+
+      const mockSharp = await import('sharp');
+      const mockToBuffer = vi.fn().mockResolvedValue(resizedBuffer);
+      const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
+      const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'gif', width: 500, height: 500 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
+
+      const result = await processAvatarBuffer(largeBuffer, 'test-context');
+
+      expect(result.success).toBe(true);
+      // GIF → JPEG conversion
+      expect(mockJpeg).toHaveBeenCalledWith({ quality: 85 });
+    });
+
     it('should try lower quality if first resize is still too large', async () => {
       const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
-      const stillLargeBuffer = Buffer.alloc(8 * 1024 * 1024); // Still too large
+      const stillLargeBuffer = Buffer.alloc(8 * 1024 * 1024);
       const smallEnoughBuffer = Buffer.from('small enough');
 
       const mockSharp = await import('sharp');
       const mockToBuffer = vi
         .fn()
-        .mockResolvedValueOnce(stillLargeBuffer) // First attempt at 85%
-        .mockResolvedValueOnce(smallEnoughBuffer); // Second attempt at 70%
+        .mockResolvedValueOnce(stillLargeBuffer)
+        .mockResolvedValueOnce(smallEnoughBuffer);
       const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
       const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
-        typeof mockSharp.default
-      >);
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'jpeg', width: 2000, height: 2000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
@@ -119,7 +189,6 @@ describe('Avatar Utils', () => {
         expect(result.wasResized).toBe(true);
         expect(result.finalQuality).toBe(70);
       }
-      // Should have tried both 85% and 70%
       expect(mockJpeg).toHaveBeenCalledWith({ quality: 85 });
       expect(mockJpeg).toHaveBeenCalledWith({ quality: 70 });
     });
@@ -132,9 +201,11 @@ describe('Avatar Utils', () => {
       const mockToBuffer = vi.fn().mockResolvedValue(stillLargeBuffer);
       const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
       const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
-        typeof mockSharp.default
-      >);
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'jpeg', width: 2000, height: 2000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
@@ -145,16 +216,75 @@ describe('Avatar Utils', () => {
       }
     });
 
-    it('should return error if sharp throws', async () => {
+    it('should return error for unsupported image format', async () => {
       const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
 
       const mockSharp = await import('sharp');
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'tiff', width: 1000, height: 1000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+      } as unknown as ReturnType<typeof mockSharp.default>);
+
+      const result = await processAvatarBuffer(largeBuffer, 'test-context');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('invalid_format');
+        expect(result.message).toContain('Unsupported image format');
+      }
+    });
+
+    it('should return error for image dimensions too large (image bomb protection)', async () => {
+      const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
+
+      const mockSharp = await import('sharp');
+      // 15000 x 15000 = 225 million pixels > 100 million limit
+      const mockMetadata = vi
+        .fn()
+        .mockResolvedValue({ format: 'png', width: 15000, height: 15000 });
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+      } as unknown as ReturnType<typeof mockSharp.default>);
+
+      const result = await processAvatarBuffer(largeBuffer, 'test-context');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('dimensions_too_large');
+        expect(result.message).toContain('dimensions are too large');
+      }
+    });
+
+    it('should return error if sharp throws during metadata extraction', async () => {
+      const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
+
+      const mockSharp = await import('sharp');
+      const mockMetadata = vi.fn().mockRejectedValue(new Error('Invalid image data'));
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+      } as unknown as ReturnType<typeof mockSharp.default>);
+
+      const result = await processAvatarBuffer(largeBuffer, 'test-context');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('processing_failed');
+        expect(result.message).toContain('Failed to process');
+      }
+    });
+
+    it('should return error if sharp throws during resize', async () => {
+      const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
+
+      const mockSharp = await import('sharp');
+      const mockMetadata = vi.fn().mockResolvedValue({ format: 'jpeg', width: 2000, height: 2000 });
       const mockResize = vi.fn().mockImplementation(() => {
         throw new Error('Sharp processing failed');
       });
-      vi.mocked(mockSharp.default).mockReturnValue({ resize: mockResize } as unknown as ReturnType<
-        typeof mockSharp.default
-      >);
+      vi.mocked(mockSharp.default).mockReturnValue({
+        metadata: mockMetadata,
+        resize: mockResize,
+      } as unknown as ReturnType<typeof mockSharp.default>);
 
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
