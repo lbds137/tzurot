@@ -143,14 +143,14 @@ describe('Avatar Utils', () => {
       expect(mockWebp).toHaveBeenCalledWith({ quality: 85 });
     });
 
-    it('should convert GIF to JPEG (loses animation)', async () => {
+    it('should preserve GIF format to maintain animations', async () => {
       const largeBuffer = Buffer.alloc(8 * 1024 * 1024);
-      const resizedBuffer = Buffer.from('converted gif');
+      const resizedBuffer = Buffer.from('resized gif');
 
       const mockSharp = await import('sharp');
       const mockToBuffer = vi.fn().mockResolvedValue(resizedBuffer);
-      const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
-      const mockResize = vi.fn().mockReturnValue({ jpeg: mockJpeg });
+      const mockGif = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
+      const mockResize = vi.fn().mockReturnValue({ gif: mockGif });
       const mockMetadata = vi.fn().mockResolvedValue({ format: 'gif', width: 500, height: 500 });
       vi.mocked(mockSharp.default).mockReturnValue({
         metadata: mockMetadata,
@@ -160,8 +160,8 @@ describe('Avatar Utils', () => {
       const result = await processAvatarBuffer(largeBuffer, 'test-context');
 
       expect(result.success).toBe(true);
-      // GIF → JPEG conversion
-      expect(mockJpeg).toHaveBeenCalledWith({ quality: 85 });
+      // GIF preserved with color palette reduction (85% quality → 217 colors)
+      expect(mockGif).toHaveBeenCalledWith({ colors: 217 });
     });
 
     it('should try lower quality if first resize is still too large', async () => {

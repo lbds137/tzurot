@@ -68,10 +68,12 @@ function applyFormatCompression(
     }
     case 'webp':
       return pipeline.webp({ quality });
-    case 'jpeg':
     case 'gif':
-      // GIF → JPEG (loses animation but that's acceptable for static avatars)
-      return pipeline.jpeg({ quality });
+      // Preserve GIF format to maintain animations
+      // Note: sharp's gif() uses { colors } for palette size, not quality
+      // Lower quality = fewer colors: 85 → 256, 70 → 128, 55 → 64, 40 → 32
+      return pipeline.gif({ colors: Math.max(32, Math.floor(256 * (quality / 100))) });
+    case 'jpeg':
     default:
       return pipeline.jpeg({ quality });
   }
