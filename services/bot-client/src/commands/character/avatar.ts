@@ -83,17 +83,46 @@ export async function handleAvatar(
     if (imageBuffer.length > TARGET_SIZE_BYTES) {
       logger.info({ originalSize: imageBuffer.length, slug }, 'Resizing large avatar image');
 
-      // Resize to 1024x1024 max and convert to JPEG for better compression
-      const resized = await sharp(imageBuffer)
-        .resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-      imageBuffer = Buffer.from(resized);
+      try {
+        // Resize to 1024x1024 max and convert to JPEG for better compression
+        let resized = await sharp(imageBuffer)
+          .resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: 85 })
+          .toBuffer();
 
-      logger.info({ newSize: imageBuffer.length, slug }, 'Avatar image resized successfully');
+        // If still too large, try more aggressive compression
+        if (resized.length > TARGET_SIZE_BYTES) {
+          logger.info({ size: resized.length, slug }, 'First resize still too large, trying lower quality');
+          resized = await sharp(imageBuffer)
+            .resize(RESIZE_WIDTH, RESIZE_HEIGHT, {
+              fit: 'inside',
+              withoutEnlargement: true,
+            })
+            .jpeg({ quality: 60 })
+            .toBuffer();
+        }
+
+        // Final check - if still too large, reject
+        if (resized.length > TARGET_SIZE_BYTES) {
+          logger.warn({ size: resized.length, slug }, 'Image still too large after compression');
+          await interaction.editReply(
+            '❌ This image is too complex to resize automatically. Please use a simpler image or reduce its size manually.'
+          );
+          return;
+        }
+
+        imageBuffer = Buffer.from(resized);
+        logger.info({ newSize: imageBuffer.length, slug }, 'Avatar image resized successfully');
+      } catch (resizeError) {
+        logger.error({ err: resizeError, slug }, 'Failed to resize avatar image');
+        await interaction.editReply(
+          '❌ Failed to process the image. Please try a different image format (PNG, JPG, or WebP).'
+        );
+        return;
+      }
     }
 
     const base64Image = imageBuffer.toString('base64');
