@@ -24,6 +24,7 @@ export {
   RETRY_CONFIG,
   CIRCUIT_BREAKER,
   CACHE_CONTROL,
+  CLEANUP_DEFAULTS,
   VALIDATION_TIMEOUTS,
 } from './timing.js';
 

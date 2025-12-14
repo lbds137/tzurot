@@ -18,12 +18,11 @@ export async function loadTombstoneIds(
   devClient: PrismaClient,
   prodClient: PrismaClient
 ): Promise<Set<string>> {
-  const devTombstones = await devClient.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT id FROM "conversation_history_tombstones"`
-  );
-  const prodTombstones = await prodClient.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT id FROM "conversation_history_tombstones"`
-  );
+  // Use typed Prisma methods instead of $queryRawUnsafe for safety
+  const [devTombstones, prodTombstones] = await Promise.all([
+    devClient.conversationHistoryTombstone.findMany({ select: { id: true } }),
+    prodClient.conversationHistoryTombstone.findMany({ select: { id: true } }),
+  ]);
 
   const tombstoneIds = new Set<string>();
   for (const row of devTombstones) {
@@ -60,19 +59,18 @@ export async function deleteMessagesWithTombstones(
   let prodDeleted = 0;
 
   if (!dryRun) {
-    // Delete from dev
-    const devResult = await devClient.$executeRawUnsafe(
-      `DELETE FROM "conversation_history" WHERE id = ANY($1::uuid[])`,
-      tombstoneArray
-    );
-    devDeleted = typeof devResult === 'number' ? devResult : 0;
+    // Use typed Prisma methods instead of $executeRawUnsafe for safety
+    const [devResult, prodResult] = await Promise.all([
+      devClient.conversationHistory.deleteMany({
+        where: { id: { in: tombstoneArray } },
+      }),
+      prodClient.conversationHistory.deleteMany({
+        where: { id: { in: tombstoneArray } },
+      }),
+    ]);
 
-    // Delete from prod
-    const prodResult = await prodClient.$executeRawUnsafe(
-      `DELETE FROM "conversation_history" WHERE id = ANY($1::uuid[])`,
-      tombstoneArray
-    );
-    prodDeleted = typeof prodResult === 'number' ? prodResult : 0;
+    devDeleted = devResult.count;
+    prodDeleted = prodResult.count;
 
     if (devDeleted > 0 || prodDeleted > 0) {
       logger.info(
