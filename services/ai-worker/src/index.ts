@@ -100,7 +100,9 @@ const config = {
 /**
  * Set up all cache invalidation services and subscriptions
  */
-async function setupCacheInvalidation(deps: CacheInvalidationDeps): Promise<CacheInvalidationResult> {
+async function setupCacheInvalidation(
+  deps: CacheInvalidationDeps
+): Promise<CacheInvalidationResult> {
   const { cacheRedis, prisma } = deps;
   const cleanupFns: Array<() => Promise<void>> = [];
 
@@ -135,10 +137,16 @@ async function setupCacheInvalidation(deps: CacheInvalidationDeps): Promise<Cach
       logger.info('[AIWorker] Cleared all LLM config cache entries');
     } else if (event.type === 'user') {
       llmConfigResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated LLM config cache for user');
+      logger.info(
+        { discordId: event.discordId },
+        '[AIWorker] Invalidated LLM config cache for user'
+      );
     } else {
       llmConfigResolver.clearCache();
-      logger.info({ configId: event.configId }, '[AIWorker] Cleared LLM config cache (config changed)');
+      logger.info(
+        { configId: event.configId },
+        '[AIWorker] Cleared LLM config cache (config changed)'
+      );
     }
   });
   cleanupFns.push(() => llmConfigCacheInvalidation.unsubscribe());
@@ -172,7 +180,9 @@ async function setupCacheInvalidation(deps: CacheInvalidationDeps): Promise<Cach
 /**
  * Initialize vector memory manager with health check
  */
-async function initializeVectorMemory(prisma: PrismaClient): Promise<PgvectorMemoryAdapter | undefined> {
+async function initializeVectorMemory(
+  prisma: PrismaClient
+): Promise<PgvectorMemoryAdapter | undefined> {
   logger.info('[AIWorker] Initializing pgvector memory connection...');
 
   try {
@@ -185,12 +195,18 @@ async function initializeVectorMemory(prisma: PrismaClient): Promise<PgvectorMem
       return memoryManager;
     } else {
       logger.warn({}, '[AIWorker] Pgvector health check failed');
-      logger.warn({}, '[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+      logger.warn(
+        {},
+        '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
+      );
       return undefined;
     }
   } catch (error) {
     logger.error({ err: error }, '[AIWorker] Failed to initialize pgvector memory');
-    logger.warn({}, '[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+    logger.warn(
+      {},
+      '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
+    );
     return undefined;
   }
 }
@@ -212,11 +228,16 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker<AnyJobData, AnyJ
   );
 
   worker.on('ready', () => {
-    logger.info(`[AIWorker] Worker ready on queue: ${config.worker.queueName}, concurrency: ${config.worker.concurrency}`);
+    logger.info(
+      `[AIWorker] Worker ready on queue: ${config.worker.queueName}, concurrency: ${config.worker.concurrency}`
+    );
   });
 
   worker.on('active', (job: Job<AnyJobData>) => {
-    logger.debug({ jobId: job.id ?? 'unknown', jobType: job.data.jobType }, '[AIWorker] Processing job');
+    logger.debug(
+      { jobId: job.id ?? 'unknown', jobType: job.data.jobType },
+      '[AIWorker] Processing job'
+    );
   });
 
   worker.on('completed', (job: Job<AnyJobData>, result: AnyJobResult) => {
@@ -291,7 +312,11 @@ async function main(): Promise<void> {
 
   logger.info(
     {
-      redis: { host: config.redis.host, port: config.redis.port, hasPassword: !!config.redis.password },
+      redis: {
+        host: config.redis.host,
+        port: config.redis.port,
+        hasPassword: !!config.redis.password,
+      },
       worker: config.worker,
     },
     '[AIWorker] Configuration'
@@ -326,8 +351,11 @@ async function main(): Promise<void> {
   logger.info({ stats: initialStats }, '[AIWorker] Initial pending memory stats');
 
   if (initialStats.total > 0) {
-    void pendingMemoryProcessor.processPendingMemories()
-      .then(stats => logger.info({ stats }, '[AIWorker] Startup pending memory processing complete'))
+    void pendingMemoryProcessor
+      .processPendingMemories()
+      .then(stats =>
+        logger.info({ stats }, '[AIWorker] Startup pending memory processing complete')
+      )
       .catch(err => logger.error({ err }, '[AIWorker] Startup pending memory processing failed'));
   }
 

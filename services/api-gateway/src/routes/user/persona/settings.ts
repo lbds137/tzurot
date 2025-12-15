@@ -16,7 +16,6 @@ import { getOrCreateInternalUser } from './helpers.js';
 const logger = createLogger('user-persona-settings');
 
 export function addSettingsRoutes(router: Router, prisma: PrismaClient): void {
-
   /**
    * PATCH /user/persona/settings
    * Update persona settings (currently just share-ltm)
