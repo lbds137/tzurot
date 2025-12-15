@@ -20,7 +20,6 @@ import {
   createLogger,
   AI_DEFAULTS,
   TEXT_LIMITS,
-  AttachmentType,
   getPrismaClient,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -36,12 +35,12 @@ import { LongTermMemoryService } from './LongTermMemoryService.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { PersonaResolver } from './resolvers/index.js';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
+import { ContentBudgetManager } from './ContentBudgetManager.js';
+import { buildAttachmentDescriptions, generateStopSequences } from './RAGUtils.js';
 import type {
   ConversationContext,
   ProcessedInputs,
   PersonaLoadResult,
-  BudgetAllocationResult,
-  BudgetAllocationOptions,
   ModelInvocationResult,
   ModelInvocationOptions,
   RAGResponse,
@@ -66,6 +65,7 @@ export class ConversationalRAGService {
   private referencedMessageFormatter: ReferencedMessageFormatter;
   private contextWindowManager: ContextWindowManager;
   private userReferenceResolver: UserReferenceResolver;
+  private contentBudgetManager: ContentBudgetManager;
 
   constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
     this.llmInvoker = new LLMInvoker();
@@ -75,6 +75,10 @@ export class ConversationalRAGService {
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
     this.contextWindowManager = new ContextWindowManager();
     this.userReferenceResolver = new UserReferenceResolver(getPrismaClient());
+    this.contentBudgetManager = new ContentBudgetManager(
+      this.promptBuilder,
+      this.contextWindowManager
+    );
   }
 
   // ============================================================================
@@ -199,135 +203,7 @@ export class ConversationalRAGService {
     return { participantPersonas, processedPersonality };
   }
 
-  /**
-   * Allocate token budgets and select memories/history within constraints
-   */
-  private allocateBudgetsAndSelectContent(opts: BudgetAllocationOptions): BudgetAllocationResult {
-    const {
-      personality, processedPersonality, participantPersonas, retrievedMemories,
-      context, userMessage, processedAttachments, referencedMessagesDescriptions,
-    } = opts;
-    const contextWindowTokens =
-      personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
-
-    // Build current message
-    const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
-      userMessage,
-      processedAttachments,
-      context.activePersonaName,
-      referencedMessagesDescriptions
-    );
-
-    // Build base system prompt (no memories or history) to get base token count
-    const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories: [],
-      context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
-    });
-
-    // Count tokens for budget calculation
-    const systemPromptBaseTokens = this.promptBuilder.countTokens(
-      systemPromptBaseOnly.content as string
-    );
-    const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
-    const historyTokens = this.contextWindowManager.countHistoryTokens(
-      context.rawConversationHistory,
-      personality.name
-    );
-
-    // Calculate memory budget
-    const memoryBudget = this.contextWindowManager.calculateMemoryBudget(
-      contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens,
-      historyTokens
-    );
-
-    // Select memories within budget
-    const {
-      selectedMemories: relevantMemories,
-      tokensUsed: memoryTokensUsed,
-      memoriesDropped: memoriesDroppedCount,
-      droppedDueToSize,
-    } = this.contextWindowManager.selectMemoriesWithinBudget(
-      retrievedMemories,
-      memoryBudget,
-      context.userTimezone
-    );
-
-    if (memoriesDroppedCount > 0) {
-      logger.info(
-        `[RAG] Memory budget applied: kept ${relevantMemories.length}/${retrievedMemories.length} memories (${memoryTokensUsed} tokens, budget: ${memoryBudget}, dropped: ${memoriesDroppedCount}, oversized: ${droppedDueToSize})`
-      );
-    }
-
-    // Build system prompt with memories
-    const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories,
-      context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
-    });
-
-    // Calculate history budget
-    const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
-      systemPromptWithMemories.content as string
-    );
-    const historyBudget = this.contextWindowManager.calculateHistoryBudget(
-      contextWindowTokens,
-      systemPromptWithMemoriesTokens,
-      currentMessageTokens,
-      0
-    );
-
-    // Select and serialize history
-    const {
-      serializedHistory,
-      historyTokensUsed,
-      messagesIncluded: _messagesIncluded,
-      messagesDropped,
-    } = this.contextWindowManager.selectAndSerializeHistory(
-      context.rawConversationHistory,
-      personality.name,
-      historyBudget
-    );
-
-    // Build final system prompt with memories AND history
-    const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories,
-      context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
-      serializedHistory,
-    });
-
-    // Log token allocation
-    logger.info(
-      `[RAG] Token budget: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${retrievedMemories.length > 0 ? this.promptBuilder.countMemoryTokens(retrievedMemories) : 0}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
-    );
-    if (messagesDropped > 0) {
-      logger.debug(`[RAG] Dropped ${messagesDropped} history messages due to token budget`);
-    }
-
-    return {
-      relevantMemories,
-      serializedHistory,
-      systemPrompt,
-      memoryTokensUsed,
-      historyTokensUsed,
-      memoriesDroppedCount,
-      messagesDropped,
-      contentForStorage,
-    };
-  }
-
-  /**
-   * Invoke the model and clean up the response
-   */
+  /** Invoke the model and clean up the response */
   private async invokeModelAndClean(opts: ModelInvocationOptions): Promise<ModelInvocationResult> {
     const {
       personality, systemPrompt, userMessage, processedAttachments,
@@ -368,7 +244,7 @@ export class ConversationalRAGService {
       ).length ?? 0;
 
     // Generate stop sequences
-    const stopSequences = this.generateStopSequences(personality.name, participantPersonas);
+    const stopSequences = generateStopSequences(personality.name, participantPersonas);
 
     // Invoke model
     const response = await this.llmInvoker.invokeWithRetry({
@@ -431,36 +307,6 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Build attachment descriptions for storage
-   */
-  private buildAttachmentDescriptions(processedAttachments: ProcessedAttachment[]): string | undefined {
-    if (processedAttachments.length === 0) {
-      return undefined;
-    }
-
-    return processedAttachments
-      .map(a => {
-        let header = '';
-        if (a.type === AttachmentType.Image) {
-          header = `[Image: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
-        } else if (a.type === AttachmentType.Audio) {
-          if (
-            a.metadata.isVoiceMessage === true &&
-            a.metadata.duration !== undefined &&
-            a.metadata.duration !== null &&
-            a.metadata.duration > 0
-          ) {
-            header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
-          } else {
-            header = `[Audio: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
-          }
-        }
-        return `${header}\n${a.description}`;
-      })
-      .join('\n\n');
-  }
-
-  /**
    * Generate a response using conversational RAG
    *
    * Architecture: This method orchestrates the response generation pipeline:
@@ -504,7 +350,7 @@ export class ConversationalRAGService {
       );
 
       // Step 4: Allocate token budgets and select content
-      const budgetResult = this.allocateBudgetsAndSelectContent({
+      const budgetResult = this.contentBudgetManager.allocate({
         personality,
         processedPersonality,
         participantPersonas,
@@ -542,7 +388,7 @@ export class ConversationalRAGService {
         retrievedMemories: budgetResult.relevantMemories.length,
         tokensIn: modelResult.tokensIn,
         tokensOut: modelResult.tokensOut,
-        attachmentDescriptions: this.buildAttachmentDescriptions(inputs.processedAttachments),
+        attachmentDescriptions: buildAttachmentDescriptions(inputs.processedAttachments),
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         modelUsed: modelResult.modelName,
         userMessageContent: budgetResult.contentForStorage,
@@ -632,65 +478,5 @@ export class ConversationalRAGService {
     );
 
     return formatted;
-  }
-
-  /**
-   * Generate stop sequences for identity bleeding prevention
-   *
-   * These sequences tell the LLM to stop generating if it starts speaking as another participant.
-   * This is a technical kill-switch that works at the API level, complementing the XML structure
-   * and prompt instructions.
-   *
-   * Stop sequences include:
-   * - "\nParticipantName:" for each participant (users)
-   * - "\nPersonalityName:" for the AI itself (prevent third-person then self-quoting)
-   * - "<msg " to prevent outputting XML structure
-   *
-   * @param personalityName - Name of the AI personality
-   * @param participantPersonas - Map of participant names to their persona info
-   * @returns Array of stop sequences
-   */
-  private generateStopSequences(
-    personalityName: string,
-    participantPersonas: Map<string, { content: string; isActive: boolean }>
-  ): string[] {
-    const stopSequences: string[] = [];
-
-    // Add stop sequence for each participant (users)
-    // Use newline prefix to catch the common "Name:" pattern at line start
-    for (const participantName of participantPersonas.keys()) {
-      stopSequences.push(`\n${participantName}:`);
-    }
-
-    // Add stop sequence for the AI itself (prevent "Lilith: [third person]" then self-quoting)
-    stopSequences.push(`\n${personalityName}:`);
-
-    // Add XML tag stop sequences to prevent AI from outputting chat_log structure
-    // Must match actual tags used in formatConversationHistoryAsXml()
-    stopSequences.push('<message ');
-    stopSequences.push('<message>');
-    stopSequences.push('</message>');
-    stopSequences.push('<chat_log>');
-    stopSequences.push('</chat_log>');
-    // Stop sequences for quoted message structure
-    stopSequences.push('<quoted_messages>');
-    stopSequences.push('</quoted_messages>');
-    stopSequences.push('<quote ');
-    stopSequences.push('<quote>');
-    stopSequences.push('</quote>');
-
-    // Log summary
-    if (stopSequences.length > 0) {
-      logger.info(
-        {
-          count: stopSequences.length,
-          participants: Array.from(participantPersonas.keys()),
-          personalityName,
-        },
-        '[RAG] Generated stop sequences for identity bleeding prevention'
-      );
-    }
-
-    return stopSequences;
   }
 }
