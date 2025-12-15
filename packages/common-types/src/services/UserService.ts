@@ -46,127 +46,10 @@ export class UserService {
       });
 
       // Check if existing user should be promoted to superuser
-      // This handles the case where BOT_OWNER_ID is set after user was created
-      if (user && !user.isSuperuser && isBotOwner(discordId)) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { isSuperuser: true },
-        });
-        logger.info(
-          { userId: user.id, discordId },
-          '[UserService] Promoted existing user to superuser'
-        );
-      }
+      await this.promoteToSuperuserIfNeeded(user, discordId);
 
       // Create if doesn't exist
-      if (!user) {
-        // Generate deterministic UUIDs (same across all environments!)
-        const userId = generateUserUuid(discordId);
-        const personaId = generatePersonaUuid(username, userId);
-
-        // Auto-promote bot owner to superuser on first interaction
-        const shouldBeSuperuser = isBotOwner(discordId);
-
-        // Create user, default persona, and link in a transaction
-        try {
-          await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-            // Create user
-            logger.debug(
-              { userId, discordId, username, isSuperuser: shouldBeSuperuser },
-              '[UserService] Creating user record'
-            );
-            try {
-              await tx.user.create({
-                data: {
-                  id: userId,
-                  discordId,
-                  username,
-                  isSuperuser: shouldBeSuperuser,
-                },
-              });
-              if (shouldBeSuperuser) {
-                logger.info(
-                  { userId, discordId, username },
-                  '[UserService] Bot owner auto-promoted to superuser'
-                );
-              }
-              logger.debug({ userId }, '[UserService] User record created successfully');
-            } catch (userError) {
-              logger.error(
-                { err: userError, userId, discordId, username },
-                '[UserService] FAILED to create user record'
-              );
-              throw userError;
-            }
-
-            // Create default persona for user
-            // Use display name (e.g., "Alt Hime") as preferredName, fallback to username
-            const personaDisplayName = displayName ?? username;
-            // Use Discord bio if available, otherwise leave empty
-            const personaContent = bio ?? '';
-            logger.debug(
-              { personaId, username, preferredName: personaDisplayName, ownerId: userId },
-              '[UserService] Creating persona record'
-            );
-            try {
-              await tx.persona.create({
-                data: {
-                  id: personaId,
-                  name: username, // Keep username as identifier
-                  preferredName: personaDisplayName, // Use display name for showing to AI
-                  description: 'Default persona',
-                  content: personaContent,
-                  ownerId: userId,
-                },
-              });
-              logger.debug({ personaId }, '[UserService] Persona record created successfully');
-            } catch (personaError) {
-              logger.error(
-                { err: personaError, personaId, username, ownerId: userId },
-                '[UserService] FAILED to create persona record'
-              );
-              throw personaError;
-            }
-
-            // Set persona as user's default
-            logger.debug({ userId, personaId }, '[UserService] Setting user defaultPersonaId');
-            try {
-              await tx.user.update({
-                where: { id: userId },
-                data: { defaultPersonaId: personaId },
-              });
-              logger.debug(
-                { userId, personaId },
-                '[UserService] User defaultPersonaId set successfully'
-              );
-            } catch (linkError) {
-              logger.error(
-                { err: linkError, userId, personaId },
-                '[UserService] FAILED to set user defaultPersonaId'
-              );
-              throw linkError;
-            }
-          });
-
-          logger.info(
-            `[UserService] Transaction completed: Created user ${username} (${discordId}) with default persona`
-          );
-        } catch (transactionError) {
-          logger.error(
-            {
-              err: transactionError,
-              userId,
-              personaId,
-              discordId,
-              username,
-            },
-            '[UserService] Transaction FAILED - all changes should be rolled back'
-          );
-          throw transactionError;
-        }
-
-        user = { id: userId, isSuperuser: shouldBeSuperuser };
-      }
+      user ??= await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
 
       // Cache the result
       this.userCache.set(discordId, user.id);
@@ -175,6 +58,80 @@ export class UserService {
       logger.error({ err: error }, `Failed to get/create user: ${discordId}`);
       throw error;
     }
+  }
+
+  /**
+   * Promote existing user to superuser if they are the bot owner
+   * Handles the case where BOT_OWNER_ID is set after user was created
+   */
+  private async promoteToSuperuserIfNeeded(
+    user: { id: string; isSuperuser: boolean } | null,
+    discordId: string
+  ): Promise<void> {
+    if (user && !user.isSuperuser && isBotOwner(discordId)) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { isSuperuser: true },
+      });
+      logger.info(
+        { userId: user.id, discordId },
+        '[UserService] Promoted existing user to superuser'
+      );
+    }
+  }
+
+  /**
+   * Create a new user with their default persona in a transaction
+   */
+  private async createUserWithDefaultPersona(
+    discordId: string,
+    username: string,
+    displayName?: string,
+    bio?: string
+  ): Promise<{ id: string; isSuperuser: boolean }> {
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid(username, userId);
+    const shouldBeSuperuser = isBotOwner(discordId);
+    const personaDisplayName = displayName ?? username;
+    const personaContent = bio ?? '';
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Create user
+      await tx.user.create({
+        data: { id: userId, discordId, username, isSuperuser: shouldBeSuperuser },
+      });
+      if (shouldBeSuperuser) {
+        logger.info(
+          { userId, discordId, username },
+          '[UserService] Bot owner auto-promoted to superuser'
+        );
+      }
+
+      // Create default persona
+      await tx.persona.create({
+        data: {
+          id: personaId,
+          name: username,
+          preferredName: personaDisplayName,
+          description: 'Default persona',
+          content: personaContent,
+          ownerId: userId,
+        },
+      });
+
+      // Link persona as user's default
+      await tx.user.update({
+        where: { id: userId },
+        data: { defaultPersonaId: personaId },
+      });
+    });
+
+    logger.info(
+      { userId, discordId, username, personaId },
+      '[UserService] Created user with default persona'
+    );
+
+    return { id: userId, isSuperuser: shouldBeSuperuser };
   }
 
   /**

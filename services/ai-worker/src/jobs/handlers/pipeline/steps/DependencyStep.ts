@@ -44,88 +44,46 @@ export class DependencyStep implements IPipelineStep {
     const { job } = context;
     const { dependencies } = job.data;
 
-    // If no dependencies, return empty preprocessing results
     if (!dependencies || dependencies.length === 0) {
       return {
         ...context,
-        preprocessing: {
-          processedAttachments: [],
-          transcriptions: [],
-          referenceAttachments: {},
-        },
+        preprocessing: { processedAttachments: [], transcriptions: [], referenceAttachments: {} },
       };
     }
 
     logger.info(
-      {
-        jobId: job.id,
-        dependencyCount: dependencies.length,
-      },
+      { jobId: job.id, dependencyCount: dependencies.length },
       '[DependencyStep] Fetching preprocessing results from dependency jobs'
     );
 
-    // Fetch Redis service (dynamic import to avoid circular deps)
     const { redisService } = await import('../../../../redis.js');
+    const { audioTranscriptions, imageDescriptions } = await this.fetchDependencyResults(
+      dependencies,
+      redisService
+    );
 
-    // Collect results
+    const preprocessing = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
+    this.logPreprocessingResults(job.id, preprocessing);
+
+    return { ...context, preprocessing };
+  }
+
+  private async fetchDependencyResults(
+    dependencies: Array<{ jobId: string; type: string; resultKey?: string }>,
+    redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
+  ): Promise<{ audioTranscriptions: AudioInfo[]; imageDescriptions: ImageInfo[] }> {
     const audioTranscriptions: AudioInfo[] = [];
     const imageDescriptions: ImageInfo[] = [];
 
     for (const dep of dependencies) {
       try {
-        // Extract key from resultKey (strip prefix)
         const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
-
         if (dep.type === JobType.AudioTranscription) {
-          const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
-          if (
-            result?.success === true &&
-            result.content !== undefined &&
-            result.content.length > 0
-          ) {
-            audioTranscriptions.push({
-              url: result.attachmentUrl ?? '',
-              name: result.attachmentName ?? 'audio',
-              content: result.content,
-              sourceReferenceNumber: result.sourceReferenceNumber,
-            });
-            logger.debug(
-              { jobId: dep.jobId, key, sourceRef: result.sourceReferenceNumber },
-              '[DependencyStep] Retrieved audio transcription'
-            );
-          } else {
-            logger.warn(
-              { jobId: dep.jobId, key },
-              '[DependencyStep] Audio transcription job failed or has no result'
-            );
-          }
+          const audio = await this.fetchAudioResult(dep.jobId, key, redisService);
+          if (audio) audioTranscriptions.push(audio);
         } else if (dep.type === JobType.ImageDescription) {
-          const result = await redisService.getJobResult<ImageDescriptionResult>(key);
-          if (
-            result?.success === true &&
-            result.descriptions !== undefined &&
-            result.descriptions.length > 0
-          ) {
-            const descriptionsWithSource = result.descriptions.map(d => ({
-              ...d,
-              sourceReferenceNumber: result.sourceReferenceNumber,
-            }));
-            imageDescriptions.push(...descriptionsWithSource);
-            logger.debug(
-              {
-                jobId: dep.jobId,
-                key,
-                count: result.descriptions.length,
-                sourceRef: result.sourceReferenceNumber,
-              },
-              '[DependencyStep] Retrieved image descriptions'
-            );
-          } else {
-            logger.warn(
-              { jobId: dep.jobId, key },
-              '[DependencyStep] Image description job failed or has no result'
-            );
-          }
+          const images = await this.fetchImageResults(dep.jobId, key, redisService);
+          imageDescriptions.push(...images);
         }
       } catch (error) {
         logger.error(
@@ -135,18 +93,48 @@ export class DependencyStep implements IPipelineStep {
       }
     }
 
-    // Convert to ProcessedAttachment format, separating direct vs. referenced
-    const preprocessing = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
+    return { audioTranscriptions, imageDescriptions };
+  }
 
+  private async fetchAudioResult(
+    jobId: string,
+    key: string,
+    redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
+  ): Promise<AudioInfo | null> {
+    const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
+    if (result?.success === true && result.content !== undefined && result.content.length > 0) {
+      logger.debug({ jobId, key, sourceRef: result.sourceReferenceNumber }, '[DependencyStep] Retrieved audio transcription');
+      return {
+        url: result.attachmentUrl ?? '',
+        name: result.attachmentName ?? 'audio',
+        content: result.content,
+        sourceReferenceNumber: result.sourceReferenceNumber,
+      };
+    }
+    logger.warn({ jobId, key }, '[DependencyStep] Audio transcription job failed or has no result');
+    return null;
+  }
+
+  private async fetchImageResults(
+    jobId: string,
+    key: string,
+    redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
+  ): Promise<ImageInfo[]> {
+    const result = await redisService.getJobResult<ImageDescriptionResult>(key);
+    if (result?.success === true && result.descriptions !== undefined && result.descriptions.length > 0) {
+      logger.debug({ jobId, key, count: result.descriptions.length, sourceRef: result.sourceReferenceNumber }, '[DependencyStep] Retrieved image descriptions');
+      return result.descriptions.map(d => ({ ...d, sourceReferenceNumber: result.sourceReferenceNumber }));
+    }
+    logger.warn({ jobId, key }, '[DependencyStep] Image description job failed or has no result');
+    return [];
+  }
+
+  private logPreprocessingResults(jobId: string | undefined, preprocessing: PreprocessingResults): void {
     const refCount = Object.keys(preprocessing.referenceAttachments).length;
-    const refAttachmentCount = Object.values(preprocessing.referenceAttachments).reduce(
-      (sum, arr) => sum + arr.length,
-      0
-    );
-
+    const refAttachmentCount = Object.values(preprocessing.referenceAttachments).reduce((sum, arr) => sum + arr.length, 0);
     logger.info(
       {
-        jobId: job.id,
+        jobId,
         directAttachmentCount: preprocessing.processedAttachments.length,
         referencedMessageCount: refCount,
         referencedAttachmentCount: refAttachmentCount,
@@ -154,11 +142,6 @@ export class DependencyStep implements IPipelineStep {
       },
       '[DependencyStep] Fetched preprocessing results from dependency jobs'
     );
-
-    return {
-      ...context,
-      preprocessing,
-    };
   }
 
   /**
