@@ -23,11 +23,8 @@ import {
   AttachmentType,
   getPrismaClient,
   type LoadedPersonality,
-  type AttachmentMetadata,
-  type ReferencedMessage,
 } from '@tzurot/common-types';
-import { processAttachments } from './MultimodalProcessor.js';
-import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripResponseArtifacts } from '../utils/responseCleanup.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
@@ -39,105 +36,27 @@ import { LongTermMemoryService } from './LongTermMemoryService.js';
 import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { PersonaResolver } from './resolvers/index.js';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
+import type {
+  ConversationContext,
+  ProcessedInputs,
+  PersonaLoadResult,
+  BudgetAllocationResult,
+  BudgetAllocationOptions,
+  ModelInvocationResult,
+  ModelInvocationOptions,
+  RAGResponse,
+} from './ConversationalRAGTypes.js';
+
+// Re-export public types for external consumers
+export type {
+  MemoryDocument,
+  ParticipantPersona,
+  DiscordEnvironment,
+  ConversationContext,
+  RAGResponse,
+} from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationalRAGService');
-
-/**
- * Memory document structure from vector search
- */
-export interface MemoryDocument {
-  pageContent: string;
-  metadata?: {
-    id?: string;
-    createdAt?: string | number;
-    score?: number;
-  };
-}
-
-export interface ParticipantPersona {
-  personaId: string;
-  personaName: string;
-  isActive: boolean;
-}
-
-export interface DiscordEnvironment {
-  type: 'dm' | 'guild';
-  guild?: {
-    id: string;
-    name: string;
-  };
-  category?: {
-    id: string;
-    name: string;
-  };
-  channel: {
-    id: string;
-    name: string;
-    type: string;
-  };
-  thread?: {
-    id: string;
-    name: string;
-    parentChannel: {
-      id: string;
-      name: string;
-      type: string;
-    };
-  };
-}
-
-export interface ConversationContext {
-  userId: string;
-  channelId?: string;
-  serverId?: string;
-  sessionId?: string;
-  userName?: string;
-  /** User's preferred timezone (IANA format, e.g., 'America/New_York') */
-  userTimezone?: string;
-  isProxyMessage?: boolean;
-  // Active speaker - the persona making the current request
-  activePersonaId?: string;
-  activePersonaName?: string;
-  /** Discord username (e.g., 'lbds137') - used for disambiguation when persona name matches personality name */
-  discordUsername?: string;
-  conversationHistory?: BaseMessage[];
-  // Raw conversation history (for accessing tokenCount before BaseMessage conversion)
-  rawConversationHistory?: {
-    role: string;
-    content: string;
-    tokenCount?: number;
-  }[];
-  oldestHistoryTimestamp?: number; // Unix timestamp of oldest message in conversation history (for LTM deduplication)
-  // All conversation participants (extracted from history before BaseMessage conversion)
-  participants?: ParticipantPersona[];
-  // Multimodal support
-  attachments?: AttachmentMetadata[];
-  // Pre-processed attachments from dependency jobs (avoids duplicate vision API calls)
-  preprocessedAttachments?: ProcessedAttachment[];
-  // Pre-processed attachments for referenced messages (keyed by reference number)
-  // Avoids inline vision API calls that cause timeouts
-  preprocessedReferenceAttachments?: Record<number, ProcessedAttachment[]>;
-  // Discord environment context (DMs vs guild, channel info, etc)
-  environment?: DiscordEnvironment;
-  // Referenced messages (from replies and message links)
-  referencedMessages?: ReferencedMessage[];
-  // Referenced channels (from #channel mentions - used for LTM scoping)
-  referencedChannels?: { channelId: string; channelName: string }[];
-}
-
-export interface RAGResponse {
-  content: string;
-  retrievedMemories?: number;
-  /** Input/prompt tokens consumed */
-  tokensIn?: number;
-  /** Output/completion tokens consumed */
-  tokensOut?: number;
-  attachmentDescriptions?: string;
-  referencedMessagesDescriptions?: string;
-  modelUsed?: string;
-  // For bot-client to store both conversation_history and LTM after Discord send
-  userMessageContent?: string; // The actual user message content that was sent to the AI (for LTM storage)
-}
 
 export class ConversationalRAGService {
   private llmInvoker: LLMInvoker;
@@ -158,8 +77,400 @@ export class ConversationalRAGService {
     this.userReferenceResolver = new UserReferenceResolver(getPrismaClient());
   }
 
+  // ============================================================================
+  // HELPER METHODS (extracted from generateResponse for complexity reduction)
+  // ============================================================================
+
+  /**
+   * Process input attachments and format messages for AI consumption
+   */
+  private async processInputs(
+    personality: LoadedPersonality,
+    message: MessageContent,
+    context: ConversationContext,
+    isGuestMode: boolean
+  ): Promise<ProcessedInputs> {
+    // Use pre-processed attachments from dependency jobs if available
+    let processedAttachments: ProcessedAttachment[] = [];
+    if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
+      processedAttachments = context.preprocessedAttachments;
+      logger.info(
+        { count: processedAttachments.length },
+        'Using pre-processed attachments from dependency jobs'
+      );
+    } else if (context.attachments && context.attachments.length > 0) {
+      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
+      processedAttachments = await processAttachments(context.attachments, personality);
+      logger.info(
+        { count: processedAttachments.length },
+        'Processed attachments to text descriptions (inline fallback)'
+      );
+    }
+
+    // Format the user's message
+    const userMessage = this.promptBuilder.formatUserMessage(message, context);
+
+    // Format referenced messages (with vision/transcription)
+    const referencedMessagesDescriptions =
+      context.referencedMessages && context.referencedMessages.length > 0
+        ? await this.referencedMessageFormatter.formatReferencedMessages(
+            context.referencedMessages,
+            personality,
+            isGuestMode,
+            context.preprocessedReferenceAttachments
+          )
+        : undefined;
+
+    // Extract plain text from formatted references for memory search
+    const referencedMessagesTextForSearch =
+      referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0
+        ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
+        : undefined;
+
+    // Extract recent conversation history for context-aware LTM search
+    const recentHistoryWindow = this.extractRecentHistoryWindow(context.rawConversationHistory);
+
+    // Build search query for memory retrieval
+    const searchQuery = this.promptBuilder.buildSearchQuery(
+      userMessage,
+      processedAttachments,
+      referencedMessagesTextForSearch,
+      recentHistoryWindow
+    );
+
+    return {
+      processedAttachments,
+      userMessage,
+      referencedMessagesDescriptions,
+      referencedMessagesTextForSearch,
+      searchQuery,
+    };
+  }
+
+  /**
+   * Load participant personas and resolve user references in system prompt
+   */
+  private async loadPersonasAndResolveReferences(
+    personality: LoadedPersonality,
+    context: ConversationContext
+  ): Promise<PersonaLoadResult> {
+    // Fetch ALL participant personas from conversation history
+    const participantPersonas = await this.memoryRetriever.getAllParticipantPersonas(context);
+    if (participantPersonas.size > 0) {
+      logger.info(
+        `[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`
+      );
+    } else {
+      logger.debug(`[RAG] No participant personas found in conversation history`);
+    }
+
+    // Resolve user references in system prompt
+    let processedPersonality = personality;
+    if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
+      const { processedText, resolvedPersonas } =
+        await this.userReferenceResolver.resolveUserReferences(
+          personality.systemPrompt,
+          personality.id
+        );
+
+      if (resolvedPersonas.length > 0) {
+        processedPersonality = { ...personality, systemPrompt: processedText };
+
+        // Add resolved personas to participants
+        for (const persona of resolvedPersonas) {
+          if (!participantPersonas.has(persona.personaName)) {
+            participantPersonas.set(persona.personaName, {
+              content: persona.content,
+              isActive: false,
+            });
+            logger.debug(
+              { personaName: persona.personaName },
+              '[RAG] Added referenced user to participants'
+            );
+          }
+        }
+
+        logger.info(
+          `[RAG] Resolved ${resolvedPersonas.length} user reference(s) in system prompt`
+        );
+      }
+    }
+
+    return { participantPersonas, processedPersonality };
+  }
+
+  /**
+   * Allocate token budgets and select memories/history within constraints
+   */
+  private allocateBudgetsAndSelectContent(opts: BudgetAllocationOptions): BudgetAllocationResult {
+    const {
+      personality, processedPersonality, participantPersonas, retrievedMemories,
+      context, userMessage, processedAttachments, referencedMessagesDescriptions,
+    } = opts;
+    const contextWindowTokens =
+      personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
+
+    // Build current message
+    const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
+      userMessage,
+      processedAttachments,
+      context.activePersonaName,
+      referencedMessagesDescriptions
+    );
+
+    // Build base system prompt (no memories or history) to get base token count
+    const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
+      personality: processedPersonality,
+      participantPersonas,
+      relevantMemories: [],
+      context,
+      referencedMessagesFormatted: referencedMessagesDescriptions,
+    });
+
+    // Count tokens for budget calculation
+    const systemPromptBaseTokens = this.promptBuilder.countTokens(
+      systemPromptBaseOnly.content as string
+    );
+    const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
+    const historyTokens = this.contextWindowManager.countHistoryTokens(
+      context.rawConversationHistory,
+      personality.name
+    );
+
+    // Calculate memory budget
+    const memoryBudget = this.contextWindowManager.calculateMemoryBudget(
+      contextWindowTokens,
+      systemPromptBaseTokens,
+      currentMessageTokens,
+      historyTokens
+    );
+
+    // Select memories within budget
+    const {
+      selectedMemories: relevantMemories,
+      tokensUsed: memoryTokensUsed,
+      memoriesDropped: memoriesDroppedCount,
+      droppedDueToSize,
+    } = this.contextWindowManager.selectMemoriesWithinBudget(
+      retrievedMemories,
+      memoryBudget,
+      context.userTimezone
+    );
+
+    if (memoriesDroppedCount > 0) {
+      logger.info(
+        `[RAG] Memory budget applied: kept ${relevantMemories.length}/${retrievedMemories.length} memories (${memoryTokensUsed} tokens, budget: ${memoryBudget}, dropped: ${memoriesDroppedCount}, oversized: ${droppedDueToSize})`
+      );
+    }
+
+    // Build system prompt with memories
+    const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
+      personality: processedPersonality,
+      participantPersonas,
+      relevantMemories,
+      context,
+      referencedMessagesFormatted: referencedMessagesDescriptions,
+    });
+
+    // Calculate history budget
+    const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
+      systemPromptWithMemories.content as string
+    );
+    const historyBudget = this.contextWindowManager.calculateHistoryBudget(
+      contextWindowTokens,
+      systemPromptWithMemoriesTokens,
+      currentMessageTokens,
+      0
+    );
+
+    // Select and serialize history
+    const {
+      serializedHistory,
+      historyTokensUsed,
+      messagesIncluded: _messagesIncluded,
+      messagesDropped,
+    } = this.contextWindowManager.selectAndSerializeHistory(
+      context.rawConversationHistory,
+      personality.name,
+      historyBudget
+    );
+
+    // Build final system prompt with memories AND history
+    const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
+      personality: processedPersonality,
+      participantPersonas,
+      relevantMemories,
+      context,
+      referencedMessagesFormatted: referencedMessagesDescriptions,
+      serializedHistory,
+    });
+
+    // Log token allocation
+    logger.info(
+      `[RAG] Token budget: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${retrievedMemories.length > 0 ? this.promptBuilder.countMemoryTokens(retrievedMemories) : 0}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
+    );
+    if (messagesDropped > 0) {
+      logger.debug(`[RAG] Dropped ${messagesDropped} history messages due to token budget`);
+    }
+
+    return {
+      relevantMemories,
+      serializedHistory,
+      systemPrompt,
+      memoryTokensUsed,
+      historyTokensUsed,
+      memoriesDroppedCount,
+      messagesDropped,
+      contentForStorage,
+    };
+  }
+
+  /**
+   * Invoke the model and clean up the response
+   */
+  private async invokeModelAndClean(opts: ModelInvocationOptions): Promise<ModelInvocationResult> {
+    const {
+      personality, systemPrompt, userMessage, processedAttachments,
+      context, participantPersonas, referencedMessagesDescriptions, userApiKey,
+    } = opts;
+    // Build current message
+    const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
+      userMessage,
+      processedAttachments,
+      context.activePersonaName,
+      referencedMessagesDescriptions
+    );
+
+    // Build messages array
+    const messages: BaseMessage[] = [systemPrompt, currentMessage];
+
+    // Get model with all LLM sampling parameters
+    const { model, modelName } = this.llmInvoker.getModel({
+      modelName: personality.model,
+      apiKey: userApiKey,
+      temperature: personality.temperature,
+      topP: personality.topP,
+      topK: personality.topK,
+      frequencyPenalty: personality.frequencyPenalty,
+      presencePenalty: personality.presencePenalty,
+      repetitionPenalty: personality.repetitionPenalty,
+      maxTokens: personality.maxTokens,
+    });
+
+    // Calculate attachment counts for timeout
+    const imageCount =
+      context.attachments?.filter(
+        att => att.contentType.startsWith('image/') && att.isVoiceMessage !== true
+      ).length ?? 0;
+    const audioCount =
+      context.attachments?.filter(
+        att => att.contentType.startsWith('audio/') || att.isVoiceMessage === true
+      ).length ?? 0;
+
+    // Generate stop sequences
+    const stopSequences = this.generateStopSequences(personality.name, participantPersonas);
+
+    // Invoke model
+    const response = await this.llmInvoker.invokeWithRetry({
+      model,
+      messages,
+      modelName,
+      imageCount,
+      audioCount,
+      stopSequences,
+    });
+
+    const rawContent = response.content as string;
+
+    // Strip artifacts
+    let cleanedContent = stripResponseArtifacts(rawContent, personality.name);
+
+    // Replace placeholders
+    const userName =
+      context.userName !== undefined && context.userName.length > 0
+        ? context.userName
+        : context.activePersonaName !== undefined && context.activePersonaName.length > 0
+          ? context.activePersonaName
+          : 'User';
+    cleanedContent = replacePromptPlaceholders(
+      cleanedContent,
+      userName,
+      personality.name,
+      context.discordUsername
+    );
+
+    logger.debug(
+      {
+        rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+        cleanedContentPreview: cleanedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+        wasStripped: rawContent !== cleanedContent,
+      },
+      `[RAG] Content stripping check for ${personality.name}`
+    );
+
+    logger.info(
+      `[RAG] Generated ${cleanedContent.length} chars for ${personality.name} using model: ${modelName}`
+    );
+
+    // Extract token usage
+    const responseData = response as unknown as {
+      usage_metadata?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+      };
+    };
+    const usageMetadata = responseData.usage_metadata;
+
+    return {
+      cleanedContent,
+      modelName,
+      tokensIn: usageMetadata?.input_tokens,
+      tokensOut: usageMetadata?.output_tokens,
+    };
+  }
+
+  /**
+   * Build attachment descriptions for storage
+   */
+  private buildAttachmentDescriptions(processedAttachments: ProcessedAttachment[]): string | undefined {
+    if (processedAttachments.length === 0) {
+      return undefined;
+    }
+
+    return processedAttachments
+      .map(a => {
+        let header = '';
+        if (a.type === AttachmentType.Image) {
+          header = `[Image: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
+        } else if (a.type === AttachmentType.Audio) {
+          if (
+            a.metadata.isVoiceMessage === true &&
+            a.metadata.duration !== undefined &&
+            a.metadata.duration !== null &&
+            a.metadata.duration > 0
+          ) {
+            header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
+          } else {
+            header = `[Audio: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
+          }
+        }
+        return `${header}\n${a.description}`;
+      })
+      .join('\n\n');
+  }
+
   /**
    * Generate a response using conversational RAG
+   *
+   * Architecture: This method orchestrates the response generation pipeline:
+   * 1. Process inputs (attachments, messages, search query)
+   * 2. Load personas and resolve user references
+   * 3. Retrieve relevant memories from vector store
+   * 4. Allocate token budgets and select content
+   * 5. Invoke model and clean response
+   * 6. Store to long-term memory
+   * 7. Build and return response
    *
    * @param personality - Personality configuration
    * @param message - User's message content
@@ -175,404 +486,104 @@ export class ConversationalRAGService {
     isGuestMode = false
   ): Promise<RAGResponse> {
     try {
-      // ARCHITECTURAL DECISION: Process attachments BEFORE AI generation
-      //
-      // Why attachments are in the critical path:
-      // 1. AI must see attachment content before composing its reply
-      //    - Voice transcripts change the meaning of the entire message
-      //    - Image descriptions provide crucial context for understanding
-      // 2. Processing async would make AI blind to visual/audio context
-      // 3. Memory retrieval needs transcript text for semantic search
-      // 4. Cannot duplicate processing (expensive: OpenAI vision/Whisper APIs)
-      //
-      // Trade-off: Adds 5-15s per image, 5-20s per voice message
-      // Benefit: AI generates informed responses instead of guessing about attachments
-      //
-      // Note: This is why we can't do "atomic user message storage" (save before AI call)
-      // without two-phase processing - attachment descriptions come from AI worker.
+      // Step 1: Process inputs (attachments, messages, search query)
+      const inputs = await this.processInputs(personality, message, context, isGuestMode);
 
-      // Use pre-processed attachments from dependency jobs if available
-      // This avoids duplicate vision API calls (preprocessing already ran in ImageDescriptionJob)
-      let processedAttachments: ProcessedAttachment[] = [];
-      if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
-        processedAttachments = context.preprocessedAttachments;
-        logger.info(
-          { count: processedAttachments.length },
-          'Using pre-processed attachments from dependency jobs'
-        );
-      } else if (context.attachments && context.attachments.length > 0) {
-        // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
-        processedAttachments = await processAttachments(context.attachments, personality);
-        logger.info(
-          { count: processedAttachments.length },
-          'Processed attachments to text descriptions (inline fallback)'
-        );
-      }
+      // Step 2: Load personas and resolve user references
+      const { participantPersonas, processedPersonality } =
+        await this.loadPersonasAndResolveReferences(personality, context);
 
-      // Format the user's message (now with transcriptions available)
-      const userMessage = this.promptBuilder.formatUserMessage(message, context);
-
-      // Format referenced messages (with vision/transcription) BEFORE memory retrieval
-      // This processes attachments once and uses the result for both LTM search and the prompt
-      // If preprocessedReferenceAttachments are provided, uses them instead of inline API calls
-      const referencedMessagesDescriptions =
-        context.referencedMessages && context.referencedMessages.length > 0
-          ? await this.referencedMessageFormatter.formatReferencedMessages(
-              context.referencedMessages,
-              personality,
-              isGuestMode,
-              context.preprocessedReferenceAttachments
-            )
-          : undefined;
-
-      // Extract plain text from formatted references for memory search
-      const referencedMessagesTextForSearch =
-        referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0
-          ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
-          : undefined;
-
-      // Extract recent conversation history for context-aware LTM search
-      // This solves the "pronoun problem" where users say "what about that?"
-      const recentHistoryWindow = this.extractRecentHistoryWindow(context.rawConversationHistory);
-
-      // Build the actual message text for memory search
-      // Includes: recent history context, user message, voice transcriptions, image descriptions, AND referenced content
-      const searchQuery = this.promptBuilder.buildSearchQuery(
-        userMessage,
-        processedAttachments,
-        referencedMessagesTextForSearch,
-        recentHistoryWindow
-      );
-
-      // Fetch ALL participant personas from conversation history
-      const participantPersonas = await this.memoryRetriever.getAllParticipantPersonas(context);
-      if (participantPersonas.size > 0) {
-        logger.info(
-          `[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`
-        );
-      } else {
-        logger.debug(`[RAG] No participant personas found in conversation history`);
-      }
-
-      // Resolve user references in system prompt (shapes.inc format, @username, <@discord_id>)
-      // This replaces references with persona names AND adds those personas to participants
-      // Pass personality.id to exclude self-references from participants list
-      let processedPersonality = personality;
-      if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
-        const { processedText, resolvedPersonas } =
-          await this.userReferenceResolver.resolveUserReferences(
-            personality.systemPrompt,
-            personality.id
-          );
-
-        if (resolvedPersonas.length > 0) {
-          // Create a modified personality with the processed systemPrompt
-          processedPersonality = {
-            ...personality,
-            systemPrompt: processedText,
-          };
-
-          // Add resolved personas to participants (so AI knows who they are)
-          for (const persona of resolvedPersonas) {
-            if (!participantPersonas.has(persona.personaName)) {
-              participantPersonas.set(persona.personaName, {
-                content: persona.content,
-                isActive: false, // These are referenced users, not the active speaker
-              });
-              logger.debug(
-                { personaName: persona.personaName },
-                '[RAG] Added referenced user to participants'
-              );
-            }
-          }
-
-          logger.info(
-            `[RAG] Resolved ${resolvedPersonas.length} user reference(s) in system prompt`
-          );
-        }
-      }
-
-      // Query vector store for relevant memories using actual content
+      // Step 3: Retrieve relevant memories
       logger.info(
-        `[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
+        `[RAG] Memory search query: "${inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
       );
       const retrievedMemories = await this.memoryRetriever.retrieveRelevantMemories(
         personality,
-        searchQuery,
+        inputs.searchQuery,
         context
       );
 
-      // TOKEN-BASED CONTEXT WINDOW MANAGEMENT
-      // NEW ARCHITECTURE (2025-12): History is serialized inside the system prompt as XML
-      // This prevents identity bleeding where the AI responds as another participant
-      //
-      // MEMORY BUDGET (2025-12): Memories are now token-budgeted to prevent huge memories
-      // (e.g., pasted conversation logs) from consuming the entire context window.
-      // Budget is dynamic: if history is short, memories can use more space.
-
-      const contextWindowTokens =
-        personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
-
-      // Step 1: Build current message first (needed for token budget calculation)
-      const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
-        userMessage,
-        processedAttachments,
-        context.activePersonaName,
-        referencedMessagesDescriptions
-      );
-
-      // Step 2: Build system prompt WITHOUT memories OR history to get base token count
-      const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
-        personality: processedPersonality,
+      // Step 4: Allocate token budgets and select content
+      const budgetResult = this.allocateBudgetsAndSelectContent({
+        personality,
+        processedPersonality,
         participantPersonas,
-        relevantMemories: [], // No memories yet - we need base tokens first
-        context,
-        referencedMessagesFormatted: referencedMessagesDescriptions,
-        // No history yet
-      });
-
-      // Step 3: Count tokens for budget calculation
-      const systemPromptBaseTokens = this.promptBuilder.countTokens(
-        systemPromptBaseOnly.content as string
-      );
-      const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
-      const historyTokens = this.contextWindowManager.countHistoryTokens(
-        context.rawConversationHistory,
-        personality.name
-      );
-
-      // Step 4: Calculate memory budget (dynamic - more room if history is short)
-      const memoryBudget = this.contextWindowManager.calculateMemoryBudget(
-        contextWindowTokens,
-        systemPromptBaseTokens,
-        currentMessageTokens,
-        historyTokens
-      );
-
-      // Step 5: Select memories within budget (knapsack by relevance)
-      const {
-        selectedMemories: relevantMemories,
-        tokensUsed: memoryTokensUsed,
-        memoriesDropped: memoriesDroppedCount,
-        droppedDueToSize,
-      } = this.contextWindowManager.selectMemoriesWithinBudget(
         retrievedMemories,
-        memoryBudget,
-        context.userTimezone
-      );
-
-      // Log memory selection if any were dropped
-      if (memoriesDroppedCount > 0) {
-        logger.info(
-          `[RAG] Memory budget applied: kept ${relevantMemories.length}/${retrievedMemories.length} memories (${memoryTokensUsed} tokens, budget: ${memoryBudget}, dropped: ${memoriesDroppedCount}, oversized: ${droppedDueToSize})`
-        );
-      }
-
-      // Step 6: Build system prompt with selected memories (but no history yet)
-      const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
-        personality: processedPersonality,
-        participantPersonas,
-        relevantMemories,
         context,
-        referencedMessagesFormatted: referencedMessagesDescriptions,
-        // No history yet
+        userMessage: inputs.userMessage,
+        processedAttachments: inputs.processedAttachments,
+        referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
       });
 
-      // Step 7: Calculate history budget (using actual memory tokens)
-      const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
-        systemPromptWithMemories.content as string
-      );
-      const historyBudget = this.contextWindowManager.calculateHistoryBudget(
-        contextWindowTokens,
-        systemPromptWithMemoriesTokens,
-        currentMessageTokens,
-        0 // Memory tokens already in system prompt
-      );
-
-      // Step 8: Select and serialize history as XML within budget
-      const {
-        serializedHistory,
-        historyTokensUsed,
-        messagesIncluded: _messagesIncluded,
-        messagesDropped,
-      } = this.contextWindowManager.selectAndSerializeHistory(
-        context.rawConversationHistory,
-        personality.name,
-        historyBudget
-      );
-
-      // Step 9: Rebuild system prompt WITH memories AND serialized history
-      const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
-        personality: processedPersonality,
-        participantPersonas,
-        relevantMemories,
+      // Step 5: Invoke model and clean response
+      const modelResult = await this.invokeModelAndClean({
+        personality,
+        systemPrompt: budgetResult.systemPrompt,
+        userMessage: inputs.userMessage,
+        processedAttachments: inputs.processedAttachments,
         context,
-        referencedMessagesFormatted: referencedMessagesDescriptions,
-        serializedHistory,
+        participantPersonas,
+        referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
+        userApiKey,
       });
 
-      // Log token allocation
-      logger.info(
-        `[RAG] Token budget: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${retrievedMemories.length > 0 ? this.promptBuilder.countMemoryTokens(retrievedMemories) : 0}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
-      );
-      if (messagesDropped > 0) {
-        logger.debug(`[RAG] Dropped ${messagesDropped} history messages due to token budget`);
-      }
-
-      // Step 10: Build final messages array - just system + current (no separate history)
-      const messages: BaseMessage[] = [systemPrompt, currentMessage];
-
-      // Get the appropriate model (provider determined by AI_PROVIDER env var)
-      // Pass all LLM sampling parameters from personality config
-      const { model, modelName } = this.llmInvoker.getModel({
-        modelName: personality.model,
-        apiKey: userApiKey,
-        temperature: personality.temperature,
-        topP: personality.topP,
-        topK: personality.topK,
-        frequencyPenalty: personality.frequencyPenalty,
-        presencePenalty: personality.presencePenalty,
-        repetitionPenalty: personality.repetitionPenalty,
-        maxTokens: personality.maxTokens,
-      });
-
-      // Calculate attachment counts for dynamic timeout calculation
-      const imageCount =
-        context.attachments?.filter(
-          att => att.contentType.startsWith('image/') && att.isVoiceMessage !== true
-        ).length ?? 0;
-      const audioCount =
-        context.attachments?.filter(
-          att => att.contentType.startsWith('audio/') || att.isVoiceMessage === true
-        ).length ?? 0;
-
-      // Generate stop sequences for identity bleeding prevention
-      // These sequences will cause the model to stop if it tries to speak as another participant
-      const stopSequences = this.generateStopSequences(personality.name, participantPersonas);
-
-      // Invoke the model with timeout and retry logic
-      // LLMInvoker handles censored responses automatically with retry
-      const response = await this.llmInvoker.invokeWithRetry({
-        model,
-        messages,
-        modelName,
-        imageCount,
-        audioCount,
-        stopSequences,
-      });
-
-      const rawContent = response.content as string;
-
-      // Strip personality prefix if model ignored prompt instructions
-      // This ensures both Discord display AND storage are clean
-      let content = stripResponseArtifacts(rawContent, personality.name);
-
-      // Replace placeholders in LLM output before sending to user
-      // This handles cases where the LLM includes placeholders in its response
-      const userName =
-        context.userName !== undefined && context.userName.length > 0
-          ? context.userName
-          : context.activePersonaName !== undefined && context.activePersonaName.length > 0
-            ? context.activePersonaName
-            : 'User';
-      content = replacePromptPlaceholders(
-        content,
-        userName,
-        personality.name,
-        context.discordUsername
+      // Step 6: Store to long-term memory
+      await this.storeToLongTermMemory(
+        personality,
+        context,
+        budgetResult.contentForStorage,
+        modelResult.cleanedContent,
+        inputs.referencedMessagesTextForSearch
       );
 
-      logger.debug(
-        {
-          rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
-          cleanedContentPreview: content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
-          wasStripped: rawContent !== content,
-        },
-        `[RAG] Content stripping check for ${personality.name}`
-      );
-
-      logger.info(
-        `[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`
-      );
-
-      // Store to LTM (conversation_history will be created by bot-client after Discord send)
-      // Resolve personaId for LTM storage
-      const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
-        context.userId,
-        personality.id
-      );
-
-      if (personaResult !== null) {
-        // Build content for LTM embedding: includes references for semantic search
-        // References are stored structurally in chat_log.messageMetadata but SHOULD be
-        // embedded in LTM so users can jog a personality's memory by referencing content
-        const contentForEmbedding =
-          referencedMessagesTextForSearch !== undefined &&
-          referencedMessagesTextForSearch.length > 0
-            ? `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`
-            : contentForStorage;
-
-        await this.longTermMemory.storeInteraction(
-          personality,
-          contentForEmbedding,
-          content,
-          context,
-          personaResult.personaId
-        );
-      } else {
-        logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
-      }
-
-      // Extract attachment descriptions for history storage with context
-      const attachmentDescriptions =
-        processedAttachments.length > 0
-          ? processedAttachments
-              .map(a => {
-                // Add filename/type context before each description
-                let header = '';
-                if (a.type === AttachmentType.Image) {
-                  header = `[Image: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
-                } else if (a.type === AttachmentType.Audio) {
-                  if (
-                    a.metadata.isVoiceMessage === true &&
-                    a.metadata.duration !== undefined &&
-                    a.metadata.duration !== null &&
-                    a.metadata.duration > 0
-                  ) {
-                    header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
-                  } else {
-                    header = `[Audio: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
-                  }
-                }
-                return `${header}\n${a.description}`;
-              })
-              .join('\n\n')
-          : undefined;
-
-      // Extract token usage if available (LangChain provides usage_metadata)
-      const responseData = response as unknown as {
-        usage_metadata?: {
-          input_tokens?: number;
-          output_tokens?: number;
-          total_tokens?: number;
-        };
-      };
-      const usageMetadata = responseData.usage_metadata;
-      const tokensIn = usageMetadata?.input_tokens;
-      const tokensOut = usageMetadata?.output_tokens;
-
+      // Step 7: Build and return response
       return {
-        content,
-        retrievedMemories: relevantMemories.length,
-        tokensIn,
-        tokensOut,
-        attachmentDescriptions,
-        referencedMessagesDescriptions,
-        modelUsed: modelName,
-        userMessageContent: contentForStorage, // For bot-client to store in conversation_history and LTM
+        content: modelResult.cleanedContent,
+        retrievedMemories: budgetResult.relevantMemories.length,
+        tokensIn: modelResult.tokensIn,
+        tokensOut: modelResult.tokensOut,
+        attachmentDescriptions: this.buildAttachmentDescriptions(inputs.processedAttachments),
+        referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
+        modelUsed: modelResult.modelName,
+        userMessageContent: budgetResult.contentForStorage,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
+    }
+  }
+
+  /**
+   * Store interaction to long-term memory
+   */
+  private async storeToLongTermMemory(
+    personality: LoadedPersonality,
+    context: ConversationContext,
+    contentForStorage: string,
+    responseContent: string,
+    referencedMessagesTextForSearch: string | undefined
+  ): Promise<void> {
+    const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
+      context.userId,
+      personality.id
+    );
+
+    if (personaResult !== null) {
+      // Build content for LTM embedding: includes references for semantic search
+      const contentForEmbedding =
+        referencedMessagesTextForSearch !== undefined &&
+        referencedMessagesTextForSearch.length > 0
+          ? `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`
+          : contentForStorage;
+
+      await this.longTermMemory.storeInteraction(
+        personality,
+        contentForEmbedding,
+        responseContent,
+        context,
+        personaResult.personaId
+      );
+    } else {
+      logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
     }
   }
 

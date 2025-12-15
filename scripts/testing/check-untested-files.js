@@ -52,6 +52,8 @@ const KNOWN_UNTESTED = new Set([
   'services/bot-client/src/commands/character/index.ts',
   // Types-only file - no executable code, just TypeScript interfaces
   'services/ai-worker/src/services/context/PromptContext.ts',
+  // Types-only file - no executable code, just TypeScript interfaces for ConversationalRAGService
+  'services/ai-worker/src/services/ConversationalRAGTypes.ts',
   // Shared test utilities - not production code, helper functions for tests
   'services/api-gateway/src/routes/user/personality/test-utils.ts',
   // Helper functions tested indirectly via handler tests that use them
