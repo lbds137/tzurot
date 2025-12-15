@@ -54,12 +54,12 @@ export const PersonaSummarySchema = z.object({
   name: z.string(),
   preferredName: z.string().nullable(),
   description: z.string().nullable(),
-  pronouns: z.string().nullable().optional(),
-  content: z.string().nullable().optional(),
+  pronouns: z.string().nullable(),
+  content: z.string().nullable(),
   isDefault: z.boolean(),
-  shareLtmAcrossPersonalities: z.boolean().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
+  shareLtmAcrossPersonalities: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 export type PersonaSummary = z.infer<typeof PersonaSummarySchema>;
 

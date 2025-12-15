@@ -105,12 +105,18 @@ function createBasePersonaDetails(overrides?: DeepPartial<PersonaDetails>): Pers
 
 /** Create a base persona summary object */
 function createBasePersonaSummary(overrides?: DeepPartial<PersonaSummary>): PersonaSummary {
+  const now = new Date().toISOString();
   const base: PersonaSummary = {
     id: DEFAULT_PERSONA_ID,
     name: 'TestPersona',
     preferredName: 'Tester',
     description: 'Test description',
+    pronouns: 'they/them',
+    content: 'Test content',
     isDefault: false,
+    shareLtmAcrossPersonalities: false,
+    createdAt: now,
+    updatedAt: now,
   };
   return deepMerge(base, overrides);
 }
