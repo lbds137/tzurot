@@ -7,7 +7,11 @@
  */
 
 import { Router, type Response } from 'express';
-import { createLogger, generateUserPersonalityConfigUuid, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  generateUserPersonalityConfigUuid,
+  type PrismaClient,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -20,7 +24,6 @@ import { extractString, getOrCreateInternalUser } from './helpers.js';
 const logger = createLogger('user-persona-override');
 
 export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
-
   /**
    * GET /user/persona/override
    * List all persona overrides for specific personalities

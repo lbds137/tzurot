@@ -16,13 +16,17 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import type { PersonaSummary, PersonaDetails, CreatePersonaBody, UpdatePersonaBody } from './types.js';
+import type {
+  PersonaSummary,
+  PersonaDetails,
+  CreatePersonaBody,
+  UpdatePersonaBody,
+} from './types.js';
 import { extractString, getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-crud');
 
 export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
-
   /**
    * GET /user/persona
    * List all personas owned by the user
