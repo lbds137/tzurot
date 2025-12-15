@@ -111,20 +111,24 @@ export function createMockReqRes(
   return { req, res };
 }
 
-/** Get handler from router by method and path */
+/**
+ * Get handler from router by method and path.
+ * This is test utility code that accesses Express router internals.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/array-type, @typescript-eslint/no-unsafe-function-type */
 export function getHandler(
   router: Router,
   method: 'get' | 'post' | 'put' | 'patch' | 'delete',
   path: string
-) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Function {
   const layer = (router.stack as any[]).find(
-    l => l.route?.path === path && l.route?.methods?.[method]
+    (l: any) => l.route?.path === path && l.route?.methods?.[method]
   );
-  if (!layer) {
+  if (layer === undefined || layer === null) {
     throw new Error(`Route not found: ${method.toUpperCase()} ${path}`);
   }
   return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
     (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
   ].handle;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/array-type, @typescript-eslint/no-unsafe-function-type */
