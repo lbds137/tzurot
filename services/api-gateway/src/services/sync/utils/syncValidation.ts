@@ -70,10 +70,12 @@ export async function validateSyncConfig(
   // Build map of table -> UUID columns
   const schemaMap = new Map<string, Set<string>>();
   for (const row of actualUuidColumns) {
-    if (!schemaMap.has(row.table_name)) {
-      schemaMap.set(row.table_name, new Set());
+    let columnSet = schemaMap.get(row.table_name);
+    if (columnSet === undefined) {
+      columnSet = new Set();
+      schemaMap.set(row.table_name, columnSet);
     }
-    schemaMap.get(row.table_name)!.add(row.column_name);
+    columnSet.add(row.column_name);
   }
 
   // Check each table in SYNC_CONFIG
