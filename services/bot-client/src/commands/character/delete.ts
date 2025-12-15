@@ -170,7 +170,8 @@ export async function handleDeleteButton(
   // Build success message with deletion counts (filter out zero counts)
   const countLines = [
     counts.conversationHistory > 0 && `• ${counts.conversationHistory} conversation message(s)`,
-    counts.memories > 0 && `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`,
+    counts.memories > 0 &&
+      `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`,
     counts.pendingMemories > 0 &&
       `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`,
     counts.activatedChannels > 0 && `• ${counts.activatedChannels} activated channel(s)`,
