@@ -16,7 +16,6 @@ import { getOrCreateInternalUser } from './helpers.js';
 const logger = createLogger('user-persona-default');
 
 export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
-
   /**
    * PATCH /user/persona/:id/default
    * Set a persona as the user's default
