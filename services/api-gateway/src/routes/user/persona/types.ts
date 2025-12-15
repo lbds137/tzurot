@@ -10,6 +10,8 @@ export interface PersonaSummary {
   name: string;
   preferredName: string | null;
   description: string | null;
+  pronouns: string | null;
+  content: string | null;
   isDefault: boolean;
   shareLtmAcrossPersonalities: boolean;
   createdAt: string;
