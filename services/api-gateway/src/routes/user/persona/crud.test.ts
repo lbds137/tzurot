@@ -123,6 +123,42 @@ describe('persona CRUD routes', () => {
         })
       );
     });
+
+    it('should handle personas with null content and pronouns', async () => {
+      const personaWithNulls = {
+        ...mockPersona,
+        content: null,
+        pronouns: null,
+        preferredName: null,
+        description: null,
+      };
+      mockPrisma.persona.findMany.mockResolvedValue([personaWithNulls]);
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/');
+
+      const { req, res } = createMockReqRes();
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        personas: [
+          expect.objectContaining({
+            id: MOCK_PERSONA_ID,
+            name: 'Test Persona',
+            content: null,
+            pronouns: null,
+            preferredName: null,
+            description: null,
+            isDefault: true,
+          }),
+        ],
+      });
+
+      // Also validate against schema to ensure null values pass contract
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as unknown;
+      const parseResult = ListPersonasResponseSchema.safeParse(response);
+      expect(parseResult.success).toBe(true);
+    });
   });
 
   describe('GET /user/persona/:id', () => {
