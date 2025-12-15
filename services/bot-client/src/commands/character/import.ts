@@ -17,6 +17,42 @@ import {
 
 const logger = createLogger('character-import');
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/** Result of avatar processing */
+interface AvatarProcessingResult {
+  success: true;
+  data: string;
+}
+
+/** Field definition for import field list */
+interface ImportFieldDef {
+  key: string;
+  label: string;
+}
+
+/** Import field definitions for building success message */
+const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
+  { key: 'characterInfo', label: 'Character Info' },
+  { key: 'personalityTraits', label: 'Personality Traits' },
+  { key: 'displayName', label: 'Display Name' },
+  { key: 'personalityTone', label: 'Tone' },
+  { key: 'personalityAge', label: 'Age' },
+  { key: 'personalityAppearance', label: 'Appearance' },
+  { key: 'personalityLikes', label: 'Likes' },
+  { key: 'personalityDislikes', label: 'Dislikes' },
+  { key: 'conversationalGoals', label: 'Conversational Goals' },
+  { key: 'conversationalExamples', label: 'Conversational Examples' },
+  { key: 'customFields', label: 'Custom Fields' },
+  { key: 'avatarData', label: 'Avatar Data' },
+];
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
 /**
  * JSON template for character import
  * This is shown to users when they need help with the format
@@ -57,6 +93,328 @@ function buildTemplateMessage(): string {
   );
 }
 
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Validate JSON file attachment
+ */
+function validateJsonFile(
+  file: NonNullable<
+    ReturnType<
+      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
+    >
+  >
+): string | null {
+  if ((file.contentType?.includes('json') ?? false) === false && !file.name.endsWith('.json')) {
+    return '❌ File must be a JSON file (.json)';
+  }
+  if (file.size > DISCORD_LIMITS.AVATAR_SIZE) {
+    return '❌ File is too large (max 10MB)';
+  }
+  return null;
+}
+
+/**
+ * Download and parse JSON file
+ */
+async function downloadAndParseJson(
+  url: string,
+  filename: string
+): Promise<{ data: Record<string, unknown> } | { error: string }> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const text = await response.text();
+    const data = JSON.parse(text) as Record<string, unknown>;
+    logger.info(
+      { filename, sizeKb: (text.length / 1024).toFixed(2) },
+      '[Character/Import] Downloaded JSON'
+    );
+    return { data };
+  } catch (error) {
+    logger.error({ err: error }, '[Character/Import] Failed to download or parse JSON');
+    return {
+      error:
+        '❌ Failed to parse JSON file.\n' +
+        'Make sure the file is valid JSON format.\n\n' +
+        buildTemplateMessage(),
+    };
+  }
+}
+
+/**
+ * Validate character data has required fields and valid slug
+ */
+function validateCharacterData(
+  data: Record<string, unknown>
+): { slug: string } | { error: string } {
+  const missingFields = REQUIRED_IMPORT_FIELDS.filter(
+    field => data[field] === undefined || data[field] === null || data[field] === ''
+  );
+  if (missingFields.length > 0) {
+    return {
+      error: `❌ Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage(),
+    };
+  }
+
+  const rawSlug = data.slug as string;
+  if (!/^[a-z0-9-]+$/.test(rawSlug)) {
+    return {
+      error:
+        '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
+        `Example: \`${rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``,
+    };
+  }
+
+  return { slug: rawSlug };
+}
+
+/**
+ * Combined: validate JSON file, download, parse, and validate character data
+ */
+async function validateAndParseJsonFile(
+  file: NonNullable<
+    ReturnType<
+      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
+    >
+  >
+): Promise<{ data: Record<string, unknown>; slug: string } | { error: string }> {
+  // Validate file type and size
+  const fileError = validateJsonFile(file);
+  if (fileError !== null) {
+    return { error: fileError };
+  }
+
+  // Download and parse
+  const jsonResult = await downloadAndParseJson(file.url, file.name);
+  if ('error' in jsonResult) {
+    return { error: jsonResult.error };
+  }
+
+  // Validate character data
+  const validationResult = validateCharacterData(jsonResult.data);
+  if ('error' in validationResult) {
+    return { error: validationResult.error };
+  }
+
+  return { data: jsonResult.data, slug: validationResult.slug };
+}
+
+/**
+ * Validate avatar attachment
+ */
+function validateAvatarAttachment(
+  avatar: NonNullable<
+    ReturnType<
+      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
+    >
+  >
+): string | null {
+  if (avatar.contentType === null || !VALID_IMAGE_TYPES.includes(avatar.contentType)) {
+    return (
+      '❌ Avatar must be an image file (PNG, JPG, GIF, or WebP).\n' +
+      `Received: ${avatar.contentType ?? 'unknown type'}`
+    );
+  }
+  if (avatar.size > MAX_INPUT_SIZE_BYTES) {
+    return `❌ Avatar image is too large. Maximum size is ${MAX_INPUT_SIZE_MB}MB.`;
+  }
+  return null;
+}
+
+/**
+ * Process avatar attachment
+ */
+async function processAvatarDownload(
+  avatar: NonNullable<
+    ReturnType<
+      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
+    >
+  >
+): Promise<AvatarProcessingResult | { error: string }> {
+  try {
+    const response = await fetch(avatar.url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const rawBuffer = Buffer.from(await response.arrayBuffer());
+    const result = await processAvatarBuffer(rawBuffer, avatar.name ?? 'import-avatar');
+
+    if (!result.success) {
+      return { error: `❌ ${result.message}` };
+    }
+
+    logger.info(
+      {
+        filename: avatar.name,
+        originalSizeKb: (avatar.size / 1024).toFixed(2),
+        finalSizeKb: (result.buffer.length / 1024).toFixed(2),
+        wasResized: result.wasResized,
+      },
+      '[Character/Import] Processed avatar image'
+    );
+
+    return { success: true, data: result.buffer.toString('base64') };
+  } catch (error) {
+    logger.error({ err: error }, '[Character/Import] Failed to download avatar');
+    return { error: '❌ Failed to download avatar image. Please try again.' };
+  }
+}
+
+/**
+ * Validate and process avatar attachment (combines validation and processing)
+ */
+async function validateAndProcessAvatar(
+  avatar: NonNullable<
+    ReturnType<
+      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
+    >
+  >
+): Promise<{ data: string } | { error: string }> {
+  const validationError = validateAvatarAttachment(avatar);
+  if (validationError !== null) {
+    return { error: validationError };
+  }
+
+  const result = await processAvatarDownload(avatar);
+  if ('error' in result) {
+    return { error: result.error };
+  }
+  return { data: result.data };
+}
+
+// ============================================================================
+// PAYLOAD BUILDING
+// ============================================================================
+
+/**
+ * Build API payload from parsed character data
+ */
+function buildImportPayload(
+  data: Record<string, unknown>,
+  normalizedSlug: string,
+  avatarData: string | undefined
+): Record<string, unknown> {
+  const isPublic = typeof data.isPublic === 'boolean' ? data.isPublic : false;
+  const finalAvatarData =
+    avatarData ?? (typeof data.avatarData === 'string' ? data.avatarData : undefined);
+
+  return {
+    name: data.name,
+    slug: normalizedSlug,
+    characterInfo: data.characterInfo,
+    personalityTraits: data.personalityTraits,
+    displayName: data.displayName ?? undefined,
+    isPublic,
+    personalityTone: data.personalityTone ?? undefined,
+    personalityAge: data.personalityAge ?? undefined,
+    personalityAppearance: data.personalityAppearance ?? undefined,
+    personalityLikes: data.personalityLikes ?? undefined,
+    personalityDislikes: data.personalityDislikes ?? undefined,
+    conversationalGoals: data.conversationalGoals ?? undefined,
+    conversationalExamples: data.conversationalExamples ?? undefined,
+    customFields: data.customFields ?? undefined,
+    avatarData: finalAvatarData,
+    errorMessage: data.errorMessage ?? undefined,
+  };
+}
+
+/**
+ * Get list of imported field labels from payload
+ */
+function getImportedFieldsList(payload: Record<string, unknown>): string[] {
+  return IMPORT_FIELD_DEFS.filter(
+    ({ key }) => payload[key] !== undefined && payload[key] !== null
+  ).map(({ label }) => label);
+}
+
+// ============================================================================
+// API OPERATIONS
+// ============================================================================
+
+/**
+ * Check if character exists and user can edit it
+ * Returns: { exists: false } | { exists: true, canEdit: boolean }
+ */
+async function checkExistingCharacter(
+  slug: string,
+  userId: string
+): Promise<{ exists: false } | { exists: true; canEdit: boolean }> {
+  const result = await callGatewayApi<{
+    personality: { id: string };
+    canEdit: boolean;
+  }>(`/user/personality/${slug}`, {
+    userId,
+    method: 'GET',
+  });
+
+  if (!result.ok) {
+    return { exists: false };
+  }
+  return { exists: true, canEdit: result.data.canEdit };
+}
+
+/**
+ * Create or update character via API
+ */
+async function saveCharacter(
+  slug: string,
+  userId: string,
+  payload: Record<string, unknown>,
+  isUpdate: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await callGatewayApi<{ id: string }>(
+    isUpdate ? `/user/personality/${slug}` : '/user/personality',
+    {
+      userId,
+      method: isUpdate ? 'PUT' : 'POST',
+      body: payload,
+    }
+  );
+
+  if (!result.ok) {
+    logger.error({ error: result.error, isUpdate }, '[Character/Import] Failed to import');
+    return { ok: false, error: result.error };
+  }
+  return { ok: true };
+}
+
+/**
+ * Build success embed for import
+ */
+function buildSuccessEmbed(
+  payload: Record<string, unknown>,
+  slug: string,
+  isUpdate: boolean
+): EmbedBuilder {
+  const isPublic = payload.isPublic === true;
+  const visibilityIcon = isPublic ? '🌐' : '🔒';
+  const visibilityText = isPublic ? 'Public' : 'Private';
+  const actionWord = isUpdate ? 'Updated' : 'Imported';
+
+  const embed = new EmbedBuilder()
+    .setColor(DISCORD_COLORS.SUCCESS)
+    .setTitle(`Character ${actionWord} Successfully`)
+    .setDescription(
+      `${actionWord} character: **${String(payload.name)}** (\`${slug}\`)\n` +
+        `${visibilityIcon} ${visibilityText}`
+    )
+    .setTimestamp();
+
+  const importedFields = getImportedFieldsList(payload);
+  embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
+
+  return embed;
+}
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
+
 /**
  * Handle /character import subcommand
  * Allows any user to import a character from a JSON file
@@ -72,264 +430,66 @@ export async function handleImport(
     const fileAttachment = interaction.options.getAttachment('file', true);
     const avatarAttachment = interaction.options.getAttachment('avatar', false);
 
-    // Validate file type
-    if (
-      (fileAttachment.contentType?.includes('json') ?? false) === false &&
-      !fileAttachment.name.endsWith('.json')
-    ) {
-      await interaction.editReply('❌ File must be a JSON file (.json)');
+    // Step 1: Validate, download, parse, and validate JSON file
+    const parseResult = await validateAndParseJsonFile(fileAttachment);
+    if ('error' in parseResult) {
+      await interaction.editReply(parseResult.error);
       return;
     }
 
-    // Validate file size (Discord limit)
-    if (fileAttachment.size > DISCORD_LIMITS.AVATAR_SIZE) {
-      await interaction.editReply('❌ File is too large (max 10MB)');
-      return;
-    }
-
-    // Download and parse JSON
-    let characterData: Record<string, unknown>;
-    try {
-      const response = await fetch(fileAttachment.url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const text = await response.text();
-      characterData = JSON.parse(text) as Record<string, unknown>;
-
-      logger.info(
-        { filename: fileAttachment.name, sizeKb: (text.length / 1024).toFixed(2) },
-        '[Character/Import] Downloaded JSON'
-      );
-    } catch (error) {
-      logger.error({ err: error }, '[Character/Import] Failed to download or parse JSON');
-      await interaction.editReply(
-        '❌ Failed to parse JSON file.\n' +
-          'Make sure the file is valid JSON format.\n\n' +
-          buildTemplateMessage()
-      );
-      return;
-    }
-
-    // Validate required fields
-    const missingFields = REQUIRED_IMPORT_FIELDS.filter(
-      field =>
-        characterData[field] === undefined ||
-        characterData[field] === null ||
-        characterData[field] === ''
+    // Step 2: Normalize slug
+    const slug = normalizeSlugForUser(
+      parseResult.slug,
+      interaction.user.id,
+      interaction.user.username
     );
 
-    if (missingFields.length > 0) {
-      await interaction.editReply(
-        `❌ Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage()
-      );
-      return;
-    }
-
-    // Validate slug format (before normalization)
-    const rawSlug = characterData.slug as string;
-    if (!/^[a-z0-9-]+$/.test(rawSlug)) {
-      await interaction.editReply(
-        '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
-          `Example: \`${rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
-      );
-      return;
-    }
-
-    // Normalize slug: append username for non-bot-owners
-    const slug = normalizeSlugForUser(rawSlug, interaction.user.id, interaction.user.username);
-
-    // Process optional avatar attachment
+    // Step 3: Process optional avatar
     let avatarData: string | undefined;
     if (avatarAttachment) {
-      // Validate avatar is an image
-      if (
-        avatarAttachment.contentType === null ||
-        !VALID_IMAGE_TYPES.includes(avatarAttachment.contentType)
-      ) {
-        await interaction.editReply(
-          '❌ Avatar must be an image file (PNG, JPG, GIF, or WebP).\n' +
-            `Received: ${avatarAttachment.contentType ?? 'unknown type'}`
-        );
+      const avatarResult = await validateAndProcessAvatar(avatarAttachment);
+      if ('error' in avatarResult) {
+        await interaction.editReply(avatarResult.error);
         return;
       }
-
-      // Validate avatar size
-      if (avatarAttachment.size > MAX_INPUT_SIZE_BYTES) {
-        await interaction.editReply(
-          `❌ Avatar image is too large. Maximum size is ${MAX_INPUT_SIZE_MB}MB.`
-        );
-        return;
-      }
-
-      // Download, resize if needed, and convert to base64
-      try {
-        const avatarResponse = await fetch(avatarAttachment.url);
-        if (!avatarResponse.ok) {
-          throw new Error(`HTTP ${avatarResponse.status}`);
-        }
-        const rawBuffer = Buffer.from(await avatarResponse.arrayBuffer());
-
-        // Process avatar (resize if needed)
-        const result = await processAvatarBuffer(
-          rawBuffer,
-          avatarAttachment.name ?? 'import-avatar'
-        );
-        if (!result.success) {
-          await interaction.editReply(`❌ ${result.message}`);
-          return;
-        }
-
-        avatarData = result.buffer.toString('base64');
-
-        logger.info(
-          {
-            filename: avatarAttachment.name,
-            originalSizeKb: (avatarAttachment.size / 1024).toFixed(2),
-            finalSizeKb: (result.buffer.length / 1024).toFixed(2),
-            wasResized: result.wasResized,
-          },
-          '[Character/Import] Processed avatar image'
-        );
-      } catch (avatarError) {
-        logger.error({ err: avatarError }, '[Character/Import] Failed to download avatar');
-        await interaction.editReply('❌ Failed to download avatar image. Please try again.');
-        return;
-      }
+      avatarData = avatarResult.data;
     }
 
-    // Build payload for API
-    // isPublic defaults to false if not specified
-    const isPublic = typeof characterData.isPublic === 'boolean' ? characterData.isPublic : false;
+    // Step 4: Build payload
+    const payload = buildImportPayload(parseResult.data, slug, avatarData);
 
-    // Use separate avatar attachment if provided, otherwise fall back to JSON's avatarData
-    const finalAvatarData =
-      avatarData ??
-      (typeof characterData.avatarData === 'string' ? characterData.avatarData : undefined);
-
-    const payload = {
-      name: characterData.name,
-      slug: slug, // Use normalized slug (appends username for non-bot-owners)
-      characterInfo: characterData.characterInfo,
-      personalityTraits: characterData.personalityTraits,
-      displayName: characterData.displayName ?? undefined,
-      isPublic,
-      personalityTone: characterData.personalityTone ?? undefined,
-      personalityAge: characterData.personalityAge ?? undefined,
-      personalityAppearance: characterData.personalityAppearance ?? undefined,
-      personalityLikes: characterData.personalityLikes ?? undefined,
-      personalityDislikes: characterData.personalityDislikes ?? undefined,
-      conversationalGoals: characterData.conversationalGoals ?? undefined,
-      conversationalExamples: characterData.conversationalExamples ?? undefined,
-      customFields: characterData.customFields ?? undefined,
-      avatarData: finalAvatarData,
-      errorMessage: characterData.errorMessage ?? undefined,
-    };
-
-    // Check if character already exists
-    const existingResult = await callGatewayApi<{
-      personality: { id: string };
-      canEdit: boolean;
-    }>(`/user/personality/${slug}`, {
-      userId: interaction.user.id,
-      method: 'GET',
-    });
-
-    let isUpdate = false;
-
-    if (existingResult.ok) {
-      // Character exists - check if user can edit it
-      if (!existingResult.data.canEdit) {
-        await interaction.editReply(
-          `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
-            'You can only overwrite characters that you own.'
-        );
-        return;
-      }
-      isUpdate = true;
-    }
-
-    // Call API Gateway to create or update character
-    const result = await callGatewayApi<{ id: string }>(
-      isUpdate ? `/user/personality/${slug}` : '/user/personality',
-      {
-        userId: interaction.user.id,
-        method: isUpdate ? 'PUT' : 'POST',
-        body: payload,
-      }
-    );
-
-    if (result.ok === false) {
-      const errorMessage = result.error;
-      logger.error({ error: errorMessage, isUpdate }, '[Character/Import] Failed to import');
-
+    // Step 5: Check if character already exists
+    const existingCheck = await checkExistingCharacter(slug, interaction.user.id);
+    if (existingCheck.exists && !existingCheck.canEdit) {
       await interaction.editReply(
-        `❌ Failed to ${isUpdate ? 'update' : 'import'} character:\n` +
-          `\`\`\`\n${errorMessage.slice(0, 1500)}\n\`\`\``
+        `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
+          'You can only overwrite characters that you own.'
       );
       return;
     }
 
-    // Build success embed
-    const visibilityIcon = isPublic ? '🌐' : '🔒';
-    const visibilityText = isPublic ? 'Public' : 'Private';
-    const actionWord = isUpdate ? 'Updated' : 'Imported';
-    const embed = new EmbedBuilder()
-      .setColor(DISCORD_COLORS.SUCCESS)
-      .setTitle(`Character ${actionWord} Successfully`)
-      .setDescription(
-        `${actionWord} character: **${String(payload.name)}** (\`${slug}\`)\n` +
-          `${visibilityIcon} ${visibilityText}`
-      )
-      .setTimestamp();
-
-    // Show what was imported
-    const importedFields: string[] = [];
-    if (payload.characterInfo !== undefined && payload.characterInfo !== null) {
-      importedFields.push('Character Info');
-    }
-    if (payload.personalityTraits !== undefined && payload.personalityTraits !== null) {
-      importedFields.push('Personality Traits');
-    }
-    if (payload.displayName !== undefined && payload.displayName !== null) {
-      importedFields.push('Display Name');
-    }
-    if (payload.personalityTone !== undefined && payload.personalityTone !== null) {
-      importedFields.push('Tone');
-    }
-    if (payload.personalityAge !== undefined && payload.personalityAge !== null) {
-      importedFields.push('Age');
-    }
-    if (payload.personalityAppearance !== undefined && payload.personalityAppearance !== null) {
-      importedFields.push('Appearance');
-    }
-    if (payload.personalityLikes !== undefined && payload.personalityLikes !== null) {
-      importedFields.push('Likes');
-    }
-    if (payload.personalityDislikes !== undefined && payload.personalityDislikes !== null) {
-      importedFields.push('Dislikes');
-    }
-    if (payload.conversationalGoals !== undefined && payload.conversationalGoals !== null) {
-      importedFields.push('Conversational Goals');
-    }
-    if (payload.conversationalExamples !== undefined && payload.conversationalExamples !== null) {
-      importedFields.push('Conversational Examples');
-    }
-    if (payload.customFields !== undefined && payload.customFields !== null) {
-      importedFields.push('Custom Fields');
-    }
-    if (payload.avatarData !== undefined && payload.avatarData !== null) {
-      importedFields.push('Avatar Data');
+    // Step 6: Create or update character
+    const saveResult = await saveCharacter(
+      slug,
+      interaction.user.id,
+      payload,
+      existingCheck.exists
+    );
+    if (!saveResult.ok) {
+      await interaction.editReply(
+        `❌ Failed to ${existingCheck.exists ? 'update' : 'import'} character:\n` +
+          `\`\`\`\n${saveResult.error.slice(0, 1500)}\n\`\`\``
+      );
+      return;
     }
 
-    embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
-
+    // Step 7: Send success response
+    const embed = buildSuccessEmbed(payload, slug, existingCheck.exists);
     await interaction.editReply({ embeds: [embed] });
 
     logger.info(
-      { slug, userId: interaction.user.id, isUpdate },
-      `[Character/Import] Character ${isUpdate ? 'updated' : 'imported'} successfully`
+      { slug, userId: interaction.user.id, isUpdate: existingCheck.exists },
+      `[Character/Import] Character ${existingCheck.exists ? 'updated' : 'imported'} successfully`
     );
   } catch (error) {
     logger.error({ err: error }, '[Character/Import] Error importing character');
