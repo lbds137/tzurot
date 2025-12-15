@@ -194,9 +194,7 @@ export class ConversationalRAGService {
           }
         }
 
-        logger.info(
-          `[RAG] Resolved ${resolvedPersonas.length} user reference(s) in system prompt`
-        );
+        logger.info(`[RAG] Resolved ${resolvedPersonas.length} user reference(s) in system prompt`);
       }
     }
 
@@ -206,8 +204,14 @@ export class ConversationalRAGService {
   /** Invoke the model and clean up the response */
   private async invokeModelAndClean(opts: ModelInvocationOptions): Promise<ModelInvocationResult> {
     const {
-      personality, systemPrompt, userMessage, processedAttachments,
-      context, participantPersonas, referencedMessagesDescriptions, userApiKey,
+      personality,
+      systemPrompt,
+      userMessage,
+      processedAttachments,
+      context,
+      participantPersonas,
+      referencedMessagesDescriptions,
+      userApiKey,
     } = opts;
     // Build current message
     const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
@@ -416,8 +420,7 @@ export class ConversationalRAGService {
     if (personaResult !== null) {
       // Build content for LTM embedding: includes references for semantic search
       const contentForEmbedding =
-        referencedMessagesTextForSearch !== undefined &&
-        referencedMessagesTextForSearch.length > 0
+        referencedMessagesTextForSearch !== undefined && referencedMessagesTextForSearch.length > 0
           ? `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`
           : contentForStorage;
 
