@@ -20,7 +20,7 @@
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "@prisma/client-runtime-utils": "^7.1.0",
-    "discord-api-types": "^0.38.36",
+    "discord-api-types": "^0.38.37",
     "discord.js": "^14.25.1",
     "ioredis": "^5.8.2",
     "lru-cache": "^11.2.4",
@@ -29,7 +29,7 @@
     "pino": "^10.1.0",
     "redis": "^5.10.0",
     "tiktoken": "^1.0.22",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
