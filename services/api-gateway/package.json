@@ -20,7 +20,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",
     "@tzurot/common-types": "workspace:*",
-    "bullmq": "^5.65.1",
+    "bullmq": "^5.66.0",
     "express": "^5.2.1",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.8.2",
@@ -29,12 +29,12 @@
     "pino-http": "^11.0.0",
     "redis": "^5.10.0",
     "sharp": "^0.34.5",
-    "zod": "^4.1.13"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^24.10.1",
-    "@types/pg": "^8.15.6",
+    "@types/node": "^25.0.2",
+    "@types/pg": "^8.16.0",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4"
   }
