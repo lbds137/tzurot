@@ -9,20 +9,15 @@
 
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  TEXT_LIMITS,
+  type ListPersonasResponse,
+} from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-list');
-
-/** Response type for persona list */
-interface PersonaSummary {
-  id: string;
-  name: string;
-  preferredName: string | null;
-  pronouns: string | null;
-  content: string | null;
-  isDefault: boolean;
-}
 
 /**
  * Handle /me profile list command
@@ -32,7 +27,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
 
   try {
     // Fetch user's personas via gateway API
-    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
+    const result = await callGatewayApi<ListPersonasResponse>('/user/persona', {
       userId: discordId,
     });
 
@@ -68,17 +63,19 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       const fieldName = persona.isDefault ? `⭐ ${persona.name} (default)` : persona.name;
 
       const details: string[] = [];
-      if (persona.preferredName !== null) {
+      if (persona.preferredName !== undefined && persona.preferredName !== null) {
         details.push(`**Name:** ${persona.preferredName}`);
       }
-      if (persona.pronouns !== null) {
+      if (persona.pronouns !== undefined && persona.pronouns !== null) {
         details.push(`**Pronouns:** ${persona.pronouns}`);
       }
-      if (persona.content !== null && persona.content.length > 0) {
+      // Check for both undefined and null since shared schema has content as optional
+      const content = persona.content;
+      if (content !== undefined && content !== null && content.length > 0) {
         const preview =
-          persona.content.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW
-            ? `${persona.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
-            : persona.content;
+          content.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW
+            ? `${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+            : content;
         details.push(`**About:** ${preview}`);
       }
 

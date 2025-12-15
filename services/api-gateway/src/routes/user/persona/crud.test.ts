@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PrismaClient } from '@tzurot/common-types';
+import { ListPersonasResponseSchema } from '@tzurot/common-types';
 import {
   createMockPrisma,
   createMockReqRes,
@@ -81,6 +82,28 @@ describe('persona CRUD routes', () => {
           }),
         ],
       });
+    });
+
+    it('should return response that validates against shared API schema (contract test)', async () => {
+      // This test ensures the API response matches the shared contract in common-types
+      // If this test fails, the bot-client will break because it uses the same schema
+      mockPrisma.persona.findMany.mockResolvedValue([mockPersona]);
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/');
+
+      const { req, res } = createMockReqRes();
+      await handler(req, res);
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as unknown;
+
+      // Validate response against the shared Zod schema - this is the contract test
+      const parseResult = ListPersonasResponseSchema.safeParse(response);
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) {
+        // This provides helpful error messages if the schema validation fails
+        console.error('Schema validation failed:', parseResult.error.format());
+      }
     });
 
     it('should create user if they do not exist', async () => {
