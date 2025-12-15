@@ -167,25 +167,15 @@ export async function handleDeleteButton(
 
   const { deletedCounts: counts, deletedName, deletedSlug } = parseResult.data;
 
-  // Build success message with deletion counts
-  const countLines: string[] = [];
-  if (counts.conversationHistory > 0) {
-    countLines.push(`• ${counts.conversationHistory} conversation message(s)`);
-  }
-  if (counts.memories > 0) {
-    countLines.push(`• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`);
-  }
-  if (counts.pendingMemories > 0) {
-    countLines.push(
-      `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`
-    );
-  }
-  if (counts.activatedChannels > 0) {
-    countLines.push(`• ${counts.activatedChannels} activated channel(s)`);
-  }
-  if (counts.aliases > 0) {
-    countLines.push(`• ${counts.aliases} alias(es)`);
-  }
+  // Build success message with deletion counts (filter out zero counts)
+  const countLines = [
+    counts.conversationHistory > 0 && `• ${counts.conversationHistory} conversation message(s)`,
+    counts.memories > 0 && `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`,
+    counts.pendingMemories > 0 &&
+      `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`,
+    counts.activatedChannels > 0 && `• ${counts.activatedChannels} activated channel(s)`,
+    counts.aliases > 0 && `• ${counts.aliases} alias(es)`,
+  ].filter((line): line is string => typeof line === 'string');
 
   let successMessage = `✅ Character \`${deletedName}\` has been permanently deleted.`;
   if (countLines.length > 0) {
