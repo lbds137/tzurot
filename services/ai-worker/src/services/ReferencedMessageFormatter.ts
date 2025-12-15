@@ -51,6 +51,18 @@ interface ProcessSingleAttachmentOptions {
 }
 
 /**
+ * Options for processing an image attachment (internal)
+ */
+interface ProcessImageOptions {
+  attachment: ProcessSingleAttachmentOptions['attachment'];
+  index: number;
+  referenceNumber: number;
+  personality: LoadedPersonality;
+  isGuestMode: boolean;
+  preprocessed?: ProcessedAttachment;
+}
+
+/**
  * Referenced Message Formatter
  *
  * Handles formatting of referenced messages with parallel attachment processing
@@ -310,13 +322,9 @@ export class ReferencedMessageFormatter {
 
   /** Process image attachment */
   private async processImageAttachment(
-    attachment: ProcessSingleAttachmentOptions['attachment'],
-    index: number,
-    referenceNumber: number,
-    personality: LoadedPersonality,
-    isGuestMode: boolean,
-    preprocessed?: ProcessedAttachment
+    options: ProcessImageOptions
   ): Promise<ProcessedAttachmentResult> {
+    const { attachment, index, referenceNumber, personality, isGuestMode, preprocessed } = options;
     if (preprocessed?.description !== undefined && preprocessed.description !== '') {
       logger.debug(
         { referenceNumber, url: attachment.url },
@@ -375,14 +383,14 @@ export class ReferencedMessageFormatter {
     }
 
     if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-      return this.processImageAttachment(
+      return this.processImageAttachment({
         attachment,
         index,
         referenceNumber,
         personality,
         isGuestMode,
-        preprocessed
-      );
+        preprocessed,
+      });
     }
 
     return { index, line: `- File: ${attachment.name} (${attachment.contentType})` };
