@@ -29,6 +29,7 @@ import {
   HealthStatus,
   QUEUE_CONFIG,
   TIMEOUTS,
+  type PrismaClient,
   type AnyJobData,
   type AnyJobResult,
 } from '@tzurot/common-types';
@@ -36,6 +37,32 @@ import { ApiKeyResolver } from './services/ApiKeyResolver.js';
 import { LlmConfigResolver } from './services/LlmConfigResolver.js';
 import { PersonaResolver } from './services/resolvers/index.js';
 import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/** Dependencies needed for cache invalidation setup */
+interface CacheInvalidationDeps {
+  cacheRedis: Redis;
+  prisma: PrismaClient;
+}
+
+/** Result of cache invalidation setup */
+interface CacheInvalidationResult {
+  personalityService: PersonalityService;
+  cacheInvalidationService: CacheInvalidationService;
+  apiKeyResolver: ApiKeyResolver;
+  llmConfigResolver: LlmConfigResolver;
+  personaResolver: PersonaResolver;
+  cleanupFns: Array<() => Promise<void>>;
+}
+
+/** Result of scheduled jobs setup */
+interface ScheduledJobsResult {
+  scheduledQueue: Queue;
+  scheduledWorker: Worker;
+}
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
@@ -66,54 +93,26 @@ const config = {
   },
 };
 
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
 /**
- * Initialize the AI worker
+ * Set up all cache invalidation services and subscriptions
  */
-async function main(): Promise<void> {
-  logger.info('[AIWorker] Starting AI Worker service...');
+async function setupCacheInvalidation(deps: CacheInvalidationDeps): Promise<CacheInvalidationResult> {
+  const { cacheRedis, prisma } = deps;
+  const cleanupFns: Array<() => Promise<void>> = [];
 
-  // Validate AI worker-specific required environment variables
-  validateAIConfig();
-
-  logger.info(
-    {
-      redis: {
-        host: config.redis.host,
-        port: config.redis.port,
-        hasPassword: config.redis.password !== undefined,
-        connectTimeout: config.redis.connectTimeout,
-        commandTimeout: config.redis.commandTimeout,
-      },
-      worker: config.worker,
-    },
-    '[AIWorker] Configuration:'
-  );
-
-  // Composition Root: Create Prisma client for dependency injection
-  const prisma = getPrismaClient();
-  logger.info('[AIWorker] Prisma client initialized');
-
-  // Initialize Redis for cache invalidation (separate from BullMQ Redis)
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const cacheRedis = new Redis(envConfig.REDIS_URL!);
-  cacheRedis.on('error', err => {
-    logger.error({ err }, '[AIWorker] Cache Redis connection error');
-  });
-  logger.info('[AIWorker] Redis client initialized for cache invalidation');
-
-  // Initialize PersonalityService and CacheInvalidationService
+  // PersonalityService and CacheInvalidationService
   const personalityService = new PersonalityService(prisma);
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
-
-  // Subscribe to personality cache invalidation events
   await cacheInvalidationService.subscribe();
+  cleanupFns.push(() => cacheInvalidationService.unsubscribe());
   logger.info('[AIWorker] Subscribed to personality cache invalidation events');
 
-  // Create ApiKeyResolver for BYOK support
+  // ApiKeyResolver with cache invalidation
   const apiKeyResolver = new ApiKeyResolver(prisma);
-  logger.info('[AIWorker] ApiKeyResolver initialized for BYOK support');
-
-  // Subscribe to API key cache invalidation events
   const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
   await apiKeyCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
@@ -124,13 +123,11 @@ async function main(): Promise<void> {
       logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated API key cache for user');
     }
   });
-  logger.info('[AIWorker] Subscribed to API key cache invalidation events');
+  cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
+  logger.info('[AIWorker] ApiKeyResolver initialized with cache invalidation');
 
-  // Create LlmConfigResolver for user config overrides
+  // LlmConfigResolver with cache invalidation
   const llmConfigResolver = new LlmConfigResolver(prisma);
-  logger.info('[AIWorker] LlmConfigResolver initialized for config overrides');
-
-  // Subscribe to LLM config cache invalidation events
   const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
   await llmConfigCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
@@ -138,26 +135,17 @@ async function main(): Promise<void> {
       logger.info('[AIWorker] Cleared all LLM config cache entries');
     } else if (event.type === 'user') {
       llmConfigResolver.invalidateUserCache(event.discordId);
-      logger.info(
-        { discordId: event.discordId },
-        '[AIWorker] Invalidated LLM config cache for user'
-      );
+      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated LLM config cache for user');
     } else {
-      // For config-specific invalidation, clear entire cache (safer than tracking users)
       llmConfigResolver.clearCache();
-      logger.info(
-        { configId: event.configId },
-        '[AIWorker] Cleared LLM config cache (config changed)'
-      );
+      logger.info({ configId: event.configId }, '[AIWorker] Cleared LLM config cache (config changed)');
     }
   });
-  logger.info('[AIWorker] Subscribed to LLM config cache invalidation events');
+  cleanupFns.push(() => llmConfigCacheInvalidation.unsubscribe());
+  logger.info('[AIWorker] LlmConfigResolver initialized with cache invalidation');
 
-  // Create PersonaResolver for persona-based memory retrieval
+  // PersonaResolver with cache invalidation
   const personaResolver = new PersonaResolver(prisma);
-  logger.info('[AIWorker] PersonaResolver initialized for persona-based memory retrieval');
-
-  // Subscribe to persona cache invalidation events
   const personaCacheInvalidation = new PersonaCacheInvalidationService(cacheRedis);
   await personaCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
@@ -168,135 +156,102 @@ async function main(): Promise<void> {
       logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated persona cache for user');
     }
   });
-  logger.info('[AIWorker] Subscribed to persona cache invalidation events');
+  cleanupFns.push(() => personaCacheInvalidation.unsubscribe());
+  logger.info('[AIWorker] PersonaResolver initialized with cache invalidation');
 
-  // Initialize vector memory manager (pgvector)
-  let memoryManager: PgvectorMemoryAdapter | undefined;
+  return {
+    personalityService,
+    cacheInvalidationService,
+    apiKeyResolver,
+    llmConfigResolver,
+    personaResolver,
+    cleanupFns,
+  };
+}
 
+/**
+ * Initialize vector memory manager with health check
+ */
+async function initializeVectorMemory(prisma: PrismaClient): Promise<PgvectorMemoryAdapter | undefined> {
   logger.info('[AIWorker] Initializing pgvector memory connection...');
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    memoryManager = new PgvectorMemoryAdapter(prisma, envConfig.OPENAI_API_KEY!);
+    const memoryManager = new PgvectorMemoryAdapter(prisma, envConfig.OPENAI_API_KEY!);
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
       logger.info('[AIWorker] Pgvector memory initialized successfully');
+      return memoryManager;
     } else {
       logger.warn({}, '[AIWorker] Pgvector health check failed');
-      logger.warn(
-        {},
-        '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
-      );
-      memoryManager = undefined;
+      logger.warn({}, '[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+      return undefined;
     }
   } catch (error) {
     logger.error({ err: error }, '[AIWorker] Failed to initialize pgvector memory');
-    logger.warn(
-      {},
-      '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
-    );
-    memoryManager = undefined;
+    logger.warn({}, '[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+    return undefined;
   }
+}
 
-  // Initialize job processor with injected dependencies
-  const jobProcessor = new AIJobProcessor({
-    prisma,
-    memoryManager,
-    apiKeyResolver,
-    configResolver: llmConfigResolver,
-    personaResolver,
-  });
-
-  // Create BullMQ worker
-  logger.info('[AIWorker] Creating BullMQ worker...');
+/**
+ * Create the main BullMQ worker with event handlers
+ */
+function createMainWorker(jobProcessor: AIJobProcessor): Worker<AnyJobData, AnyJobResult> {
   const worker = new Worker<AnyJobData, AnyJobResult>(
     config.worker.queueName,
-    async (job: Job<AnyJobData>) => {
-      return jobProcessor.processJob(job);
-    },
+    async (job: Job<AnyJobData>) => jobProcessor.processJob(job),
     {
       connection: config.redis,
       concurrency: config.worker.concurrency,
       removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
       removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT },
-      // lockDuration: Maximum time a job can run before being considered stalled
-      // Safety net for hung jobs - even with component-level timeouts, this prevents
-      // jobs from blocking workers indefinitely
       lockDuration: TIMEOUTS.WORKER_LOCK_DURATION,
     }
   );
 
-  // Worker event handlers
   worker.on('ready', () => {
-    logger.info(`[AIWorker] Worker is ready and listening on queue: ${config.worker.queueName}`);
-    logger.info(`[AIWorker] Concurrency: ${config.worker.concurrency}`);
+    logger.info(`[AIWorker] Worker ready on queue: ${config.worker.queueName}, concurrency: ${config.worker.concurrency}`);
   });
 
   worker.on('active', (job: Job<AnyJobData>) => {
-    const jobId = job.id ?? 'unknown';
-    const jobType = job.data.jobType;
-    logger.debug({ jobId, jobType }, `[AIWorker] Processing job ${jobId}`);
+    logger.debug({ jobId: job.id ?? 'unknown', jobType: job.data.jobType }, '[AIWorker] Processing job');
   });
 
   worker.on('completed', (job: Job<AnyJobData>, result: AnyJobResult) => {
-    const jobId = job.id ?? 'unknown';
     logger.info(
-      {
-        requestId: result.requestId,
-        processingTime: result.metadata?.processingTimeMs,
-      },
-      `[AIWorker] Job ${jobId} completed successfully`
+      { requestId: result.requestId, processingTime: result.metadata?.processingTimeMs },
+      `[AIWorker] Job ${job.id ?? 'unknown'} completed`
     );
   });
 
   worker.on('failed', (job: Job<AnyJobData> | undefined, error: Error) => {
-    if (job !== undefined) {
-      const jobId = job.id ?? 'unknown';
-      logger.error({ err: error }, `[AIWorker] Job ${jobId} failed`);
-    } else {
-      logger.error({ err: error }, '[AIWorker] Job failed (no job data)');
-    }
+    const jobId = job?.id ?? 'unknown';
+    logger.error({ err: error }, `[AIWorker] Job ${jobId} failed`);
   });
 
   worker.on('error', (error: Error) => {
     logger.error({ err: error }, '[AIWorker] Worker error');
   });
 
-  // Set up pending memory retry system with injected dependencies
-  logger.info('[AIWorker] Setting up pending memory retry system...');
-  const pendingMemoryProcessor = new PendingMemoryProcessor(prisma, memoryManager);
+  return worker;
+}
 
-  // Log initial stats
-  const initialStats = await pendingMemoryProcessor.getStats();
-  logger.info({ stats: initialStats }, '[AIWorker] Initial pending memory stats');
+/**
+ * Set up scheduled jobs queue and worker for pending memory processing
+ */
+async function setupScheduledJobs(
+  pendingMemoryProcessor: PendingMemoryProcessor
+): Promise<ScheduledJobsResult> {
+  const scheduledQueue = new Queue('scheduled-jobs', { connection: config.redis });
 
-  // Process pending memories on startup (don't wait, run async)
-  if (initialStats.total > 0) {
-    logger.info(`[AIWorker] Processing ${initialStats.total} pending memories on startup...`);
-    void pendingMemoryProcessor
-      .processPendingMemories()
-      .then(stats => {
-        logger.info({ stats }, '[AIWorker] Startup pending memory processing complete');
-      })
-      .catch(error => {
-        logger.error({ err: error }, '[AIWorker] Startup pending memory processing failed');
-      });
-  }
-
-  // Create a separate queue for scheduled jobs
-  const scheduledQueue = new Queue('scheduled-jobs', {
-    connection: config.redis,
-  });
-
-  // Create worker for scheduled jobs
   const scheduledWorker = new Worker(
     'scheduled-jobs',
     async (job: Job) => {
       if (job.name === 'process-pending-memories') {
         logger.debug('[Scheduled] Running pending memory processor');
-        const stats = await pendingMemoryProcessor.processPendingMemories();
-        return stats;
+        return pendingMemoryProcessor.processPendingMemories();
       }
       return null;
     },
@@ -315,48 +270,90 @@ async function main(): Promise<void> {
     logger.error({ err: error }, `[Scheduled] Job ${job?.name} failed`);
   });
 
-  // Add repeatable job to process pending memories every 10 minutes
+  // Add repeatable job (every 10 minutes)
   await scheduledQueue.add(
     'process-pending-memories',
     {},
-    {
-      repeat: {
-        pattern: '*/10 * * * *', // Every 10 minutes (cron format)
-      },
-      jobId: 'process-pending-memories', // Ensure only one instance
-    }
+    { repeat: { pattern: '*/10 * * * *' }, jobId: 'process-pending-memories' }
   );
 
-  logger.info('[AIWorker] Pending memory retry system configured (runs every 10 minutes)');
+  logger.info('[AIWorker] Scheduled jobs configured (pending memory retry every 10 minutes)');
 
-  // Health check endpoint (for Railway health monitoring)
-  // We'll add a simple HTTP server for health checks
+  return { scheduledQueue, scheduledWorker };
+}
+
+/**
+ * Initialize the AI worker
+ */
+async function main(): Promise<void> {
+  logger.info('[AIWorker] Starting AI Worker service...');
+  validateAIConfig();
+
+  logger.info(
+    {
+      redis: { host: config.redis.host, port: config.redis.port, hasPassword: !!config.redis.password },
+      worker: config.worker,
+    },
+    '[AIWorker] Configuration'
+  );
+
+  // Initialize core infrastructure
+  const prisma = getPrismaClient();
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const cacheRedis = new Redis(envConfig.REDIS_URL!);
+  cacheRedis.on('error', err => logger.error({ err }, '[AIWorker] Cache Redis error'));
+
+  // Set up cache invalidation for all resolvers
+  const cacheResult = await setupCacheInvalidation({ cacheRedis, prisma });
+  const { apiKeyResolver, llmConfigResolver, personaResolver, cleanupFns } = cacheResult;
+
+  // Initialize vector memory
+  const memoryManager = await initializeVectorMemory(prisma);
+
+  // Create job processor and main worker
+  const jobProcessor = new AIJobProcessor({
+    prisma,
+    memoryManager,
+    apiKeyResolver,
+    configResolver: llmConfigResolver,
+    personaResolver,
+  });
+  const worker = createMainWorker(jobProcessor);
+
+  // Set up pending memory processing
+  const pendingMemoryProcessor = new PendingMemoryProcessor(prisma, memoryManager);
+  const initialStats = await pendingMemoryProcessor.getStats();
+  logger.info({ stats: initialStats }, '[AIWorker] Initial pending memory stats');
+
+  if (initialStats.total > 0) {
+    void pendingMemoryProcessor.processPendingMemories()
+      .then(stats => logger.info({ stats }, '[AIWorker] Startup pending memory processing complete'))
+      .catch(err => logger.error({ err }, '[AIWorker] Startup pending memory processing failed'));
+  }
+
+  // Set up scheduled jobs
+  const { scheduledQueue, scheduledWorker } = await setupScheduledJobs(pendingMemoryProcessor);
+
+  // Start health server if enabled
   if (envConfig.ENABLE_HEALTH_SERVER) {
     await startHealthServer(memoryManager, worker);
   }
 
-  // Graceful shutdown
+  // Graceful shutdown handler
   const shutdown = async (): Promise<void> => {
     logger.info('[AIWorker] Shutting down gracefully...');
     await worker.close();
     await scheduledWorker.close();
     await scheduledQueue.close();
     await pendingMemoryProcessor.disconnect();
-    await cacheInvalidationService.unsubscribe();
-    await apiKeyCacheInvalidation.unsubscribe();
-    await llmConfigCacheInvalidation.unsubscribe();
-    await personaCacheInvalidation.unsubscribe();
+    await Promise.all(cleanupFns.map(fn => fn()));
     cacheRedis.disconnect();
-    logger.info('[AIWorker] All workers and connections closed');
+    logger.info('[AIWorker] All connections closed');
     process.exit(0);
   };
 
-  process.on('SIGTERM', () => {
-    void shutdown();
-  });
-  process.on('SIGINT', () => {
-    void shutdown();
-  });
+  process.on('SIGTERM', () => void shutdown());
+  process.on('SIGINT', () => void shutdown());
 
   logger.info('[AIWorker] AI Worker is fully operational! 🚀');
 }
