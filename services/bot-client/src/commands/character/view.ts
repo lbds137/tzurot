@@ -109,36 +109,36 @@ export function truncateField(
 }
 
 /**
+ * Field configuration for character overview status
+ */
+const OVERVIEW_FIELDS = [
+  { key: 'characterInfo' as const, label: 'Background' },
+  { key: 'personalityTraits' as const, label: 'Traits' },
+  { key: 'personalityTone' as const, label: 'Tone' },
+  { key: 'conversationalGoals' as const, label: 'Goals' },
+  { key: 'conversationalExamples' as const, label: 'Examples' },
+] as const;
+
+/**
+ * Get configured field labels from character data
+ */
+function getConfiguredFields(character: CharacterData): string[] {
+  return OVERVIEW_FIELDS.filter(({ key }) => (character[key]?.length ?? 0) > 0).map(
+    ({ label }) => label
+  );
+}
+
+/**
  * Build overview description for character view
  */
 function buildOverviewDescription(character: CharacterData): string {
+  const filled = getConfiguredFields(character);
   const lines: string[] = [];
-
-  // Quick summary of completion status
-  const filled: string[] = [];
-  if ((character.characterInfo?.length ?? 0) > 0) {
-    filled.push('Background');
-  }
-  if ((character.personalityTraits?.length ?? 0) > 0) {
-    filled.push('Traits');
-  }
-  if ((character.personalityTone?.length ?? 0) > 0) {
-    filled.push('Tone');
-  }
-  if ((character.conversationalGoals?.length ?? 0) > 0) {
-    filled.push('Goals');
-  }
-  if ((character.conversationalExamples?.length ?? 0) > 0) {
-    filled.push('Examples');
-  }
-
   if (filled.length > 0) {
     lines.push(`**Configured:** ${filled.join(', ')}`);
   }
-
   lines.push('');
   lines.push('*Use the buttons below to navigate through all character details.*');
-
   return lines.join('\n');
 }
 
