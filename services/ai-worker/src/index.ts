@@ -55,7 +55,7 @@ interface CacheInvalidationResult {
   apiKeyResolver: ApiKeyResolver;
   llmConfigResolver: LlmConfigResolver;
   personaResolver: PersonaResolver;
-  cleanupFns: Array<() => Promise<void>>;
+  cleanupFns: (() => Promise<void>)[];
 }
 
 /** Result of scheduled jobs setup */
@@ -104,7 +104,7 @@ async function setupCacheInvalidation(
   deps: CacheInvalidationDeps
 ): Promise<CacheInvalidationResult> {
   const { cacheRedis, prisma } = deps;
-  const cleanupFns: Array<() => Promise<void>> = [];
+  const cleanupFns: (() => Promise<void>)[] = [];
 
   // PersonalityService and CacheInvalidationService
   const personalityService = new PersonalityService(prisma);
@@ -315,7 +315,7 @@ async function main(): Promise<void> {
       redis: {
         host: config.redis.host,
         port: config.redis.port,
-        hasPassword: !!config.redis.password,
+        hasPassword: config.redis.password !== undefined && config.redis.password.length > 0,
       },
       worker: config.worker,
     },

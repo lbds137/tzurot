@@ -30,8 +30,35 @@ export const mockPersona = {
   updatedAt: new Date('2025-01-02'),
 };
 
+/** Mock Prisma client type for testing */
+export interface MockPrismaClient {
+  user: {
+    findFirst: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  persona: {
+    findMany: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+  personality: {
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  userPersonalityConfig: {
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+}
+
 /** Create mock Prisma client for testing */
-export function createMockPrisma() {
+export function createMockPrisma(): MockPrismaClient {
   return {
     user: {
       findFirst: vi.fn(),
@@ -59,11 +86,17 @@ export function createMockPrisma() {
   };
 }
 
+/** Mock request/response type for testing */
+export interface MockReqRes {
+  req: Request & { userId: string };
+  res: Response;
+}
+
 /** Create mock request/response for testing */
 export function createMockReqRes(
   body: Record<string, unknown> = {},
   params: Record<string, string> = {}
-) {
+): MockReqRes {
   const req = {
     body,
     params,
