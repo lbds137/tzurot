@@ -25,6 +25,8 @@ import {
   INTERVALS,
   TIMEOUTS,
   MESSAGE_LIMITS,
+  GUEST_MODE,
+  AI_ENDPOINTS,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../../types.js';
@@ -287,11 +289,11 @@ async function sendCharacterResponse(
   // Build footer
   let footer = '';
   if (modelUsed !== undefined && modelUsed !== null && modelUsed !== '') {
-    const modelUrl = `https://openrouter.ai/models/${modelUsed}`;
+    const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
     footer = `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
   }
   if (isGuestMode === true) {
-    footer += '\n-# Running in guest mode (free models)';
+    footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
   }
 
   // Split into chunks if needed
