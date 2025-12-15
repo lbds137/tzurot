@@ -69,7 +69,7 @@ export class DependencyStep implements IPipelineStep {
   }
 
   private async fetchDependencyResults(
-    dependencies: Array<{ jobId: string; type: string; resultKey?: string }>,
+    dependencies: { jobId: string; type: string; resultKey?: string }[],
     redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
   ): Promise<{ audioTranscriptions: AudioInfo[]; imageDescriptions: ImageInfo[] }> {
     const audioTranscriptions: AudioInfo[] = [];
@@ -78,10 +78,12 @@ export class DependencyStep implements IPipelineStep {
     for (const dep of dependencies) {
       try {
         const key = dep.resultKey?.substring(REDIS_KEY_PREFIXES.JOB_RESULT.length) ?? dep.jobId;
-        if (dep.type === JobType.AudioTranscription) {
+        if (dep.type === (JobType.AudioTranscription as string)) {
           const audio = await this.fetchAudioResult(dep.jobId, key, redisService);
-          if (audio) audioTranscriptions.push(audio);
-        } else if (dep.type === JobType.ImageDescription) {
+          if (audio) {
+            audioTranscriptions.push(audio);
+          }
+        } else if (dep.type === (JobType.ImageDescription as string)) {
           const images = await this.fetchImageResults(dep.jobId, key, redisService);
           imageDescriptions.push(...images);
         }

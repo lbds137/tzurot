@@ -10,7 +10,6 @@ import {
   type PrismaClient,
   type CacheInvalidationService,
   DeletePersonalityResponseSchema,
-  type DeletePersonalityResponse,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -145,16 +144,13 @@ export function createDeleteHandler(
       '[Personality] Successfully deleted personality and all related data'
     );
 
-    // Build response matching the schema
-    const response: DeletePersonalityResponse = {
-      success: true,
+    // Build and validate response
+    const validated = DeletePersonalityResponseSchema.parse({
+      success: true as const,
       deletedSlug: slug,
       deletedName: personality.name,
       deletedCounts,
-    };
-
-    // Validate response against schema before sending
-    const validated = DeletePersonalityResponseSchema.parse(response);
+    });
     sendCustomSuccess(res, validated, StatusCodes.OK);
   });
 
