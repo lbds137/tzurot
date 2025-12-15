@@ -419,7 +419,7 @@ describe('Character Chat Handler', () => {
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledWith(
         mockChannel,
         expect.anything(),
-        expect.stringContaining('guest mode')
+        expect.stringContaining('free model')
       );
     });
 
