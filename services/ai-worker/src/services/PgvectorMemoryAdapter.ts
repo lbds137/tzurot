@@ -354,49 +354,19 @@ export class PgvectorMemoryAdapter {
    */
   async addMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void> {
     try {
-      // Generate embedding
-      const embeddingResponse = await this.openai.embeddings.create({
-        model: this.embeddingModel,
-        input: data.text,
-      });
-      const embedding = embeddingResponse.data[0].embedding;
-
-      // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
-      const expectedDimensions = 1536;
-      if (embedding?.length !== expectedDimensions) {
-        throw new Error(
-          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding?.length || 0}`
-        );
-      }
-
-      // Generate deterministic UUID
+      const embedding = await this.generateEmbedding(data.text);
       const memoryId = deterministicMemoryUuid(
         data.metadata.personaId,
         data.metadata.personalityId,
         data.text
       );
+      const normalized = this.normalizeMetadata(data.metadata);
 
-      // Convert timestamp (already in milliseconds) to Date
-      const createdAt = new Date(data.metadata.createdAt);
-
-      // Insert memory with pgvector embedding
       await this.prisma.$executeRaw`
         INSERT INTO memories (
-          id,
-          persona_id,
-          personality_id,
-          source_system,
-          content,
-          embedding,
-          session_id,
-          canon_scope,
-          summary_type,
-          channel_id,
-          guild_id,
-          message_ids,
-          senders,
-          is_summarized,
-          created_at
+          id, persona_id, personality_id, source_system, content, embedding,
+          session_id, canon_scope, summary_type, channel_id, guild_id,
+          message_ids, senders, is_summarized, created_at
         ) VALUES (
           ${memoryId}::uuid,
           ${data.metadata.personaId}::uuid,
@@ -404,15 +374,15 @@ export class PgvectorMemoryAdapter {
           'tzurot-v3',
           ${data.text},
           ${`[${embedding.join(',')}]`}::vector(1536),
-          ${data.metadata.sessionId !== undefined && data.metadata.sessionId.length > 0 ? data.metadata.sessionId : null},
-          ${data.metadata.canonScope !== undefined && data.metadata.canonScope.length > 0 ? data.metadata.canonScope : 'personal'},
-          ${data.metadata.summaryType !== undefined && data.metadata.summaryType.length > 0 ? data.metadata.summaryType : null},
-          ${data.metadata.channelId !== undefined && data.metadata.channelId.length > 0 ? data.metadata.channelId : null},
-          ${data.metadata.guildId !== undefined && data.metadata.guildId.length > 0 ? data.metadata.guildId : null},
-          ${data.metadata.messageIds ?? []}::text[],
-          ${data.metadata.senders ?? []}::text[],
+          ${normalized.sessionId},
+          ${normalized.canonScope},
+          ${normalized.summaryType},
+          ${normalized.channelId},
+          ${normalized.guildId},
+          ${normalized.messageIds}::text[],
+          ${normalized.senders}::text[],
           false,
-          ${createdAt.toISOString()}::timestamptz
+          ${normalized.createdAt}::timestamptz
         )
         ON CONFLICT (id) DO NOTHING
       `;
@@ -420,9 +390,48 @@ export class PgvectorMemoryAdapter {
       logger.debug({ memoryId, personaId: data.metadata.personaId }, 'Added memory to pgvector');
     } catch (error) {
       logger.error({ err: error }, `Failed to add memory for persona: ${data.metadata.personaId}`);
-      // Re-throw so pending_memory can be preserved for retry
       throw error;
     }
+  }
+
+  private async generateEmbedding(text: string): Promise<number[]> {
+    const response = await this.openai.embeddings.create({
+      model: this.embeddingModel,
+      input: text,
+    });
+    const embedding = response.data[0].embedding;
+    const expectedDimensions = 1536;
+    if (embedding?.length !== expectedDimensions) {
+      throw new Error(
+        `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding?.length || 0}`
+      );
+    }
+    return embedding;
+  }
+
+  private normalizeMetadata(metadata: MemoryMetadata): {
+    sessionId: string | null;
+    canonScope: string;
+    summaryType: string | null;
+    channelId: string | null;
+    guildId: string | null;
+    messageIds: string[];
+    senders: string[];
+    createdAt: string;
+  } {
+    const nonEmpty = (val: string | undefined): string | null =>
+      val !== undefined && val.length > 0 ? val : null;
+
+    return {
+      sessionId: nonEmpty(metadata.sessionId),
+      canonScope: nonEmpty(metadata.canonScope) ?? 'personal',
+      summaryType: nonEmpty(metadata.summaryType),
+      channelId: nonEmpty(metadata.channelId),
+      guildId: nonEmpty(metadata.guildId),
+      messageIds: metadata.messageIds ?? [],
+      senders: metadata.senders ?? [],
+      createdAt: new Date(metadata.createdAt).toISOString(),
+    };
   }
 
   /**
