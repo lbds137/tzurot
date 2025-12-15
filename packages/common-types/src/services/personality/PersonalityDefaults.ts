@@ -10,6 +10,111 @@ import type { LlmConfig } from './PersonalityValidator.js';
 import { parseLlmConfig } from './PersonalityValidator.js';
 
 /**
+ * Get a config value with cascade: personality > global > fallback
+ */
+function getConfigValue<T>(
+  personalityVal: T | undefined | null,
+  globalVal: T | undefined | null,
+  fallback?: T
+): T | undefined {
+  return personalityVal ?? globalVal ?? fallback;
+}
+
+/**
+ * Get required LLM config fields (these always have values via defaults)
+ */
+function getRequiredLlmConfig(
+  pc: ReturnType<typeof parseLlmConfig>,
+  gc: LlmConfig
+): Pick<LoadedPersonality, 'model' | 'temperature' | 'maxTokens' | 'contextWindowTokens'> {
+  return {
+    model:
+      getConfigValue(pc?.model, gc?.model, MODEL_DEFAULTS.DEFAULT_MODEL) ??
+      MODEL_DEFAULTS.DEFAULT_MODEL,
+    temperature:
+      getConfigValue(pc?.temperature, gc?.temperature, AI_DEFAULTS.TEMPERATURE) ??
+      AI_DEFAULTS.TEMPERATURE,
+    maxTokens:
+      getConfigValue(pc?.maxTokens, gc?.maxTokens, AI_DEFAULTS.MAX_TOKENS) ??
+      AI_DEFAULTS.MAX_TOKENS,
+    contextWindowTokens:
+      getConfigValue(
+        pc?.contextWindowTokens,
+        gc?.contextWindowTokens,
+        AI_DEFAULTS.CONTEXT_WINDOW_TOKENS
+      ) ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
+  };
+}
+
+/**
+ * Get optional sampling parameters (topP, topK, penalties)
+ */
+function getSamplingConfig(
+  pc: ReturnType<typeof parseLlmConfig>,
+  gc: LlmConfig
+): Pick<
+  LoadedPersonality,
+  'topP' | 'topK' | 'frequencyPenalty' | 'presencePenalty' | 'repetitionPenalty'
+> {
+  return {
+    topP: getConfigValue(pc?.topP, gc?.topP),
+    topK: getConfigValue(pc?.topK, gc?.topK),
+    frequencyPenalty: getConfigValue(pc?.frequencyPenalty, gc?.frequencyPenalty),
+    presencePenalty: getConfigValue(pc?.presencePenalty, gc?.presencePenalty),
+    repetitionPenalty: getConfigValue(pc?.repetitionPenalty, gc?.repetitionPenalty),
+  };
+}
+
+/**
+ * Get optional memory and vision config
+ */
+function getMemoryAndVisionConfig(
+  pc: ReturnType<typeof parseLlmConfig>,
+  gc: LlmConfig
+): Pick<LoadedPersonality, 'visionModel' | 'memoryScoreThreshold' | 'memoryLimit'> {
+  return {
+    visionModel: getConfigValue(pc?.visionModel, gc?.visionModel),
+    memoryScoreThreshold: getConfigValue(pc?.memoryScoreThreshold, gc?.memoryScoreThreshold),
+    memoryLimit: getConfigValue(pc?.memoryLimit, gc?.memoryLimit),
+  };
+}
+
+/**
+ * Process character definition fields with placeholder replacement
+ */
+function processCharacterFields(
+  db: DatabasePersonality
+): Pick<
+  LoadedPersonality,
+  | 'systemPrompt'
+  | 'characterInfo'
+  | 'personalityTraits'
+  | 'personalityTone'
+  | 'personalityAge'
+  | 'personalityAppearance'
+  | 'personalityLikes'
+  | 'personalityDislikes'
+  | 'conversationalGoals'
+  | 'conversationalExamples'
+> {
+  const rp = (text: string | null | undefined): string | undefined =>
+    replacePlaceholders(text, db.name);
+
+  return {
+    systemPrompt: rp(db.systemPrompt?.content) ?? '',
+    characterInfo: rp(db.characterInfo) ?? db.characterInfo,
+    personalityTraits: rp(db.personalityTraits) ?? db.personalityTraits,
+    personalityTone: rp(db.personalityTone),
+    personalityAge: rp(db.personalityAge),
+    personalityAppearance: rp(db.personalityAppearance),
+    personalityLikes: rp(db.personalityLikes),
+    personalityDislikes: rp(db.personalityDislikes),
+    conversationalGoals: rp(db.conversationalGoals),
+    conversationalExamples: rp(db.conversationalExamples),
+  };
+}
+
+/**
  * Replace placeholders in text fields
  * Handles {user}, {{user}}, {assistant}, {shape}, {{char}}, {personality}
  */
@@ -85,63 +190,24 @@ export function mapToPersonality(
   // Parse personality-specific config from database (handles Decimal conversion)
   const personalityConfig = parseLlmConfig(db.defaultConfigLink?.llmConfig);
 
-  // Merge configs with proper precedence: Personality > Global > Hardcoded Defaults
-  const temperature =
-    personalityConfig?.temperature ?? globalDefaultConfig?.temperature ?? AI_DEFAULTS.TEMPERATURE;
-  const maxTokens =
-    personalityConfig?.maxTokens ?? globalDefaultConfig?.maxTokens ?? AI_DEFAULTS.MAX_TOKENS;
-  const topP = personalityConfig?.topP ?? globalDefaultConfig?.topP;
-  const frequencyPenalty =
-    personalityConfig?.frequencyPenalty ?? globalDefaultConfig?.frequencyPenalty;
-  const presencePenalty =
-    personalityConfig?.presencePenalty ?? globalDefaultConfig?.presencePenalty;
-  const repetitionPenalty =
-    personalityConfig?.repetitionPenalty ?? globalDefaultConfig?.repetitionPenalty;
-  const memoryScoreThreshold =
-    personalityConfig?.memoryScoreThreshold ?? globalDefaultConfig?.memoryScoreThreshold;
-  const memoryLimit = personalityConfig?.memoryLimit ?? globalDefaultConfig?.memoryLimit;
-
-  // Replace placeholders in text fields
-  // This normalizes legacy imports and ensures consistency
-  const systemPrompt = replacePlaceholders(db.systemPrompt?.content, db.name) ?? '';
-  const characterInfo = replacePlaceholders(db.characterInfo, db.name) ?? db.characterInfo;
-  const personalityTraits =
-    replacePlaceholders(db.personalityTraits, db.name) ?? db.personalityTraits;
-
   return {
+    // Identity fields
     id: db.id,
     name: db.name,
     displayName: db.displayName ?? db.name,
     slug: db.slug,
-    systemPrompt,
-    model: personalityConfig?.model ?? globalDefaultConfig?.model ?? MODEL_DEFAULTS.DEFAULT_MODEL,
-    visionModel: personalityConfig?.visionModel ?? globalDefaultConfig?.visionModel ?? undefined,
-    temperature,
-    maxTokens,
-    topP,
-    topK: personalityConfig?.topK ?? globalDefaultConfig?.topK ?? undefined,
-    frequencyPenalty,
-    presencePenalty,
-    repetitionPenalty,
-    contextWindowTokens:
-      personalityConfig?.contextWindowTokens ??
-      globalDefaultConfig?.contextWindowTokens ??
-      AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
     avatarUrl: deriveAvatarUrl(db.slug, logger),
-    avatarUpdatedAt: db.updatedAt, // For cache-busting Discord's CDN
-    memoryScoreThreshold,
-    memoryLimit,
+    avatarUpdatedAt: db.updatedAt,
+
+    // LLM configuration (cascaded from personality > global > defaults)
+    ...getRequiredLlmConfig(personalityConfig, globalDefaultConfig),
+    ...getSamplingConfig(personalityConfig, globalDefaultConfig),
+    ...getMemoryAndVisionConfig(personalityConfig, globalDefaultConfig),
+
     // Character definition fields (with placeholders replaced)
-    characterInfo,
-    personalityTraits,
-    personalityTone: replacePlaceholders(db.personalityTone, db.name),
-    personalityAge: replacePlaceholders(db.personalityAge, db.name),
-    personalityAppearance: replacePlaceholders(db.personalityAppearance, db.name),
-    personalityLikes: replacePlaceholders(db.personalityLikes, db.name),
-    personalityDislikes: replacePlaceholders(db.personalityDislikes, db.name),
-    conversationalGoals: replacePlaceholders(db.conversationalGoals, db.name),
-    conversationalExamples: replacePlaceholders(db.conversationalExamples, db.name),
-    // Custom error message (sent as webhook message from personality on LLM failures)
+    ...processCharacterFields(db),
+
+    // Custom error message
     errorMessage: db.errorMessage ?? undefined,
   };
 }
