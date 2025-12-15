@@ -110,7 +110,11 @@ describe('RAGUtils', () => {
         {
           type: AttachmentType.Audio,
           description: 'Voice content',
-          metadata: { isVoiceMessage: true, duration: null as unknown as number, name: 'voice.ogg' },
+          metadata: {
+            isVoiceMessage: true,
+            duration: null as unknown as number,
+            name: 'voice.ogg',
+          },
         },
       ];
 
@@ -133,9 +137,7 @@ describe('RAGUtils', () => {
       ];
 
       const result = buildAttachmentDescriptions(attachments);
-      expect(result).toBe(
-        '[Image: first.png]\nFirst image\n\n[Voice message: 3.2s]\nSecond audio'
-      );
+      expect(result).toBe('[Image: first.png]\nFirst image\n\n[Voice message: 3.2s]\nSecond audio');
     });
 
     it('should handle attachments with unknown type', () => {
