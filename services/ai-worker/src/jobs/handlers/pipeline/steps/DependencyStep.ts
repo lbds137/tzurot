@@ -103,7 +103,10 @@ export class DependencyStep implements IPipelineStep {
   ): Promise<AudioInfo | null> {
     const result = await redisService.getJobResult<AudioTranscriptionResult>(key);
     if (result?.success === true && result.content !== undefined && result.content.length > 0) {
-      logger.debug({ jobId, key, sourceRef: result.sourceReferenceNumber }, '[DependencyStep] Retrieved audio transcription');
+      logger.debug(
+        { jobId, key, sourceRef: result.sourceReferenceNumber },
+        '[DependencyStep] Retrieved audio transcription'
+      );
       return {
         url: result.attachmentUrl ?? '',
         name: result.attachmentName ?? 'audio',
@@ -121,17 +124,33 @@ export class DependencyStep implements IPipelineStep {
     redisService: { getJobResult: <T>(key: string) => Promise<T | null> }
   ): Promise<ImageInfo[]> {
     const result = await redisService.getJobResult<ImageDescriptionResult>(key);
-    if (result?.success === true && result.descriptions !== undefined && result.descriptions.length > 0) {
-      logger.debug({ jobId, key, count: result.descriptions.length, sourceRef: result.sourceReferenceNumber }, '[DependencyStep] Retrieved image descriptions');
-      return result.descriptions.map(d => ({ ...d, sourceReferenceNumber: result.sourceReferenceNumber }));
+    if (
+      result?.success === true &&
+      result.descriptions !== undefined &&
+      result.descriptions.length > 0
+    ) {
+      logger.debug(
+        { jobId, key, count: result.descriptions.length, sourceRef: result.sourceReferenceNumber },
+        '[DependencyStep] Retrieved image descriptions'
+      );
+      return result.descriptions.map(d => ({
+        ...d,
+        sourceReferenceNumber: result.sourceReferenceNumber,
+      }));
     }
     logger.warn({ jobId, key }, '[DependencyStep] Image description job failed or has no result');
     return [];
   }
 
-  private logPreprocessingResults(jobId: string | undefined, preprocessing: PreprocessingResults): void {
+  private logPreprocessingResults(
+    jobId: string | undefined,
+    preprocessing: PreprocessingResults
+  ): void {
     const refCount = Object.keys(preprocessing.referenceAttachments).length;
-    const refAttachmentCount = Object.values(preprocessing.referenceAttachments).reduce((sum, arr) => sum + arr.length, 0);
+    const refAttachmentCount = Object.values(preprocessing.referenceAttachments).reduce(
+      (sum, arr) => sum + arr.length,
+      0
+    );
     logger.info(
       {
         jobId,

@@ -36,65 +36,96 @@ export class ContentBudgetManager {
    * 6. Build final system prompt with all content
    */
   allocate(opts: BudgetAllocationOptions): BudgetAllocationResult {
-    const {
-      personality,
-      processedPersonality,
-      participantPersonas,
-      retrievedMemories,
-      context,
-      userMessage,
-      processedAttachments,
-      referencedMessagesDescriptions,
-    } = opts;
+    const { personality, processedPersonality, participantPersonas, context } = opts;
     const contextWindowTokens =
       personality.contextWindowTokens || AI_DEFAULTS.CONTEXT_WINDOW_TOKENS;
 
-    // Build current message
-    const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
-      userMessage,
-      processedAttachments,
-      context.activePersonaName,
-      referencedMessagesDescriptions
+    // Build current message and base system prompt
+    const { currentMessage, contentForStorage, systemPromptBaseTokens } =
+      this.buildBaseComponents(opts);
+    const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
+
+    // Select memories within budget
+    const { relevantMemories, memoryTokensUsed, memoriesDroppedCount } = this.selectMemories(
+      opts,
+      contextWindowTokens,
+      systemPromptBaseTokens,
+      currentMessageTokens
     );
 
-    // Build base system prompt (no memories or history) to get base token count
-    const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
+    // Select history within budget
+    const { serializedHistory, historyTokensUsed, messagesDropped } = this.selectHistory(
+      opts,
+      relevantMemories,
+      contextWindowTokens,
+      currentMessageTokens
+    );
+
+    // Build final system prompt
+    const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
       personality: processedPersonality,
       participantPersonas,
-      relevantMemories: [],
+      relevantMemories,
       context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
+      referencedMessagesFormatted: opts.referencedMessagesDescriptions,
+      serializedHistory,
     });
 
-    // Count tokens for budget calculation
+    this.logAllocation({
+      contextWindowTokens, systemPromptBaseTokens, currentMessageTokens,
+      memoryTokensUsed, retrievedMemories: opts.retrievedMemories, historyTokensUsed, messagesDropped,
+    });
+
+    return {
+      relevantMemories, serializedHistory, systemPrompt, memoryTokensUsed,
+      historyTokensUsed, memoriesDroppedCount, messagesDropped, contentForStorage,
+    };
+  }
+
+  private buildBaseComponents(opts: BudgetAllocationOptions): {
+    currentMessage: { content: unknown };
+    contentForStorage: string;
+    systemPromptBaseTokens: number;
+  } {
+    const { processedPersonality, participantPersonas, context, userMessage,
+      processedAttachments, referencedMessagesDescriptions } = opts;
+
+    const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
+      userMessage, processedAttachments, context.activePersonaName, referencedMessagesDescriptions
+    );
+
+    const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({
+      personality: processedPersonality, participantPersonas, relevantMemories: [],
+      context, referencedMessagesFormatted: referencedMessagesDescriptions,
+    });
+
     const systemPromptBaseTokens = this.promptBuilder.countTokens(
       systemPromptBaseOnly.content as string
     );
-    const currentMessageTokens = this.promptBuilder.countTokens(currentMessage.content as string);
+
+    return { currentMessage, contentForStorage, systemPromptBaseTokens };
+  }
+
+  private selectMemories(
+    opts: BudgetAllocationOptions,
+    contextWindowTokens: number,
+    systemPromptBaseTokens: number,
+    currentMessageTokens: number
+  ): { relevantMemories: MemoryDocument[]; memoryTokensUsed: number; memoriesDroppedCount: number } {
+    const { personality, retrievedMemories, context } = opts;
     const historyTokens = this.contextWindowManager.countHistoryTokens(
-      context.rawConversationHistory,
-      personality.name
+      context.rawConversationHistory, personality.name
     );
 
-    // Calculate memory budget
     const memoryBudget = this.contextWindowManager.calculateMemoryBudget(
-      contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens,
-      historyTokens
+      contextWindowTokens, systemPromptBaseTokens, currentMessageTokens, historyTokens
     );
 
-    // Select memories within budget
-    const {
-      selectedMemories: relevantMemories,
-      tokensUsed: memoryTokensUsed,
-      memoriesDropped: memoriesDroppedCount,
-      droppedDueToSize,
-    } = this.contextWindowManager.selectMemoriesWithinBudget(
-      retrievedMemories,
-      memoryBudget,
-      context.userTimezone
-    );
+    const { selectedMemories: relevantMemories, tokensUsed: memoryTokensUsed,
+      memoriesDropped: memoriesDroppedCount, droppedDueToSize } =
+      this.contextWindowManager.selectMemoriesWithinBudget(
+        retrievedMemories, memoryBudget, context.userTimezone
+      );
 
     if (memoriesDroppedCount > 0) {
       logger.info(
@@ -102,66 +133,57 @@ export class ContentBudgetManager {
       );
     }
 
-    // Build system prompt with memories
+    return { relevantMemories, memoryTokensUsed, memoriesDroppedCount };
+  }
+
+  private selectHistory(
+    opts: BudgetAllocationOptions,
+    relevantMemories: MemoryDocument[],
+    contextWindowTokens: number,
+    currentMessageTokens: number
+  ): { serializedHistory: string; historyTokensUsed: number; messagesDropped: number } {
+    const { personality, processedPersonality, participantPersonas, context,
+      referencedMessagesDescriptions } = opts;
+
     const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories,
-      context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
+      personality: processedPersonality, participantPersonas, relevantMemories,
+      context, referencedMessagesFormatted: referencedMessagesDescriptions,
     });
 
-    // Calculate history budget
     const systemPromptWithMemoriesTokens = this.promptBuilder.countTokens(
       systemPromptWithMemories.content as string
     );
+
     const historyBudget = this.contextWindowManager.calculateHistoryBudget(
-      contextWindowTokens,
-      systemPromptWithMemoriesTokens,
-      currentMessageTokens,
-      0
+      contextWindowTokens, systemPromptWithMemoriesTokens, currentMessageTokens, 0
     );
 
-    // Select and serialize history
-    const {
-      serializedHistory,
-      historyTokensUsed,
-      messagesIncluded: _messagesIncluded,
-      messagesDropped,
-    } = this.contextWindowManager.selectAndSerializeHistory(
-      context.rawConversationHistory,
-      personality.name,
-      historyBudget
-    );
+    const { serializedHistory, historyTokensUsed, messagesDropped } =
+      this.contextWindowManager.selectAndSerializeHistory(
+        context.rawConversationHistory, personality.name, historyBudget
+      );
 
-    // Build final system prompt with memories AND history
-    const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
-      personality: processedPersonality,
-      participantPersonas,
-      relevantMemories,
-      context,
-      referencedMessagesFormatted: referencedMessagesDescriptions,
-      serializedHistory,
-    });
+    return { serializedHistory, historyTokensUsed, messagesDropped };
+  }
 
-    // Log token allocation
+  private logAllocation(opts: {
+    contextWindowTokens: number;
+    systemPromptBaseTokens: number;
+    currentMessageTokens: number;
+    memoryTokensUsed: number;
+    retrievedMemories: MemoryDocument[];
+    historyTokensUsed: number;
+    messagesDropped: number;
+  }): void {
+    const { contextWindowTokens, systemPromptBaseTokens, currentMessageTokens,
+      memoryTokensUsed, retrievedMemories, historyTokensUsed, messagesDropped } = opts;
+    const historyBudget = contextWindowTokens - systemPromptBaseTokens - currentMessageTokens;
     logger.info(
       `[Budget] Token allocation: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${this.countMemoryTokensSafe(retrievedMemories)}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}`
     );
     if (messagesDropped > 0) {
       logger.debug(`[Budget] Dropped ${messagesDropped} history messages due to token budget`);
     }
-
-    return {
-      relevantMemories,
-      serializedHistory,
-      systemPrompt,
-      memoryTokensUsed,
-      historyTokensUsed,
-      memoriesDroppedCount,
-      messagesDropped,
-      contentForStorage,
-    };
   }
 
   /**

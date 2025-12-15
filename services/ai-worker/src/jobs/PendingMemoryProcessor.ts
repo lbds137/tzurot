@@ -116,7 +116,11 @@ export class PendingMemoryProcessor {
     );
     await this.prisma.pendingMemory.update({
       where: { id: pending.id },
-      data: { attempts: 999, lastAttemptAt: new Date(), error: `Invalid metadata: ${error.message}` },
+      data: {
+        attempts: 999,
+        lastAttemptAt: new Date(),
+        error: `Invalid metadata: ${error.message}`,
+      },
     });
   }
 
