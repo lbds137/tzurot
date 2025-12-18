@@ -92,6 +92,17 @@ export const AI_DEFAULTS = {
    * Short enough to pick up OpenRouter model updates within a session.
    */
   MODEL_CAPABILITY_CACHE_TTL_MS: 5 * 60 * 1000,
+  /**
+   * Maximum tokens for embedding input (text-embedding-3-small limit is 8191)
+   * This is a hard limit from OpenAI's embedding API.
+   */
+  EMBEDDING_MAX_TOKENS: 8191,
+  /**
+   * Safe token limit for memory chunking (leaves headroom below EMBEDDING_MAX_TOKENS)
+   * We use 7500 to leave ~700 token buffer for edge cases in token counting.
+   * Memories exceeding this limit will be split into chunks.
+   */
+  EMBEDDING_CHUNK_LIMIT: 7500,
 } as const;
 
 /**
