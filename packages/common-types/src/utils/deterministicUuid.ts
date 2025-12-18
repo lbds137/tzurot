@@ -109,3 +109,26 @@ export function generateMemoryDuplicateUuid(originalPointId: string, userId: str
   const MEMORY_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c9';
   return uuidv5(`${originalPointId}:${userId}`, MEMORY_NAMESPACE);
 }
+
+/**
+ * Generate deterministic UUID for memory chunk groups
+ * Seed: memory_chunk_group:{personaId}:{personalityId}:{contentHash}
+ *
+ * Used when splitting oversized memories into chunks for embedding.
+ * The contentHash is a simple hash of the original text to ensure
+ * retrying the same memory produces the same chunk group ID.
+ */
+export function generateMemoryChunkGroupUuid(
+  personaId: string,
+  personalityId: string,
+  originalText: string
+): string {
+  // Create a simple hash of the content for deterministic grouping
+  // We use a substring of the text + length to create a reasonably unique identifier
+  // without including the entire text in the UUID seed
+  const contentFingerprint = `${originalText.length}:${originalText.slice(0, 200)}`;
+  return uuidv5(
+    `memory_chunk_group:${personaId}:${personalityId}:${contentFingerprint}`,
+    TZUROT_NAMESPACE
+  );
+}

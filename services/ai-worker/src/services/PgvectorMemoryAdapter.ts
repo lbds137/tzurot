@@ -15,6 +15,7 @@ import {
   AI_DEFAULTS,
   filterValidDiscordIds,
   splitTextByTokens,
+  generateMemoryChunkGroupUuid,
 } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
@@ -399,7 +400,12 @@ export class PgvectorMemoryAdapter {
     }
 
     // Text exceeds limit - split into chunks with linking metadata
-    const chunkGroupId = crypto.randomUUID();
+    // Use deterministic UUID so retrying same memory produces same chunk group
+    const chunkGroupId = generateMemoryChunkGroupUuid(
+      data.metadata.personaId,
+      data.metadata.personalityId,
+      data.text
+    );
 
     logger.info(
       {

@@ -23,23 +23,28 @@ const VALID_CHANNEL_ID_2 = '234567890123456789';
 const mockSplitTextByTokens = vi.fn();
 
 // Mock dependencies
-vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-  MODEL_DEFAULTS: {
-    EMBEDDING: 'text-embedding-3-small',
-  },
-  AI_DEFAULTS: {
-    CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
-    EMBEDDING_CHUNK_LIMIT: 7500,
-  },
-  filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
-  splitTextByTokens: (...args: unknown[]) => mockSplitTextByTokens(...args),
-}));
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+  return {
+    createLogger: () => ({
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+    MODEL_DEFAULTS: {
+      EMBEDDING: 'text-embedding-3-small',
+    },
+    AI_DEFAULTS: {
+      CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
+      EMBEDDING_CHUNK_LIMIT: 7500,
+    },
+    filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
+    splitTextByTokens: (...args: unknown[]) => mockSplitTextByTokens(...args),
+    // Use actual deterministic UUID generator for testing idempotency
+    generateMemoryChunkGroupUuid: actual.generateMemoryChunkGroupUuid,
+  };
+});
 
 vi.mock('../utils/promptPlaceholders.js', () => ({
   replacePromptPlaceholders: (content: string) => content,
@@ -580,6 +585,55 @@ describe('PgvectorMemoryAdapter', () => {
       // Should have 2 unique IDs
       expect(storedIds).toHaveLength(2);
       expect(new Set(storedIds).size).toBe(2); // All IDs are unique
+    });
+
+    it('should generate same chunk group ID on retry (deterministic)', async () => {
+      const longText = 'First paragraph content here.\n\nSecond paragraph content here.';
+      const chunks = ['First paragraph content here.', 'Second paragraph content here.'];
+
+      mockSplitTextByTokens.mockReturnValue({
+        chunks,
+        originalTokenCount: 8500,
+        wasChunked: true,
+      });
+
+      // Track chunkGroupIds from both calls
+      const chunkGroupIds: (string | null)[] = [];
+      const mockPrisma = {
+        $executeRaw: vi
+          .fn()
+          .mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+            // chunkGroupId is at index 15 in the VALUES (0-indexed)
+            // Based on SQL: id, persona_id, personality_id, source_system, content, embedding,
+            //               session_id, canon_scope, summary_type, channel_id, guild_id,
+            //               message_ids, senders, is_summarized, created_at, chunk_group_id, ...
+            chunkGroupIds.push(values[15]);
+            return Promise.resolve(undefined);
+          }),
+      };
+      const mockOpenAI = {
+        embeddings: {
+          create: vi.fn().mockResolvedValue({
+            data: [{ embedding: new Array(1536).fill(0.1) }],
+          }),
+        },
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      // @ts-expect-error - accessing private property for testing
+      testAdapter.openai = mockOpenAI;
+
+      // Call addMemory twice with same input (simulating retry)
+      await testAdapter.addMemory({ text: longText, metadata: baseMetadata });
+      await testAdapter.addMemory({ text: longText, metadata: baseMetadata });
+
+      // Should have 4 chunk group IDs (2 chunks × 2 calls)
+      expect(chunkGroupIds).toHaveLength(4);
+
+      // First two (from first call) should be same as last two (from retry)
+      // All 4 should be the same chunkGroupId
+      const uniqueGroupIds = new Set(chunkGroupIds);
+      expect(uniqueGroupIds.size).toBe(1); // All have same group ID (deterministic)
     });
   });
 
