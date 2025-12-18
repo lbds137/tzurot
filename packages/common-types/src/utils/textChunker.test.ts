@@ -263,6 +263,29 @@ describe('splitTextByTokens', () => {
       expect(rejoined).toContain('Paragraph 2');
       expect(rejoined).toContain('Paragraph 3');
     });
+
+    it('handles max recursion depth in splitLongWord gracefully', () => {
+      // Create a very long word that would require extreme recursion
+      const veryLongWord = 'a'.repeat(10000);
+
+      // Mock: always return tokens over limit to force recursion
+      // This would cause infinite recursion without the depth limit
+      mockCountTextTokens.mockImplementation((t: string) => {
+        // Always return more tokens than the limit to force continued splitting
+        return t.length; // 1 token per character - way over any limit
+      });
+
+      // Should not throw/hang due to recursion limit
+      const result = splitTextByTokens(veryLongWord, 100);
+
+      // Should have produced some chunks (exact count depends on implementation)
+      expect(result.wasChunked).toBe(true);
+      expect(result.chunks.length).toBeGreaterThan(0);
+
+      // All content should be preserved (no infinite loop = success)
+      const totalLength = result.chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      expect(totalLength).toBe(veryLongWord.length);
+    });
   });
 });
 
@@ -404,5 +427,66 @@ describe('integration', () => {
     const reassembled = reassembleChunks(sorted.map(m => m.pageContent));
 
     expect(reassembled).toBe('Chunk 1\n\nChunk 2\n\nChunk 3');
+  });
+
+  it('preserves speaker markers through split and reassemble', () => {
+    // Original conversation with speaker markers
+    const original =
+      '{user}: This is a long message from the user.\n\n' +
+      '{assistant}: This is the assistant response.\n\n' +
+      '{user}: Another user message here.';
+
+    // Mock: needs splitting
+    mockCountTextTokens.mockImplementation((t: string) => {
+      if (t === original) return 300;
+      // Each paragraph = 80 tokens (forces splitting)
+      if (t.includes('long message')) return 80;
+      if (t.includes('assistant response')) return 80;
+      if (t.includes('Another user')) return 80;
+      return Math.ceil(t.length / 4);
+    });
+
+    const result = splitTextByTokens(original, 100);
+    expect(result.wasChunked).toBe(true);
+
+    // Reassemble the chunks
+    const reassembled = reassembleChunks(result.chunks);
+
+    // Key markers should be preserved after round-trip
+    expect(reassembled).toContain('{user}:');
+    expect(reassembled).toContain('{assistant}:');
+    expect(reassembled).toContain('long message from the user');
+    expect(reassembled).toContain('assistant response');
+    expect(reassembled).toContain('Another user message');
+
+    // Continuation prefixes should be removed
+    expect(reassembled).not.toContain('(continued)');
+  });
+
+  it('preserves all content through chunking and reassembly', () => {
+    // Test that no content is lost during the round-trip
+    const paragraphs = [
+      '{user}: First message with important data: ABC123.',
+      '{assistant}: Response with code: function foo() {}',
+      '{user}: Follow-up with URL: https://example.com/path?query=value',
+    ];
+    const original = paragraphs.join('\n\n');
+
+    mockCountTextTokens.mockImplementation((t: string) => {
+      if (t === original) return 250;
+      // Force each paragraph into its own chunk
+      if (t.includes('ABC123')) return 70;
+      if (t.includes('foo()')) return 70;
+      if (t.includes('example.com')) return 70;
+      return Math.ceil(t.length / 4);
+    });
+
+    const result = splitTextByTokens(original, 100);
+    const reassembled = reassembleChunks(result.chunks);
+
+    // All key content preserved
+    expect(reassembled).toContain('ABC123');
+    expect(reassembled).toContain('function foo() {}');
+    expect(reassembled).toContain('https://example.com/path?query=value');
   });
 });

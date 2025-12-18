@@ -26,8 +26,6 @@ export interface ChunkResult {
  * Options for text chunking
  */
 export interface ChunkOptions {
-  /** Token overlap between chunks (default: 0) */
-  overlap?: number;
   /** Tiktoken model for token counting (default: 'gpt-4') */
   model?: TiktokenModel;
 }
@@ -136,6 +134,12 @@ function flushChunk(state: ChunkState): void {
   }
 }
 
+/** Token estimates for different separators */
+const SEPARATOR_TOKENS = {
+  SPACE: 1, // Single space between words/sentences
+  PARAGRAPH: 2, // Double newline between paragraphs
+} as const;
+
 /**
  * Adds content to the current chunk with a separator
  * @internal
@@ -144,7 +148,8 @@ function addToChunk(
   state: ChunkState,
   content: string,
   separator: string,
-  contentTokens: number
+  contentTokens: number,
+  separatorTokens: number
 ): void {
   // Check if we're adding a separator BEFORE modifying the chunk
   const addingSeparator = state.currentChunk.length > 0;
@@ -154,7 +159,7 @@ function addToChunk(
     state.currentChunk = content;
   }
   // Add separator token estimate only when we actually added a separator
-  state.currentTokens += contentTokens + (addingSeparator ? 1 : 0);
+  state.currentTokens += contentTokens + (addingSeparator ? separatorTokens : 0);
 }
 
 /**
@@ -184,7 +189,7 @@ function processWordsIntoChunks(
       state.currentTokens = wordTokens;
     } else {
       // Add word to current chunk
-      addToChunk(state, word, ' ', wordTokens);
+      addToChunk(state, word, ' ', wordTokens, SEPARATOR_TOKENS.SPACE);
     }
   }
 }
@@ -214,7 +219,7 @@ function processSentencesIntoChunks(
       state.currentTokens = sentenceTokens;
     } else {
       // Add sentence to current chunk
-      addToChunk(state, sentence, ' ', sentenceTokens);
+      addToChunk(state, sentence, ' ', sentenceTokens, SEPARATOR_TOKENS.SPACE);
     }
   }
 }
@@ -265,7 +270,7 @@ function splitAtNaturalBoundariesByTokens(
       state.currentTokens = paragraphTokens;
     } else {
       // Add paragraph to current chunk
-      addToChunk(state, paragraph, '\n\n', paragraphTokens);
+      addToChunk(state, paragraph, '\n\n', paragraphTokens, SEPARATOR_TOKENS.PARAGRAPH);
     }
   }
 
