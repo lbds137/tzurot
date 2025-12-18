@@ -437,7 +437,12 @@ export class PgvectorMemoryAdapter {
       '[PgvectorMemoryAdapter] Splitting oversized memory into chunks'
     );
 
-    // Store all chunks in parallel for better performance
+    // Store all chunks in parallel for better performance.
+    // Retry safety: Deterministic UUIDs (based on content + chunkIndex) ensure that
+    // retrying the same memory produces identical chunk IDs. Combined with
+    // ON CONFLICT DO NOTHING in storeSingleMemory(), this makes parallel storage
+    // idempotent - partial failures don't cause duplicates, and subsequent retries
+    // will complete any missing chunks without affecting already-stored ones.
     await Promise.all(
       chunks.map((chunkText, i) =>
         this.storeSingleMemory({

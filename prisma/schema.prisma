@@ -408,6 +408,9 @@ model Memory {
   @@index([isSummarized])
   @@index([legacyShapesUserId])
   @@index([sourceSystem])
+  // NOTE: chunkGroupId uses a PARTIAL index (WHERE chunk_group_id IS NOT NULL)
+  // managed via raw migration. Prisma schema declares it for drift detection but
+  // the actual index excludes NULL values to save space on non-chunked memories.
   @@index([chunkGroupId])
   // NOTE: The HNSW vector index (idx_memories_embedding) is managed outside Prisma
   // because Unsupported types don't support vector-specific operators (VectorCosineOps)
