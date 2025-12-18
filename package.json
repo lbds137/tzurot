@@ -31,7 +31,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
     "@eslint/js": "^9.39.2",
-    "@langchain/core": "^1.1.6",
+    "@langchain/core": "^1.1.7",
     "@langchain/openai": "^1.2.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
