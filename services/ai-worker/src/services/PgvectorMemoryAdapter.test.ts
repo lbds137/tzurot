@@ -24,7 +24,8 @@ const mockSplitTextByTokens = vi.fn();
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
+  const actual =
+    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
   return {
     createLogger: () => ({
       info: vi.fn(),
