@@ -19,6 +19,7 @@
  */
 
 import { v5 as uuidv5 } from 'uuid';
+import crypto from 'crypto';
 
 // Master namespace for all Tzurot UUIDs
 // CRITICAL: Never change this or all IDs will change!
@@ -115,7 +116,7 @@ export function generateMemoryDuplicateUuid(originalPointId: string, userId: str
  * Seed: memory_chunk_group:{personaId}:{personalityId}:{contentHash}
  *
  * Used when splitting oversized memories into chunks for embedding.
- * The contentHash is a simple hash of the original text to ensure
+ * The contentHash is a SHA-256 hash of the original text to ensure
  * retrying the same memory produces the same chunk group ID.
  */
 export function generateMemoryChunkGroupUuid(
@@ -123,12 +124,10 @@ export function generateMemoryChunkGroupUuid(
   personalityId: string,
   originalText: string
 ): string {
-  // Create a simple hash of the content for deterministic grouping
-  // We use a substring of the text + length to create a reasonably unique identifier
-  // without including the entire text in the UUID seed
-  const contentFingerprint = `${originalText.length}:${originalText.slice(0, 200)}`;
+  // Create a SHA-256 hash of the content for deterministic, collision-resistant grouping
+  const contentHash = crypto.createHash('sha256').update(originalText).digest('hex').slice(0, 32);
   return uuidv5(
-    `memory_chunk_group:${personaId}:${personalityId}:${contentFingerprint}`,
+    `memory_chunk_group:${personaId}:${personalityId}:${contentHash}`,
     TZUROT_NAMESPACE
   );
 }
