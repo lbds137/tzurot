@@ -16,6 +16,7 @@ import {
   filterValidDiscordIds,
   splitTextByTokens,
   generateMemoryChunkGroupUuid,
+  countTextTokens,
 } from '@tzurot/common-types';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
@@ -463,6 +464,23 @@ export class PgvectorMemoryAdapter {
    */
   private async storeSingleMemory(data: { text: string; metadata: MemoryMetadata }): Promise<void> {
     try {
+      // Defensive validation: warn if text exceeds embedding limit
+      // This shouldn't happen in normal operation (splitTextByTokens handles it),
+      // but continuation prefixes could push chunks slightly over
+      const textTokenCount = countTextTokens(data.text);
+      if (textTokenCount > AI_DEFAULTS.EMBEDDING_MAX_TOKENS) {
+        logger.warn(
+          {
+            tokenCount: textTokenCount,
+            maxTokens: AI_DEFAULTS.EMBEDDING_MAX_TOKENS,
+            chunkIndex: data.metadata.chunkIndex,
+            chunkGroupId: data.metadata.chunkGroupId,
+            textLength: data.text.length,
+          },
+          '[PgvectorMemoryAdapter] Text exceeds embedding token limit - may fail'
+        );
+      }
+
       const embedding = await this.generateEmbedding(data.text);
 
       // For chunked memories, include chunkIndex in the hash for deterministic UUIDs
