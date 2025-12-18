@@ -7,4 +7,6 @@ ALTER TABLE "memories" ADD COLUMN "total_chunks" INTEGER;
 
 -- CreateIndex
 -- Partial index for efficient sibling chunk retrieval (only indexes non-null values)
-CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");
+-- This reduces index size since most memories won't be chunked
+CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id")
+WHERE "chunk_group_id" IS NOT NULL;

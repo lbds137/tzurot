@@ -26,7 +26,14 @@ export interface ChunkResult {
  * Options for text chunking
  */
 export interface ChunkOptions {
-  /** Tiktoken model for token counting (default: 'gpt-4') */
+  /**
+   * Tiktoken model for token counting (default: 'gpt-4')
+   *
+   * Note: GPT-4 and text-embedding-3-small both use the cl100k_base tokenizer,
+   * so token counts are identical regardless of which model is specified here.
+   * We default to 'gpt-4' since it's more commonly referenced and tiktoken
+   * doesn't have a specific entry for embedding models.
+   */
   model?: TiktokenModel;
 }
 
