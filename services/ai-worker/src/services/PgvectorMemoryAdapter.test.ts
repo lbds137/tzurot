@@ -555,11 +555,13 @@ describe('PgvectorMemoryAdapter', () => {
 
       const storedIds: string[] = [];
       const mockPrisma = {
-        $executeRaw: vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
-          // The first value after the template is the ID
-          storedIds.push(values[0]);
-          return Promise.resolve(undefined);
-        }),
+        $executeRaw: vi
+          .fn()
+          .mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+            // The first value after the template is the ID
+            storedIds.push(values[0]);
+            return Promise.resolve(undefined);
+          }),
       };
       const mockOpenAI = {
         embeddings: {
