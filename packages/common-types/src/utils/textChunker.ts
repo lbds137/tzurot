@@ -89,7 +89,28 @@ function createContinuationPrefix(speaker: SpeakerType | null): string {
  * Uses character-based splitting as a last resort
  * @internal
  */
-function splitLongWord(word: string, maxTokens: number, model: TiktokenModel): string[] {
+function splitLongWord(
+  word: string,
+  maxTokens: number,
+  model: TiktokenModel,
+  depth = 0
+): string[] {
+  // Safety: prevent infinite recursion (max 10 levels should handle any real case)
+  const MAX_RECURSION_DEPTH = 10;
+  if (depth >= MAX_RECURSION_DEPTH) {
+    // At max depth, just return the chunk as-is (it may slightly exceed limit)
+    return [word];
+  }
+
+  // Early exit: if word is short enough that it can't exceed the limit
+  // (conservative estimate: 1 char ≈ 0.5 tokens for worst case)
+  if (word.length <= maxTokens * 2) {
+    const actualTokens = countTextTokens(word, model);
+    if (actualTokens <= maxTokens) {
+      return [word];
+    }
+  }
+
   const wordChunks: string[] = [];
   // Estimate safe character count per chunk (4 chars ≈ 1 token, with safety margin)
   const charsPerChunk = Math.max(1, (maxTokens - 50) * 3);
@@ -102,7 +123,7 @@ function splitLongWord(word: string, maxTokens: number, model: TiktokenModel): s
       wordChunks.push(chunk);
     } else {
       // Recursively split if still too large
-      wordChunks.push(...splitLongWord(chunk, maxTokens, model));
+      wordChunks.push(...splitLongWord(chunk, maxTokens, model, depth + 1));
     }
   }
   return wordChunks;
@@ -130,12 +151,15 @@ function addToChunk(
   separator: string,
   contentTokens: number
 ): void {
-  if (state.currentChunk) {
+  // Check if we're adding a separator BEFORE modifying the chunk
+  const addingSeparator = state.currentChunk.length > 0;
+  if (addingSeparator) {
     state.currentChunk = state.currentChunk + separator + content;
   } else {
     state.currentChunk = content;
   }
-  state.currentTokens += contentTokens + (state.currentChunk ? 1 : 0); // Rough separator token estimate
+  // Add separator token estimate only when we actually added a separator
+  state.currentTokens += contentTokens + (addingSeparator ? 1 : 0);
 }
 
 /**
