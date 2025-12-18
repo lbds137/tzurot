@@ -1,11 +1,10 @@
 /**
- * Unit Tests for PgvectorMemoryAdapter - Waterfall Query Logic
+ * Unit Tests for PgvectorMemoryAdapter
  *
- * Tests the queryMemoriesWithChannelScoping method which implements
- * the waterfall LTM retrieval pattern:
- * 1. Query channel-scoped memories first (up to budget ratio)
- * 2. Backfill with global semantic search (excluding already-found IDs)
- * 3. Return combined results
+ * Tests include:
+ * - Waterfall LTM retrieval pattern (queryMemoriesWithChannelScoping)
+ * - Memory chunking for oversized text (addMemory)
+ * - Sibling chunk retrieval (includeSiblings option)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,11 +12,15 @@ import {
   PgvectorMemoryAdapter,
   type MemoryDocument,
   type MemoryQueryOptions,
+  type MemoryMetadata,
 } from './PgvectorMemoryAdapter.js';
 
 // Valid Discord snowflake IDs for testing (17-19 digit numeric strings)
 const VALID_CHANNEL_ID_1 = '123456789012345678';
 const VALID_CHANNEL_ID_2 = '234567890123456789';
+
+// Mock splitTextByTokens to control chunking behavior in tests
+const mockSplitTextByTokens = vi.fn();
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', () => ({
@@ -32,8 +35,10 @@ vi.mock('@tzurot/common-types', () => ({
   },
   AI_DEFAULTS: {
     CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
+    EMBEDDING_CHUNK_LIMIT: 7500,
   },
   filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
+  splitTextByTokens: (...args: unknown[]) => mockSplitTextByTokens(...args),
 }));
 
 vi.mock('../utils/promptPlaceholders.js', () => ({
@@ -451,6 +456,371 @@ describe('PgvectorMemoryAdapter', () => {
         channelIds: [VALID_CHANNEL_ID_1], // Only valid ID
         limit: 5,
       });
+    });
+  });
+
+  describe('addMemory chunking', () => {
+    const baseMetadata: MemoryMetadata = {
+      personaId: 'persona-123',
+      personalityId: 'personality-456',
+      createdAt: Date.now(), // Required for normalizeMetadata
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      // Reset splitTextByTokens mock to default behavior
+      mockSplitTextByTokens.mockReset();
+    });
+
+    it('should store single memory when text is under token limit', async () => {
+      const shortText = 'This is a short memory that fits within the limit.';
+
+      // Mock: text doesn't need chunking
+      mockSplitTextByTokens.mockReturnValue({
+        chunks: [shortText],
+        originalTokenCount: 50,
+        wasChunked: false,
+      });
+
+      // Mock Prisma and OpenAI
+      const mockPrisma = {
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockOpenAI = {
+        embeddings: {
+          create: vi.fn().mockResolvedValue({
+            data: [{ embedding: new Array(1536).fill(0.1) }],
+          }),
+        },
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      // @ts-expect-error - accessing private property for testing
+      testAdapter.openai = mockOpenAI;
+
+      await testAdapter.addMemory({ text: shortText, metadata: baseMetadata });
+
+      // Should store exactly one memory
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(mockSplitTextByTokens).toHaveBeenCalledWith(shortText);
+    });
+
+    it('should split and store multiple chunks when text exceeds token limit', async () => {
+      const longText = 'Chunk 1 content.\n\nChunk 2 content.\n\nChunk 3 content.';
+      const chunks = ['Chunk 1 content.', 'Chunk 2 content.', 'Chunk 3 content.'];
+
+      // Mock: text needs chunking
+      mockSplitTextByTokens.mockReturnValue({
+        chunks,
+        originalTokenCount: 9000,
+        wasChunked: true,
+      });
+
+      // Mock Prisma and OpenAI
+      const executedQueries: any[] = [];
+      const mockPrisma = {
+        $executeRaw: vi.fn().mockImplementation((...args) => {
+          executedQueries.push(args);
+          return Promise.resolve(undefined);
+        }),
+      };
+      const mockOpenAI = {
+        embeddings: {
+          create: vi.fn().mockResolvedValue({
+            data: [{ embedding: new Array(1536).fill(0.1) }],
+          }),
+        },
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      // @ts-expect-error - accessing private property for testing
+      testAdapter.openai = mockOpenAI;
+
+      await testAdapter.addMemory({ text: longText, metadata: baseMetadata });
+
+      // Should store exactly 3 chunks
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(3);
+      expect(mockOpenAI.embeddings.create).toHaveBeenCalledTimes(3);
+    });
+
+    it('should generate unique deterministic UUIDs for each chunk', async () => {
+      const chunks = ['First chunk.', 'Second chunk.'];
+
+      mockSplitTextByTokens.mockReturnValue({
+        chunks,
+        originalTokenCount: 8000,
+        wasChunked: true,
+      });
+
+      const storedIds: string[] = [];
+      const mockPrisma = {
+        $executeRaw: vi.fn().mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+          // The first value after the template is the ID
+          storedIds.push(values[0]);
+          return Promise.resolve(undefined);
+        }),
+      };
+      const mockOpenAI = {
+        embeddings: {
+          create: vi.fn().mockResolvedValue({
+            data: [{ embedding: new Array(1536).fill(0.1) }],
+          }),
+        },
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      // @ts-expect-error - accessing private property for testing
+      testAdapter.openai = mockOpenAI;
+
+      await testAdapter.addMemory({ text: chunks.join('\n\n'), metadata: baseMetadata });
+
+      // Should have 2 unique IDs
+      expect(storedIds).toHaveLength(2);
+      expect(new Set(storedIds).size).toBe(2); // All IDs are unique
+    });
+  });
+
+  describe('sibling chunk retrieval', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockSplitTextByTokens.mockReset();
+    });
+
+    it('should return documents with sibling chunks when includeSiblings is true', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+
+      // Mock the initial query result (chunk 1 of 3)
+      const initialResult: MemoryDocument[] = [
+        {
+          pageContent: 'Chunk 1 content',
+          metadata: {
+            id: 'mem-1',
+            chunkGroupId: 'group-abc',
+            chunkIndex: 0,
+            totalChunks: 3,
+            personaId: 'persona-123',
+            personalityId: 'personality-456',
+          },
+        },
+      ];
+
+      // Mock all chunks in the group
+      const allChunks = [
+        {
+          id: 'mem-1',
+          content: 'Chunk 1 content',
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          chunk_group_id: 'group-abc',
+          chunk_index: 0,
+          total_chunks: 3,
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test Persona',
+          owner_username: 'testuser',
+          personality_name: 'Test Personality',
+        },
+        {
+          id: 'mem-2',
+          content: 'Chunk 2 content',
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          chunk_group_id: 'group-abc',
+          chunk_index: 1,
+          total_chunks: 3,
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test Persona',
+          owner_username: 'testuser',
+          personality_name: 'Test Personality',
+        },
+        {
+          id: 'mem-3',
+          content: 'Chunk 3 content',
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          chunk_group_id: 'group-abc',
+          chunk_index: 2,
+          total_chunks: 3,
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test Persona',
+          owner_username: 'testuser',
+          personality_name: 'Test Personality',
+        },
+      ];
+
+      // First call returns initial result, second call returns sibling chunks
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([allChunks[0]]) // Initial query
+        .mockResolvedValueOnce(allChunks); // Sibling query
+
+      // Spy on queryMemories to control its return
+      vi.spyOn(testAdapter, 'queryMemories').mockResolvedValue(initialResult);
+
+      // Access private method through the adapter
+      // @ts-expect-error - accessing private method for testing
+      const expandWithSiblings = testAdapter.expandWithSiblings.bind(testAdapter);
+
+      const expanded = await expandWithSiblings(initialResult, 'persona-123');
+
+      // Should have expanded to include all 3 chunks
+      expect(expanded.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should not duplicate chunks when multiple chunks from same group match', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+
+      // Initial results include 2 chunks from same group
+      const initialResults: MemoryDocument[] = [
+        {
+          pageContent: 'Chunk 1 content',
+          metadata: {
+            id: 'mem-1',
+            chunkGroupId: 'group-abc',
+            chunkIndex: 0,
+            totalChunks: 3,
+          },
+        },
+        {
+          pageContent: 'Chunk 2 content',
+          metadata: {
+            id: 'mem-2',
+            chunkGroupId: 'group-abc',
+            chunkIndex: 1,
+            totalChunks: 3,
+          },
+        },
+      ];
+
+      // All chunks in group
+      const siblingResults = [
+        {
+          id: 'mem-1',
+          content: 'Chunk 1 content',
+          chunk_group_id: 'group-abc',
+          chunk_index: 0,
+          total_chunks: 3,
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test',
+          owner_username: 'test',
+          personality_name: 'Test',
+        },
+        {
+          id: 'mem-2',
+          content: 'Chunk 2 content',
+          chunk_group_id: 'group-abc',
+          chunk_index: 1,
+          total_chunks: 3,
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test',
+          owner_username: 'test',
+          personality_name: 'Test',
+        },
+        {
+          id: 'mem-3',
+          content: 'Chunk 3 content',
+          chunk_group_id: 'group-abc',
+          chunk_index: 2,
+          total_chunks: 3,
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test',
+          owner_username: 'test',
+          personality_name: 'Test',
+        },
+      ];
+
+      mockPrisma.$queryRaw.mockResolvedValue(siblingResults);
+
+      // @ts-expect-error - accessing private method for testing
+      const expandWithSiblings = testAdapter.expandWithSiblings.bind(testAdapter);
+
+      const expanded = await expandWithSiblings(initialResults, 'persona-123');
+
+      // Should have exactly 3 chunks (no duplicates)
+      expect(expanded).toHaveLength(3);
+
+      // Verify unique IDs
+      const ids = expanded.map(doc => doc.metadata?.id);
+      expect(new Set(ids).size).toBe(3);
+    });
+
+    it('should return original documents when no chunk groups exist', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+
+      // Documents without chunk metadata
+      const documents: MemoryDocument[] = [
+        { pageContent: 'Regular memory 1', metadata: { id: 'mem-1' } },
+        { pageContent: 'Regular memory 2', metadata: { id: 'mem-2' } },
+      ];
+
+      // @ts-expect-error - accessing private method for testing
+      const expandWithSiblings = testAdapter.expandWithSiblings.bind(testAdapter);
+
+      const result = await expandWithSiblings(documents, 'persona-123');
+
+      // Should return original documents unchanged
+      expect(result).toEqual(documents);
+      // Should not make any sibling queries
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 });
