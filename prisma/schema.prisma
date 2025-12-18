@@ -392,6 +392,10 @@ model Memory {
   createdAt            DateTime               @default(now()) @map("created_at")
   legacyShapesUserId   String?                @map("legacy_shapes_user_id") @db.Uuid
   sourceSystem         String                 @default("tzurot-v3") @map("source_system") @db.VarChar(50)
+  // Chunk linking fields for oversized memories split into multiple chunks
+  chunkGroupId         String?                @map("chunk_group_id") @db.Uuid
+  chunkIndex           Int?                   @map("chunk_index")
+  totalChunks          Int?                   @map("total_chunks")
   persona              Persona?               @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality          Personality            @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
@@ -404,6 +408,7 @@ model Memory {
   @@index([isSummarized])
   @@index([legacyShapesUserId])
   @@index([sourceSystem])
+  @@index([chunkGroupId])
   // NOTE: The HNSW vector index (idx_memories_embedding) is managed outside Prisma
   // because Unsupported types don't support vector-specific operators (VectorCosineOps)
   // See: docs/database/PRISMA_DRIFT_ISSUES.md

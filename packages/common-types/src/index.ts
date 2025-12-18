@@ -36,6 +36,7 @@ export * from './utils/dateFormatting.js';
 export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
+export * from './utils/textChunker.js';
 export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
 export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
