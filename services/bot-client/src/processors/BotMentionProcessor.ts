@@ -19,6 +19,21 @@ export class BotMentionProcessor implements IMessageProcessor {
       return false; // No bot mention, message is unhandled
     }
 
+    // Check if this is just a reply mention (not explicit @mention)
+    // Discord auto-includes author in mentions when replying, but we only want
+    // to show help when user explicitly @mentions the bot in their message content
+    const botId = message.client.user.id;
+    const explicitMentionPattern = new RegExp(`<@!?${botId}>`);
+    const hasExplicitMention = explicitMentionPattern.test(message.content);
+
+    if (!hasExplicitMention) {
+      logger.debug(
+        { userId: message.author.id, isReply: !!message.reference },
+        '[BotMentionProcessor] Ignoring implicit reply mention (no explicit @bot in content)'
+      );
+      return false; // Let message fall through unhandled
+    }
+
     logger.debug(
       { userId: message.author.id, channelId: message.channelId },
       '[BotMentionProcessor] Processing generic bot mention, sending help'
