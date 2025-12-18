@@ -62,6 +62,24 @@ export interface MemoryQueryOptions {
    * When true, if a matching memory is part of a chunk group,
    * also retrieve all sibling chunks in that group.
    * This enables reassembling the full original text from chunks.
+   * Default: true (to ensure complete memory retrieval)
+   *
+   * @example
+   * // Query with sibling retrieval (default behavior)
+   * const memories = await adapter.queryMemories(query, { personaId: '...' });
+   *
+   * // Reassemble chunked memories
+   * const grouped = groupByChunkId(memories);
+   * for (const [groupId, chunks] of grouped) {
+   *   const sorted = sortChunksByIndex(chunks);
+   *   const fullText = reassembleChunks(sorted.map(c => c.pageContent));
+   * }
+   *
+   * // Opt out of sibling retrieval (only get matched chunks)
+   * const matchedOnly = await adapter.queryMemories(query, {
+   *   personaId: '...',
+   *   includeSiblings: false
+   * });
    */
   includeSiblings?: boolean;
 }
@@ -356,8 +374,8 @@ export class PgvectorMemoryAdapter {
         };
       });
 
-      // Expand results with sibling chunks if requested
-      if (options.includeSiblings === true && documents.length > 0) {
+      // Expand results with sibling chunks (default: true for complete memory retrieval)
+      if (options.includeSiblings !== false && documents.length > 0) {
         documents = await this.expandWithSiblings(documents, options.personaId);
       }
 
@@ -418,17 +436,20 @@ export class PgvectorMemoryAdapter {
       '[PgvectorMemoryAdapter] Splitting oversized memory into chunks'
     );
 
-    for (let i = 0; i < chunks.length; i++) {
-      await this.storeSingleMemory({
-        text: chunks[i],
-        metadata: {
-          ...data.metadata,
-          chunkGroupId,
-          chunkIndex: i,
-          totalChunks: chunks.length,
-        },
-      });
-    }
+    // Store all chunks in parallel for better performance
+    await Promise.all(
+      chunks.map((chunkText, i) =>
+        this.storeSingleMemory({
+          text: chunkText,
+          metadata: {
+            ...data.metadata,
+            chunkGroupId,
+            chunkIndex: i,
+            totalChunks: chunks.length,
+          },
+        })
+      )
+    );
 
     logger.debug(
       { chunkGroupId, storedChunks: chunks.length },
