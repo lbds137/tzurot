@@ -25,17 +25,22 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-function createMockMessage(options?: { hasBotMention?: boolean }): Message {
+function createMockMessage(options?: {
+  hasBotMention?: boolean;
+  content?: string;
+  isReply?: boolean;
+}): Message {
   const botId = '987654321';
   return {
     id: '123456789',
-    content: '<@987654321> hello',
+    content: options?.content ?? '<@987654321> hello',
     author: {
       id: '111222333',
       username: 'testuser',
       bot: false,
     },
     channelId: 'channel-123',
+    reference: options?.isReply ? { messageId: 'ref-123' } : null,
     client: {
       user: {
         id: botId,
@@ -88,6 +93,64 @@ describe('BotMentionProcessor', () => {
 
       const replyArg = vi.mocked(message.reply).mock.calls[0][0] as { content: string };
       expect(replyArg.content).toContain('@personality your message');
+    });
+  });
+
+  describe('Implicit reply mentions', () => {
+    it('should ignore implicit reply mention when no explicit @bot in content', async () => {
+      // User replies to bot message - Discord adds bot to mentions but content has no @bot
+      const message = createMockMessage({
+        hasBotMention: true,
+        content: 'This is just a reply with no mention',
+        isReply: true,
+      });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(false); // Should not handle
+      expect(message.reply).not.toHaveBeenCalled();
+    });
+
+    it('should show help when user explicitly @mentions bot in a reply', async () => {
+      // User replies AND explicitly @mentions the bot
+      const message = createMockMessage({
+        hasBotMention: true,
+        content: '<@987654321> how do I use this?',
+        isReply: true,
+      });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(true);
+      expect(message.reply).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle nickname mention format in replies', async () => {
+      // Discord sometimes uses <@!id> format for nickname mentions
+      const message = createMockMessage({
+        hasBotMention: true,
+        content: '<@!987654321> help',
+        isReply: true,
+      });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(true);
+      expect(message.reply).toHaveBeenCalledTimes(1);
+    });
+
+    it('should ignore non-reply messages without explicit mention in content', async () => {
+      // Edge case: mentions.has returns true but no @mention in content (shouldn't happen normally)
+      const message = createMockMessage({
+        hasBotMention: true,
+        content: 'Some message without mention',
+        isReply: false,
+      });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      expect(message.reply).not.toHaveBeenCalled();
     });
   });
 });
