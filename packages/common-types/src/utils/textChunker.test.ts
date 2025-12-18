@@ -179,9 +179,7 @@ describe('splitTextByTokens', () => {
 
       expect(result.wasChunked).toBe(true);
       // Second chunk should have continuation prefix
-      const hasUserContinuation = result.chunks.some(c =>
-        c.includes('{user} (continued):')
-      );
+      const hasUserContinuation = result.chunks.some(c => c.includes('{user} (continued):'));
       expect(hasUserContinuation || result.chunks.length === 1).toBe(true);
     });
 
@@ -306,11 +304,7 @@ describe('reassembleChunks', () => {
   });
 
   it('handles mixed speaker chunks', () => {
-    const chunks = [
-      '{user}: Question?',
-      '{assistant}: Answer.',
-      '{user} (continued): Follow-up.',
-    ];
+    const chunks = ['{user}: Question?', '{assistant}: Answer.', '{user} (continued): Follow-up.'];
     const result = reassembleChunks(chunks);
     expect(result).toBe('{user}: Question?\n\n{assistant}: Answer.\n\nFollow-up.');
   });
@@ -367,10 +361,7 @@ describe('sortChunksByIndex', () => {
   });
 
   it('handles memories without metadata', () => {
-    const memories = [
-      { content: 'B' },
-      { metadata: { chunkIndex: 0 }, content: 'A' },
-    ];
+    const memories = [{ content: 'B' }, { metadata: { chunkIndex: 0 }, content: 'A' }];
 
     const sorted = sortChunksByIndex(memories as { metadata?: Record<string, unknown> }[]);
 

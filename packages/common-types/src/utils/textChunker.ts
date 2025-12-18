@@ -66,7 +66,9 @@ function findLastSpeaker(text: string): SpeakerType | null {
   const lines = text.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
     const speaker = detectSpeaker(lines[i]);
-    if (speaker) {return speaker;}
+    if (speaker) {
+      return speaker;
+    }
   }
   return null;
 }
@@ -76,7 +78,9 @@ function findLastSpeaker(text: string): SpeakerType | null {
  * @internal
  */
 function createContinuationPrefix(speaker: SpeakerType | null): string {
-  if (!speaker) {return '';}
+  if (!speaker) {
+    return '';
+  }
   return `{${speaker}} (continued): `;
 }
 
@@ -85,11 +89,7 @@ function createContinuationPrefix(speaker: SpeakerType | null): string {
  * Uses character-based splitting as a last resort
  * @internal
  */
-function splitLongWord(
-  word: string,
-  maxTokens: number,
-  model: TiktokenModel
-): string[] {
+function splitLongWord(word: string, maxTokens: number, model: TiktokenModel): string[] {
   const wordChunks: string[] = [];
   // Estimate safe character count per chunk (4 chars ≈ 1 token, with safety margin)
   const charsPerChunk = Math.max(1, (maxTokens - 50) * 3);
@@ -261,7 +261,9 @@ function splitAtNaturalBoundariesByTokens(
  * @internal
  */
 function addContinuationPrefixes(chunks: string[], initialSpeaker: SpeakerType | null): string[] {
-  if (chunks.length <= 1) {return chunks;}
+  if (chunks.length <= 1) {
+    return chunks;
+  }
 
   const result: string[] = [chunks[0]]; // First chunk keeps original content
   let lastSpeaker = findLastSpeaker(chunks[0]) ?? initialSpeaker;
@@ -280,7 +282,9 @@ function addContinuationPrefixes(chunks: string[], initialSpeaker: SpeakerType |
       result.push(prefix + chunk);
       // Update lastSpeaker from this chunk if it contains speaker markers
       const newSpeaker = findLastSpeaker(chunk);
-      if (newSpeaker) {lastSpeaker = newSpeaker;}
+      if (newSpeaker) {
+        lastSpeaker = newSpeaker;
+      }
     } else {
       // No speaker context - just add the chunk as-is
       result.push(chunk);
@@ -373,7 +377,9 @@ export function reassembleChunks(chunks: string[]): string {
 
   // Remove continuation prefixes from chunks 1+
   const cleaned = chunks.map((chunk, i) => {
-    if (i === 0) {return chunk;}
+    if (i === 0) {
+      return chunk;
+    }
     // Remove "{user} (continued): " or "{assistant} (continued): " prefix
     return chunk
       .replace(/^\{user\} \(continued\): /i, '')
