@@ -14,6 +14,14 @@
 import { PLACEHOLDERS } from '@tzurot/common-types';
 
 /**
+ * Escape all regex special characters in a string
+ * This ensures the string can be safely used in a RegExp constructor
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Replace user and assistant placeholders with actual names
  *
  * Handles all supported placeholder variations for compatibility with legacy data
@@ -70,8 +78,7 @@ export function replacePromptPlaceholders(
   // Process longer placeholders first to avoid partial replacements
   const userPlaceholders = [...PLACEHOLDERS.USER].sort((a, b) => b.length - a.length);
   for (const placeholder of userPlaceholders) {
-    // Escape special regex characters in placeholder
-    const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+    const escapedPlaceholder = escapeRegExp(placeholder);
     result = result.replace(new RegExp(escapedPlaceholder, 'gi'), effectiveUserName);
   }
 
@@ -79,8 +86,7 @@ export function replacePromptPlaceholders(
   // Process longer placeholders first to avoid partial replacements
   const assistantPlaceholders = [...PLACEHOLDERS.ASSISTANT].sort((a, b) => b.length - a.length);
   for (const placeholder of assistantPlaceholders) {
-    // Escape special regex characters in placeholder
-    const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+    const escapedPlaceholder = escapeRegExp(placeholder);
     result = result.replace(new RegExp(escapedPlaceholder, 'gi'), assistantName);
   }
 
