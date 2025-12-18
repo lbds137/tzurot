@@ -477,7 +477,8 @@ describe('integration', () => {
       // Force each paragraph into its own chunk
       if (t.includes('ABC123')) return 70;
       if (t.includes('foo()')) return 70;
-      if (t.includes('example.com')) return 70;
+      // Use unique path segment to identify URL paragraph (avoids CodeQL false positive)
+      if (t.includes('path?query=value')) return 70;
       return Math.ceil(t.length / 4);
     });
 
