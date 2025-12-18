@@ -89,12 +89,7 @@ function createContinuationPrefix(speaker: SpeakerType | null): string {
  * Uses character-based splitting as a last resort
  * @internal
  */
-function splitLongWord(
-  word: string,
-  maxTokens: number,
-  model: TiktokenModel,
-  depth = 0
-): string[] {
+function splitLongWord(word: string, maxTokens: number, model: TiktokenModel, depth = 0): string[] {
   // Safety: prevent infinite recursion (max 10 levels should handle any real case)
   const MAX_RECURSION_DEPTH = 10;
   if (depth >= MAX_RECURSION_DEPTH) {
