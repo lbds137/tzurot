@@ -12,10 +12,7 @@ import {
   getHandler,
   mockIsBotOwner,
   setupStandardMocks,
-  MOCK_CREATED_AT,
   MOCK_USER_UUID,
-  MOCK_PERSONALITY_UUID,
-  MOCK_ACTIVATION_UUID,
   MOCK_DISCORD_USER_ID,
 } from './test-utils.js';
 

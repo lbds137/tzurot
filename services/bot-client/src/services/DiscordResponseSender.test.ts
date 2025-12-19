@@ -149,6 +149,81 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).not.toContain('🆓');
     });
 
+    it('should add auto-response indicator when isAutoResponse is true with model', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'anthropic/claude-sonnet-4.5',
+        isAutoResponse: true,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      // Model line should include auto indicator on same line (compact format)
+      expect(calledContent).toContain('Model: [anthropic/claude-sonnet-4.5]');
+      expect(calledContent).toContain(' • 📍 auto');
+    });
+
+    it('should add standalone auto-response indicator when isAutoResponse is true without model', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        isAutoResponse: true,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).toContain('📍 auto-response');
+    });
+
+    it('should add all three indicators: model, auto-response, and guest mode', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'x-ai/grok-4.1-fast:free',
+        isGuestMode: true,
+        isAutoResponse: true,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      // Model and auto on same line
+      expect(calledContent).toContain('Model: [x-ai/grok-4.1-fast:free]');
+      expect(calledContent).toContain(' • 📍 auto');
+      // Guest mode on separate line
+      expect(calledContent).toContain('🆓 Using free model (no API key required)');
+    });
+
+    it('should not add auto-response indicator when isAutoResponse is false', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'test-model',
+        isAutoResponse: false,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).toContain('Model: [test-model]');
+      expect(calledContent).not.toContain('📍');
+    });
+
     it('should handle chunked messages', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });

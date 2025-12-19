@@ -35,11 +35,14 @@ export class PersonalityMessageHandler {
    * @param message - Discord message
    * @param personality - Target personality
    * @param content - Message content (may be voice transcript)
+   * @param options - Additional options
+   * @param options.isAutoResponse - If true, this is an auto-response from channel activation
    */
   async handleMessage(
     message: Message,
     personality: LoadedPersonality,
-    content: string
+    content: string,
+    options: { isAutoResponse?: boolean } = {}
   ): Promise<void> {
     try {
       // Build AI context (user lookup, history, references, attachments, environment)
@@ -90,6 +93,7 @@ export class PersonalityMessageHandler {
         personaId,
         userMessageContent: messageContent,
         userMessageTime,
+        isAutoResponse: options.isAutoResponse,
       });
 
       logger.info(

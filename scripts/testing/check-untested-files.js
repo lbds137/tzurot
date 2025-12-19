@@ -38,6 +38,7 @@ const EXCLUDE_PATTERNS = [
   /\/types\/.*\.ts$/,
   /\/test\/.*\.ts$/,
   /\.mock\.ts$/,
+  /test-utils\.ts$/, // Shared test utilities - not production code
 ];
 
 // index.ts files under this line count are considered "re-export only" and excluded
@@ -54,9 +55,6 @@ const KNOWN_UNTESTED = new Set([
   'services/ai-worker/src/services/context/PromptContext.ts',
   // Types-only file - no executable code, just TypeScript interfaces for ConversationalRAGService
   'services/ai-worker/src/services/ConversationalRAGTypes.ts',
-  // Shared test utilities - not production code, helper functions for tests
-  'services/api-gateway/src/routes/user/personality/test-utils.ts',
-  'services/api-gateway/src/routes/user/persona/test-utils.ts',
   // Helper functions tested indirectly via handler tests that use them
   'services/api-gateway/src/routes/user/personality/helpers.ts',
 ]);

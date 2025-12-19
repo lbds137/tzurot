@@ -28,6 +28,8 @@ export interface PendingJobContext {
   personaId: string;
   userMessageContent: string;
   userMessageTime: Date;
+  /** If true, this is an auto-response from channel activation (not @mention) */
+  isAutoResponse?: boolean;
 }
 
 interface TrackedJob {

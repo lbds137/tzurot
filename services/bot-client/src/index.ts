@@ -35,6 +35,7 @@ import { BotMessageFilter } from './processors/BotMessageFilter.js';
 import { EmptyMessageFilter } from './processors/EmptyMessageFilter.js';
 import { VoiceMessageProcessor } from './processors/VoiceMessageProcessor.js';
 import { ReplyMessageProcessor } from './processors/ReplyMessageProcessor.js';
+import { ActivatedChannelProcessor } from './processors/ActivatedChannelProcessor.js';
 import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
@@ -134,11 +135,19 @@ function createServices(): Services {
   );
 
   // Create processor chain (order matters!)
+  // 1. BotMessageFilter - Ignore bot messages
+  // 2. EmptyMessageFilter - Ignore empty messages
+  // 3. VoiceMessageProcessor - Transcribe voice messages (sets transcript for later processors)
+  // 4. ReplyMessageProcessor - Handle replies to personality webhooks (HIGHEST PRIORITY)
+  // 5. ActivatedChannelProcessor - Auto-respond in channels with activated personalities
+  // 6. PersonalityMentionProcessor - Handle @personality mentions
+  // 7. BotMentionProcessor - Handle @bot mentions
   const processors = [
     new BotMessageFilter(),
     new EmptyMessageFilter(),
     new VoiceMessageProcessor(voiceTranscription, personalityIdCache),
     new ReplyMessageProcessor(replyResolver, personalityHandler),
+    new ActivatedChannelProcessor(gatewayClient, personalityIdCache, personalityHandler),
     new PersonalityMentionProcessor(personalityIdCache, personalityHandler),
     new BotMentionProcessor(),
   ];
