@@ -11,12 +11,40 @@ import {
   JobStatus,
   INTERVALS,
   TIMEOUTS,
+  TTLCache,
   type GetChannelActivationResponse,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
 const logger = createLogger('GatewayClient');
 const config = getConfig();
+
+/**
+ * Cache for channel activation lookups.
+ * TTL of 30 seconds balances performance with responsiveness to changes.
+ * Max 1000 channels to prevent unbounded memory growth.
+ */
+const channelActivationCache = new TTLCache<GetChannelActivationResponse>({
+  ttl: 30 * 1000, // 30 seconds
+  maxSize: 1000,
+});
+
+/**
+ * Invalidate channel activation cache for a specific channel.
+ * Call this when a channel is activated or deactivated.
+ */
+export function invalidateChannelActivationCache(channelId: string): void {
+  channelActivationCache.delete(channelId);
+  logger.debug({ channelId }, '[GatewayClient] Invalidated channel activation cache');
+}
+
+/**
+ * Clear all entries in the channel activation cache.
+ * @internal For testing only
+ */
+export function _clearChannelActivationCacheForTesting(): void {
+  channelActivationCache.clear();
+}
 
 /**
  * API Gateway client for making AI generation requests
@@ -252,10 +280,20 @@ export class GatewayClient {
    * Used by ActivatedChannelProcessor to determine if messages should
    * receive automatic responses.
    *
+   * Results are cached for 30 seconds to avoid HTTP requests on every message.
+   * Use invalidateChannelActivationCache() when activation status changes.
+   *
    * @param channelId - Discord channel ID to check
    * @returns Activation status and details if activated
    */
   async getChannelActivation(channelId: string): Promise<GetChannelActivationResponse | null> {
+    // Check cache first
+    const cached = channelActivationCache.get(channelId);
+    if (cached !== null) {
+      logger.debug({ channelId }, '[GatewayClient] Channel activation cache hit');
+      return cached;
+    }
+
     try {
       const response = await fetch(`${this.baseUrl}/user/channel/${channelId}`, {
         headers: {
@@ -274,6 +312,11 @@ export class GatewayClient {
       }
 
       const data = (await response.json()) as GetChannelActivationResponse;
+
+      // Cache the result (including "not activated" responses)
+      channelActivationCache.set(channelId, data);
+      logger.debug({ channelId, isActivated: data.isActivated }, '[GatewayClient] Cached channel activation');
+
       return data;
     } catch (error) {
       logger.error({ err: error, channelId }, '[GatewayClient] Channel activation check error');

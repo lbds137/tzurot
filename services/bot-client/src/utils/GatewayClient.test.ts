@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GatewayClient } from './GatewayClient.js';
+import { GatewayClient, _clearChannelActivationCacheForTesting } from './GatewayClient.js';
 import { JobStatus } from '@tzurot/common-types';
 
 // Mock common-types
@@ -38,6 +38,9 @@ describe('GatewayClient', () => {
     // Returns a signal that never aborts (tests mock fetch directly)
     originalAbortSignalTimeout = AbortSignal.timeout;
     AbortSignal.timeout = () => new AbortController().signal;
+
+    // Clear channel activation cache between tests
+    _clearChannelActivationCacheForTesting();
   });
 
   afterEach(() => {

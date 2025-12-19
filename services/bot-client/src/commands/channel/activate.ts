@@ -11,6 +11,7 @@ import { MessageFlags } from 'discord.js';
 import { createLogger, type ActivateChannelResponse } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
+import { invalidateChannelActivationCache } from '../../utils/GatewayClient.js';
 
 const logger = createLogger('channel-activate');
 
@@ -81,6 +82,9 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
 
     const { activation, replaced } = result.data;
     const replacedNote = replaced ? ' (replaced previous activation)' : '';
+
+    // Invalidate cache so the change takes effect immediately
+    invalidateChannelActivationCache(channelId);
 
     await interaction.editReply(
       `✅ Activated **${activation.personalityName}** in this channel${replacedNote}.\n\n` +
