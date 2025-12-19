@@ -607,15 +607,15 @@ git push --force-with-lease origin feat/my-feature
 
 **This is a monorepo.** Version MUST be updated in ALL of these files (excluding tzurot-legacy):
 
-| File | Why |
-|------|-----|
-| `./package.json` | Root package |
-| `./services/ai-worker/package.json` | AI worker service |
-| `./services/api-gateway/package.json` | API gateway service |
-| `./services/bot-client/package.json` | Bot client service |
-| `./packages/common-types/package.json` | Common types package |
-| `./scripts/package.json` | Scripts package |
-| `./scripts/data/import-personality/package.json` | Import scripts |
+| File                                             | Why                  |
+| ------------------------------------------------ | -------------------- |
+| `./package.json`                                 | Root package         |
+| `./services/ai-worker/package.json`              | AI worker service    |
+| `./services/api-gateway/package.json`            | API gateway service  |
+| `./services/bot-client/package.json`             | Bot client service   |
+| `./packages/common-types/package.json`           | Common types package |
+| `./scripts/package.json`                         | Scripts package      |
+| `./scripts/data/import-personality/package.json` | Import scripts       |
 
 **Use this ONE command to bump ALL versions at once:**
 
