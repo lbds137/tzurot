@@ -34,6 +34,10 @@
  * - POST /user/history/clear - Clear context (set epoch timestamp)
  * - POST /user/history/undo - Restore previous context epoch
  * - GET /user/history/stats - Get conversation history statistics
+ * - POST /user/channel/activate - Activate personality in a channel
+ * - DELETE /user/channel/deactivate - Deactivate personality from a channel
+ * - GET /user/channel/:channelId - Get activation status for a channel
+ * - GET /user/channel/list - List all activated channels
  */
 
 import { Router } from 'express';
@@ -49,6 +53,7 @@ import { createLlmConfigRoutes } from './llm-config.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
 import { createHistoryRoutes } from './history.js';
+import { createChannelRoutes } from './channel/index.js';
 
 /**
  * Create user router with injected dependencies
@@ -83,6 +88,9 @@ export function createUserRouter(
 
   // History routes (STM management via context epochs)
   router.use('/history', createHistoryRoutes(prisma));
+
+  // Channel activation routes (auto-respond to all messages in a channel)
+  router.use('/channel', createChannelRoutes(prisma));
 
   return router;
 }

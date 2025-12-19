@@ -25,3 +25,6 @@ export * from './llm-config.js';
 
 // Usage endpoints
 export * from './usage.js';
+
+// Channel activation endpoints
+export * from './channel.js';
