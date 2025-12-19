@@ -264,6 +264,63 @@ Lilith: You're welcome! Let me know if you need anything else.`;
     });
   });
 
+  describe('Regex escaping safety', () => {
+    // These tests verify the fix for CodeQL findings #17 and #18
+    // The escapeRegExp function must handle all regex metacharacters: . * + ? ^ $ { } ( ) | [ ] \
+
+    it('should not break on text containing regex metacharacters', () => {
+      const text = 'Test with (parentheses) and [brackets] and pipes|here';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      // Should remain unchanged - no placeholders to replace
+      expect(result).toBe('Test with (parentheses) and [brackets] and pipes|here');
+    });
+
+    it('should not break on text containing dots and asterisks', () => {
+      const text = 'File: config.*.json and path/to/file.ts';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('File: config.*.json and path/to/file.ts');
+    });
+
+    it('should not break on text containing question marks and plus signs', () => {
+      const text = 'Is this valid? Yes+ it is!';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('Is this valid? Yes+ it is!');
+    });
+
+    it('should not break on text containing caret and dollar signs', () => {
+      const text = '^start and end$ with $100';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('^start and end$ with $100');
+    });
+
+    it('should not break on text containing backslashes', () => {
+      const text = 'Path: C:\\Users\\{user}\\Documents';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('Path: C:\\Users\\Alice\\Documents');
+    });
+
+    it('should correctly replace placeholders in text full of regex metacharacters', () => {
+      const text = '(.*?) {user} asked: "Is 1+1=2?" [yes|no] {{char}} replied: $100^2';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('(.*?) Alice asked: "Is 1+1=2?" [yes|no] Lilith replied: $100^2');
+    });
+
+    it('should handle placeholder-like patterns that are not actual placeholders', () => {
+      // These look like they could be regex patterns but should not cause issues
+      const text = '{.*} and {[a-z]+} are not {user} placeholders';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('{.*} and {[a-z]+} are not Alice placeholders');
+    });
+
+    it('should not interpret placeholder content as regex', () => {
+      // If escaping was broken, {user} might be interpreted as a regex quantifier
+      // and cause "Invalid regular expression" errors
+      const text = 'x{user}y and x{{user}}y';
+      const result = replacePromptPlaceholders(text, 'Alice', 'Lilith');
+      expect(result).toBe('xAlicey and xAlicey');
+    });
+  });
+
   describe('Name collision disambiguation', () => {
     it('should disambiguate when userName matches assistantName', () => {
       const text = '{user}: Hello there!\n{assistant}: Hi!';
