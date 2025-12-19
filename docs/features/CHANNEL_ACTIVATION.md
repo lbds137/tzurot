@@ -109,18 +109,20 @@ The notification is rate-limited (1 hour cooldown per user per channel) to preve
 ```sql
 CREATE TABLE activated_channels (
   id UUID PRIMARY KEY,
-  channel_id VARCHAR(20) NOT NULL UNIQUE,
+  channel_id VARCHAR(20) NOT NULL,
   personality_id UUID NOT NULL REFERENCES personalities(id),
-  guild_id VARCHAR(20),  -- Reserved for future guild-scoped features
   created_by UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(channel_id, personality_id)  -- Composite unique constraint
 );
 ```
 
 **Key constraints:**
 
-- `channel_id` is unique - only one activation per channel
+- `UNIQUE(channel_id, personality_id)` - prevents duplicate activations of the same personality
 - Uses deterministic UUIDs (`generateActivatedChannelUuid`) for dev/prod sync compatibility
+
+**Schema Design Note:** The composite unique constraint intentionally allows multiple personalities per channel at the database level. The "one personality per channel" restriction is enforced at the application level (via transaction that deletes existing activations). This design supports future multi-personality channels without requiring a migration.
 
 ### API Endpoints
 
