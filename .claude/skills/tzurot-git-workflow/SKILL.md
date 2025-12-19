@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
-lastUpdated: '2025-12-08'
+lastUpdated: '2025-12-18'
 ---
 
 # Tzurot v3 Git Workflow
@@ -603,6 +603,47 @@ git push --force-with-lease origin feat/my-feature
 
 ## Release Workflow
 
+### 🚨 CRITICAL: Version Bump Must Update ALL package.json Files
+
+**This is a monorepo.** Version MUST be updated in ALL of these files (excluding tzurot-legacy):
+
+| File | Why |
+|------|-----|
+| `./package.json` | Root package |
+| `./services/ai-worker/package.json` | AI worker service |
+| `./services/api-gateway/package.json` | API gateway service |
+| `./services/bot-client/package.json` | Bot client service |
+| `./packages/common-types/package.json` | Common types package |
+| `./scripts/package.json` | Scripts package |
+| `./scripts/data/import-personality/package.json` | Import scripts |
+
+**Use this ONE command to bump ALL versions at once:**
+
+```bash
+# Replace OLD_VERSION and NEW_VERSION (e.g., beta.22 → beta.23)
+sed -i 's/"version": "3.0.0-OLD_VERSION"/"version": "3.0.0-NEW_VERSION"/g' \
+  ./package.json \
+  ./services/ai-worker/package.json \
+  ./services/api-gateway/package.json \
+  ./services/bot-client/package.json \
+  ./packages/common-types/package.json \
+  ./scripts/package.json \
+  ./scripts/data/import-personality/package.json
+```
+
+**Verify ALL files were updated:**
+
+```bash
+grep -r '"version": "3.0.0-NEW_VERSION"' --include="package.json" . | grep -v node_modules | grep -v tzurot-legacy
+```
+
+**Anti-pattern (causes inconsistent versions across packages):**
+
+```bash
+# ❌ WRONG - Only updates root package.json!
+# Editing just ./package.json manually
+```
+
 ### Creating a Release PR to main
 
 **When:** Ready to deploy develop to production (main branch)
@@ -617,23 +658,24 @@ git push --force-with-lease origin feat/my-feature
    # Current: "3.0.0-alpha.43" → Next: "3.0.0-alpha.44"
    ```
 
-2. **Bump version in all packages**
+2. **Bump version in ALL packages (see critical section above)**
 
    ```bash
-   # Root package.json
-   # services/ai-worker/package.json
-   # services/api-gateway/package.json
-   # services/bot-client/package.json
-   # packages/common-types/package.json
-
-   # Increment alpha version: alpha.43 → alpha.44
-   # Or bump to beta/rc/release as appropriate
+   # Use the sed command from the critical section above!
+   sed -i 's/"version": "3.0.0-beta.22"/"version": "3.0.0-beta.23"/g' \
+     ./package.json \
+     ./services/ai-worker/package.json \
+     ./services/api-gateway/package.json \
+     ./services/bot-client/package.json \
+     ./packages/common-types/package.json \
+     ./scripts/package.json \
+     ./scripts/data/import-personality/package.json
    ```
 
 3. **Commit and push version bump**
 
    ```bash
-   git add package.json services/*/package.json packages/*/package.json
+   git add package.json services/*/package.json packages/*/package.json scripts/package.json scripts/data/import-personality/package.json
    git commit -m "chore: bump version to 3.0.0-alpha.44"
    git push origin develop
    ```
