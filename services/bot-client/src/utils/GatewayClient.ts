@@ -11,6 +11,7 @@ import {
   JobStatus,
   INTERVALS,
   TIMEOUTS,
+  type GetChannelActivationResponse,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
@@ -242,6 +243,42 @@ export class GatewayClient {
     }
 
     throw new Error(`Job ${jobId} timed out after ${maxWaitMs}ms`);
+  }
+
+  /**
+   * Get channel activation status
+   *
+   * Checks if a channel has an activated personality for auto-responses.
+   * Used by ActivatedChannelProcessor to determine if messages should
+   * receive automatic responses.
+   *
+   * @param channelId - Discord channel ID to check
+   * @returns Activation status and details if activated
+   */
+  async getChannelActivation(channelId: string): Promise<GetChannelActivationResponse | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/user/channel/${channelId}`, {
+        headers: {
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          // Note: No X-User-Id needed - this is a service-to-service lookup
+        },
+        signal: AbortSignal.timeout(5000), // 5s timeout
+      });
+
+      if (!response.ok) {
+        logger.warn(
+          { channelId, status: response.status },
+          '[GatewayClient] Channel activation check failed'
+        );
+        return null;
+      }
+
+      const data = (await response.json()) as GetChannelActivationResponse;
+      return data;
+    } catch (error) {
+      logger.error({ err: error, channelId }, '[GatewayClient] Channel activation check error');
+      return null;
+    }
   }
 
   /**
