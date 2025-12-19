@@ -63,6 +63,40 @@ export function _resetNotificationCacheForTesting(): void {
   notificationCache.clear();
 }
 
+/**
+ * Get the current size of the notification cache. Exported for testing only.
+ * @internal
+ */
+export function _getNotificationCacheSizeForTesting(): number {
+  return notificationCache.size;
+}
+
+/**
+ * Add an entry to the notification cache with a specific timestamp. Exported for testing only.
+ * @internal
+ */
+export function _addNotificationCacheEntryForTesting(
+  channelId: string,
+  userId: string,
+  timestamp: number
+): void {
+  const key = `${channelId}:${userId}`;
+  notificationCache.set(key, timestamp);
+}
+
+/**
+ * Trigger cleanup of the notification cache. Exported for testing only.
+ * @internal
+ */
+export function _triggerCleanupForTesting(): void {
+  cleanupNotificationCache();
+}
+
+// Start periodic cleanup interval to prevent memory leaks
+// This runs every hour to remove expired cache entries
+// Safe for bot-client: single-instance, local UI state (not horizontally scaled)
+setInterval(cleanupNotificationCache, INTERVALS.ONE_HOUR_MS);
+
 export class ActivatedChannelProcessor implements IMessageProcessor {
   constructor(
     private readonly gatewayClient: GatewayClient,
