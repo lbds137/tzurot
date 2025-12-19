@@ -461,6 +461,83 @@ describe('GatewayClient', () => {
     });
   });
 
+  describe('getChannelActivation()', () => {
+    it('should return activation data when channel is activated', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            isActivated: true,
+            activation: {
+              id: 'activation-uuid',
+              channelId: '123456789012345678',
+              personalitySlug: 'test-char',
+              personalityName: 'Test Character',
+              activatedBy: 'user-uuid',
+              createdAt: '2024-01-01T00:00:00.000Z',
+            },
+          }),
+      });
+
+      const result = await client.getChannelActivation('123456789012345678');
+
+      expect(result).toEqual({
+        isActivated: true,
+        activation: expect.objectContaining({
+          personalitySlug: 'test-char',
+          personalityName: 'Test Character',
+        }),
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test.gateway/user/channel/123456789012345678',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Service-Auth': 'test-secret',
+          }),
+        })
+      );
+    });
+
+    it('should return isActivated=false when no activation', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            isActivated: false,
+          }),
+      });
+
+      const result = await client.getChannelActivation('123456789012345678');
+
+      expect(result).toEqual({
+        isActivated: false,
+      });
+    });
+
+    it('should return null on non-ok response', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      const result = await client.getChannelActivation('123456789012345678');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on network error', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await client.getChannelActivation('123456789012345678');
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('healthCheck()', () => {
     it('should return true on ok response', async () => {
       const client = new GatewayClient('http://test.gateway');
