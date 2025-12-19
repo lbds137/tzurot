@@ -11,6 +11,7 @@ import { MessageFlags } from 'discord.js';
 import { createLogger, type DeactivateChannelResponse } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
+import { invalidateChannelActivationCache } from '../../utils/GatewayClient.js';
 
 const logger = createLogger('channel-deactivate');
 
@@ -52,6 +53,9 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
     }
 
     const { deactivated, personalityName } = result.data;
+
+    // Invalidate cache so the change takes effect immediately
+    invalidateChannelActivationCache(channelId);
 
     if (!deactivated) {
       await interaction.editReply(
