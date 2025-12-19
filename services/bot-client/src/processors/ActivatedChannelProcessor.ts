@@ -137,9 +137,6 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
 
       // Notify the user (with rate limiting to avoid spam)
       if (shouldNotifyUser(channelId, userId)) {
-        // Clean up old cache entries periodically
-        cleanupNotificationCache();
-
         try {
           await message.reply({
             content: `📍 This channel has **${personalityName}** activated, but it's a private personality you don't have access to. You can still @mention other personalities or ask the personality owner for access.`,
