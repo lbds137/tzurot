@@ -38,7 +38,8 @@ export type SyncTableName =
   | 'user_persona_history_configs'
   | 'conversation_history'
   | 'conversation_history_tombstones'
-  | 'activated_channels'
+  // NOTE: activated_channels intentionally NOT synced - dev/prod have different bot instances
+  // and syncing would cause double-responses in channels where both bots are present
   | 'memories'
   | 'shapes_persona_mappings';
 
@@ -135,13 +136,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'persona_id', 'personality_id'],
     timestampColumns: ['deleted_at'],
   },
-  activated_channels: {
-    pk: 'id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    uuidColumns: ['id', 'personality_id', 'created_by'],
-    timestampColumns: ['created_at', 'updated_at'],
-  },
+  // NOTE: activated_channels intentionally NOT synced - see SyncTableName comment
   memories: {
     pk: 'id',
     createdAt: 'created_at',
@@ -181,8 +176,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * - user_personality_configs: user_id → users, personality_id → personalities, etc.
  * - user_persona_history_configs: user_id → users, personality_id → personalities, persona_id → personas
  * - conversation_history: persona_id → personas, personality_id → personalities
- * - activated_channels: personality_id → personalities, created_by → users
  * - memories: persona_id → personas, personality_id → personalities
+ * NOTE: activated_channels intentionally NOT synced (different bot instances per environment)
  * - shapes_persona_mappings: persona_id → personas, mapped_by → users
  */
 /**
@@ -211,7 +206,7 @@ export const SYNC_TABLE_ORDER: SyncTableName[] = [
   'conversation_history_tombstones',
   // Data tables
   'conversation_history',
-  'activated_channels',
+  // NOTE: activated_channels intentionally NOT synced (different bot instances per environment)
   'memories',
   'shapes_persona_mappings',
 ];

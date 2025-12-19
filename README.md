@@ -21,35 +21,36 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌────────────┐
-│  Discord    │────▶│  Bot Client  │────▶│    API     │
-│   Users     │◀────│   Service    │◀────│  Gateway   │
-└─────────────┘     └──────────────┘     └─────┬──────┘
-                                               │
-                                               ▼
-                                         ┌────────────┐
-                                         │   Queue    │
-                                         │  (Redis    │
-                                         │  +BullMQ)  │
-                                         └─────┬──────┘
-                                               │
-                                               ▼
-                    ┌──────────────────────────┴──────────────────────────┐
-                    │                                                      │
-                    ▼                                                      ▼
-              ┌────────────┐                                        ┌────────────┐
-              │ AI Worker  │───────────────────────────────────────▶│ PostgreSQL │
-              │  Service   │                                        │ (pgvector) │
-              └─────┬──────┘                                        └────────────┘
-                    │
-                    ├────────────┐
-                    ▼            ▼
-              ┌──────────┐ ┌──────────┐
-              │OpenRouter│ │  OpenAI  │
-              │   API    │ │(Whisper, │
-              │(400+     │ │Embedding)│
-              │ models)  │ │          │
-              └──────────┘ └──────────┘
++-------------+     +--------------+     +------------+
+|  Discord    |---->|  Bot Client  |---->|    API     |
+|   Users     |<----|   Service    |<----|  Gateway   |
++-------------+     +--------------+     +-----+------+
+                                               |
+                                               v
+                                         +------------+
+                                         |   Queue    |
+                                         |  (Redis    |
+                                         |  +BullMQ)  |
+                                         +-----+------+
+                                               |
+                                               v
+                    +--------------------------+-------------------------+
+                    |                                                    |
+                    v                                                    v
+              +------------+                                      +------------+
+              | AI Worker  |------------------------------------->| PostgreSQL |
+              |  Service   |                                      | (pgvector) |
+              +-----+------+                                      +------------+
+                    |
+                    +------------+
+                    |            |
+                    v            v
+              +----------+ +----------+
+              |OpenRouter| |  OpenAI  |
+              |   API    | |(Whisper, |
+              |(400+     | |Embedding)|
+              | models)  | |          |
+              +----------+ +----------+
 ```
 
 **Services:**
@@ -115,11 +116,10 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
   - `api-gateway/` - HTTP API and request routing
   - `ai-worker/` - Background AI processing
 - **`packages/`** - Shared code
-  - `common-types/` - TypeScript types and schemas
-  - `api-clients/` - External API client libraries
-
-- **`personalities/`** - Personality configurations (JSON)
-- **`tzurot-legacy/`** - Archived v2 codebase
+  - `common-types/` - TypeScript types, schemas, and shared utilities
+- **`prisma/`** - Database schema and migrations
+- **`scripts/`** - Development and deployment utilities
+- **`tzurot-legacy/`** - Archived v2 codebase (for reference)
 
 ## AI Provider System
 
@@ -165,21 +165,24 @@ const provider = AIProviderFactory.create('openai', {
 - **Model Indicators**: Shows which AI model generated each response
 - **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter API keys
 - **Guest Mode**: Free model access for users without API keys
+- **Channel Activation**: Personalities can auto-respond to all messages in a channel
 - **Slash Commands**:
-  - `/wallet set/list/remove/test` - Manage your API keys (BYOK)
-  - `/llm-config create/list/delete` - Create custom LLM configurations
-  - `/model set/set-default` - Choose AI models per personality
-  - `/personality create/edit/import` - Manage personalities
-  - `/settings timezone/usage` - User settings
-  - `/admin servers/kick/usage` - Bot administration (owner only)
-  - `/ping`, `/help` - Utility commands
+  - `/wallet set/list/remove` - Manage your API keys (BYOK)
+  - `/character create/edit/view/list/import/export/delete` - Manage personalities
+  - `/character config` - Configure per-personality settings (model, persona)
+  - `/preset create/list/delete` - Custom LLM presets (model + parameters)
+  - `/channel activate/deactivate/list` - Channel auto-response activation
+  - `/history clear/stats/undo` - Conversation history management
+  - `/me timezone set/get` - Timezone settings for timestamps
+  - `/me profile view/edit/create/list/default` - User persona management
+  - `/admin servers/kick/usage/cleanup/db-sync` - Bot administration (owner only)
+  - `/help` - Show available commands
 
 ### 📋 Planned Features
 
-- Auto-response in activated channels (v2 feature not yet ported)
 - Rate limiting per user/channel
 - NSFW verification system
-- User persona management
+- Advanced memory features (OpenMemory integration)
 
 ## Development
 
