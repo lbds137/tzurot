@@ -227,8 +227,14 @@ describe('ActivatedChannelProcessor', () => {
     });
 
     it('should notify different users separately', async () => {
-      const userAMessage = createMockMessage({ userId: 'user-a-notify', channelId: 'notify-channel' });
-      const userBMessage = createMockMessage({ userId: 'user-b-notify', channelId: 'notify-channel' });
+      const userAMessage = createMockMessage({
+        userId: 'user-a-notify',
+        channelId: 'notify-channel',
+      });
+      const userBMessage = createMockMessage({
+        userId: 'user-b-notify',
+        channelId: 'notify-channel',
+      });
 
       const activationResponse = {
         isActivated: true,
