@@ -66,9 +66,11 @@ export function createMockPrisma(): {
   };
 
   // $transaction calls the callback with the same mock prisma as the tx client
-  mockPrisma.$transaction.mockImplementation(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
-    return callback(mockPrisma);
-  });
+  mockPrisma.$transaction.mockImplementation(
+    async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
+      return callback(mockPrisma);
+    }
+  );
 
   return mockPrisma;
 }
