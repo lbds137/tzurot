@@ -95,7 +95,8 @@ export class MessageHandler {
     // Complete the job (clears typing indicator and removes from tracker)
     this.jobTracker.completeJob(jobId);
 
-    const { message, personality, personaId, userMessageContent, userMessageTime } = jobContext;
+    const { message, personality, personaId, userMessageContent, userMessageTime, isAutoResponse } =
+      jobContext;
 
     // Handle explicit failure from ai-worker (success: false)
     if (result.success === false) {
@@ -179,6 +180,7 @@ export class MessageHandler {
         message,
         modelUsed: result.metadata?.modelUsed,
         isGuestMode: result.metadata?.isGuestMode,
+        isAutoResponse,
       });
 
       // Save assistant message to conversation history
