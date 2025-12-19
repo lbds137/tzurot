@@ -43,8 +43,9 @@ export function createMockPrisma(): {
     create: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
+  $transaction: ReturnType<typeof vi.fn>;
 } {
-  return {
+  const mockPrisma = {
     user: {
       findFirst: vi.fn(),
       create: vi.fn(),
@@ -61,7 +62,15 @@ export function createMockPrisma(): {
       create: vi.fn(),
       delete: vi.fn(),
     },
+    $transaction: vi.fn(),
   };
+
+  // $transaction calls the callback with the same mock prisma as the tx client
+  mockPrisma.$transaction.mockImplementation(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
+    return callback(mockPrisma);
+  });
+
+  return mockPrisma;
 }
 
 // Base mock personality for tests
