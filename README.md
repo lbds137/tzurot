@@ -168,14 +168,19 @@ const provider = AIProviderFactory.create('openai', {
 - **Channel Activation**: Personalities can auto-respond to all messages in a channel
 - **Slash Commands**:
   - `/wallet set/list/remove` - Manage your API keys (BYOK)
-  - `/character create/edit/view/list/import/export/delete` - Manage personalities
+  - `/character create/edit/view/list/delete` - Manage personalities
+  - `/character import/export` - Import/export personality configurations
   - `/character config` - Configure per-personality settings (model, persona)
+  - `/character chat` - Direct chat with a personality
+  - `/character avatar/dashboard/template` - Avatar management and utilities
   - `/preset create/list/delete` - Custom LLM presets (model + parameters)
   - `/channel activate/deactivate/list` - Channel auto-response activation
-  - `/history clear/stats/undo` - Conversation history management
+  - `/history clear/stats/undo/hard-delete` - Conversation history management
   - `/me timezone set/get` - Timezone settings for timestamps
   - `/me profile view/edit/create/list/default` - User persona management
-  - `/admin servers/kick/usage/cleanup/db-sync` - Bot administration (owner only)
+  - `/me profile override-set/override-clear` - Per-personality persona overrides
+  - `/me profile share-ltm` - Share long-term memory between personas
+  - `/admin servers/kick/usage/cleanup/db-sync/ping` - Bot administration (owner only)
   - `/help` - Show available commands
 
 ### 📋 Planned Features
