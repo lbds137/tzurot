@@ -8,7 +8,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ActivatedChannelProcessor,
   _resetNotificationCacheForTesting,
+  _getNotificationCacheSizeForTesting,
+  _addNotificationCacheEntryForTesting,
+  _triggerCleanupForTesting,
 } from './ActivatedChannelProcessor.js';
+import { INTERVALS } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import type { LoadedPersonality, GetChannelActivationResponse } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
@@ -366,6 +370,68 @@ describe('ActivatedChannelProcessor', () => {
         expect.anything(),
         { isAutoResponse: true }
       );
+    });
+  });
+
+  describe('Notification cache cleanup', () => {
+    it('should remove expired cache entries during cleanup', () => {
+      const now = Date.now();
+      const expiredTimestamp = now - INTERVALS.ONE_HOUR_MS - 1000; // 1 second past expiry
+      const recentTimestamp = now - 1000; // 1 second ago (not expired)
+
+      // Add expired entry
+      _addNotificationCacheEntryForTesting('expired-channel', 'expired-user', expiredTimestamp);
+      // Add recent entry
+      _addNotificationCacheEntryForTesting('recent-channel', 'recent-user', recentTimestamp);
+
+      expect(_getNotificationCacheSizeForTesting()).toBe(2);
+
+      // Trigger cleanup
+      _triggerCleanupForTesting();
+
+      // Only the expired entry should be removed
+      expect(_getNotificationCacheSizeForTesting()).toBe(1);
+    });
+
+    it('should keep entries that are within the cooldown period', () => {
+      const now = Date.now();
+      const withinCooldown = now - INTERVALS.ONE_HOUR_MS + 60000; // 1 minute before expiry
+
+      _addNotificationCacheEntryForTesting('test-channel', 'test-user', withinCooldown);
+
+      expect(_getNotificationCacheSizeForTesting()).toBe(1);
+
+      _triggerCleanupForTesting();
+
+      // Entry should still exist (not expired)
+      expect(_getNotificationCacheSizeForTesting()).toBe(1);
+    });
+
+    it('should remove all expired entries when multiple exist', () => {
+      const now = Date.now();
+      const expired1 = now - INTERVALS.ONE_HOUR_MS - 1000;
+      const expired2 = now - INTERVALS.ONE_HOUR_MS - 2000;
+      const expired3 = now - INTERVALS.ONE_HOUR_MS - 3000;
+
+      _addNotificationCacheEntryForTesting('channel-1', 'user-1', expired1);
+      _addNotificationCacheEntryForTesting('channel-2', 'user-2', expired2);
+      _addNotificationCacheEntryForTesting('channel-3', 'user-3', expired3);
+
+      expect(_getNotificationCacheSizeForTesting()).toBe(3);
+
+      _triggerCleanupForTesting();
+
+      // All entries should be removed
+      expect(_getNotificationCacheSizeForTesting()).toBe(0);
+    });
+
+    it('should handle empty cache gracefully', () => {
+      expect(_getNotificationCacheSizeForTesting()).toBe(0);
+
+      // Should not throw
+      _triggerCleanupForTesting();
+
+      expect(_getNotificationCacheSizeForTesting()).toBe(0);
     });
   });
 });
