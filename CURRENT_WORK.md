@@ -1,10 +1,10 @@
 # Current Work
 
-> Last updated: 2025-12-13
+> Last updated: 2025-12-18
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.17
+**Version**: v3.0.0-beta.23
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
@@ -12,22 +12,29 @@
 
 ## Active: Memory Management Commands
 
-**Phase 1 COMPLETE**: STM Management implemented. See [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md).
+**Reference**: [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md)
 
-**Completed in Phase 1:**
+**Phase 1 (STM) - COMPLETE** (shipped in beta.19):
 
-- Schema migration: Added `lastContextReset` and `previousContextReset` to UserPersonalityConfig
-- ConversationHistoryService: Epoch filtering for getRecentHistory, getHistory, and new getHistoryStats
-- Gateway routes: POST /user/history/clear, POST /user/history/undo, GET /user/history/stats
-- Slash commands: `/history clear`, `/history undo`, `/history stats`
+- [x] `/history clear` - Epoch-based soft reset (hides old messages from AI context)
+- [x] `/history undo` - Restore cleared context
+- [x] `/history hard-delete` - Permanent deletion with confirmation
+- [x] `/history view` - See current context window status
+- [x] Per-persona epoch tracking
 
-**Remaining features:**
+**Phase 2 (LTM) - NOT STARTED:**
 
-- **LTM**: Search, browse, edit, delete, purge with filtering (Phase 2)
-- **Incognito Mode**: Timed session to disable LTM recording (Phase 3)
-- **Memory locking**: Protect "core memories" from bulk purge (Phase 3)
+- [ ] `/memory search` - Semantic search with filtering
+- [ ] `/memory browse` - Paginated memory deck UI
+- [ ] `/memory edit` - Edit memory content (regenerate embedding)
+- [ ] `/memory delete` - Single memory deletion
+- [ ] `/memory purge` - Bulk deletion with typed confirmation
+- [ ] `/memory lock/unlock` - Core memory protection
 
-**Next step**: Deploy migration to apply epoch fields to production database
+**Phase 3 (Incognito) - NOT STARTED:**
+
+- [ ] `/incognito enable/disable/status/forget`
+- [ ] Visual indicator in responses when active
 
 ---
 
@@ -35,7 +42,7 @@
 
 | #   | Feature                  | Why                                              |
 | --- | ------------------------ | ------------------------------------------------ |
-| 1   | **Memory Management** ⬅️ | User-requested, retention value, privacy control |
+| 1   | **Memory Management** ⬅️ | Phase 2 (LTM) - user-requested, privacy control  |
 | 2   | **Shapes.inc Import**    | Unblocks v2 deletion - users need migration path |
 | 3   | **DM Personality Chat**  | Biggest v2 feature gap, user-requested           |
 | 4   | **Dashboard Pattern**    | Fix UX before adding complex features            |
@@ -46,17 +53,13 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ---
 
-## Recent Releases
+## Recent Highlights
 
-### v3.0.0-beta.17 (2025-12-12)
+- **beta.23**: Memory chunking for oversized embeddings, implicit reply fix, regex security fix
+- **beta.20**: Avatar auto-resize with GIF animation preservation
+- **beta.19**: `/history` commands (STM management)
 
-- **Name collision disambiguation** - Shows `Name (@username)` when persona name matches personality name
-- **Help command update** - Added `/character chat` reference for consistency
-
-### v3.0.0-beta.16 (2025-12-11)
-
-- Lint cleanup (max-depth, max-params warnings eliminated)
-- Bot mention help message with `/character chat` guidance
+Full release history: [GitHub Releases](https://github.com/lbds137/tzurot/releases)
 
 ---
 
@@ -77,13 +80,13 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 - `/me model` - Model overrides (set, reset, list, set-default, clear-default)
 - `/me timezone` - Timezone settings (set, get)
 - `/preset` - User presets (create, list, delete) - **missing: edit**
-- `/history` - Conversation history (clear, undo, stats) - **NEW**
+- `/history` - Conversation history (clear, undo, hard-delete, view)
 
 **Admin:**
 
-- `/admin` - Bot owner commands (ping, db-sync, servers, kick, usage)
+- `/admin` - Bot owner commands (ping, db-sync, servers, kick, usage, cleanup)
 - `/preset global` - Global preset management
-- `/character` - Personality CRUD (create, edit, delete, view, list, avatar, export, chat)
+- `/character` - Personality CRUD (create, edit, delete, view, list, avatar, export, import, chat, template)
 
 ---
 
