@@ -160,15 +160,7 @@ describe('syncTables Configuration', () => {
       assertParentBeforeChild('personalities', 'conversation_history', 'personality_id');
     });
 
-    // activated_channels.personality_id -> personalities.id
-    it('should sync personalities before activated_channels', () => {
-      assertParentBeforeChild('personalities', 'activated_channels', 'personality_id');
-    });
-
-    // activated_channels.created_by -> users.id
-    it('should sync users before activated_channels', () => {
-      assertParentBeforeChild('users', 'activated_channels', 'created_by');
-    });
+    // NOTE: activated_channels intentionally NOT synced (different bot instances per environment)
 
     // memories.persona_id -> personas.id
     it('should sync personas before memories', () => {
