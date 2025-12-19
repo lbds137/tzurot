@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-13
-> **Current Version**: v3.0.0-beta.17
+> **Last Updated**: 2025-12-18
+> **Current Version**: v3.0.0-beta.23
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -14,20 +14,18 @@
 
 ## Next Up (In Order)
 
-### 1. Memory Management Commands ⬅️ ACTIVE
+### 1. Memory Management Commands ⬅️ ACTIVE (Phase 2)
 
 **Why first**: User-requested, high retention value. Comprehensive memory control enables privacy features.
 
 **Reference**: [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md)
 
-**Short-Term Memory (STM):**
+**Phase 1 - STM (COMPLETE - beta.19):**
 
-- [ ] Context epoch system (timestamp-based soft reset with undo)
-- [ ] `/history clear` - soft reset conversation context
-- [ ] `/history undo` - restore cleared context
-- [ ] `/history hard-delete` - permanent deletion with confirmation
+- [x] `/history clear`, `/history undo`, `/history hard-delete`, `/history view`
+- [x] Per-persona epoch tracking
 
-**Long-Term Memory (LTM):**
+**Phase 2 - LTM (NOT STARTED):**
 
 - [ ] `/memory search` - semantic search with filtering
 - [ ] `/memory browse` - paginated memory deck UI
@@ -36,12 +34,9 @@
 - [ ] `/memory purge` - bulk deletion with typed confirmation
 - [ ] `/memory lock/unlock` - core memory protection
 
-**Incognito Mode:**
+**Phase 3 - Incognito Mode (NOT STARTED):**
 
-- [ ] `/incognito enable` - timed session to disable LTM
-- [ ] `/incognito disable` - end incognito session
-- [ ] `/incognito status` - check current state
-- [ ] `/incognito forget` - retroactive LTM deletion
+- [ ] `/incognito enable/disable/status/forget`
 - [ ] Visual indicator in responses when active
 
 ### 2. Shapes.inc Import
@@ -123,21 +118,9 @@ Not needed until post-beta when we care about semantic versioning again.
 
 ## Completed
 
-### Phase 0: Foundation
-
-- Contract tests for BullMQ jobs and API endpoints
-- Component tests with PGlite (in-memory Postgres)
-- Message reference handling with BFS traversal
-
-### Phase 1: Gatekeeper (Public Beta Launch)
-
-- **BYOK infrastructure** - Encrypted API key storage (AES-256-GCM)
-- **User API key management** - `/wallet` commands
-- **LLM config system** - `/preset` and `/me model` commands
-- **Guest mode** - Free model fallback
-- **Persona management** - `/me profile` commands
-- **Memory scope** - `shareLtmAcrossPersonalities`
-- **Reasoning model support** - o1/o3, Claude 3.7+, Gemini thinking
+- **Phase 0**: Foundation (contract tests, PGlite component tests, message reference handling)
+- **Phase 1**: Gatekeeper / Public Beta Launch (BYOK, `/wallet`, `/preset`, `/me model`, `/me profile`, guest mode, reasoning models)
+- **Memory Management Phase 1**: STM commands (`/history clear/undo/hard-delete/view`)
 
 ---
 
@@ -163,6 +146,23 @@ Not needed until post-beta when we care about semantic versioning again.
 - [ ] Increase test coverage for `WebhookManager`
 - [ ] Document `advancedParameters` JSONB structures
 
+### Reliability & Architecture Review (from Gemini consultation 2025-12-18)
+
+**High Priority:**
+
+- [ ] **Job idempotency check** - Add Redis-based `processed:${discordMessageId}` check in `AIJobProcessor` to prevent duplicate replies on crash-retry scenarios
+- [ ] **Verify vector index usage** - Run `EXPLAIN ANALYZE` on production memory queries to confirm `idx_memories_embedding` is being used (not seq scan)
+
+**Medium Priority:**
+
+- [ ] **DLQ viewing script** - Create `scripts/debug/view-failed-jobs.ts` to inspect failed BullMQ jobs for debugging "why didn't user get a reply?" issues
+- [ ] **common-types logic audit** - Review whether services like `ConversationHistoryService`, `PersonalityService`, `UserService` should move from common-types to api-gateway (currently couples all service deployments)
+
+**Low Priority / Monitor:**
+
+- [ ] Pipeline abstraction review - Evaluate if pipeline steps add value or are unnecessary wrappers (current assessment: steps have distinct responsibilities, keep as-is)
+- [ ] Model config as data - Consider moving model definitions to DB table for runtime changes (current assessment: over-engineering for one-person project, defer)
+
 ---
 
 ## Icebox
@@ -177,6 +177,7 @@ Ideas for later. Resist the shiny object.
 - Dream sequences (self-reflection)
 - Relationship graphs
 - Metrics & monitoring (Prometheus)
+- Smart git hooks (skip checks for doc-only changes)
 
 ---
 
