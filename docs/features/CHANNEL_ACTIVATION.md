@@ -16,17 +16,21 @@ This is a port of the v2 "auto-response" feature, redesigned for the v3 microser
 Activates a personality in the current channel.
 
 **Parameters:**
+
 - `personality` (required) - The personality to activate (autocomplete enabled)
 
 **Permissions Required:**
+
 - `ManageMessages` permission in the channel
 
 **Behavior:**
+
 - Only one personality can be active per channel
 - Activating a new personality replaces any existing activation
 - Private personalities can only be activated by their owner (or bot owner)
 
 **Example:**
+
 ```
 /channel activate personality:lilith
 ```
@@ -36,12 +40,15 @@ Activates a personality in the current channel.
 Deactivates the personality in the current channel.
 
 **Permissions Required:**
+
 - `ManageMessages` permission in the channel
 
 **Behavior:**
+
 - Returns success even if no personality was active (idempotent)
 
 **Example:**
+
 ```
 /channel deactivate
 ```
@@ -53,10 +60,12 @@ Lists all channel activations visible to you.
 **Parameters:** None
 
 **Behavior:**
+
 - Shows all activations in the current server
 - Displays channel name, personality name, who activated it, and when
 
 **Example output:**
+
 ```
 Channel Activations (3)
 
@@ -79,6 +88,7 @@ The `ActivatedChannelProcessor` sits in the message processing chain:
 6. `PersonalityMentionProcessor` - Handles @mentions
 
 This ordering ensures:
+
 - Explicit replies to the bot take priority over auto-responses
 - @mentions still work in activated channels (for other personalities)
 
@@ -108,17 +118,18 @@ CREATE TABLE activated_channels (
 ```
 
 **Key constraints:**
+
 - `channel_id` is unique - only one activation per channel
 - Uses deterministic UUIDs (`generateActivatedChannelUuid`) for dev/prod sync compatibility
 
 ### API Endpoints
 
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/user/channel/activate` | POST | User | Activate personality in channel |
-| `/user/channel/deactivate` | DELETE | User | Deactivate channel |
-| `/user/channel/:channelId` | GET | Service | Check if channel is activated |
-| `/user/channel/list` | GET | User | List all activations |
+| Endpoint                   | Method | Auth    | Description                     |
+| -------------------------- | ------ | ------- | ------------------------------- |
+| `/user/channel/activate`   | POST   | User    | Activate personality in channel |
+| `/user/channel/deactivate` | DELETE | User    | Deactivate channel              |
+| `/user/channel/:channelId` | GET    | Service | Check if channel is activated   |
+| `/user/channel/list`       | GET    | User    | List all activations            |
 
 **Note:** The GET endpoint uses service auth (not user auth) because it's called by the bot-client during message processing, where no user context is available.
 
@@ -129,6 +140,7 @@ CREATE TABLE activated_channels (
 **Decision:** Only one personality can be active in a channel at a time.
 
 **Rationale:**
+
 - Simplifies UX - users know which personality will respond
 - Prevents "personality fights" where multiple bots try to respond
 - Matches v2 behavior
@@ -139,6 +151,7 @@ CREATE TABLE activated_channels (
 **Decision:** Require `ManageMessages` permission to activate/deactivate.
 
 **Rationale:**
+
 - Balances accessibility with preventing abuse
 - `ManageMessages` is commonly given to moderators
 - Prevents random users from changing channel behavior
@@ -149,6 +162,7 @@ CREATE TABLE activated_channels (
 **Decision:** Activating a new personality replaces the old one (no explicit deactivate-then-activate).
 
 **Rationale:**
+
 - Better UX - single command to switch personalities
 - Uses database transaction to prevent race conditions
 - Atomic operation - no intermediate state
@@ -158,6 +172,7 @@ CREATE TABLE activated_channels (
 **Decision:** `activated_channels` table is NOT synced between dev and prod environments.
 
 **Rationale:**
+
 - Dev and prod use different Discord bot instances
 - Syncing would cause double-responses in servers with both bots
 - Each environment should have independent channel activations
@@ -165,26 +180,31 @@ CREATE TABLE activated_channels (
 ## Files Changed (Implementation Reference)
 
 ### Bot Client
+
 - `services/bot-client/src/processors/ActivatedChannelProcessor.ts` - Main processor
 - `services/bot-client/src/processors/notificationCache.ts` - Rate limiting cache
 - `services/bot-client/src/commands/channel/` - Slash commands
 
 ### API Gateway
+
 - `services/api-gateway/src/routes/user/channel/` - REST endpoints
 - `services/api-gateway/src/services/sync/config/syncTables.ts` - Sync exclusion
 
 ### Common Types
+
 - `packages/common-types/src/schemas/api/channel.ts` - Zod schemas
 - `packages/common-types/src/utils/deterministicUuid.ts` - UUID generator
 
 ## Testing
 
 ### Unit Tests
+
 - `ActivatedChannelProcessor.test.ts` - 11 tests
 - `notificationCache.test.ts` - 11 tests
 - `activate.test.ts`, `deactivate.test.ts`, `get.test.ts`, `list.test.ts` - API endpoint tests
 
 ### Manual Testing
+
 1. Activate a personality: `/channel activate personality:lilith`
 2. Send a message - bot should auto-respond
 3. Try activating a different personality - should replace
