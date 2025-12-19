@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ActivatedChannelProcessor } from './ActivatedChannelProcessor.js';
+import {
+  ActivatedChannelProcessor,
+  _resetNotificationCacheForTesting,
+} from './ActivatedChannelProcessor.js';
 import type { Message } from 'discord.js';
 import type { LoadedPersonality, GetChannelActivationResponse } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
@@ -21,16 +24,21 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
 
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 
-function createMockMessage(options?: { content?: string; channelId?: string }): Message {
+function createMockMessage(options?: {
+  content?: string;
+  channelId?: string;
+  userId?: string;
+}): Message {
   return {
     id: '123456789',
     content: options?.content ?? 'Hello world',
     channelId: options?.channelId ?? 'channel-123',
     author: {
-      id: 'user-123',
+      id: options?.userId ?? 'user-123',
       username: 'testuser',
       bot: false,
     },
+    reply: vi.fn().mockResolvedValue({}),
   } as unknown as Message;
 }
 
@@ -64,6 +72,7 @@ describe('ActivatedChannelProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    _resetNotificationCacheForTesting();
 
     mockGatewayClient = {
       getChannelActivation: vi.fn(),
@@ -137,7 +146,7 @@ describe('ActivatedChannelProcessor', () => {
     });
 
     it('should continue processing when personality is not accessible to user', async () => {
-      const message = createMockMessage();
+      const message = createMockMessage({ userId: 'unique-user-access-test' });
       mockGatewayClient.getChannelActivation.mockResolvedValue({
         isActivated: true,
         activation: {
@@ -156,10 +165,93 @@ describe('ActivatedChannelProcessor', () => {
 
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
         'private-personality',
-        'user-123'
+        'unique-user-access-test'
       );
       expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
       expect(result).toBe(false); // Should continue to next processor
+    });
+
+    it('should notify user when they lack access to private personality', async () => {
+      const message = createMockMessage({ userId: 'unique-user-notify-test' });
+      mockGatewayClient.getChannelActivation.mockResolvedValue({
+        isActivated: true,
+        activation: {
+          id: 'activation-id',
+          channelId: 'channel-123',
+          personalitySlug: 'private-personality',
+          personalityName: 'Secret Bot',
+          activatedBy: 'other-user-uuid',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      } as GetChannelActivationResponse);
+      mockPersonalityService.loadPersonality.mockResolvedValue(null);
+
+      await processor.process(message);
+
+      expect(message.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Secret Bot'),
+        allowedMentions: { repliedUser: false },
+      });
+      expect(message.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining("private personality you don't have access to"),
+        allowedMentions: { repliedUser: false },
+      });
+    });
+
+    it('should not spam notifications to the same user', async () => {
+      const message1 = createMockMessage({ userId: 'spam-test-user', channelId: 'spam-channel' });
+      const message2 = createMockMessage({ userId: 'spam-test-user', channelId: 'spam-channel' });
+
+      const activationResponse = {
+        isActivated: true,
+        activation: {
+          id: 'activation-id',
+          channelId: 'spam-channel',
+          personalitySlug: 'private-personality',
+          personalityName: 'Private Bot',
+          activatedBy: 'other-user-uuid',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      } as GetChannelActivationResponse;
+
+      mockGatewayClient.getChannelActivation.mockResolvedValue(activationResponse);
+      mockPersonalityService.loadPersonality.mockResolvedValue(null);
+
+      // First message should trigger notification
+      await processor.process(message1);
+      expect(message1.reply).toHaveBeenCalledTimes(1);
+
+      // Second message from same user in same channel should NOT trigger notification (rate limited)
+      await processor.process(message2);
+      expect(message2.reply).not.toHaveBeenCalled();
+    });
+
+    it('should notify different users separately', async () => {
+      const userAMessage = createMockMessage({ userId: 'user-a-notify', channelId: 'notify-channel' });
+      const userBMessage = createMockMessage({ userId: 'user-b-notify', channelId: 'notify-channel' });
+
+      const activationResponse = {
+        isActivated: true,
+        activation: {
+          id: 'activation-id',
+          channelId: 'notify-channel',
+          personalitySlug: 'private-personality',
+          personalityName: 'Private Bot',
+          activatedBy: 'other-user-uuid',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      } as GetChannelActivationResponse;
+
+      mockGatewayClient.getChannelActivation.mockResolvedValue(activationResponse);
+      mockPersonalityService.loadPersonality.mockResolvedValue(null);
+
+      // User A gets notification
+      await processor.process(userAMessage);
+      expect(userAMessage.reply).toHaveBeenCalledTimes(1);
+
+      // User B also gets notification (different user)
+      await processor.process(userBMessage);
+      expect(userBMessage.reply).toHaveBeenCalledTimes(1);
     });
 
     it('should continue processing when activated personality was deleted', async () => {

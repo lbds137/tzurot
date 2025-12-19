@@ -10,7 +10,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, INTERVALS } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -18,6 +18,50 @@ import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 
 const logger = createLogger('ActivatedChannelProcessor');
+
+/** How long to wait before notifying the same user again about private personality access (1 hour) */
+const NOTIFICATION_COOLDOWN_MS = INTERVALS.ONE_HOUR_MS;
+
+/** Cache to track which users have been notified about private personality access */
+const notificationCache = new Map<string, number>();
+
+/**
+ * Check if we should notify a user about private personality access.
+ * Uses a cooldown to prevent spamming the same user.
+ */
+function shouldNotifyUser(channelId: string, userId: string): boolean {
+  const key = `${channelId}:${userId}`;
+  const lastNotified = notificationCache.get(key);
+  const now = Date.now();
+
+  if (lastNotified !== undefined && now - lastNotified < NOTIFICATION_COOLDOWN_MS) {
+    return false; // Still in cooldown period
+  }
+
+  notificationCache.set(key, now);
+  return true;
+}
+
+/**
+ * Periodically clean up old entries from the notification cache.
+ * Called internally to prevent memory leaks.
+ */
+function cleanupNotificationCache(): void {
+  const now = Date.now();
+  for (const [key, timestamp] of notificationCache.entries()) {
+    if (now - timestamp > NOTIFICATION_COOLDOWN_MS) {
+      notificationCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Reset the notification cache. Exported for testing only.
+ * @internal
+ */
+export function _resetNotificationCacheForTesting(): void {
+  notificationCache.clear();
+}
 
 export class ActivatedChannelProcessor implements IMessageProcessor {
   constructor(
@@ -56,6 +100,25 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
         { channelId, personalitySlug, personalityName, userId },
         '[ActivatedChannelProcessor] Personality not accessible to user, skipping auto-response'
       );
+
+      // Notify the user (with rate limiting to avoid spam)
+      if (shouldNotifyUser(channelId, userId)) {
+        // Clean up old cache entries periodically
+        cleanupNotificationCache();
+
+        try {
+          await message.reply({
+            content: `📍 This channel has **${personalityName}** activated, but it's a private personality you don't have access to. You can still @mention other personalities or ask the personality owner for access.`,
+            allowedMentions: { repliedUser: false }, // Don't ping the user
+          });
+        } catch (error) {
+          logger.warn(
+            { err: error, channelId, userId },
+            '[ActivatedChannelProcessor] Failed to send private personality notification'
+          );
+        }
+      }
+
       return false; // Continue chain - let other processors handle it
     }
 

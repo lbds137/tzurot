@@ -43,6 +43,10 @@ export const TIMEOUTS = {
  * Cache and cleanup intervals
  */
 export const INTERVALS = {
+  // Common time durations (in milliseconds)
+  /** One hour in milliseconds (3,600,000ms) */
+  ONE_HOUR_MS: 60 * 60 * 1000,
+
   /** API key cache TTL (10 seconds - balance between performance and responsiveness to key rotation) */
   API_KEY_CACHE_TTL: 10 * 1000,
   /** In-memory cache cleanup interval for expired entries (5 minutes) */
