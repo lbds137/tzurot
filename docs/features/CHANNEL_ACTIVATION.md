@@ -1,6 +1,6 @@
 # Channel Activation Feature
 
-**Status**: Implemented (v3.0.0-beta.23)
+**Status**: Implemented (v3.0.0-beta.24)
 **Added**: December 2025
 
 ## Overview
