@@ -40,6 +40,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
+    // Note: guildId is captured for future audit/permission features but not currently used
     const { channelId, personalitySlug, guildId: _guildId } = parseResult.data;
 
     // Look up personality by slug
@@ -76,48 +77,54 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
-    // Check if there's an existing activation for this channel (any personality)
-    const existingActivation = await prisma.activatedChannel.findFirst({
-      where: { channelId },
-      select: { id: true, personalityId: true },
-    });
-
-    const replaced = existingActivation !== null;
-
-    // If there's an existing activation, delete it first (one personality per channel)
-    if (existingActivation !== null) {
-      await prisma.activatedChannel.delete({
-        where: { id: existingActivation.id },
-      });
-      logger.info(
-        { channelId, previousPersonalityId: existingActivation.personalityId },
-        '[Channel] Removed previous activation'
-      );
-    }
-
     // Create new activation with deterministic UUID
     const activationId = generateActivatedChannelUuid(channelId, personality.id);
 
-    const activation = await prisma.activatedChannel.create({
-      data: {
-        id: activationId,
-        channelId,
-        personalityId: personality.id,
-        autoRespond: true,
-        createdBy: user.id,
-      },
-      select: {
-        id: true,
-        channelId: true,
-        createdBy: true,
-        createdAt: true,
-        personality: {
-          select: {
-            slug: true,
-            displayName: true,
+    // Use transaction to atomically delete existing + create new (prevents race conditions)
+    const { activation, replaced } = await prisma.$transaction(async tx => {
+      // Check if there's an existing activation for this channel (any personality)
+      const existingActivation = await tx.activatedChannel.findFirst({
+        where: { channelId },
+        select: { id: true, personalityId: true },
+      });
+
+      const wasReplaced = existingActivation !== null;
+
+      // If there's an existing activation, delete it first (one personality per channel)
+      if (existingActivation !== null) {
+        await tx.activatedChannel.delete({
+          where: { id: existingActivation.id },
+        });
+        logger.info(
+          { channelId, previousPersonalityId: existingActivation.personalityId },
+          '[Channel] Removed previous activation'
+        );
+      }
+
+      // Create new activation
+      const newActivation = await tx.activatedChannel.create({
+        data: {
+          id: activationId,
+          channelId,
+          personalityId: personality.id,
+          autoRespond: true,
+          createdBy: user.id,
+        },
+        select: {
+          id: true,
+          channelId: true,
+          createdBy: true,
+          createdAt: true,
+          personality: {
+            select: {
+              slug: true,
+              displayName: true,
+            },
           },
         },
-      },
+      });
+
+      return { activation: newActivation, replaced: wasReplaced };
     });
 
     logger.info(
