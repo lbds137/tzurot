@@ -64,7 +64,6 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
     const content = voiceTranscript ?? message.content;
 
     // Handle the message with isAutoResponse flag
-    // TODO: Thread isAutoResponse through the handler chain (Phase 3 task)
     await this.personalityHandler.handleMessage(message, personality, content, {
       isAutoResponse: true,
     });
