@@ -10,92 +10,15 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, INTERVALS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
+import { shouldNotifyUser } from './notificationCache.js';
 
 const logger = createLogger('ActivatedChannelProcessor');
-
-/** How long to wait before notifying the same user again about private personality access (1 hour) */
-const NOTIFICATION_COOLDOWN_MS = INTERVALS.ONE_HOUR_MS;
-
-/** Cache to track which users have been notified about private personality access */
-const notificationCache = new Map<string, number>();
-
-/**
- * Check if we should notify a user about private personality access.
- * Uses a cooldown to prevent spamming the same user.
- */
-function shouldNotifyUser(channelId: string, userId: string): boolean {
-  const key = `${channelId}:${userId}`;
-  const lastNotified = notificationCache.get(key);
-  const now = Date.now();
-
-  if (lastNotified !== undefined && now - lastNotified < NOTIFICATION_COOLDOWN_MS) {
-    return false; // Still in cooldown period
-  }
-
-  notificationCache.set(key, now);
-  return true;
-}
-
-/**
- * Periodically clean up old entries from the notification cache.
- * Called internally to prevent memory leaks.
- */
-function cleanupNotificationCache(): void {
-  const now = Date.now();
-  for (const [key, timestamp] of notificationCache.entries()) {
-    if (now - timestamp > NOTIFICATION_COOLDOWN_MS) {
-      notificationCache.delete(key);
-    }
-  }
-}
-
-/**
- * Reset the notification cache. Exported for testing only.
- * @internal
- */
-export function _resetNotificationCacheForTesting(): void {
-  notificationCache.clear();
-}
-
-/**
- * Get the current size of the notification cache. Exported for testing only.
- * @internal
- */
-export function _getNotificationCacheSizeForTesting(): number {
-  return notificationCache.size;
-}
-
-/**
- * Add an entry to the notification cache with a specific timestamp. Exported for testing only.
- * @internal
- */
-export function _addNotificationCacheEntryForTesting(
-  channelId: string,
-  userId: string,
-  timestamp: number
-): void {
-  const key = `${channelId}:${userId}`;
-  notificationCache.set(key, timestamp);
-}
-
-/**
- * Trigger cleanup of the notification cache. Exported for testing only.
- * @internal
- */
-export function _triggerCleanupForTesting(): void {
-  cleanupNotificationCache();
-}
-
-// Start periodic cleanup interval to prevent memory leaks
-// This runs every hour to remove expired cache entries
-// Safe for bot-client: single-instance, local UI state (not horizontally scaled)
-setInterval(cleanupNotificationCache, INTERVALS.ONE_HOUR_MS);
 
 export class ActivatedChannelProcessor implements IMessageProcessor {
   constructor(

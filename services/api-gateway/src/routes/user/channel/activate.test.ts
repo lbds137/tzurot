@@ -35,6 +35,7 @@ vi.mock('@tzurot/common-types', async () => {
 
 vi.mock('../../../services/AuthMiddleware.js', () => ({
   requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
+  requireServiceAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
 }));
 
 vi.mock('../../../utils/asyncHandler.js', () => ({
