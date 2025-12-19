@@ -173,7 +173,7 @@ Ideas for later. Resist the shiny object.
 - Streaming responses
 - Local/OpenRouter Embeddings
 - Lorebooks / Sticky Context
-- Multi-personality responses
+- Multi-personality per channel (activate multiple personalities in one channel, each responds based on trigger patterns or probability)
 - Dream sequences (self-reflection)
 - Relationship graphs
 - Metrics & monitoring (Prometheus)

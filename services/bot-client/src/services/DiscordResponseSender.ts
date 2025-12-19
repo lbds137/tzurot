@@ -44,6 +44,8 @@ export interface SendResponseOptions {
   modelUsed?: string;
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;
+  /** Whether this is an auto-response from channel activation (not @mention) */
+  isAutoResponse?: boolean;
 }
 
 /**
@@ -67,14 +69,23 @@ export class DiscordResponseSender {
    * - Redis webhook storage
    */
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
-    const { content, personality, message, modelUsed, isGuestMode } = options;
+    const { content, personality, message, modelUsed, isGuestMode, isAutoResponse } = options;
 
     // Build footer to append AFTER chunking (to preserve newline formatting)
     // The chunker's word-level splitting replaces \n with spaces, so we add footer post-chunk
+    // Compact format: combine model + auto-response indicator on one line to minimize clutter
     let footer = '';
     if (modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
       footer += `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
+
+      // Append auto-response indicator to same line (compact format)
+      if (isAutoResponse === true) {
+        footer += ' • 📍 auto';
+      }
+    } else if (isAutoResponse === true) {
+      // No model shown but still want to indicate auto-response
+      footer += '\n-# 📍 auto-response';
     }
     if (isGuestMode === true) {
       footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
