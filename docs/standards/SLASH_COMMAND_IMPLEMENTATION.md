@@ -164,20 +164,18 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
 These handler types are NOT auto-deferred at the top level:
 
-| Handler Type      | Needs `deferReply`? | Why                                            |
-| ----------------- | ------------------- | ---------------------------------------------- |
-| Chat commands     | ❌ No               | Auto-deferred in `index.ts`                    |
-| Modal submissions | ✅ Yes              | `isModalSubmit()` not auto-deferred            |
-| Button clicks     | ✅ Yes              | `isButton()` not auto-deferred                 |
-| Select menus      | ✅ Yes              | `isStringSelectMenu()` not auto-deferred       |
+| Handler Type      | Needs `deferReply`? | Why                                      |
+| ----------------- | ------------------- | ---------------------------------------- |
+| Chat commands     | ❌ No               | Auto-deferred in `index.ts`              |
+| Modal submissions | ✅ Yes              | `isModalSubmit()` not auto-deferred      |
+| Button clicks     | ✅ Yes              | `isButton()` not auto-deferred           |
+| Select menus      | ✅ Yes              | `isStringSelectMenu()` not auto-deferred |
 
 **Modal Submit Handler Pattern:**
 
 ```typescript
 // ✅ CORRECT: Modal handlers need their own deferReply
-export async function handleSeedModalSubmit(
-  interaction: ModalSubmitInteraction
-): Promise<void> {
+export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   // ... process modal submission
@@ -189,9 +187,7 @@ export async function handleSeedModalSubmit(
 
 ```typescript
 // ✅ CORRECT: Button handlers need their own deferReply (or deferUpdate)
-export async function handleExpandButton(
-  interaction: ButtonInteraction
-): Promise<void> {
+export async function handleExpandButton(interaction: ButtonInteraction): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   // ... or await interaction.deferUpdate() to update the original message
 
@@ -209,7 +205,7 @@ Test files should NOT mock or assert `deferReply` for chat command handlers:
 function createMockInteraction() {
   return {
     user: { id: '123456789' },
-    editReply: vi.fn(),  // Only editReply needed
+    editReply: vi.fn(), // Only editReply needed
     options: { getString: vi.fn() },
   } as any;
 }
