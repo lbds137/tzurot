@@ -17,13 +17,14 @@ lastUpdated: '2025-12-20'
 
 ## Size Limits
 
-| Metric | Target | Maximum | Action if Exceeded |
-| --- | --- | --- | --- |
-| Skill lines | <300 | 400 | Split or reference docs |
-| Total skills | 10-12 | 15 | Consolidate related skills |
-| CLAUDE.md | <400 | 500 | Move content to skills |
+| Metric       | Target | Maximum | Action if Exceeded         |
+| ------------ | ------ | ------- | -------------------------- |
+| Skill lines  | <300   | 400     | Split or reference docs    |
+| Total skills | 10-12  | 15      | Consolidate related skills |
+| CLAUDE.md    | <400   | 500     | Move content to skills     |
 
 **Current skill sizes should be monitored:**
+
 ```bash
 wc -l .claude/skills/**/SKILL.md | sort -n
 ```
@@ -42,32 +43,37 @@ lastUpdated: 'YYYY-MM-DD'
 **Use this skill when:** [2-3 specific trigger scenarios]
 
 ## Quick Reference (Essential)
+
 [10-20 lines of the most critical patterns]
 
 ## Core Patterns (Must Know)
+
 [50-100 lines of essential patterns with examples]
 
 ## Additional Patterns
+
 **See:** `docs/path/to/detailed-docs.md`
 [Brief summaries with links, not full content]
 
 ## Related Skills
+
 - **skill-name** - When to use instead
 
 ## References
+
 - Full documentation: `docs/path/to/doc.md`
 - Project guidelines: `CLAUDE.md#section`
 ```
 
 ## What Belongs in Skills vs Docs
 
-| Content Type | Location | Example |
-| --- | --- | --- |
-| Quick patterns | Skill | "Use fake timers: `vi.useFakeTimers()`" |
-| Essential examples | Skill | 5-10 line code snippet |
-| Comprehensive guides | `docs/` | Full testing guide with all edge cases |
-| Reference tables | `docs/` | Complete API reference |
-| Decision rationale | Skill (brief) + `docs/` (full) | Why we use rebase-only |
+| Content Type         | Location                       | Example                                 |
+| -------------------- | ------------------------------ | --------------------------------------- |
+| Quick patterns       | Skill                          | "Use fake timers: `vi.useFakeTimers()`" |
+| Essential examples   | Skill                          | 5-10 line code snippet                  |
+| Comprehensive guides | `docs/`                        | Full testing guide with all edge cases  |
+| Reference tables     | `docs/`                        | Complete API reference                  |
+| Decision rationale   | Skill (brief) + `docs/` (full) | Why we use rebase-only                  |
 
 ## Writing Good Descriptions
 
@@ -94,12 +100,14 @@ description: Use when writing Prisma queries, running migrations, or working wit
 ## When to Create a New Skill
 
 **Create a new skill when:**
+
 - Pattern applies to multiple features/areas
 - Topic is distinct from existing skills
 - Content would bloat an existing skill beyond limits
 - Users frequently need this specific guidance
 
 **Don't create a new skill when:**
+
 - Content fits in existing skill (<50 lines to add)
 - Topic is one-off or temporary
 - Better suited for `docs/` as reference material
@@ -108,12 +116,14 @@ description: Use when writing Prisma queries, running migrations, or working wit
 ## When to Merge Skills
 
 **Merge skills when:**
+
 - Significant content overlap (>30%)
 - Topics are closely related (e.g., constants + types)
 - Combined size stays under 400 lines
 - Mental model is clearer as one concept
 
 **Process:**
+
 1. Create merged skill with combined essential content
 2. Move non-essential content to `docs/`
 3. Delete old skill directories
@@ -123,12 +133,14 @@ description: Use when writing Prisma queries, running migrations, or working wit
 ## Skill Maintenance
 
 **Regular audits (monthly or after major features):**
+
 1. Check skill sizes: `wc -l .claude/skills/**/SKILL.md`
 2. Remove outdated patterns
 3. Update `lastUpdated` timestamps
 4. Verify cross-references still valid
 
 **After production incidents:**
+
 1. Add lessons learned to relevant skill
 2. Keep addition brief (reference post-mortem for details)
 3. Update `lastUpdated`
@@ -136,13 +148,18 @@ description: Use when writing Prisma queries, running migrations, or working wit
 ## Anti-Patterns to Avoid
 
 ### 1. Documentation Dumping
+
 ```markdown
 # ❌ BAD - Entire guide in skill
+
 ## Complete API Reference
+
 [500 lines of every possible option]
 
 # ✅ GOOD - Essential + reference
+
 ## Key Options
+
 - `ttl`: Cache lifetime in ms
 - `maxSize`: Maximum entries
 
@@ -150,32 +167,42 @@ description: Use when writing Prisma queries, running migrations, or working wit
 ```
 
 ### 2. Duplicate Content
+
 ```markdown
 # ❌ BAD - Same content in skill and CLAUDE.md
+
 [Pattern explained in both places]
 
 # ✅ GOOD - Single source of truth
+
 **See:** `CLAUDE.md#testing` or reference from CLAUDE.md to skill
 ```
 
 ### 3. Over-Detailed Examples
+
 ```markdown
 # ❌ BAD - 50-line example for simple concept
+
 [Full service with all edge cases]
 
 # ✅ GOOD - Minimal viable example
+
 const cache = new TTLCache({ ttl: 60000, maxSize: 100 });
 cache.set('key', value);
 const result = cache.get('key');
 ```
 
 ### 4. Missing Cross-References
+
 ```markdown
 # ❌ BAD - Standalone content
+
 [No links to related skills or docs]
 
 # ✅ GOOD - Connected knowledge
+
 ## Related Skills
+
 - **tzurot-architecture** - Service boundaries
 - **tzurot-async-flow** - Timer alternatives
 ```

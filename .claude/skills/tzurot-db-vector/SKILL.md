@@ -143,15 +143,16 @@ CREATE INDEX idx_name ON table(column);
 
 ### Anti-Patterns
 
-| ❌ Don't | ✅ Instead |
-| --- | --- |
-| Run SQL manually then mark applied | Use `migrate deploy` |
-| Edit applied migrations | Create new migration to fix |
+| ❌ Don't                             | ✅ Instead                           |
+| ------------------------------------ | ------------------------------------ |
+| Run SQL manually then mark applied   | Use `migrate deploy`                 |
+| Edit applied migrations              | Create new migration to fix          |
 | Use `railway run prisma migrate dev` | Run locally with `.env` DATABASE_URL |
 
 ### Checksum Issues
 
 If you get checksum errors:
+
 1. Check `prisma migrate status`
 2. If migration is correct: `npx prisma migrate resolve --applied <name>` (emergency only)
 3. If wrong logic: Create NEW migration to fix
@@ -170,7 +171,7 @@ pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>
 ```typescript
 // ✅ Use include to avoid N+1
 const personalities = await prisma.personality.findMany({
-  include: { llmConfig: true }
+  include: { llmConfig: true },
 });
 
 // ✅ Cursor-based pagination for large datasets
@@ -178,7 +179,7 @@ const messages = await prisma.conversationHistory.findMany({
   take: limit + 1,
   cursor: cursor ? { id: cursor } : undefined,
   skip: cursor ? 1 : 0,
-  orderBy: { createdAt: 'desc' }
+  orderBy: { createdAt: 'desc' },
 });
 ```
 

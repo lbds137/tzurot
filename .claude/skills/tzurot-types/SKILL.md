@@ -42,14 +42,14 @@ packages/common-types/src/
 
 ## When to Add to Common-Types
 
-| Content | Add to Common-Types? | Location |
-| --- | --- | --- |
-| Value used in 2+ files | ✅ Yes | `constants/<domain>.ts` |
-| BullMQ job payloads | ✅ Yes | `types/queue-types.ts` |
-| HTTP API contracts | ✅ Yes | `types/schemas.ts` |
-| Type guards for Discord | ✅ Yes | `types/discord-types.ts` |
-| Service-internal types | ❌ No | Keep in service |
-| Test-only values | ❌ No | Keep in test file |
+| Content                 | Add to Common-Types? | Location                 |
+| ----------------------- | -------------------- | ------------------------ |
+| Value used in 2+ files  | ✅ Yes               | `constants/<domain>.ts`  |
+| BullMQ job payloads     | ✅ Yes               | `types/queue-types.ts`   |
+| HTTP API contracts      | ✅ Yes               | `types/schemas.ts`       |
+| Type guards for Discord | ✅ Yes               | `types/discord-types.ts` |
+| Service-internal types  | ❌ No                | Keep in service          |
+| Test-only values        | ❌ No                | Keep in test file        |
 
 ## Constants Patterns
 
@@ -66,7 +66,9 @@ await redis.set(`${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${id}`, data);
 
 // ✅ API limits
 import { TEXT_LIMITS } from '@tzurot/common-types';
-if (content.length > TEXT_LIMITS.MESSAGE_MAX_LENGTH) { /* chunk */ }
+if (content.length > TEXT_LIMITS.MESSAGE_MAX_LENGTH) {
+  /* chunk */
+}
 ```
 
 ### Don't Create Constants For
@@ -90,7 +92,7 @@ export const RETRY_CONFIG = {
   MAX_ATTEMPTS: 3,
   /** Initial delay (1 second) */
   INITIAL_DELAY_MS: 1000,
-} as const;  // Always use 'as const'
+} as const; // Always use 'as const'
 ```
 
 ## Zod Schema Patterns
@@ -158,10 +160,10 @@ await delay(300000);
 await delay(TIMEOUTS.CACHE_TTL);
 
 // ❌ BAD - Too deeply nested
-CONFIG.AI.PROVIDERS.OPENROUTER.TIMEOUTS.DEFAULT
+CONFIG.AI.PROVIDERS.OPENROUTER.TIMEOUTS.DEFAULT;
 
 // ✅ GOOD - Flat structure
-AI_TIMEOUTS.OPENROUTER_DEFAULT
+AI_TIMEOUTS.OPENROUTER_DEFAULT;
 ```
 
 ### Types Anti-Patterns
@@ -180,10 +182,10 @@ const data = MySchema.parse(req.body);
 import { MyType } from '@tzurot/common-types';
 
 // ❌ BAD - Using 'any'
-function process(data: any) { }
+function process(data: any) {}
 
 // ✅ GOOD - Proper typing
-function process(data: ValidatedType) { }
+function process(data: ValidatedType) {}
 ```
 
 ## Adding New Constants
@@ -210,7 +212,9 @@ export const TIMEOUTS = {
 
 ```typescript
 // packages/common-types/src/types/schemas.ts
-export const MyNewSchema = z.object({ /* ... */ });
+export const MyNewSchema = z.object({
+  /* ... */
+});
 export type MyNewType = z.infer<typeof MyNewSchema>;
 ```
 

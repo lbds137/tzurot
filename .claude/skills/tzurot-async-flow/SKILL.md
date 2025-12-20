@@ -71,7 +71,9 @@ export async function processLLMGeneration(
   const personality = await personalityService.getPersonality(job.data.personalityId);
 
   await job.updateProgress(50);
-  const response = await aiProvider.generateResponse({ /* ... */ });
+  const response = await aiProvider.generateResponse({
+    /* ... */
+  });
 
   await job.updateProgress(100);
   return { content: response.content };
