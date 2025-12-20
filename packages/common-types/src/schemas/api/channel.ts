@@ -19,6 +19,7 @@ import { z } from 'zod';
 export const ActivatedChannelSchema = z.object({
   id: z.string().uuid(),
   channelId: z.string().min(1),
+  guildId: z.string().nullable(), // Nullable for legacy records (backfilled lazily)
   personalitySlug: z.string().min(1),
   personalityName: z.string().min(1),
   activatedBy: z.string().uuid().nullable(),
@@ -74,9 +75,26 @@ export type GetChannelActivationResponse = z.infer<typeof GetChannelActivationRe
 // ============================================================================
 // GET /user/channel/list
 // Lists all activated channels (optionally filtered by guild)
+// Query params: ?guildId=xxx (optional)
 // ============================================================================
 
 export const ListChannelActivationsResponseSchema = z.object({
   activations: z.array(ActivatedChannelSchema),
 });
 export type ListChannelActivationsResponse = z.infer<typeof ListChannelActivationsResponseSchema>;
+
+// ============================================================================
+// PATCH /user/channel/update-guild
+// Updates guildId for an existing activation (for lazy backfill)
+// ============================================================================
+
+export const UpdateChannelGuildRequestSchema = z.object({
+  channelId: z.string().min(1),
+  guildId: z.string().min(1),
+});
+export type UpdateChannelGuildRequest = z.infer<typeof UpdateChannelGuildRequestSchema>;
+
+export const UpdateChannelGuildResponseSchema = z.object({
+  updated: z.boolean(),
+});
+export type UpdateChannelGuildResponse = z.infer<typeof UpdateChannelGuildResponseSchema>;

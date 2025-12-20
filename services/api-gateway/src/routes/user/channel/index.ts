@@ -7,6 +7,7 @@
  * - DELETE /user/channel/deactivate - Deactivate personality from a channel
  * - GET /user/channel/:channelId - Get activation status for a channel
  * - GET /user/channel/list - List all activated channels
+ * - PATCH /user/channel/update-guild - Update guildId for backfill
  */
 
 import { Router } from 'express';
@@ -15,6 +16,7 @@ import { createActivateHandler } from './activate.js';
 import { createDeactivateHandler } from './deactivate.js';
 import { createGetHandler } from './get.js';
 import { createListHandler } from './list.js';
+import { createUpdateGuildHandler } from './updateGuild.js';
 
 /**
  * Create channel activation router with injected dependencies
@@ -31,6 +33,9 @@ export function createChannelRoutes(prisma: PrismaClient): Router {
 
   // Deactivate personality - DELETE /deactivate
   router.delete('/deactivate', ...createDeactivateHandler(prisma));
+
+  // Update guildId - PATCH /update-guild (for lazy backfill)
+  router.patch('/update-guild', ...createUpdateGuildHandler(prisma));
 
   // Get activation status - GET /:channelId
   router.get('/:channelId', ...createGetHandler(prisma));

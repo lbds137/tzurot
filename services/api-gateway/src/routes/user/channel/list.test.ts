@@ -14,6 +14,7 @@ import {
   MOCK_USER_UUID,
   MOCK_ACTIVATION_UUID,
   MOCK_DISCORD_USER_ID,
+  MOCK_GUILD_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -125,6 +126,7 @@ describe('GET /user/channel/list', () => {
         {
           id: MOCK_ACTIVATION_UUID,
           channelId: MOCK_DISCORD_USER_ID,
+          guildId: MOCK_GUILD_ID,
           personalitySlug: 'test-character',
           personalityName: 'Test Character',
           activatedBy: MOCK_USER_UUID,
@@ -132,6 +134,39 @@ describe('GET /user/channel/list', () => {
         },
       ],
     });
+  });
+
+  it('should filter by guildId when query param provided', async () => {
+    const activation = createMockActivation();
+    mockPrisma.activatedChannel.findMany.mockResolvedValue([activation]);
+
+    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const handler = getHandler(router, 'get', '/list');
+    const { req, res } = createMockReqRes({}, {}, { guildId: MOCK_GUILD_ID });
+
+    await handler(req, res);
+
+    expect(mockPrisma.activatedChannel.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { guildId: MOCK_GUILD_ID },
+      })
+    );
+  });
+
+  it('should not filter when no guildId query param', async () => {
+    mockPrisma.activatedChannel.findMany.mockResolvedValue([]);
+
+    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
+    const handler = getHandler(router, 'get', '/list');
+    const { req, res } = createMockReqRes();
+
+    await handler(req, res);
+
+    expect(mockPrisma.activatedChannel.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: undefined,
+      })
+    );
   });
 
   it('should handle activation with null createdBy', async () => {

@@ -41,7 +41,12 @@ export const data = new SlashCommandBuilder()
     subcommand.setName('deactivate').setDescription('Deactivate the personality from this channel')
   )
   .addSubcommand(subcommand =>
-    subcommand.setName('list').setDescription('List all channels with activated personalities')
+    subcommand
+      .setName('list')
+      .setDescription('List activated channels in this server')
+      .addBooleanOption(option =>
+        option.setName('all').setDescription('Show all servers (bot owner only)').setRequired(false)
+      )
   );
 
 /**

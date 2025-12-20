@@ -42,6 +42,7 @@ export function createMockPrisma(): {
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
   };
   $transaction: ReturnType<typeof vi.fn>;
 } {
@@ -61,6 +62,7 @@ export function createMockPrisma(): {
       findMany: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      updateMany: vi.fn(),
     },
     $transaction: vi.fn(),
   };
@@ -90,6 +92,9 @@ export function createMockPersonality(
   };
 }
 
+// Valid guild ID for testing
+export const MOCK_GUILD_ID = '987654321098765432';
+
 // Base mock activation for tests
 export function createMockActivation(
   overrides: Record<string, unknown> = {}
@@ -97,6 +102,7 @@ export function createMockActivation(
   return {
     id: MOCK_ACTIVATION_UUID,
     channelId: MOCK_DISCORD_USER_ID,
+    guildId: MOCK_GUILD_ID,
     createdBy: MOCK_USER_UUID,
     createdAt: MOCK_CREATED_AT,
     personality: {
@@ -110,11 +116,13 @@ export function createMockActivation(
 // Helper to create mock request/response
 export function createMockReqRes(
   body: Record<string, unknown> = {},
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
+  query: Record<string, string> = {}
 ): { req: Request & { userId: string }; res: Response } {
   const req = {
     body,
     params,
+    query,
     userId: 'discord-user-123',
   } as unknown as Request & { userId: string };
 
