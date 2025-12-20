@@ -7,10 +7,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePersonalityAutocomplete, getVisibilityIcon } from './personalityAutocomplete.js';
 import type { PersonalitySummary } from '@tzurot/common-types';
 
-// Mock gateway client
-const mockCallGatewayApi = vi.fn();
-vi.mock('../userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+// Mock the autocomplete cache
+const mockGetCachedPersonalities = vi.fn();
+vi.mock('./autocompleteCache.js', () => ({
+  getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -68,40 +68,31 @@ describe('handlePersonalityAutocomplete', () => {
 
       expect(handled).toBe(false);
       expect(mockRespond).not.toHaveBeenCalled();
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(mockGetCachedPersonalities).not.toHaveBeenCalled();
     });
 
     it('should return true for "personality" option name by default', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: [] },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([]);
 
       const interaction = createMockInteraction('personality', '');
       const handled = await handlePersonalityAutocomplete(interaction);
 
       expect(handled).toBe(true);
-      expect(mockCallGatewayApi).toHaveBeenCalled();
+      expect(mockGetCachedPersonalities).toHaveBeenCalled();
     });
 
     it('should return true for "character" option name by default', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: [] },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([]);
 
       const interaction = createMockInteraction('character', '');
       const handled = await handlePersonalityAutocomplete(interaction);
 
       expect(handled).toBe(true);
-      expect(mockCallGatewayApi).toHaveBeenCalled();
+      expect(mockGetCachedPersonalities).toHaveBeenCalled();
     });
 
     it('should match custom single option name', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: [] },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([]);
 
       const interaction = createMockInteraction('ai-persona', '');
       const handled = await handlePersonalityAutocomplete(interaction, {
@@ -112,10 +103,7 @@ describe('handlePersonalityAutocomplete', () => {
     });
 
     it('should match custom array of option names', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: [] },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([]);
 
       const interaction = createMockInteraction('bot', '');
       const handled = await handlePersonalityAutocomplete(interaction, {
@@ -132,30 +120,22 @@ describe('handlePersonalityAutocomplete', () => {
       });
 
       expect(handled).toBe(false);
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(mockGetCachedPersonalities).not.toHaveBeenCalled();
     });
   });
 
-  describe('gateway API calls', () => {
-    it('should call gateway API with correct user ID', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: [] },
-      });
+  describe('cache usage', () => {
+    it('should call cache with correct user ID', async () => {
+      mockGetCachedPersonalities.mockResolvedValue([]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality', {
-        userId: '123456789',
-      });
+      expect(mockGetCachedPersonalities).toHaveBeenCalledWith('123456789');
     });
 
-    it('should return empty array when gateway API fails', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Gateway error',
-      });
+    it('should return empty array when cache returns empty', async () => {
+      mockGetCachedPersonalities.mockResolvedValue([]);
 
       const interaction = createMockInteraction('personality', '');
       const handled = await handlePersonalityAutocomplete(interaction);
@@ -165,7 +145,7 @@ describe('handlePersonalityAutocomplete', () => {
     });
 
     it('should handle thrown errors gracefully', async () => {
-      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+      mockGetCachedPersonalities.mockRejectedValue(new Error('Cache error'));
 
       const interaction = createMockInteraction('personality', '');
       const handled = await handlePersonalityAutocomplete(interaction);
@@ -177,21 +157,16 @@ describe('handlePersonalityAutocomplete', () => {
 
   describe('filtering by ownership', () => {
     it('should return all personalities when ownedOnly is false', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            createMockPersonality({ id: '1', name: 'Owned', slug: 'owned', isOwned: true }),
-            createMockPersonality({
-              id: '2',
-              name: 'Not Owned',
-              slug: 'not-owned',
-              isOwned: false,
-              isPublic: true,
-            }),
-          ],
-        },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([
+        createMockPersonality({ id: '1', name: 'Owned', slug: 'owned', isOwned: true }),
+        createMockPersonality({
+          id: '2',
+          name: 'Not Owned',
+          slug: 'not-owned',
+          isOwned: false,
+          isPublic: true,
+        }),
+      ]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction, { ownedOnly: false });
@@ -205,21 +180,16 @@ describe('handlePersonalityAutocomplete', () => {
     });
 
     it('should filter to only owned when ownedOnly is true', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            createMockPersonality({ id: '1', name: 'Owned', slug: 'owned', isOwned: true }),
-            createMockPersonality({
-              id: '2',
-              name: 'Not Owned',
-              slug: 'not-owned',
-              isOwned: false,
-              isPublic: true,
-            }),
-          ],
-        },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([
+        createMockPersonality({ id: '1', name: 'Owned', slug: 'owned', isOwned: true }),
+        createMockPersonality({
+          id: '2',
+          name: 'Not Owned',
+          slug: 'not-owned',
+          isOwned: false,
+          isPublic: true,
+        }),
+      ]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction, { ownedOnly: true });
@@ -248,10 +218,7 @@ describe('handlePersonalityAutocomplete', () => {
     ];
 
     beforeEach(() => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: testPersonalities },
-      });
+      mockGetCachedPersonalities.mockResolvedValue(testPersonalities);
     });
 
     it('should return all personalities when query is empty', async () => {
@@ -308,31 +275,26 @@ describe('handlePersonalityAutocomplete', () => {
 
   describe('visibility indicators', () => {
     it('should add visibility indicators by default', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            createMockPersonality({
-              name: 'Public Owned',
-              slug: 'public-owned',
-              isPublic: true,
-              isOwned: true,
-            }),
-            createMockPersonality({
-              name: 'Private Owned',
-              slug: 'private-owned',
-              isPublic: false,
-              isOwned: true,
-            }),
-            createMockPersonality({
-              name: 'Public Not Owned',
-              slug: 'public-not-owned',
-              isPublic: true,
-              isOwned: false,
-            }),
-          ],
-        },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([
+        createMockPersonality({
+          name: 'Public Owned',
+          slug: 'public-owned',
+          isPublic: true,
+          isOwned: true,
+        }),
+        createMockPersonality({
+          name: 'Private Owned',
+          slug: 'private-owned',
+          isPublic: false,
+          isOwned: true,
+        }),
+        createMockPersonality({
+          name: 'Public Not Owned',
+          slug: 'public-not-owned',
+          isPublic: true,
+          isOwned: false,
+        }),
+      ]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction);
@@ -345,20 +307,15 @@ describe('handlePersonalityAutocomplete', () => {
     });
 
     it('should use displayName when available', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            createMockPersonality({
-              name: 'Internal Name',
-              slug: 'test',
-              displayName: 'Beautiful Display Name',
-              isPublic: true,
-              isOwned: true,
-            }),
-          ],
-        },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([
+        createMockPersonality({
+          name: 'Internal Name',
+          slug: 'test',
+          displayName: 'Beautiful Display Name',
+          isPublic: true,
+          isOwned: true,
+        }),
+      ]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction);
@@ -369,20 +326,15 @@ describe('handlePersonalityAutocomplete', () => {
     });
 
     it('should fall back to name when displayName is null', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            createMockPersonality({
-              name: 'Fallback Name',
-              slug: 'fallback',
-              displayName: null,
-              isPublic: false,
-              isOwned: true,
-            }),
-          ],
-        },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([
+        createMockPersonality({
+          name: 'Fallback Name',
+          slug: 'fallback',
+          displayName: null,
+          isPublic: false,
+          isOwned: true,
+        }),
+      ]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction);
@@ -393,19 +345,14 @@ describe('handlePersonalityAutocomplete', () => {
     });
 
     it('should omit visibility indicators when showVisibility is false', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            createMockPersonality({
-              name: 'Test',
-              slug: 'test',
-              isPublic: true,
-              isOwned: true,
-            }),
-          ],
-        },
-      });
+      mockGetCachedPersonalities.mockResolvedValue([
+        createMockPersonality({
+          name: 'Test',
+          slug: 'test',
+          isPublic: true,
+          isOwned: true,
+        }),
+      ]);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction, { showVisibility: false });
@@ -425,10 +372,7 @@ describe('handlePersonalityAutocomplete', () => {
         })
       );
 
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personalities: manyPersonalities },
-      });
+      mockGetCachedPersonalities.mockResolvedValue(manyPersonalities);
 
       const interaction = createMockInteraction('personality', '');
       await handlePersonalityAutocomplete(interaction, { showVisibility: false });

@@ -20,7 +20,6 @@ vi.mock('../../../utils/adminApiClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
 }));
@@ -59,24 +58,6 @@ describe('Preset Global Create Handler', () => {
   });
 
   describe('handleGlobalCreate', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction({
-        name: 'Test Preset',
-        model: 'gpt-4',
-      });
-
-      vi.mocked(adminApiClient.adminPostJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          config: { id: 'new-id', name: 'Test Preset', model: 'gpt-4' },
-        }),
-      } as unknown as Response);
-
-      await handleGlobalCreate(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should successfully create preset with all fields', async () => {
       const mockInteraction = createMockInteraction({
         name: 'Full Preset',

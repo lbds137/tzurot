@@ -33,17 +33,12 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 
 // Mock command helpers
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn().mockResolvedValue(undefined),
   replyWithError: vi.fn().mockResolvedValue(undefined),
   handleCommandError: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 describe('handleSetDefault', () => {
   let mockInteraction: ChatInputCommandInteraction;
@@ -97,15 +92,6 @@ describe('handleSetDefault', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
   }
-
-  it('should defer reply with ephemeral flag', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('config-123');
-    mockNonGuestUserApis('config-123', 'Test Config');
-
-    await handleSetDefault(mockInteraction);
-
-    expect(deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-  });
 
   it('should call API with correct parameters', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('config-456');

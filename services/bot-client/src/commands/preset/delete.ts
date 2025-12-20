@@ -7,7 +7,6 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
-  deferEphemeral,
   replyWithError,
   handleCommandError,
   createSuccessEmbed,
@@ -21,8 +20,6 @@ const logger = createLogger('preset-delete');
 export async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const presetId = interaction.options.getString('preset', true);
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<void>(`/user/llm-config/${presetId}`, {

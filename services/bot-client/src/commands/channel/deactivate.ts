@@ -7,7 +7,6 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import { createLogger, type DeactivateChannelResponse } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
@@ -21,9 +20,9 @@ const logger = createLogger('channel-deactivate');
 export async function handleDeactivate(interaction: ChatInputCommandInteraction): Promise<void> {
   const channelId = interaction.channelId;
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
-  // Check permission after deferring
+  // Check permission
   if (!(await requireManageMessagesDeferred(interaction))) {
     return;
   }

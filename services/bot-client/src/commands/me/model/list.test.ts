@@ -20,7 +20,6 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
 }));
@@ -54,19 +53,6 @@ describe('Me Model List Handler', () => {
   });
 
   describe('handleListOverrides', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction();
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { overrides: [] },
-      });
-
-      await handleListOverrides(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should show empty state when no overrides', async () => {
       const mockInteraction = createMockInteraction();
 

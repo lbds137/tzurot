@@ -7,7 +7,6 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
-  deferEphemeral,
   replyWithError,
   handleCommandError,
   createSuccessEmbed,
@@ -30,8 +29,6 @@ export async function handleClear(interaction: ChatInputCommandInteraction): Pro
   const userId = interaction.user.id;
   const personalitySlug = interaction.options.getString('personality', true);
   const personaId = interaction.options.getString('profile', false); // Optional profile/persona
-
-  await deferEphemeral(interaction);
 
   try {
     // Build request body, only include personaId if explicitly provided

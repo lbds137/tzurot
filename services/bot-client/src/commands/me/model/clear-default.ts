@@ -8,11 +8,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('me-model-clear-default');
 
@@ -21,8 +17,6 @@ const logger = createLogger('me-model-clear-default');
  */
 export async function handleClearDefault(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<{ deleted: boolean }>('/user/model-override/default', {

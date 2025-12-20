@@ -41,12 +41,10 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: 'Success' } });
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),

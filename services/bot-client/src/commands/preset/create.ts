@@ -7,7 +7,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('preset-create');
 
@@ -30,8 +30,6 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
   const description = interaction.options.getString('description');
   const provider = interaction.options.getString('provider') ?? 'openrouter';
   const visionModel = interaction.options.getString('vision-model');
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<CreateResponse>('/user/llm-config', {

@@ -11,7 +11,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { deferEphemeral, handleCommandError } from '../../utils/commandHelpers.js';
+import { handleCommandError } from '../../utils/commandHelpers.js';
 import {
   buildDestructiveWarning,
   createHardDeleteConfig,
@@ -27,8 +27,6 @@ export async function handleHardDelete(interaction: ChatInputCommandInteraction)
   const userId = interaction.user.id;
   const channelId = interaction.channelId;
   const personalitySlug = interaction.options.getString('personality', true);
-
-  await deferEphemeral(interaction);
 
   try {
     // Create the destructive confirmation config

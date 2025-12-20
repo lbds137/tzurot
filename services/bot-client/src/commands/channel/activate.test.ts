@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags, PermissionFlagsBits } from 'discord.js';
+import { PermissionFlagsBits } from 'discord.js';
 import type { ChatInputCommandInteraction, GuildMember, PermissionsBitField } from 'discord.js';
 import { handleActivate } from './activate.js';
 
@@ -99,7 +99,7 @@ describe('/channel activate', () => {
 
     await handleActivate(interaction);
 
-    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    // deferReply is now handled at top-level interactionCreate handler
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/activate', {
       userId: 'user-123',
       method: 'POST',

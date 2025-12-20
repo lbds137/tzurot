@@ -7,11 +7,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('me-model-list');
 
@@ -24,8 +20,6 @@ interface ListResponse {
  */
 export async function handleListOverrides(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<ListResponse>('/user/model-override', { userId });

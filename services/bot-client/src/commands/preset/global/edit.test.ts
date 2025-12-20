@@ -21,7 +21,6 @@ vi.mock('../../../utils/adminApiClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
 }));
@@ -60,24 +59,6 @@ describe('Preset Global Edit Handler', () => {
   });
 
   describe('handleGlobalEdit', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'Updated Name',
-      });
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          config: { id: 'config-123', name: 'Updated Name', model: 'gpt-4' },
-        }),
-      } as unknown as Response);
-
-      await handleGlobalEdit(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should successfully update preset with all fields', async () => {
       const mockInteraction = createMockInteraction({
         config: 'config-123',

@@ -22,7 +22,6 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
 }));
@@ -63,29 +62,6 @@ describe('Me Model Set Handler', () => {
   });
 
   describe('handleSet', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction('personality-1', 'config-1');
-
-      vi.mocked(userGatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({ ok: true, data: { keys: [] } }) // wallet
-        .mockResolvedValueOnce({ ok: true, data: { configs: [] } }) // configs
-        .mockResolvedValueOnce({
-          ok: true,
-          data: {
-            override: {
-              personalityId: 'personality-1',
-              personalityName: 'Test Bot',
-              configId: 'config-1',
-              configName: 'Test Config',
-            },
-          },
-        });
-
-      await handleSet(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should show unlock models upsell when __unlock_all_models__ is selected', async () => {
       const mockInteraction = createMockInteraction('personality-1', '__unlock_all_models__');
 

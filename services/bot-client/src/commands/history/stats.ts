@@ -6,12 +6,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-  createInfoEmbed,
-} from '../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-stats');
 
@@ -63,8 +58,6 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
   const channelId = interaction.channelId;
   const personalitySlug = interaction.options.getString('personality', true);
   const personaId = interaction.options.getString('profile', false); // Optional profile/persona
-
-  await deferEphemeral(interaction);
 
   try {
     // Build query params

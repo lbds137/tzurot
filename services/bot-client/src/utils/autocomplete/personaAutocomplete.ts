@@ -7,7 +7,7 @@
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
-import { callGatewayApi } from '../userGatewayClient.js';
+import { getCachedPersonas } from './autocompleteCache.js';
 
 const logger = createLogger('persona-autocomplete');
 
@@ -15,16 +15,6 @@ const logger = createLogger('persona-autocomplete');
  * Special value for "Create new profile" option in autocomplete
  */
 export const CREATE_NEW_PERSONA_VALUE = '__create_new__';
-
-/**
- * Persona summary from gateway API
- */
-interface PersonaSummary {
-  id: string;
-  name: string;
-  preferredName: string | null;
-  isDefault: boolean;
-}
 
 /**
  * Options for persona autocomplete
@@ -64,18 +54,11 @@ export async function handlePersonaAutocomplete(
   const userId = interaction.user.id;
 
   try {
-    const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
-      userId,
-    });
-
-    if (!result.ok) {
-      logger.warn({ userId, error: result.error }, `${logPrefix} Failed to fetch personas`);
-      await interaction.respond([]);
-      return true;
-    }
+    // Use cached data to avoid HTTP requests on every keystroke
+    const personas = await getCachedPersonas(userId);
 
     // Filter by query
-    const filtered = result.data.personas
+    const filtered = personas
       .filter(p => {
         if (query.length === 0) {
           return true;

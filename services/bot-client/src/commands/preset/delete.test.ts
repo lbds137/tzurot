@@ -27,12 +27,10 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: '🗑️ Preset Deleted' } });
 vi.mock('../../utils/commandHelpers.js', () => ({
-  deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
@@ -64,7 +62,6 @@ describe('handleDelete', () => {
     const interaction = createMockInteraction('cfg-123');
     await handleDelete(interaction);
 
-    expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config/cfg-123', {
       method: 'DELETE',
       userId: '123456789',

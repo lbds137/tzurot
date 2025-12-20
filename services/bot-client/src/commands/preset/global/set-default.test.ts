@@ -19,7 +19,6 @@ vi.mock('../../../utils/adminApiClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
 }));
@@ -56,19 +55,6 @@ describe('Preset Global Set Default Handler', () => {
   });
 
   describe('handleGlobalSetDefault', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ configName: 'Default Preset' }),
-      } as unknown as Response);
-
-      await handleGlobalSetDefault(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should successfully set system default', async () => {
       const mockInteraction = createMockInteraction('config-123');
 

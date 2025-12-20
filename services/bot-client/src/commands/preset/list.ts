@@ -13,7 +13,7 @@ import {
   type AIProvider,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('preset-list');
 
@@ -33,8 +33,6 @@ interface WalletListResponse {
  */
 export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-
-  await deferEphemeral(interaction);
 
   try {
     // Fetch presets and wallet status in parallel

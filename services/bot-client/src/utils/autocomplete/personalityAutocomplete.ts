@@ -11,8 +11,8 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS, type PersonalitySummary } from '@tzurot/common-types';
-import { callGatewayApi } from '../userGatewayClient.js';
+import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import { getCachedPersonalities } from './autocompleteCache.js';
 
 const logger = createLogger('personality-autocomplete');
 
@@ -68,16 +68,10 @@ export async function handlePersonalityAutocomplete(
   }
 
   try {
-    const result = await callGatewayApi<{ personalities: PersonalitySummary[] }>(
-      '/user/personality',
-      { userId }
-    );
+    // Use cached data to avoid HTTP requests on every keystroke
+    const personalities = await getCachedPersonalities(userId);
 
-    if (!result.ok) {
-      logger.warn(
-        { userId, error: result.error },
-        '[Personality] Failed to fetch personalities for autocomplete'
-      );
+    if (personalities.length === 0) {
       await interaction.respond([]);
       return true;
     }
@@ -85,7 +79,7 @@ export async function handlePersonalityAutocomplete(
     const query = focusedOption.value.toLowerCase();
 
     // Filter personalities based on options and query
-    const filtered = result.data.personalities
+    const filtered = personalities
       .filter(p => {
         // Filter by ownership if required
         if (mergedOptions.ownedOnly && !p.isOwned) {

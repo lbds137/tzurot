@@ -12,7 +12,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-list');
@@ -32,8 +32,6 @@ interface WalletListResponse {
  */
 export async function handleListKeys(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<WalletListResponse>('/wallet/list', { userId });

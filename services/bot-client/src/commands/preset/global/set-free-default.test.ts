@@ -19,7 +19,6 @@ vi.mock('../../../utils/adminApiClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
 }));
@@ -56,19 +55,6 @@ describe('Preset Global Set Free Default Handler', () => {
   });
 
   describe('handleGlobalSetFreeDefault', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction('config-123');
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ configName: 'Free Preset' }),
-      } as unknown as Response);
-
-      await handleGlobalSetFreeDefault(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should successfully set free tier default', async () => {
       const mockInteraction = createMockInteraction('config-456');
 

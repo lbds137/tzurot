@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -30,7 +30,6 @@ vi.mock('./userGatewayClient.js', () => ({
 }));
 
 import {
-  deferEphemeral,
   replyWithError,
   replyConfigError,
   ensureGatewayConfigured,
@@ -55,16 +54,6 @@ describe('commandHelpers', () => {
       editReply: vi.fn(),
       user: { id: 'test-user-id' },
     } as unknown as ChatInputCommandInteraction;
-  });
-
-  describe('deferEphemeral', () => {
-    it('should defer reply with ephemeral flag', async () => {
-      await deferEphemeral(mockInteraction);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-        flags: MessageFlags.Ephemeral,
-      });
-    });
   });
 
   describe('replyWithError', () => {
@@ -169,64 +158,23 @@ describe('commandHelpers', () => {
       expect(mockHandler).toHaveBeenCalledWith(mockInteraction);
     });
 
-    it('should catch errors and reply with error message when deferred', async () => {
+    it('should catch errors and use editReply (interaction always deferred at top-level)', async () => {
       const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
       const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
 
-      // Simulate deferred interaction
+      // Interactions are always deferred at top-level interactionCreate handler
       const deferredInteraction = {
         ...mockInteraction,
         deferred: true,
         replied: false,
         editReply: vi.fn(),
-        reply: vi.fn(),
       } as unknown as ChatInputCommandInteraction;
 
       await safeHandler(deferredInteraction);
 
       expect(deferredInteraction.editReply).toHaveBeenCalledWith({
-        content: '\u274c An error occurred. Please try again later.',
+        content: '❌ An error occurred. Please try again later.',
       });
-      expect(deferredInteraction.reply).not.toHaveBeenCalled();
-    });
-
-    it('should catch errors and reply when not deferred', async () => {
-      const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
-      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
-
-      // Simulate non-deferred interaction
-      const freshInteraction = {
-        ...mockInteraction,
-        deferred: false,
-        replied: false,
-        editReply: vi.fn(),
-        reply: vi.fn(),
-      } as unknown as ChatInputCommandInteraction;
-
-      await safeHandler(freshInteraction);
-
-      expect(freshInteraction.reply).toHaveBeenCalledWith({
-        content: '\u274c An error occurred. Please try again later.',
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-
-    it('should use editReply when already replied', async () => {
-      const mockHandler = vi.fn().mockRejectedValue(new Error('Handler failed'));
-      const safeHandler = createSafeHandler(mockHandler, { commandName: 'Test' });
-
-      const repliedInteraction = {
-        ...mockInteraction,
-        deferred: false,
-        replied: true,
-        editReply: vi.fn(),
-        reply: vi.fn(),
-      } as unknown as ChatInputCommandInteraction;
-
-      await safeHandler(repliedInteraction);
-
-      expect(repliedInteraction.editReply).toHaveBeenCalled();
-      expect(repliedInteraction.reply).not.toHaveBeenCalled();
     });
   });
 });
