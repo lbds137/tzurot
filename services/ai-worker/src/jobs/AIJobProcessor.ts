@@ -227,8 +227,11 @@ export class AIJobProcessor {
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
-    const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
-    await redisService.storeJobResult(`${userId}:${jobId}`, result);
+    const userId = job.data.context.userId;
+    if (!userId) {
+      logger.warn({ jobId }, '[AIJobProcessor] Audio job missing userId - using fallback key');
+    }
+    await redisService.storeJobResult(`${userId || 'unknown'}:${jobId}`, result);
 
     // Note: Do NOT publish to stream - audio transcription is a preprocessing job
     // that doesn't need async delivery to bot-client
@@ -253,8 +256,11 @@ export class AIJobProcessor {
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
-    const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
-    await redisService.storeJobResult(`${userId}:${jobId}`, result);
+    const userId = job.data.context.userId;
+    if (!userId) {
+      logger.warn({ jobId }, '[AIJobProcessor] Image job missing userId - using fallback key');
+    }
+    await redisService.storeJobResult(`${userId || 'unknown'}:${jobId}`, result);
 
     // Note: Do NOT publish to stream - image description is a preprocessing job
     // that doesn't need async delivery to bot-client
