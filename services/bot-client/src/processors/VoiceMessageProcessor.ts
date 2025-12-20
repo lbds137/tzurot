@@ -66,17 +66,16 @@ export class VoiceMessageProcessor implements IMessageProcessor {
       enumerable: false,
     });
 
-    if (result.continueToPersonalityHandler) {
-      // Voice message also targets a personality - continue processing
-      logger.debug(
-        '[VoiceMessageProcessor] Voice message with personality target - continuing chain'
-      );
-      return false; // Continue to next processor
-    }
-
-    // Voice-only message: transcription sent, we're done
-    logger.debug('[VoiceMessageProcessor] Voice-only message processed');
-    return true; // Stop processing
+    // Always continue to next processor after transcription
+    // - ReplyMessageProcessor may handle if this is a reply
+    // - ActivatedChannelProcessor may handle if channel has activated personality
+    // - PersonalityMentionProcessor may handle if there's a personality mention
+    // The transcript is stored on the message for later processors to use
+    logger.debug(
+      { continueToPersonalityHandler: result.continueToPersonalityHandler },
+      '[VoiceMessageProcessor] Voice transcription complete, continuing chain'
+    );
+    return false; // Continue to next processor
   }
 
   /**

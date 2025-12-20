@@ -32,7 +32,13 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
     const guildId = req.query.guildId as string | undefined;
 
     // Build where clause based on whether guildId filter is provided
-    const whereClause = guildId !== undefined ? { guildId } : undefined;
+    // Include records with null guildId (legacy data) so bot-client can backfill them
+    const whereClause =
+      guildId !== undefined
+        ? {
+            OR: [{ guildId }, { guildId: null }],
+          }
+        : undefined;
 
     // Get activations (optionally filtered by guild)
     const activations = await prisma.activatedChannel.findMany({
