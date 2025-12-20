@@ -10,49 +10,28 @@
 
 ---
 
-## Just Completed: Caching Strategy Audit
+## Just Completed: Caching Strategy Audit (PR #387)
 
-**Branch**: `feat/caching-strategy-audit`
+**Merged** - Redis pub/sub invalidation for channel activation cache
 
-**Completed Tasks**:
+- ✅ Comprehensive caching audit - [docs/architecture/CACHING_AUDIT.md](docs/architecture/CACHING_AUDIT.md)
+- ✅ `ChannelActivationCacheInvalidationService` - cross-instance cache invalidation
+- ✅ `tzurot-caching` skill - cache patterns and horizontal scaling guidance
 
-1. ✅ **Comprehensive caching audit** - Documented in [docs/architecture/CACHING_AUDIT.md](docs/architecture/CACHING_AUDIT.md)
-2. ✅ **Identified horizontal scaling concerns** - Channel activation cache was the ONLY critical issue
-3. ✅ **Implemented channel activation pub/sub invalidation**:
-   - Created `ChannelActivationCacheInvalidationService`
-   - Added Redis channel `cache:channel-activation-invalidation`
-   - bot-client subscribes on startup
-   - `/channel activate` and `/channel deactivate` publish events
-   - All tests passing (940 common-types, 1650 bot-client)
-4. ✅ **Created `tzurot-caching` skill** - Cache patterns, horizontal scaling, TTLCache usage, Redis pub/sub invalidation
-
-**Key Finding**: Most caches were already properly designed. The channel activation cache was the only one that could cause correctness issues with horizontal scaling. Timer-based cleanup patterns (setInterval) are a separate concern already documented in `tzurot-async-flow` skill.
+**Key Finding**: Channel activation cache was the only cache that could cause correctness issues with horizontal scaling. Timer patterns are a separate concern documented in `tzurot-async-flow` skill.
 
 ---
 
-## Next Session: Create PR for Caching Audit
+## Completed: Channel List Improvements (PR #386)
 
-**Tasks**:
+All `/channel list` improvements done:
 
-- [ ] Review changes and create PR
-- [ ] Run linting and formatting
-- [ ] Smoke test in development environment
-
----
-
-## Upcoming: Channel List Improvements (Deferred)
-
-**Branch**: `feat/channel-list-improvements`
-
-**Tasks** (from beta.25 timeout debugging):
-
-1. **Improve `/channel list` command**:
-   - [ ] Add pagination for servers with many activated channels
-   - [ ] Require Manage Messages permission to use
-   - [ ] Show only current server's channels by default
-   - [ ] Add `--all` or admin flag for cross-server view
-
-**Context**: PR #386 already added guildId filtering and backfill. These remaining items can be done in a future session.
+- ✅ Server-scoped filtering (shows only current server by default)
+- ✅ Manage Messages permission required
+- ✅ Admin `--all` flag for cross-server view (grouped by server)
+- ✅ Interactive pagination with buttons
+- ✅ Sort toggle (chronological vs alphabetical)
+- ✅ Lazy backfill of missing guildId data
 
 ---
 
