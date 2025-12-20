@@ -269,7 +269,7 @@ All work is organized in [ROADMAP.md](ROADMAP.md) following this structure:
 
 ## Claude Code Skills
 
-Tzurot v3 includes 13 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
+Tzurot v3 includes 14 project-specific Claude Code Skills in `.claude/skills/` that streamline development workflows and codify best practices.
 
 ### Available Skills
 
@@ -308,6 +308,8 @@ Tzurot v3 includes 13 project-specific Claude Code Skills in `.claude/skills/` t
    privacy considerations, Railway log analysis
 5. **tzurot-deployment** - Railway operations, service management, log analysis,
    troubleshooting production issues
+6. **tzurot-caching** - Cache patterns, horizontal scaling, TTLCache usage,
+   Redis pub/sub invalidation, cache decision tree
 
 ### How Skills Work
 
@@ -326,6 +328,7 @@ While skills auto-activate, you can explicitly invoke them using the Skill tool:
 skill: "tzurot-testing"       # Testing guidance
 skill: "tzurot-db-vector"     # Database/pgvector patterns
 skill: "tzurot-architecture"  # Service design decisions
+skill: "tzurot-caching"       # Cache patterns and horizontal scaling
 ```
 
 ### Skill Maintenance
@@ -344,7 +347,7 @@ skill: "tzurot-architecture"  # Service design decisions
 ```
 tzurot/
 ├── .claude/                     # Claude Code configuration
-│   └── skills/                 # Project-specific skills (13 skills)
+│   └── skills/                 # Project-specific skills (14 skills)
 │
 ├── services/                    # Microservices
 │   ├── bot-client/             # Discord interface
