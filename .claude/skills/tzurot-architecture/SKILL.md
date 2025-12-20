@@ -1,14 +1,14 @@
 ---
 name: tzurot-architecture
 description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
-lastUpdated: '2025-12-13'
+lastUpdated: '2025-12-20'
 ---
 
 # Tzurot v3 Architecture
 
 **Use this skill when:** Adding new features, deciding where code belongs, designing system interactions, or refactoring service boundaries.
 
-## Architecture Overview
+## Quick Reference
 
 ```
 Discord User
@@ -32,622 +32,145 @@ OpenRouter/Gemini API
 
 ## Three Microservices
 
-### bot-client (Discord Interface)
+| Service | Responsibility | Does | Does NOT |
+| --- | --- | --- | --- |
+| **bot-client** | Discord interface | Events, webhooks, commands, formatting | Business logic, AI calls, direct DB |
+| **api-gateway** | HTTP API + queue | Endpoints, validation, job creation | AI processing, Discord interaction |
+| **ai-worker** | AI + memory | Jobs, memory, AI calls, embeddings | HTTP endpoints, Discord interaction |
 
-**Responsibility:** Handle ALL Discord interactions, manage webhooks
+## Where to Put New Code
 
-**What it does:**
+| Type | Location |
+| --- | --- |
+| Webhook/message formatting | `bot-client/` |
+| Slash commands | `bot-client/commands/` |
+| HTTP endpoints | `api-gateway/routes/` |
+| Job creation | `api-gateway/queue.ts` |
+| AI provider clients | `ai-worker/providers/` |
+| Memory/embeddings | `ai-worker/services/` |
+| Shared types/constants | `common-types/` |
+| Discord type guards | `common-types/types/` |
 
-- Listen to Discord events (messages, interactions, commands)
-- Register slash commands
-- Create and manage webhooks (unique avatar/name per personality)
-- Send HTTP requests to api-gateway
-- Receive responses and send to Discord
-- Format messages (chunking, embeds, typing indicators)
-- Cache webhook instances
+## Autocomplete Utilities (CRITICAL)
 
-**What it does NOT do:**
+**ALWAYS check for existing utilities before writing autocomplete handlers.**
 
-- ❌ Business logic (personality selection, memory retrieval)
-- ❌ AI API calls
-- ❌ Database writes (except via api-gateway)
-- ❌ Job queue operations (only triggers them)
+Available in `bot-client/src/utils/autocomplete/`:
 
-**Key files:**
-
-```
-services/bot-client/src/
-├── index.ts               # Discord client setup
-├── handlers/              # Event handlers
-│   ├── messageCreate.ts
-│   └── interactionCreate.ts
-├── commands/              # Slash command definitions
-├── webhooks/              # Webhook management
-└── redis.ts               # Webhook message tracking
-```
-
-**Dependencies:**
-
-- Discord.js 14
-- Redis (for webhook message tracking)
-- HTTP client (for api-gateway calls)
-
-### api-gateway (HTTP API + Job Queue)
-
-**Responsibility:** HTTP endpoints, job queue orchestration, request validation
-
-**What it does:**
-
-- Expose HTTP endpoints (`/ai/generate`, `/health`, `/metrics`)
-- Validate incoming requests
-- Create BullMQ jobs
-- Wait for job completion
-- Return results to bot-client
-- Serve personality avatars
-- Manage request deduplication
-- Handle cache invalidation subscriptions
-
-**What it does NOT do:**
-
-- ❌ AI processing (that's ai-worker's job)
-- ❌ Discord interactions (that's bot-client's job)
-- ❌ Long-running AI calls directly (uses queue)
-
-**Key files:**
-
-```
-services/api-gateway/src/
-├── index.ts               # Express app
-├── routes/
-│   ├── ai.ts             # POST /ai/generate
-│   └── admin.ts          # Admin endpoints
-├── queue.ts              # BullMQ queue setup
-├── services/             # Business logic services
-└── utils/                # Request deduplication, etc.
-```
-
-**Dependencies:**
-
-- Express
-- BullMQ (queue client)
-- Redis
-- Prisma (database)
-- Common-types
-
-### ai-worker (AI Processing + Memory)
-
-**Responsibility:** Process AI jobs, manage vector memory, call AI APIs
-
-**What it does:**
-
-- Listen to BullMQ queue
-- Retrieve personality configurations
-- Search pgvector for relevant memories
-- Build conversation context
-- Call AI providers (OpenRouter, Gemini)
-- Generate embeddings
-- Store new memories
-- Handle preprocessing (image description, audio transcription)
-- Job timeout and retry management
-
-**What it does NOT do:**
-
-- ❌ HTTP requests from external clients (queue-based only)
-- ❌ Discord interactions
-- ❌ Direct webhook replies (goes through api-gateway)
-
-**Key files:**
-
-```
-services/ai-worker/src/
-├── index.ts               # BullMQ worker setup
-├── jobs/                  # Job processors
-│   ├── LLMGenerationJob.ts
-│   ├── AudioTranscriptionJob.ts
-│   └── ImageDescriptionJob.ts
-├── providers/             # AI provider clients
-│   ├── OpenRouterClient.ts
-│   └── GeminiClient.ts
-└── services/              # Memory, embeddings, etc.
-```
-
-**Dependencies:**
-
-- BullMQ (worker)
-- Redis
-- Prisma (database + pgvector)
-- OpenRouter/Gemini SDKs
-- Common-types
-
-## Shared Code (common-types)
-
-**Responsibility:** Types, interfaces, utilities, services used across multiple microservices
-
-**What belongs here:**
-
-```
-packages/common-types/src/
-├── types/                 # TypeScript interfaces
-│   ├── discord-types.ts  # Discord-specific types
-│   ├── ai-types.ts       # AI request/response types
-│   └── queue-types.ts    # BullMQ job types
-├── constants/             # All application constants
-│   ├── timing.ts
-│   ├── queue.ts
-│   └── discord.ts
-├── services/              # Shared service classes
-│   ├── PersonalityService.ts
-│   ├── ConversationHistoryService.ts
-│   └── CacheInvalidationService.ts
-├── utils/                 # Utility functions
-│   ├── retry.ts
-│   ├── logger.ts
-│   └── redis.ts
-└── errors/                # Custom error classes
-    └── RetryError.ts
-```
-
-**Dependency rule:** Services CAN import from common-types. Common-types CANNOT import from services.
-
-## Service Boundaries
-
-### Data Flow: Discord Message → AI Response
-
-```
-1. User sends Discord message
-   ↓
-2. bot-client receives messageCreate event
-   ↓
-3. bot-client sends POST to api-gateway/ai/generate
-   ↓
-4. api-gateway validates request
-   ↓
-5. api-gateway creates BullMQ job
-   ↓
-6. api-gateway waits for job completion
-   ↓
-7. ai-worker picks up job from queue
-   ↓
-8. ai-worker retrieves personality + memories
-   ↓
-9. ai-worker calls OpenRouter/Gemini API
-   ↓
-10. ai-worker stores new memory
-    ↓
-11. ai-worker completes job with response
-    ↓
-12. api-gateway receives completion
-    ↓
-13. api-gateway returns response to bot-client
-    ↓
-14. bot-client sends message to Discord via webhook
-```
-
-### Where to Put New Code
-
-**Discord-related code:**
-
-- Webhook management → bot-client
-- Message formatting → bot-client
-- Slash command handlers → bot-client
-- Discord type guards → common-types
-
-**HTTP/API code:**
-
-- New endpoints → api-gateway/routes/
-- Request validation → api-gateway
-- Job creation → api-gateway/queue.ts
-
-**AI/Memory code:**
-
-- AI provider clients → ai-worker/providers/
-- Memory retrieval → ai-worker/services/
-- Embedding generation → ai-worker/services/
-- Job processors → ai-worker/jobs/
-
-**Shared utilities:**
-
-- Retry logic → common-types/utils/
-- Type guards → common-types/types/
-- Error classes → common-types/errors/
-- Constants → common-types/constants/
-
-**Services used by multiple microservices:**
-
-- PersonalityService → common-types/services/
-- ConversationHistoryService → common-types/services/
-- Logger → common-types/utils/
-
-## Dependency Injection Pattern
-
-**Simple constructor injection** - No DI containers!
+| Utility | Purpose | Option Names |
+| --- | --- | --- |
+| `handlePersonalityAutocomplete` | Personality selection | `personality`, `character` |
+| `handlePersonaAutocomplete` | Profile/persona selection | `profile`, `persona` |
 
 ```typescript
-// ✅ GOOD - Simple, explicit
+// ✅ GOOD - Delegate to shared utility
+import { handlePersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
+
+await handlePersonalityAutocomplete(interaction, {
+  optionName: 'personality',
+  showVisibility: true,
+  ownedOnly: false,
+});
+
+// ❌ BAD - Duplicating 50+ lines of autocomplete logic
+```
+
+## Error Message Patterns
+
+| Layer | Pattern | Example |
+| --- | --- | --- |
+| **api-gateway** | Clean JSON, NO emojis | `{ "error": "NOT_FOUND", "message": "Persona not found" }` |
+| **bot-client** | ADD emojis for users | `'❌ Profile not found.'` |
+
+```typescript
+// ✅ Gateway - clean for programmatic use
+sendError(res, ErrorResponses.notFound('Persona'));
+
+// ✅ Bot - emoji for users
+await interaction.editReply({ content: '❌ Profile not found.' });
+```
+
+## Anti-Patterns from v2 (DON'T DO)
+
+| Pattern | Why Not | v3 Alternative |
+| --- | --- | --- |
+| Generic `IRepository<T>` | Too abstract | Concrete service methods |
+| DI containers | Over-engineered | Direct instantiation |
+| `Controller→UseCase→Service→Repository→ORM` | Too many layers | `Route→Service→Prisma` |
+| Complex event bus | Unnecessary | Redis pub/sub for cache only |
+| Value objects everywhere | Overhead | Simple validation functions |
+
+```typescript
+// ❌ v2 - Container hell
+container.bind('PersonalityService').to(PersonalityService);
+const service = container.get('PersonalityService');
+
+// ✅ v3 - Simple
+const service = new PersonalityService(prisma);
+```
+
+## Dependency Injection
+
+```typescript
+// ✅ GOOD - Simple constructor injection
 class MyService {
   constructor(
     private prisma: PrismaClient,
     private redis: Redis
   ) {}
-
-  async doSomething(): Promise<void> {
-    await this.prisma.user.findMany();
-    await this.redis.get('key');
-  }
 }
 
-// Usage
-const prisma = getPrismaClient();
-const redis = getRedisClient();
 const service = new MyService(prisma, redis);
-```
-
-```typescript
-// ❌ BAD - DI container (v2 over-engineering)
-@injectable()
-class MyService {
-  constructor(
-    @inject('PrismaClient') private prisma: PrismaClient,
-    @inject('Redis') private redis: Redis
-  ) {}
-}
-```
-
-## Anti-Patterns from v2
-
-**Why v3 abandoned DDD:** V2's Domain-Driven Design was over-engineered for a one-person project.
-
-### ❌ Don't Create These v2 Patterns:
-
-**1. Generic Repository Interfaces**
-
-```typescript
-// ❌ v2 pattern - Too abstract
-interface IRepository<T> {
-  findById(id: string): Promise<T>;
-  findAll(): Promise<T[]>;
-  save(entity: T): Promise<T>;
-}
-
-// ✅ v3 pattern - Concrete, simple
-class PersonalityService {
-  async getPersonality(id: string): Promise<Personality | null> {
-    return this.prisma.personality.findUnique({ where: { id } });
-  }
-}
-```
-
-**2. Dependency Injection Containers**
-
-```typescript
-// ❌ v2 pattern - Container hell
-container.bind('PersonalityService').to(PersonalityService);
-const service = container.get('PersonalityService');
-
-// ✅ v3 pattern - Direct instantiation
-const service = new PersonalityService(prisma);
-```
-
-**3. Excessive Abstraction Layers**
-
-```typescript
-// ❌ v2 pattern - Too many layers
-Controller → UseCase → Service → Repository → ORM
-
-// ✅ v3 pattern - Direct access
-Route Handler → Service → Prisma
-```
-
-**4. Complex Domain Events**
-
-```typescript
-// ❌ v2 pattern - Event bus complexity
-eventBus.emit('personality.updated', { id });
-
-// ✅ v3 pattern - Redis pub/sub for cross-service only
-cacheInvalidationService.invalidatePersonality(id);
-```
-
-**5. Value Objects Everywhere**
-
-```typescript
-// ❌ v2 pattern - Value object overhead
-class PersonalityName {
-  constructor(private value: string) {
-    if (!this.validate()) throw new Error('Invalid');
-  }
-  validate() {
-    /* complex validation */
-  }
-}
-
-// ✅ v3 pattern - Simple validation
-function validatePersonalityName(name: string): boolean {
-  return name.length > 0 && name.length <= 100;
-}
 ```
 
 ## When to Extract a Service
 
-**Extract to a new service class when:**
-
-1. **Shared across multiple microservices** - Belongs in common-types
-2. **Complex business logic** - Deserves its own class
-3. **Stateful operations** - Needs to maintain state
-4. **Testability** - Easier to mock as a class
+**Extract when:**
+- Shared across multiple microservices → common-types
+- Complex business logic
+- Stateful operations
+- Easier testability needed
 
 **Keep inline when:**
+- Used in one place only
+- Stateless utility function
+- Very simple logic
 
-1. **Used in one place only** - Simple function is fine
-2. **Stateless utility** - Pure function, no dependencies
-3. **Very simple logic** - Extracting adds complexity
+## Database Access
 
-```typescript
-// ✅ Extract - Complex, shared, stateful
-class ConversationHistoryService {
-  constructor(private prisma: PrismaClient) {}
-
-  async addMessage(/* ... */): Promise<void> {
-    // Complex logic with database interactions
-  }
-
-  async getHistory(/* ... */): Promise<Message[]> {
-    // Pagination, filtering, etc.
-  }
-}
-
-// ✅ Keep inline - Simple, one-off
-function formatUsername(username: string): string {
-  return `@${username}`;
-}
-```
-
-## Reusable Utility Patterns
-
-**Extract reusable utilities when patterns repeat across commands**
-
-### 🚨 CRITICAL: Autocomplete Utilities
-
-**ALWAYS check for existing shared autocomplete utilities before writing autocomplete handlers.**
-
-Available shared utilities in `bot-client/src/utils/autocomplete/`:
-
-| Utility                         | Purpose                   | Option Names               |
-| ------------------------------- | ------------------------- | -------------------------- |
-| `handlePersonalityAutocomplete` | Personality selection     | `personality`, `character` |
-| `handlePersonaAutocomplete`     | Profile/persona selection | `profile`, `persona`       |
-
-**When adding a new command with autocomplete:**
-
-1. **CHECK FIRST**: Look in `bot-client/src/utils/autocomplete/` for existing utilities
-2. **REUSE**: Import and delegate to the shared utility with appropriate options
-3. **DON'T DUPLICATE**: Never copy-paste autocomplete logic from other commands
+**Direct Prisma in services** - No repository pattern
 
 ```typescript
-// ❌ BAD - Writing custom autocomplete that duplicates shared utility
-export async function handlePersonalityAutocomplete(
-  interaction: AutocompleteInteraction
-): Promise<void> {
-  const userId = interaction.user.id;
-  const focusedValue = interaction.options.getFocused().toLowerCase();
-
-  // ... 50+ lines of duplicate logic ...
-
-  await interaction.respond(choices);
+// ✅ Direct Prisma
+async getPersonality(id: string) {
+  return this.prisma.personality.findUnique({ where: { id } });
 }
 
-// ✅ GOOD - Delegate to shared utility
-import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
-
-export async function handlePersonalityAutocomplete(
-  interaction: AutocompleteInteraction
-): Promise<void> {
-  await sharedPersonalityAutocomplete(interaction, {
-    optionName: 'personality',
-    showVisibility: true,
-    ownedOnly: false,
-  });
-}
-```
-
-**Shared utility benefits:**
-
-- Consistent UX (visibility icons, formatting, filtering)
-- Bug fixes apply everywhere
-- Tests live with the utility, not duplicated per command
-
-### Example: Persona Autocomplete
-
-```typescript
-// services/bot-client/src/utils/autocomplete/personaAutocomplete.ts
-await handlePersonaAutocomplete(interaction, {
-  optionName: 'profile',
-  includeCreateNew: false,
-  logPrefix: '[History]',
-});
-```
-
-### Example: Destructive Confirmation Flow
-
-For dangerous operations (delete, hard-reset), use the standardized confirmation flow:
-
-```typescript
-// services/bot-client/src/utils/destructiveConfirmation.ts
-// Button → Modal → Typed confirmation pattern
-
-// Usage:
-const config = createHardDeleteConfig({
-  entityType: 'conversation history',
-  entityName: personalitySlug,
-  source: 'history',
-  operation: 'hard-delete',
-  entityId: `${personalitySlug}_${channelId}`,
-});
-await sendDestructiveConfirmation(interaction, config);
-```
-
-**When to extract utilities:**
-
-- Pattern used by 2+ commands
-- Complex logic that benefits from centralization
-- Consistent UX is important (autocomplete, confirmation flows)
-
-**Where to put utilities:**
-
-- Command-specific utils → `bot-client/src/utils/`
-- Shared across services → `common-types/src/utils/`
-
-## Database Access Patterns
-
-**Direct Prisma access in services** - No repository pattern
-
-```typescript
-// ✅ GOOD - Prisma directly in service
-class PersonalityService {
-  constructor(private prisma: PrismaClient) {}
-
-  async getPersonality(id: string): Promise<Personality | null> {
-    return this.prisma.personality.findUnique({
-      where: { id },
-      include: { llmConfig: true },
-    });
-  }
-}
-
-// ❌ BAD - Generic repository
+// ❌ Generic repository
 interface PersonalityRepository {
   findById(id: string): Promise<Personality>;
 }
 ```
 
-## Error Handling Architecture
+## Configuration
 
-**Service-level errors** - Let errors bubble up, handle at boundaries
-
-```typescript
-// ✅ GOOD - Service throws, route handles
-class PersonalityService {
-  async getPersonality(id: string): Promise<Personality> {
-    const personality = await this.prisma.personality.findUnique({ where: { id } });
-    if (!personality) {
-      throw new Error(`Personality not found: ${id}`);
-    }
-    return personality;
-  }
-}
-
-// Route handler catches and formats
-app.get('/personality/:id', async (req, res) => {
-  try {
-    const personality = await service.getPersonality(req.params.id);
-    res.json(personality);
-  } catch (error) {
-    res.status(404).json({ error: error.message });
-  }
-});
-```
-
-## Error Message Patterns
-
-**Gateway (api-gateway)**: Return clean error messages WITHOUT emojis
-
-- Error responses are machine-readable and may be processed by multiple consumers
-- Example: `sendError(res, ErrorResponses.notFound('Persona'))`
-- Result: `{ "error": "NOT_FOUND", "message": "Persona not found" }`
-
-**Bot client (bot-client)**: ADD emojis to user-facing messages
-
-- Use for errors: `content: '❌ Profile not found.'`
-- Use for success: `content: '✅ Profile override set successfully!'`
-- Use for warnings: `content: '⚠️ This action cannot be undone.'`
-
-**Why this separation**: Gateway is an API layer used by multiple services. Bot-client is the only service that renders messages to Discord users. Keeping emojis in bot-client allows:
-
-- Consistent emoji usage across all user-facing commands
-- Gateway responses remain clean for programmatic use
-- Easy to change emoji style without touching API layer
+- **Environment variables**: Secrets (tokens, DB URLs)
+- **common-types constants**: Application config (timeouts, limits)
 
 ```typescript
-// ✅ CORRECT - Gateway returns clean JSON
-// api-gateway/routes/persona.ts
-sendError(res, ErrorResponses.notFound('Persona'));
-// Returns: { "error": "NOT_FOUND", "message": "Persona not found" }
-
-// ✅ CORRECT - Bot adds emoji for user
-// bot-client/commands/me/view.ts
-await interaction.editReply({ content: '❌ Profile not found.' });
-
-// ❌ WRONG - Gateway with emoji
-sendError(res, { message: '❌ Persona not found' });
-```
-
-## Configuration Management
-
-**Environment variables for secrets, constants for application config**
-
-```typescript
-// ✅ GOOD - Env vars for secrets
-const discordToken = process.env.DISCORD_TOKEN;
-const databaseUrl = process.env.DATABASE_URL;
-
-// ✅ GOOD - Constants for config
 import { TIMEOUTS, RETRY_CONFIG } from '@tzurot/common-types';
 const timeout = TIMEOUTS.LLM_INVOCATION;
-const maxRetries = RETRY_CONFIG.MAX_ATTEMPTS;
-
-// ❌ BAD - Hardcoded secrets
-const discordToken = 'MTIzNDU2Nzg5MA.GhIjKl';
-
-// ❌ BAD - Hardcoded config
-const timeout = 480000;
-```
-
-## Scaling Considerations
-
-**Current architecture supports:**
-
-- ✅ Horizontal scaling of ai-worker (multiple workers)
-- ✅ Horizontal scaling of api-gateway (load balancer)
-- ✅ Single bot-client instance (Discord.js limitation)
-
-**Future scaling paths:**
-
-- Add more ai-worker instances for faster job processing
-- Add more api-gateway instances behind load balancer
-- Shard bot-client if guild count exceeds Discord limits
-- Separate read/write database instances
-
-## Testing Architecture
-
-**Each service has its own tests** - No cross-service integration tests yet
-
-```
-services/bot-client/src/
-├── webhooks/
-│   ├── WebhookManager.ts
-│   └── WebhookManager.test.ts  # Tests with mocked Discord
-
-services/api-gateway/src/
-├── routes/
-│   ├── ai.ts
-│   └── ai.test.ts              # Tests with mocked queue
-
-services/ai-worker/src/
-├── jobs/
-│   ├── LLMGenerationJob.ts
-│   └── LLMGenerationJob.test.ts  # Tests with mocked AI provider
 ```
 
 ## Related Skills
 
-- **tzurot-async-flow** - Async workflow design patterns
-- **tzurot-db-vector** - Database service responsibilities
-- **tzurot-shared-types** - Type definitions across services
-- **tzurot-gemini-collab** - Consult for major design decisions
+- **tzurot-async-flow** - BullMQ job patterns
+- **tzurot-db-vector** - Database patterns
+- **tzurot-types** - Type definitions
+- **tzurot-gemini-collab** - Major design decisions
 
 ## References
 
 - Full architecture: `CLAUDE.md#architecture`
-- Service structure: `CLAUDE.md#project-structure`
-- Why v3 abandoned DDD: `CLAUDE.md#why-v3-abandoned-ddd`
+- Project structure: `CLAUDE.md#project-structure`
 - Architecture decisions: `docs/architecture/ARCHITECTURE_DECISIONS.md`
