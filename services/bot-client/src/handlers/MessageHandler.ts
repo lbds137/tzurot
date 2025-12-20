@@ -11,6 +11,7 @@ import {
   createLogger,
   type LLMGenerationResult,
   formatPersonalityErrorMessage,
+  stripErrorSpoiler,
   USER_ERROR_MESSAGES,
 } from '@tzurot/common-types';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
@@ -110,10 +111,21 @@ export class MessageHandler {
 
       // Send error via personality webhook (not parent bot)
       try {
-        await this.responseSender.sendResponse({
+        const { chunkMessageIds } = await this.responseSender.sendResponse({
           content: errorContent,
           personality,
           message,
+        });
+
+        // Save error message to history (stripped of technical spoiler details)
+        // This lets the character know an error occurred without confusing metadata
+        await this.persistence.saveAssistantMessage({
+          message,
+          personality,
+          personaId,
+          content: stripErrorSpoiler(errorContent),
+          chunkMessageIds,
+          userMessageTime,
         });
       } catch (sendError) {
         logger.error(
@@ -149,10 +161,20 @@ export class MessageHandler {
 
       // Send error via personality webhook
       try {
-        await this.responseSender.sendResponse({
+        const { chunkMessageIds } = await this.responseSender.sendResponse({
           content: errorContent,
           personality,
           message,
+        });
+
+        // Save error message to history (stripped of technical spoiler details)
+        await this.persistence.saveAssistantMessage({
+          message,
+          personality,
+          personaId,
+          content: stripErrorSpoiler(errorContent),
+          chunkMessageIds,
+          userMessageTime,
         });
       } catch (sendError) {
         logger.error(
@@ -204,10 +226,20 @@ export class MessageHandler {
       const errorContent = this.buildErrorContent(result);
 
       try {
-        await this.responseSender.sendResponse({
+        const { chunkMessageIds } = await this.responseSender.sendResponse({
           content: errorContent,
           personality,
           message,
+        });
+
+        // Save error message to history (stripped of technical spoiler details if present)
+        await this.persistence.saveAssistantMessage({
+          message,
+          personality,
+          personaId,
+          content: stripErrorSpoiler(errorContent),
+          chunkMessageIds,
+          userMessageTime,
         });
       } catch (sendError) {
         logger.error(

@@ -65,7 +65,6 @@ export {
   HTTP_STATUS_TO_CATEGORY,
   PERMANENT_ERROR_CATEGORIES,
   TRANSIENT_ERROR_CATEGORIES,
-  ERROR_PLACEHOLDER_PATTERN,
   ERROR_SPOILER_PATTERN,
   generateErrorReferenceId,
   classifyHttpStatus,
@@ -73,6 +72,7 @@ export {
   isTransientError,
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
+  stripErrorSpoiler,
   type ApiErrorInfo,
 } from './error.js';
 
