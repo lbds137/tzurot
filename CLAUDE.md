@@ -45,7 +45,9 @@ import { generateUserPersonalityConfigUuid } from '@tzurot/common-types';
 await prisma.userPersonalityConfig.upsert({
   create: {
     id: generateUserPersonalityConfigUuid(userId, personalityId),
-    userId, personalityId, llmConfigId
+    userId,
+    personalityId,
+    llmConfigId,
   },
 });
 
@@ -61,11 +63,11 @@ await prisma.userPersonalityConfig.upsert({
 
 **NEVER use direct `fetch()` to the API gateway.** Use established clients.
 
-| Client | Purpose | Use For |
-| --- | --- | --- |
-| `callGatewayApi()` | User-authenticated | `/user/*` endpoints |
-| `adminFetch()` | Admin-only | `/admin/*` endpoints |
-| `GatewayClient` | Internal service | Service-to-service |
+| Client             | Purpose            | Use For              |
+| ------------------ | ------------------ | -------------------- |
+| `callGatewayApi()` | User-authenticated | `/user/*` endpoints  |
+| `adminFetch()`     | Admin-only         | `/admin/*` endpoints |
+| `GatewayClient`    | Internal service   | Service-to-service   |
 
 **📚 See**: `tzurot-architecture` skill for examples and header reference
 
@@ -73,11 +75,11 @@ await prisma.userPersonalityConfig.upsert({
 
 **bot-client MUST NEVER use Prisma directly.** All database access goes through api-gateway.
 
-| Service | Prisma | Why |
-| --- | --- | --- |
-| `bot-client` | ❌ NEVER | Use gateway APIs |
-| `api-gateway` | ✅ Yes | Source of truth |
-| `ai-worker` | ✅ Yes | Memory/conversation ops |
+| Service       | Prisma   | Why                     |
+| ------------- | -------- | ----------------------- |
+| `bot-client`  | ❌ NEVER | Use gateway APIs        |
+| `api-gateway` | ✅ Yes   | Source of truth         |
+| `ai-worker`   | ✅ Yes   | Memory/conversation ops |
 
 ## Tech Stack
 
@@ -143,12 +145,15 @@ git commit -m "feat(service): description"
 ## Environment Variables
 
 ### bot-client
+
 - `DISCORD_TOKEN`, `GATEWAY_URL`
 
 ### api-gateway
+
 - `REDIS_URL`, `DATABASE_URL`
 
 ### ai-worker
+
 - `REDIS_URL`, `DATABASE_URL`, `AI_PROVIDER`
 - `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`
 
@@ -167,31 +172,31 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 13 project-specific skills in `.claude/skills/`:
 
-| Skill | Use When |
-| --- | --- |
-| tzurot-testing | Writing tests, mocking |
-| tzurot-types | Types, constants, Zod schemas |
-| tzurot-git-workflow | Commits, PRs, rebasing |
-| tzurot-security | Secrets, user input |
+| Skill                | Use When                       |
+| -------------------- | ------------------------------ |
+| tzurot-testing       | Writing tests, mocking         |
+| tzurot-types         | Types, constants, Zod schemas  |
+| tzurot-git-workflow  | Commits, PRs, rebasing         |
+| tzurot-security      | Secrets, user input            |
 | tzurot-observability | Logging, debugging, operations |
-| tzurot-architecture | Service design, error patterns |
-| tzurot-docs | Documentation, session handoff |
-| tzurot-gemini-collab | Consulting Gemini MCP |
-| tzurot-db-vector | PostgreSQL, pgvector |
-| tzurot-async-flow | BullMQ, Discord deferrals |
-| tzurot-deployment | Railway, troubleshooting |
-| tzurot-caching | Cache patterns |
-| tzurot-skills-guide | Creating/updating skills |
+| tzurot-architecture  | Service design, error patterns |
+| tzurot-docs          | Documentation, session handoff |
+| tzurot-gemini-collab | Consulting Gemini MCP          |
+| tzurot-db-vector     | PostgreSQL, pgvector           |
+| tzurot-async-flow    | BullMQ, Discord deferrals      |
+| tzurot-deployment    | Railway, troubleshooting       |
+| tzurot-caching       | Cache patterns                 |
+| tzurot-skills-guide  | Creating/updating skills       |
 
 ## Post-Mortems
 
-| Date | Incident | Rule |
-| --- | --- | --- |
-| 2025-07-25 | Untested push broke develop | Always run tests before pushing |
-| 2025-07-21 | Git restore destroyed work | Confirm before destructive git |
-| 2025-10-31 | DB URL committed | Never commit database URLs |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients |
-| 2025-12-06 | API contract mismatch | Use shared Zod schemas |
+| Date       | Incident                      | Rule                            |
+| ---------- | ----------------------------- | ------------------------------- |
+| 2025-07-25 | Untested push broke develop   | Always run tests before pushing |
+| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git  |
+| 2025-10-31 | DB URL committed              | Never commit database URLs      |
+| 2025-12-05 | Direct fetch broke /character | Use gateway clients             |
+| 2025-12-06 | API contract mismatch         | Use shared Zod schemas          |
 
 **Full details**: [docs/postmortems/PROJECT_POSTMORTEMS.md](docs/postmortems/PROJECT_POSTMORTEMS.md)
 
@@ -208,10 +213,12 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 ## Tool Permissions
 
 ### Approved (No Permission Needed)
+
 - `pnpm` commands, file operations, search tools
 - Railway/git read operations
 
 ### Requires Approval
+
 - `pnpm add/remove`, Railway write operations
 - Git commits/pushes, database migrations
 

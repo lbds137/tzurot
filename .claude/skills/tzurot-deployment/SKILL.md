@@ -31,11 +31,13 @@ railway variables set KEY=value --service service-name
 ### Standard Process
 
 1. **Merge PR to develop** (auto-deploys):
+
    ```bash
    gh pr merge <PR-number> --rebase
    ```
 
 2. **Monitor deployment**:
+
    ```bash
    railway status --service api-gateway
    railway logs --service api-gateway --tail 100
@@ -104,12 +106,12 @@ railway restart --service bot-client
 
 ## Troubleshooting
 
-| Symptom | Check | Solution |
-| --- | --- | --- |
-| Service crashed | `railway logs --tail 100` | Check for missing env vars |
-| Slow responses | `railway logs \| grep duration` | Check DB/Redis connection |
-| Bot not responding | `bot-client` logs | Verify DISCORD_TOKEN |
-| Migration failed | `prisma migrate status` | Apply with `migrate deploy` |
+| Symptom            | Check                           | Solution                    |
+| ------------------ | ------------------------------- | --------------------------- |
+| Service crashed    | `railway logs --tail 100`       | Check for missing env vars  |
+| Slow responses     | `railway logs \| grep duration` | Check DB/Redis connection   |
+| Bot not responding | `bot-client` logs               | Verify DISCORD_TOKEN        |
+| Migration failed   | `prisma migrate status`         | Apply with `migrate deploy` |
 
 ### Service Won't Start
 
@@ -152,11 +154,13 @@ for (let attempt = 1; attempt <= 5; attempt++) {
 ## Deployment Checklist
 
 **Before**:
+
 - [ ] Tests passing (`pnpm test`)
 - [ ] Linting passing (`pnpm lint`)
 - [ ] PR merged to `develop`
 
 **After**:
+
 - [ ] Services show "Running" status
 - [ ] Health endpoint returns 200
 - [ ] No ERROR logs in first 5 minutes

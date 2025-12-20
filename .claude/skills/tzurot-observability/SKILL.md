@@ -34,8 +34,8 @@ logger.error({ err: error, context: 'additional data' }, 'Operation failed');
 
 ```typescript
 logger.info(
-  { contextObject },           // First param: structured data
-  'Human readable message'     // Second param: message string
+  { contextObject }, // First param: structured data
+  'Human readable message' // Second param: message string
 );
 
 // ✅ GOOD
@@ -48,12 +48,12 @@ logger.info(`Loaded personality ${personalityId}`);
 
 ### Log Levels
 
-| Level | When to Use |
-| --- | --- |
-| `error` | Errors needing attention |
-| `warn` | Potential issues, retries |
-| `info` | Normal operations |
-| `debug` | Debugging details |
+| Level   | When to Use                      |
+| ------- | -------------------------------- |
+| `error` | Errors needing attention         |
+| `warn`  | Potential issues, retries        |
+| `info`  | Normal operations                |
+| `debug` | Debugging details                |
 | `trace` | Very detailed (disabled in prod) |
 
 ### Error Logging
@@ -88,11 +88,13 @@ railway logs | grep "requestId\":\"abc-123"
 ## Health & Metrics
 
 **Health endpoint:** `GET /health`
+
 ```bash
 curl https://api-gateway-development-83e8.up.railway.app/health
 ```
 
 **Check all services:**
+
 ```bash
 railway status
 railway logs --service api-gateway --tail 50
@@ -103,6 +105,7 @@ railway logs --service api-gateway --tail 50
 ### Adding a Personality
 
 1. Create `personalities/name.json`:
+
 ```json
 {
   "name": "PersonalityName",
@@ -111,6 +114,7 @@ railway logs --service api-gateway --tail 50
   "temperature": 0.8
 }
 ```
+
 2. Commit and push (Railway auto-deploys)
 
 ### Database Quick Commands
@@ -148,12 +152,12 @@ LLEN bull:ai-generation:failed
 
 ### Common Issues
 
-| Symptom | Likely Cause | Check |
-| --- | --- | --- |
-| Bot not responding | bot-client crashed | Logs, DISCORD_TOKEN |
-| Slow responses | AI worker overload | ai-worker logs, queue depth |
-| 500 errors | Database connection | DATABASE_URL, migrations |
-| Jobs stuck | Redis connection | REDIS_URL, ai-worker status |
+| Symptom            | Likely Cause        | Check                       |
+| ------------------ | ------------------- | --------------------------- |
+| Bot not responding | bot-client crashed  | Logs, DISCORD_TOKEN         |
+| Slow responses     | AI worker overload  | ai-worker logs, queue depth |
+| 500 errors         | Database connection | DATABASE_URL, migrations    |
+| Jobs stuck         | Redis connection    | REDIS_URL, ai-worker status |
 
 ## Anti-Patterns
 
@@ -166,17 +170,23 @@ logger.info({ messageId }, 'Processing');
 
 // ❌ BAD - logging in loops
 for (const item of items) {
-  logger.info({ item }, 'Processing');  // Spams logs!
+  logger.info({ item }, 'Processing'); // Spams logs!
 }
 
 // ✅ GOOD - log summary
 logger.info({ count: items.length }, 'Processing items');
 
 // ❌ BAD - swallowing errors
-try { doSomething(); } catch (e) { /* nothing */ }
+try {
+  doSomething();
+} catch (e) {
+  /* nothing */
+}
 
 // ✅ GOOD - log and handle
-try { doSomething(); } catch (e) {
+try {
+  doSomething();
+} catch (e) {
   logger.error({ err: e }, 'Failed');
   throw e;
 }

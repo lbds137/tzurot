@@ -95,12 +95,12 @@ git branch -d feat/your-feature
 
 ### 🚨 NEVER Run Without Permission:
 
-| Command | Risk |
-| --- | --- |
-| `git restore` | Discards uncommitted work |
+| Command            | Risk                       |
+| ------------------ | -------------------------- |
+| `git restore`      | Discards uncommitted work  |
 | `git reset --hard` | Undoes commits permanently |
-| `git clean -fd` | Deletes untracked files |
-| `git push --force` | Rewrites history |
+| `git clean -fd`    | Deletes untracked files    |
+| `git push --force` | Rewrites history           |
 
 ### Golden Rules
 
@@ -112,10 +112,10 @@ git branch -d feat/your-feature
 
 **Source-controlled in `./hooks/`** (not `.git/hooks/`)
 
-| Hook | When | What | Speed |
-| --- | --- | --- | --- |
-| pre-commit | Every commit | Prettier + migration safety | ~5s |
-| pre-push | Before push | Lint, typecheck, tests | ~60s |
+| Hook       | When         | What                        | Speed |
+| ---------- | ------------ | --------------------------- | ----- |
+| pre-commit | Every commit | Prettier + migration safety | ~5s   |
+| pre-push   | Before push  | Lint, typecheck, tests      | ~60s  |
 
 **Install:** `./scripts/git/install-hooks.sh`
 
@@ -165,13 +165,13 @@ gh pr create --base main --head develop \
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
-| --- | --- |
-| PRs to main (except releases) | PRs to develop |
-| Push without testing | `pnpm test && git push` |
-| Vague commits ("fix stuff") | Descriptive commits |
-| Skip hooks (`--no-verify`) | Fix the issues |
-| Force push to main/develop | Only force-push feature branches |
+| ❌ Don't                      | ✅ Do                            |
+| ----------------------------- | -------------------------------- |
+| PRs to main (except releases) | PRs to develop                   |
+| Push without testing          | `pnpm test && git push`          |
+| Vague commits ("fix stuff")   | Descriptive commits              |
+| Skip hooks (`--no-verify`)    | Fix the issues                   |
+| Force push to main/develop    | Only force-push feature branches |
 
 ## Related Skills
 

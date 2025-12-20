@@ -12,6 +12,7 @@ lastUpdated: '2025-12-20'
 
 ```markdown
 # CURRENT_WORK.md format
+
 > Last updated: YYYY-MM-DD
 
 ## Status: [Brief description of current focus]
@@ -21,20 +22,22 @@ lastUpdated: '2025-12-20'
 **Recent Completion**: [Major milestone just finished]
 
 ## Active Work
+
 [Details of current task]
 
 ## Planned Features (Priority Order)
+
 [Upcoming work]
 ```
 
 ## Core Documentation Files
 
-| File | Purpose | Update When |
-| --- | --- | --- |
+| File              | Purpose            | Update When                  |
+| ----------------- | ------------------ | ---------------------------- |
 | `CURRENT_WORK.md` | Active work status | Start/end session, milestone |
-| `CLAUDE.md` | Project guidelines | New patterns, conventions |
-| `ROADMAP.md` | Planning roadmap | Sprint changes |
-| GitHub Releases | Version history | Each release |
+| `CLAUDE.md`       | Project guidelines | New patterns, conventions    |
+| `ROADMAP.md`      | Planning roadmap   | Sprint changes               |
+| GitHub Releases   | Version history    | Each release                 |
 
 **Root files only:** README.md, CLAUDE.md, CURRENT_WORK.md, ROADMAP.md. Everything else → `docs/`
 
@@ -87,13 +90,13 @@ git commit -m "wip: feature-name - progress description"
 
 ## Documentation Categories
 
-| Type | Location | Purpose |
-| --- | --- | --- |
-| Architecture decisions | `docs/architecture/` | Why we built it this way |
-| Deployment guides | `docs/deployment/` | Railway setup, operations |
-| Development guides | `docs/guides/` | How to do X |
-| Feature specs | `docs/features/` | What we're building |
-| Reference docs | `docs/reference/` | CLI, API documentation |
+| Type                   | Location             | Purpose                   |
+| ---------------------- | -------------------- | ------------------------- |
+| Architecture decisions | `docs/architecture/` | Why we built it this way  |
+| Deployment guides      | `docs/deployment/`   | Railway setup, operations |
+| Development guides     | `docs/guides/`       | How to do X               |
+| Feature specs          | `docs/features/`     | What we're building       |
+| Reference docs         | `docs/reference/`    | CLI, API documentation    |
 
 ## GitHub Releases Format
 
@@ -101,12 +104,15 @@ git commit -m "wip: feature-name - progress description"
 ## What's Changed
 
 ### Added
+
 - New feature X for doing Y
 
 ### Changed
+
 - Improved performance of A by 50%
 
 ### Fixed
+
 - Bug where X would fail under Y conditions
 
 **Full Changelog**: https://github.com/lbds137/tzurot/compare/vX.X.X...vY.Y.Y
@@ -116,16 +122,17 @@ git commit -m "wip: feature-name - progress description"
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
-| --- | --- |
+| ❌ Don't                     | ✅ Do                   |
+| ---------------------------- | ----------------------- |
 | Multiple docs for same topic | One comprehensive guide |
-| Stale CURRENT_WORK.md | Update at session end |
-| README in every directory | One main README |
-| Document obvious things | Document non-obvious |
+| Stale CURRENT_WORK.md        | Update at session end   |
+| README in every directory    | One main README         |
+| Document obvious things      | Document non-obvious    |
 
 ## Context Preservation
 
 **For AI sessions, always check these at session start:**
+
 1. CURRENT_WORK.md - What's happening now?
 2. CLAUDE.md - What are the rules?
 3. docs/README.md - What docs exist?

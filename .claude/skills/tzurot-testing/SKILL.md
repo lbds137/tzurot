@@ -29,7 +29,9 @@ pnpm test:coverage
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('MyService', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('should do something', () => {
     expect(result).toBe(expected);
@@ -49,8 +51,12 @@ describe('MyService', () => {
 ### Fake Timers (ALWAYS Use)
 
 ```typescript
-beforeEach(() => { vi.useFakeTimers(); });
-afterEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 it('should retry with delay', async () => {
   const promise = withRetry(fn);
@@ -64,14 +70,14 @@ it('should retry with delay', async () => {
 ```typescript
 // ❌ WRONG - Causes PromiseRejectionHandledWarning
 const promise = asyncFunction();
-await vi.runAllTimersAsync();  // Rejection happens here!
-await expect(promise).rejects.toThrow();  // Too late
+await vi.runAllTimersAsync(); // Rejection happens here!
+await expect(promise).rejects.toThrow(); // Too late
 
 // ✅ CORRECT - Attach handler BEFORE advancing timers
 const promise = asyncFunction();
-const assertion = expect(promise).rejects.toThrow('Error');  // Handler attached
-await vi.runAllTimersAsync();  // Now advance
-await assertion;  // Await result
+const assertion = expect(promise).rejects.toThrow('Error'); // Handler attached
+await vi.runAllTimersAsync(); // Now advance
+await assertion; // Await result
 ```
 
 ### Mock Factory Pattern
@@ -97,7 +103,8 @@ it('should call service', () => {
 // Discord message
 function createMockMessage(overrides = {}) {
   return {
-    id: '123', content: 'test',
+    id: '123',
+    content: 'test',
     author: { id: 'user-123', bot: false },
     channel: { id: 'channel-123', send: vi.fn() },
     reply: vi.fn().mockResolvedValue({}),
@@ -125,29 +132,29 @@ function createMockRedis() {
 
 ## Test File Naming
 
-| Type | Pattern | Location |
-| --- | --- | --- |
-| Unit | `*.test.ts` | Next to source |
-| Component | `*.component.test.ts` | Next to source |
-| Integration | `*.test.ts` | `tests/integration/` |
-| Contract | `*.contract.test.ts` | `common-types/types/` |
+| Type        | Pattern               | Location              |
+| ----------- | --------------------- | --------------------- |
+| Unit        | `*.test.ts`           | Next to source        |
+| Component   | `*.component.test.ts` | Next to source        |
+| Integration | `*.test.ts`           | `tests/integration/`  |
+| Contract    | `*.contract.test.ts`  | `common-types/types/` |
 
 ## Mock Reset Functions
 
-| Function | What It Does | When to Use |
-| --- | --- | --- |
-| `vi.clearAllMocks()` | Clears call history, keeps impl | `beforeEach()` |
-| `vi.restoreAllMocks()` | Restores original (spies only) | `afterEach()` |
-| `vi.resetAllMocks()` | Clears history + resets impl | Rarely needed |
+| Function               | What It Does                    | When to Use    |
+| ---------------------- | ------------------------------- | -------------- |
+| `vi.clearAllMocks()`   | Clears call history, keeps impl | `beforeEach()` |
+| `vi.restoreAllMocks()` | Restores original (spies only)  | `afterEach()`  |
+| `vi.resetAllMocks()`   | Clears history + resets impl    | Rarely needed  |
 
 ## When to Add Tests
 
-| Change | Unit | Contract | Integration |
-| --- | --- | --- | --- |
-| New API endpoint | ✅ | ✅ | Consider |
-| New service | ✅ | If shared | Consider |
-| New utility | ✅ | No | No |
-| Bug fix | ✅ | If contract | If integration |
+| Change           | Unit | Contract    | Integration    |
+| ---------------- | ---- | ----------- | -------------- |
+| New API endpoint | ✅   | ✅          | Consider       |
+| New service      | ✅   | If shared   | Consider       |
+| New utility      | ✅   | No          | No             |
+| Bug fix          | ✅   | If contract | If integration |
 
 ## Anti-Patterns
 
@@ -162,7 +169,7 @@ await new Promise(r => setTimeout(r, 1000));
 console.log('Debug:', value);
 
 // ❌ BAD - Skipping instead of fixing
-it.skip('broken test', () => { });
+it.skip('broken test', () => {});
 ```
 
 ## Coverage Commands
