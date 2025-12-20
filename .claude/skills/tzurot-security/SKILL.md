@@ -27,14 +27,15 @@ railway variables --service <name>
 
 **Happened TWICE in this project. Always verify!**
 
-| ❌ NEVER Commit | ✅ Use Instead |
-| --- | --- |
-| Database URLs with passwords | Environment variables |
-| API keys/tokens | `.env.example` with placeholders |
-| Private keys | Railway secrets management |
-| Real user data in tests | Generic test data |
+| ❌ NEVER Commit              | ✅ Use Instead                   |
+| ---------------------------- | -------------------------------- |
+| Database URLs with passwords | Environment variables            |
+| API keys/tokens              | `.env.example` with placeholders |
+| Private keys                 | Railway secrets management       |
+| Real user data in tests      | Generic test data                |
 
 **If you commit a secret:**
+
 1. **Rotate immediately** (regenerate in provider dashboard)
 2. Update Railway: `railway variables set KEY=new-value`
 3. Consider git history rewrite if not shared
@@ -79,7 +80,8 @@ if (budget.tokensUsed + estimated > BUDGET_PER_HOUR) {
 
 ```typescript
 // ❌ WRONG - Trusts client-side
-if (interaction.member.permissions.has('Administrator')) { }
+if (interaction.member.permissions.has('Administrator')) {
+}
 
 // ✅ CORRECT - Server-side with cache
 const guild = await client.guilds.fetch(guildId);
@@ -103,7 +105,8 @@ const scrubbedText = text.replace(EMAIL_REGEX, '<EMAIL_REDACTED>');
 ```typescript
 const JAILBREAK_PATTERNS = [
   /ignore (previous|all) (instructions|rules)/i,
-  /dan mode/i, /developer mode/i,
+  /dan mode/i,
+  /developer mode/i,
   /forget (everything|all)/i,
 ];
 
@@ -117,8 +120,7 @@ if (JAILBREAK_PATTERNS.some(p => p.test(prompt))) {
 Sign jobs with HMAC to prevent injection:
 
 ```typescript
-const signature = crypto.createHmac('sha256', SECRET)
-  .update(JSON.stringify(payload)).digest('hex');
+const signature = crypto.createHmac('sha256', SECRET).update(JSON.stringify(payload)).digest('hex');
 // Include signature in job, verify in worker
 ```
 
@@ -129,12 +131,15 @@ Validate using magic numbers, not extensions:
 ```typescript
 import fileType from 'file-type';
 const detected = await fileType.fromBuffer(buffer);
-if (!ALLOWED_TYPES.includes(detected?.mime)) { /* reject */ }
+if (!ALLOWED_TYPES.includes(detected?.mime)) {
+  /* reject */
+}
 ```
 
 ### 10. Dependency Management
 
 **Before installing ANY package:**
+
 ```bash
 npm view <package>           # Exists?
 npm audit                    # Vulnerabilities?

@@ -10,42 +10,48 @@ lastUpdated: '2025-12-20'
 
 ## Available MCP Tools
 
-| Tool | Purpose |
-| --- | --- |
-| `mcp__gemini-collab__ask_gemini` | Ask general questions |
-| `mcp__gemini-collab__gemini_brainstorm` | Brainstorm ideas/solutions |
-| `mcp__gemini-collab__gemini_code_review` | Code review feedback |
-| `mcp__gemini-collab__gemini_test_cases` | Test case suggestions |
-| `mcp__gemini-collab__gemini_explain` | Explain complex code/concepts |
-| `mcp__gemini-collab__synthesize_perspectives` | Combine multiple viewpoints |
+| Tool                                          | Purpose                       |
+| --------------------------------------------- | ----------------------------- |
+| `mcp__gemini-collab__ask_gemini`              | Ask general questions         |
+| `mcp__gemini-collab__gemini_brainstorm`       | Brainstorm ideas/solutions    |
+| `mcp__gemini-collab__gemini_code_review`      | Code review feedback          |
+| `mcp__gemini-collab__gemini_test_cases`       | Test case suggestions         |
+| `mcp__gemini-collab__gemini_explain`          | Explain complex code/concepts |
+| `mcp__gemini-collab__synthesize_perspectives` | Combine multiple viewpoints   |
 
 ## When to Consult Gemini
 
 ### ✅ Always Use For:
 
 **Major Refactorings (>500 lines)**
+
 ```typescript
-mcp__gemini-collab__gemini_brainstorm({
-  topic: 'Risks in refactoring PersonalityService',
-  constraints: 'Must maintain exact functionality'
-});
+mcp__gemini -
+  collab__gemini_brainstorm({
+    topic: 'Risks in refactoring PersonalityService',
+    constraints: 'Must maintain exact functionality',
+  });
 ```
 
 **Production Issues**
+
 ```typescript
-mcp__gemini-collab__ask_gemini({
-  question: 'What causes memory leak in BullMQ workers?',
-  context: 'Workers OOM after 2 hours. No obvious leaks.'
-});
+mcp__gemini -
+  collab__ask_gemini({
+    question: 'What causes memory leak in BullMQ workers?',
+    context: 'Workers OOM after 2 hours. No obvious leaks.',
+  });
 ```
 
 **Before Completing Major PRs**
+
 ```typescript
-mcp__gemini-collab__gemini_code_review({
-  code: changes,
-  focus: 'behavior preservation, edge cases',
-  language: 'typescript'
-});
+mcp__gemini -
+  collab__gemini_code_review({
+    code: changes,
+    focus: 'behavior preservation, edge cases',
+    language: 'typescript',
+  });
 ```
 
 **When Thinking "This seems unnecessary"**
@@ -61,23 +67,25 @@ mcp__gemini-collab__gemini_code_review({
 
 ```typescript
 // ❌ BAD - No context
-mcp__gemini-collab__ask_gemini({ question: 'How do I fix this?' });
+mcp__gemini - collab__ask_gemini({ question: 'How do I fix this?' });
 
 // ✅ GOOD - Full context
-mcp__gemini-collab__ask_gemini({
-  question: 'How do I fix race condition in webhook reply tracking?',
-  context: 'Using Redis to map message IDs. Bot-client and api-gateway both access Redis.'
-});
+mcp__gemini -
+  collab__ask_gemini({
+    question: 'How do I fix race condition in webhook reply tracking?',
+    context: 'Using Redis to map message IDs. Bot-client and api-gateway both access Redis.',
+  });
 
 // ❌ BAD - Generic review
-mcp__gemini-collab__gemini_code_review({ code: myCode });
+mcp__gemini - collab__gemini_code_review({ code: myCode });
 
 // ✅ GOOD - Focused review
-mcp__gemini-collab__gemini_code_review({
-  code: myCode,
-  focus: 'resource leaks, error handling, Redis connection management',
-  language: 'typescript'
-});
+mcp__gemini -
+  collab__gemini_code_review({
+    code: myCode,
+    focus: 'resource leaks, error handling, Redis connection management',
+    language: 'typescript',
+  });
 ```
 
 ## The Safety Stack
@@ -105,11 +113,13 @@ mcp__gemini-collab__gemini_code_review({
 ## Gemini Limitations
 
 **Gemini doesn't have access to:**
+
 - Your local filesystem
 - Project-specific documentation (unless provided)
 - Git history
 
 **Always validate against:**
+
 - Project guidelines (CLAUDE.md, skills)
 - Existing codebase patterns
 - Architecture decisions
@@ -117,6 +127,7 @@ mcp__gemini-collab__gemini_code_review({
 ## When Gemini and Claude Disagree
 
 **Resolution hierarchy:**
+
 1. Project guidelines (CLAUDE.md, skills)
 2. Existing codebase patterns
 3. Technical correctness

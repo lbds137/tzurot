@@ -32,24 +32,24 @@ OpenRouter/Gemini API
 
 ## Three Microservices
 
-| Service | Responsibility | Does | Does NOT |
-| --- | --- | --- | --- |
-| **bot-client** | Discord interface | Events, webhooks, commands, formatting | Business logic, AI calls, direct DB |
-| **api-gateway** | HTTP API + queue | Endpoints, validation, job creation | AI processing, Discord interaction |
-| **ai-worker** | AI + memory | Jobs, memory, AI calls, embeddings | HTTP endpoints, Discord interaction |
+| Service         | Responsibility    | Does                                   | Does NOT                            |
+| --------------- | ----------------- | -------------------------------------- | ----------------------------------- |
+| **bot-client**  | Discord interface | Events, webhooks, commands, formatting | Business logic, AI calls, direct DB |
+| **api-gateway** | HTTP API + queue  | Endpoints, validation, job creation    | AI processing, Discord interaction  |
+| **ai-worker**   | AI + memory       | Jobs, memory, AI calls, embeddings     | HTTP endpoints, Discord interaction |
 
 ## Where to Put New Code
 
-| Type | Location |
-| --- | --- |
-| Webhook/message formatting | `bot-client/` |
-| Slash commands | `bot-client/commands/` |
-| HTTP endpoints | `api-gateway/routes/` |
-| Job creation | `api-gateway/queue.ts` |
-| AI provider clients | `ai-worker/providers/` |
-| Memory/embeddings | `ai-worker/services/` |
-| Shared types/constants | `common-types/` |
-| Discord type guards | `common-types/types/` |
+| Type                       | Location               |
+| -------------------------- | ---------------------- |
+| Webhook/message formatting | `bot-client/`          |
+| Slash commands             | `bot-client/commands/` |
+| HTTP endpoints             | `api-gateway/routes/`  |
+| Job creation               | `api-gateway/queue.ts` |
+| AI provider clients        | `ai-worker/providers/` |
+| Memory/embeddings          | `ai-worker/services/`  |
+| Shared types/constants     | `common-types/`        |
+| Discord type guards        | `common-types/types/`  |
 
 ## Autocomplete Utilities (CRITICAL)
 
@@ -57,10 +57,10 @@ OpenRouter/Gemini API
 
 Available in `bot-client/src/utils/autocomplete/`:
 
-| Utility | Purpose | Option Names |
-| --- | --- | --- |
-| `handlePersonalityAutocomplete` | Personality selection | `personality`, `character` |
-| `handlePersonaAutocomplete` | Profile/persona selection | `profile`, `persona` |
+| Utility                         | Purpose                   | Option Names               |
+| ------------------------------- | ------------------------- | -------------------------- |
+| `handlePersonalityAutocomplete` | Personality selection     | `personality`, `character` |
+| `handlePersonaAutocomplete`     | Profile/persona selection | `profile`, `persona`       |
 
 ```typescript
 // ✅ GOOD - Delegate to shared utility
@@ -77,10 +77,10 @@ await handlePersonalityAutocomplete(interaction, {
 
 ## Error Message Patterns
 
-| Layer | Pattern | Example |
-| --- | --- | --- |
+| Layer           | Pattern               | Example                                                    |
+| --------------- | --------------------- | ---------------------------------------------------------- |
 | **api-gateway** | Clean JSON, NO emojis | `{ "error": "NOT_FOUND", "message": "Persona not found" }` |
-| **bot-client** | ADD emojis for users | `'❌ Profile not found.'` |
+| **bot-client**  | ADD emojis for users  | `'❌ Profile not found.'`                                  |
 
 ```typescript
 // ✅ Gateway - clean for programmatic use
@@ -92,13 +92,13 @@ await interaction.editReply({ content: '❌ Profile not found.' });
 
 ## Anti-Patterns from v2 (DON'T DO)
 
-| Pattern | Why Not | v3 Alternative |
-| --- | --- | --- |
-| Generic `IRepository<T>` | Too abstract | Concrete service methods |
-| DI containers | Over-engineered | Direct instantiation |
-| `Controller→UseCase→Service→Repository→ORM` | Too many layers | `Route→Service→Prisma` |
-| Complex event bus | Unnecessary | Redis pub/sub for cache only |
-| Value objects everywhere | Overhead | Simple validation functions |
+| Pattern                                     | Why Not         | v3 Alternative               |
+| ------------------------------------------- | --------------- | ---------------------------- |
+| Generic `IRepository<T>`                    | Too abstract    | Concrete service methods     |
+| DI containers                               | Over-engineered | Direct instantiation         |
+| `Controller→UseCase→Service→Repository→ORM` | Too many layers | `Route→Service→Prisma`       |
+| Complex event bus                           | Unnecessary     | Redis pub/sub for cache only |
+| Value objects everywhere                    | Overhead        | Simple validation functions  |
 
 ```typescript
 // ❌ v2 - Container hell
@@ -126,12 +126,14 @@ const service = new MyService(prisma, redis);
 ## When to Extract a Service
 
 **Extract when:**
+
 - Shared across multiple microservices → common-types
 - Complex business logic
 - Stateful operations
 - Easier testability needed
 
 **Keep inline when:**
+
 - Used in one place only
 - Stateless utility function
 - Very simple logic
