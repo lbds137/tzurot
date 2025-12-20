@@ -26,10 +26,14 @@ export interface PersonaSummary {
 
 /**
  * Cached data structure for a user's autocomplete options
+ *
+ * Uses undefined to indicate "not yet fetched" vs empty array for "fetched but empty".
+ * This distinction prevents re-fetching data for users who legitimately have no
+ * personalities or personas.
  */
 interface UserAutocompleteData {
-  personalities: PersonalitySummary[];
-  personas: PersonaSummary[];
+  personalities: PersonalitySummary[] | undefined;
+  personas: PersonaSummary[] | undefined;
 }
 
 /**
@@ -55,9 +59,9 @@ const userCache = new TTLCache<UserAutocompleteData>({
  * @returns Array of personality summaries, or empty array on error
  */
 export async function getCachedPersonalities(userId: string): Promise<PersonalitySummary[]> {
-  // Check cache first
+  // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
-  if (cached !== null) {
+  if (cached?.personalities !== undefined) {
     logger.debug({ userId }, '[AutocompleteCache] Personality cache hit');
     return cached.personalities;
   }
@@ -80,10 +84,11 @@ export async function getCachedPersonalities(userId: string): Promise<Personalit
     }
 
     // Get existing cached data or create new entry
+    // Preserve undefined for personas if not yet fetched
     const existingData = userCache.get(userId);
     const newData: UserAutocompleteData = {
       personalities: result.data.personalities,
-      personas: existingData?.personas ?? [],
+      personas: existingData?.personas,
     };
 
     userCache.set(userId, newData);
@@ -106,9 +111,9 @@ export async function getCachedPersonalities(userId: string): Promise<Personalit
  * @returns Array of persona summaries, or empty array on error
  */
 export async function getCachedPersonas(userId: string): Promise<PersonaSummary[]> {
-  // Check cache first
+  // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
-  if (cached !== null && cached.personas.length > 0) {
+  if (cached?.personas !== undefined) {
     logger.debug({ userId }, '[AutocompleteCache] Persona cache hit');
     return cached.personas;
   }
@@ -127,9 +132,10 @@ export async function getCachedPersonas(userId: string): Promise<PersonaSummary[
     }
 
     // Get existing cached data or create new entry
+    // Preserve undefined for personalities if not yet fetched
     const existingData = userCache.get(userId);
     const newData: UserAutocompleteData = {
-      personalities: existingData?.personalities ?? [],
+      personalities: existingData?.personalities,
       personas: result.data.personas,
     };
 
