@@ -14,11 +14,11 @@ import {
   isTransientError,
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
+  stripErrorSpoiler,
   HTTP_STATUS_TO_CATEGORY,
   PERMANENT_ERROR_CATEGORIES,
   TRANSIENT_ERROR_CATEGORIES,
   USER_ERROR_MESSAGES,
-  ERROR_PLACEHOLDER_PATTERN,
 } from './error.js';
 
 describe('generateErrorReferenceId', () => {
@@ -180,21 +180,7 @@ describe('formatErrorSpoiler', () => {
 describe('formatPersonalityErrorMessage', () => {
   const testRefId = 'test123';
 
-  it('should replace placeholder pattern with error details', () => {
-    const input = 'Oops! Something went wrong ||*(an error has occurred)*||';
-    const result = formatPersonalityErrorMessage(input, ApiErrorCategory.QUOTA_EXCEEDED, testRefId);
-    expect(result).toBe(
-      'Oops! Something went wrong ||*(error: quota exceeded; reference: test123)*||'
-    );
-  });
-
-  it('should append reference to existing spoiler pattern', () => {
-    const input = 'Error ||*(some existing text)*||';
-    const result = formatPersonalityErrorMessage(input, ApiErrorCategory.RATE_LIMIT, testRefId);
-    expect(result).toBe('Error ||*(some existing text; reference: test123)*||');
-  });
-
-  it('should append spoiler when no existing pattern', () => {
+  it('should append error spoiler to personality message', () => {
     const input = 'I had trouble thinking...';
     const result = formatPersonalityErrorMessage(input, ApiErrorCategory.SERVER_ERROR, testRefId);
     expect(result).toBe(
@@ -206,21 +192,14 @@ describe('formatPersonalityErrorMessage', () => {
     const result = formatPersonalityErrorMessage('', ApiErrorCategory.TIMEOUT, testRefId);
     expect(result).toBe(' ||*(error: timeout; reference: test123)*||');
   });
-});
 
-describe('ERROR_PLACEHOLDER_PATTERN', () => {
-  it('should match the exact placeholder', () => {
-    expect(ERROR_PLACEHOLDER_PATTERN.test('||*(an error has occurred)*||')).toBe(true);
-  });
-
-  it('should match placeholder in context', () => {
-    const text = 'Something went wrong ||*(an error has occurred)*||';
-    expect(ERROR_PLACEHOLDER_PATTERN.test(text)).toBe(true);
-  });
-
-  it('should not match different text', () => {
-    expect(ERROR_PLACEHOLDER_PATTERN.test('||*(something else)*||')).toBe(false);
-    expect(ERROR_PLACEHOLDER_PATTERN.test('an error has occurred')).toBe(false);
+  it('should include category in error spoiler', () => {
+    const result = formatPersonalityErrorMessage(
+      'Oops!',
+      ApiErrorCategory.QUOTA_EXCEEDED,
+      testRefId
+    );
+    expect(result).toBe('Oops! ||*(error: quota exceeded; reference: test123)*||');
   });
 });
 
@@ -280,5 +259,43 @@ describe('TRANSIENT_ERROR_CATEGORIES', () => {
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.AUTHENTICATION)).toBe(false);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(false);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.CONTENT_POLICY)).toBe(false);
+  });
+});
+
+describe('stripErrorSpoiler', () => {
+  it('should remove error spoiler from end of message', () => {
+    const input = 'Oops! Something went wrong ||*(error: timeout; reference: abc123)*||';
+    expect(stripErrorSpoiler(input)).toBe('Oops! Something went wrong');
+  });
+
+  it('should remove error spoiler with different categories', () => {
+    const input = 'I had trouble thinking... ||*(error: quota exceeded; reference: xyz789)*||';
+    expect(stripErrorSpoiler(input)).toBe('I had trouble thinking...');
+  });
+
+  it('should handle message with only spoiler', () => {
+    const input = '||*(error: server error; reference: ref001)*||';
+    expect(stripErrorSpoiler(input)).toBe('');
+  });
+
+  it('should preserve message without spoiler', () => {
+    const input = 'This is a normal message without any error spoiler';
+    expect(stripErrorSpoiler(input)).toBe('This is a normal message without any error spoiler');
+  });
+
+  it('should preserve regular Discord spoilers (not error format)', () => {
+    // Regular Discord spoiler is ||text|| without the asterisks
+    const input = 'This has a ||regular spoiler|| in it';
+    expect(stripErrorSpoiler(input)).toBe('This has a ||regular spoiler|| in it');
+  });
+
+  it('should handle the generic placeholder format', () => {
+    const input = 'Error message ||*(an error has occurred)*||';
+    expect(stripErrorSpoiler(input)).toBe('Error message');
+  });
+
+  it('should trim whitespace after removing spoiler', () => {
+    const input = 'Error message   ||*(error: timeout; reference: ref)*||';
+    expect(stripErrorSpoiler(input)).toBe('Error message');
   });
 });

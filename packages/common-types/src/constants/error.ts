@@ -229,12 +229,6 @@ export function isTransientError(category: ApiErrorCategory): boolean {
 }
 
 /**
- * Placeholder pattern for dynamic error details in personality error messages
- * Example: "Oops! Something went wrong ||*(an error has occurred)*||"
- */
-export const ERROR_PLACEHOLDER_PATTERN = /\|\|\*\(an error has occurred\)\*\|\|/;
-
-/**
  * Generic spoiler pattern for error details
  * Matches: ||*(some text)*||
  * Note: Character class excludes | to prevent ReDoS on nested ||*( sequences
@@ -253,7 +247,8 @@ export function formatErrorSpoiler(category: ApiErrorCategory, referenceId: stri
 }
 
 /**
- * Replace placeholder in personality error message with actual error details
+ * Format personality error message with error details appended
+ *
  * @param personalityMessage - The personality's configured error message
  * @param category - Error category
  * @param referenceId - Unique reference ID
@@ -266,21 +261,26 @@ export function formatPersonalityErrorMessage(
 ): string {
   const spoilerContent = formatErrorSpoiler(category, referenceId);
 
-  // Cap message length before regex to prevent ReDoS on malicious input
+  // Cap message length to prevent abuse
   const safeMessage = personalityMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
 
-  // Check for the specific placeholder pattern
-  if (safeMessage.includes('||*(an error has occurred)*||')) {
-    return safeMessage.replace(ERROR_PLACEHOLDER_PATTERN, spoilerContent);
-  }
-
-  // Check for any existing spoiler pattern and add reference
-  if (ERROR_SPOILER_PATTERN.test(safeMessage)) {
-    return safeMessage.replace(ERROR_SPOILER_PATTERN, (_, content) => {
-      return `||*(${content}; reference: ${referenceId})*||`;
-    });
-  }
-
-  // No existing pattern - append spoiler
   return `${safeMessage} ${spoilerContent}`;
+}
+
+/**
+ * Strip error spoiler from message for conversation history
+ *
+ * Removes the error spoiler (||*(error details)*||) from the end of error messages
+ * so the character remembers an error occurred but doesn't see technical details.
+ *
+ * @param message - Error message possibly containing spoiler tags
+ * @returns Message with error spoiler removed (trimmed)
+ *
+ * @example
+ * stripErrorSpoiler("Oops! ||*(error: timeout; reference: abc123)*||")
+ * // Returns: "Oops!"
+ */
+export function stripErrorSpoiler(message: string): string {
+  // Remove the error spoiler pattern and trim whitespace
+  return message.replace(ERROR_SPOILER_PATTERN, '').trim();
 }
