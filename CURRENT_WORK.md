@@ -10,9 +10,29 @@
 
 ---
 
-## Session Progress: Slash Command Timeout Fix
+## Next Session: Channel List Improvements
 
-**PR #385** (ready for merge): `release: v3.0.0-beta.25 - Fix slash command timeouts with caching and top-level deferral`
+**Branch**: `feat/channel-list-improvements`
+
+**Tasks**:
+
+1. **Improve `/channel list` command**:
+   - [ ] Add pagination for servers with many activated channels
+   - [ ] Require Manage Messages permission to use
+   - [ ] Show only current server's channels by default
+   - [ ] Add `--all` or admin flag for cross-server view
+
+2. **Investigate HTTP agent pool isolation** (optional optimization):
+   - [ ] Check if Discord.js and gateway HTTP clients share connection pools
+   - [ ] Consider separate agents to prevent cross-contamination
+
+**Context**: These items were identified during the beta.25 timeout debugging but deferred to keep that PR focused.
+
+---
+
+## Completed: v3.0.0-beta.25 (Slash Command Timeout Fix)
+
+**PR #385** merged → [Release v3.0.0-beta.25](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.25)
 
 **Root Cause**: Discord autocomplete fires HTTP requests on every keystroke. Combined with channel activation checks on every message, this caused HTTP connection pool saturation → 3-second Discord timeout exceeded → "Unknown interaction" error.
 
@@ -24,10 +44,6 @@
 - Fixed critical bug: empty persona list incorrectly treated as cache miss
 
 **Test Coverage**: 4,385 tests passing, 100% coverage on autocompleteCache.ts and GatewayClient.ts
-
-**Remaining in backlog** (for future sessions):
-- Investigate HTTP agent pool isolation (Discord vs Gateway)
-- Improve `/channel list` command (pagination, permissions, scope filtering)
 
 ---
 
