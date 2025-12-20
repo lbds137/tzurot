@@ -539,6 +539,72 @@ describe('GatewayClient', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should return cached result on second call', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      const activationData = {
+        isActivated: true,
+        activation: {
+          id: 'activation-uuid',
+          channelId: '123456789012345678',
+          personalitySlug: 'test-char',
+          personalityName: 'Test Character',
+          activatedBy: 'user-uuid',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(activationData),
+      });
+
+      // First call - should fetch from gateway
+      const result1 = await client.getChannelActivation('123456789012345678');
+      expect(result1).toEqual(activationData);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second call - should return cached result without fetch
+      const result2 = await client.getChannelActivation('123456789012345678');
+      expect(result2).toEqual(activationData);
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Still only 1 call
+    });
+
+    it('should cache isActivated=false responses', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ isActivated: false }),
+      });
+
+      // First call - should fetch
+      const result1 = await client.getChannelActivation('not-activated-channel');
+      expect(result1).toEqual({ isActivated: false });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second call - should return cached result
+      const result2 = await client.getChannelActivation('not-activated-channel');
+      expect(result2).toEqual({ isActivated: false });
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Still only 1 call
+    });
+
+    it('should not cache errors', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ isActivated: false }),
+      });
+
+      // First call - should fail
+      const result1 = await client.getChannelActivation('error-channel');
+      expect(result1).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second call - should retry fetch (error wasn't cached)
+      const result2 = await client.getChannelActivation('error-channel');
+      expect(result2).toEqual({ isActivated: false });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('healthCheck()', () => {
