@@ -7,6 +7,8 @@ import {
   DeactivateChannelResponseSchema,
   GetChannelActivationResponseSchema,
   ListChannelActivationsResponseSchema,
+  UpdateChannelGuildRequestSchema,
+  UpdateChannelGuildResponseSchema,
 } from './channel.js';
 
 describe('Channel Activation Schemas', () => {
@@ -15,9 +17,23 @@ describe('Channel Activation Schemas', () => {
       const data = {
         id: '550e8400-e29b-41d4-a716-446655440000',
         channelId: '123456789012345678',
+        guildId: '987654321098765432',
         personalitySlug: 'lilith',
         personalityName: 'Lilith',
         activatedBy: '550e8400-e29b-41d4-a716-446655440001',
+        createdAt: '2025-01-15T12:00:00.000Z',
+      };
+      expect(ActivatedChannelSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept null guildId (for legacy records)', () => {
+      const data = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        channelId: '123456789012345678',
+        guildId: null,
+        personalitySlug: 'lilith',
+        personalityName: 'Lilith',
+        activatedBy: null,
         createdAt: '2025-01-15T12:00:00.000Z',
       };
       expect(ActivatedChannelSchema.parse(data)).toEqual(data);
@@ -27,6 +43,7 @@ describe('Channel Activation Schemas', () => {
       const data = {
         id: '550e8400-e29b-41d4-a716-446655440000',
         channelId: '123456789012345678',
+        guildId: '987654321098765432',
         personalitySlug: 'lilith',
         personalityName: 'Lilith',
         activatedBy: null,
@@ -39,6 +56,7 @@ describe('Channel Activation Schemas', () => {
       const data = {
         id: 'not-a-uuid',
         channelId: '123456789012345678',
+        guildId: '987654321098765432',
         personalitySlug: 'lilith',
         personalityName: 'Lilith',
         activatedBy: null,
@@ -51,6 +69,7 @@ describe('Channel Activation Schemas', () => {
       const data = {
         id: '550e8400-e29b-41d4-a716-446655440000',
         channelId: '',
+        guildId: '987654321098765432',
         personalitySlug: 'lilith',
         personalityName: 'Lilith',
         activatedBy: null,
@@ -63,6 +82,7 @@ describe('Channel Activation Schemas', () => {
       const data = {
         id: '550e8400-e29b-41d4-a716-446655440000',
         channelId: '123456789012345678',
+        guildId: '987654321098765432',
         personalitySlug: '',
         personalityName: 'Lilith',
         activatedBy: null,
@@ -121,6 +141,7 @@ describe('Channel Activation Schemas', () => {
         activation: {
           id: '550e8400-e29b-41d4-a716-446655440000',
           channelId: '123456789012345678',
+          guildId: '987654321098765432',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
           activatedBy: '550e8400-e29b-41d4-a716-446655440001',
@@ -136,6 +157,7 @@ describe('Channel Activation Schemas', () => {
         activation: {
           id: '550e8400-e29b-41d4-a716-446655440000',
           channelId: '123456789012345678',
+          guildId: '987654321098765432',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
           activatedBy: null,
@@ -187,6 +209,7 @@ describe('Channel Activation Schemas', () => {
         activation: {
           id: '550e8400-e29b-41d4-a716-446655440000',
           channelId: '123456789012345678',
+          guildId: '987654321098765432',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
           activatedBy: null,
@@ -221,6 +244,7 @@ describe('Channel Activation Schemas', () => {
           {
             id: '550e8400-e29b-41d4-a716-446655440000',
             channelId: '123456789012345678',
+            guildId: '987654321098765432',
             personalitySlug: 'lilith',
             personalityName: 'Lilith',
             activatedBy: null,
@@ -229,6 +253,7 @@ describe('Channel Activation Schemas', () => {
           {
             id: '550e8400-e29b-41d4-a716-446655440001',
             channelId: '123456789012345679',
+            guildId: '987654321098765432',
             personalitySlug: 'sarcastic',
             personalityName: 'Sarcastic Bot',
             activatedBy: '550e8400-e29b-41d4-a716-446655440002',
@@ -242,6 +267,53 @@ describe('Channel Activation Schemas', () => {
     it('should accept empty activations array', () => {
       const data = { activations: [] };
       expect(ListChannelActivationsResponseSchema.parse(data)).toEqual(data);
+    });
+  });
+
+  describe('UpdateChannelGuildRequestSchema', () => {
+    it('should accept valid request data', () => {
+      const data = {
+        channelId: '123456789012345678',
+        guildId: '987654321098765432',
+      };
+      expect(UpdateChannelGuildRequestSchema.parse(data)).toEqual(data);
+    });
+
+    it('should reject empty channelId', () => {
+      const data = {
+        channelId: '',
+        guildId: '987654321098765432',
+      };
+      expect(() => UpdateChannelGuildRequestSchema.parse(data)).toThrow();
+    });
+
+    it('should reject empty guildId', () => {
+      const data = {
+        channelId: '123456789012345678',
+        guildId: '',
+      };
+      expect(() => UpdateChannelGuildRequestSchema.parse(data)).toThrow();
+    });
+
+    it('should reject missing fields', () => {
+      expect(() => UpdateChannelGuildRequestSchema.parse({})).toThrow();
+      expect(() => UpdateChannelGuildRequestSchema.parse({ channelId: '123' })).toThrow();
+    });
+  });
+
+  describe('UpdateChannelGuildResponseSchema', () => {
+    it('should accept response with updated=true', () => {
+      const data = { updated: true };
+      expect(UpdateChannelGuildResponseSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept response with updated=false', () => {
+      const data = { updated: false };
+      expect(UpdateChannelGuildResponseSchema.parse(data)).toEqual(data);
+    });
+
+    it('should reject missing updated field', () => {
+      expect(() => UpdateChannelGuildResponseSchema.parse({})).toThrow();
     });
   });
 });

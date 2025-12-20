@@ -40,8 +40,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
-    // Note: guildId is captured for future audit/permission features but not currently used
-    const { channelId, personalitySlug, guildId: _guildId } = parseResult.data;
+    const { channelId, personalitySlug, guildId } = parseResult.data;
 
     // Look up personality by slug
     const personality = await prisma.personality.findUnique({
@@ -107,12 +106,14 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
           id: activationId,
           channelId,
           personalityId: personality.id,
+          guildId,
           autoRespond: true,
           createdBy: user.id,
         },
         select: {
           id: true,
           channelId: true,
+          guildId: true,
           createdBy: true,
           createdAt: true,
           personality: {
@@ -142,6 +143,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       activation: {
         id: activation.id,
         channelId: activation.channelId,
+        guildId: activation.guildId,
         personalitySlug: activation.personality.slug,
         personalityName: activation.personality.displayName,
         activatedBy: activation.createdBy,

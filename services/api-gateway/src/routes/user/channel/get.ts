@@ -38,6 +38,7 @@ export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
       select: {
         id: true,
         channelId: true,
+        guildId: true,
         createdBy: true,
         createdAt: true,
         personality: {
@@ -71,6 +72,7 @@ export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
       activation: {
         id: activation.id,
         channelId: activation.channelId,
+        guildId: activation.guildId,
         personalitySlug: activation.personality.slug,
         personalityName: activation.personality.displayName,
         activatedBy: activation.createdBy,
