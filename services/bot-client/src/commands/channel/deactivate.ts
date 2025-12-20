@@ -11,6 +11,7 @@ import { createLogger, type DeactivateChannelResponse } from '@tzurot/common-typ
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
 import { invalidateChannelActivationCache } from '../../utils/GatewayClient.js';
+import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
 const logger = createLogger('channel-deactivate');
 
@@ -53,8 +54,21 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
 
     const { deactivated, personalityName } = result.data;
 
-    // Invalidate cache so the change takes effect immediately
+    // Invalidate local cache
     invalidateChannelActivationCache(channelId);
+
+    // Publish invalidation event to all bot-client instances via Redis pub/sub
+    // This ensures horizontal scaling works correctly
+    try {
+      const invalidationService = getChannelActivationCacheInvalidationService();
+      await invalidationService.invalidateChannel(channelId);
+    } catch (pubsubError) {
+      // Log but don't fail the command - local invalidation already happened
+      logger.warn(
+        { err: pubsubError, channelId },
+        '[Channel] Failed to publish invalidation event'
+      );
+    }
 
     if (!deactivated) {
       await interaction.editReply(

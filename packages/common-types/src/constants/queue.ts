@@ -75,6 +75,8 @@ export const REDIS_CHANNELS = {
   LLM_CONFIG_CACHE_INVALIDATION: 'cache:llm-config-invalidation',
   /** Channel for broadcasting persona cache invalidation events across services */
   PERSONA_CACHE_INVALIDATION: 'cache:persona-invalidation',
+  /** Channel for broadcasting channel activation cache invalidation events across bot-client instances */
+  CHANNEL_ACTIVATION_CACHE_INVALIDATION: 'cache:channel-activation-invalidation',
 } as const;
 
 /**
