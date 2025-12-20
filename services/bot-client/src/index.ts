@@ -7,12 +7,17 @@ import {
   UserService,
   PersonaResolver,
   PersonaCacheInvalidationService,
+  ChannelActivationCacheInvalidationService,
   ConversationHistoryService,
   disconnectPrisma,
   getPrismaClient,
   getConfig,
 } from '@tzurot/common-types';
-import { GatewayClient } from './utils/GatewayClient.js';
+import {
+  GatewayClient,
+  invalidateChannelActivationCache,
+  clearAllChannelActivationCache,
+} from './utils/GatewayClient.js';
 import { WebhookManager } from './utils/WebhookManager.js';
 import { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
@@ -78,6 +83,7 @@ interface Services {
   cacheRedis: Redis;
   cacheInvalidationService: CacheInvalidationService;
   personaCacheInvalidationService: PersonaCacheInvalidationService;
+  channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
 }
 
 /**
@@ -116,6 +122,11 @@ function createServices(): Services {
   // Persona resolution with proper cache invalidation via Redis pub/sub
   const personaResolver = new PersonaResolver(prisma, { enableCleanup: true });
   const personaCacheInvalidationService = new PersonaCacheInvalidationService(cacheRedis);
+
+  // Channel activation cache invalidation for horizontal scaling
+  const channelActivationCacheInvalidationService = new ChannelActivationCacheInvalidationService(
+    cacheRedis
+  );
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
@@ -163,6 +174,7 @@ function createServices(): Services {
     personalityService,
     conversationHistoryService,
     personaResolver,
+    channelActivationCacheInvalidationService,
   });
 
   return {
@@ -176,6 +188,7 @@ function createServices(): Services {
     cacheRedis,
     cacheInvalidationService,
     personaCacheInvalidationService,
+    channelActivationCacheInvalidationService,
   };
 }
 
@@ -260,6 +273,7 @@ process.on('SIGINT', () => {
   services.webhookManager.destroy();
   void services.cacheInvalidationService.unsubscribe();
   void services.personaCacheInvalidationService.unsubscribe();
+  void services.channelActivationCacheInvalidationService.unsubscribe();
   services.personaResolver.stopCleanup();
   services.cacheRedis.disconnect();
   void closeRedis();
@@ -324,6 +338,19 @@ async function start(): Promise<void> {
       }
     });
     logger.info('[Bot] Subscribed to persona cache invalidation events');
+
+    // Subscribe to channel activation cache invalidation events
+    // Enables horizontal scaling - all instances stay in sync when channels are activated/deactivated
+    await services.channelActivationCacheInvalidationService.subscribe(event => {
+      if (event.type === 'channel') {
+        invalidateChannelActivationCache(event.channelId);
+        logger.debug({ channelId: event.channelId }, '[Bot] Invalidated channel activation cache');
+      } else if (event.type === 'all') {
+        clearAllChannelActivationCache();
+        logger.debug('[Bot] Invalidated all channel activation caches');
+      }
+    });
+    logger.info('[Bot] Subscribed to channel activation cache invalidation events');
 
     // Health check gateway
     logger.info('[Bot] Checking gateway health...');

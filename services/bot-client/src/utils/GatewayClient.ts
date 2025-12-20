@@ -40,11 +40,17 @@ export function invalidateChannelActivationCache(channelId: string): void {
 
 /**
  * Clear all entries in the channel activation cache.
- * @internal For testing only
+ * Used by pub/sub invalidation for 'all' events and for testing.
  */
-export function _clearChannelActivationCacheForTesting(): void {
+export function clearAllChannelActivationCache(): void {
   channelActivationCache.clear();
 }
+
+/**
+ * Alias for testing compatibility
+ * @internal For testing only
+ */
+export const _clearChannelActivationCacheForTesting = clearAllChannelActivationCache;
 
 /**
  * API Gateway client for making AI generation requests

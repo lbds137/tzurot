@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2025-12-19
+> Last updated: 2025-12-20
 
 ## Status: Public Beta Live
 
@@ -10,11 +10,40 @@
 
 ---
 
-## Next Session: Channel List Improvements
+## Just Completed: Caching Strategy Audit
+
+**Branch**: `feat/caching-strategy-audit`
+
+**Completed Tasks**:
+
+1. ✅ **Comprehensive caching audit** - Documented in [docs/architecture/CACHING_AUDIT.md](docs/architecture/CACHING_AUDIT.md)
+2. ✅ **Identified horizontal scaling concerns** - Channel activation cache was the ONLY critical issue
+3. ✅ **Implemented channel activation pub/sub invalidation**:
+   - Created `ChannelActivationCacheInvalidationService`
+   - Added Redis channel `cache:channel-activation-invalidation`
+   - bot-client subscribes on startup
+   - `/channel activate` and `/channel deactivate` publish events
+   - All tests passing (940 common-types, 1650 bot-client)
+
+**Key Finding**: Most caches were already properly designed. The channel activation cache was the only one that could cause correctness issues with horizontal scaling.
+
+---
+
+## Next Session: Create PR for Caching Audit
+
+**Tasks**:
+
+- [ ] Review changes and create PR
+- [ ] Run linting and formatting
+- [ ] Smoke test in development environment
+
+---
+
+## Upcoming: Channel List Improvements (Deferred)
 
 **Branch**: `feat/channel-list-improvements`
 
-**Tasks**:
+**Tasks** (from beta.25 timeout debugging):
 
 1. **Improve `/channel list` command**:
    - [ ] Add pagination for servers with many activated channels
@@ -22,57 +51,20 @@
    - [ ] Show only current server's channels by default
    - [ ] Add `--all` or admin flag for cross-server view
 
-2. **Investigate HTTP agent pool isolation** (optional optimization):
-   - [ ] Check if Discord.js and gateway HTTP clients share connection pools
-   - [ ] Consider separate agents to prevent cross-contamination
-
-**Context**: These items were identified during the beta.25 timeout debugging but deferred to keep that PR focused.
+**Context**: PR #386 already added guildId filtering and backfill. These remaining items can be done in a future session.
 
 ---
 
-## Upcoming: Caching Strategy Audit
+## Upcoming: HTTP Agent Pool Isolation (Optional)
 
-**Branch**: TBD (after channel list improvements)
+**Status**: Low priority per caching audit
 
-**Problem**: Caching approach is scattered across the codebase with increasing technical debt around horizontal scaling. Need a consistent strategy.
+**When**: Only investigate if HTTP connection issues arise under load
 
 **Scope**:
 
-- [ ] Audit all current caching mechanisms (in-memory TTL caches, Redis, etc.)
-- [ ] Identify horizontal scaling concerns (what breaks with multiple instances?)
-- [ ] Define consistent caching patterns (when to use local vs Redis vs no cache)
-- [ ] Document cache invalidation strategies
-- [ ] Consider cache warming, stampede prevention, and other production concerns
-
-**Current caching locations** (known):
-
-- `autocompleteCache.ts` - In-memory TTL (personalities/personas per user)
-- `GatewayClient.ts` - In-memory TTL (channel activations)
-- `VisionDescriptionCache` - Redis-based
-- `VoiceTranscriptCache` - Redis-based
-- `CacheInvalidationService` - Redis pub/sub for cross-instance invalidation
-- Various Prisma query results (no caching?)
-
-**Goal**: Consistent, horizontally-scalable caching that doesn't break when running multiple bot-client instances.
-
-**Tradeoffs to consider**:
-
-| Approach                  | Pros                             | Cons                                     |
-| ------------------------- | -------------------------------- | ---------------------------------------- |
-| In-memory only            | Fast, simple                     | Not shared across instances              |
-| Redis only                | Shared, survives restarts        | Network latency on every read            |
-| In-memory + Redis pub/sub | Fast reads, eventual consistency | Brief inconsistency window, more complex |
-
-**Current state**:
-
-| Cache               | Storage   | Invalidation       | Scaling Issue?                |
-| ------------------- | --------- | ------------------ | ----------------------------- |
-| Autocomplete        | In-memory | TTL (60s)          | Minor - stale data briefly    |
-| Channel activation  | In-memory | TTL (30s) + manual | **Yes** - could miss messages |
-| Vision/Voice        | Redis     | TTL                | ✅ Already shared             |
-| Personality/Persona | In-memory | Redis pub/sub      | ✅ Already handled            |
-
-**Deliverable**: Standardized caching approach, possibly codified as a `tzurot-caching` skill.
+- [ ] Check if Discord.js and gateway HTTP clients share connection pools
+- [ ] Consider separate agents to prevent cross-contamination
 
 ---
 
