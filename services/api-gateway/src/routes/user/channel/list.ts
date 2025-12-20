@@ -1,6 +1,9 @@
 /**
  * GET /user/channel/list
  * List all activated channels
+ *
+ * Query params:
+ * - guildId (optional): Filter to only show channels in a specific guild
  */
 
 import { type Response, type RequestHandler } from 'express';
@@ -19,17 +22,25 @@ const logger = createLogger('channel-list');
 
 /**
  * Create handler for GET /user/channel/list
- * Returns all activated channels.
+ * Returns all activated channels, optionally filtered by guildId.
  */
 export function createListHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    // Get all activations
+    // Optional guildId filter from query params
+    const guildId = req.query.guildId as string | undefined;
+
+    // Build where clause based on whether guildId filter is provided
+    const whereClause = guildId !== undefined ? { guildId } : undefined;
+
+    // Get activations (optionally filtered by guild)
     const activations = await prisma.activatedChannel.findMany({
+      where: whereClause,
       select: {
         id: true,
         channelId: true,
+        guildId: true,
         createdBy: true,
         createdAt: true,
         personality: {
@@ -46,6 +57,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
       {
         discordUserId,
         activationCount: activations.length,
+        guildIdFilter: guildId ?? 'all',
       },
       '[Channel] Listed channel activations'
     );
@@ -55,6 +67,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
       activations: activations.map(a => ({
         id: a.id,
         channelId: a.channelId,
+        guildId: a.guildId,
         personalitySlug: a.personality.slug,
         personalityName: a.personality.displayName,
         activatedBy: a.createdBy,

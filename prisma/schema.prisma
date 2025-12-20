@@ -358,6 +358,7 @@ model ActivatedChannel {
   id            String      @id @default(uuid()) @db.Uuid
   channelId     String      @map("channel_id") @db.VarChar(20)
   personalityId String      @map("personality_id") @db.Uuid
+  guildId       String?     @map("guild_id") @db.VarChar(20)
   autoRespond   Boolean     @default(true) @map("auto_respond")
   createdBy     String?     @map("created_by") @db.Uuid
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -368,6 +369,7 @@ model ActivatedChannel {
   @@unique([channelId, personalityId])
   @@index([channelId])
   @@index([personalityId])
+  @@index([guildId])
   @@map("activated_channels")
 }
 

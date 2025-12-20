@@ -364,6 +364,66 @@ export const DestructiveCustomIds = {
 } as const;
 
 // ============================================================================
+// CHANNEL COMMAND
+// ============================================================================
+
+/** Sort options for channel list */
+export type ChannelListSortType = 'date' | 'name';
+
+/** Result type for ChannelCustomIds.parse */
+interface ChannelParseResult {
+  command: 'channel';
+  action: string;
+  page?: number;
+  sort?: ChannelListSortType;
+}
+
+export const ChannelCustomIds = {
+  /**
+   * Build list pagination button customId
+   * Format: channel::list::{page}::{sort}
+   */
+  listPage: (page: number, sort: ChannelListSortType) => `channel::list::${page}::${sort}` as const,
+
+  /** Build list page info button customId (disabled) */
+  listInfo: () => 'channel::list::info' as const,
+
+  /**
+   * Build sort toggle button customId
+   * Format: channel::sort::{page}::{newSort}
+   */
+  sortToggle: (page: number, newSort: ChannelListSortType) =>
+    `channel::sort::${page}::${newSort}` as const,
+
+  /** Parse channel customId */
+  parse: (customId: string): ChannelParseResult | null => {
+    const parts = customId.split(CUSTOM_ID_DELIMITER);
+    if (parts[0] !== 'channel' || parts.length < 2) {
+      return null;
+    }
+
+    const action = parts[1];
+    const result: ChannelParseResult = { command: 'channel', action };
+
+    // For list and sort actions, parse page and sort
+    if ((action === 'list' || action === 'sort') && parts[2] !== undefined && parts[2] !== 'info') {
+      const pageNum = parseInt(parts[2], 10);
+      if (!isNaN(pageNum)) {
+        result.page = pageNum;
+      }
+      if (parts[3] === 'date' || parts[3] === 'name') {
+        result.sort = parts[3];
+      }
+    }
+
+    return result;
+  },
+
+  /** Check if customId belongs to channel command */
+  isChannel: (customId: string): boolean => customId.startsWith('channel::'),
+} as const;
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 

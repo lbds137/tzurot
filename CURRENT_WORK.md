@@ -37,6 +37,7 @@
 **Problem**: Caching approach is scattered across the codebase with increasing technical debt around horizontal scaling. Need a consistent strategy.
 
 **Scope**:
+
 - [ ] Audit all current caching mechanisms (in-memory TTL caches, Redis, etc.)
 - [ ] Identify horizontal scaling concerns (what breaks with multiple instances?)
 - [ ] Define consistent caching patterns (when to use local vs Redis vs no cache)
@@ -44,6 +45,7 @@
 - [ ] Consider cache warming, stampede prevention, and other production concerns
 
 **Current caching locations** (known):
+
 - `autocompleteCache.ts` - In-memory TTL (personalities/personas per user)
 - `GatewayClient.ts` - In-memory TTL (channel activations)
 - `VisionDescriptionCache` - Redis-based
@@ -55,20 +57,20 @@
 
 **Tradeoffs to consider**:
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| In-memory only | Fast, simple | Not shared across instances |
-| Redis only | Shared, survives restarts | Network latency on every read |
+| Approach                  | Pros                             | Cons                                     |
+| ------------------------- | -------------------------------- | ---------------------------------------- |
+| In-memory only            | Fast, simple                     | Not shared across instances              |
+| Redis only                | Shared, survives restarts        | Network latency on every read            |
 | In-memory + Redis pub/sub | Fast reads, eventual consistency | Brief inconsistency window, more complex |
 
 **Current state**:
 
-| Cache | Storage | Invalidation | Scaling Issue? |
-|-------|---------|--------------|----------------|
-| Autocomplete | In-memory | TTL (60s) | Minor - stale data briefly |
-| Channel activation | In-memory | TTL (30s) + manual | **Yes** - could miss messages |
-| Vision/Voice | Redis | TTL | ✅ Already shared |
-| Personality/Persona | In-memory | Redis pub/sub | ✅ Already handled |
+| Cache               | Storage   | Invalidation       | Scaling Issue?                |
+| ------------------- | --------- | ------------------ | ----------------------------- |
+| Autocomplete        | In-memory | TTL (60s)          | Minor - stale data briefly    |
+| Channel activation  | In-memory | TTL (30s) + manual | **Yes** - could miss messages |
+| Vision/Voice        | Redis     | TTL                | ✅ Already shared             |
+| Personality/Persona | In-memory | Redis pub/sub      | ✅ Already handled            |
 
 **Deliverable**: Standardized caching approach, possibly codified as a `tzurot-caching` skill.
 
@@ -81,6 +83,7 @@
 **Problem**: We added many skills (13 total) but unclear if they're being used consistently or effectively.
 
 **Scope**:
+
 - [ ] Audit current skill usage patterns
 - [ ] Research best practices for Claude Code skills optimization
 - [ ] Evaluate skill activation triggers - are they firing when expected?
@@ -99,6 +102,7 @@
 **Root Cause**: Discord autocomplete fires HTTP requests on every keystroke. Combined with channel activation checks on every message, this caused HTTP connection pool saturation → 3-second Discord timeout exceeded → "Unknown interaction" error.
 
 **Fixes Applied**:
+
 - TTL cache for personality/persona autocomplete (60s TTL, 500 users max)
 - TTL cache for channel activation lookups (30s TTL)
 - Moved `deferReply` to top-level interactionCreate handler
