@@ -42,11 +42,24 @@ export class UserService {
       // Try to find existing user
       let user = await this.prisma.user.findUnique({
         where: { discordId },
-        select: { id: true, isSuperuser: true },
+        select: { id: true, isSuperuser: true, username: true },
       });
 
       // Check if existing user should be promoted to superuser
       await this.promoteToSuperuserIfNeeded(user, discordId);
+
+      // Update placeholder username if we now have a real username
+      // (api-gateway creates users with discordId as placeholder username)
+      if (user && user.username === discordId && username !== discordId) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { username },
+        });
+        logger.info(
+          { userId: user.id, discordId, oldUsername: user.username, newUsername: username },
+          '[UserService] Updated placeholder username'
+        );
+      }
 
       // Create if doesn't exist
       user ??= await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
@@ -65,7 +78,7 @@ export class UserService {
    * Handles the case where BOT_OWNER_ID is set after user was created
    */
   private async promoteToSuperuserIfNeeded(
-    user: { id: string; isSuperuser: boolean } | null,
+    user: { id: string; isSuperuser: boolean; username: string } | null,
     discordId: string
   ): Promise<void> {
     if (user && !user.isSuperuser && isBotOwner(discordId)) {

@@ -74,12 +74,51 @@ describe('UserService', () => {
     });
 
     it('should return existing user ID if found in database', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'existing-user-id' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'existinguser',
+      });
 
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
       expect(result).toBe('existing-user-id');
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should update placeholder username when real username is provided', async () => {
+      // User was created by api-gateway with discordId as placeholder username
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: '123456', // Placeholder = discordId
+      });
+      mockPrisma.user.update.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        username: 'realusername',
+      });
+
+      const result = await userService.getOrCreateUser('123456', 'realusername');
+
+      expect(result).toBe('existing-user-id');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'existing-user-id' },
+        data: { username: 'realusername' },
+      });
+    });
+
+    it('should not update username if already set to real value', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'alreadyset', // Real username, not a placeholder
+      });
+
+      const result = await userService.getOrCreateUser('123456', 'newusername');
+
+      expect(result).toBe('existing-user-id');
+      // Should not update since username is not a placeholder
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
     it('should create new user with isSuperuser=false for regular users', async () => {
