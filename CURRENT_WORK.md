@@ -1,12 +1,33 @@
 # Current Work
 
-> Last updated: 2025-12-18
+> Last updated: 2025-12-19
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.23
+**Version**: v3.0.0-beta.25
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
+
+---
+
+## Session Progress: Slash Command Timeout Fix
+
+**PR #385** (ready for merge): `release: v3.0.0-beta.25 - Fix slash command timeouts with caching and top-level deferral`
+
+**Root Cause**: Discord autocomplete fires HTTP requests on every keystroke. Combined with channel activation checks on every message, this caused HTTP connection pool saturation → 3-second Discord timeout exceeded → "Unknown interaction" error.
+
+**Fixes Applied**:
+- TTL cache for personality/persona autocomplete (60s TTL, 500 users max)
+- TTL cache for channel activation lookups (30s TTL)
+- Moved `deferReply` to top-level interactionCreate handler
+- Removed redundant `deferEphemeral` from individual command handlers
+- Fixed critical bug: empty persona list incorrectly treated as cache miss
+
+**Test Coverage**: 4,385 tests passing, 100% coverage on autocompleteCache.ts and GatewayClient.ts
+
+**Remaining in backlog** (for future sessions):
+- Investigate HTTP agent pool isolation (Discord vs Gateway)
+- Improve `/channel list` command (pagination, permissions, scope filtering)
 
 ---
 
@@ -55,6 +76,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.25**: Slash command timeout fix (autocomplete + channel activation caching, top-level deferral)
 - **beta.23**: Memory chunking for oversized embeddings, implicit reply fix, regex security fix
 - **beta.20**: Avatar auto-resize with GIF animation preservation
 - **beta.19**: `/history` commands (STM management)
