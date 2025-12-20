@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
@@ -424,8 +424,7 @@ export async function handleImport(
   interaction: ChatInputCommandInteraction,
   _config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   try {
     const fileAttachment = interaction.options.getAttachment('file', true);
     const avatarAttachment = interaction.options.getAttachment('avatar', false);

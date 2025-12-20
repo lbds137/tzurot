@@ -7,7 +7,6 @@ import { escapeMarkdown, handleList, handleListPagination } from './list.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import type { ButtonInteraction, ChatInputCommandInteraction, Client } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 // Mock the api module
 vi.mock('./api.js', () => ({
@@ -54,7 +53,6 @@ describe('Character List', () => {
           fetch: vi.fn(),
         },
       },
-      deferReply: vi.fn(),
       editReply: vi.fn(),
     } as unknown as ChatInputCommandInteraction;
 
@@ -69,13 +67,7 @@ describe('Character List', () => {
       vi.restoreAllMocks();
     });
 
-    it('should defer reply with ephemeral flag', async () => {
-      await handleList(mockInteraction, mockConfig);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-        flags: MessageFlags.Ephemeral,
-      });
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should fetch both owned and public characters', async () => {
       await handleList(mockInteraction, mockConfig);

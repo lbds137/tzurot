@@ -4,7 +4,6 @@
  * Opens the dashboard for editing an existing character.
  */
 
-import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type EnvConfig } from '@tzurot/common-types';
 import {
@@ -24,8 +23,7 @@ export async function handleEdit(
   interaction: ChatInputCommandInteraction,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   const slug = interaction.options.getString('character', true);
 
   try {

@@ -4,13 +4,7 @@
  * Handles the /character list command and pagination.
  */
 
-import {
-  MessageFlags,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  ActionRowBuilder,
-} from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, ActionRowBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -160,8 +154,7 @@ export async function handleList(
   interaction: ChatInputCommandInteraction,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   try {
     // Fetch user's own characters and all public characters
     const [ownCharacters, publicCharacters] = await Promise.all([

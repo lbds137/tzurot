@@ -16,13 +16,7 @@
  * the button click may arrive at a different replica than the one waiting.
  */
 
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import {
   createLogger,
@@ -44,8 +38,7 @@ export async function handleDelete(
   interaction: ChatInputCommandInteraction,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   const slug = interaction.options.getString('character', true);
 
   try {
