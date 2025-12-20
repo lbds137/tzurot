@@ -3,7 +3,13 @@
  * Handles /character view - displays character details with pagination
  */
 
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
+import {
+  EmbedBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
+  MessageFlags,
+} from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import {
   createLogger,
