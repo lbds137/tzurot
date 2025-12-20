@@ -30,6 +30,31 @@
 
 ---
 
+## Upcoming: Caching Strategy Audit
+
+**Branch**: TBD (after channel list improvements)
+
+**Problem**: Caching approach is scattered across the codebase with increasing technical debt around horizontal scaling. Need a consistent strategy.
+
+**Scope**:
+- [ ] Audit all current caching mechanisms (in-memory TTL caches, Redis, etc.)
+- [ ] Identify horizontal scaling concerns (what breaks with multiple instances?)
+- [ ] Define consistent caching patterns (when to use local vs Redis vs no cache)
+- [ ] Document cache invalidation strategies
+- [ ] Consider cache warming, stampede prevention, and other production concerns
+
+**Current caching locations** (known):
+- `autocompleteCache.ts` - In-memory TTL (personalities/personas per user)
+- `GatewayClient.ts` - In-memory TTL (channel activations)
+- `VisionDescriptionCache` - Redis-based
+- `VoiceTranscriptCache` - Redis-based
+- `CacheInvalidationService` - Redis pub/sub for cross-instance invalidation
+- Various Prisma query results (no caching?)
+
+**Goal**: Consistent, horizontally-scalable caching that doesn't break when running multiple bot-client instances.
+
+---
+
 ## Completed: v3.0.0-beta.25 (Slash Command Timeout Fix)
 
 **PR #385** merged → [Release v3.0.0-beta.25](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.25)
