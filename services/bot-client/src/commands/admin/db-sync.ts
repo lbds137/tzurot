@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
 import { adminPostJson } from '../../utils/adminApiClient.js';
 
@@ -20,9 +20,8 @@ interface SyncResult {
 }
 
 export async function handleDbSync(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Note: deferReply is handled by top-level interactionCreate handler
   const dryRun = interaction.options.getBoolean('dry-run') ?? false;
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     // Call API Gateway sync endpoint

@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePing } from './ping.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 describe('handlePing', () => {
   let mockInteraction: ChatInputCommandInteraction;
@@ -20,18 +19,11 @@ describe('handlePing', () => {
           ping: 42,
         },
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
   });
 
-  it('should defer reply with ephemeral flag', async () => {
-    await handlePing(mockInteraction);
-
-    expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   it('should show response and websocket latency', async () => {
     await handlePing(mockInteraction);

@@ -111,11 +111,10 @@ describe('Character Chat Handler', () => {
       },
       channel,
       guild,
-      deferReply: vi.fn().mockResolvedValue(undefined),
       deleteReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
       replied: false,
-      deferred: false,
+      deferred: true, // Simulates top-level handler having already deferred
     } as unknown as ChatInputCommandInteraction;
   };
 
@@ -146,20 +145,8 @@ describe('Character Chat Handler', () => {
   });
 
   describe('handleChat', () => {
-    it('should defer reply on start', async () => {
-      const mockInteraction = createMockInteraction('test-char', 'Hello!');
-      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
-      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
-        content: 'Hello there!',
-        metadata: { modelUsed: 'test-model' },
-      });
-      mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'webhook-msg-123' });
-
-      await handleChat(mockInteraction, mockConfig);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalled();
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
+    // (character chat is in NON_EPHEMERAL_COMMANDS so it's non-ephemeral)
 
     it('should return error when character not found', async () => {
       const mockInteraction = createMockInteraction('nonexistent', 'Hello!');

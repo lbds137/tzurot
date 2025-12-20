@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleCleanup } from './cleanup.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 // Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
@@ -69,7 +68,6 @@ describe('handleCleanup', () => {
         getInteger: vi.fn(),
         getString: vi.fn(),
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
   });
@@ -78,19 +76,7 @@ describe('handleCleanup', () => {
     vi.restoreAllMocks();
   });
 
-  it('should defer reply with ephemeral flag', async () => {
-    vi.mocked(mockInteraction.options.getInteger).mockReturnValue(null);
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockCleanupResponse()), { status: 200 })
-    );
-
-    await handleCleanup(mockInteraction);
-
-    expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   it('should use default daysToKeep of 30 when not provided', async () => {
     vi.mocked(mockInteraction.options.getInteger).mockReturnValue(null);

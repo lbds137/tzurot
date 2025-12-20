@@ -89,7 +89,6 @@ function createMockInteraction(
 
   return {
     user: { id: 'owner-123', username: 'testowner' },
-    deferReply: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue(undefined),
     options: {
       getAttachment: vi.fn().mockImplementation((name: string, _required?: boolean) => {
@@ -210,18 +209,7 @@ describe('handleImport', () => {
   });
 
   describe('basic flow', () => {
-    it('should defer reply with ephemeral flag', async () => {
-      const interaction = createMockInteraction();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
-      });
-      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
-
-      await handleImport(interaction, mockConfig);
-
-      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should allow any user to import (no owner check)', async () => {
       const interaction = createMockInteraction();

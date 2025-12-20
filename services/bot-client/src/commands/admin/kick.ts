@@ -4,15 +4,13 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('admin-kick');
 
 export async function handleKick(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Note: deferReply is handled by top-level interactionCreate handler
   const serverId = interaction.options.getString('server-id', true);
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const guild = interaction.client.guilds.cache.get(serverId);

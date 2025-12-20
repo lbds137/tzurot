@@ -119,8 +119,8 @@ export async function handleChat(
     '[Character Chat] Processing chat request'
   );
 
-  // Defer while we process (but NOT ephemeral - we want visible messages)
-  await interaction.deferReply();
+  // Note: deferReply is handled by top-level interactionCreate handler
+  // (character chat is in NON_EPHEMERAL_COMMANDS so it's non-ephemeral)
 
   try {
     // 1. Load the personality

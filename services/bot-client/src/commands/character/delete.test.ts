@@ -14,7 +14,6 @@ import { handleDelete, handleDeleteButton } from './delete.js';
 import * as api from './api.js';
 import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import { DeletePersonalityResponseSchema } from '@tzurot/common-types';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -51,10 +50,8 @@ describe('Character Delete Handler', () => {
       options: {
         getString: vi.fn((_name: string, _required?: boolean) => slug),
       },
-      deferReply: vi.fn(),
       editReply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
     } as unknown as ChatInputCommandInteraction & {
-      deferReply: ReturnType<typeof vi.fn>;
       editReply: ReturnType<typeof vi.fn>;
     };
   };
@@ -103,14 +100,7 @@ describe('Character Delete Handler', () => {
   });
 
   describe('handleDelete (shows confirmation dialog)', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockCommandInteraction('test-character');
-      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter());
-
-      await handleDelete(mockInteraction, mockConfig);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should return error when character not found', async () => {
       const mockInteraction = createMockCommandInteraction('nonexistent');

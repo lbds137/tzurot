@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleUsage } from './usage.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 // Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
@@ -80,7 +79,6 @@ describe('handleUsage', () => {
       options: {
         getString: vi.fn(),
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
   });
@@ -89,18 +87,7 @@ describe('handleUsage', () => {
     vi.restoreAllMocks();
   });
 
-  it('should defer reply with ephemeral flag', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
-    );
-
-    await handleUsage(mockInteraction);
-
-    expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   it('should use default timeframe of 7d when not provided', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue(null);

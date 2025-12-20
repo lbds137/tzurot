@@ -5,7 +5,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder } from 'discord.js';
 import { createLogger, type EnvConfig, getConfig, isBotOwner } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
@@ -97,8 +97,7 @@ export async function handleExport(
   interaction: ChatInputCommandInteraction,
   _config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   const slug = interaction.options.getString('character', true);
 
   try {

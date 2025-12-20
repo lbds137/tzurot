@@ -4,7 +4,6 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import { buildAdminUsageEmbed, type AdminUsageStats } from '../../utils/usageFormatter.js';
@@ -12,13 +11,12 @@ import { buildAdminUsageEmbed, type AdminUsageStats } from '../../utils/usageFor
 const logger = createLogger('admin-usage');
 
 export async function handleUsage(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Note: deferReply is handled by top-level interactionCreate handler
   const periodOption = interaction.options.getString('period');
   const timeframe =
     periodOption !== undefined && periodOption !== null && periodOption.length > 0
       ? periodOption
       : '7d';
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const response = await adminFetch(`/admin/usage?timeframe=${timeframe}`);

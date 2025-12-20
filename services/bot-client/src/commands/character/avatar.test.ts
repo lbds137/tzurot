@@ -63,7 +63,6 @@ describe('Character Avatar Handler', () => {
         getString: vi.fn((_name: string, _required?: boolean) => slug),
         getAttachment: vi.fn((_name: string, _required?: boolean) => attachment),
       },
-      deferReply: vi.fn(),
       editReply: vi.fn(),
     }) as unknown as ChatInputCommandInteraction;
 
@@ -108,16 +107,7 @@ describe('Character Avatar Handler', () => {
   });
 
   describe('handleAvatar', () => {
-    it('should defer reply as ephemeral', async () => {
-      const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('test-char', attachment);
-      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter());
-      vi.mocked(api.updateCharacter).mockResolvedValue(undefined);
-
-      await handleAvatar(mockInteraction, mockConfig);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ flags: expect.any(Number) });
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should reject invalid image format', async () => {
       const attachment = createMockAttachment({ contentType: 'application/pdf' });

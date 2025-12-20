@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleServers } from './servers.js';
 import type { ChatInputCommandInteraction, Client, Collection, Guild } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -45,18 +44,11 @@ describe('handleServers', () => {
 
     mockInteraction = {
       client: mockClient,
-      deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
   });
 
-  it('should defer reply with ephemeral flag', async () => {
-    await handleServers(mockInteraction);
-
-    expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   it('should reply when bot is not in any servers', async () => {
     // Empty guilds collection

@@ -4,7 +4,6 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import { createLogger, CLEANUP_DEFAULTS } from '@tzurot/common-types';
 import { adminPostJson } from '../../utils/adminApiClient.js';
 
@@ -20,11 +19,10 @@ interface CleanupResponse {
 }
 
 export async function handleCleanup(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Note: deferReply is handled by top-level interactionCreate handler
   const daysToKeep =
     interaction.options.getInteger('days') ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
   const target = interaction.options.getString('target') ?? 'all';
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const response = await adminPostJson('/admin/cleanup', {
