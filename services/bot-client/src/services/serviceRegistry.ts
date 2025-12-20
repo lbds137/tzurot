@@ -14,6 +14,7 @@ import type {
   PersonalityService,
   ConversationHistoryService,
   PersonaResolver,
+  ChannelActivationCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
@@ -26,6 +27,9 @@ let gatewayClient: GatewayClient | undefined;
 let personalityService: PersonalityService | undefined;
 let conversationHistoryService: ConversationHistoryService | undefined;
 let personaResolver: PersonaResolver | undefined;
+let channelActivationCacheInvalidationService:
+  | ChannelActivationCacheInvalidationService
+  | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -37,6 +41,7 @@ export interface RegisteredServices {
   personalityService: PersonalityService;
   conversationHistoryService: ConversationHistoryService;
   personaResolver: PersonaResolver;
+  channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
 }
 
 /**
@@ -50,6 +55,7 @@ export function registerServices(services: RegisteredServices): void {
   personalityService = services.personalityService;
   conversationHistoryService = services.conversationHistoryService;
   personaResolver = services.personaResolver;
+  channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
 }
 
 /**
@@ -119,6 +125,20 @@ export function getPersonaResolver(): PersonaResolver {
 }
 
 /**
+ * Get the ChannelActivationCacheInvalidationService instance
+ * Used by /channel activate and /channel deactivate to publish invalidation events
+ * @throws Error if services not registered
+ */
+export function getChannelActivationCacheInvalidationService(): ChannelActivationCacheInvalidationService {
+  if (channelActivationCacheInvalidationService === undefined) {
+    throw new Error(
+      'ChannelActivationCacheInvalidationService not registered. Call registerServices() first.'
+    );
+  }
+  return channelActivationCacheInvalidationService;
+}
+
+/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -128,7 +148,8 @@ export function areServicesRegistered(): boolean {
     gatewayClient !== undefined &&
     personalityService !== undefined &&
     conversationHistoryService !== undefined &&
-    personaResolver !== undefined
+    personaResolver !== undefined &&
+    channelActivationCacheInvalidationService !== undefined
   );
 }
 
@@ -148,4 +169,5 @@ export function resetServices(): void {
   personalityService = undefined;
   conversationHistoryService = undefined;
   personaResolver = undefined;
+  channelActivationCacheInvalidationService = undefined;
 }
