@@ -231,9 +231,10 @@ export function isTransientError(category: ApiErrorCategory): boolean {
 /**
  * Generic spoiler pattern for error details
  * Matches: ||*(some text)*||
- * Note: Character class excludes | to prevent ReDoS on nested ||*( sequences
+ * Note: Character class excludes | and ) to prevent ReDoS on nested ||*( sequences
+ * Length limited to 500 chars (matches MAX_ERROR_MESSAGE_LENGTH) for additional safety
  */
-export const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]+)\)\*\|\|/;
+export const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
 
 /**
  * Format error details for Discord spoiler tags
