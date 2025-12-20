@@ -13,6 +13,7 @@ import {
   WalletCustomIds,
   PresetCustomIds,
   DestructiveCustomIds,
+  ChannelCustomIds,
   getCommandFromCustomId,
 } from './customIds.js';
 
@@ -696,6 +697,130 @@ describe('customIds', () => {
         expect(DestructiveCustomIds.isDestructive('character::seed')).toBe(false);
         expect(DestructiveCustomIds.isDestructive('me::profile::create')).toBe(false);
       });
+    });
+  });
+
+  describe('ChannelCustomIds', () => {
+    describe('builders', () => {
+      it('should build listPage customId with page and sort', () => {
+        expect(ChannelCustomIds.listPage(0, 'date')).toBe('channel::list::0::date');
+        expect(ChannelCustomIds.listPage(3, 'name')).toBe('channel::list::3::name');
+      });
+
+      it('should build listInfo customId', () => {
+        expect(ChannelCustomIds.listInfo()).toBe('channel::list::info');
+      });
+
+      it('should build sortToggle customId', () => {
+        expect(ChannelCustomIds.sortToggle(2, 'name')).toBe('channel::sort::2::name');
+        expect(ChannelCustomIds.sortToggle(0, 'date')).toBe('channel::sort::0::date');
+      });
+    });
+
+    describe('parse', () => {
+      it('should return null for non-channel customIds', () => {
+        expect(ChannelCustomIds.parse('character::seed')).toBeNull();
+        expect(ChannelCustomIds.parse('me::profile::create')).toBeNull();
+      });
+
+      it('should return null for malformed customIds (too short)', () => {
+        expect(ChannelCustomIds.parse('channel')).toBeNull();
+      });
+
+      it('should parse list customId with page and sort', () => {
+        const result = ChannelCustomIds.parse('channel::list::2::date');
+        expect(result).toEqual({
+          command: 'channel',
+          action: 'list',
+          page: 2,
+          sort: 'date',
+        });
+      });
+
+      it('should parse list customId with name sort', () => {
+        const result = ChannelCustomIds.parse('channel::list::5::name');
+        expect(result).toEqual({
+          command: 'channel',
+          action: 'list',
+          page: 5,
+          sort: 'name',
+        });
+      });
+
+      it('should parse sort toggle customId', () => {
+        const result = ChannelCustomIds.parse('channel::sort::1::name');
+        expect(result).toEqual({
+          command: 'channel',
+          action: 'sort',
+          page: 1,
+          sort: 'name',
+        });
+      });
+
+      it('should parse list info customId (no page/sort)', () => {
+        const result = ChannelCustomIds.parse('channel::list::info');
+        expect(result).toEqual({
+          command: 'channel',
+          action: 'list',
+        });
+      });
+
+      it('should handle action without page/sort params', () => {
+        const result = ChannelCustomIds.parse('channel::activate');
+        expect(result).toEqual({
+          command: 'channel',
+          action: 'activate',
+        });
+      });
+    });
+
+    describe('isChannel', () => {
+      it('should return true for channel customIds', () => {
+        expect(ChannelCustomIds.isChannel('channel::list::0::date')).toBe(true);
+        expect(ChannelCustomIds.isChannel('channel::sort::1::name')).toBe(true);
+      });
+
+      it('should return false for non-channel customIds', () => {
+        expect(ChannelCustomIds.isChannel('character::seed')).toBe(false);
+        expect(ChannelCustomIds.isChannel('me::profile::create')).toBe(false);
+      });
+    });
+  });
+
+  describe('ChannelCustomIds round-trip', () => {
+    it('should round-trip list page', () => {
+      const customId = ChannelCustomIds.listPage(3, 'date');
+      const parsed = ChannelCustomIds.parse(customId);
+      expect(parsed?.page).toBe(3);
+      expect(parsed?.sort).toBe('date');
+    });
+
+    it('should round-trip sort toggle', () => {
+      const customId = ChannelCustomIds.sortToggle(2, 'name');
+      const parsed = ChannelCustomIds.parse(customId);
+      expect(parsed?.action).toBe('sort');
+      expect(parsed?.page).toBe(2);
+      expect(parsed?.sort).toBe('name');
+    });
+  });
+
+  describe('ChannelCustomIds delimiter enforcement', () => {
+    it('listPage', () => {
+      const customId = ChannelCustomIds.listPage(1, 'date');
+      expect(customId).toContain('::');
+      expect(getCommandFromCustomId(customId)).toBe('channel');
+    });
+
+    it('listInfo', () => {
+      const customId = ChannelCustomIds.listInfo();
+      expect(customId).toContain('::');
+      expect(getCommandFromCustomId(customId)).toBe('channel');
+    });
+
+    it('sortToggle', () => {
+      const customId = ChannelCustomIds.sortToggle(0, 'name');
+      expect(customId).toContain('::');
+      expect(getCommandFromCustomId(customId)).toBe('channel');
     });
   });
 });

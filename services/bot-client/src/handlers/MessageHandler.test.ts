@@ -342,5 +342,87 @@ describe('MessageHandler', () => {
         })
       );
     });
+
+    it('should strip error spoiler from content when saving failed job to history', async () => {
+      const jobId = 'job-failed';
+      const result = {
+        requestId: 'req-failed',
+        success: false,
+        error: 'API rate limit exceeded',
+        errorInfo: {
+          category: 'rate_limit' as const,
+          referenceId: 'ref-123',
+        },
+      };
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'ErrorBot' },
+        personaId: 'persona-err',
+        userMessageContent: 'Trigger error',
+        userMessageTime: new Date(),
+      };
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['err-msg-1'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should save message with stripped error spoiler (no ||*(...))*|| pattern)
+      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.not.stringContaining('||*('),
+        })
+      );
+      // The content should still contain the user-facing error message
+      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.any(String),
+        })
+      );
+    });
+
+    it('should strip error spoiler when saving invalid content error to history', async () => {
+      const jobId = 'job-invalid';
+      const result = {
+        requestId: 'req-invalid',
+        success: true,
+        content: '', // Empty content triggers error path
+      };
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'InvalidBot' },
+        personaId: 'persona-inv',
+        userMessageContent: 'Some message',
+        userMessageTime: new Date(),
+      };
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['inv-msg-1'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should save message with stripped error spoiler
+      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.not.stringContaining('||*('),
+        })
+      );
+    });
   });
 });
