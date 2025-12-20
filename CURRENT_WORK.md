@@ -24,8 +24,9 @@
    - bot-client subscribes on startup
    - `/channel activate` and `/channel deactivate` publish events
    - All tests passing (940 common-types, 1650 bot-client)
+4. ✅ **Created `tzurot-caching` skill** - Cache patterns, horizontal scaling, TTLCache usage, Redis pub/sub invalidation
 
-**Key Finding**: Most caches were already properly designed. The channel activation cache was the only one that could cause correctness issues with horizontal scaling.
+**Key Finding**: Most caches were already properly designed. The channel activation cache was the only one that could cause correctness issues with horizontal scaling. Timer-based cleanup patterns (setInterval) are a separate concern already documented in `tzurot-async-flow` skill.
 
 ---
 
@@ -72,7 +73,7 @@
 
 **Branch**: TBD (after caching audit)
 
-**Problem**: We added many skills (13 total) but unclear if they're being used consistently or effectively.
+**Problem**: We added many skills (14 total) but unclear if they're being used consistently or effectively.
 
 **Scope**:
 
