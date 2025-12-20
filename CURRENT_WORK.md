@@ -53,6 +53,43 @@
 
 **Goal**: Consistent, horizontally-scalable caching that doesn't break when running multiple bot-client instances.
 
+**Tradeoffs to consider**:
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| In-memory only | Fast, simple | Not shared across instances |
+| Redis only | Shared, survives restarts | Network latency on every read |
+| In-memory + Redis pub/sub | Fast reads, eventual consistency | Brief inconsistency window, more complex |
+
+**Current state**:
+
+| Cache | Storage | Invalidation | Scaling Issue? |
+|-------|---------|--------------|----------------|
+| Autocomplete | In-memory | TTL (60s) | Minor - stale data briefly |
+| Channel activation | In-memory | TTL (30s) + manual | **Yes** - could miss messages |
+| Vision/Voice | Redis | TTL | ✅ Already shared |
+| Personality/Persona | In-memory | Redis pub/sub | ✅ Already handled |
+
+**Deliverable**: Standardized caching approach, possibly codified as a `tzurot-caching` skill.
+
+---
+
+## Upcoming: Skills & CLAUDE.md Optimization
+
+**Branch**: TBD (after caching audit)
+
+**Problem**: We added many skills (13 total) but unclear if they're being used consistently or effectively.
+
+**Scope**:
+- [ ] Audit current skill usage patterns
+- [ ] Research best practices for Claude Code skills optimization
+- [ ] Evaluate skill activation triggers - are they firing when expected?
+- [ ] Consider consolidating or restructuring skills
+- [ ] Review CLAUDE.md organization and effectiveness
+- [ ] External research on skill/instruction optimization techniques
+
+**Goal**: Ensure skills are providing consistent value, not just sitting unused.
+
 ---
 
 ## Completed: v3.0.0-beta.25 (Slash Command Timeout Fix)
