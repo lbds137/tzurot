@@ -212,6 +212,13 @@ export class AIJobProcessor {
 
   /**
    * Wrapper for audio transcription job - handles result storage
+   *
+   * Note: Audio transcription jobs are preprocessing jobs that don't need async delivery.
+   * They're consumed via:
+   * - BullMQ job return value (for wait=true synchronous requests)
+   * - Redis storage (for dependent LLM generation jobs)
+   * We intentionally do NOT publish to the Redis stream to avoid "unknown job" warnings
+   * in bot-client when it receives results for jobs it didn't track.
    */
   private async processAudioTranscriptionJobWrapper(
     job: Job<AudioTranscriptionJobData>
@@ -223,14 +230,21 @@ export class AIJobProcessor {
     const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
     await redisService.storeJobResult(`${userId}:${jobId}`, result);
 
-    // Publish to stream for async delivery
-    await this.persistAndPublishResult(job, result);
+    // Note: Do NOT publish to stream - audio transcription is a preprocessing job
+    // that doesn't need async delivery to bot-client
 
     return result;
   }
 
   /**
    * Wrapper for image description job - handles result storage
+   *
+   * Note: Image description jobs are preprocessing jobs that don't need async delivery.
+   * They're consumed via:
+   * - BullMQ job return value (for wait=true synchronous requests)
+   * - Redis storage (for dependent LLM generation jobs)
+   * We intentionally do NOT publish to the Redis stream to avoid "unknown job" warnings
+   * in bot-client when it receives results for jobs it didn't track.
    */
   private async processImageDescriptionJobWrapper(
     job: Job<ImageDescriptionJobData>
@@ -242,8 +256,8 @@ export class AIJobProcessor {
     const userId = job.data.context.userId || 'unknown'; // Defensive: fallback if missing
     await redisService.storeJobResult(`${userId}:${jobId}`, result);
 
-    // Publish to stream for async delivery
-    await this.persistAndPublishResult(job, result);
+    // Note: Do NOT publish to stream - image description is a preprocessing job
+    // that doesn't need async delivery to bot-client
 
     return result;
   }

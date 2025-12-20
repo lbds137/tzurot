@@ -123,12 +123,12 @@ describe('VoiceMessageProcessor', () => {
       });
     });
 
-    it('should stop processing for voice-only messages', async () => {
+    it('should continue chain for voice-only messages (for activated channels)', async () => {
       const message = createMockMessage({ content: '' });
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
       mockVoiceService.transcribe.mockResolvedValue({
         transcript: 'Voice transcript',
-        continueToPersonalityHandler: false, // Voice-only
+        continueToPersonalityHandler: false, // Voice-only (no mention/reply)
       });
 
       (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -136,7 +136,8 @@ describe('VoiceMessageProcessor', () => {
       const result = await processor.process(message);
 
       expect(mockVoiceService.transcribe).toHaveBeenCalledWith(message, false, false);
-      expect(result).toBe(true); // Should stop processing (voice-only)
+      // Should continue to next processor so ActivatedChannelProcessor can handle if channel is activated
+      expect(result).toBe(false);
     });
 
     it('should store transcript on message object for voice-only messages', async () => {
@@ -263,10 +264,10 @@ describe('VoiceMessageProcessor', () => {
 
       const result = await processor.process(message);
 
-      // Should transcribe forwarded audio and stop (voice-only)
+      // Should transcribe forwarded audio and continue chain (for activated channels)
       expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
       expect(mockVoiceService.transcribe).toHaveBeenCalled();
-      expect(result).toBe(true);
+      expect(result).toBe(false);
     });
   });
 

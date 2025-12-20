@@ -146,9 +146,12 @@ describe('GET /user/channel/list', () => {
 
     await handler(req, res);
 
+    // Should include records with matching guildId OR null guildId (for backfill)
     expect(mockPrisma.activatedChannel.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { guildId: MOCK_GUILD_ID },
+        where: {
+          OR: [{ guildId: MOCK_GUILD_ID }, { guildId: null }],
+        },
       })
     );
   });

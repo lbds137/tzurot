@@ -202,32 +202,25 @@ describe('AIJobProcessor', () => {
         );
       });
 
-      it('should persist audio result to database', async () => {
+      it('should NOT persist audio result to database (preprocessing job)', async () => {
         vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
         const job = createMockJob(audioJobData, 'audio-job-123');
 
         await processor.processJob(job);
 
-        expect(mockPrisma.jobResult.create).toHaveBeenCalledWith({
-          data: expect.objectContaining({
-            jobId: 'audio-job-123',
-            requestId: 'req-audio-123',
-            status: 'PENDING_DELIVERY',
-          }),
-        });
+        // Audio transcription is a preprocessing job - doesn't need delivery tracking
+        expect(mockPrisma.jobResult.create).not.toHaveBeenCalled();
       });
 
-      it('should publish audio result to Redis stream', async () => {
+      it('should NOT publish audio result to Redis stream (preprocessing job)', async () => {
         vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
         const job = createMockJob(audioJobData, 'audio-job-123');
 
         await processor.processJob(job);
 
-        expect(redisService.publishJobResult).toHaveBeenCalledWith(
-          'audio-job-123',
-          'req-audio-123',
-          audioResult
-        );
+        // Audio transcription is a preprocessing job - it uses wait=true pattern
+        // and doesn't need async delivery to bot-client
+        expect(redisService.publishJobResult).not.toHaveBeenCalled();
       });
 
       it('should use requestId as fallback when job.id is undefined', async () => {
@@ -322,32 +315,25 @@ describe('AIJobProcessor', () => {
         );
       });
 
-      it('should persist image result to database', async () => {
+      it('should NOT persist image result to database (preprocessing job)', async () => {
         vi.mocked(processImageDescriptionJob).mockResolvedValue(imageResult);
         const job = createMockJob(imageJobData, 'image-job-123');
 
         await processor.processJob(job);
 
-        expect(mockPrisma.jobResult.create).toHaveBeenCalledWith({
-          data: expect.objectContaining({
-            jobId: 'image-job-123',
-            requestId: 'req-image-123',
-            status: 'PENDING_DELIVERY',
-          }),
-        });
+        // Image description is a preprocessing job - doesn't need delivery tracking
+        expect(mockPrisma.jobResult.create).not.toHaveBeenCalled();
       });
 
-      it('should publish image result to Redis stream', async () => {
+      it('should NOT publish image result to Redis stream (preprocessing job)', async () => {
         vi.mocked(processImageDescriptionJob).mockResolvedValue(imageResult);
         const job = createMockJob(imageJobData, 'image-job-123');
 
         await processor.processJob(job);
 
-        expect(redisService.publishJobResult).toHaveBeenCalledWith(
-          'image-job-123',
-          'req-image-123',
-          imageResult
-        );
+        // Image description is a preprocessing job - it uses wait=true pattern
+        // and doesn't need async delivery to bot-client
+        expect(redisService.publishJobResult).not.toHaveBeenCalled();
       });
 
       it('should use "unknown" userId when context.userId is missing', async () => {
