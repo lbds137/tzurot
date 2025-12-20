@@ -53,7 +53,7 @@ describe('UserService', () => {
   });
 
   afterEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks(); // Use clearAllMocks to preserve mock implementations
     resetConfig();
   });
 
@@ -78,6 +78,7 @@ describe('UserService', () => {
         id: 'existing-user-id',
         isSuperuser: false,
         username: 'existinguser',
+        defaultPersonaId: 'existing-persona-id',
       });
 
       const result = await userService.getOrCreateUser('123456', 'testuser');
@@ -92,6 +93,7 @@ describe('UserService', () => {
         id: 'existing-user-id',
         isSuperuser: false,
         username: '123456', // Placeholder = discordId
+        defaultPersonaId: 'existing-persona-id',
       });
       mockPrisma.user.update.mockResolvedValueOnce({
         id: 'existing-user-id',
@@ -112,6 +114,7 @@ describe('UserService', () => {
         id: 'existing-user-id',
         isSuperuser: false,
         username: 'alreadyset', // Real username, not a placeholder
+        defaultPersonaId: 'existing-persona-id',
       });
 
       const result = await userService.getOrCreateUser('123456', 'newusername');
@@ -230,6 +233,8 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
+        username: 'botowner',
+        defaultPersonaId: 'existing-persona-id',
       });
 
       // Mock update call
@@ -256,6 +261,8 @@ describe('UserService', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: true,
+        username: 'botowner',
+        defaultPersonaId: 'existing-persona-id',
       });
 
       // Mock update call
@@ -340,6 +347,67 @@ describe('UserService', () => {
       await userService.getOrCreateUser('123456', 'testuser', undefined, 'My bio text');
 
       expect(capturedPersonaData?.content).toBe('My bio text');
+    });
+
+    it('should backfill default persona when user exists without one', async () => {
+      // User was created by api-gateway without a default persona
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: null, // No default persona!
+      });
+
+      // Create mock functions to track calls
+      const mockPersonaCreate = vi.fn().mockResolvedValue({ id: 'test-persona-uuid' });
+      const mockUserUpdate = vi.fn().mockResolvedValue({ id: 'existing-user-id' });
+
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            persona: { create: mockPersonaCreate },
+            user: { update: mockUserUpdate },
+          };
+          await callback(mockTx);
+        }
+      );
+
+      const result = await userService.getOrCreateUser(
+        '123456',
+        'testuser',
+        'Test Display Name',
+        'User bio'
+      );
+
+      expect(result).toBe('existing-user-id');
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPersonaCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          preferredName: 'Test Display Name',
+          content: 'User bio',
+          name: 'testuser',
+          ownerId: 'existing-user-id',
+        }),
+      });
+      expect(mockUserUpdate).toHaveBeenCalledWith({
+        where: { id: 'existing-user-id' },
+        data: { defaultPersonaId: 'test-persona-uuid' },
+      });
+    });
+
+    it('should NOT backfill persona when user already has one', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'existing-persona-id', // Already has a persona
+      });
+
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(result).toBe('existing-user-id');
+      // Should NOT call $transaction since persona already exists
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
   });
 

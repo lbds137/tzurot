@@ -9,6 +9,14 @@ import { createLogger } from '../utils/logger.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 import { isBotOwner } from '../utils/ownerMiddleware.js';
 
+/** User record with fields needed for backfill checks */
+interface UserWithBackfillFields {
+  id: string;
+  isSuperuser: boolean;
+  username: string;
+  defaultPersonaId: string | null;
+}
+
 const logger = createLogger('UserService');
 
 export class UserService {
@@ -40,17 +48,23 @@ export class UserService {
 
     try {
       // Try to find existing user
-      let user = await this.prisma.user.findUnique({
+      let user: UserWithBackfillFields | null = await this.prisma.user.findUnique({
         where: { discordId },
-        select: { id: true, isSuperuser: true, username: true },
+        select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
       });
 
       // Check if existing user should be promoted to superuser
       await this.promoteToSuperuserIfNeeded(user, discordId);
 
+      // Backfill default persona if missing
+      // (api-gateway creates users without personas via direct prisma calls)
+      if (user !== null && user.defaultPersonaId === null) {
+        await this.backfillDefaultPersona(user.id, username, displayName, bio);
+      }
+
       // Update placeholder username if we now have a real username
       // (api-gateway creates users with discordId as placeholder username)
-      if (user && user.username === discordId && username !== discordId) {
+      if (user?.username === discordId && username !== discordId) {
         await this.prisma.user.update({
           where: { id: user.id },
           data: { username },
@@ -78,7 +92,7 @@ export class UserService {
    * Handles the case where BOT_OWNER_ID is set after user was created
    */
   private async promoteToSuperuserIfNeeded(
-    user: { id: string; isSuperuser: boolean; username: string } | null,
+    user: UserWithBackfillFields | null,
     discordId: string
   ): Promise<void> {
     if (user && !user.isSuperuser && isBotOwner(discordId)) {
@@ -94,6 +108,46 @@ export class UserService {
   }
 
   /**
+   * Backfill default persona for existing user who doesn't have one
+   * This handles users created via api-gateway's direct prisma calls
+   */
+  private async backfillDefaultPersona(
+    userId: string,
+    username: string,
+    displayName?: string,
+    bio?: string
+  ): Promise<void> {
+    const personaId = generatePersonaUuid(username, userId);
+    const personaDisplayName = displayName ?? username;
+    const personaContent = bio ?? '';
+
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Create default persona
+      await tx.persona.create({
+        data: {
+          id: personaId,
+          name: username,
+          preferredName: personaDisplayName,
+          description: 'Default persona',
+          content: personaContent,
+          ownerId: userId,
+        },
+      });
+
+      // Link persona as user's default
+      await tx.user.update({
+        where: { id: userId },
+        data: { defaultPersonaId: personaId },
+      });
+    });
+
+    logger.info(
+      { userId, username, personaId },
+      '[UserService] Backfilled default persona for existing user'
+    );
+  }
+
+  /**
    * Create a new user with their default persona in a transaction
    */
   private async createUserWithDefaultPersona(
@@ -101,7 +155,7 @@ export class UserService {
     username: string,
     displayName?: string,
     bio?: string
-  ): Promise<{ id: string; isSuperuser: boolean }> {
+  ): Promise<UserWithBackfillFields> {
     const userId = generateUserUuid(discordId);
     const personaId = generatePersonaUuid(username, userId);
     const shouldBeSuperuser = isBotOwner(discordId);
@@ -144,7 +198,12 @@ export class UserService {
       '[UserService] Created user with default persona'
     );
 
-    return { id: userId, isSuperuser: shouldBeSuperuser };
+    return {
+      id: userId,
+      isSuperuser: shouldBeSuperuser,
+      username,
+      defaultPersonaId: personaId,
+    };
   }
 
   /**
