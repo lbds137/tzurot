@@ -13,7 +13,7 @@ import { handleExport } from './export.js';
 import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder } from 'discord.js';
 
 // Mock dependencies
 vi.mock('../../utils/userGatewayClient.js', () => ({
@@ -49,7 +49,6 @@ describe('Character Export', () => {
       options: {
         getString: vi.fn().mockReturnValue('test-character'),
       },
-      deferReply: vi.fn(),
       editReply: vi.fn(),
     }) as unknown as ChatInputCommandInteraction;
 
@@ -83,20 +82,7 @@ describe('Character Export', () => {
   });
 
   describe('handleExport', () => {
-    it('should defer reply with ephemeral flag', async () => {
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { personality: mockCharacterData, canEdit: true },
-      });
-
-      const mockInteraction = createMockInteraction();
-
-      await handleExport(mockInteraction, mockConfig);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-        flags: MessageFlags.Ephemeral,
-      });
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should export character as JSON attachment', async () => {
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({

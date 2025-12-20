@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleKick } from './kick.js';
 import type { ChatInputCommandInteraction, Client, Collection, Guild, User } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -48,20 +47,11 @@ describe('handleKick', () => {
       options: {
         getString: vi.fn(),
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
   });
 
-  it('should defer reply with ephemeral flag', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('123');
-
-    await handleKick(mockInteraction);
-
-    expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   it('should get server-id from options as required', async () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('server-123');
@@ -142,24 +132,5 @@ describe('handleKick', () => {
 
     expect(mockGuild.leave).toHaveBeenCalled();
     expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining(serverName));
-  });
-
-  it('should defer reply before checking for server', async () => {
-    const callOrder: string[] = [];
-
-    mockInteraction.deferReply = vi.fn().mockImplementation(async () => {
-      callOrder.push('defer');
-    });
-
-    vi.mocked(mockInteraction.options.getString).mockImplementation(() => {
-      callOrder.push('getString');
-      return '123';
-    });
-
-    await handleKick(mockInteraction);
-
-    // getString is called first (before await defer), but defer should complete before editReply
-    expect(callOrder[0]).toBe('getString');
-    expect(callOrder[1]).toBe('defer');
   });
 });

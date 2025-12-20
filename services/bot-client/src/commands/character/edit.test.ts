@@ -51,7 +51,6 @@ describe('Character Edit Handler', () => {
       options: {
         getString: vi.fn((_name: string, _required?: boolean) => slug),
       },
-      deferReply: vi.fn(),
       editReply: vi.fn().mockResolvedValue(mockReply),
     } as unknown as ChatInputCommandInteraction;
   };
@@ -87,14 +86,7 @@ describe('Character Edit Handler', () => {
   });
 
   describe('handleEdit', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction('test-character');
-      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter());
-
-      await handleEdit(mockInteraction, mockConfig);
-
-      expect(mockInteraction.deferReply).toHaveBeenCalledWith({ flags: expect.any(Number) });
-    });
+    // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should return error when character not found', async () => {
       const mockInteraction = createMockInteraction('nonexistent');

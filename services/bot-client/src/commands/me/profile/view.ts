@@ -48,6 +48,7 @@ const CONTENT_PREVIEW_LENGTH = 1000;
  * Handle /me profile view command
  */
 export async function handleViewPersona(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Note: deferReply is handled by top-level interactionCreate handler
   const discordId = interaction.user.id;
 
   try {
@@ -58,9 +59,8 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
 
     if (!result.ok) {
       logger.warn({ userId: discordId, error: result.error }, '[Me] Failed to fetch personas');
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Failed to retrieve your profile. Please try again later.',
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -71,14 +71,12 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
     if (persona === undefined) {
       // No personas at all, or no default set
       if (result.data.personas.length === 0) {
-        await interaction.reply({
+        await interaction.editReply({
           content: "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!",
-          flags: MessageFlags.Ephemeral,
         });
       } else {
-        await interaction.reply({
+        await interaction.editReply({
           content: "❌ You don't have a default profile set. Use `/me profile default` to set one!",
-          flags: MessageFlags.Ephemeral,
         });
       }
       return;
@@ -97,9 +95,8 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
         { userId: discordId, personaId: persona.id, error: detailsResult.error },
         '[Me] Failed to fetch persona details'
       );
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Failed to retrieve your profile. Please try again later.',
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -167,18 +164,16 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
       text: 'Use /me profile edit to update • /me settings to change options',
     });
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [embed],
       components,
-      flags: MessageFlags.Ephemeral,
     });
 
     logger.info({ userId: discordId }, '[Me] User viewed their profile');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to view profile');
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Failed to retrieve your profile. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
   }
 }

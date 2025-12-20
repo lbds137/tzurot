@@ -3,13 +3,7 @@
  * Handles /character view - displays character details with pagination
  */
 
-import {
-  EmbedBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import {
   createLogger,
@@ -366,8 +360,7 @@ export async function handleView(
   interaction: ChatInputCommandInteraction,
   _config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   const slug = interaction.options.getString('character', true);
 
   try {

@@ -4,14 +4,13 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('admin-servers');
 
 export async function handleServers(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   try {
     const guilds = interaction.client.guilds.cache;
 

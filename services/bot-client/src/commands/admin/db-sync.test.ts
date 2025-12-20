@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleDbSync } from './db-sync.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 
 // Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
@@ -44,7 +43,6 @@ describe('handleDbSync', () => {
       options: {
         getBoolean: vi.fn(),
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as ChatInputCommandInteraction;
   });
@@ -53,18 +51,7 @@ describe('handleDbSync', () => {
     vi.restoreAllMocks();
   });
 
-  it('should defer reply with ephemeral flag', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
-    );
-
-    await handleDbSync(mockInteraction);
-
-    expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   it('should default dry-run to false when not provided', async () => {
     vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(null);

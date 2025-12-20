@@ -112,9 +112,114 @@ field.setMaxLength(4000);
 
 ---
 
+### 🚨 Rule 4: Do NOT Call `deferReply` in Chat Command Handlers
+
+**The top-level `interactionCreate` handler in `index.ts` defers ALL chat input commands.** Individual command handlers should NOT call `deferReply()` themselves.
+
+**Why This Matters:**
+
+Calling `deferReply()` twice causes `InteractionAlreadyReplied` errors, breaking the command for users. This bug has affected production.
+
+**Architecture:**
+
+```typescript
+// In bot-client/src/index.ts (top-level handler)
+if (interaction.isChatInputCommand()) {
+  const ephemeral = !NON_EPHEMERAL_COMMANDS.has(commandName);
+  await interaction.deferReply({ flags: ephemeral ? MessageFlags.Ephemeral : undefined });
+  // ... route to command handler
+}
+```
+
+**Correct Pattern (chat command handlers):**
+
+```typescript
+// ✅ CORRECT: Handler uses editReply (defer already done)
+export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Note: deferReply is handled by top-level interactionCreate handler
+
+  const result = await callGatewayApi<ListResponse>('/user/items', {
+    userId: interaction.user.id,
+  });
+
+  await interaction.editReply({
+    content: formatList(result.data),
+  });
+}
+```
+
+**Wrong Pattern:**
+
+```typescript
+// ❌ WRONG: Double deferral causes InteractionAlreadyReplied error
+export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }); // ERROR: Already deferred!
+
+  const result = await fetchData();
+  await interaction.editReply({ content: result });
+}
+```
+
+**Exceptions - Handlers That DO Need `deferReply`:**
+
+These handler types are NOT auto-deferred at the top level:
+
+| Handler Type      | Needs `deferReply`? | Why                                            |
+| ----------------- | ------------------- | ---------------------------------------------- |
+| Chat commands     | ❌ No               | Auto-deferred in `index.ts`                    |
+| Modal submissions | ✅ Yes              | `isModalSubmit()` not auto-deferred            |
+| Button clicks     | ✅ Yes              | `isButton()` not auto-deferred                 |
+| Select menus      | ✅ Yes              | `isStringSelectMenu()` not auto-deferred       |
+
+**Modal Submit Handler Pattern:**
+
+```typescript
+// ✅ CORRECT: Modal handlers need their own deferReply
+export async function handleSeedModalSubmit(
+  interaction: ModalSubmitInteraction
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  // ... process modal submission
+  await interaction.editReply({ content: 'Done!' });
+}
+```
+
+**Button Handler Pattern:**
+
+```typescript
+// ✅ CORRECT: Button handlers need their own deferReply (or deferUpdate)
+export async function handleExpandButton(
+  interaction: ButtonInteraction
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  // ... or await interaction.deferUpdate() to update the original message
+
+  // ... process button click
+  await interaction.editReply({ content: 'Expanded content' });
+}
+```
+
+**Testing Pattern:**
+
+Test files should NOT mock or assert `deferReply` for chat command handlers:
+
+```typescript
+// ✅ CORRECT: Test mock doesn't need deferReply
+function createMockInteraction() {
+  return {
+    user: { id: '123456789' },
+    editReply: vi.fn(),  // Only editReply needed
+    options: { getString: vi.fn() },
+  } as any;
+}
+```
+
+---
+
 ## File Structure
 
-### 🚨 Rule 4: One Subcommand Per File
+### 🚨 Rule 5: One Subcommand Per File
 
 **Each subcommand handler MUST be in its own file.** This is a strict pattern for maintainability.
 
@@ -440,6 +545,8 @@ describe('handleSelectMenu', () => {
 - [ ] Use `callGatewayApi` or `adminFetch` - NOT direct `fetch()`
 - [ ] Import Discord limits from `@tzurot/common-types`
 - [ ] Export all handlers (execute, autocomplete, handleSelectMenu, handleButton)
+- [ ] Do NOT call `deferReply()` in chat command handlers (already done at top level)
+- [ ] DO call `deferReply()` in modal/button/select handlers (not auto-deferred)
 - [ ] Use correct custom ID format for components
 - [ ] Handle all error cases with user-friendly messages
 - [ ] Use ephemeral responses for user-specific data

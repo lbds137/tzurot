@@ -5,7 +5,6 @@
  * Automatically resizes large images to fit within the API gateway's body limit.
  */
 
-import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type EnvConfig } from '@tzurot/common-types';
 import { fetchCharacter, updateCharacter } from './api.js';
@@ -25,8 +24,7 @@ export async function handleAvatar(
   interaction: ChatInputCommandInteraction,
   config: EnvConfig
 ): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   const slug = interaction.options.getString('character', true);
   const attachment = interaction.options.getAttachment('image', true);
 

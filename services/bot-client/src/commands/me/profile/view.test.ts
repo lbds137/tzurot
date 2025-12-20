@@ -1,11 +1,13 @@
 /**
  * Tests for Profile View Handler
  * Tests gateway API calls and response rendering.
+ *
+ * Note: deferReply is handled by top-level interactionCreate handler,
+ * so this handler uses editReply (not reply).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleViewPersona } from './view.js';
-import { MessageFlags } from 'discord.js';
 import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
 
 // Mock gateway client
@@ -28,7 +30,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 describe('handleViewPersona', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,7 +39,7 @@ describe('handleViewPersona', () => {
   function createMockInteraction() {
     return {
       user: { id: '123456789' },
-      reply: mockReply,
+      editReply: mockEditReply,
     } as any;
   }
 
@@ -49,9 +51,8 @@ describe('handleViewPersona', () => {
 
     await handleViewPersona(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a profile"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -66,9 +67,8 @@ describe('handleViewPersona', () => {
 
     await handleViewPersona(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a default profile"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -95,7 +95,7 @@ describe('handleViewPersona', () => {
 
     await handleViewPersona(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
@@ -104,7 +104,6 @@ describe('handleViewPersona', () => {
         }),
       ],
       components: [], // No expand button for short content
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -131,8 +130,8 @@ describe('handleViewPersona', () => {
 
     await handleViewPersona(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0];
     const fields = embed.data.fields;
     const ltmField = fields.find((f: { name: string }) => f.name.includes('LTM'));
@@ -148,9 +147,8 @@ describe('handleViewPersona', () => {
 
     await handleViewPersona(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to retrieve'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -159,9 +157,8 @@ describe('handleViewPersona', () => {
 
     await handleViewPersona(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to retrieve'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 });
