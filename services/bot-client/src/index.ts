@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events } from 'discord.js';
+import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
 import { Redis } from 'ioredis';
 import {
   createLogger,
@@ -194,11 +194,36 @@ client.on(Events.MessageCreate, message => {
   })();
 });
 
+// Commands that should NOT use ephemeral deferral (visible to everyone)
+const NON_EPHEMERAL_COMMANDS = new Set(['character chat']);
+
 // Interaction handler for slash commands, modals, autocomplete, and component interactions
 client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
-      if (interaction.isChatInputCommand() || interaction.isModalSubmit()) {
+      if (interaction.isChatInputCommand()) {
+        // CRITICAL: Defer IMMEDIATELY to avoid 3-second Discord timeout
+        // Do this BEFORE any routing logic or async operations
+        const subcommand = interaction.options.getSubcommand(false);
+        const fullCommand =
+          subcommand !== null && subcommand.length > 0
+            ? `${interaction.commandName} ${subcommand}`
+            : interaction.commandName;
+        const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
+
+        try {
+          await interaction.deferReply({
+            flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
+          });
+        } catch (deferError) {
+          // If defer fails, the interaction already expired - nothing we can do
+          logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
+          return;
+        }
+
+        // Now route to command handler (interaction is already deferred)
+        await commandHandler.handleInteraction(interaction);
+      } else if (interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
       } else if (interaction.isAutocomplete()) {
         await commandHandler.handleAutocomplete(interaction);

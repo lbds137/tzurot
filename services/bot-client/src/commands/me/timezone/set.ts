@@ -7,7 +7,6 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import {
-  deferEphemeral,
   replyWithError,
   handleCommandError,
   createSuccessEmbed,
@@ -22,8 +21,6 @@ const logger = createLogger('timezone-set');
 export async function handleTimezoneSet(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const timezone = interaction.options.getString('timezone', true);
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {

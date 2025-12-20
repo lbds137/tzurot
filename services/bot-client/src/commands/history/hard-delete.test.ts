@@ -32,10 +32,8 @@ vi.mock('../../utils/destructiveConfirmation.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockDeferEphemeral = vi.fn();
 const mockHandleCommandError = vi.fn();
 vi.mock('../../utils/commandHelpers.js', () => ({
-  deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
 }));
 
@@ -71,7 +69,6 @@ describe('handleHardDelete', () => {
     const interaction = createMockInteraction();
     await handleHardDelete(interaction);
 
-    expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCreateHardDeleteConfig).toHaveBeenCalledWith({
       entityType: 'conversation history',
       entityName: 'lilith',

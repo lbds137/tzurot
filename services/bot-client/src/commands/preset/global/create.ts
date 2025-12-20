@@ -7,11 +7,7 @@
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 import { adminPostJson } from '../../../utils/adminApiClient.js';
 
 const logger = createLogger('preset-global-create');
@@ -25,8 +21,6 @@ export async function handleGlobalCreate(interaction: ChatInputCommandInteractio
   const provider = interaction.options.getString('provider') ?? 'openrouter';
   const description = interaction.options.getString('description');
   const visionModel = interaction.options.getString('vision-model');
-
-  await deferEphemeral(interaction);
 
   try {
     const response = await adminPostJson('/admin/llm-config', {

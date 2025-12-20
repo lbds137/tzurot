@@ -26,14 +26,12 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 const mockCreateInfoEmbed = vi.fn(() => ({
   addFields: vi.fn().mockReturnThis(),
 }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
@@ -88,7 +86,6 @@ describe('handleStats', () => {
     const interaction = createMockInteraction();
     await handleStats(interaction);
 
-    expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/history/stats?personalitySlug=lilith&channelId=channel-123',
       { userId: '123456789', method: 'GET' }

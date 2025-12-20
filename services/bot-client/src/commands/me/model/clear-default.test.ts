@@ -13,17 +13,12 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 
 // Mock commandHelpers
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn().mockResolvedValue(undefined),
   replyWithError: vi.fn().mockResolvedValue(undefined),
   handleCommandError: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -56,17 +51,6 @@ describe('handleClearDefault', () => {
       editReply: mockEditReply,
     } as any;
   }
-
-  it('should defer ephemeral reply', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockClearDefaultConfigResponse(),
-    });
-
-    await handleClearDefault(createMockInteraction());
-
-    expect(deferEphemeral).toHaveBeenCalled();
-  });
 
   it('should call gateway API with DELETE method', async () => {
     mockCallGatewayApi.mockResolvedValue({

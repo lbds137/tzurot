@@ -19,7 +19,6 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 }));
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: vi.fn(),
   replyWithError: vi.fn(),
   handleCommandError: vi.fn(),
   createSuccessEmbed: vi.fn().mockImplementation(() => {
@@ -61,19 +60,6 @@ describe('Me Model Reset Handler', () => {
   });
 
   describe('handleReset', () => {
-    it('should defer reply as ephemeral', async () => {
-      const mockInteraction = createMockInteraction('personality-123');
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: undefined,
-      });
-
-      await handleReset(mockInteraction);
-
-      expect(commandHelpers.deferEphemeral).toHaveBeenCalledWith(mockInteraction);
-    });
-
     it('should successfully reset model override', async () => {
       const mockInteraction = createMockInteraction('personality-123');
 

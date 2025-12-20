@@ -27,11 +27,9 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 vi.mock('../../utils/commandHelpers.js', () => ({
-  deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
 }));
@@ -77,7 +75,6 @@ describe('handleRemoveKey', () => {
     const interaction = createMockInteraction('openrouter');
     await handleRemoveKey(interaction);
 
-    expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/openrouter', {
       method: 'DELETE',
       userId: '123456789',

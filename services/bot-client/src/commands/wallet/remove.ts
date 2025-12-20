@@ -11,7 +11,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { deferEphemeral, replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-remove');
@@ -23,8 +23,6 @@ const logger = createLogger('wallet-remove');
 export async function handleRemoveKey(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const provider = interaction.options.getString('provider', true) as AIProvider;
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<void>(`/wallet/${provider}`, {

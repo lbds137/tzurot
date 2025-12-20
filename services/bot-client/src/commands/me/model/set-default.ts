@@ -14,11 +14,7 @@ import {
   type LlmConfigSummary,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('me-model-set-default');
@@ -47,8 +43,6 @@ interface ConfigListResponse {
 export async function handleSetDefault(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const configId = interaction.options.getString('config', true);
-
-  await deferEphemeral(interaction);
 
   // Handle "Unlock All Models" upsell selection
   if (configId === UNLOCK_MODELS_VALUE) {

@@ -7,11 +7,7 @@
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 import { adminPutJson } from '../../../utils/adminApiClient.js';
 
 const logger = createLogger('preset-global-set-free-default');
@@ -23,8 +19,6 @@ export async function handleGlobalSetFreeDefault(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
   const configId = interaction.options.getString('config', true);
-
-  await deferEphemeral(interaction);
 
   try {
     const response = await adminPutJson(`/admin/llm-config/${configId}/set-free-default`, {});

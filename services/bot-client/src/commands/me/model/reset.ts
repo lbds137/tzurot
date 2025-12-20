@@ -7,7 +7,6 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import {
-  deferEphemeral,
   replyWithError,
   handleCommandError,
   createSuccessEmbed,
@@ -21,8 +20,6 @@ const logger = createLogger('me-model-reset');
 export async function handleReset(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const personalityId = interaction.options.getString('personality', true);
-
-  await deferEphemeral(interaction);
 
   try {
     const result = await callGatewayApi<void>(`/user/model-override/${personalityId}`, {

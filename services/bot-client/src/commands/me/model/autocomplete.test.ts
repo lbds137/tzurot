@@ -30,6 +30,12 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
+// Mock the autocomplete cache
+const mockGetCachedPersonalities = vi.fn();
+vi.mock('../../../utils/autocomplete/autocompleteCache.js', () => ({
+  getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
+}));
+
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
@@ -85,34 +91,29 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: 'test',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            {
-              id: 'p1',
-              name: 'TestBot',
-              displayName: 'Test Bot',
-              slug: 'testbot',
-              isOwned: true,
-              isPublic: false,
-            },
-            {
-              id: 'p2',
-              name: 'OtherBot',
-              displayName: null,
-              slug: 'otherbot',
-              isOwned: false,
-              isPublic: true,
-            },
-          ],
+      mockGetCachedPersonalities.mockResolvedValue([
+        {
+          id: 'p1',
+          name: 'TestBot',
+          displayName: 'Test Bot',
+          slug: 'testbot',
+          isOwned: true,
+          isPublic: false,
         },
-      });
+        {
+          id: 'p2',
+          name: 'OtherBot',
+          displayName: null,
+          slug: 'otherbot',
+          isOwned: false,
+          isPublic: true,
+        },
+      ]);
 
       await handleAutocomplete(mockInteraction);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/personality', { userId: 'user-123' });
-      // 🔒 = owned + private, includes slug in parentheses, value is id
+      expect(mockGetCachedPersonalities).toHaveBeenCalledWith('user-123');
+      // 🔒 = owned + private, includes slug in parentheses, value is id (model override API expects ID)
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: '🔒 Test Bot (testbot)', value: 'p1' },
       ]);
@@ -123,21 +124,16 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: '',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            {
-              id: 'p1',
-              name: 'TestBot',
-              displayName: null,
-              slug: 'testbot',
-              isOwned: true,
-              isPublic: false,
-            },
-          ],
+      mockGetCachedPersonalities.mockResolvedValue([
+        {
+          id: 'p1',
+          name: 'TestBot',
+          displayName: null,
+          slug: 'testbot',
+          isOwned: true,
+          isPublic: false,
         },
-      });
+      ]);
 
       await handleAutocomplete(mockInteraction);
 
@@ -151,29 +147,24 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: 'lil',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            {
-              id: 'p1',
-              name: 'Lilith',
-              displayName: 'Lilith Bot',
-              slug: 'lilith',
-              isOwned: true,
-              isPublic: true,
-            },
-            {
-              id: 'p2',
-              name: 'Other',
-              displayName: 'Other Bot',
-              slug: 'other',
-              isOwned: false,
-              isPublic: true,
-            },
-          ],
+      mockGetCachedPersonalities.mockResolvedValue([
+        {
+          id: 'p1',
+          name: 'Lilith',
+          displayName: 'Lilith Bot',
+          slug: 'lilith',
+          isOwned: true,
+          isPublic: true,
         },
-      });
+        {
+          id: 'p2',
+          name: 'Other',
+          displayName: 'Other Bot',
+          slug: 'other',
+          isOwned: false,
+          isPublic: true,
+        },
+      ]);
 
       await handleAutocomplete(mockInteraction);
 
@@ -188,21 +179,16 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: '',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: {
-          personalities: [
-            {
-              id: 'p1',
-              name: 'SharedBot',
-              displayName: 'Shared Bot',
-              slug: 'sharedbot',
-              isOwned: false,
-              isPublic: true,
-            },
-          ],
+      mockGetCachedPersonalities.mockResolvedValue([
+        {
+          id: 'p1',
+          name: 'SharedBot',
+          displayName: 'Shared Bot',
+          slug: 'sharedbot',
+          isOwned: false,
+          isPublic: true,
         },
-      });
+      ]);
 
       await handleAutocomplete(mockInteraction);
 
@@ -217,11 +203,7 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: 'test',
       });
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: false,
-        error: 'API error',
-        status: 500,
-      });
+      mockGetCachedPersonalities.mockRejectedValue(new Error('Cache error'));
 
       await handleAutocomplete(mockInteraction);
 
@@ -241,10 +223,7 @@ describe('handleAutocomplete', () => {
         isOwned: true,
         isPublic: false,
       }));
-      vi.mocked(callGatewayApi).mockResolvedValue({
-        ok: true,
-        data: { personalities: manyPersonalities },
-      });
+      mockGetCachedPersonalities.mockResolvedValue(manyPersonalities);
 
       await handleAutocomplete(mockInteraction);
 

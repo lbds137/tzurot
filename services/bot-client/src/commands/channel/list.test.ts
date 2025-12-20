@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleList } from './list.js';
 
@@ -71,7 +71,7 @@ describe('/channel list', () => {
 
     await handleList(interaction);
 
-    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    // deferReply is now handled at top-level interactionCreate handler
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/list', {
       userId: 'user-123',
       method: 'GET',

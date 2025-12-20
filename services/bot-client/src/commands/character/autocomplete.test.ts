@@ -4,13 +4,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
+import type { PersonalitySummary } from '@tzurot/common-types';
 
-// Mock userGatewayClient
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
+// Mock the autocomplete cache (character/autocomplete uses handlePersonalityAutocomplete which uses the cache)
+const mockGetCachedPersonalities = vi.fn();
+vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
+  getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
 }));
-
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -26,9 +26,20 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+function createMockPersonality(overrides: Partial<PersonalitySummary> = {}): PersonalitySummary {
+  return {
+    id: 'test-id',
+    slug: 'test-slug',
+    name: 'Test',
+    displayName: null,
+    isOwned: true,
+    isPublic: false,
+    ...overrides,
+  };
+}
+
 describe('handleAutocomplete', () => {
   const mockRespond = vi.fn();
-  const mockCallGatewayApi = vi.mocked(callGatewayApi);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,31 +70,26 @@ describe('handleAutocomplete', () => {
     await handleAutocomplete(createMockInteraction('other-field', 'test'));
 
     expect(mockRespond).toHaveBeenCalledWith([]);
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockGetCachedPersonalities).not.toHaveBeenCalled();
   });
 
   it('should return owned characters for edit subcommand', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          {
-            slug: 'my-char',
-            name: 'MyChar',
-            displayName: 'My Character',
-            isOwned: true,
-            isPublic: false,
-          },
-          {
-            slug: 'public-char',
-            name: 'PublicChar',
-            displayName: null,
-            isOwned: false,
-            isPublic: true,
-          },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'my-char',
+        name: 'MyChar',
+        displayName: 'My Character',
+        isOwned: true,
+        isPublic: false,
+      }),
+      createMockPersonality({
+        slug: 'public-char',
+        name: 'PublicChar',
+        displayName: null,
+        isOwned: false,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', '', 'edit'));
 
@@ -93,15 +99,22 @@ describe('handleAutocomplete', () => {
   });
 
   it('should return owned characters for avatar subcommand', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          { slug: 'my-char', name: 'MyChar', displayName: null, isOwned: true, isPublic: true },
-          { slug: 'other', name: 'Other', displayName: null, isOwned: false, isPublic: true },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'my-char',
+        name: 'MyChar',
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      }),
+      createMockPersonality({
+        slug: 'other',
+        name: 'Other',
+        displayName: null,
+        isOwned: false,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', '', 'avatar'));
 
@@ -109,21 +122,22 @@ describe('handleAutocomplete', () => {
   });
 
   it('should return all characters for view subcommand', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          { slug: 'my-char', name: 'MyChar', displayName: null, isOwned: true, isPublic: false },
-          {
-            slug: 'public-char',
-            name: 'PublicChar',
-            displayName: 'Public Bot',
-            isOwned: false,
-            isPublic: true,
-          },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'my-char',
+        name: 'MyChar',
+        displayName: null,
+        isOwned: true,
+        isPublic: false,
+      }),
+      createMockPersonality({
+        slug: 'public-char',
+        name: 'PublicChar',
+        displayName: 'Public Bot',
+        isOwned: false,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', '', 'view'));
 
@@ -134,15 +148,22 @@ describe('handleAutocomplete', () => {
   });
 
   it('should filter by query matching name', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          { slug: 'luna', name: 'Luna', displayName: null, isOwned: true, isPublic: true },
-          { slug: 'lilith', name: 'Lilith', displayName: null, isOwned: true, isPublic: true },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'luna',
+        name: 'Luna',
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      }),
+      createMockPersonality({
+        slug: 'lilith',
+        name: 'Lilith',
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', 'lun', 'edit'));
 
@@ -150,15 +171,22 @@ describe('handleAutocomplete', () => {
   });
 
   it('should filter by query matching slug', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          { slug: 'my-bot-123', name: 'Bot', displayName: null, isOwned: true, isPublic: false },
-          { slug: 'other', name: 'Other', displayName: null, isOwned: true, isPublic: false },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'my-bot-123',
+        name: 'Bot',
+        displayName: null,
+        isOwned: true,
+        isPublic: false,
+      }),
+      createMockPersonality({
+        slug: 'other',
+        name: 'Other',
+        displayName: null,
+        isOwned: true,
+        isPublic: false,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', 'bot-123', 'edit'));
 
@@ -168,21 +196,22 @@ describe('handleAutocomplete', () => {
   });
 
   it('should filter by query matching displayName', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          {
-            slug: 'char-1',
-            name: 'Internal',
-            displayName: 'Fancy Display Name',
-            isOwned: true,
-            isPublic: true,
-          },
-          { slug: 'char-2', name: 'Other', displayName: null, isOwned: true, isPublic: true },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'char-1',
+        name: 'Internal',
+        displayName: 'Fancy Display Name',
+        isOwned: true,
+        isPublic: true,
+      }),
+      createMockPersonality({
+        slug: 'char-2',
+        name: 'Other',
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', 'fancy', 'edit'));
 
@@ -192,25 +221,23 @@ describe('handleAutocomplete', () => {
   });
 
   it('should handle case-insensitive query', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          { slug: 'luna', name: 'Luna', displayName: null, isOwned: true, isPublic: true },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'luna',
+        name: 'Luna',
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', 'LUNA', 'edit'));
 
     expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 Luna (luna)', value: 'luna' }]);
   });
 
-  it('should return empty array on API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'API error',
-    });
+  it('should return empty array when cache returns empty', async () => {
+    mockGetCachedPersonalities.mockResolvedValue([]);
 
     await handleAutocomplete(createMockInteraction('character', ''));
 
@@ -218,7 +245,7 @@ describe('handleAutocomplete', () => {
   });
 
   it('should handle errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    mockGetCachedPersonalities.mockRejectedValue(new Error('Cache error'));
 
     await handleAutocomplete(createMockInteraction('character', ''));
 
@@ -227,18 +254,17 @@ describe('handleAutocomplete', () => {
 
   it('should limit results to Discord max choices', async () => {
     // Create 30 characters
-    const personalities = Array.from({ length: 30 }, (_, i) => ({
-      slug: `char-${i}`,
-      name: `Character ${i}`,
-      displayName: null,
-      isOwned: true,
-      isPublic: true,
-    }));
+    const personalities = Array.from({ length: 30 }, (_, i) =>
+      createMockPersonality({
+        slug: `char-${i}`,
+        name: `Character ${i}`,
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      })
+    );
 
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { personalities },
-    });
+    mockGetCachedPersonalities.mockResolvedValue(personalities);
 
     await handleAutocomplete(createMockInteraction('character', '', 'edit'));
 
@@ -247,34 +273,29 @@ describe('handleAutocomplete', () => {
   });
 
   it('should show correct visibility icons', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        personalities: [
-          {
-            slug: 'private-owned',
-            name: 'Private',
-            displayName: null,
-            isOwned: true,
-            isPublic: false,
-          },
-          {
-            slug: 'public-owned',
-            name: 'Public',
-            displayName: null,
-            isOwned: true,
-            isPublic: true,
-          },
-          {
-            slug: 'public-other',
-            name: 'Other',
-            displayName: null,
-            isOwned: false,
-            isPublic: true,
-          },
-        ],
-      },
-    });
+    mockGetCachedPersonalities.mockResolvedValue([
+      createMockPersonality({
+        slug: 'private-owned',
+        name: 'Private',
+        displayName: null,
+        isOwned: true,
+        isPublic: false,
+      }),
+      createMockPersonality({
+        slug: 'public-owned',
+        name: 'Public',
+        displayName: null,
+        isOwned: true,
+        isPublic: true,
+      }),
+      createMockPersonality({
+        slug: 'public-other',
+        name: 'Other',
+        displayName: null,
+        isOwned: false,
+        isPublic: true,
+      }),
+    ]);
 
     await handleAutocomplete(createMockInteraction('character', '', 'view'));
 

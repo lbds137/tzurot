@@ -27,7 +27,6 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockDeferEphemeral = vi.fn();
 const mockReplyWithError = vi.fn();
 const mockHandleCommandError = vi.fn();
 
@@ -59,7 +58,6 @@ const mockCreateInfoEmbed = vi.fn((title: string, description?: string) =>
 );
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  deferEphemeral: (...args: unknown[]) => mockDeferEphemeral(...args),
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
   handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createInfoEmbed: (...args: unknown[]) =>
@@ -95,7 +93,6 @@ describe('handleTimezoneGet', () => {
     const interaction = createMockInteraction();
     await handleTimezoneGet(interaction);
 
-    expect(mockDeferEphemeral).toHaveBeenCalledWith(interaction);
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/timezone', {
       userId: '123456789',
     });

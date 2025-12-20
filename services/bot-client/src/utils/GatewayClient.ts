@@ -315,7 +315,10 @@ export class GatewayClient {
 
       // Cache the result (including "not activated" responses)
       channelActivationCache.set(channelId, data);
-      logger.debug({ channelId, isActivated: data.isActivated }, '[GatewayClient] Cached channel activation');
+      logger.debug(
+        { channelId, isActivated: data.isActivated },
+        '[GatewayClient] Cached channel activation'
+      );
 
       return data;
     } catch (error) {

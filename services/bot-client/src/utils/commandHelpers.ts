@@ -8,20 +8,12 @@
  * - Common interaction utilities
  */
 
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { isGatewayConfigured } from './userGatewayClient.js';
 
 const logger = createLogger('command-helpers');
-
-/**
- * Defer reply as ephemeral (only visible to the user)
- * Most BYOK commands use this pattern
- */
-export async function deferEphemeral(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-}
 
 /**
  * Reply with a simple error message
@@ -129,8 +121,6 @@ export type CommandHandler<T extends ChatInputCommandInteraction = ChatInputComm
 export interface SafeHandlerOptions {
   /** Command name for logging (e.g., 'Wallet List') */
   commandName: string;
-  /** Whether the handler defers the reply (default: true) */
-  defersReply?: boolean;
 }
 
 /**
@@ -140,14 +130,15 @@ export interface SafeHandlerOptions {
  * - Catches any errors thrown by the handler
  * - Logs the error with context
  * - Replies to the user with a friendly error message
- * - Handles both deferred and non-deferred interactions
+ *
+ * Note: Interactions are always deferred at the top-level interactionCreate handler,
+ * so error handling only needs to use editReply().
  *
  * @example
  * ```typescript
  * export const handleListKeys = createSafeHandler(
  *   async (interaction) => {
- *     await deferEphemeral(interaction);
- *     // ... handler logic
+ *     // ... handler logic (no need to defer, already done)
  *   },
  *   { commandName: 'Wallet List' }
  * );
@@ -156,7 +147,7 @@ export interface SafeHandlerOptions {
 export function createSafeHandler<
   T extends ChatInputCommandInteraction = ChatInputCommandInteraction,
 >(handler: CommandHandler<T>, options: SafeHandlerOptions): CommandHandler<T> {
-  const { commandName, defersReply = true } = options;
+  const { commandName } = options;
 
   return async (interaction: T): Promise<void> => {
     try {
@@ -164,18 +155,7 @@ export function createSafeHandler<
     } catch (error) {
       const userId = interaction.user.id;
       logger.error({ err: error, userId, command: commandName }, `[${commandName}] Error`);
-
-      const errorMessage = '\u274c An error occurred. Please try again later.';
-
-      // Handle based on interaction state
-      if (interaction.replied || interaction.deferred) {
-        await interaction.editReply({ content: errorMessage });
-      } else if (defersReply) {
-        // Handler was supposed to defer but crashed before doing so
-        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      } else {
-        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      }
+      await interaction.editReply({ content: '❌ An error occurred. Please try again later.' });
     }
   };
 }

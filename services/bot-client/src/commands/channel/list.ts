@@ -6,7 +6,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { createLogger, type ListChannelActivationsResponse } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
@@ -16,8 +16,7 @@ const logger = createLogger('channel-list');
  * Handle /channel list command
  */
 export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
+  // Note: deferReply is handled by top-level interactionCreate handler
   // No permission check needed for list - anyone can see what's activated
 
   try {

@@ -7,11 +7,7 @@
 import { EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import {
-  deferEphemeral,
-  replyWithError,
-  handleCommandError,
-} from '../../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 import { adminPutJson } from '../../../utils/adminApiClient.js';
 
 const logger = createLogger('preset-global-edit');
@@ -26,8 +22,6 @@ export async function handleGlobalEdit(interaction: ChatInputCommandInteraction)
   const provider = interaction.options.getString('provider');
   const description = interaction.options.getString('description');
   const visionModel = interaction.options.getString('vision-model');
-
-  await deferEphemeral(interaction);
 
   try {
     // Build update body (only include provided fields)
