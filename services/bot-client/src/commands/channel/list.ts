@@ -39,8 +39,11 @@ import { ChannelCustomIds, type ChannelListSortType } from '../../utils/customId
 
 const logger = createLogger('channel-list');
 
-/** Channels per page for pagination */
+/** Channels per page for pagination (single guild mode) */
 const CHANNELS_PER_PAGE = 10;
+
+/** Channels per page for all-servers mode (slightly smaller to account for guild headers) */
+const CHANNELS_PER_PAGE_ALL_SERVERS = 8;
 
 /** Button collector timeout in milliseconds (60 seconds) */
 const COLLECTOR_TIMEOUT_MS = 60_000;
@@ -109,6 +112,71 @@ function sortActivations(
 }
 
 /**
+ * Represents a page of guild activations for all-servers view
+ */
+interface GuildPage {
+  guildId: string;
+  guildName: string;
+  activations: ActivatedChannel[];
+  isContinuation: boolean; // True if this continues from previous page
+  isComplete: boolean; // True if this is the last page for this guild
+}
+
+/**
+ * Build guild-aware pages for all-servers view
+ * Each page contains channels from a single guild only.
+ * Large guilds are split across multiple pages with continuation indicators.
+ */
+function buildGuildPages(
+  activations: ActivatedChannel[],
+  client: Client
+): GuildPage[] {
+  const pages: GuildPage[] = [];
+
+  // Group by guild (activations are already sorted by guild)
+  const guildGroups: { guildId: string; guildName: string; activations: ActivatedChannel[] }[] = [];
+  let currentGroup: (typeof guildGroups)[0] | null = null;
+
+  for (const activation of activations) {
+    const guildId = activation.guildId ?? 'unknown';
+    if (currentGroup === null || currentGroup.guildId !== guildId) {
+      const guild = guildId !== 'unknown' ? client.guilds.cache.get(guildId) : undefined;
+      const guildName: string = guild?.name ?? `Unknown Server (${guildId})`;
+      currentGroup = { guildId, guildName, activations: [] };
+      guildGroups.push(currentGroup);
+    }
+    currentGroup.activations.push(activation);
+  }
+
+  // Split each guild into pages
+  for (const group of guildGroups) {
+    const totalChannels = group.activations.length;
+    let offset = 0;
+
+    while (offset < totalChannels) {
+      const pageActivations = group.activations.slice(
+        offset,
+        offset + CHANNELS_PER_PAGE_ALL_SERVERS
+      );
+      const isContinuation = offset > 0;
+      const isComplete = offset + pageActivations.length >= totalChannels;
+
+      pages.push({
+        guildId: group.guildId,
+        guildName: group.guildName,
+        activations: pageActivations,
+        isContinuation,
+        isComplete,
+      });
+
+      offset += CHANNELS_PER_PAGE_ALL_SERVERS;
+    }
+  }
+
+  return pages;
+}
+
+/**
  * Build pagination and sort buttons
  */
 function buildButtons(
@@ -159,14 +227,12 @@ function buildButtons(
 }
 
 /**
- * Build embed for a page of activations
+ * Build embed for a page of activations (single guild mode)
  */
-function buildEmbed(
+function buildEmbedSingleGuild(
   activations: ActivatedChannel[],
   page: number,
-  sortType: ChannelListSortType,
-  isAllServers: boolean,
-  client: Client
+  sortType: ChannelListSortType
 ): EmbedBuilder {
   const totalPages = Math.max(1, Math.ceil(activations.length / CHANNELS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
@@ -177,39 +243,55 @@ function buildEmbed(
     .setTitle('📍 Activated Channels')
     .setColor(DISCORD_COLORS.BLURPLE);
 
-  if (isAllServers) {
-    // Group by server for admin view
-    const byGuild = new Map<string, ActivatedChannel[]>();
-    for (const activation of pageActivations) {
-      const gid = activation.guildId ?? 'unknown';
-      if (!byGuild.has(gid)) {
-        byGuild.set(gid, []);
-      }
-      byGuild.get(gid)!.push(activation);
-    }
-
-    const sections: string[] = [];
-    for (const [guildId, guildActivations] of byGuild) {
-      const guild = client.guilds.cache.get(guildId);
-      const guildName = escapeMarkdown(guild?.name ?? `Unknown Server (${guildId})`);
-
-      const channelList = guildActivations
-        .map(a => `  <#${a.channelId}> → **${escapeMarkdown(a.personalityName)}**`)
-        .join('\n');
-
-      sections.push(`**${guildName}**\n${channelList}`);
-    }
-
-    embed.setDescription(sections.join('\n\n') || 'No activated channels found.');
-  } else {
-    // Simple list for current server view
-    const lines = pageActivations.map(formatActivation);
-    embed.setDescription(lines.join('\n\n') || 'No activated channels in this server.');
-  }
+  const lines = pageActivations.map(formatActivation);
+  embed.setDescription(lines.join('\n\n') || 'No activated channels in this server.');
 
   const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
   embed.setFooter({
     text: `${activations.length} total • Sorted ${sortLabel} • Page ${safePage + 1} of ${totalPages}`,
+  });
+
+  return embed;
+}
+
+/**
+ * Build embed for a guild page (all-servers mode)
+ */
+function buildEmbedAllServers(
+  guildPages: GuildPage[],
+  page: number,
+  sortType: ChannelListSortType,
+  totalChannels: number
+): EmbedBuilder {
+  const totalPages = guildPages.length;
+  const safePage = Math.min(Math.max(0, page), totalPages - 1);
+  const guildPage = guildPages[safePage];
+
+  // Build title with continuation indicator
+  let title = `📍 ${escapeMarkdown(guildPage.guildName)}`;
+  if (guildPage.isContinuation) {
+    title += ' (continued)';
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setColor(DISCORD_COLORS.BLURPLE);
+
+  const channelList = guildPage.activations
+    .map(a => `<#${a.channelId}> → **${escapeMarkdown(a.personalityName)}**`)
+    .join('\n');
+
+  embed.setDescription(channelList || 'No activated channels found.');
+
+  // Build footer with context
+  const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
+  const channelCount = guildPage.activations.length;
+  const guildStatus = guildPage.isContinuation || !guildPage.isComplete
+    ? ` (${channelCount} shown)`
+    : ` (${channelCount} channels)`;
+
+  embed.setFooter({
+    text: `${totalChannels} total across all servers • Sorted ${sortLabel} • Page ${safePage + 1} of ${totalPages}${guildStatus}`,
   });
 
   return embed;
@@ -333,8 +415,21 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     const sortType: ChannelListSortType = 'date';
     const sortedActivations = sortActivations(activations, sortType, interaction.client, showAll);
 
-    const totalPages = Math.ceil(sortedActivations.length / CHANNELS_PER_PAGE);
-    const embed = buildEmbed(sortedActivations, 0, sortType, showAll, interaction.client);
+    // Build initial embed and components based on mode
+    let embed: EmbedBuilder;
+    let totalPages: number;
+
+    if (showAll) {
+      // All-servers mode: use guild-aware pagination
+      const guildPages = buildGuildPages(sortedActivations, interaction.client);
+      totalPages = guildPages.length;
+      embed = buildEmbedAllServers(guildPages, 0, sortType, activations.length);
+    } else {
+      // Single guild mode: use simple pagination
+      totalPages = Math.ceil(sortedActivations.length / CHANNELS_PER_PAGE);
+      embed = buildEmbedSingleGuild(sortedActivations, 0, sortType);
+    }
+
     // Always show buttons (sort toggle useful even with 1 page)
     const components = [buildButtons(0, totalPages, sortType)];
 
@@ -377,14 +472,21 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
           interaction.client,
           showAll
         );
-        const newTotalPages = Math.ceil(newSortedActivations.length / CHANNELS_PER_PAGE);
-        const newEmbed = buildEmbed(
-          newSortedActivations,
-          newPage,
-          newSort,
-          showAll,
-          interaction.client
-        );
+
+        let newEmbed: EmbedBuilder;
+        let newTotalPages: number;
+
+        if (showAll) {
+          // All-servers mode: use guild-aware pagination
+          const newGuildPages = buildGuildPages(newSortedActivations, interaction.client);
+          newTotalPages = newGuildPages.length;
+          newEmbed = buildEmbedAllServers(newGuildPages, newPage, newSort, activations.length);
+        } else {
+          // Single guild mode: use simple pagination
+          newTotalPages = Math.ceil(newSortedActivations.length / CHANNELS_PER_PAGE);
+          newEmbed = buildEmbedSingleGuild(newSortedActivations, newPage, newSort);
+        }
+
         const newComponents = [buildButtons(newPage, newTotalPages, newSort)];
 
         void buttonInteraction.update({ embeds: [newEmbed], components: newComponents });
