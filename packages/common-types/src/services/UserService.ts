@@ -195,12 +195,14 @@ export class UserService {
   }
 
   /**
-   * Backfill default persona for existing user who doesn't have one
+   * Backfill default persona for existing user who doesn't have one.
    * This handles users created via api-gateway's direct prisma calls.
    *
    * Race condition handling: If two requests try to backfill simultaneously,
-   * the second will get a P2002 error (deterministic UUIDs = same persona ID).
-   * We catch this and verify the persona was created by the other request.
+   * both may pass the findUnique check before either commits. The second will
+   * get a P2002 error on persona.create (deterministic UUIDs = same persona ID).
+   * We catch this inside the transaction and continue to updateMany, which is
+   * idempotent and will link the existing persona if not already linked.
    */
   private async backfillDefaultPersona(
     userId: string,
@@ -212,21 +214,23 @@ export class UserService {
     const personaDisplayName = displayName ?? username;
     const personaContent = bio ?? '';
 
-    try {
-      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // Double-check inside transaction that persona is still needed
-        // (another request may have created it between our check and this transaction)
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { defaultPersonaId: true },
-        });
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Double-check inside transaction that persona is still needed
+      // (another request may have created it between our check and this transaction)
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { defaultPersonaId: true },
+      });
 
-        if (user?.defaultPersonaId !== null) {
-          // Another request already backfilled - nothing to do
-          return;
-        }
+      if (user?.defaultPersonaId !== null) {
+        // Another request already backfilled - nothing to do
+        return;
+      }
 
-        // Create default persona
+      // Create default persona (with P2002 race handling)
+      // If two requests pass the findUnique check simultaneously, both will try
+      // to create the same persona (deterministic UUID). The second gets P2002.
+      try {
         await tx.persona.create({
           data: {
             id: personaId,
@@ -237,26 +241,26 @@ export class UserService {
             ownerId: userId,
           },
         });
-
-        // Link persona as user's default (idempotent - only updates if still null)
-        await tx.user.updateMany({
-          where: { id: userId, defaultPersonaId: null },
-          data: { defaultPersonaId: personaId },
-        });
-      });
-
-      logger.info({ userId, username, personaId }, 'Backfilled default persona for existing user');
-    } catch (error) {
-      // P2002 = unique constraint violation (another request created the persona)
-      if (this.isPrismaUniqueConstraintError(error)) {
-        logger.debug(
-          { userId, personaId },
-          'Backfill race condition - persona already created by another request'
-        );
-        return; // Safe to ignore - the other request handled it
+      } catch (error) {
+        if (this.isPrismaUniqueConstraintError(error)) {
+          logger.debug(
+            { userId, personaId },
+            'Persona already created by concurrent request, continuing to link'
+          );
+          // Continue to updateMany - it's idempotent and will link the existing persona
+        } else {
+          throw error;
+        }
       }
-      throw error;
-    }
+
+      // Link persona as user's default (idempotent - only updates if still null)
+      await tx.user.updateMany({
+        where: { id: userId, defaultPersonaId: null },
+        data: { defaultPersonaId: personaId },
+      });
+    });
+
+    logger.info({ userId, username, personaId }, 'Backfilled default persona for existing user');
   }
 
   /**
