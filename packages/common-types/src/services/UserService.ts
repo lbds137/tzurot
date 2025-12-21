@@ -196,7 +196,11 @@ export class UserService {
 
   /**
    * Backfill default persona for existing user who doesn't have one
-   * This handles users created via api-gateway's direct prisma calls
+   * This handles users created via api-gateway's direct prisma calls.
+   *
+   * Race condition handling: If two requests try to backfill simultaneously,
+   * the second will get a P2002 error (deterministic UUIDs = same persona ID).
+   * We catch this and verify the persona was created by the other request.
    */
   private async backfillDefaultPersona(
     userId: string,
@@ -208,27 +212,51 @@ export class UserService {
     const personaDisplayName = displayName ?? username;
     const personaContent = bio ?? '';
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Create default persona
-      await tx.persona.create({
-        data: {
-          id: personaId,
-          name: username,
-          preferredName: personaDisplayName,
-          description: DEFAULT_PERSONA_DESCRIPTION,
-          content: personaContent,
-          ownerId: userId,
-        },
+    try {
+      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Double-check inside transaction that persona is still needed
+        // (another request may have created it between our check and this transaction)
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { defaultPersonaId: true },
+        });
+
+        if (user?.defaultPersonaId !== null) {
+          // Another request already backfilled - nothing to do
+          return;
+        }
+
+        // Create default persona
+        await tx.persona.create({
+          data: {
+            id: personaId,
+            name: username,
+            preferredName: personaDisplayName,
+            description: DEFAULT_PERSONA_DESCRIPTION,
+            content: personaContent,
+            ownerId: userId,
+          },
+        });
+
+        // Link persona as user's default
+        await tx.user.update({
+          where: { id: userId },
+          data: { defaultPersonaId: personaId },
+        });
       });
 
-      // Link persona as user's default
-      await tx.user.update({
-        where: { id: userId },
-        data: { defaultPersonaId: personaId },
-      });
-    });
-
-    logger.info({ userId, username, personaId }, 'Backfilled default persona for existing user');
+      logger.info({ userId, username, personaId }, 'Backfilled default persona for existing user');
+    } catch (error) {
+      // P2002 = unique constraint violation (another request created the persona)
+      if (this.isPrismaUniqueConstraintError(error)) {
+        logger.debug(
+          { userId, personaId },
+          'Backfill race condition - persona already created by another request'
+        );
+        return; // Safe to ignore - the other request handled it
+      }
+      throw error;
+    }
   }
 
   /**

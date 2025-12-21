@@ -397,7 +397,10 @@ describe('UserService', () => {
         async (callback: (tx: unknown) => Promise<void>) => {
           const mockTx = {
             persona: { create: mockPersonaCreate },
-            user: { update: mockUserUpdate },
+            user: {
+              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // Still needs backfill
+              update: mockUserUpdate,
+            },
           };
           await callback(mockTx);
         }

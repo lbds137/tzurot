@@ -15,7 +15,8 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
-import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
+import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
+import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('channel-list');
@@ -30,6 +31,11 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
 
     // Optional guildId filter from query params
     const guildId = req.query.guildId as string | undefined;
+
+    // Validate guildId if provided - empty string is invalid
+    if (guildId !== undefined && guildId.trim() === '') {
+      return sendError(res, ErrorResponses.validationError('guildId cannot be empty'));
+    }
 
     // Build where clause based on whether guildId filter is provided
     // Include records with null guildId (legacy data) so bot-client can backfill them
