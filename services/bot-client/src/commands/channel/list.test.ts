@@ -573,4 +573,39 @@ describe('markdown escaping integration', () => {
     // Asterisks should be escaped to prevent Discord from rendering as italic
     expect(description).toContain('\\*Star\\*');
   });
+
+  it('should handle empty and whitespace-only personality names gracefully', async () => {
+    const interaction = createMockInteraction();
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        activations: [
+          {
+            id: 'activation-1',
+            channelId: '111111111111111111',
+            guildId: MOCK_GUILD_ID,
+            personalitySlug: 'empty-name',
+            personalityName: '',
+            activatedBy: 'user-uuid',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+          {
+            id: 'activation-2',
+            channelId: '222222222222222222',
+            guildId: MOCK_GUILD_ID,
+            personalitySlug: 'whitespace-name',
+            personalityName: '   ',
+            activatedBy: 'user-uuid',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    // Should not throw
+    await expect(handleList(interaction)).resolves.not.toThrow();
+
+    // Should still call editReply successfully
+    expect(interaction.editReply).toHaveBeenCalled();
+  });
 });

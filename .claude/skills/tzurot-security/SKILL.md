@@ -1,7 +1,7 @@
 ---
 name: tzurot-security
 description: Security best practices for Tzurot v3 - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permission verification, microservices security, and supply chain integrity. Use when handling secrets, user input, or security-critical code.
-lastUpdated: '2025-12-20'
+lastUpdated: '2025-12-21'
 ---
 
 # Security Skill - Tzurot v3
@@ -148,6 +148,29 @@ npm audit                    # Vulnerabilities?
 **Pin exact versions** in package.json (no `^` or `~`)
 
 **Dependabot** handles weekly updates. See `.github/dependabot.yml`.
+
+### 11. Discord Markdown Injection Prevention
+
+**ALWAYS escape user-provided content** before displaying in Discord embeds:
+
+```typescript
+import { escapeMarkdown } from 'discord.js';
+
+// ✅ CORRECT - Escape at display time
+const displayName = escapeMarkdown(character.displayName);
+embed.setTitle(`Character: ${displayName}`);
+
+// ❌ WRONG - Raw user input in embed
+embed.setTitle(`Character: ${character.displayName}`); // Vulnerable!
+```
+
+**Fields to always escape:**
+- Guild names, channel names, usernames
+- Character names, display names, persona fields
+- Personality names, config names, preset names
+- Any user-provided text in embeds
+
+**Pattern:** Store raw values in data structures, escape at display time only.
 
 ## Admin Endpoint Security
 
