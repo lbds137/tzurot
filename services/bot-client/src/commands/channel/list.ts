@@ -35,6 +35,7 @@ import {
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
 import { ChannelCustomIds, type ChannelListSortType } from '../../utils/customIds.js';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('channel-list');
 
@@ -50,31 +51,54 @@ const COLLECTOR_TIMEOUT_MS = 60_000;
 function formatActivation(activation: ActivatedChannel): string {
   const channelMention = `<#${activation.channelId}>`;
   const activatedDate = new Date(activation.createdAt).toLocaleDateString();
-  return `${channelMention} → **${activation.personalityName}** (\`${activation.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
+  const safeName = escapeMarkdown(activation.personalityName);
+  return `${channelMention} → **${safeName}** (\`${activation.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
 }
 
 /**
  * Sort activations by the specified sort type
+ * When isAllServers=true, groups by guild first, then sorts within each guild
  */
 function sortActivations(
   activations: ActivatedChannel[],
   sortType: ChannelListSortType,
-  client: Client
+  client: Client,
+  isAllServers: boolean = false
 ): ActivatedChannel[] {
   const sorted = [...activations];
 
-  if (sortType === 'name') {
-    // Sort alphabetically by channel name
+  // Helper to get channel name for sorting
+  const getChannelName = (activation: ActivatedChannel): string => {
+    const channel = client.channels.cache.get(activation.channelId) as TextChannel | undefined;
+    return channel?.name ?? activation.channelId;
+  };
+
+  // Helper to get guild name for sorting
+  const getGuildName = (activation: ActivatedChannel): string => {
+    if (activation.guildId === null) return 'zzz_unknown'; // Sort unknown guilds last
+    const guild = client.guilds.cache.get(activation.guildId);
+    return guild?.name ?? activation.guildId;
+  };
+
+  // Secondary sort function (within guild or for single-guild mode)
+  const secondarySort = (a: ActivatedChannel, b: ActivatedChannel): number => {
+    if (sortType === 'name') {
+      return getChannelName(a).localeCompare(getChannelName(b));
+    } else {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  };
+
+  if (isAllServers) {
+    // Group by guild first, then sort within each guild
     sorted.sort((a, b) => {
-      const channelA = client.channels.cache.get(a.channelId) as TextChannel | undefined;
-      const channelB = client.channels.cache.get(b.channelId) as TextChannel | undefined;
-      const nameA = channelA?.name ?? a.channelId;
-      const nameB = channelB?.name ?? b.channelId;
-      return nameA.localeCompare(nameB);
+      const guildCompare = getGuildName(a).localeCompare(getGuildName(b));
+      if (guildCompare !== 0) return guildCompare;
+      return secondarySort(a, b);
     });
   } else {
-    // Sort chronologically (newest first)
-    sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Single guild mode - just use secondary sort
+    sorted.sort(secondarySort);
   }
 
   return sorted;
@@ -163,10 +187,10 @@ function buildEmbed(
     const sections: string[] = [];
     for (const [guildId, guildActivations] of byGuild) {
       const guild = client.guilds.cache.get(guildId);
-      const guildName = guild?.name ?? `Unknown Server (${guildId})`;
+      const guildName = escapeMarkdown(guild?.name ?? `Unknown Server (${guildId})`);
 
       const channelList = guildActivations
-        .map(a => `  <#${a.channelId}> → **${a.personalityName}**`)
+        .map(a => `  <#${a.channelId}> → **${escapeMarkdown(a.personalityName)}**`)
         .join('\n');
 
       sections.push(`**${guildName}**\n${channelList}`);
@@ -301,9 +325,9 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       return;
     }
 
-    // Initial sort: chronological (newest first)
+    // Initial sort: chronological (newest first), grouped by guild if showing all
     const sortType: ChannelListSortType = 'date';
-    const sortedActivations = sortActivations(activations, sortType, interaction.client);
+    const sortedActivations = sortActivations(activations, sortType, interaction.client, showAll);
 
     const totalPages = Math.ceil(sortedActivations.length / CHANNELS_PER_PAGE);
     const embed = buildEmbed(sortedActivations, 0, sortType, showAll, interaction.client);
@@ -343,7 +367,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
           newPage = 0; // Reset to first page when changing sort
         }
 
-        const newSortedActivations = sortActivations(activations, newSort, interaction.client);
+        const newSortedActivations = sortActivations(activations, newSort, interaction.client, showAll);
         const newTotalPages = Math.ceil(newSortedActivations.length / CHANNELS_PER_PAGE);
         const newEmbed = buildEmbed(
           newSortedActivations,

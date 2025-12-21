@@ -8,6 +8,7 @@ import { ButtonBuilder, ButtonStyle, EmbedBuilder, ActionRowBuilder } from 'disc
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
 import { CharacterCustomIds } from '../../utils/customIds.js';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 import { fetchUserCharacters, fetchPublicCharacters, fetchUsernames } from './api.js';
 import type { CharacterData } from './config.js';
 
@@ -15,17 +16,6 @@ const logger = createLogger('character-list');
 
 /** Characters per page for pagination */
 const CHARACTERS_PER_PAGE = 15;
-
-/**
- * Escape markdown special characters in a string.
- * Escapes backslashes first to prevent double-escaping issues.
- * @internal Exported for testing
- */
-export function escapeMarkdown(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\') // Escape backslashes first
-    .replace(/\*/g, '\\*'); // Then escape asterisks
-}
 
 /**
  * Format a character line for the list
