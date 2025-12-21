@@ -9,6 +9,7 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   MessageFlags,
+  escapeMarkdown,
 } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import {
@@ -23,7 +24,6 @@ import {
 import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('character-view');
 

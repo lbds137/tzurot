@@ -24,6 +24,7 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   ComponentType,
+  escapeMarkdown,
 } from 'discord.js';
 import {
   createLogger,
@@ -35,7 +36,6 @@ import {
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
 import { ChannelCustomIds, type ChannelListSortType } from '../../utils/customIds.js';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('channel-list');
 

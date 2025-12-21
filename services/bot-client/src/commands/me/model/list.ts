@@ -3,12 +3,11 @@
  * Handles /me model list subcommand
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
-import { escapeMarkdown } from '../../../utils/markdownUtils.js';
 
 const logger = createLogger('me-model-list');
 

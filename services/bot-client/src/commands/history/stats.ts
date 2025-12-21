@@ -4,10 +4,10 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
+import { escapeMarkdown } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('history-stats');
 
