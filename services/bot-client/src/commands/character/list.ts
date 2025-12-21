@@ -35,7 +35,7 @@ function formatCharacterLine(
 
   if (showCreator && creatorNames) {
     const creatorName = c.ownerId !== null ? (creatorNames.get(c.ownerId) ?? 'Unknown') : 'System';
-    return `${visibility} **${displayName}** (\`${c.slug}\`) — by ${creatorName}`;
+    return `${visibility} **${displayName}** (\`${c.slug}\`) — by ${escapeMarkdown(creatorName)}`;
   }
 
   return `${visibility} **${displayName}** (\`${c.slug}\`)`;
