@@ -179,7 +179,40 @@ gh pr create --base main --head develop \
 - **tzurot-testing** - Run tests before committing
 - **tzurot-security** - Pre-commit security checks
 
+## GitHub CLI Quirks
+
+**⚠️ ALWAYS check `docs/reference/GITHUB_CLI_REFERENCE.md` before running `gh` commands!**
+
+### Known Broken Commands
+
+```bash
+# ❌ BROKEN - "Projects (classic) deprecation" error
+gh pr edit 123 --body "new body"
+gh pr edit 123 --title "new title"
+
+# ✅ WORKAROUND - Use REST API directly
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="new body"
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="new title"
+
+# ✅ Multiline body with HEREDOC
+gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="$(cat <<'EOF'
+## Summary
+- Changes here
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+### Comment Types
+
+PRs have THREE different comment types with different endpoints:
+- **Issue comments** (general): `gh pr view --json comments` or `/issues/{pr}/comments`
+- **Review comments** (line-specific): `/pulls/{pr}/comments`
+- **Reviews** (APPROVE, etc.): `gh pr view --json reviews`
+
 ## References
 
+- **GitHub CLI Reference**: `docs/reference/GITHUB_CLI_REFERENCE.md` ← **CHECK THIS FIRST!**
 - Full workflow: `CLAUDE.md#git-workflow`
 - Post-mortems: `docs/postmortems/PROJECT_POSTMORTEMS.md`
