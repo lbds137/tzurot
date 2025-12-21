@@ -8,6 +8,7 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  UserService,
   type PrismaClient,
   isValidTimezone,
   getTimezoneInfo,
@@ -26,6 +27,7 @@ interface SetTimezoneRequest {
 
 export function createTimezoneRoutes(prisma: PrismaClient): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   /**
    * GET /user/timezone
@@ -93,15 +95,17 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId, timezone }, '[Timezone] Setting user timezone');
 
-      // Upsert user with timezone
-      await prisma.user.upsert({
-        where: { discordId: discordUserId },
-        update: { timezone },
-        create: {
-          discordId: discordUserId,
-          username: discordUserId, // Placeholder, can be updated later
-          timezone,
-        },
+      // Ensure user exists via centralized UserService (creates shell user if needed)
+      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      if (userId === null) {
+        // Should not happen for slash commands (bots can't use them)
+        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+      }
+
+      // Update the timezone
+      await prisma.user.update({
+        where: { id: userId },
+        data: { timezone },
       });
 
       // Find the label for the timezone

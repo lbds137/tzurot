@@ -30,10 +30,11 @@ export const mockPersona = {
   updatedAt: new Date('2025-01-02'),
 };
 
-/** Mock Prisma client type for testing */
+/** Mock Prisma client type for testing - includes UserService dependencies */
 export interface MockPrismaClient {
   user: {
     findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
@@ -55,13 +56,20 @@ export interface MockPrismaClient {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
+  $transaction: ReturnType<typeof vi.fn>;
 }
 
-/** Create mock Prisma client for testing */
+/** Create mock Prisma client for testing - includes UserService dependencies */
 export function createMockPrisma(): MockPrismaClient {
   return {
     user: {
       findFirst: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({
+        id: MOCK_USER_ID,
+        username: 'test-user',
+        defaultPersonaId: MOCK_PERSONA_ID,
+        isSuperuser: false,
+      }),
       create: vi.fn(),
       update: vi.fn(),
     },
@@ -69,7 +77,7 @@ export function createMockPrisma(): MockPrismaClient {
       findMany: vi.fn(),
       findFirst: vi.fn(),
       findUnique: vi.fn(),
-      create: vi.fn(),
+      create: vi.fn().mockResolvedValue({ id: MOCK_PERSONA_ID }),
       update: vi.fn(),
       delete: vi.fn(),
     },
@@ -83,6 +91,18 @@ export function createMockPrisma(): MockPrismaClient {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+      const mockTx = {
+        user: {
+          create: vi.fn().mockResolvedValue({ id: MOCK_USER_ID }),
+          update: vi.fn().mockResolvedValue({ id: MOCK_USER_ID }),
+        },
+        persona: {
+          create: vi.fn().mockResolvedValue({ id: MOCK_PERSONA_ID }),
+        },
+      };
+      await callback(mockTx);
+    }),
   };
 }
 

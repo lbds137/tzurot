@@ -28,18 +28,25 @@ export class UserService {
 
   /**
    * Get or create a user by Discord ID
-   * Returns the user's UUID for use in foreign keys
+   * Returns the user's UUID for use in foreign keys, or null if the user is a bot
    * @param discordId Discord user ID
    * @param username Discord username (e.g., "alt_hime")
    * @param displayName Discord display name (e.g., "Alt Hime") - falls back to username if not provided
    * @param bio Discord user's profile bio/about me - if provided, used for persona content
+   * @param isBot Whether the user is a Discord bot - if true, returns null without creating a record
    */
   async getOrCreateUser(
     discordId: string,
     username: string,
     displayName?: string,
-    bio?: string
-  ): Promise<string> {
+    bio?: string,
+    isBot?: boolean
+  ): Promise<string | null> {
+    // Skip user creation for bots - they shouldn't have user records or personas
+    if (isBot === true) {
+      logger.debug({ discordId, username }, '[UserService] Skipping user creation for bot');
+      return null;
+    }
     // Check cache first
     const cached = this.userCache.get(discordId);
     if (cached !== undefined && cached.length > 0) {

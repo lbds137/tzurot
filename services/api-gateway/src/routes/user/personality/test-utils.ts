@@ -23,9 +23,17 @@ export const MOCK_UPDATED_AT = new Date('2024-01-02T00:00:00.000Z');
 // Type for mock Prisma client
 export type MockPrisma = ReturnType<typeof createMockPrisma>;
 
-// Mock Prisma client
+// Mock Prisma client with UserService dependencies
 export function createMockPrisma(): {
-  user: { findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  user: {
+    findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  persona: {
+    create: ReturnType<typeof vi.fn>;
+  };
   personality: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -41,11 +49,17 @@ export function createMockPrisma(): {
   systemPrompt: { findFirst: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
   personalityDefaultConfig: { create: ReturnType<typeof vi.fn> };
+  $transaction: ReturnType<typeof vi.fn>;
 } {
   return {
     user: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+    },
+    persona: {
+      create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
     },
     personality: {
       findMany: vi.fn(),
@@ -71,6 +85,18 @@ export function createMockPrisma(): {
     personalityDefaultConfig: {
       create: vi.fn(),
     },
+    $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+      const mockTx = {
+        user: {
+          create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+          update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+        },
+        persona: {
+          create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+        },
+      };
+      await callback(mockTx);
+    }),
   };
 }
 
@@ -146,7 +172,15 @@ export function getHandler(
 // Standard beforeEach setup for tests that need user/personality state
 export function setupStandardMocks(mockPrisma: ReturnType<typeof createMockPrisma>): void {
   mockIsBotOwner.mockReturnValue(false);
+  // Old findFirst for legacy code paths
   mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
+  // UserService uses findUnique to look up users
+  mockPrisma.user.findUnique.mockResolvedValue({
+    id: 'user-uuid-123',
+    username: 'test-user',
+    defaultPersonaId: null,
+    isSuperuser: false,
+  });
   mockPrisma.personality.findMany.mockResolvedValue([]);
   mockPrisma.personality.findUnique.mockResolvedValue(null);
   mockPrisma.personalityOwner.findMany.mockResolvedValue([]);

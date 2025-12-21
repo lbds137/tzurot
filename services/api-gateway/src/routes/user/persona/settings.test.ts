@@ -110,7 +110,8 @@ describe('PATCH /user/persona/settings', () => {
   });
 
   it('should reject when no default persona set', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123', defaultPersonaId: null });
+    // UserService uses findUnique, not findFirst
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-123', defaultPersonaId: null });
 
     const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'patch', '/settings');
