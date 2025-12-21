@@ -4,11 +4,10 @@
  * Handles the /character list command and pagination.
  */
 
-import { ButtonBuilder, ButtonStyle, EmbedBuilder, ActionRowBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, EmbedBuilder, ActionRowBuilder, escapeMarkdown } from 'discord.js';
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
 import { CharacterCustomIds } from '../../utils/customIds.js';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 import { fetchUserCharacters, fetchPublicCharacters, fetchUsernames } from './api.js';
 import type { CharacterData } from './config.js';
 

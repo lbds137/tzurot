@@ -7,7 +7,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { MessageFlags, EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   createLogger,
@@ -16,7 +16,6 @@ import {
   type ListPersonasResponse,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { escapeMarkdown } from '../../../utils/markdownUtils.js';
 
 const logger = createLogger('me-list');
 

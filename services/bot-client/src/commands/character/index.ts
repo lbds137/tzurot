@@ -36,7 +36,7 @@ import {
 const logger = createLogger('character-command');
 
 // Re-export for external use
-export { escapeMarkdown } from '../../utils/markdownUtils.js';
+export { escapeMarkdown } from 'discord.js';
 export { handleSelectMenu, handleButton, isCharacterDashboardInteraction };
 
 /**
