@@ -63,7 +63,7 @@ function sortActivations(
   activations: ActivatedChannel[],
   sortType: ChannelListSortType,
   client: Client,
-  isAllServers: boolean = false
+  isAllServers = false
 ): ActivatedChannel[] {
   const sorted = [...activations];
 
@@ -75,7 +75,9 @@ function sortActivations(
 
   // Helper to get guild name for sorting
   const getGuildName = (activation: ActivatedChannel): string => {
-    if (activation.guildId === null) return 'zzz_unknown'; // Sort unknown guilds last
+    if (activation.guildId === null) {
+      return 'zzz_unknown'; // Sort unknown guilds last
+    }
     const guild = client.guilds.cache.get(activation.guildId);
     return guild?.name ?? activation.guildId;
   };
@@ -93,7 +95,9 @@ function sortActivations(
     // Group by guild first, then sort within each guild
     sorted.sort((a, b) => {
       const guildCompare = getGuildName(a).localeCompare(getGuildName(b));
-      if (guildCompare !== 0) return guildCompare;
+      if (guildCompare !== 0) {
+        return guildCompare;
+      }
       return secondarySort(a, b);
     });
   } else {
