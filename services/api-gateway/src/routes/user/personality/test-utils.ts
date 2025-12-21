@@ -90,6 +90,7 @@ export function createMockPrisma(): {
         user: {
           create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
           update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
         },
         persona: {
           create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),

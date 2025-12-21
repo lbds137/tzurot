@@ -96,6 +96,7 @@ export function createMockPrisma(): MockPrismaClient {
         user: {
           create: vi.fn().mockResolvedValue({ id: MOCK_USER_ID }),
           update: vi.fn().mockResolvedValue({ id: MOCK_USER_ID }),
+          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
         },
         persona: {
           create: vi.fn().mockResolvedValue({ id: MOCK_PERSONA_ID }),
