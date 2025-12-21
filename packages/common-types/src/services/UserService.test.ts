@@ -409,6 +409,76 @@ describe('UserService', () => {
       // Should NOT call $transaction since persona already exists
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
+
+    it('should return null when isBot is true', async () => {
+      const result = await userService.getOrCreateUser(
+        'bot-123',
+        'test-bot',
+        undefined,
+        undefined,
+        true
+      );
+
+      expect(result).toBeNull();
+      // Should NOT call any database operations for bots
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should create user normally when isBot is false', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+            },
+            persona: {
+              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
+
+      const result = await userService.getOrCreateUser(
+        '123456',
+        'testuser',
+        undefined,
+        undefined,
+        false
+      );
+
+      expect(result).toBe('test-user-uuid');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('should create user normally when isBot is undefined', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+            },
+            persona: {
+              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
+
+      // Not passing isBot parameter at all (undefined)
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(result).toBe('test-user-uuid');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalled();
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
   });
 
   describe('getUserTimezone', () => {

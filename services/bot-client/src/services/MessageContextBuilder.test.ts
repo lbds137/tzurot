@@ -137,6 +137,7 @@ describe('MessageContextBuilder', () => {
       id: 'user-123',
       username: 'testuser',
       globalName: 'Test User',
+      bot: false,
     } as User;
 
     const mockMember = {
@@ -218,7 +219,9 @@ describe('MessageContextBuilder', () => {
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
         'user-123',
         'testuser',
-        'Test Display Name'
+        'Test Display Name',
+        undefined, // bio
+        false // isBot
       );
       // PersonaResolver uses Discord ID (not internal UUID)
       expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
@@ -288,7 +291,9 @@ describe('MessageContextBuilder', () => {
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
         'user-123',
         'testuser',
-        'testuser' // Falls back to username
+        'testuser', // Falls back to username
+        undefined, // bio
+        false // isBot
       );
       expect(result.context.activePersonaName).toBeUndefined();
     });

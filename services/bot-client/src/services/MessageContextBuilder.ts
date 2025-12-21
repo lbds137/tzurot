@@ -91,11 +91,19 @@ export class MessageContextBuilder {
       message.member?.displayName ?? message.author.globalName ?? message.author.username;
 
     // Get internal user ID for database operations (persona, history queries)
+    // Pass isBot flag to prevent creating user records for bots
     const internalUserId = await this.userService.getOrCreateUser(
       message.author.id,
       message.author.username,
-      displayName
+      displayName,
+      undefined, // bio
+      message.author.bot // isBot - bots return null
     );
+
+    // Safety check: if user is a bot (shouldn't happen due to BotMessageFilter, but defense in depth)
+    if (internalUserId === null) {
+      throw new Error('Cannot process messages from bots');
+    }
 
     // Discord ID is used for API context (BYOK resolution, etc.)
     const discordUserId = message.author.id;

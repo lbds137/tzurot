@@ -3,7 +3,7 @@
  * Shared utility functions for personality CRUD operations
  */
 
-import { type PrismaClient, isBotOwner } from '@tzurot/common-types';
+import { UserService, type PrismaClient, isBotOwner } from '@tzurot/common-types';
 
 /**
  * Options for checking if user can view a personality
@@ -25,26 +25,23 @@ export interface CanUserViewPersonalityOptions {
 
 /**
  * Get or create internal user from Discord ID
+ * Uses centralized UserService to ensure users always get default personas
  */
 export async function getOrCreateInternalUser(
   prisma: PrismaClient,
   discordUserId: string
 ): Promise<{ id: string }> {
-  let user = await prisma.user.findFirst({
-    where: { discordId: discordUserId },
-    select: { id: true },
-  });
+  const userService = new UserService(prisma);
 
-  // Create user if they don't exist
-  user ??= await prisma.user.create({
-    data: {
-      discordId: discordUserId,
-      username: discordUserId, // Placeholder - will be updated on next Discord interaction
-    },
-    select: { id: true },
-  });
+  // Use centralized UserService - creates shell user with default persona if needed
+  const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
 
-  return user;
+  // Bots should not reach here via slash commands, but handle defensively
+  if (userId === null) {
+    throw new Error('Cannot create user for bot');
+  }
+
+  return { id: userId };
 }
 
 /**

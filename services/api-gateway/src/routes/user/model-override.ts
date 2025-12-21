@@ -16,6 +16,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
+  UserService,
   type PrismaClient,
   type ModelOverrideSummary,
   type LlmConfigCacheInvalidationService,
@@ -56,6 +57,7 @@ export function createModelOverrideRoutes(
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   /**
    * GET /user/model-override
@@ -123,20 +125,12 @@ export function createModelOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('configId is required'));
       }
 
-      // Get or create user
-      let user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      user ??= await prisma.user.create({
-        data: {
-          discordId: discordUserId,
-          username: discordUserId, // Placeholder
-          timezone: 'UTC',
-        },
-        select: { id: true },
-      });
+      // Get or create user via centralized UserService
+      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      if (userId === null) {
+        // Should not happen for slash commands (bots can't use them)
+        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+      }
 
       // Verify personality exists
       const personality = await prisma.personality.findFirst({
@@ -152,7 +146,7 @@ export function createModelOverrideRoutes(
       const llmConfig = await prisma.llmConfig.findFirst({
         where: {
           id: body.configId,
-          OR: [{ isGlobal: true }, { ownerId: user.id }],
+          OR: [{ isGlobal: true }, { ownerId: userId }],
         },
         select: { id: true, name: true },
       });
@@ -165,13 +159,13 @@ export function createModelOverrideRoutes(
       const override = await prisma.userPersonalityConfig.upsert({
         where: {
           userId_personalityId: {
-            userId: user.id,
+            userId,
             personalityId: body.personalityId,
           },
         },
         create: {
-          id: generateUserPersonalityConfigUuid(user.id, body.personalityId),
-          userId: user.id,
+          id: generateUserPersonalityConfigUuid(userId, body.personalityId),
+          userId,
           personalityId: body.personalityId,
           llmConfigId: body.configId,
         },
@@ -262,26 +256,18 @@ export function createModelOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('configId is required'));
       }
 
-      // Get or create user
-      let user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      user ??= await prisma.user.create({
-        data: {
-          discordId: discordUserId,
-          username: discordUserId, // Placeholder
-          timezone: 'UTC',
-        },
-        select: { id: true },
-      });
+      // Get or create user via centralized UserService
+      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      if (userId === null) {
+        // Should not happen for slash commands (bots can't use them)
+        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+      }
 
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await prisma.llmConfig.findFirst({
         where: {
           id: body.configId,
-          OR: [{ isGlobal: true }, { ownerId: user.id }],
+          OR: [{ isGlobal: true }, { ownerId: userId }],
         },
         select: { id: true, name: true },
       });
@@ -292,7 +278,7 @@ export function createModelOverrideRoutes(
 
       // Update user's default config
       await prisma.user.update({
-        where: { id: user.id },
+        where: { id: userId },
         data: { defaultLlmConfigId: body.configId },
       });
 

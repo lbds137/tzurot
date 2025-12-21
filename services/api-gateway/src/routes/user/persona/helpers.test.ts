@@ -31,11 +31,29 @@ describe('extractString', () => {
 });
 
 describe('getOrCreateInternalUser', () => {
+  // Mock Prisma with UserService dependencies
   const mockPrisma = {
     user: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
+    persona: {
+      create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+    },
+    $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+      const mockTx = {
+        user: {
+          create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+          update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+        },
+        persona: {
+          create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+        },
+      };
+      await callback(mockTx);
+    }),
   };
 
   beforeEach(() => {
@@ -43,31 +61,35 @@ describe('getOrCreateInternalUser', () => {
   });
 
   it('should return existing user if found', async () => {
-    const existingUser = { id: 'user-123', defaultPersonaId: 'persona-456' };
-    mockPrisma.user.findFirst.mockResolvedValue(existingUser);
+    // UserService uses findUnique, not findFirst
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-123',
+      username: 'existing-user',
+      defaultPersonaId: 'persona-456',
+      isSuperuser: false,
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-123');
 
-    expect(result).toEqual(existingUser);
-    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    // Result includes id and defaultPersonaId from follow-up query
+    expect(result).toEqual(
+      expect.objectContaining({ id: 'user-123', defaultPersonaId: 'persona-456' })
+    );
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('should create new user if not found', async () => {
-    const newUser = { id: 'new-user-123', defaultPersonaId: null };
-    mockPrisma.user.findFirst.mockResolvedValue(null);
-    mockPrisma.user.create.mockResolvedValue(newUser);
+    // User doesn't exist - UserService will create via $transaction
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce(null) // First call for UserService lookup
+      .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' }); // Second call for result
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-456');
 
-    expect(result).toEqual(newUser);
-    expect(mockPrisma.user.create).toHaveBeenCalledWith({
-      data: {
-        discordId: 'discord-456',
-        username: 'discord-456',
-      },
-      select: { id: true, defaultPersonaId: true },
-    });
+    // UserService creates user with deterministic UUID via $transaction
+    expect(result).toEqual({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' });
+    expect(mockPrisma.$transaction).toHaveBeenCalled();
   });
 });

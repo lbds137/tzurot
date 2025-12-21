@@ -12,10 +12,10 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  isBotOwner,
   AIProvider,
   encryptApiKey,
   WALLET_ERROR_MESSAGES,
+  UserService,
   type PrismaClient,
   type ApiKeyCacheInvalidationService,
 } from '@tzurot/common-types';
@@ -33,40 +33,12 @@ interface SetKeyRequest {
   apiKey: string;
 }
 
-/**
- * Ensure user exists in database
- * Creates user if not exists (Discord user ID as ID)
- * Uses upsert to handle race conditions when multiple requests arrive simultaneously
- *
- * Auto-promotes bot owner to superuser (both new and existing users)
- * This handles the case where BOT_OWNER_ID is set after user was created
- */
-async function ensureUserExists(prisma: PrismaClient, discordUserId: string): Promise<string> {
-  const shouldBeSuperuser = isBotOwner(discordUserId);
-
-  // Use upsert to atomically find-or-create, avoiding race conditions
-  // If user exists and should be superuser, update them (for owner promotion)
-  // Otherwise do nothing (don't demote existing superusers)
-  const user = await prisma.user.upsert({
-    where: { discordId: discordUserId },
-    update: shouldBeSuperuser ? { isSuperuser: true } : {},
-    create: {
-      discordId: discordUserId,
-      username: discordUserId, // Placeholder - updated via other flows
-      timezone: 'UTC',
-      isSuperuser: shouldBeSuperuser,
-    },
-    select: { id: true },
-  });
-
-  return user.id;
-}
-
 export function createSetKeyRoute(
   prisma: PrismaClient,
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   router.post(
     '/',
@@ -130,7 +102,13 @@ export function createSetKeyRoute(
       }
 
       // Ensure user exists and get internal user ID
-      const userId = await ensureUserExists(prisma, discordUserId);
+      // Uses centralized UserService - creates "shell user" with placeholder username
+      // that will be enriched when user sends a Discord message
+      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      if (userId === null) {
+        // Should not happen for slash commands (bots can't use them)
+        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+      }
 
       // Encrypt the API key
       const encrypted = encryptApiKey(apiKey);

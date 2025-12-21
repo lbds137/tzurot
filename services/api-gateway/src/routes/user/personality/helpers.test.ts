@@ -24,10 +24,16 @@ import {
 } from './helpers.js';
 
 describe('personality route helpers', () => {
+  // Mock Prisma with methods needed by UserService
   const mockPrisma = {
     user: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+    },
+    persona: {
+      create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
     },
     personality: {
       findUnique: vi.fn(),
@@ -35,6 +41,18 @@ describe('personality route helpers', () => {
     personalityOwner: {
       findUnique: vi.fn(),
     },
+    $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+      const mockTx = {
+        user: {
+          create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+          update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+        },
+        persona: {
+          create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+        },
+      };
+      await callback(mockTx);
+    }),
   };
 
   beforeEach(() => {
@@ -44,38 +62,36 @@ describe('personality route helpers', () => {
 
   describe('getOrCreateInternalUser', () => {
     it('should return existing user when found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'existing-user-id' });
+      // UserService uses findUnique, not findFirst
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'existing-user-id',
+        username: 'existing-username',
+        defaultPersonaId: null,
+        isSuperuser: false,
+      });
 
       const result = await getOrCreateInternalUser(
         mockPrisma as unknown as PrismaClient,
         'discord-123'
       );
 
+      // Returns { id: userId } after UserService lookup
       expect(result).toEqual({ id: 'existing-user-id' });
-      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
-        where: { discordId: 'discord-123' },
-        select: { id: true },
-      });
-      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+      expect(mockPrisma.user.findUnique).toHaveBeenCalled();
     });
 
     it('should create user when not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({ id: 'new-user-id' });
+      // User doesn't exist - UserService will create via $transaction
+      mockPrisma.user.findUnique.mockResolvedValue(null);
 
       const result = await getOrCreateInternalUser(
         mockPrisma as unknown as PrismaClient,
         'discord-456'
       );
 
-      expect(result).toEqual({ id: 'new-user-id' });
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: {
-          discordId: 'discord-456',
-          username: 'discord-456',
-        },
-        select: { id: true },
-      });
+      // UserService creates user with deterministic UUID via $transaction
+      expect(result).toEqual({ id: expect.any(String) });
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
   });
 

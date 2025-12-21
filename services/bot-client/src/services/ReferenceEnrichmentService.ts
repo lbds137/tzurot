@@ -127,11 +127,21 @@ export class ReferenceEnrichmentService {
 
       // Get or create the user record (creates default persona if needed)
       // Use the actual Discord display name from the reference (includes server nickname/global display name)
-      userId = await this.userService.getOrCreateUser(
+      const userIdResult = await this.userService.getOrCreateUser(
         reference.discordUserId,
         reference.authorUsername,
         reference.authorDisplayName // Preserve actual Discord display name in user record
       );
+
+      // Skip bots - they don't have personas
+      if (userIdResult === null) {
+        logger.debug(
+          { discordUserId: reference.discordUserId },
+          '[ReferenceEnrichmentService] Skipping persona enrichment - user is a bot'
+        );
+        return;
+      }
+      userId = userIdResult;
 
       // Get the persona for this user when interacting with this personality
       // Uses PersonaResolver with proper cache invalidation via Redis pub/sub

@@ -32,12 +32,30 @@ vi.mock('../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-// Mock Prisma
+// Mock Prisma - includes methods needed by UserService
 const mockPrisma = {
   user: {
     findFirst: vi.fn(),
+    findUnique: vi.fn().mockResolvedValue(null), // No existing user - triggers create
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     upsert: vi.fn(),
   },
+  persona: {
+    create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
+  },
+  $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+    const mockTx = {
+      user: {
+        create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+        update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+      },
+      persona: {
+        create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
+      },
+    };
+    await callback(mockTx);
+  }),
 };
 
 import { createTimezoneRoutes } from './timezone.js';
@@ -261,20 +279,20 @@ describe('/user/timezone routes', () => {
       );
     });
 
-    it('should upsert user with timezone', async () => {
+    it('should create user via UserService and update timezone', async () => {
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: 'Europe/London' });
 
       await handler(req, res);
 
-      expect(mockPrisma.user.upsert).toHaveBeenCalledWith({
-        where: { discordId: 'discord-user-123' },
-        update: { timezone: 'Europe/London' },
-        create: expect.objectContaining({
-          discordId: 'discord-user-123',
-          timezone: 'Europe/London',
-        }),
+      // UserService is now used to create/get user
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+
+      // Timezone is then updated via direct update
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: expect.any(String) }, // Deterministic UUID
+        data: { timezone: 'Europe/London' },
       });
     });
 

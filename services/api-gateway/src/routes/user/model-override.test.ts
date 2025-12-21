@@ -29,12 +29,16 @@ vi.mock('../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
-// Mock Prisma
+// Mock Prisma with UserService dependencies
 const mockPrisma = {
   user: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+  },
+  persona: {
+    create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
   },
   personality: {
     findFirst: vi.fn(),
@@ -48,6 +52,18 @@ const mockPrisma = {
     upsert: vi.fn(),
     update: vi.fn(),
   },
+  $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+    const mockTx = {
+      user: {
+        create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+        update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+      },
+      persona: {
+        create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+      },
+    };
+    await callback(mockTx);
+  }),
 };
 
 import { createModelOverrideRoutes } from './model-override.js';
@@ -88,6 +104,13 @@ describe('/user/model-override routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
+    // UserService uses findUnique to look up users
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-uuid-123',
+      username: 'test-user',
+      defaultPersonaId: null,
+      isSuperuser: false,
+    });
     mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([]);
   });
 
@@ -301,7 +324,8 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      // UserService creates users via $transaction, not direct create
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -531,7 +555,8 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      // UserService creates users via $transaction, not direct create
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
