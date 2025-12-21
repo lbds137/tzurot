@@ -207,6 +207,7 @@ EOF
 ### Comment Types
 
 PRs have THREE different comment types with different endpoints:
+
 - **Issue comments** (general): `gh pr view --json comments` or `/issues/{pr}/comments`
 - **Review comments** (line-specific): `/pulls/{pr}/comments`
 - **Reviews** (APPROVE, etc.): `gh pr view --json reviews`

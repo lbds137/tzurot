@@ -374,10 +374,7 @@ describe('buildGuildPages', () => {
 
   it('should handle null guildId as "unknown"', () => {
     const client = createMockClient();
-    const activations = [
-      createActivation('ch-1', null),
-      createActivation('ch-2', null),
-    ];
+    const activations = [createActivation('ch-1', null), createActivation('ch-2', null)];
 
     const result = buildGuildPages(activations, client);
 
