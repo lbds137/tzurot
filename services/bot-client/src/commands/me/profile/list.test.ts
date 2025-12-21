@@ -198,4 +198,80 @@ describe('handleListPersonas', () => {
     const embed = call.embeds[0].data;
     expect(embed.fields[0].value).toContain('...');
   });
+
+  it('should escape markdown characters in persona name', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockListPersonasResponse([
+        {
+          name: '**Bold** _Persona_',
+          preferredName: null,
+          pronouns: null,
+          content: null,
+          isDefault: false,
+        },
+      ]),
+    });
+
+    await handleListPersonas(createMockInteraction());
+
+    expect(mockReply).toHaveBeenCalled();
+    const call = mockReply.mock.calls[0][0];
+    const embed = call.embeds[0].data;
+    // Field name should have escaped markdown
+    expect(embed.fields[0].name).toContain('\\*\\*Bold\\*\\*');
+    expect(embed.fields[0].name).toContain('\\_Persona\\_');
+  });
+
+  it('should escape markdown characters in preferredName and pronouns', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockListPersonasResponse([
+        {
+          name: 'Test Persona',
+          preferredName: '*Star* User',
+          pronouns: '`code`/pronouns',
+          content: null,
+          isDefault: false,
+        },
+      ]),
+    });
+
+    await handleListPersonas(createMockInteraction());
+
+    expect(mockReply).toHaveBeenCalled();
+    const call = mockReply.mock.calls[0][0];
+    const embed = call.embeds[0].data;
+    const fieldValue = embed.fields[0].value;
+
+    // Verify preferredName and pronouns are escaped
+    expect(fieldValue).toContain('\\*Star\\*');
+    expect(fieldValue).toContain('\\`code\\`');
+  });
+
+  it('should escape markdown characters in content preview', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockListPersonasResponse([
+        {
+          name: 'Test Persona',
+          preferredName: null,
+          pronouns: null,
+          content: '**Bold content** with _italics_',
+          isDefault: false,
+        },
+      ]),
+    });
+
+    await handleListPersonas(createMockInteraction());
+
+    expect(mockReply).toHaveBeenCalled();
+    const call = mockReply.mock.calls[0][0];
+    const embed = call.embeds[0].data;
+    const fieldValue = embed.fields[0].value;
+
+    // Verify content is escaped
+    expect(fieldValue).toContain('\\*\\*Bold content\\*\\*');
+    expect(fieldValue).toContain('\\_italics\\_');
+  });
 });

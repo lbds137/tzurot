@@ -159,4 +159,32 @@ describe('handleServers', () => {
     expect(mockGuilds.size).toBe(3);
     expect(mockInteraction.editReply).toHaveBeenCalled();
   });
+
+  it('should escape markdown characters in guild names', async () => {
+    // Guild name with markdown characters that could break formatting
+    const mockGuild = {
+      id: '123',
+      name: '**Bold Server** _with_ `code`',
+      memberCount: 42,
+    } as Guild;
+
+    mockGuilds.set('123', mockGuild);
+
+    await handleServers(mockInteraction);
+
+    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+      embeds: [expect.any(Object)],
+    });
+
+    // Get the embed and verify the description contains escaped markdown
+    const callArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      embeds: { data: { description: string } }[];
+    };
+    const description = callArgs.embeds[0].data.description;
+
+    // Verify markdown is escaped (asterisks, underscores, backticks)
+    expect(description).toContain('\\*\\*Bold Server\\*\\*');
+    expect(description).toContain('\\_with\\_');
+    expect(description).toContain('\\`code\\`');
+  });
 });
