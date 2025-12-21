@@ -167,7 +167,7 @@ export function buildCharacterViewPage(character: CharacterData, page: number): 
           name: '🏷️ Identity',
           value:
             `**Name:** ${escapeMarkdown(character.name)}\n` +
-            `**Display Name:** ${character.displayName ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
+            `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
             `**Slug:** \`${character.slug}\``,
           inline: false,
         },
