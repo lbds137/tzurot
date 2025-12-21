@@ -238,9 +238,9 @@ export class UserService {
           },
         });
 
-        // Link persona as user's default
-        await tx.user.update({
-          where: { id: userId },
+        // Link persona as user's default (idempotent - only updates if still null)
+        await tx.user.updateMany({
+          where: { id: userId, defaultPersonaId: null },
           data: { defaultPersonaId: personaId },
         });
       });
