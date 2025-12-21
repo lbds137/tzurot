@@ -1,11 +1,18 @@
 /**
  * UserService
  * Manages User records - creates users on first interaction
+ *
+ * Key behaviors:
+ * - Creates users with default personas atomically via transactions
+ * - Handles race conditions when multiple requests arrive for same user
+ * - Backfills default personas for legacy users created without them
+ * - Updates placeholder usernames (discordId) to real usernames
  */
 
 import type { PrismaClient } from './prisma.js';
 import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
+import { TTLCache } from '../utils/TTLCache.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 import { isBotOwner } from '../utils/ownerMiddleware.js';
 
@@ -19,11 +26,24 @@ interface UserWithBackfillFields {
 
 const logger = createLogger('UserService');
 
+/** Default description for auto-created personas */
+const DEFAULT_PERSONA_DESCRIPTION = 'Default persona';
+
+/** Cache TTL: 1 hour - users rarely change, but we want eventual consistency */
+const USER_CACHE_TTL_MS = 60 * 60 * 1000;
+
+/** Max cache size: 10,000 users - prevents unbounded memory growth */
+const USER_CACHE_MAX_SIZE = 10_000;
+
 export class UserService {
-  private userCache: Map<string, string>; // discordId -> userId (UUID)
+  /** Cache discordId -> userId (UUID) with TTL to prevent memory leaks */
+  private userCache: TTLCache<string>;
 
   constructor(private prisma: PrismaClient) {
-    this.userCache = new Map();
+    this.userCache = new TTLCache<string>({
+      ttl: USER_CACHE_TTL_MS,
+      maxSize: USER_CACHE_MAX_SIZE,
+    });
   }
 
   /**
@@ -44,12 +64,13 @@ export class UserService {
   ): Promise<string | null> {
     // Skip user creation for bots - they shouldn't have user records or personas
     if (isBot === true) {
-      logger.debug({ discordId, username }, '[UserService] Skipping user creation for bot');
+      logger.debug({ discordId, username }, 'Skipping user creation for bot');
       return null;
     }
+
     // Check cache first
     const cached = this.userCache.get(discordId);
-    if (cached !== undefined && cached.length > 0) {
+    if (cached !== null) {
       return cached;
     }
 
@@ -60,37 +81,99 @@ export class UserService {
         select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
       });
 
-      // Check if existing user should be promoted to superuser
-      await this.promoteToSuperuserIfNeeded(user, discordId);
+      // Create if doesn't exist (with race condition handling)
+      user ??= await this.createUserWithRaceProtection(discordId, username, displayName, bio);
 
-      // Backfill default persona if missing
-      // (api-gateway creates users without personas via direct prisma calls)
-      if (user !== null && user.defaultPersonaId === null) {
-        await this.backfillDefaultPersona(user.id, username, displayName, bio);
-      }
-
-      // Update placeholder username if we now have a real username
-      // (api-gateway creates users with discordId as placeholder username)
-      if (user?.username === discordId && username !== discordId) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { username },
-        });
-        logger.info(
-          { userId: user.id, discordId, oldUsername: user.username, newUsername: username },
-          '[UserService] Updated placeholder username'
-        );
-      }
-
-      // Create if doesn't exist
-      user ??= await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
+      // Run maintenance tasks for existing users (backfill, promotions, etc.)
+      await this.runMaintenanceTasks(user, discordId, username, displayName, bio);
 
       // Cache the result
       this.userCache.set(discordId, user.id);
       return user.id;
     } catch (error) {
-      logger.error({ err: error }, `Failed to get/create user: ${discordId}`);
+      logger.error({ err: error, discordId }, 'Failed to get/create user');
       throw error;
+    }
+  }
+
+  /**
+   * Create user with race condition protection
+   * If two requests try to create the same user simultaneously, one will fail with P2002.
+   * We catch that and fetch the existing user instead.
+   */
+  private async createUserWithRaceProtection(
+    discordId: string,
+    username: string,
+    displayName?: string,
+    bio?: string
+  ): Promise<UserWithBackfillFields> {
+    try {
+      return await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
+    } catch (error) {
+      // P2002 is Prisma's unique constraint violation error
+      // Use duck typing to check for Prisma error (safer than instanceof in test environments)
+      if (this.isPrismaUniqueConstraintError(error)) {
+        logger.warn(
+          { discordId },
+          'Race condition detected during user creation, fetching existing user'
+        );
+        // Another request created the user - fetch it
+        const existingUser = await this.prisma.user.findUnique({
+          where: { discordId },
+          select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
+        });
+        if (existingUser === null) {
+          // This shouldn't happen - P2002 means the record exists
+          throw new Error(`User not found after P2002 error for discordId: ${discordId}`);
+        }
+        return existingUser;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Check if an error is a Prisma unique constraint violation (P2002)
+   * Uses duck typing to avoid instanceof issues in test environments
+   */
+  private isPrismaUniqueConstraintError(error: unknown): boolean {
+    return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
+  }
+
+  /**
+   * Run maintenance tasks for existing users
+   * Handles backfilling personas, promoting superusers, and updating placeholder usernames.
+   * These are "read-repair" operations that fix legacy data on access.
+   */
+  private async runMaintenanceTasks(
+    user: UserWithBackfillFields,
+    discordId: string,
+    username: string,
+    displayName?: string,
+    bio?: string
+  ): Promise<void> {
+    // Check if existing user should be promoted to superuser
+    await this.promoteToSuperuserIfNeeded(user, discordId);
+
+    // Backfill default persona if missing
+    // (api-gateway creates users without personas via direct prisma calls)
+    if (user.defaultPersonaId === null) {
+      await this.backfillDefaultPersona(user.id, username, displayName, bio);
+    }
+
+    // Update placeholder username if we now have a real username
+    // Only updates usernames that exactly match discordId (placeholder pattern).
+    // This intentionally does NOT sync changed Discord usernames - we preserve
+    // the username from first interaction to maintain historical consistency.
+    if (user.username === discordId && username !== discordId) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { username },
+      });
+      logger.info(
+        { userId: user.id, discordId, oldUsername: user.username, newUsername: username },
+        'Updated placeholder username'
+      );
     }
   }
 
@@ -107,10 +190,7 @@ export class UserService {
         where: { id: user.id },
         data: { isSuperuser: true },
       });
-      logger.info(
-        { userId: user.id, discordId },
-        '[UserService] Promoted existing user to superuser'
-      );
+      logger.info({ userId: user.id, discordId }, 'Promoted existing user to superuser');
     }
   }
 
@@ -135,7 +215,7 @@ export class UserService {
           id: personaId,
           name: username,
           preferredName: personaDisplayName,
-          description: 'Default persona',
+          description: DEFAULT_PERSONA_DESCRIPTION,
           content: personaContent,
           ownerId: userId,
         },
@@ -148,10 +228,7 @@ export class UserService {
       });
     });
 
-    logger.info(
-      { userId, username, personaId },
-      '[UserService] Backfilled default persona for existing user'
-    );
+    logger.info({ userId, username, personaId }, 'Backfilled default persona for existing user');
   }
 
   /**
@@ -175,10 +252,7 @@ export class UserService {
         data: { id: userId, discordId, username, isSuperuser: shouldBeSuperuser },
       });
       if (shouldBeSuperuser) {
-        logger.info(
-          { userId, discordId, username },
-          '[UserService] Bot owner auto-promoted to superuser'
-        );
+        logger.info({ userId, discordId, username }, 'Bot owner auto-promoted to superuser');
       }
 
       // Create default persona
@@ -187,7 +261,7 @@ export class UserService {
           id: personaId,
           name: username,
           preferredName: personaDisplayName,
-          description: 'Default persona',
+          description: DEFAULT_PERSONA_DESCRIPTION,
           content: personaContent,
           ownerId: userId,
         },
@@ -200,10 +274,7 @@ export class UserService {
       });
     });
 
-    logger.info(
-      { userId, discordId, username, personaId },
-      '[UserService] Created user with default persona'
-    );
+    logger.info({ userId, discordId, username, personaId }, 'Created user with default persona');
 
     return {
       id: userId,
