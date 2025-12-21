@@ -24,7 +24,7 @@ import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleDelete } from './delete.js';
 import { handleAvatar } from './avatar.js';
-import { handleList, escapeMarkdown } from './list.js';
+import { handleList } from './list.js';
 import { handleChat } from './chat.js';
 import {
   handleModalSubmit,
@@ -36,7 +36,7 @@ import {
 const logger = createLogger('character-command');
 
 // Re-export for external use
-export { escapeMarkdown };
+export { escapeMarkdown } from '../../utils/markdownUtils.js';
 export { handleSelectMenu, handleButton, isCharacterDashboardInteraction };
 
 /**
