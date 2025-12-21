@@ -1,24 +1,45 @@
 # Current Work
 
-> Last updated: 2025-12-20
+> Last updated: 2025-12-21
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.25
+**Version**: v3.0.0-beta.28
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
 ---
 
-## Just Completed: Caching Strategy Audit (PR #387)
+## Just Completed: Markdown Security & Pagination (PR #392, #393)
+
+**Merged** - Security fixes for markdown injection + UX improvements
+
+- ✅ Centralized `escapeMarkdown` using discord.js built-in function
+- ✅ Fixed markdown injection in character names, persona fields, guild names, creator names
+- ✅ Guild-aware pagination for `/channel list --all` (never mixes guilds on same page)
+- ✅ Added markdown escaping pattern to `tzurot-security` skill
+- ✅ Comprehensive test coverage (unit + integration tests)
+
+---
+
+## Completed: Skills & CLAUDE.md Optimization
+
+**Done** - Audited and optimized skill structure
+
+- ✅ 14 project-specific skills documented and organized
+- ✅ Progressive disclosure pattern in skills
+- ✅ CLAUDE.md streamlined with skill references
+- ✅ GitHub CLI workarounds documented in `tzurot-git-workflow`
+
+---
+
+## Completed: Caching Strategy Audit (PR #387)
 
 **Merged** - Redis pub/sub invalidation for channel activation cache
 
 - ✅ Comprehensive caching audit - [docs/architecture/CACHING_AUDIT.md](docs/architecture/CACHING_AUDIT.md)
 - ✅ `ChannelActivationCacheInvalidationService` - cross-instance cache invalidation
 - ✅ `tzurot-caching` skill - cache patterns and horizontal scaling guidance
-
-**Key Finding**: Channel activation cache was the only cache that could cause correctness issues with horizontal scaling. Timer patterns are a separate concern documented in `tzurot-async-flow` skill.
 
 ---
 
@@ -48,25 +69,6 @@ All `/channel list` improvements done:
 
 ---
 
-## Upcoming: Skills & CLAUDE.md Optimization
-
-**Branch**: TBD (after caching audit)
-
-**Problem**: We added many skills (14 total) but unclear if they're being used consistently or effectively.
-
-**Scope**:
-
-- [ ] Audit current skill usage patterns
-- [ ] Research best practices for Claude Code skills optimization
-- [ ] Evaluate skill activation triggers - are they firing when expected?
-- [ ] Consider consolidating or restructuring skills
-- [ ] Review CLAUDE.md organization and effectiveness
-- [ ] External research on skill/instruction optimization techniques
-
-**Goal**: Ensure skills are providing consistent value, not just sitting unused.
-
----
-
 ## Completed: v3.0.0-beta.25 (Slash Command Timeout Fix)
 
 **PR #385** merged → [Release v3.0.0-beta.25](https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.25)
@@ -81,7 +83,7 @@ All `/channel list` improvements done:
 - Removed redundant `deferEphemeral` from individual command handlers
 - Fixed critical bug: empty persona list incorrectly treated as cache miss
 
-**Test Coverage**: 4,385 tests passing, 100% coverage on autocompleteCache.ts and GatewayClient.ts
+**Test Coverage**: 4,400+ tests passing across all services
 
 ---
 
@@ -130,10 +132,11 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.28**: Markdown security fixes, guild-aware pagination, security skill update
+- **beta.27**: UserService race condition fix, persona backfill idempotency
+- **beta.26**: Channel list improvements, caching strategy audit
 - **beta.25**: Slash command timeout fix (autocomplete + channel activation caching, top-level deferral)
 - **beta.23**: Memory chunking for oversized embeddings, implicit reply fix, regex security fix
-- **beta.20**: Avatar auto-resize with GIF animation preservation
-- **beta.19**: `/history` commands (STM management)
 
 Full release history: [GitHub Releases](https://github.com/lbds137/tzurot/releases)
 
