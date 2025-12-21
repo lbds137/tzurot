@@ -287,6 +287,37 @@ describe('UserService', () => {
       );
     });
 
+    it('should handle race condition with P2002 error', async () => {
+      // First findUnique returns null (user doesn't exist)
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      // Transaction fails with P2002 (another request created the user)
+      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+      // Second findUnique returns the user created by the other request
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(result).toBe('existing-user-uuid');
+      // Should have called findUnique twice (initial check + after P2002)
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw error if user not found after P2002', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+      // User somehow doesn't exist after P2002 (shouldn't happen in practice)
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
+        'User not found after P2002 error'
+      );
+    });
+
     it('should throw and log error on database error', async () => {
       mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 

@@ -66,11 +66,13 @@ export class VoiceMessageProcessor implements IMessageProcessor {
       enumerable: false,
     });
 
-    // Always continue to next processor after transcription
+    // Continue to next processor after SUCCESSFUL transcription
+    // (Failed transcriptions return early above with return true to stop chain)
+    //
+    // The transcript is stored on the message for later processors to use:
     // - ReplyMessageProcessor may handle if this is a reply
     // - ActivatedChannelProcessor may handle if channel has activated personality
     // - PersonalityMentionProcessor may handle if there's a personality mention
-    // The transcript is stored on the message for later processors to use
     logger.debug(
       { continueToPersonalityHandler: result.continueToPersonalityHandler },
       '[VoiceMessageProcessor] Voice transcription complete, continuing chain'
