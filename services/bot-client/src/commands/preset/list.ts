@@ -14,6 +14,7 @@ import {
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('preset-list');
 
@@ -75,8 +76,9 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       const defaultBadge = c.isDefault ? ' ⭐' : '';
       const freeBadge = isFreeModel(c.model) ? ' 🆓' : '';
       const shortModel = c.model.includes('/') ? c.model.split('/').pop() : c.model;
+      const safeName = escapeMarkdown(c.name);
       // In guest mode, dim paid presets
-      const nameStyle = isGuestMode && !isFreeModel(c.model) ? `~~${c.name}~~` : `**${c.name}**`;
+      const nameStyle = isGuestMode && !isFreeModel(c.model) ? `~~${safeName}~~` : `**${safeName}**`;
       return `${nameStyle}${defaultBadge}${freeBadge}\n└ ${shortModel}`;
     };
 

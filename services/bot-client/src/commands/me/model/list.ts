@@ -8,6 +8,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
+import { escapeMarkdown } from '../../../utils/markdownUtils.js';
 
 const logger = createLogger('me-model-list');
 
@@ -43,7 +44,7 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
       );
     } else {
       const lines = data.overrides.map(
-        o => `**${o.personalityName}** → ${o.configName ?? 'Unknown'}`
+        o => `**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`
       );
 
       embed.setDescription(lines.join('\n'));

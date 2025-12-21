@@ -367,7 +367,12 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
           newPage = 0; // Reset to first page when changing sort
         }
 
-        const newSortedActivations = sortActivations(activations, newSort, interaction.client, showAll);
+        const newSortedActivations = sortActivations(
+          activations,
+          newSort,
+          interaction.client,
+          showAll
+        );
         const newTotalPages = Math.ceil(newSortedActivations.length / CHANNELS_PER_PAGE);
         const newEmbed = buildEmbed(
           newSortedActivations,

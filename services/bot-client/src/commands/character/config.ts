@@ -11,6 +11,7 @@ import {
   type SectionDefinition,
   SectionStatus,
 } from '../../utils/dashboard/index.js';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 /**
  * Character data structure (from API)
@@ -121,13 +122,13 @@ const identitySection: SectionDefinition<CharacterData> = {
     return SectionStatus.EMPTY;
   },
   getPreview: (data: CharacterData) => {
-    const display = data.displayName ?? data.name;
+    const display = escapeMarkdown(data.displayName ?? data.name);
     const parts: string[] = [`**${display}** (slug: \`${data.slug}\`)`];
     if (data.personalityTone !== null && data.personalityTone.length > 0) {
-      parts.push(`🎭 ${data.personalityTone}`);
+      parts.push(`🎭 ${escapeMarkdown(data.personalityTone)}`);
     }
     if (data.personalityAge !== null && data.personalityAge.length > 0) {
-      parts.push(`📅 ${data.personalityAge}`);
+      parts.push(`📅 ${escapeMarkdown(data.personalityAge)}`);
     }
     return parts.join(' • ');
   },
