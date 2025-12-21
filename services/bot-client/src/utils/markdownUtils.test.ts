@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { escapeMarkdown } from './index.js';
+import { escapeMarkdown } from './markdownUtils.js';
 
 describe('escapeMarkdown', () => {
   describe('basic escaping', () => {

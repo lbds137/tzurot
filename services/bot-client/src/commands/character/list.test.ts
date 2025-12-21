@@ -1,9 +1,11 @@
 /**
  * Tests for Character List Handlers
+ *
+ * Note: escapeMarkdown tests are in utils/markdownUtils.test.ts
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { escapeMarkdown, handleList, handleListPagination } from './list.js';
+import { handleList, handleListPagination } from './list.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import type { ButtonInteraction, ChatInputCommandInteraction, Client } from 'discord.js';
@@ -16,32 +18,6 @@ vi.mock('./api.js', () => ({
 }));
 
 describe('Character List', () => {
-  describe('escapeMarkdown', () => {
-    it('should escape backslashes', () => {
-      expect(escapeMarkdown('test\\path')).toBe('test\\\\path');
-    });
-
-    it('should escape asterisks', () => {
-      expect(escapeMarkdown('*bold*')).toBe('\\*bold\\*');
-    });
-
-    it('should escape both backslashes and asterisks', () => {
-      expect(escapeMarkdown('*test\\path*')).toBe('\\*test\\\\path\\*');
-    });
-
-    it('should handle empty string', () => {
-      expect(escapeMarkdown('')).toBe('');
-    });
-
-    it('should handle string with no special characters', () => {
-      expect(escapeMarkdown('normal text')).toBe('normal text');
-    });
-
-    it('should escape backslashes before asterisks to prevent double-escaping', () => {
-      // If we have \* in input, it should become \\* not \\\*
-      expect(escapeMarkdown('\\*')).toBe('\\\\\\*');
-    });
-  });
 
   describe('handleList', () => {
     const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
