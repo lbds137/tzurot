@@ -78,7 +78,8 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       const shortModel = c.model.includes('/') ? c.model.split('/').pop() : c.model;
       const safeName = escapeMarkdown(c.name);
       // In guest mode, dim paid presets
-      const nameStyle = isGuestMode && !isFreeModel(c.model) ? `~~${safeName}~~` : `**${safeName}**`;
+      const nameStyle =
+        isGuestMode && !isFreeModel(c.model) ? `~~${safeName}~~` : `**${safeName}**`;
       return `${nameStyle}${defaultBadge}${freeBadge}\n└ ${shortModel}`;
     };
 
