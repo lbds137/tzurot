@@ -391,7 +391,7 @@ describe('UserService', () => {
 
       // Create mock functions to track calls
       const mockPersonaCreate = vi.fn().mockResolvedValue({ id: 'test-persona-uuid' });
-      const mockUserUpdate = vi.fn().mockResolvedValue({ id: 'existing-user-id' });
+      const mockUserUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 
       mockPrisma.$transaction.mockImplementation(
         async (callback: (tx: unknown) => Promise<void>) => {
@@ -399,7 +399,7 @@ describe('UserService', () => {
             persona: { create: mockPersonaCreate },
             user: {
               findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // Still needs backfill
-              update: mockUserUpdate,
+              updateMany: mockUserUpdateMany,
             },
           };
           await callback(mockTx);
@@ -423,8 +423,9 @@ describe('UserService', () => {
           ownerId: 'existing-user-id',
         }),
       });
-      expect(mockUserUpdate).toHaveBeenCalledWith({
-        where: { id: 'existing-user-id' },
+      // Uses updateMany with idempotent where clause to prevent TOCTOU race
+      expect(mockUserUpdateMany).toHaveBeenCalledWith({
+        where: { id: 'existing-user-id', defaultPersonaId: null },
         data: { defaultPersonaId: 'test-persona-uuid' },
       });
     });

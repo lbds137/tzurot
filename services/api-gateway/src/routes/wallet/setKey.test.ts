@@ -74,7 +74,8 @@ const mockPrisma = {
     const mockTx = {
       user: {
         create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
-        update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+        update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }), // For new user creation
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
         findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
       },
       persona: {
