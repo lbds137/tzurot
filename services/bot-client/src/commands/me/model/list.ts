@@ -44,7 +44,8 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
       );
     } else {
       const lines = data.overrides.map(
-        o => `**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`
+        o =>
+          `**${escapeMarkdown(o.personalityName)}** → ${escapeMarkdown(o.configName ?? 'Unknown')}`
       );
 
       embed.setDescription(lines.join('\n'));
