@@ -5,13 +5,13 @@
  * Organizes fields into logical sections that fit Discord's 5-field modal limit.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import {
   type DashboardConfig,
   type SectionDefinition,
   SectionStatus,
 } from '../../utils/dashboard/index.js';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 /**
  * Character data structure (from API)

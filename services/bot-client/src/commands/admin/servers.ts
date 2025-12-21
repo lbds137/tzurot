@@ -4,9 +4,8 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('admin-servers');
 

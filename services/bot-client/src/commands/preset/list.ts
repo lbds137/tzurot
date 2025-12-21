@@ -3,7 +3,7 @@
  * Handles /preset list subcommand
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   createLogger,
@@ -14,7 +14,6 @@ import {
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
-import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('preset-list');
 
