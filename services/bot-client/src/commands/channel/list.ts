@@ -127,10 +127,7 @@ interface GuildPage {
  * Each page contains channels from a single guild only.
  * Large guilds are split across multiple pages with continuation indicators.
  */
-function buildGuildPages(
-  activations: ActivatedChannel[],
-  client: Client
-): GuildPage[] {
+function buildGuildPages(activations: ActivatedChannel[], client: Client): GuildPage[] {
   const pages: GuildPage[] = [];
 
   // Group by guild (activations are already sorted by guild)
@@ -139,6 +136,7 @@ function buildGuildPages(
 
   for (const activation of activations) {
     const guildId = activation.guildId ?? 'unknown';
+    // eslint-disable-next-line @typescript-eslint/prefer-optional-chain -- explicit null check required for type narrowing
     if (currentGroup === null || currentGroup.guildId !== guildId) {
       const guild = guildId !== 'unknown' ? client.guilds.cache.get(guildId) : undefined;
       const guildName: string = guild?.name ?? `Unknown Server (${guildId})`;
@@ -273,9 +271,7 @@ function buildEmbedAllServers(
     title += ' (continued)';
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(title)
-    .setColor(DISCORD_COLORS.BLURPLE);
+  const embed = new EmbedBuilder().setTitle(title).setColor(DISCORD_COLORS.BLURPLE);
 
   const channelList = guildPage.activations
     .map(a => `<#${a.channelId}> → **${escapeMarkdown(a.personalityName)}**`)
@@ -286,9 +282,10 @@ function buildEmbedAllServers(
   // Build footer with context
   const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
   const channelCount = guildPage.activations.length;
-  const guildStatus = guildPage.isContinuation || !guildPage.isComplete
-    ? ` (${channelCount} shown)`
-    : ` (${channelCount} channels)`;
+  const guildStatus =
+    guildPage.isContinuation || !guildPage.isComplete
+      ? ` (${channelCount} shown)`
+      : ` (${channelCount} channels)`;
 
   embed.setFooter({
     text: `${totalChannels} total across all servers • Sorted ${sortLabel} • Page ${safePage + 1} of ${totalPages}${guildStatus}`,
