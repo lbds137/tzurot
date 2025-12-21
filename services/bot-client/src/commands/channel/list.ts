@@ -43,7 +43,7 @@ const logger = createLogger('channel-list');
 const CHANNELS_PER_PAGE = 10;
 
 /** Channels per page for all-servers mode (slightly smaller to account for guild headers) */
-const CHANNELS_PER_PAGE_ALL_SERVERS = 8;
+export const CHANNELS_PER_PAGE_ALL_SERVERS = 8;
 
 /** Button collector timeout in milliseconds (60 seconds) */
 const COLLECTOR_TIMEOUT_MS = 60_000;
@@ -113,10 +113,13 @@ function sortActivations(
 
 /**
  * Represents a page of guild activations for all-servers view
+ *
+ * Note: guildName stores the raw (unescaped) name. Escaping is done at display time
+ * in buildEmbedAllServers() to keep data structures clean and allow future reuse.
  */
-interface GuildPage {
+export interface GuildPage {
   guildId: string;
-  guildName: string;
+  guildName: string; // Raw name - escape with escapeMarkdown() when displaying
   activations: ActivatedChannel[];
   isContinuation: boolean; // True if this continues from previous page
   isComplete: boolean; // True if this is the last page for this guild
@@ -127,7 +130,7 @@ interface GuildPage {
  * Each page contains channels from a single guild only.
  * Large guilds are split across multiple pages with continuation indicators.
  */
-function buildGuildPages(activations: ActivatedChannel[], client: Client): GuildPage[] {
+export function buildGuildPages(activations: ActivatedChannel[], client: Client): GuildPage[] {
   const pages: GuildPage[] = [];
 
   // Group by guild (activations are already sorted by guild)
