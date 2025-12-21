@@ -23,6 +23,7 @@ import {
 import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('character-view');
 
@@ -146,7 +147,7 @@ function buildOverviewDescription(character: CharacterData): string {
  * Build a single page of the character view embed
  */
 export function buildCharacterViewPage(character: CharacterData, page: number): ViewPageResult {
-  const displayName = character.displayName ?? character.name;
+  const displayName = escapeMarkdown(character.displayName ?? character.name);
   const safePage = Math.max(0, Math.min(page, VIEW_TOTAL_PAGES - 1));
   const truncatedFields: string[] = [];
 

@@ -18,7 +18,6 @@ vi.mock('./api.js', () => ({
 }));
 
 describe('Character List', () => {
-
   describe('handleList', () => {
     const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 

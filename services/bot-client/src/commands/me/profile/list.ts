@@ -16,6 +16,7 @@ import {
   type ListPersonasResponse,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { escapeMarkdown } from '../../../utils/markdownUtils.js';
 
 const logger = createLogger('me-list');
 
@@ -60,14 +61,15 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       );
 
     for (const persona of personas) {
-      const fieldName = persona.isDefault ? `⭐ ${persona.name} (default)` : persona.name;
+      const safeName = escapeMarkdown(persona.name);
+      const fieldName = persona.isDefault ? `⭐ ${safeName} (default)` : safeName;
 
       const details: string[] = [];
       if (persona.preferredName !== undefined && persona.preferredName !== null) {
-        details.push(`**Name:** ${persona.preferredName}`);
+        details.push(`**Name:** ${escapeMarkdown(persona.preferredName)}`);
       }
       if (persona.pronouns !== undefined && persona.pronouns !== null) {
-        details.push(`**Pronouns:** ${persona.pronouns}`);
+        details.push(`**Pronouns:** ${escapeMarkdown(persona.pronouns)}`);
       }
       // Check for both undefined and null since shared schema has content as optional
       const content = persona.content;
@@ -76,7 +78,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
           content.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW
             ? `${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
             : content;
-        details.push(`**About:** ${preview}`);
+        details.push(`**About:** ${escapeMarkdown(preview)}`);
       }
 
       const fieldValue = details.length > 0 ? details.join('\n') : '*No details set*';

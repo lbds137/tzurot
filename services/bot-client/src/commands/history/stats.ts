@@ -7,6 +7,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('history-stats');
 
@@ -89,7 +90,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     const data = result.data;
 
     // Build description with persona info
-    let description = `Conversation statistics for **${personalitySlug}** in this channel.\nProfile: **${data.personaName}**`;
+    let description = `Conversation statistics for **${escapeMarkdown(personalitySlug)}** in this channel.\nProfile: **${escapeMarkdown(data.personaName)}**`;
 
     if (data.contextEpoch !== null) {
       description += '\n\n*Some messages are hidden due to a context clear.*';

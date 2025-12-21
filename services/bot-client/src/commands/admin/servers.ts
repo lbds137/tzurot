@@ -6,6 +6,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
+import { escapeMarkdown } from '../../utils/markdownUtils.js';
 
 const logger = createLogger('admin-servers');
 
@@ -27,7 +28,7 @@ export async function handleServers(interaction: ChatInputCommandInteraction): P
     const serverList = guilds
       .map(guild => {
         const memberCount = guild.memberCount || 'Unknown';
-        return `**${guild.name}**\nID: \`${guild.id}\`\nMembers: ${memberCount}`;
+        return `**${escapeMarkdown(guild.name)}**\nID: \`${guild.id}\`\nMembers: ${memberCount}`;
       })
       .join('\n\n');
 
