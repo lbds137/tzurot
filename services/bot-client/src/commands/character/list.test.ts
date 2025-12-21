@@ -242,4 +242,116 @@ describe('Character List', () => {
       expect(mockInteraction.editReply).not.toHaveBeenCalled();
     });
   });
+
+  describe('markdown escaping', () => {
+    const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
+
+    const mockInteraction = {
+      user: { id: 'user-123' },
+      client: {
+        users: {
+          fetch: vi.fn(),
+        },
+      },
+      editReply: vi.fn(),
+    } as unknown as ChatInputCommandInteraction;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should escape markdown characters in creator names', async () => {
+      // User's own characters
+      vi.mocked(api.fetchUserCharacters).mockResolvedValue([]);
+
+      // Public character from another user with markdown in username
+      vi.mocked(api.fetchPublicCharacters).mockResolvedValue([
+        {
+          id: 'char-1',
+          name: 'Test Character',
+          slug: 'test-char',
+          displayName: null,
+          isPublic: true,
+          ownerId: 'other-user-456',
+          characterInfo: '',
+          personalityTraits: '',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ]);
+
+      // Creator username with markdown characters
+      vi.mocked(api.fetchUsernames).mockResolvedValue(
+        new Map([['other-user-456', '**Bold_User**']])
+      );
+
+      await handleList(mockInteraction, mockConfig);
+
+      const callArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string } }[];
+      };
+      const description = callArgs.embeds[0].data.description;
+
+      // Verify the creator name is escaped
+      expect(description).toContain('\\*\\*Bold\\_User\\*\\*');
+    });
+
+    it('should escape markdown characters in character display names', async () => {
+      vi.mocked(api.fetchUserCharacters).mockResolvedValue([
+        {
+          id: 'char-1',
+          name: 'internal-name',
+          slug: 'my-char',
+          displayName: '**Fancy** _Character_',
+          isPublic: false,
+          ownerId: 'user-123',
+          characterInfo: '',
+          personalityTraits: '',
+          personalityTone: null,
+          personalityAge: null,
+          personalityAppearance: null,
+          personalityLikes: null,
+          personalityDislikes: null,
+          conversationalGoals: null,
+          conversationalExamples: null,
+          errorMessage: null,
+          birthMonth: null,
+          birthDay: null,
+          birthYear: null,
+          voiceEnabled: false,
+          imageEnabled: false,
+          avatarData: null,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ]);
+      vi.mocked(api.fetchPublicCharacters).mockResolvedValue([]);
+      vi.mocked(api.fetchUsernames).mockResolvedValue(new Map());
+
+      await handleList(mockInteraction, mockConfig);
+
+      const callArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+        embeds: { data: { description: string } }[];
+      };
+      const description = callArgs.embeds[0].data.description;
+
+      // Verify the display name is escaped
+      expect(description).toContain('\\*\\*Fancy\\*\\*');
+      expect(description).toContain('\\_Character\\_');
+    });
+  });
 });
