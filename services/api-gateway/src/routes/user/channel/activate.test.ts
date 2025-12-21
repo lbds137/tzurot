@@ -256,7 +256,8 @@ describe('POST /user/channel/activate', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.user.create).toHaveBeenCalled();
+    // UserService creates users via $transaction, not direct create
+    expect(mockPrisma.$transaction).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
   });
 });

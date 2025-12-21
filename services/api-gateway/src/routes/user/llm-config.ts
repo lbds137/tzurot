@@ -10,7 +10,12 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, type LlmConfigSummary } from '@tzurot/common-types';
+import {
+  createLogger,
+  UserService,
+  type PrismaClient,
+  type LlmConfigSummary,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -34,6 +39,7 @@ interface CreateConfigBody {
 
 export function createLlmConfigRoutes(prisma: PrismaClient): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   /**
    * GET /user/llm-config
@@ -128,25 +134,17 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      // Get or create user
-      let user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      user ??= await prisma.user.create({
-        data: {
-          discordId: discordUserId,
-          username: discordUserId, // Placeholder
-          timezone: 'UTC',
-        },
-        select: { id: true },
-      });
+      // Get or create user via centralized UserService
+      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      if (userId === null) {
+        // Should not happen for slash commands (bots can't use them)
+        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+      }
 
       // Check for duplicate name (user's configs only)
       const existing = await prisma.llmConfig.findFirst({
         where: {
-          ownerId: user.id,
+          ownerId: userId,
           name: body.name.trim(),
         },
       });
@@ -163,7 +161,7 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
         data: {
           name: body.name.trim(),
           description: body.description ?? null,
-          ownerId: user.id,
+          ownerId: userId,
           isGlobal: false,
           isDefault: false,
           provider: body.provider ?? 'openrouter',

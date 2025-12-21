@@ -141,7 +141,9 @@ describe('MentionResolver', () => {
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
         '123456',
         'testuser',
-        'Test User'
+        'Test User',
+        undefined, // bio
+        undefined // isBot
       );
       // PersonaResolver uses Discord ID directly
       expect(mockPersonaResolver.resolve).toHaveBeenCalledWith(
@@ -311,7 +313,9 @@ describe('MentionResolver', () => {
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
         '123456',
         'testuser',
-        'testuser' // Falls back to username
+        'testuser', // Falls back to username
+        undefined, // bio
+        undefined // isBot
       );
     });
 

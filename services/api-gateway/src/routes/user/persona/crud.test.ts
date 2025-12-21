@@ -51,6 +51,13 @@ describe('persona CRUD routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+    // UserService uses findUnique to look up users
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: MOCK_USER_ID,
+      username: 'test-user',
+      defaultPersonaId: MOCK_PERSONA_ID,
+      isSuperuser: false,
+    });
   });
 
   describe('GET /user/persona', () => {
@@ -107,8 +114,10 @@ describe('persona CRUD routes', () => {
     });
 
     it('should create user if they do not exist', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({ id: 'new-user', defaultPersonaId: null });
+      // First call returns null (user doesn't exist), second call returns the created user
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce(null) // UserService lookup
+        .mockResolvedValueOnce({ id: MOCK_USER_ID, defaultPersonaId: MOCK_PERSONA_ID }); // After creation
       mockPrisma.persona.findMany.mockResolvedValue([]);
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
@@ -117,11 +126,8 @@ describe('persona CRUD routes', () => {
       const { req, res } = createMockReqRes();
       await handler(req, res);
 
-      expect(mockPrisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ discordId: 'discord-user-123' }),
-        })
-      );
+      // UserService creates users via $transaction, not direct create
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
 
     it('should handle personas with null content and pronouns', async () => {
@@ -318,7 +324,8 @@ describe('persona CRUD routes', () => {
 
   describe('DELETE /user/persona/:id', () => {
     it('should delete persona', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123', defaultPersonaId: null });
+      // UserService uses findUnique, not findFirst - set defaultPersonaId to null to allow delete
+      mockPrisma.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID, defaultPersonaId: null });
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
       mockPrisma.persona.delete.mockResolvedValue({});
 

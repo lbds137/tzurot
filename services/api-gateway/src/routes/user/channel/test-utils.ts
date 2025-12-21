@@ -28,9 +28,17 @@ export const MOCK_DISCORD_USER_ID = '123456789012345678';
 // Type for mock Prisma client
 export type MockPrisma = ReturnType<typeof createMockPrisma>;
 
-// Mock Prisma client with tables needed for channel activation tests
+// Mock Prisma client with tables needed for channel activation tests + UserService dependencies
 export function createMockPrisma(): {
-  user: { findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  user: {
+    findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  persona: {
+    create: ReturnType<typeof vi.fn>;
+  };
   personality: {
     findUnique: ReturnType<typeof vi.fn>;
   };
@@ -49,7 +57,17 @@ export function createMockPrisma(): {
   const mockPrisma = {
     user: {
       findFirst: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({
+        id: MOCK_USER_UUID,
+        username: 'test-user',
+        defaultPersonaId: null,
+        isSuperuser: false,
+      }),
       create: vi.fn(),
+      update: vi.fn(),
+    },
+    persona: {
+      create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
     },
     personality: {
       findUnique: vi.fn(),
@@ -68,9 +86,22 @@ export function createMockPrisma(): {
   };
 
   // $transaction calls the callback with the same mock prisma as the tx client
+  // Also supports UserService transaction pattern
   mockPrisma.$transaction.mockImplementation(
     async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
-      return callback(mockPrisma);
+      // Create a tx-like object with UserService needs
+      const mockTx = {
+        ...mockPrisma,
+        user: {
+          ...mockPrisma.user,
+          create: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }),
+          update: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }),
+        },
+        persona: {
+          create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+        },
+      };
+      return callback(mockTx as unknown as typeof mockPrisma);
     }
   );
 
