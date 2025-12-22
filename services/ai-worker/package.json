@@ -21,16 +21,16 @@
     "@langchain/core": "^1.1.7",
     "@langchain/openai": "^1.2.0",
     "@tzurot/common-types": "workspace:*",
-    "bullmq": "^5.66.1",
+    "bullmq": "^5.66.2",
     "ioredis": "^5.8.2",
     "langchain": "^1.2.0",
-    "openai": "^6.14.0",
+    "openai": "^6.15.0",
     "pino": "^10.1.0",
     "redis": "^5.10.0",
     "sharp": "^0.34.5",
     "zod": "^4.2.0"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1"
+    "@types/node": "^25.0.3"
   }
 }
