@@ -18,12 +18,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.7",
+    "@langchain/core": "^1.1.8",
     "@langchain/openai": "^1.2.0",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.66.2",
     "ioredis": "^5.8.2",
-    "langchain": "^1.2.0",
+    "langchain": "^1.2.3",
     "openai": "^6.15.0",
     "pino": "^10.1.0",
     "redis": "^5.10.0",
@@ -31,6 +31,6 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1"
+    "@types/node": "^25.0.3"
   }
 }
