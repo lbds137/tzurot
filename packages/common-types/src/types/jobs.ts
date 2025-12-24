@@ -215,6 +215,42 @@ export type AnyJobResult = AudioTranscriptionResult | ImageDescriptionResult | L
 // ZOD SCHEMAS FOR CONTRACT TESTING
 // ============================================================================
 
+// ----------------------------------------------------------------------------
+// RESULT SCHEMAS
+// These schemas define the contract for job results returned by ai-worker
+// ----------------------------------------------------------------------------
+
+/**
+ * Audio Transcription Result Schema
+ * SINGLE SOURCE OF TRUTH for audio transcription job results
+ *
+ * Produced by: ai-worker (AudioTranscriptionJob.ts)
+ * Consumed by: api-gateway (transcribe.ts), ai-worker (DependencyStep.ts)
+ */
+export const audioTranscriptionResultSchema = z.object({
+  requestId: z.string(),
+  success: z.boolean(),
+  /** Transcribed text (uses 'content' for consistency with LLMGenerationResult) */
+  content: z.string().optional(),
+  /** Original attachment URL (for converting to ProcessedAttachment) */
+  attachmentUrl: z.string().optional(),
+  /** Original attachment name */
+  attachmentName: z.string().optional(),
+  /** If from a referenced message, the reference number (1-indexed) */
+  sourceReferenceNumber: z.number().optional(),
+  /** Error message if failed */
+  error: z.string().optional(),
+  metadata: z
+    .object({
+      processingTimeMs: z.number().optional(),
+      duration: z.number().optional(),
+    })
+    .optional(),
+});
+
+// Type inference from result schema
+export type AudioTranscriptionResultFromSchema = z.infer<typeof audioTranscriptionResultSchema>;
+
 /**
  * Response Destination Schema
  * Where to send job results
