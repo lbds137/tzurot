@@ -124,4 +124,152 @@ describe('createLogger', () => {
       expect((error as Error).message).toContain('pino-pretty');
     }
   });
+
+  describe('error serializer', () => {
+    it('should handle plain objects with error-like properties', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      // This simulates ioredis-style errors that are plain objects
+      const plainError = {
+        code: 'ETIMEDOUT',
+        errno: -110,
+        syscall: 'read',
+        hostname: 'redis.example.com',
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      // Should not throw and should log the object properties
+      expect(() => {
+        logger.error({ err: plainError }, 'Connection timeout');
+      }).not.toThrow();
+    });
+
+    it('should handle plain objects with message property', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const errorLikeObject = {
+        message: 'Something went wrong',
+        code: 'ERR_UNKNOWN',
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: errorLikeObject }, 'Error occurred');
+      }).not.toThrow();
+    });
+
+    it('should handle null error', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: null }, 'Null error');
+      }).not.toThrow();
+    });
+
+    it('should handle undefined error', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: undefined }, 'Undefined error');
+      }).not.toThrow();
+    });
+
+    it('should handle string passed as error', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: 'A string error message' }, 'String error');
+      }).not.toThrow();
+    });
+
+    it('should handle number passed as error', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: 500 }, 'Numeric error');
+      }).not.toThrow();
+    });
+
+    it('should include cause property from errors', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const cause = new Error('Root cause');
+      const wrappedError = new Error('Wrapper error', { cause });
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: wrappedError }, 'Error with cause');
+      }).not.toThrow();
+    });
+
+    it('should handle stack traces from plain objects (BullMQ serialized errors)', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      // Simulates a BullMQ/Redis serialized error that has stack as a string
+      const serializedError = {
+        message: 'Job failed',
+        stack: 'Error: Job failed\n    at Worker.process (/app/worker.js:42:15)',
+        code: 'ERR_JOB_FAILED',
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: serializedError }, 'Serialized error with stack');
+      }).not.toThrow();
+    });
+
+    it('should handle circular reference in cause', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      // Create an error-like object with circular cause
+      const circularError: Record<string, unknown> = {
+        message: 'Circular error',
+      };
+      circularError.cause = circularError; // Circular reference
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: circularError }, 'Circular cause');
+      }).not.toThrow();
+    });
+
+    it('should use name property for type when constructor is Object', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const namedError = {
+        name: 'RedisConnectionError',
+        message: 'Connection refused',
+        code: 'ECONNREFUSED',
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: namedError }, 'Named error object');
+      }).not.toThrow();
+    });
+  });
 });
