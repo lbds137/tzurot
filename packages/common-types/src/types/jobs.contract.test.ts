@@ -18,9 +18,11 @@ import {
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
   anyJobDataSchema,
+  audioTranscriptionResultSchema,
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
+  type AudioTranscriptionResult,
 } from './jobs.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
@@ -146,6 +148,99 @@ describe('BullMQ Job Contract Tests', () => {
           true
         );
       }
+    });
+  });
+
+  describe('Schema Validation - Audio Transcription Result', () => {
+    it('should validate a successful transcription result', () => {
+      const validResult: AudioTranscriptionResult = {
+        requestId: 'req-audio-123',
+        success: true,
+        content: 'This is the transcribed text from the audio file.',
+        attachmentUrl: 'https://cdn.discordapp.com/attachments/123/456/audio.ogg',
+        attachmentName: 'audio.ogg',
+        metadata: {
+          processingTimeMs: 1500,
+          duration: 30.5,
+        },
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(validResult);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.content).toBe('This is the transcribed text from the audio file.');
+        expect(result.data.success).toBe(true);
+      }
+    });
+
+    it('should validate a failed transcription result', () => {
+      const failedResult: AudioTranscriptionResult = {
+        requestId: 'req-audio-456',
+        success: false,
+        error: 'Audio file too large or corrupted',
+        attachmentUrl: 'https://cdn.discordapp.com/attachments/123/456/audio.ogg',
+        attachmentName: 'audio.ogg',
+        metadata: {
+          processingTimeMs: 250,
+          duration: 0,
+        },
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(failedResult);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.success).toBe(false);
+        expect(result.data.error).toBe('Audio file too large or corrupted');
+        expect(result.data.content).toBeUndefined();
+      }
+    });
+
+    it('should validate result with sourceReferenceNumber', () => {
+      const validResult: AudioTranscriptionResult = {
+        requestId: 'req-audio-789',
+        success: true,
+        content: 'Transcribed from referenced message',
+        sourceReferenceNumber: 1,
+        metadata: {
+          processingTimeMs: 800,
+        },
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(validResult);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.sourceReferenceNumber).toBe(1);
+      }
+    });
+
+    it('should reject result missing required requestId', () => {
+      const invalidResult = {
+        success: true,
+        content: 'Some content',
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(invalidResult);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject result missing required success field', () => {
+      const invalidResult = {
+        requestId: 'req-test',
+        content: 'Some content',
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(invalidResult);
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate minimal result (only required fields)', () => {
+      const minimalResult = {
+        requestId: 'req-minimal',
+        success: true,
+      };
+
+      const result = audioTranscriptionResultSchema.safeParse(minimalResult);
+      expect(result.success).toBe(true);
     });
   });
 
@@ -450,6 +545,8 @@ describe('BullMQ Job Contract Tests', () => {
     it('should document the contract: producer validates, consumer trusts', () => {
       // This test serves as documentation:
       //
+      // JOB DATA CONTRACT (api-gateway → ai-worker):
+      //
       // PRODUCER (api-gateway):
       // - Uses addValidatedJob() from validatedQueue.ts
       // - Validates ALL jobs with Zod schemas before enqueueing
@@ -460,8 +557,20 @@ describe('BullMQ Job Contract Tests', () => {
       // - Can trust job structure matches TypeScript types
       // - Should NOT duplicate validation (already done by producer)
       //
+      // JOB RESULT CONTRACT (ai-worker → api-gateway):
+      //
+      // PRODUCER (ai-worker):
+      // - Returns results matching *ResultSchema (e.g., AudioTranscriptionResult)
+      // - Uses shared types from @tzurot/common-types
+      //
+      // CONSUMER (api-gateway):
+      // - Uses job.waitUntilFinished() to receive results
+      // - Type-casts result using shared types (e.g., `as AudioTranscriptionResult`)
+      // - See: transcribe.ts:108 for example usage
+      //
       // CONTRACT:
       // - Jobs in queue are ALWAYS valid (guaranteed by producer validation)
+      // - Results from ai-worker match shared result types
       // - Consumer code should use shared types from @tzurot/common-types
       // - Breaking changes to schemas MUST be coordinated between services
       //
