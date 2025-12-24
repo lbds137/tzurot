@@ -3,42 +3,114 @@ import type { Logger, LoggerOptions } from 'pino';
 import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
 
 /**
- * Custom error serializer that handles DOMException and other special error types.
+ * Custom error serializer that handles various error types:
+ * - Standard Error instances
+ * - DOMException (AbortError, etc.)
+ * - Plain objects with error-like properties (ioredis errors, BullMQ serialized errors)
+ * - Non-object values
  *
- * Pino's standard error serializer includes all enumerable properties, which causes
- * DOMException (AbortError, etc.) to log all static constants (ABORT_ERR, etc.).
- * This custom serializer only picks useful properties.
+ * Key features:
+ * - Extracts stack traces from plain objects (important for BullMQ/Redis serialized errors)
+ * - Recursively serializes error.cause chains
+ * - Flags non-Error objects for debugging (grep for "_nonErrorObject")
+ * - Applies log sanitization to redact sensitive data like API keys
  *
- * Also applies log sanitization to redact sensitive data like API keys.
- *
- * @param err - The error to serialize
- * @returns Serialized error object with only useful properties and sanitized content
+ * @param err - The error to serialize (may not be an Error instance)
+ * @returns Serialized error object with useful properties and sanitized content
  */
-function customErrorSerializer(err: Error): object {
-  // Start with standard error properties (sanitize message for API keys)
-  const serialized: Record<string, unknown> = {
-    type: err.constructor.name,
-    message: sanitizeLogMessage(err.message),
-    stack: err.stack !== undefined ? sanitizeLogMessage(err.stack) : undefined,
-  };
+function customErrorSerializer(err: unknown): object {
+  // Handle null/undefined
+  if (err === null || err === undefined) {
+    return { type: 'null', value: err };
+  }
+
+  // Handle non-objects (strings, numbers, etc.)
+  if (typeof err !== 'object') {
+    return {
+      type: typeof err,
+      value: typeof err === 'string' ? sanitizeLogMessage(err) : err,
+    };
+  }
+
+  // At this point, err is an object (could be Error, plain object, or other)
+  const errObj = err as Record<string, unknown>;
+  const serialized: Record<string, unknown> = {};
+
+  // Determine the type - use constructor name if available and meaningful
+  const constructorName = errObj.constructor?.name;
+  if (constructorName && constructorName !== 'Object') {
+    serialized.type = constructorName;
+  } else if (typeof errObj.name === 'string' && errObj.name !== '') {
+    // Use 'name' property if it exists (common for error-like objects)
+    serialized.type = errObj.name;
+  } else {
+    serialized.type = 'Object';
+    // Flag plain objects for debugging (helps identify serialization issues)
+    // Legitimate: BullMQ job failures, external library errors
+    // Code smell: manually serializing errors before logging
+    serialized._nonErrorObject = true;
+  }
 
   // For DOMException (AbortError, etc.), only include specific properties
-  if (err.constructor.name === 'DOMException' || err.name === 'AbortError') {
+  // Return early to avoid including all the static constants
+  if (constructorName === 'DOMException' || errObj.name === 'AbortError') {
     const domException = err as DOMException;
     serialized.name = domException.name;
     serialized.code = domException.code;
-    // Don't include static constants like ABORT_ERR, DATA_CLONE_ERR, etc.
+    if (typeof errObj.message === 'string') {
+      serialized.message = sanitizeLogMessage(errObj.message);
+    }
     return serialized;
   }
 
-  // For other errors, include any custom properties but filter out functions
-  for (const key in err) {
-    if (Object.prototype.hasOwnProperty.call(err, key)) {
-      const value = (err as unknown as Record<string, unknown>)[key];
-      // Skip functions and standard properties we already included
-      if (typeof value !== 'function' && !['message', 'stack', 'name'].includes(key)) {
-        // Sanitize string values
-        serialized[key] = typeof value === 'string' ? sanitizeLogMessage(value) : value;
+  // Extract message (works for both Error instances and plain objects)
+  if (typeof errObj.message === 'string') {
+    serialized.message = sanitizeLogMessage(errObj.message);
+  }
+
+  // Extract stack - IMPORTANT: include for plain objects too!
+  // BullMQ/Redis serialized errors often have stack as a string property
+  if (typeof errObj.stack === 'string') {
+    serialized.stack = sanitizeLogMessage(errObj.stack);
+  }
+
+  // Handle cause recursively (modern error chaining)
+  // Protect against circular references where cause === err
+  if ('cause' in errObj && errObj.cause !== undefined) {
+    serialized.cause = errObj.cause === err ? '[Circular]' : customErrorSerializer(errObj.cause);
+  }
+
+  // Properties we've already handled or will handle specially
+  const handledProps = new Set(['type', 'message', 'stack', 'cause', 'name', '_nonErrorObject']);
+
+  // Include all enumerable properties
+  const keys = Object.keys(errObj);
+  for (const key of keys) {
+    if (handledProps.has(key)) {
+      continue;
+    }
+
+    const value = errObj[key];
+
+    // Skip functions
+    if (typeof value === 'function') {
+      continue;
+    }
+
+    // Sanitize strings, pass others through
+    serialized[key] = typeof value === 'string' ? sanitizeLogMessage(value) : value;
+  }
+
+  // Handle non-enumerable properties common on Node.js errors
+  // These are sometimes non-enumerable and missed by Object.keys
+  if (err instanceof Error) {
+    const commonNonEnumerable = ['code', 'errno', 'syscall', 'statusCode'];
+    for (const key of commonNonEnumerable) {
+      if (!(key in serialized) && key in errObj) {
+        const value = errObj[key];
+        if (value !== undefined && typeof value !== 'function') {
+          serialized[key] = value;
+        }
       }
     }
   }
