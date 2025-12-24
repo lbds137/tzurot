@@ -38,8 +38,8 @@
     "@types/express": "^5.0.6",
     "@types/node": "^24.10.4",
     "@types/supertest": "^6.0.3",
-    "@typescript-eslint/eslint-plugin": "^8.50.0",
-    "@typescript-eslint/parser": "^8.50.0",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
     "@vitest/coverage-v8": "^4.0.16",
     "bullmq": "^5.66.2",
     "dotenv": "^17.2.3",
@@ -57,7 +57,7 @@
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.0",
+    "typescript-eslint": "^8.50.1",
     "vitest": "^4.0.16"
   },
   "engines": {
