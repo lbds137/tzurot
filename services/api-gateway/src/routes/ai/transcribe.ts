@@ -6,7 +6,14 @@
 import { Router, type Request, type Response } from 'express';
 import { randomUUID } from 'crypto';
 import type { Queue, QueueEvents } from 'bullmq';
-import { createLogger, TIMEOUTS, JobStatus, JobType, JOB_PREFIXES } from '@tzurot/common-types';
+import {
+  createLogger,
+  TIMEOUTS,
+  JobStatus,
+  JobType,
+  JOB_PREFIXES,
+  type AudioTranscriptionResult,
+} from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -95,10 +102,10 @@ export function createTranscribeRoute(
       // If client wants to wait, use Redis pub/sub
       if (waitForCompletion) {
         try {
-          const result: { transcription: string } = (await job.waitUntilFinished(
+          const result = (await job.waitUntilFinished(
             queueEvents,
             TIMEOUTS.JOB_WAIT
-          )) as { transcription: string };
+          )) as AudioTranscriptionResult;
 
           logger.info(`[AI] Transcribe job ${job.id} completed after ${Date.now() - startTime}ms`);
 
