@@ -165,6 +165,7 @@ embed.setTitle(`Character: ${character.displayName}`); // Vulnerable!
 ```
 
 **Fields to always escape:**
+
 - Guild names, channel names, usernames
 - Character names, display names, persona fields
 - Personality names, config names, preset names
