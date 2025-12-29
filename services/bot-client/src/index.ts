@@ -215,6 +215,7 @@ const NON_EPHEMERAL_COMMANDS = new Set(['character chat']);
 const MODAL_COMMANDS = new Set([
   'wallet set',
   'me profile create',
+  'me profile edit',
   'me profile override-set',
   'character create',
 ]);
