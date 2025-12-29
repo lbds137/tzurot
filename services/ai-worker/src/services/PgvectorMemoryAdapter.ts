@@ -204,18 +204,43 @@ export class PgvectorMemoryAdapter {
    */
   async queryMemories(query: string, options: MemoryQueryOptions): Promise<MemoryDocument[]> {
     try {
+      // Validate query input before calling OpenAI API
+      if (query === null || query === undefined || query.length === 0) {
+        logger.warn(
+          { personaId: options.personaId },
+          '[PgvectorMemoryAdapter] Empty or null query provided, returning empty results'
+        );
+        return [];
+      }
+
       // Generate embedding for query
       const embeddingResponse = await this.openai.embeddings.create({
         model: this.embeddingModel,
         input: query,
       });
-      const queryEmbedding = embeddingResponse.data[0].embedding;
+
+      // Validate response structure (OpenAI API may return unexpected responses)
+      // Runtime defense: TypeScript types assume valid responses, but network/API issues can cause unexpected structures
+      if (embeddingResponse.data.length === 0) {
+        throw new Error(
+          `OpenAI embeddings API returned invalid response structure: data array is empty`
+        );
+      }
+
+      const firstResult = embeddingResponse.data[0];
+      // TypeScript guarantees this exists after length check, but defense in depth for runtime
+      const queryEmbedding = firstResult.embedding;
+
+      // Validate embedding has content
+      if (queryEmbedding.length === 0) {
+        throw new Error(`OpenAI embeddings API returned empty embedding array`);
+      }
 
       // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
       const expectedDimensions = 1536;
-      if (queryEmbedding?.length !== expectedDimensions) {
+      if (queryEmbedding.length !== expectedDimensions) {
         throw new Error(
-          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding?.length ?? 0}`
+          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding.length}`
         );
       }
 
@@ -556,11 +581,26 @@ export class PgvectorMemoryAdapter {
       model: this.embeddingModel,
       input: text,
     });
-    const embedding = response.data[0].embedding;
-    const expectedDimensions = 1536;
-    if (embedding?.length !== expectedDimensions) {
+
+    // Validate response structure
+    if (response.data.length === 0) {
       throw new Error(
-        `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding?.length || 0}`
+        `OpenAI embeddings API returned invalid response structure: data array is empty`
+      );
+    }
+
+    const firstResult = response.data[0];
+    const embedding = firstResult.embedding;
+
+    // Validate embedding has content
+    if (embedding.length === 0) {
+      throw new Error(`OpenAI embeddings API returned empty embedding array`);
+    }
+
+    const expectedDimensions = 1536;
+    if (embedding.length !== expectedDimensions) {
+      throw new Error(
+        `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding.length}`
       );
     }
     return embedding;
