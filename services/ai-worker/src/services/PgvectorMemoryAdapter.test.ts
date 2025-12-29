@@ -882,5 +882,188 @@ describe('PgvectorMemoryAdapter', () => {
       // Should not make any sibling queries
       expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
     });
+
+    it('should handle null chunkGroupId from database (PostgreSQL null vs undefined)', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+
+      // Documents with explicit null chunkGroupId (as PostgreSQL would return)
+      const documents: MemoryDocument[] = [
+        {
+          pageContent: 'Memory with null chunkGroupId',
+          metadata: {
+            id: 'mem-1',
+            chunkGroupId: null as unknown as string, // PostgreSQL returns null, not undefined
+          },
+        },
+        {
+          pageContent: 'Memory with undefined chunkGroupId',
+          metadata: {
+            id: 'mem-2',
+            // chunkGroupId is undefined (not set)
+          },
+        },
+      ];
+
+      // @ts-expect-error - accessing private method for testing
+      const expandWithSiblings = testAdapter.expandWithSiblings.bind(testAdapter);
+
+      // Should not throw "Cannot read properties of null (reading 'length')"
+      const result = await expandWithSiblings(documents, 'persona-123');
+
+      // Should return original documents since no valid chunk groups
+      expect(result).toEqual(documents);
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('should handle null id in metadata from database', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+
+      // Documents with null id (edge case from database)
+      const documents: MemoryDocument[] = [
+        {
+          pageContent: 'Memory with null id',
+          metadata: {
+            id: null as unknown as string, // PostgreSQL null
+            chunkGroupId: 'group-abc',
+          },
+        },
+      ];
+
+      const siblingResults = [
+        {
+          id: null, // Sibling also has null id
+          content: 'Sibling content',
+          chunk_group_id: 'group-abc',
+          chunk_index: 0,
+          total_chunks: 2,
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test',
+          owner_username: 'test',
+          personality_name: 'Test',
+        },
+        {
+          id: 'mem-2',
+          content: 'Valid sibling',
+          chunk_group_id: 'group-abc',
+          chunk_index: 1,
+          total_chunks: 2,
+          persona_id: 'persona-123',
+          personality_id: 'personality-456',
+          session_id: null,
+          canon_scope: null,
+          summary_type: null,
+          channel_id: null,
+          guild_id: null,
+          message_ids: null,
+          senders: null,
+          created_at: new Date(),
+          persona_name: 'Test',
+          owner_username: 'test',
+          personality_name: 'Test',
+        },
+      ];
+
+      mockPrisma.$queryRaw.mockResolvedValue(siblingResults);
+
+      // @ts-expect-error - accessing private method for testing
+      const expandWithSiblings = testAdapter.expandWithSiblings.bind(testAdapter);
+
+      // Should not throw when encountering null ids
+      const result = await expandWithSiblings(documents, 'persona-123');
+
+      // Should include the valid sibling
+      expect(result.some(doc => doc.metadata?.id === 'mem-2')).toBe(true);
+    });
+
+    it('should handle empty string chunkGroupId', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+
+      // Document with empty string chunkGroupId
+      const documents: MemoryDocument[] = [
+        {
+          pageContent: 'Memory with empty chunkGroupId',
+          metadata: {
+            id: 'mem-1',
+            chunkGroupId: '', // Empty string should be treated as no group
+          },
+        },
+      ];
+
+      // @ts-expect-error - accessing private method for testing
+      const expandWithSiblings = testAdapter.expandWithSiblings.bind(testAdapter);
+
+      const result = await expandWithSiblings(documents, 'persona-123');
+
+      // Should return original since empty string is not a valid group
+      expect(result).toEqual(documents);
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('null value handling in queryMemoriesWithChannelScoping', () => {
+    const baseOptions: MemoryQueryOptions = {
+      personaId: 'persona-123',
+      personalityId: 'personality-456',
+      limit: 10,
+    };
+
+    it('should handle channel results with null ids when building excludeIds', async () => {
+      // Channel results include documents with null/undefined ids
+      const channelResults: MemoryDocument[] = [
+        { pageContent: 'memory 1', metadata: { id: null as unknown as string } }, // null id
+        { pageContent: 'memory 2', metadata: { id: 'ch-2' } }, // valid id
+        { pageContent: 'memory 3', metadata: { id: undefined as unknown as string } }, // undefined
+        { pageContent: 'memory 4' }, // no metadata
+      ];
+      const globalResults: MemoryDocument[] = [
+        { pageContent: 'global memory', metadata: { id: 'gl-1' } },
+      ];
+
+      const mockQueryMemories = vi.fn();
+      mockQueryMemories.mockResolvedValueOnce(channelResults).mockResolvedValueOnce(globalResults);
+
+      const mockPrisma = { $queryRaw: vi.fn(), $executeRaw: vi.fn() };
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      testAdapter.queryMemories = mockQueryMemories;
+
+      const options = {
+        ...baseOptions,
+        channelIds: [VALID_CHANNEL_ID_1],
+      };
+
+      // Should not throw when building excludeIds with null values
+      const result = await testAdapter.queryMemoriesWithChannelScoping('test query', options);
+
+      expect(result).toHaveLength(5);
+
+      // Verify excludeIds only contains valid string id
+      expect(mockQueryMemories).toHaveBeenNthCalledWith(2, 'test query', {
+        ...baseOptions,
+        channelIds: undefined,
+        limit: 6, // 10 - 4 channel results
+        excludeIds: ['ch-2'], // Only the valid non-null id
+      });
+    });
   });
 });
