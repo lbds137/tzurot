@@ -1,5 +1,5 @@
 # Build stage
-FROM node:24-slim AS builder
+FROM node:25-slim AS builder
 
 # Install OpenSSL for Prisma
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
@@ -31,7 +31,7 @@ RUN pnpm --filter @tzurot/common-types build
 RUN pnpm --filter ai-worker build
 
 # Production stage
-FROM node:24-slim
+FROM node:25-slim
 
 # Install OpenSSL for Prisma runtime (required in both build and prod stages)
 # Prisma needs OpenSSL to run queries, not just to generate the client
