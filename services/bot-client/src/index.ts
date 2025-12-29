@@ -210,31 +210,50 @@ client.on(Events.MessageCreate, message => {
 // Commands that should NOT use ephemeral deferral (visible to everyone)
 const NON_EPHEMERAL_COMMANDS = new Set(['character chat']);
 
+// Commands that should NOT be deferred because they show a modal
+// Modal must be shown as the FIRST response to an interaction (cannot defer first)
+const MODAL_COMMANDS = new Set([
+  'wallet set',
+  'me profile create',
+  'me profile override-set',
+  'character create',
+]);
+
 // Interaction handler for slash commands, modals, autocomplete, and component interactions
 client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
       if (interaction.isChatInputCommand()) {
-        // CRITICAL: Defer IMMEDIATELY to avoid 3-second Discord timeout
-        // Do this BEFORE any routing logic or async operations
+        // Build full command name for checking against sets
         const subcommand = interaction.options.getSubcommand(false);
-        const fullCommand =
-          subcommand !== null && subcommand.length > 0
-            ? `${interaction.commandName} ${subcommand}`
-            : interaction.commandName;
-        const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
-
-        try {
-          await interaction.deferReply({
-            flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
-          });
-        } catch (deferError) {
-          // If defer fails, the interaction already expired - nothing we can do
-          logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
-          return;
+        const subcommandGroup = interaction.options.getSubcommandGroup(false);
+        let fullCommand = interaction.commandName;
+        if (subcommandGroup !== null && subcommandGroup.length > 0) {
+          fullCommand += ` ${subcommandGroup}`;
+        }
+        if (subcommand !== null && subcommand.length > 0) {
+          fullCommand += ` ${subcommand}`;
         }
 
-        // Now route to command handler (interaction is already deferred)
+        // Skip deferral for commands that show modals
+        // Modal must be the FIRST response to an interaction
+        if (!MODAL_COMMANDS.has(fullCommand)) {
+          // CRITICAL: Defer IMMEDIATELY to avoid 3-second Discord timeout
+          // Do this BEFORE any routing logic or async operations
+          const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
+
+          try {
+            await interaction.deferReply({
+              flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
+            });
+          } catch (deferError) {
+            // If defer fails, the interaction already expired - nothing we can do
+            logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
+            return;
+          }
+        }
+
+        // Now route to command handler
         await commandHandler.handleInteraction(interaction);
       } else if (interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
