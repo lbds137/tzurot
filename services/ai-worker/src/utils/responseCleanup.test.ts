@@ -60,7 +60,9 @@ describe('stripResponseArtifacts', () => {
     });
 
     it('should strip trailing </incoming_message> tag', () => {
-      expect(stripResponseArtifacts('Hello there!</incoming_message>', 'Emily')).toBe('Hello there!');
+      expect(stripResponseArtifacts('Hello there!</incoming_message>', 'Emily')).toBe(
+        'Hello there!'
+      );
     });
 
     it('should strip trailing </incoming_message> with whitespace', () => {

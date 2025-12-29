@@ -573,8 +573,8 @@ describe('PromptBuilder', () => {
       expect(content).toContain('You are TestBot');
       expect(content).toContain('<character>');
       // XML tags inside <character> match database column names
-      expect(content).toContain('<display_name>');
-      expect(content).toContain('You are Test Bot');
+      // display_name just contains the name, role section has "You are Name"
+      expect(content).toContain('<display_name>Test Bot</display_name>');
       expect(content).toContain('<character_info>');
       expect(content).toContain('A test character');
       expect(content).toContain('<personality_traits>');
