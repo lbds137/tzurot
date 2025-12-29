@@ -7,6 +7,7 @@
  * With XML-formatted prompts, models may:
  * - Append </message> tags (learning from chat_log structure)
  * - Append </current_turn> tags (learning from prompt structure)
+ * - Append </incoming_message> tags (learning from current_turn structure)
  * - Add <message speaker="Name"> prefixes
  * - Still occasionally add "Name:" prefixes
  */
@@ -26,6 +27,8 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     /<\/message>\s*$/i,
     // Trailing </current_turn> tag: "Hello!</current_turn>" → "Hello!"
     /<\/current_turn>\s*$/i,
+    // Trailing </incoming_message> tag: "Hello!</incoming_message>" → "Hello!"
+    /<\/incoming_message>\s*$/i,
     // XML message prefix: '<message speaker="Emily">Hello' → 'Hello'
     new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i'),
     // Simple name prefix: "Emily: Hello" → "Hello"

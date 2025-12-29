@@ -58,6 +58,25 @@ describe('stripResponseArtifacts', () => {
       expect(stripResponseArtifacts('Hello!</current_turn></message>', 'Emily')).toBe('Hello!');
       expect(stripResponseArtifacts('Hello!</message></current_turn>', 'Emily')).toBe('Hello!');
     });
+
+    it('should strip trailing </incoming_message> tag', () => {
+      expect(stripResponseArtifacts('Hello there!</incoming_message>', 'Emily')).toBe('Hello there!');
+    });
+
+    it('should strip trailing </incoming_message> with whitespace', () => {
+      expect(stripResponseArtifacts('Hello!</incoming_message>\n', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</incoming_message>  ', 'Emily')).toBe('Hello!');
+    });
+
+    it('should be case-insensitive for </incoming_message> tag', () => {
+      expect(stripResponseArtifacts('Hello!</INCOMING_MESSAGE>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</Incoming_Message>', 'Emily')).toBe('Hello!');
+    });
+
+    it('should NOT strip </incoming_message> in middle of content', () => {
+      const content = 'The </incoming_message> tag is used for XML';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    });
   });
 
   describe('XML leading tag stripping', () => {
