@@ -141,7 +141,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     // No updatedAt - append-only
-    uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id'],
+    uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id', 'chunk_group_id'],
     timestampColumns: ['created_at'],
   },
   shapes_persona_mappings: {
