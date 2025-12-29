@@ -271,5 +271,126 @@ describe('createLogger', () => {
         logger.error({ err: namedError }, 'Named error object');
       }).not.toThrow();
     });
+
+    it('should handle objects with function properties (skip them)', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const errorWithFunctions = {
+        message: 'Error with functions',
+        code: 'ERR_CUSTOM',
+        toString: () => 'stringified',
+        toJSON: () => ({ serialized: true }),
+        customMethod: () => 'result',
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      // Should not throw and should skip function properties
+      expect(() => {
+        logger.error({ err: errorWithFunctions }, 'Error with function props');
+      }).not.toThrow();
+    });
+
+    it('should handle empty array passed as error', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: [] }, 'Empty array error');
+      }).not.toThrow();
+    });
+
+    it('should handle boolean passed as error', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: false }, 'Boolean error');
+      }).not.toThrow();
+    });
+
+    it('should handle Error with non-enumerable properties', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      // Real Node.js errors have non-enumerable properties like 'code'
+      const nodeError = new Error('ENOENT: file not found');
+      Object.defineProperty(nodeError, 'code', {
+        value: 'ENOENT',
+        enumerable: false,
+      });
+      Object.defineProperty(nodeError, 'errno', {
+        value: -2,
+        enumerable: false,
+      });
+      Object.defineProperty(nodeError, 'syscall', {
+        value: 'open',
+        enumerable: false,
+      });
+      Object.defineProperty(nodeError, 'statusCode', {
+        value: 404,
+        enumerable: false,
+      });
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: nodeError }, 'Node error with non-enumerable props');
+      }).not.toThrow();
+    });
+
+    it('should handle nested cause chain', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const rootCause = new Error('Root cause');
+      const middleCause = new Error('Middle cause', { cause: rootCause });
+      const topError = new Error('Top error', { cause: middleCause });
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: topError }, 'Nested cause chain');
+      }).not.toThrow();
+    });
+
+    it('should handle object with empty string name', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      const errorWithEmptyName = {
+        name: '',
+        message: 'Error with empty name',
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: errorWithEmptyName }, 'Empty name error');
+      }).not.toThrow();
+    });
+
+    it('should handle AbortError by name (not constructor)', async () => {
+      delete process.env.ENABLE_PRETTY_LOGS;
+
+      // Some libraries throw plain objects with name: 'AbortError'
+      const abortLikeError = {
+        name: 'AbortError',
+        message: 'The operation was aborted',
+        code: 20,
+      };
+
+      const { createLogger } = await import('./logger.js');
+      const logger = createLogger('test');
+
+      expect(() => {
+        logger.error({ err: abortLikeError }, 'AbortError by name');
+      }).not.toThrow();
+    });
   });
 });
