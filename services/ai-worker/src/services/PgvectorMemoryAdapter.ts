@@ -706,12 +706,13 @@ export class PgvectorMemoryAdapter {
     const seenIds = new Set<string>();
 
     for (const doc of documents) {
-      const groupId = doc.metadata?.chunkGroupId as string | undefined;
-      const id = doc.metadata?.id as string | undefined;
-      if (groupId !== undefined && groupId.length > 0) {
+      const groupId = doc.metadata?.chunkGroupId as string | null | undefined;
+      const id = doc.metadata?.id as string | null | undefined;
+      // Check for both null AND undefined - database returns null for nullable fields
+      if (groupId !== undefined && groupId !== null && groupId.length > 0) {
         chunkGroups.add(groupId);
       }
-      if (id !== undefined && id.length > 0) {
+      if (id !== undefined && id !== null && id.length > 0) {
         seenIds.add(id);
       }
     }
@@ -732,8 +733,8 @@ export class PgvectorMemoryAdapter {
       try {
         const siblings = await this.fetchChunkSiblings(groupId, personaId);
         for (const sibling of siblings) {
-          const sibId = sibling.metadata?.id as string | undefined;
-          if (sibId !== undefined && sibId.length > 0 && !seenIds.has(sibId)) {
+          const sibId = sibling.metadata?.id as string | null | undefined;
+          if (sibId !== undefined && sibId !== null && sibId.length > 0 && !seenIds.has(sibId)) {
             allDocs.push(sibling);
             seenIds.add(sibId);
           }
@@ -844,8 +845,8 @@ export class PgvectorMemoryAdapter {
     // Step 2: Calculate remaining budget and get IDs to exclude
     const remainingBudget = totalLimit - channelResults.length;
     const excludeIds = channelResults
-      .map(r => r.metadata?.id as string | undefined)
-      .filter((id): id is string => id !== undefined);
+      .map(r => r.metadata?.id as string | null | undefined)
+      .filter((id): id is string => id !== undefined && id !== null);
 
     // Step 3: Global semantic query with exclusion (no channel filter)
     let globalResults: MemoryDocument[] = [];

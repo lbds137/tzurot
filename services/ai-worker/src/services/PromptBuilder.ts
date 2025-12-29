@@ -444,7 +444,7 @@ NEVER output XML tags in your response.`;
       personality.displayName !== undefined && personality.displayName.length > 0
         ? personality.displayName
         : personality.name;
-    personaSections.push(`<display_name>You are ${escapeXmlContent(displayName)}.</display_name>`);
+    personaSections.push(`<display_name>${escapeXmlContent(displayName)}</display_name>`);
 
     // Character info (backstory, who they are)
     if (personality.characterInfo !== undefined && personality.characterInfo.length > 0) {
