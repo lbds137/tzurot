@@ -41,7 +41,7 @@
     "@typescript-eslint/eslint-plugin": "^8.50.1",
     "@typescript-eslint/parser": "^8.50.1",
     "@vitest/coverage-v8": "^4.0.16",
-    "bullmq": "^5.66.2",
+    "bullmq": "^5.66.4",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
     "express": "^5.2.1",
