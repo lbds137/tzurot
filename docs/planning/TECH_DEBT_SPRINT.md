@@ -256,6 +256,10 @@ Timer-based cleanup patterns that prevent horizontal scaling (documented in CLAU
 
 Consider migrating to BullMQ repeatable jobs or Redis-based coordination.
 
+### BYOK Improvements
+
+- [ ] **Update `lastUsedAt` on actual API key usage** - Currently only updated by `/wallet test`, not during AI generation. ai-worker should notify api-gateway (via Redis pub/sub or HTTP callback) when a user's key is successfully used.
+
 ### Code Quality (from PR #410 Review)
 
 - [ ] **Extract `isValidId()` helper** - Null checking pattern in PgvectorMemoryAdapter repeated 3 times
