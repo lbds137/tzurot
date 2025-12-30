@@ -16,6 +16,7 @@ import {
   createLogger,
   type PrismaClient,
   ConversationHistoryService,
+  ConversationRetentionService,
   PersonaResolver,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
@@ -47,6 +48,7 @@ interface HardDeleteRequest {
 export function createHistoryRoutes(prisma: PrismaClient): Router {
   const router = Router();
   const conversationHistoryService = new ConversationHistoryService(prisma);
+  const retentionService = new ConversationRetentionService(prisma);
   const personaResolver = new PersonaResolver(prisma);
 
   /**
@@ -511,7 +513,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const { userId, personalityId, personaId } = context;
 
       // Delete only messages for resolved/specified persona
-      const deletedCount = await conversationHistoryService.clearHistory(
+      const deletedCount = await retentionService.clearHistory(
         channelId,
         personalityId,
         personaId
