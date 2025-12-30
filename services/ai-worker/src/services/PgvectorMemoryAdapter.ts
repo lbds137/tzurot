@@ -1,14 +1,10 @@
-/* eslint-disable max-lines */
 /**
  * Pgvector Memory Adapter
  * PostgreSQL + pgvector adapter for memory retrieval and storage
  */
 
-import { type PrismaClient, Prisma } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types';
 import { OpenAI } from 'openai';
-import { v5 as uuidv5 } from 'uuid';
-import crypto from 'crypto';
-import { z } from 'zod';
 import {
   createLogger,
   MODEL_DEFAULTS,
@@ -18,166 +14,37 @@ import {
   generateMemoryChunkGroupUuid,
   countTextTokens,
 } from '@tzurot/common-types';
-import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
+import {
+  EMBEDDING_DIMENSION,
+  deterministicMemoryUuid,
+  normalizeMetadata,
+  mapQueryResultToDocument,
+  extractChunkGroups,
+  mergeSiblings,
+} from '../utils/memoryUtils.js';
+import {
+  buildWhereConditions,
+  buildSimilaritySearchQuery,
+  parseQueryOptions,
+} from './PgvectorQueryBuilder.js';
+
+// Re-export types for backward compatibility (18 files import from this module)
+export {
+  MemoryQueryOptions,
+  MemoryDocument,
+  MemoryMetadata,
+  MemoryMetadataSchema,
+  MemoryQueryResult,
+} from './PgvectorTypes.js';
+
+import type {
+  MemoryQueryOptions,
+  MemoryDocument,
+  MemoryMetadata,
+  MemoryQueryResult,
+} from './PgvectorTypes.js';
 
 const logger = createLogger('PgvectorMemoryAdapter');
-
-export interface MemoryQueryOptions {
-  personaId: string; // Required: which persona's memories to search
-  personalityId?: string; // Optional: filter to specific personality within persona
-  sessionId?: string;
-  limit?: number;
-  /**
-   * Minimum cosine similarity score (0-1 range, where 1 = identical vectors)
-   * Default: 0.85 (returns only highly similar memories)
-   *
-   * This represents a MINIMUM similarity threshold - only memories with
-   * similarity >= this value will be returned.
-   *
-   * Internally converted to pgvector distance using: distance < (1 - similarity)
-   * - pgvector cosine distance range: 0-2 (0=identical, 1=orthogonal, 2=opposite)
-   * - For normalized embeddings, practically 0-1
-   *
-   * Examples:
-   * - 0.85 (default) → distance < 0.15 → highly similar memories only
-   * - 0.70 → distance < 0.30 → moderately similar memories
-   * - 0.50 → distance < 0.50 → loosely related memories
-   */
-  scoreThreshold?: number;
-  excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
-  /**
-   * Channel IDs to scope the search to (for LTM scoping when user references channels)
-   * When provided, uses waterfall retrieval: channel-scoped first, then global backfill
-   */
-  channelIds?: string[];
-  /**
-   * Ratio of total limit to allocate to channel-scoped queries (0-1)
-   * Default: 0.5 (50% of limit for channel-scoped, remaining for global)
-   */
-  channelBudgetRatio?: number;
-  /**
-   * Memory IDs to exclude from results (used for deduplication in waterfall queries)
-   */
-  excludeIds?: string[];
-  /**
-   * When true, if a matching memory is part of a chunk group,
-   * also retrieve all sibling chunks in that group.
-   * This enables reassembling the full original text from chunks.
-   * Default: true (to ensure complete memory retrieval)
-   *
-   * @example
-   * // Query with sibling retrieval (default behavior)
-   * const memories = await adapter.queryMemories(query, { personaId: '...' });
-   *
-   * // Reassemble chunked memories
-   * const grouped = groupByChunkId(memories);
-   * for (const [groupId, chunks] of grouped) {
-   *   const sorted = sortChunksByIndex(chunks);
-   *   const fullText = reassembleChunks(sorted.map(c => c.pageContent));
-   * }
-   *
-   * // Opt out of sibling retrieval (only get matched chunks)
-   * const matchedOnly = await adapter.queryMemories(query, {
-   *   personaId: '...',
-   *   includeSiblings: false
-   * });
-   */
-  includeSiblings?: boolean;
-}
-
-export interface MemoryDocument {
-  pageContent: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface MemoryMetadata {
-  personaId: string; // Persona this memory belongs to
-  personalityId: string; // Personality this memory is about
-  personalityName?: string;
-  sessionId?: string;
-  canonScope: 'global' | 'personal' | 'session';
-  createdAt: number; // Timestamp in milliseconds (from Date.now() or Date.getTime())
-  summaryType?: string;
-  contextType?: string;
-  channelId?: string;
-  guildId?: string;
-  serverId?: string;
-  messageIds?: string[];
-  senders?: string[];
-  // Chunk linking fields for oversized memories
-  chunkGroupId?: string; // UUID linking all chunks from same source memory
-  chunkIndex?: number; // 0-based position in chunk sequence
-  totalChunks?: number; // Total number of chunks in the group
-}
-
-/**
- * Zod schema for MemoryMetadata validation
- * Used to safely parse Prisma Json fields at runtime
- */
-export const MemoryMetadataSchema = z.object({
-  personaId: z.string(),
-  personalityId: z.string(),
-  personalityName: z.string().optional(),
-  sessionId: z.string().optional(),
-  canonScope: z.enum(['global', 'personal', 'session']),
-  createdAt: z.number(),
-  summaryType: z.string().optional(),
-  contextType: z.string().optional(),
-  channelId: z.string().optional(),
-  guildId: z.string().optional(),
-  serverId: z.string().optional(),
-  messageIds: z.array(z.string()).optional(),
-  senders: z.array(z.string()).optional(),
-  // Chunk linking fields
-  chunkGroupId: z.string().uuid().optional(),
-  chunkIndex: z.number().int().min(0).optional(),
-  totalChunks: z.number().int().min(1).optional(),
-});
-
-// Namespace UUID for memories
-const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
-
-// Helper to hash content
-function hashContent(content: string): string {
-  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 32);
-}
-
-// Helper to generate deterministic memory UUID
-function deterministicMemoryUuid(
-  personaId: string,
-  personalityId: string,
-  content: string
-): string {
-  const key = `${personaId}:${personalityId}:${hashContent(content)}`;
-  return uuidv5(key, MEMORY_NAMESPACE);
-}
-
-/**
- * Type for raw database query result from pgvector similarity search
- */
-interface MemoryQueryResult {
-  id: string;
-  content: string;
-  persona_id: string;
-  persona_name: string;
-  owner_username: string; // Discord username for disambiguation when persona name matches personality name
-  personality_id: string;
-  personality_name: string;
-  session_id: string | null;
-  canon_scope: string;
-  summary_type: string | null;
-  channel_id: string | null;
-  guild_id: string | null;
-  message_ids: string[] | null;
-  senders: string[] | null;
-  created_at: Date | string;
-  distance: number;
-  // Chunk linking fields
-  chunk_group_id: string | null;
-  chunk_index: number | null;
-  total_chunks: number | null;
-}
 
 /**
  * Adapter that provides memory retrieval and storage using pgvector
@@ -213,142 +80,20 @@ export class PgvectorMemoryAdapter {
         return [];
       }
 
-      // Generate embedding for query
-      const embeddingResponse = await this.openai.embeddings.create({
-        model: this.embeddingModel,
-        input: query,
-      });
-
-      // Validate response structure (OpenAI API may return unexpected responses)
-      // Runtime defense: TypeScript types assume valid responses, but network/API issues can cause unexpected structures
-      if (embeddingResponse.data.length === 0) {
-        throw new Error(
-          `OpenAI embeddings API returned invalid response structure: data array is empty`
-        );
-      }
-
-      const firstResult = embeddingResponse.data[0];
-      // TypeScript guarantees this exists after length check, but defense in depth for runtime
-      const queryEmbedding = firstResult.embedding;
-
-      // Validate embedding has content
-      if (queryEmbedding.length === 0) {
-        throw new Error(`OpenAI embeddings API returned empty embedding array`);
-      }
-
-      // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
-      const expectedDimensions = 1536;
-      if (queryEmbedding.length !== expectedDimensions) {
-        throw new Error(
-          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding.length}`
-        );
-      }
-
-      // Format embedding as PostgreSQL vector
-      // SAFETY: embeddingVector is constructed from validated numeric array only
-      // Prisma.raw() is safe here because we control the data source (OpenAI embeddings)
+      // Generate embedding and format as PostgreSQL vector
+      const queryEmbedding = await this.generateEmbedding(query);
       const embeddingVector = `[${queryEmbedding.join(',')}]`;
 
-      // Build query with vector similarity search
-      const limit =
-        options.limit !== undefined && options.limit !== null && options.limit > 0
-          ? options.limit
-          : 10;
-      // scoreThreshold is MINIMUM similarity (0-1 range)
-      // Default 0.85 = only show highly similar memories
-      const minSimilarity =
-        options.scoreThreshold !== undefined &&
-        options.scoreThreshold !== null &&
-        options.scoreThreshold > 0
-          ? options.scoreThreshold
-          : 0.85;
+      // Parse options with defaults
+      const { limit, minSimilarity, maxDistance } = parseQueryOptions(options);
 
-      // pgvector distance: 0 = identical, 2 = opposite (practically 0-1 for normalized embeddings)
-      // Cosine Distance = 1 - Cosine Similarity
-      // If we want similarity > 0.85, we need distance < (1 - 0.85) = 0.15
-      const maxDistance = 1 - minSimilarity;
-
-      // Build WHERE conditions using Prisma.sql for safe parameterization
-      const whereConditions: Prisma.Sql[] = [Prisma.sql`m.persona_id = ${options.personaId}::uuid`];
-
-      // Optional personality filter
-      if (options.personalityId !== undefined && options.personalityId.length > 0) {
-        whereConditions.push(Prisma.sql`m.personality_id = ${options.personalityId}::uuid`);
-      }
-
-      // Exclude newer memories (for conversation history overlap prevention)
-      if (
-        options.excludeNewerThan !== undefined &&
-        options.excludeNewerThan !== null &&
-        options.excludeNewerThan > 0
-      ) {
-        // excludeNewerThan is already in milliseconds - don't multiply by 1000
-        const excludeDate = new Date(options.excludeNewerThan).toISOString();
-        whereConditions.push(Prisma.sql`m.created_at < ${excludeDate}::timestamptz`);
-      }
-
-      // Exclude specific memory IDs (for waterfall deduplication)
-      if (options.excludeIds !== undefined && options.excludeIds.length > 0) {
-        // Build array of UUIDs for NOT IN clause
-        const excludeUuids = options.excludeIds.map(id => Prisma.sql`${id}::uuid`);
-        whereConditions.push(Prisma.sql`m.id NOT IN (${Prisma.join(excludeUuids, ', ')})`);
-      }
-
-      // Filter by channel IDs (for channel-scoped queries)
-      if (options.channelIds !== undefined && options.channelIds.length > 0) {
-        // Build array of channel IDs for IN clause
-        const channelValues = options.channelIds.map(id => Prisma.sql`${id}`);
-        whereConditions.push(Prisma.sql`m.channel_id IN (${Prisma.join(channelValues, ', ')})`);
-      }
-
-      // Build WHERE clause from conditions
-      const whereClause = Prisma.join(whereConditions, ' AND ');
-
-      // Build SQL query using Prisma.join() to safely combine parameterized and raw parts
-      // NOTE: The embedding vector must use Prisma.raw() because:
-      // 1. pgvector requires exact '[n,n,n,...]' format which can't be parameterized
-      // 2. embeddingVector is validated and constructed from numeric array only (safe)
-      // 3. Prisma.raw() cannot be nested in Prisma.sql, so we use Prisma.join() instead
-      const sqlQuery = Prisma.join(
-        [
-          Prisma.sql`
-            SELECT
-              m.id,
-              m.persona_id,
-              m.personality_id,
-              m.content,
-              m.embedding <=> `,
-          Prisma.raw(`'${embeddingVector}'::vector`),
-          Prisma.sql` AS distance,
-              m.session_id,
-              m.canon_scope,
-              m.summary_type,
-              m.channel_id,
-              m.guild_id,
-              m.message_ids,
-              m.senders,
-              m.created_at,
-              m.chunk_group_id,
-              m.chunk_index,
-              m.total_chunks,
-              COALESCE(persona.preferred_name, persona.name) as persona_name,
-              owner.username as owner_username,
-              COALESCE(personality.display_name, personality.name) as personality_name
-            FROM memories m
-            JOIN personas persona ON m.persona_id = persona.id
-            JOIN users owner ON persona.owner_id = owner.id
-            JOIN personalities personality ON m.personality_id = personality.id
-            WHERE `,
-          whereClause,
-          Prisma.sql`
-              AND m.embedding <=> `,
-          Prisma.raw(`'${embeddingVector}'::vector`),
-          Prisma.sql` < ${maxDistance}
-            ORDER BY distance ASC
-            LIMIT ${limit}
-          `,
-        ],
-        ''
+      // Build and execute query
+      const whereConditions = buildWhereConditions(options);
+      const sqlQuery = buildSimilaritySearchQuery(
+        embeddingVector,
+        whereConditions,
+        maxDistance,
+        limit
       );
 
       logger.debug(
@@ -363,42 +108,7 @@ export class PgvectorMemoryAdapter {
       );
 
       const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>(sqlQuery);
-
-      // Convert to MemoryDocument format and inject persona/personality names
-      let documents: MemoryDocument[] = memories.map(memory => {
-        // Replace {user} and {assistant} tokens with actual names
-        // Pass owner_username for disambiguation when persona name matches personality name
-        const content = replacePromptPlaceholders(
-          memory.content,
-          memory.persona_name,
-          memory.personality_name,
-          memory.owner_username
-        );
-
-        return {
-          pageContent: content,
-          metadata: {
-            id: memory.id,
-            personaId: memory.persona_id,
-            personalityId: memory.personality_id,
-            personalityName: memory.personality_name,
-            sessionId: memory.session_id,
-            canonScope: memory.canon_scope,
-            summaryType: memory.summary_type,
-            channelId: memory.channel_id,
-            guildId: memory.guild_id,
-            messageIds: memory.message_ids,
-            senders: memory.senders,
-            createdAt: new Date(memory.created_at).getTime(), // Store as milliseconds for formatMemoryTimestamp
-            distance: memory.distance,
-            score: 1 - memory.distance, // Convert distance back to similarity score
-            // Chunk linking metadata
-            chunkGroupId: memory.chunk_group_id,
-            chunkIndex: memory.chunk_index,
-            totalChunks: memory.total_chunks,
-          },
-        };
-      });
+      let documents: MemoryDocument[] = memories.map(mapQueryResultToDocument);
 
       // Expand results with sibling chunks (default: true for complete memory retrieval)
       if (options.includeSiblings !== false && documents.length > 0) {
@@ -410,18 +120,15 @@ export class PgvectorMemoryAdapter {
       );
       return documents;
     } catch (error) {
-      const errorDetails = {
-        personaId: options.personaId,
-        personalityId: options.personalityId,
-        queryLength: query.length,
-        errorType: error instanceof Error ? error.constructor.name : typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      };
       logger.error(
-        { err: error, ...errorDetails },
+        {
+          err: error,
+          personaId: options.personaId,
+          personalityId: options.personalityId,
+          queryLength: query.length,
+        },
         `Failed to query memories for persona: ${options.personaId}`
       );
-      // Return empty array - query failures shouldn't block conversation generation
       return [];
     }
   }
@@ -524,7 +231,7 @@ export class PgvectorMemoryAdapter {
         data.metadata.personalityId,
         contentForHash
       );
-      const normalized = this.normalizeMetadata(data.metadata);
+      const normalized = normalizeMetadata(data.metadata);
 
       await this.prisma.$executeRaw`
         INSERT INTO memories (
@@ -538,6 +245,7 @@ export class PgvectorMemoryAdapter {
           ${data.metadata.personalityId}::uuid,
           'tzurot-v3',
           ${data.text},
+          -- embedding: vector dimension must match EMBEDDING_DIMENSION (1536)
           ${`[${embedding.join(',')}]`}::vector(1536),
           ${normalized.sessionId},
           ${normalized.canonScope},
@@ -597,38 +305,12 @@ export class PgvectorMemoryAdapter {
       throw new Error(`OpenAI embeddings API returned empty embedding array`);
     }
 
-    const expectedDimensions = 1536;
-    if (embedding.length !== expectedDimensions) {
+    if (embedding.length !== EMBEDDING_DIMENSION) {
       throw new Error(
-        `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding.length}`
+        `Invalid embedding dimensions: expected ${EMBEDDING_DIMENSION}, got ${embedding.length}`
       );
     }
     return embedding;
-  }
-
-  private normalizeMetadata(metadata: MemoryMetadata): {
-    sessionId: string | null;
-    canonScope: string;
-    summaryType: string | null;
-    channelId: string | null;
-    guildId: string | null;
-    messageIds: string[];
-    senders: string[];
-    createdAt: string;
-  } {
-    const nonEmpty = (val: string | undefined): string | null =>
-      val !== undefined && val.length > 0 ? val : null;
-
-    return {
-      sessionId: nonEmpty(metadata.sessionId),
-      canonScope: nonEmpty(metadata.canonScope) ?? 'personal',
-      summaryType: nonEmpty(metadata.summaryType),
-      channelId: nonEmpty(metadata.channelId),
-      guildId: nonEmpty(metadata.guildId),
-      messageIds: metadata.messageIds ?? [],
-      senders: metadata.senders ?? [],
-      createdAt: new Date(metadata.createdAt).toISOString(),
-    };
   }
 
   /**
@@ -657,37 +339,8 @@ export class PgvectorMemoryAdapter {
       ORDER BY m.chunk_index ASC
     `;
 
-    return memories.map(memory => {
-      const content = replacePromptPlaceholders(
-        memory.content,
-        memory.persona_name,
-        memory.personality_name,
-        memory.owner_username
-      );
-
-      return {
-        pageContent: content,
-        metadata: {
-          id: memory.id,
-          personaId: memory.persona_id,
-          personalityId: memory.personality_id,
-          personalityName: memory.personality_name,
-          sessionId: memory.session_id,
-          canonScope: memory.canon_scope,
-          summaryType: memory.summary_type,
-          channelId: memory.channel_id,
-          guildId: memory.guild_id,
-          messageIds: memory.message_ids,
-          senders: memory.senders,
-          createdAt: new Date(memory.created_at).getTime(),
-          distance: 0, // Siblings have no distance (not from similarity search)
-          score: 1,
-          chunkGroupId: memory.chunk_group_id,
-          chunkIndex: memory.chunk_index,
-          totalChunks: memory.total_chunks,
-        },
-      };
-    });
+    // SQL sets distance=0 for siblings, mapQueryResultToDocument handles score calculation
+    return memories.map(mapQueryResultToDocument);
   }
 
   /**
@@ -701,23 +354,7 @@ export class PgvectorMemoryAdapter {
     documents: MemoryDocument[],
     personaId: string
   ): Promise<MemoryDocument[]> {
-    // Find unique chunk groups that need expansion
-    const chunkGroups = new Set<string>();
-    const seenIds = new Set<string>();
-
-    for (const doc of documents) {
-      const groupId = doc.metadata?.chunkGroupId as string | null | undefined;
-      const id = doc.metadata?.id as string | null | undefined;
-      // Check for both null AND undefined - database returns null for nullable fields
-      if (groupId !== undefined && groupId !== null && groupId.length > 0) {
-        chunkGroups.add(groupId);
-      }
-      if (id !== undefined && id !== null && id.length > 0) {
-        seenIds.add(id);
-      }
-    }
-
-    // No chunk groups - return original documents
+    const { chunkGroups, seenIds } = extractChunkGroups(documents);
     if (chunkGroups.size === 0) {
       return documents;
     }
@@ -727,24 +364,16 @@ export class PgvectorMemoryAdapter {
       '[PgvectorMemoryAdapter] Expanding results with sibling chunks'
     );
 
-    // Fetch siblings for each group
-    const allDocs = [...documents];
+    let allDocs = [...documents];
     for (const groupId of chunkGroups) {
       try {
         const siblings = await this.fetchChunkSiblings(groupId, personaId);
-        for (const sibling of siblings) {
-          const sibId = sibling.metadata?.id as string | null | undefined;
-          if (sibId !== undefined && sibId !== null && sibId.length > 0 && !seenIds.has(sibId)) {
-            allDocs.push(sibling);
-            seenIds.add(sibId);
-          }
-        }
+        allDocs = mergeSiblings(allDocs, siblings, seenIds);
       } catch (error) {
         logger.error(
           { err: error, chunkGroupId: groupId },
           '[PgvectorMemoryAdapter] Failed to fetch chunk siblings'
         );
-        // Continue with other groups
       }
     }
 
@@ -752,7 +381,6 @@ export class PgvectorMemoryAdapter {
       { expandedDocCount: allDocs.length, addedSiblings: allDocs.length - documents.length },
       '[PgvectorMemoryAdapter] Sibling expansion complete'
     );
-
     return allDocs;
   }
 

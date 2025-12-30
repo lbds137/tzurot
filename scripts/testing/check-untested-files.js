@@ -55,6 +55,8 @@ const KNOWN_UNTESTED = new Set([
   'services/ai-worker/src/services/context/PromptContext.ts',
   // Types-only file - no executable code, just TypeScript interfaces for ConversationalRAGService
   'services/ai-worker/src/services/ConversationalRAGTypes.ts',
+  // Types-only file - interfaces and Zod schema for PgvectorMemoryAdapter
+  'services/ai-worker/src/services/PgvectorTypes.ts',
   // Helper functions tested indirectly via handler tests that use them
   'services/api-gateway/src/routes/user/personality/helpers.ts',
 ]);
