@@ -17,12 +17,12 @@ import {
   type PrismaClient,
   ConversationHistoryService,
   ConversationRetentionService,
-  PersonaResolver,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { resolveHistoryContext } from '../../utils/historyContextResolver.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-history');
@@ -49,82 +49,6 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
   const router = Router();
   const conversationHistoryService = new ConversationHistoryService(prisma);
   const retentionService = new ConversationRetentionService(prisma);
-  const personaResolver = new PersonaResolver(prisma);
-
-  /**
-   * Helper to get user, personality, and resolved persona info
-   * Returns IDs and persona name - callers fetch historyConfig separately as needed
-   */
-  async function getHistoryContext(
-    discordUserId: string,
-    personalitySlug: string,
-    explicitPersonaId?: string
-  ): Promise<{
-    userId: string;
-    personalityId: string;
-    personaId: string;
-    personaName: string;
-  } | null> {
-    // Find user
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-    });
-
-    if (!user) {
-      return null;
-    }
-
-    // Find personality by slug
-    const personality = await prisma.personality.findUnique({
-      where: { slug: personalitySlug },
-    });
-
-    if (!personality) {
-      return null;
-    }
-
-    // Resolve persona: use explicit ID or resolve via PersonaResolver
-    let personaId: string;
-    let personaName: string;
-    if (
-      explicitPersonaId !== undefined &&
-      explicitPersonaId !== null &&
-      explicitPersonaId.length > 0
-    ) {
-      // Verify the persona exists and belongs to this user
-      const persona = await prisma.persona.findFirst({
-        where: {
-          id: explicitPersonaId,
-          ownerId: user.id,
-        },
-      });
-      if (!persona) {
-        logger.warn(
-          { discordUserId, explicitPersonaId },
-          '[History] Explicit persona not found or not owned by user'
-        );
-        return null;
-      }
-      personaId = explicitPersonaId;
-      personaName = persona.name;
-    } else {
-      // Resolve persona using the resolver (considers personality override + user default)
-      const resolved = await personaResolver.resolve(discordUserId, personality.id);
-      if (resolved.source === 'system-default' || !resolved.config.personaId) {
-        logger.warn({ discordUserId }, '[History] No persona found for user');
-        return null;
-      }
-      personaId = resolved.config.personaId;
-      personaName = resolved.config.personaName ?? 'Unknown';
-    }
-
-    return {
-      userId: user.id,
-      personalityId: personality.id,
-      personaId,
-      personaName,
-    };
-  }
 
   /**
    * POST /user/history/clear
@@ -145,7 +69,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
       }
 
-      const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
         return sendError(
@@ -244,7 +168,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
       }
 
-      const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
         return sendError(
@@ -378,7 +302,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
         return sendError(
@@ -499,7 +423,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       }
 
       // Use getHistoryContext for consistency with other history commands
-      const context = await getHistoryContext(discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
 
       if (!context) {
         return sendError(
