@@ -256,6 +256,13 @@ Timer-based cleanup patterns that prevent horizontal scaling (documented in CLAU
 
 Consider migrating to BullMQ repeatable jobs or Redis-based coordination.
 
+### Code Quality (from PR #410 Review)
+
+- [ ] **Extract `isValidId()` helper** - Null checking pattern in PgvectorMemoryAdapter repeated 3 times
+- [ ] **Verify database index on `memories.chunk_group_id`** - Used for sibling retrieval queries
+- [ ] **Extract embedding dimensions constant** - Magic number 1536 used in PgvectorMemoryAdapter
+- [ ] **Consider batch fetching for sibling chunks** - Sequential fetches in expandWithSiblings could batch
+
 ### Scheduled Cleanup Jobs
 
 **Current State**: Manual cleanup via `/admin cleanup` command and `POST /admin/cleanup` endpoint.
