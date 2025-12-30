@@ -31,9 +31,11 @@ function createMockPrismaClient() {
   };
 
   // Make $transaction execute the callback with the mock client
-  mockClient.$transaction.mockImplementation(async (callback: (tx: typeof mockClient) => Promise<unknown>) => {
-    return callback(mockClient);
-  });
+  mockClient.$transaction.mockImplementation(
+    async (callback: (tx: typeof mockClient) => Promise<unknown>) => {
+      return callback(mockClient);
+    }
+  );
 
   return mockClient;
 }
@@ -55,8 +57,18 @@ describe('ConversationRetentionService', () => {
   describe('clearHistory', () => {
     it('should delete all messages for channel and personality with tombstones', async () => {
       const mockMessages = [
-        { id: 'msg-1', channelId: 'channel-123', personalityId: 'personality-456', personaId: 'persona-1' },
-        { id: 'msg-2', channelId: 'channel-123', personalityId: 'personality-456', personaId: 'persona-1' },
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-1',
+        },
+        {
+          id: 'msg-2',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-1',
+        },
       ];
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 42 });
@@ -104,7 +116,12 @@ describe('ConversationRetentionService', () => {
 
     it('should delete only messages for specific persona when personaId provided', async () => {
       const mockMessages = [
-        { id: 'msg-1', channelId: 'channel-123', personalityId: 'personality-456', personaId: 'persona-789' },
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
       ];
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 10 });
@@ -114,7 +131,11 @@ describe('ConversationRetentionService', () => {
 
       expect(count).toBe(10);
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
-        where: { channelId: 'channel-123', personalityId: 'personality-456', personaId: 'persona-789' },
+        where: {
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
       });
     });
@@ -127,8 +148,18 @@ describe('ConversationRetentionService', () => {
       vi.setSystemTime(fixedDate);
 
       const mockOldMessages = [
-        { id: 'msg-1', channelId: 'channel-123', personalityId: 'personality-456', personaId: 'persona-789' },
-        { id: 'msg-2', channelId: 'channel-123', personalityId: 'personality-456', personaId: 'persona-789' },
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
+        {
+          id: 'msg-2',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: 'persona-789',
+        },
       ];
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockOldMessages);
       mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 2 });
@@ -161,7 +192,12 @@ describe('ConversationRetentionService', () => {
       vi.setSystemTime(fixedDate);
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue([
-        { id: 'msg-1', channelId: 'channel-123', personalityId: 'personality-456', personaId: null },
+        {
+          id: 'msg-1',
+          channelId: 'channel-123',
+          personalityId: 'personality-456',
+          personaId: null,
+        },
       ]);
       mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
       mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
@@ -197,7 +233,9 @@ describe('ConversationRetentionService', () => {
     });
 
     it('should create tombstones before deleting messages (transaction ordering)', async () => {
-      const mockMessages = [{ id: 'msg-1', channelId: 'ch-1', personalityId: 'p-1', personaId: null }];
+      const mockMessages = [
+        { id: 'msg-1', channelId: 'ch-1', personalityId: 'p-1', personaId: null },
+      ];
       const callOrder: string[] = [];
 
       mockPrismaClient.conversationHistory.findMany.mockImplementation(async () => {
