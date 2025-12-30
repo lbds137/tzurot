@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createCleanupRoute } from './cleanup.js';
-import type { ConversationHistoryService } from '@tzurot/common-types';
+import type { ConversationRetentionService } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
 
@@ -49,7 +49,7 @@ describe('Admin Cleanup Routes', () => {
     app.use(express.json());
     app.use(
       '/admin/cleanup',
-      createCleanupRoute(mockService as unknown as ConversationHistoryService)
+      createCleanupRoute(mockService as unknown as ConversationRetentionService)
     );
     // Add error handler for debugging
     app.use(

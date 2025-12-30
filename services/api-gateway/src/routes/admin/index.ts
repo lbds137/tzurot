@@ -11,7 +11,7 @@ import {
   type PrismaClient,
   type CacheInvalidationService,
   type LlmConfigCacheInvalidationService,
-  type ConversationHistoryService,
+  type ConversationRetentionService,
 } from '@tzurot/common-types';
 import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';
@@ -26,13 +26,13 @@ import { createCleanupRoute } from './cleanup.js';
  * @param prisma - Prisma client for database operations
  * @param cacheInvalidationService - Service for invalidating personality caches across all services
  * @param llmConfigCacheInvalidation - Service for invalidating LLM config caches across all services
- * @param conversationHistoryService - Service for conversation history operations (cleanup)
+ * @param retentionService - Service for conversation retention operations (cleanup)
  */
 export function createAdminRouter(
   prisma: PrismaClient,
   cacheInvalidationService: CacheInvalidationService,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  conversationHistoryService?: ConversationHistoryService
+  retentionService?: ConversationRetentionService
 ): Router {
   const router = Router();
 
@@ -55,8 +55,8 @@ export function createAdminRouter(
   router.use('/usage', createAdminUsageRoutes(prisma));
 
   // Cleanup endpoint (for conversation history and tombstones)
-  if (conversationHistoryService !== undefined) {
-    router.use('/cleanup', createCleanupRoute(conversationHistoryService));
+  if (retentionService !== undefined) {
+    router.use('/cleanup', createCleanupRoute(retentionService));
   }
 
   return router;

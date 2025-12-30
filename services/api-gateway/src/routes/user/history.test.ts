@@ -10,6 +10,8 @@ import type { Request, Response } from 'express';
 
 // Mock ConversationHistoryService instance methods
 const mockGetHistoryStats = vi.fn();
+
+// Mock ConversationRetentionService instance methods
 const mockClearHistory = vi.fn();
 
 // Mock PersonaResolver instance methods
@@ -22,6 +24,10 @@ vi.mock('@tzurot/common-types', async () => {
   // Create a mock class that returns our mock methods
   class MockConversationHistoryService {
     getHistoryStats = mockGetHistoryStats;
+  }
+
+  // Mock ConversationRetentionService class
+  class MockConversationRetentionService {
     clearHistory = mockClearHistory;
   }
 
@@ -39,6 +45,7 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     ConversationHistoryService: MockConversationHistoryService,
+    ConversationRetentionService: MockConversationRetentionService,
     PersonaResolver: MockPersonaResolver,
   };
 });

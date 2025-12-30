@@ -15,12 +15,14 @@ import { PrismaClient } from './prisma.js';
 import { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
+import { ConversationRetentionService } from './ConversationRetentionService.js';
 import { MessageRole } from '../constants/index.js';
 
 describe('ConversationHistoryService Component Test', () => {
   let prisma: PrismaClient;
   let pglite: PGlite;
   let service: ConversationHistoryService;
+  let retentionService: ConversationRetentionService;
 
   // Test fixture IDs
   const testUserId = '00000000-0000-0000-0000-000000000001';
@@ -155,8 +157,9 @@ describe('ConversationHistoryService Component Test', () => {
       VALUES ('${testPersonalityId}', 'TestBot', 'testbot', '${systemPromptId}', 'Test bot', 'Helpful')
     `);
 
-    // Create service instance
+    // Create service instances
     service = new ConversationHistoryService(prisma);
+    retentionService = new ConversationRetentionService(prisma);
   }, 30000); // 30 second timeout for PGlite WASM initialization under parallel load
 
   beforeEach(async () => {
@@ -566,7 +569,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
   });
 
-  describe('clearHistory', () => {
+  describe('clearHistory (via RetentionService)', () => {
     it('should clear all messages for channel + personality', async () => {
       // Add messages
       await service.addMessage({
@@ -586,7 +589,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const deletedCount = await service.clearHistory(testChannelId, testPersonalityId);
+      const deletedCount = await retentionService.clearHistory(testChannelId, testPersonalityId);
 
       expect(deletedCount).toBe(2);
 
@@ -595,7 +598,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should return 0 when no messages to clear', async () => {
-      const deletedCount = await service.clearHistory('empty-channel', testPersonalityId);
+      const deletedCount = await retentionService.clearHistory('empty-channel', testPersonalityId);
       expect(deletedCount).toBe(0);
     });
   });
@@ -824,7 +827,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
   });
 
-  describe('cleanupOldHistory', () => {
+  describe('cleanupOldHistory (via RetentionService)', () => {
     it('should delete messages older than specified days', async () => {
       // Add a message with explicit old timestamp
       const oldDate = new Date();
@@ -848,7 +851,7 @@ describe('ConversationHistoryService Component Test', () => {
       });
 
       // Cleanup messages older than 30 days
-      const deletedCount = await service.cleanupOldHistory(30);
+      const deletedCount = await retentionService.cleanupOldHistory(30);
 
       expect(deletedCount).toBe(1);
 
@@ -868,7 +871,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const deletedCount = await service.cleanupOldHistory(30);
+      const deletedCount = await retentionService.cleanupOldHistory(30);
 
       expect(deletedCount).toBe(0);
 
