@@ -7,7 +7,7 @@ import { Router, type Request, type Response } from 'express';
 import {
   createLogger,
   CLEANUP_DEFAULTS,
-  type ConversationHistoryService,
+  type ConversationRetentionService,
 } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -42,7 +42,7 @@ function buildCleanupMessage(
   }
 }
 
-export function createCleanupRoute(conversationHistoryService: ConversationHistoryService): Router {
+export function createCleanupRoute(retentionService: ConversationRetentionService): Router {
   const router = Router();
 
   router.post(
@@ -82,12 +82,12 @@ export function createCleanupRoute(conversationHistoryService: ConversationHisto
       let tombstonesDeleted = 0;
 
       if (target === 'history' || target === 'all') {
-        historyDeleted = await conversationHistoryService.cleanupOldHistory(daysToKeep);
+        historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
         logger.info({ historyDeleted, daysToKeep }, '[Admin] Cleaned up old conversation history');
       }
 
       if (target === 'tombstones' || target === 'all') {
-        tombstonesDeleted = await conversationHistoryService.cleanupOldTombstones(daysToKeep);
+        tombstonesDeleted = await retentionService.cleanupOldTombstones(daysToKeep);
         logger.info({ tombstonesDeleted, daysToKeep }, '[Admin] Cleaned up old tombstones');
       }
 
