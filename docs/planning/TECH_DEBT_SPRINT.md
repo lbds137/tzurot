@@ -27,16 +27,21 @@ The codebase is functional and well-structured for a microservices architecture,
 
 ### Large Files (Potential SRP Violations)
 
-| File                                                      | Lines | Concerns                                                               |
-| --------------------------------------------------------- | ----- | ---------------------------------------------------------------------- |
-| `common-types/src/services/ConversationHistoryService.ts` | 704   | CRUD, pagination, cleanup, tombstones - has `eslint-disable max-lines` |
-| `api-gateway/src/index.ts`                                | 558   | Mixes Express config, routes, validation, startup logic                |
-| `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts`     | 617   | Handles context, dependencies, BYOK, config resolution, generation     |
-| `ai-worker/src/services/PgvectorMemoryAdapter.ts`         | 565   | Mixes SQL, vector logic, and memory management                         |
-| `bot-client/src/services/MentionResolver.ts`              | 511   | Complex mention resolution logic                                       |
-| `ai-worker/src/services/ConversationalRAGService.ts`      | 475   | Orchestrates many concerns                                             |
-| `ai-worker/src/services/LlmConfigResolver.ts`             | 466   | Config resolution + caching                                            |
-| `ai-worker/src/services/PromptBuilder.ts`                 | 461   | Large prompt construction                                              |
+**Updated 2025-12-30** - Major progress through extractions:
+
+| File                                                      | Before | After | Status                                           |
+| --------------------------------------------------------- | ------ | ----- | ------------------------------------------------ |
+| `common-types/src/services/ConversationHistoryService.ts` | 704    | 455   | ✅ Extracted ConversationRetentionService        |
+| `api-gateway/src/index.ts`                                | 558    | 259   | ✅ Split into bootstrap/, middleware/, routes/   |
+| `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts`     | 617    | 131   | ✅ Pipeline pattern with 6 steps                 |
+| `ai-worker/src/services/PgvectorMemoryAdapter.ts`         | 901    | 529   | ✅ Extracted memoryUtils.ts + PgvectorQueryBuilder |
+| `bot-client/src/services/MentionResolver.ts`              | 527    | 473   | ✅ Extracted MentionResolverTypes.ts             |
+| `ai-worker/src/services/PromptBuilder.ts`                 | 627    | 496   | ✅ Extracted PersonalityFieldsFormatter          |
+| `api-gateway/src/routes/user/history.ts`                  | 554    | 496   | ✅ Extracted historyContextResolver              |
+| `bot-client/src/commands/channel/list.ts`                 | 512    | 488   | ✅ Extracted listTypes.ts                        |
+| `bot-client/src/commands/character/view.ts`               | 508    | 478   | ✅ Extracted viewTypes.ts                        |
+
+**Remaining over 500 lines**: Only `PgvectorMemoryAdapter.ts` (529 lines) - close to target.
 
 ### Stateful Services (Scaling Blockers)
 
@@ -243,7 +248,7 @@ Non-blocking suggestions for future work:
 
 ### Monitoring & Observability
 
-- [ ] **Add error.stack to pipeline metadata** - Better production debugging
+- [x] **Add error.stack to pipeline metadata** - ✅ Added `errorStack` field to LLMGenerationHandler error results
 - [ ] **Track metrics** - Rate limit hit rate, deduplication cache hit rate, pipeline step failure distribution
 
 ### Known Scaling Blockers (Timer Patterns)
@@ -262,9 +267,9 @@ Consider migrating to BullMQ repeatable jobs or Redis-based coordination.
 
 ### Code Quality (from PR #410 Review)
 
-- [ ] **Extract `isValidId()` helper** - Null checking pattern in PgvectorMemoryAdapter repeated 3 times
-- [ ] **Verify database index on `memories.chunk_group_id`** - Used for sibling retrieval queries
-- [ ] **Extract embedding dimensions constant** - Magic number 1536 used in PgvectorMemoryAdapter
+- [x] **Extract `isValidId()` helper** - ✅ Extracted to `memoryUtils.ts`, now used in PgvectorMemoryAdapter
+- [x] **Verify database index on `memories.chunk_group_id`** - ✅ Confirmed: partial index (WHERE NOT NULL) exists
+- [x] **Extract embedding dimensions constant** - ✅ `EMBEDDING_DIMENSION` exported from `memoryUtils.ts`
 - [ ] **Consider batch fetching for sibling chunks** - Sequential fetches in expandWithSiblings could batch
 
 ### Scheduled Cleanup Jobs
