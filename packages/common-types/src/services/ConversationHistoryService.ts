@@ -1,37 +1,65 @@
-/* eslint-disable max-lines */
 /**
  * ConversationHistoryService
  * Manages short-term conversation history in PostgreSQL
  *
  * Note: This service consolidates all conversation history operations (CRUD, pagination,
- * cleanup, tombstones) in one file for cohesion. The 500-line limit is exceeded by design.
+ * cleanup, tombstones) in one file for cohesion. Data transformation is handled by
+ * ConversationMessageMapper to reduce duplication.
  */
 
 import type { PrismaClient } from './prisma.js';
+import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole, CLEANUP_DEFAULTS } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
-import { messageMetadataSchema, type MessageMetadata } from '../types/schemas.js';
+import type { MessageMetadata } from '../types/schemas.js';
+import {
+  conversationHistorySelect,
+  mapToConversationMessage,
+  mapToConversationMessages,
+} from './ConversationMessageMapper.js';
 
 const logger = createLogger('ConversationHistoryService');
 
 /**
- * Safely parse messageMetadata from database JSONB column
- * Returns undefined if validation fails (logs warning)
+ * Delete messages matching the where clause and create tombstones to prevent db-sync restoration.
+ * This is the internal implementation used by both clearHistory and cleanupOldHistory.
  */
-function parseMessageMetadata(raw: unknown): MessageMetadata | undefined {
-  if (raw === null || raw === undefined) {
-    return undefined;
+async function deleteMessagesWithTombstones(
+  tx: Prisma.TransactionClient,
+  where: Prisma.ConversationHistoryWhereInput
+): Promise<number> {
+  // Fetch messages that will be deleted (need IDs for tombstones)
+  const messagesToDelete = await tx.conversationHistory.findMany({
+    where,
+    select: {
+      id: true,
+      channelId: true,
+      personalityId: true,
+      personaId: true,
+    },
+  });
+
+  if (messagesToDelete.length === 0) {
+    return 0;
   }
-  const result = messageMetadataSchema.safeParse(raw);
-  if (!result.success) {
-    logger.warn(
-      { errors: result.error.issues },
-      '[ConversationHistoryService] Invalid messageMetadata from database, ignoring'
-    );
-    return undefined;
-  }
-  return result.data;
+
+  // Create tombstones for all messages being deleted
+  // This prevents db-sync from restoring them
+  await tx.conversationHistoryTombstone.createMany({
+    data: messagesToDelete.map(msg => ({
+      id: msg.id,
+      channelId: msg.channelId,
+      personalityId: msg.personalityId,
+      personaId: msg.personaId,
+    })),
+    skipDuplicates: true, // In case tombstone already exists
+  });
+
+  // Delete the actual messages
+  const deleteResult = await tx.conversationHistory.deleteMany({ where });
+
+  return deleteResult.count;
 }
 
 export interface ConversationMessage {
@@ -231,47 +259,11 @@ export class ConversationHistoryService {
           createdAt: 'desc',
         },
         take: limit,
-        select: {
-          id: true,
-          role: true,
-          content: true,
-          tokenCount: true, // Include cached token count
-          createdAt: true,
-          personaId: true,
-          discordMessageId: true,
-          messageMetadata: true, // Include structured metadata
-          persona: {
-            select: {
-              name: true,
-              preferredName: true,
-              // Include owner to get Discord username for disambiguation
-              // when persona name matches personality name
-              owner: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-        },
+        select: conversationHistorySelect,
       });
 
-      // Reverse to get chronological order (oldest first)
-      type MessageWithPersona = (typeof messages)[number];
-      const history = messages.reverse().map(
-        (msg: MessageWithPersona): ConversationMessage => ({
-          id: msg.id,
-          role: msg.role as MessageRole,
-          content: msg.content,
-          tokenCount: msg.tokenCount ?? undefined, // Use cached token count
-          createdAt: msg.createdAt,
-          personaId: msg.personaId,
-          personaName: msg.persona.preferredName ?? msg.persona.name,
-          discordUsername: msg.persona.owner.username, // For disambiguation when name matches personality
-          discordMessageId: msg.discordMessageId,
-          messageMetadata: parseMessageMetadata(msg.messageMetadata),
-        })
-      );
+      // Reverse to get chronological order (oldest first) and map to domain objects
+      const history = mapToConversationMessages(messages.reverse());
 
       logger.debug(
         `Retrieved ${history.length} messages from history (channel: ${channelId}, personality: ${personalityId})`
@@ -325,51 +317,15 @@ export class ConversationHistoryService {
         },
         take: safeLimit + 1, // Fetch one extra to check if there are more
         ...(cursor !== undefined && cursor.length > 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
-        select: {
-          id: true,
-          role: true,
-          content: true,
-          tokenCount: true, // Include cached token count
-          createdAt: true,
-          personaId: true,
-          discordMessageId: true,
-          messageMetadata: true, // Include structured metadata
-          persona: {
-            select: {
-              name: true,
-              preferredName: true,
-              // Include owner to get Discord username for disambiguation
-              // when persona name matches personality name
-              owner: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-        },
+        select: conversationHistorySelect,
       });
 
       // Check if there are more messages
       const hasMore = messages.length > safeLimit;
       const resultMessages = hasMore ? messages.slice(0, safeLimit) : messages;
 
-      // Reverse to get chronological order (oldest first)
-      type MessageWithPersona = (typeof messages)[number];
-      const history = resultMessages.reverse().map(
-        (msg: MessageWithPersona): ConversationMessage => ({
-          id: msg.id,
-          role: msg.role as MessageRole,
-          content: msg.content,
-          tokenCount: msg.tokenCount ?? undefined, // Use cached token count
-          createdAt: msg.createdAt,
-          personaId: msg.personaId,
-          personaName: msg.persona.preferredName ?? msg.persona.name,
-          discordUsername: msg.persona.owner.username, // For disambiguation when name matches personality
-          discordMessageId: msg.discordMessageId,
-          messageMetadata: parseMessageMetadata(msg.messageMetadata),
-        })
-      );
+      // Reverse to get chronological order (oldest first) and map to domain objects
+      const history = mapToConversationMessages(resultMessages.reverse());
 
       // Next cursor is the ID of the last message (in desc order, before reversal)
       const nextCursor = hasMore ? resultMessages[resultMessages.length - 1].id : undefined;
@@ -457,47 +413,14 @@ export class ConversationHistoryService {
             has: discordMessageId,
           },
         },
-        select: {
-          id: true,
-          role: true,
-          content: true,
-          tokenCount: true,
-          createdAt: true,
-          personaId: true,
-          discordMessageId: true,
-          messageMetadata: true, // Include structured metadata
-          persona: {
-            select: {
-              name: true,
-              preferredName: true,
-              // Include owner to get Discord username for disambiguation
-              // when persona name matches personality name
-              owner: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-        },
+        select: conversationHistorySelect,
       });
 
       if (!message) {
         return null;
       }
 
-      return {
-        id: message.id,
-        role: message.role as MessageRole,
-        content: message.content,
-        tokenCount: message.tokenCount ?? undefined,
-        createdAt: message.createdAt,
-        personaId: message.personaId,
-        personaName: message.persona.preferredName ?? message.persona.name,
-        discordUsername: message.persona.owner.username, // For disambiguation when name matches personality
-        discordMessageId: message.discordMessageId,
-        messageMetadata: parseMessageMetadata(message.messageMetadata),
-      };
+      return mapToConversationMessage(message);
     } catch (error) {
       logger.error({ err: error, discordMessageId }, `Failed to get message by Discord message ID`);
       return null;
@@ -522,59 +445,21 @@ export class ConversationHistoryService {
     personaId?: string
   ): Promise<number> {
     try {
-      const where: { channelId: string; personalityId: string; personaId?: string } = {
+      const where: Prisma.ConversationHistoryWhereInput = {
         channelId,
         personalityId,
+        ...(personaId !== undefined && personaId.length > 0 && { personaId }),
       };
 
-      if (personaId !== undefined && personaId.length > 0) {
-        where.personaId = personaId;
-      }
-
-      // Use transaction to ensure tombstones are created before messages are deleted
-      const result = await this.prisma.$transaction(async tx => {
-        // Fetch messages that will be deleted (need IDs for tombstones)
-        const messagesToDelete = await tx.conversationHistory.findMany({
-          where,
-          select: {
-            id: true,
-            channelId: true,
-            personalityId: true,
-            personaId: true,
-          },
-        });
-
-        if (messagesToDelete.length === 0) {
-          return { count: 0 };
-        }
-
-        // Create tombstones for all messages being deleted
-        // This prevents db-sync from restoring them
-        await tx.conversationHistoryTombstone.createMany({
-          data: messagesToDelete.map(msg => ({
-            id: msg.id,
-            channelId: msg.channelId,
-            personalityId: msg.personalityId,
-            personaId: msg.personaId,
-          })),
-          skipDuplicates: true, // In case tombstone already exists
-        });
-
-        // Delete the actual messages
-        const deleteResult = await tx.conversationHistory.deleteMany({
-          where,
-        });
-
-        return deleteResult;
-      });
+      const count = await this.prisma.$transaction(tx => deleteMessagesWithTombstones(tx, where));
 
       const scopeInfo =
         personaId !== undefined && personaId.length > 0
           ? `channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...`
           : `channel: ${channelId}, personality: ${personalityId}`;
 
-      logger.info(`Cleared ${result.count} messages from history with tombstones (${scopeInfo})`);
-      return result.count;
+      logger.info(`Cleared ${count} messages from history with tombstones (${scopeInfo})`);
+      return count;
     } catch (error) {
       logger.error({ err: error }, `Failed to clear conversation history`);
       throw error;
@@ -662,55 +547,12 @@ export class ConversationHistoryService {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      // Use transaction to ensure tombstones are created before messages are deleted
-      const result = await this.prisma.$transaction(async tx => {
-        // Fetch messages that will be deleted (need IDs for tombstones)
-        const messagesToDelete = await tx.conversationHistory.findMany({
-          where: {
-            createdAt: {
-              lt: cutoffDate,
-            },
-          },
-          select: {
-            id: true,
-            channelId: true,
-            personalityId: true,
-            personaId: true,
-          },
-        });
-
-        if (messagesToDelete.length === 0) {
-          return { count: 0 };
-        }
-
-        // Create tombstones for all messages being deleted
-        // This prevents db-sync from restoring them
-        await tx.conversationHistoryTombstone.createMany({
-          data: messagesToDelete.map(msg => ({
-            id: msg.id,
-            channelId: msg.channelId,
-            personalityId: msg.personalityId,
-            personaId: msg.personaId,
-          })),
-          skipDuplicates: true, // In case tombstone already exists
-        });
-
-        // Delete the actual messages
-        const deleteResult = await tx.conversationHistory.deleteMany({
-          where: {
-            createdAt: {
-              lt: cutoffDate,
-            },
-          },
-        });
-
-        return deleteResult;
-      });
-
-      logger.info(
-        `Cleaned up ${result.count} old messages with tombstones (older than ${daysToKeep} days)`
+      const count = await this.prisma.$transaction(tx =>
+        deleteMessagesWithTombstones(tx, { createdAt: { lt: cutoffDate } })
       );
-      return result.count;
+
+      logger.info(`Cleaned up ${count} old messages with tombstones (older than ${daysToKeep} days)`);
+      return count;
     } catch (error) {
       logger.error({ err: error }, `Failed to cleanup old conversation history`);
       throw error;
