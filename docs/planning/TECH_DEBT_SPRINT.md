@@ -29,17 +29,17 @@ The codebase is functional and well-structured for a microservices architecture,
 
 **Updated 2025-12-30** - Major progress through extractions:
 
-| File                                                      | Before | After | Status                                           |
-| --------------------------------------------------------- | ------ | ----- | ------------------------------------------------ |
-| `common-types/src/services/ConversationHistoryService.ts` | 704    | 455   | ✅ Extracted ConversationRetentionService        |
-| `api-gateway/src/index.ts`                                | 558    | 259   | ✅ Split into bootstrap/, middleware/, routes/   |
-| `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts`     | 617    | 131   | ✅ Pipeline pattern with 6 steps                 |
+| File                                                      | Before | After | Status                                             |
+| --------------------------------------------------------- | ------ | ----- | -------------------------------------------------- |
+| `common-types/src/services/ConversationHistoryService.ts` | 704    | 455   | ✅ Extracted ConversationRetentionService          |
+| `api-gateway/src/index.ts`                                | 558    | 259   | ✅ Split into bootstrap/, middleware/, routes/     |
+| `ai-worker/src/jobs/handlers/LLMGenerationHandler.ts`     | 617    | 131   | ✅ Pipeline pattern with 6 steps                   |
 | `ai-worker/src/services/PgvectorMemoryAdapter.ts`         | 901    | 529   | ✅ Extracted memoryUtils.ts + PgvectorQueryBuilder |
-| `bot-client/src/services/MentionResolver.ts`              | 527    | 473   | ✅ Extracted MentionResolverTypes.ts             |
-| `ai-worker/src/services/PromptBuilder.ts`                 | 627    | 496   | ✅ Extracted PersonalityFieldsFormatter          |
-| `api-gateway/src/routes/user/history.ts`                  | 554    | 496   | ✅ Extracted historyContextResolver              |
-| `bot-client/src/commands/channel/list.ts`                 | 512    | 488   | ✅ Extracted listTypes.ts                        |
-| `bot-client/src/commands/character/view.ts`               | 508    | 478   | ✅ Extracted viewTypes.ts                        |
+| `bot-client/src/services/MentionResolver.ts`              | 527    | 473   | ✅ Extracted MentionResolverTypes.ts               |
+| `ai-worker/src/services/PromptBuilder.ts`                 | 627    | 496   | ✅ Extracted PersonalityFieldsFormatter            |
+| `api-gateway/src/routes/user/history.ts`                  | 554    | 496   | ✅ Extracted historyContextResolver                |
+| `bot-client/src/commands/channel/list.ts`                 | 512    | 488   | ✅ Extracted listTypes.ts                          |
+| `bot-client/src/commands/character/view.ts`               | 508    | 478   | ✅ Extracted viewTypes.ts                          |
 
 **Remaining over 500 lines**: Only `PgvectorMemoryAdapter.ts` (529 lines) - close to target.
 

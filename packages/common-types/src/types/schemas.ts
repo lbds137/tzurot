@@ -317,6 +317,8 @@ export const generationPayloadSchema = z.object({
       failedStep: z.string().optional(),
       /** Last successfully completed pipeline step (only set on error) */
       lastSuccessfulStep: z.string().optional(),
+      /** Error stack trace for debugging (only set on error) */
+      errorStack: z.string().optional(),
     })
     .optional(),
 });
