@@ -33,7 +33,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
     const guildId = req.query.guildId as string | undefined;
 
     // Validate guildId if provided - empty string is invalid
-    if (guildId !== undefined && guildId.trim() === '') {
+    if (guildId?.trim() === '') {
       return sendError(res, ErrorResponses.validationError('guildId cannot be empty'));
     }
 
