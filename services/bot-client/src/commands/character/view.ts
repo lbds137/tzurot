@@ -1,6 +1,5 @@
 /**
- * Character View Subcommand
- * Handles /character view - displays character details with pagination
+ * Character View Subcommand - Handles /character view
  */
 
 import {
@@ -24,41 +23,12 @@ import {
 import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
+
+// Re-export for backward compatibility
+export { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
 
 const logger = createLogger('character-view');
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/** Number of pages for character view */
-export const VIEW_TOTAL_PAGES = 4;
-
-/** Page titles for character view - aligned with edit section names */
-export const VIEW_PAGE_TITLES = [
-  '🏷️ Identity & Basics',
-  '📖 Biography & Appearance',
-  '❤️ Preferences',
-  '💬 Conversation',
-];
-
-/** Map of field names to their display labels and character data keys */
-export const EXPANDABLE_FIELDS: Record<string, { label: string; key: keyof CharacterData }> = {
-  characterInfo: { label: '📝 Character Info', key: 'characterInfo' },
-  personalityTraits: { label: '🎭 Personality Traits', key: 'personalityTraits' },
-  personalityTone: { label: '🎨 Tone', key: 'personalityTone' },
-  personalityAge: { label: '📅 Age', key: 'personalityAge' },
-  personalityAppearance: { label: '👤 Appearance', key: 'personalityAppearance' },
-  personalityLikes: { label: '❤️ Likes', key: 'personalityLikes' },
-  personalityDislikes: { label: '💔 Dislikes', key: 'personalityDislikes' },
-  conversationalGoals: { label: '🎯 Conversational Goals', key: 'conversationalGoals' },
-  conversationalExamples: { label: '💬 Example Dialogues', key: 'conversationalExamples' },
-  errorMessage: { label: '⚠️ Error Message', key: 'errorMessage' },
-};
-
-// ============================================================================
-// TYPES
-// ============================================================================
 
 /** Field info for tracking truncation */
 interface FieldInfo {
