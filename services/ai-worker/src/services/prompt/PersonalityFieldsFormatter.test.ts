@@ -100,11 +100,15 @@ describe('PersonalityFieldsFormatter', () => {
 
       expect(persona).toContain('<personality_tone>Casual</personality_tone>');
       expect(persona).toContain('<personality_age>25</personality_age>');
-      expect(persona).toContain('<personality_appearance>Tall with dark hair</personality_appearance>');
+      expect(persona).toContain(
+        '<personality_appearance>Tall with dark hair</personality_appearance>'
+      );
       expect(persona).toContain('<personality_likes>Music and books</personality_likes>');
       expect(persona).toContain('<personality_dislikes>Rudeness</personality_dislikes>');
       expect(persona).toContain('<conversational_goals>Be helpful</conversational_goals>');
-      expect(persona).toContain('<conversational_examples>User: Hi\nBot: Hello!</conversational_examples>');
+      expect(persona).toContain(
+        '<conversational_examples>User: Hi\nBot: Hello!</conversational_examples>'
+      );
     });
 
     it('should escape protected XML tags in fields', () => {
