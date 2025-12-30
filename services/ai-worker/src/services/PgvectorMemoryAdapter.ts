@@ -16,6 +16,7 @@ import {
 } from '@tzurot/common-types';
 import {
   EMBEDDING_DIMENSION,
+  isValidId,
   deterministicMemoryUuid,
   normalizeMetadata,
   mapQueryResultToDocument,
@@ -59,10 +60,9 @@ export class PgvectorMemoryAdapter {
     this.openai = new OpenAI({
       apiKey: openaiApiKey,
     });
-    this.embeddingModel =
-      process.env.EMBEDDING_MODEL !== undefined && process.env.EMBEDDING_MODEL.length > 0
-        ? process.env.EMBEDDING_MODEL
-        : MODEL_DEFAULTS.EMBEDDING;
+    this.embeddingModel = isValidId(process.env.EMBEDDING_MODEL)
+      ? process.env.EMBEDDING_MODEL
+      : MODEL_DEFAULTS.EMBEDDING;
     logger.info({ embeddingModel: this.embeddingModel }, 'Pgvector Memory Adapter initialized');
   }
 
@@ -72,7 +72,7 @@ export class PgvectorMemoryAdapter {
   async queryMemories(query: string, options: MemoryQueryOptions): Promise<MemoryDocument[]> {
     try {
       // Validate query input before calling OpenAI API
-      if (query === null || query === undefined || query.length === 0) {
+      if (!isValidId(query)) {
         logger.warn(
           { personaId: options.personaId },
           '[PgvectorMemoryAdapter] Empty or null query provided, returning empty results'
@@ -116,7 +116,7 @@ export class PgvectorMemoryAdapter {
       }
 
       logger.debug(
-        `Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId !== undefined && options.personalityId.length > 0 ? options.personalityId : 'all'})`
+        `Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${isValidId(options.personalityId) ? options.personalityId : 'all'})`
       );
       return documents;
     } catch (error) {

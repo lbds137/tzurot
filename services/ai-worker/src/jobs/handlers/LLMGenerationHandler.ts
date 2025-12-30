@@ -170,6 +170,7 @@ export class LLMGenerationHandler {
           processingTimeMs,
           failedStep: currentStepName,
           lastSuccessfulStep,
+          errorStack: error instanceof Error ? error.stack : undefined,
         },
       };
     }
