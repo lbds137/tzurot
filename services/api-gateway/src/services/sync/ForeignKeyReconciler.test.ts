@@ -256,5 +256,32 @@ describe('ForeignKeyReconciler', () => {
       expect(mockDevClient.$executeRawUnsafe).not.toHaveBeenCalled();
       expect(mockProdClient.$executeRawUnsafe).not.toHaveBeenCalled();
     });
+
+    it('should throw and log error when FK update fails', async () => {
+      const devRow = { id: 'row-1', parentId: 'parent-dev', updatedAt: new Date('2025-01-02') };
+      const prodRow = { id: 'row-1', parentId: 'parent-prod', updatedAt: new Date('2025-01-01') };
+
+      mockFetchAllRows.mockResolvedValueOnce([devRow]).mockResolvedValueOnce([prodRow]);
+
+      mockBuildRowMap
+        .mockReturnValueOnce(new Map([['row-1', devRow]]))
+        .mockReturnValueOnce(new Map([['row-1', prodRow]]));
+
+      mockCompareTimestamps.mockReturnValue('dev-newer');
+
+      // Simulate FK constraint violation
+      const fkError = new Error('FK constraint violation');
+      mockProdClient.$executeRawUnsafe.mockRejectedValue(fkError);
+
+      await expect(
+        reconciler.reconcile(
+          'test_table',
+          testConfig,
+          mockFetchAllRows,
+          mockBuildRowMap,
+          mockCompareTimestamps
+        )
+      ).rejects.toThrow('FK constraint violation');
+    });
   });
 });
