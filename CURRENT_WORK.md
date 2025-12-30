@@ -1,10 +1,10 @@
 # Current Work
 
-> Last updated: 2025-12-21
+> Last updated: 2025-12-30
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.28
+**Version**: v3.0.0-beta.29
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
@@ -132,6 +132,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.29**: LTM null handling fix, modal command deferral fix, Node 25 upgrade, typescript-eslint 8.51.0
 - **beta.28**: Markdown security fixes, guild-aware pagination, security skill update
 - **beta.27**: UserService race condition fix, persona backfill idempotency
 - **beta.26**: Channel list improvements, caching strategy audit

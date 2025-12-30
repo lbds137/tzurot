@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-18
-> **Current Version**: v3.0.0-beta.23
+> **Last Updated**: 2025-12-30
+> **Current Version**: v3.0.0-beta.29
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
