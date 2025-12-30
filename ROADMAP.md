@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-18
-> **Current Version**: v3.0.0-beta.23
+> **Last Updated**: 2025-12-30
+> **Current Version**: v3.0.0-beta.29
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -128,9 +128,12 @@ Not needed until post-beta when we care about semantic versioning again.
 
 ### UX Fixes
 
-- [ ] `advancedParameters` - schema exists, API routes ignore it
-- [ ] Autocomplete UX - include slug for same-name personalities
-- [ ] DRY violation - `me/model/autocomplete.ts` duplicates shared utility
+- [x] Autocomplete UX - include slug for same-name personalities ✅ Already shows `(slug)` in label
+- [x] DRY violation - `me/model/autocomplete.ts` duplicates shared utility ✅ Now uses shared `handlePersonalityAutocomplete`
+
+### Feature Additions
+
+- [ ] `advancedParameters` support - schema exists in common-types, API routes need to accept/store it
 
 ### V2 Parity (Lower Priority)
 
@@ -141,7 +144,7 @@ Not needed until post-beta when we care about semantic versioning again.
 
 ### Technical Debt
 
-- [ ] 142 lint warnings (complexity issues)
+- [ ] 106 lint warnings (complexity issues) - down from 142
 - [ ] Consolidate `scripts/data/import-personality/` workspace
 - [ ] Increase test coverage for `WebhookManager`
 - [ ] Document `advancedParameters` JSONB structures
