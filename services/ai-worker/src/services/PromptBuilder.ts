@@ -1,8 +1,5 @@
 /**
- * Prompt Builder
- *
- * Builds system prompts with personality info, memories, environment context, and references.
- * Extracted from ConversationalRAGService for better modularity and testability.
+ * Prompt Builder - Builds system prompts with personality info, memories, and context.
  */
 
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
@@ -17,28 +14,22 @@ import {
   countTextTokens,
   escapeXmlContent,
 } from '@tzurot/common-types';
-import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
+import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
 
 /** Options for building a full system prompt */
 export interface BuildFullSystemPromptOptions {
-  /** The personality configuration */
   personality: LoadedPersonality;
-  /** Map of participant personas (userId -> { content, isActive }) */
   participantPersonas: Map<string, { content: string; isActive: boolean }>;
-  /** Retrieved relevant memories to include */
   relevantMemories: MemoryDocument[];
-  /** Conversation context (user info, environment, etc.) */
   context: ConversationContext;
-  /** Optional: Pre-formatted referenced messages string */
   referencedMessagesFormatted?: string;
-  /** Optional: Pre-serialized conversation history as XML */
   serializedHistory?: string;
 }
 
@@ -224,7 +215,7 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
       serializedHistory,
     } = options;
 
-    const { persona, protocol } = this.buildSystemPrompt(
+    const { persona, protocol } = formatPersonalityFields(
       personality,
       context.activePersonaName !== undefined && context.activePersonaName.length > 0
         ? context.activePersonaName
@@ -416,128 +407,6 @@ NEVER output XML tags in your response.`;
     }
 
     return parts.join(', ');
-  }
-
-  /**
-   * Build comprehensive system prompt from personality character fields
-   *
-   * Returns separate persona and protocol sections:
-   * - persona: Identity, character info, traits, etc. (who you are)
-   * - protocol: Behavior rules from systemPrompt (how to respond)
-   *
-   * This separation enables U-shaped attention optimization:
-   * persona goes at the START, protocol goes at the END of the full prompt.
-   */
-  private buildSystemPrompt(
-    personality: LoadedPersonality,
-    userName: string,
-    assistantName: string,
-    discordUsername?: string
-  ): { persona: string; protocol: string } {
-    const personaSections: string[] = [];
-
-    // Each personality field gets its own XML tag
-    // Tag names match database column names (snake_case) for consistency
-
-    // Identity - who they are (display name or name)
-    const displayName =
-      personality.displayName !== undefined && personality.displayName.length > 0
-        ? personality.displayName
-        : personality.name;
-    personaSections.push(`<display_name>${escapeXmlContent(displayName)}</display_name>`);
-
-    // Character info (backstory, who they are)
-    if (personality.characterInfo !== undefined && personality.characterInfo.length > 0) {
-      personaSections.push(
-        `<character_info>${escapeXmlContent(personality.characterInfo)}</character_info>`
-      );
-    }
-
-    // Personality traits
-    if (personality.personalityTraits !== undefined && personality.personalityTraits.length > 0) {
-      personaSections.push(
-        `<personality_traits>${escapeXmlContent(personality.personalityTraits)}</personality_traits>`
-      );
-    }
-
-    // Tone/style
-    if (personality.personalityTone !== undefined && personality.personalityTone.length > 0) {
-      personaSections.push(
-        `<personality_tone>${escapeXmlContent(personality.personalityTone)}</personality_tone>`
-      );
-    }
-
-    // Age
-    if (personality.personalityAge !== undefined && personality.personalityAge.length > 0) {
-      personaSections.push(
-        `<personality_age>${escapeXmlContent(personality.personalityAge)}</personality_age>`
-      );
-    }
-
-    // Appearance
-    if (
-      personality.personalityAppearance !== undefined &&
-      personality.personalityAppearance.length > 0
-    ) {
-      personaSections.push(
-        `<personality_appearance>${escapeXmlContent(personality.personalityAppearance)}</personality_appearance>`
-      );
-    }
-
-    // Likes
-    if (personality.personalityLikes !== undefined && personality.personalityLikes.length > 0) {
-      personaSections.push(
-        `<personality_likes>${escapeXmlContent(personality.personalityLikes)}</personality_likes>`
-      );
-    }
-
-    // Dislikes
-    if (
-      personality.personalityDislikes !== undefined &&
-      personality.personalityDislikes.length > 0
-    ) {
-      personaSections.push(
-        `<personality_dislikes>${escapeXmlContent(personality.personalityDislikes)}</personality_dislikes>`
-      );
-    }
-
-    // Conversational goals
-    if (
-      personality.conversationalGoals !== undefined &&
-      personality.conversationalGoals.length > 0
-    ) {
-      personaSections.push(
-        `<conversational_goals>${escapeXmlContent(personality.conversationalGoals)}</conversational_goals>`
-      );
-    }
-
-    // Conversational examples
-    if (
-      personality.conversationalExamples !== undefined &&
-      personality.conversationalExamples.length > 0
-    ) {
-      personaSections.push(
-        `<conversational_examples>${escapeXmlContent(personality.conversationalExamples)}</conversational_examples>`
-      );
-    }
-
-    // Protocol is the systemPrompt (behavior rules/jailbreak)
-    // Replace {user} and {assistant} placeholders with actual names
-    // discordUsername enables disambiguation when user persona name matches personality name
-    let protocol = '';
-    if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
-      protocol = replacePromptPlaceholders(
-        personality.systemPrompt,
-        userName,
-        assistantName,
-        discordUsername
-      );
-    }
-
-    return {
-      persona: personaSections.join('\n'),
-      protocol,
-    };
   }
 
   /**

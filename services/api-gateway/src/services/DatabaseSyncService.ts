@@ -71,7 +71,6 @@ interface UpsertRowOptions {
   deferredFkColumns?: readonly string[];
 }
 
-
 export class DatabaseSyncService {
   constructor(
     private devClient: PrismaClient,
@@ -471,5 +470,4 @@ export class DatabaseSyncService {
 
     await client.$executeRawUnsafe(query, ...values);
   }
-
 }

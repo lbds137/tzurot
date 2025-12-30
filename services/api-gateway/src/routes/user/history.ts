@@ -513,11 +513,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       const { userId, personalityId, personaId } = context;
 
       // Delete only messages for resolved/specified persona
-      const deletedCount = await retentionService.clearHistory(
-        channelId,
-        personalityId,
-        personaId
-      );
+      const deletedCount = await retentionService.clearHistory(channelId, personalityId, personaId);
 
       // Clear only this persona's epoch config
       await prisma.userPersonaHistoryConfig.deleteMany({
