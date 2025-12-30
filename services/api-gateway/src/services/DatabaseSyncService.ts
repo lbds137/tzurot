@@ -10,6 +10,7 @@ import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import { prepareLlmConfigSingletonFlags } from './sync/utils/llmConfigSingletons.js';
+import { ForeignKeyReconciler } from './sync/ForeignKeyReconciler.js';
 
 const logger = createLogger('db-sync');
 
@@ -70,21 +71,6 @@ interface UpsertRowOptions {
   deferredFkColumns?: readonly string[];
 }
 
-/** Options for updating a single FK column (pass 2 of two-pass sync) */
-interface UpdateFkColumnOptions {
-  /** Prisma client to use */
-  client: PrismaClient;
-  /** Table name */
-  tableName: string;
-  /** FK column to update */
-  fkColumn: string;
-  /** Value to set for the FK column */
-  value: string;
-  /** Primary key column names */
-  pkColumns: string[];
-  /** Primary key values for the row */
-  pkValues: unknown[];
-}
 
 export class DatabaseSyncService {
   constructor(
@@ -182,8 +168,15 @@ export class DatabaseSyncService {
           '[Sync] Pass 2: Updating deferred FK columns'
         );
 
+        const reconciler = new ForeignKeyReconciler(this.devClient, this.prodClient);
         for (const { tableName, config } of tablesWithDeferredFks) {
-          await this.updateDeferredFkColumns(tableName, config);
+          await reconciler.reconcile(
+            tableName,
+            config,
+            this.fetchAllRows.bind(this),
+            this.buildRowMap.bind(this),
+            this.compareTimestamps.bind(this)
+          );
         }
       }
 
@@ -479,165 +472,4 @@ export class DatabaseSyncService {
     await client.$executeRawUnsafe(query, ...values);
   }
 
-  /**
-   * Update deferred FK columns after all tables have been synced (pass 2)
-   *
-   * This handles circular FK dependencies by updating FK columns that were
-   * set to NULL during pass 1, now that the referenced rows exist.
-   */
-  private async updateDeferredFkColumns(
-    tableName: string,
-    config: (typeof SYNC_CONFIG)[keyof typeof SYNC_CONFIG]
-  ): Promise<void> {
-    const deferredFkColumns = config.deferredFkColumns ?? [];
-    if (deferredFkColumns.length === 0) {
-      return;
-    }
-
-    logger.info(
-      { table: tableName, columns: deferredFkColumns },
-      '[Sync] Updating deferred FK columns'
-    );
-
-    // Fetch all rows from both databases
-    const devRows = await this.fetchAllRows(this.devClient, tableName);
-    const prodRows = await this.fetchAllRows(this.prodClient, tableName);
-
-    // Build maps by primary key
-    const devMap = this.buildRowMap(devRows, config.pk);
-    const prodMap = this.buildRowMap(prodRows, config.pk);
-
-    // Get primary key column(s)
-    const pkColumns = typeof config.pk === 'string' ? [config.pk] : Array.from(config.pk);
-
-    // Update deferred FK columns in both directions using last-write-wins
-    for (const [key, devRow] of devMap) {
-      const prodRow = prodMap.get(key);
-      if (prodRow === undefined) {
-        continue; // Row doesn't exist in prod yet
-      }
-
-      const devObj = devRow as Record<string, unknown>;
-      const prodObj = prodRow as Record<string, unknown>;
-
-      // Determine which version is newer
-      const comparison = this.compareTimestamps(devRow, prodRow, config);
-
-      // Update deferred FK columns based on which side is newer
-      for (const fkColumn of deferredFkColumns) {
-        const devValue = devObj[fkColumn];
-        const prodValue = prodObj[fkColumn];
-
-        // Skip if both have the same value
-        if (devValue === prodValue) {
-          continue;
-        }
-
-        // Get PK values for WHERE clause
-        const pkValues = pkColumns.map(col => devObj[col]);
-
-        if (comparison === 'dev-newer' || comparison === 'same') {
-          // Update prod with dev's FK value
-          if (devValue !== null && devValue !== undefined) {
-            await this.updateFkColumn({
-              client: this.prodClient,
-              tableName,
-              fkColumn,
-              value: devValue as string,
-              pkColumns,
-              pkValues,
-            });
-          }
-        }
-
-        if (comparison === 'prod-newer' || comparison === 'same') {
-          // Update dev with prod's FK value
-          if (prodValue !== null && prodValue !== undefined) {
-            await this.updateFkColumn({
-              client: this.devClient,
-              tableName,
-              fkColumn,
-              value: prodValue as string,
-              pkColumns,
-              pkValues,
-            });
-          }
-        }
-      }
-    }
-
-    // Also handle rows that only exist in prod (copy their FK values to dev)
-    for (const [key, prodRow] of prodMap) {
-      if (devMap.has(key)) {
-        continue; // Already handled above
-      }
-
-      const prodObj = prodRow as Record<string, unknown>;
-      const pkValues = pkColumns.map(col => prodObj[col]);
-
-      for (const fkColumn of deferredFkColumns) {
-        const prodValue = prodObj[fkColumn];
-        if (prodValue !== null && prodValue !== undefined) {
-          await this.updateFkColumn({
-            client: this.devClient,
-            tableName,
-            fkColumn,
-            value: prodValue as string,
-            pkColumns,
-            pkValues,
-          });
-        }
-      }
-    }
-
-    // Handle rows that only exist in dev (copy their FK values to prod)
-    for (const [key, devRow] of devMap) {
-      if (prodMap.has(key)) {
-        continue; // Already handled above
-      }
-
-      const devObj = devRow as Record<string, unknown>;
-      const pkValues = pkColumns.map(col => devObj[col]);
-
-      for (const fkColumn of deferredFkColumns) {
-        const devValue = devObj[fkColumn];
-        if (devValue !== null && devValue !== undefined) {
-          await this.updateFkColumn({
-            client: this.prodClient,
-            tableName,
-            fkColumn,
-            value: devValue as string,
-            pkColumns,
-            pkValues,
-          });
-        }
-      }
-    }
-  }
-
-  /**
-   * Update a single FK column for a specific row (pass 2 of two-pass sync)
-   */
-  private async updateFkColumn(options: UpdateFkColumnOptions): Promise<void> {
-    const { client, tableName, fkColumn, value, pkColumns, pkValues } = options;
-
-    // Build WHERE clause for primary key
-    const whereClause = pkColumns.map((col, i) => `"${col}" = $${i + 2}::uuid`).join(' AND ');
-
-    const query = `
-      UPDATE "${tableName}"
-      SET "${fkColumn}" = $1::uuid
-      WHERE ${whereClause}
-    `;
-
-    try {
-      await client.$executeRawUnsafe(query, value, ...pkValues);
-    } catch (error) {
-      logger.error(
-        { tableName, fkColumn, value, pkValues, error },
-        '[Sync] FK update failed - referenced row may not exist'
-      );
-      throw error;
-    }
-  }
 }
