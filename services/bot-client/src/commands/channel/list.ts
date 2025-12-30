@@ -1,15 +1,5 @@
 /**
- * Channel List Subcommand
- * Handles /channel list
- *
- * Lists all channels with activated personalities.
- * Features:
- * - Server-scoped filtering (shows only current server by default)
- * - Manage Messages permission required
- * - Admin --all flag for cross-server view (grouped by server)
- * - Interactive pagination with buttons
- * - Sort toggle (chronological vs alphabetical)
- * - Lazy backfill of missing guildId data
+ * Channel List Subcommand - Handles /channel list
  */
 
 import type {
@@ -36,17 +26,17 @@ import {
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
 import { ChannelCustomIds, type ChannelListSortType } from '../../utils/customIds.js';
+import {
+  CHANNELS_PER_PAGE,
+  CHANNELS_PER_PAGE_ALL_SERVERS,
+  COLLECTOR_TIMEOUT_MS,
+  type GuildPage,
+} from './listTypes.js';
+
+// Re-export for backward compatibility
+export { CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from './listTypes.js';
 
 const logger = createLogger('channel-list');
-
-/** Channels per page for pagination (single guild mode) */
-const CHANNELS_PER_PAGE = 10;
-
-/** Channels per page for all-servers mode (slightly smaller to account for guild headers) */
-export const CHANNELS_PER_PAGE_ALL_SERVERS = 8;
-
-/** Button collector timeout in milliseconds (60 seconds) */
-const COLLECTOR_TIMEOUT_MS = 60_000;
 
 /**
  * Format a single activation for display
@@ -109,20 +99,6 @@ function sortActivations(
   }
 
   return sorted;
-}
-
-/**
- * Represents a page of guild activations for all-servers view
- *
- * Note: guildName stores the raw (unescaped) name. Escaping is done at display time
- * in buildEmbedAllServers() to keep data structures clean and allow future reuse.
- */
-export interface GuildPage {
-  guildId: string;
-  guildName: string; // Raw name - escape with escapeMarkdown() when displaying
-  activations: ActivatedChannel[];
-  isContinuation: boolean; // True if this continues from previous page
-  isComplete: boolean; // True if this is the last page for this guild
 }
 
 /**
