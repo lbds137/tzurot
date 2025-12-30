@@ -69,7 +69,12 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
       }
 
-      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(
+        prisma,
+        discordUserId,
+        personalitySlug,
+        explicitPersonaId
+      );
 
       if (!context) {
         return sendError(
@@ -168,7 +173,12 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
       }
 
-      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(
+        prisma,
+        discordUserId,
+        personalitySlug,
+        explicitPersonaId
+      );
 
       if (!context) {
         return sendError(
@@ -302,7 +312,12 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(
+        prisma,
+        discordUserId,
+        personalitySlug,
+        explicitPersonaId
+      );
 
       if (!context) {
         return sendError(
@@ -423,7 +438,12 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       }
 
       // Use getHistoryContext for consistency with other history commands
-      const context = await resolveHistoryContext(prisma, discordUserId, personalitySlug, explicitPersonaId);
+      const context = await resolveHistoryContext(
+        prisma,
+        discordUserId,
+        personalitySlug,
+        explicitPersonaId
+      );
 
       if (!context) {
         return sendError(
