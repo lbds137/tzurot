@@ -104,7 +104,11 @@ export class UserReferenceResolver {
           `[UserReferenceResolver] No mapping found, falling back to username`
         );
       }
-      return { updatedText: ctx.currentText.replaceAll(fullMatch, replacement), persona: null, markAsSeen: null };
+      return {
+        updatedText: ctx.currentText.replaceAll(fullMatch, replacement),
+        persona: null,
+        markAsSeen: null,
+      };
     }
 
     const updatedText = ctx.currentText.replaceAll(fullMatch, persona.personaName);
