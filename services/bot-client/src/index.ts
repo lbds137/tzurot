@@ -302,6 +302,63 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
+/**
+ * Verify database connection and log personality count
+ */
+async function verifyDatabaseConnection(): Promise<void> {
+  logger.info('[Bot] Verifying database connection...');
+  const tempPrisma = getPrismaClient();
+  const tempPersonalityService = new PersonalityService(tempPrisma);
+  const personalityList = await tempPersonalityService.loadAllPersonalities();
+  logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
+}
+
+/**
+ * Start listening for job results and handle delivery to Discord
+ */
+async function startResultsListener(): Promise<void> {
+  logger.info('[Bot] Starting results listener...');
+  await services.resultsListener.start(async (jobId, result) => {
+    try {
+      await services.messageHandler.handleJobResult(jobId, result);
+      await services.gatewayClient.confirmDelivery(jobId);
+    } catch (error) {
+      logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
+    }
+  });
+  logger.info('[Bot] Results listener started');
+}
+
+/**
+ * Subscribe to all cache invalidation events (personality, persona, channel activation)
+ */
+async function subscribeToCacheInvalidation(): Promise<void> {
+  await services.cacheInvalidationService.subscribe();
+  logger.info('[Bot] Subscribed to personality cache invalidation events');
+
+  await services.personaCacheInvalidationService.subscribe(event => {
+    if (event.type === 'user') {
+      services.personaResolver.invalidateUserCache(event.discordId);
+      logger.debug({ discordId: event.discordId }, '[Bot] Invalidated persona cache for user');
+    } else if (event.type === 'all') {
+      services.personaResolver.clearCache();
+      logger.debug('[Bot] Invalidated all persona caches');
+    }
+  });
+  logger.info('[Bot] Subscribed to persona cache invalidation events');
+
+  await services.channelActivationCacheInvalidationService.subscribe(event => {
+    if (event.type === 'channel') {
+      invalidateChannelActivationCache(event.channelId);
+      logger.debug({ channelId: event.channelId }, '[Bot] Invalidated channel activation cache');
+    } else if (event.type === 'all') {
+      clearAllChannelActivationCache();
+      logger.debug('[Bot] Invalidated all channel activation caches');
+    }
+  });
+  logger.info('[Bot] Subscribed to channel activation cache invalidation events');
+}
+
 // Start the bot with explicit return type
 async function start(): Promise<void> {
   try {
@@ -313,12 +370,8 @@ async function start(): Promise<void> {
       '[Bot] Configuration:'
     );
 
-    // Verify we can connect to database
-    logger.info('[Bot] Verifying database connection...');
-    const tempPrisma = getPrismaClient();
-    const tempPersonalityService = new PersonalityService(tempPrisma);
-    const personalityList = await tempPersonalityService.loadAllPersonalities();
-    logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
+    // Verify database connection
+    await verifyDatabaseConnection();
 
     // Auto-deploy commands if enabled
     if (envConfig.AUTO_DEPLOY_COMMANDS === 'true') {
@@ -342,35 +395,8 @@ async function start(): Promise<void> {
     services = createServices();
     logger.info('[Bot] All services initialized');
 
-    // Subscribe to cache invalidation events
-    await services.cacheInvalidationService.subscribe();
-    logger.info('[Bot] Subscribed to personality cache invalidation events');
-
-    // Subscribe to persona cache invalidation events
-    // When a user edits their persona, this invalidates the local cache
-    await services.personaCacheInvalidationService.subscribe(event => {
-      if (event.type === 'user') {
-        services.personaResolver.invalidateUserCache(event.discordId);
-        logger.debug({ discordId: event.discordId }, '[Bot] Invalidated persona cache for user');
-      } else if (event.type === 'all') {
-        services.personaResolver.clearCache();
-        logger.debug('[Bot] Invalidated all persona caches');
-      }
-    });
-    logger.info('[Bot] Subscribed to persona cache invalidation events');
-
-    // Subscribe to channel activation cache invalidation events
-    // Enables horizontal scaling - all instances stay in sync when channels are activated/deactivated
-    await services.channelActivationCacheInvalidationService.subscribe(event => {
-      if (event.type === 'channel') {
-        invalidateChannelActivationCache(event.channelId);
-        logger.debug({ channelId: event.channelId }, '[Bot] Invalidated channel activation cache');
-      } else if (event.type === 'all') {
-        clearAllChannelActivationCache();
-        logger.debug('[Bot] Invalidated all channel activation caches');
-      }
-    });
-    logger.info('[Bot] Subscribed to channel activation cache invalidation events');
+    // Subscribe to all cache invalidation events (personality, persona, channel activation)
+    await subscribeToCacheInvalidation();
 
     // Health check gateway
     logger.info('[Bot] Checking gateway health...');
@@ -386,19 +412,7 @@ async function start(): Promise<void> {
     logger.info('[Bot] Successfully logged in to Discord');
 
     // Start listening for job results (async delivery pattern)
-    logger.info('[Bot] Starting results listener...');
-    await services.resultsListener.start(async (jobId, result) => {
-      try {
-        // Handle result - MessageHandler gets context from JobTracker
-        await services.messageHandler.handleJobResult(jobId, result);
-
-        // Confirm delivery to api-gateway (best-effort, non-blocking)
-        await services.gatewayClient.confirmDelivery(jobId);
-      } catch (error) {
-        logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
-      }
-    });
-    logger.info('[Bot] Results listener started');
+    await startResultsListener();
   } catch (error) {
     logger.error({ err: error }, 'Failed to start bot');
     process.exit(1);
