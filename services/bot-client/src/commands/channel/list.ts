@@ -436,7 +436,10 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     });
 
     if (!result.ok) {
-      logger.warn({ userId: interaction.user.id, error: result.error, status: result.status }, '[Channel] List failed');
+      logger.warn(
+        { userId: interaction.user.id, error: result.error, status: result.status },
+        '[Channel] List failed'
+      );
       await interaction.editReply(`❌ Failed to list activations: ${result.error}`);
       return;
     }
