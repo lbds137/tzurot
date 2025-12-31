@@ -90,6 +90,28 @@ async function fetchAvatarData(slug: string): Promise<Buffer | null> {
 }
 
 /**
+ * Attempt to add avatar attachment if character has one
+ * @returns Status message about avatar export
+ */
+async function addAvatarAttachment(
+  slug: string,
+  displayName: string,
+  files: AttachmentBuilder[]
+): Promise<string> {
+  const avatarBuffer = await fetchAvatarData(slug);
+  if (avatarBuffer !== null) {
+    files.push(
+      new AttachmentBuilder(avatarBuffer, {
+        name: `${slug}-avatar.png`,
+        description: `Avatar for ${displayName}`,
+      })
+    );
+    return '🖼️ Avatar image included';
+  }
+  return '⚠️ Avatar could not be exported';
+}
+
+/**
  * Handle /character export subcommand
  * Exports character as JSON file + separate avatar image (if exists)
  */
@@ -149,21 +171,11 @@ export async function handleExport(
 
     // Add avatar as separate image file if it exists
     if (character.hasAvatar) {
-      const avatarBuffer = await fetchAvatarData(slug);
-      if (avatarBuffer !== null) {
-        const avatarAttachment = new AttachmentBuilder(avatarBuffer, {
-          name: `${slug}-avatar.png`,
-          description: `Avatar for ${displayName}`,
-        });
-        files.push(avatarAttachment);
-        contentParts.push('🖼️ Avatar image included');
-      } else {
-        contentParts.push('⚠️ Avatar could not be exported');
-      }
+      contentParts.push(await addAvatarAttachment(slug, displayName, files));
     }
 
-    contentParts.push('');
     contentParts.push(
+      '',
       '📝 Edit the JSON and re-import with `/character import`.\n' +
         'You can optionally include a new avatar image when importing.'
     );

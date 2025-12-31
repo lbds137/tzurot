@@ -322,6 +322,91 @@ async function backfillMissingGuildIds(
 }
 
 /**
+ * Get empty state message when no activations found
+ */
+function getEmptyStateMessage(showAll: boolean): string {
+  const scope = showAll
+    ? 'No channels have activated personalities across all servers.'
+    : 'No channels have activated personalities in this server.';
+  return `📍 ${scope}\n\nUse \`/channel activate\` in a channel to set up auto-responses.`;
+}
+
+interface PageViewOptions {
+  activations: ActivatedChannel[];
+  sortedActivations: ActivatedChannel[];
+  page: number;
+  sortType: ChannelListSortType;
+  showAll: boolean;
+  client: Client;
+}
+
+/**
+ * Build embed and calculate total pages for current view
+ */
+function buildPageView(opts: PageViewOptions): { embed: EmbedBuilder; totalPages: number } {
+  if (opts.showAll) {
+    const guildPages = buildGuildPages(opts.sortedActivations, opts.client);
+    return {
+      embed: buildEmbedAllServers(guildPages, opts.page, opts.sortType, opts.activations.length),
+      totalPages: guildPages.length,
+    };
+  }
+  return {
+    embed: buildEmbedSingleGuild(opts.sortedActivations, opts.page, opts.sortType),
+    totalPages: Math.ceil(opts.sortedActivations.length / CHANNELS_PER_PAGE),
+  };
+}
+
+/**
+ * Set up button collector for pagination and sorting
+ */
+function setupPaginationCollector(
+  interaction: ChatInputCommandInteraction,
+  response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
+  activations: ActivatedChannel[],
+  showAll: boolean
+): void {
+  const collector = response.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: COLLECTOR_TIMEOUT_MS,
+    filter: i => i.user.id === interaction.user.id,
+  });
+
+  collector.on('collect', (buttonInteraction: ButtonInteraction) => {
+    const parsed = ChannelCustomIds.parse(buttonInteraction.customId);
+    if (parsed === null) {
+      return;
+    }
+
+    let newPage = parsed.page ?? 0;
+    const newSort = parsed.sort ?? 'date';
+
+    if (parsed.action === 'sort') {
+      newPage = 0; // Reset to first page when changing sort
+    }
+
+    const newSortedActivations = sortActivations(activations, newSort, interaction.client, showAll);
+    const { embed, totalPages } = buildPageView({
+      activations,
+      sortedActivations: newSortedActivations,
+      page: newPage,
+      sortType: newSort,
+      showAll,
+      client: interaction.client,
+    });
+
+    const newComponents = [buildButtons(newPage, totalPages, newSort)];
+    void buttonInteraction.update({ embeds: [embed], components: newComponents });
+  });
+
+  collector.on('end', () => {
+    void interaction.editReply({ components: [] }).catch(() => {
+      // Ignore errors if message was deleted
+    });
+  });
+}
+
+/**
  * Handle /channel list command
  */
 export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -333,19 +418,17 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
   }
 
   const showAll = interaction.options.getBoolean('all') ?? false;
-  const guildId = interaction.guildId;
 
   // Check --all permission (bot owner only)
-  if (showAll) {
-    // Note: requireBotOwner handles the error message
-    if (!(await requireBotOwner(interaction))) {
-      return;
-    }
+  if (showAll && !(await requireBotOwner(interaction))) {
+    return;
   }
 
   try {
     // Build query path with optional guildId filter
-    const queryPath = showAll ? '/user/channel/list' : `/user/channel/list?guildId=${guildId}`;
+    const queryPath = showAll
+      ? '/user/channel/list'
+      : `/user/channel/list?guildId=${interaction.guildId}`;
 
     const result = await callGatewayApi<ListChannelActivationsResponse>(queryPath, {
       userId: interaction.user.id,
@@ -353,15 +436,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     });
 
     if (!result.ok) {
-      logger.warn(
-        {
-          userId: interaction.user.id,
-          error: result.error,
-          status: result.status,
-        },
-        '[Channel] List failed'
-      );
-
+      logger.warn({ userId: interaction.user.id, error: result.error, status: result.status }, '[Channel] List failed');
       await interaction.editReply(`❌ Failed to list activations: ${result.error}`);
       return;
     }
@@ -372,18 +447,12 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     await backfillMissingGuildIds(activations, interaction.client, interaction.user.id);
 
     // For current server view, filter again after backfill (in case some got resolved)
-    if (!showAll && guildId !== null) {
-      activations = activations.filter(a => a.guildId === guildId);
+    if (!showAll && interaction.guildId !== null) {
+      activations = activations.filter(a => a.guildId === interaction.guildId);
     }
 
     if (activations.length === 0) {
-      const scopeMessage = showAll
-        ? 'No channels have activated personalities across all servers.'
-        : 'No channels have activated personalities in this server.';
-
-      await interaction.editReply(
-        `📍 ${scopeMessage}\n\n` + 'Use `/channel activate` in a channel to set up auto-responses.'
-      );
+      await interaction.editReply(getEmptyStateMessage(showAll));
       return;
     }
 
@@ -391,89 +460,27 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     const sortType: ChannelListSortType = 'date';
     const sortedActivations = sortActivations(activations, sortType, interaction.client, showAll);
 
-    // Build initial embed and components based on mode
-    let embed: EmbedBuilder;
-    let totalPages: number;
-
-    if (showAll) {
-      // All-servers mode: use guild-aware pagination
-      const guildPages = buildGuildPages(sortedActivations, interaction.client);
-      totalPages = guildPages.length;
-      embed = buildEmbedAllServers(guildPages, 0, sortType, activations.length);
-    } else {
-      // Single guild mode: use simple pagination
-      totalPages = Math.ceil(sortedActivations.length / CHANNELS_PER_PAGE);
-      embed = buildEmbedSingleGuild(sortedActivations, 0, sortType);
-    }
-
-    // Always show buttons (sort toggle useful even with 1 page)
+    // Build initial embed and components
+    const { embed, totalPages } = buildPageView({
+      activations,
+      sortedActivations,
+      page: 0,
+      sortType,
+      showAll,
+      client: interaction.client,
+    });
     const components = [buildButtons(0, totalPages, sortType)];
 
     const response = await interaction.editReply({ embeds: [embed], components });
 
     logger.info(
-      {
-        userId: interaction.user.id,
-        count: activations.length,
-        showAll,
-      },
+      { userId: interaction.user.id, count: activations.length, showAll },
       '[Channel] Listed activations'
     );
 
     // Set up button collector for pagination and sorting
     if (components.length > 0) {
-      const collector = response.createMessageComponentCollector({
-        componentType: ComponentType.Button,
-        time: COLLECTOR_TIMEOUT_MS,
-        filter: i => i.user.id === interaction.user.id,
-      });
-
-      collector.on('collect', (buttonInteraction: ButtonInteraction) => {
-        const parsed = ChannelCustomIds.parse(buttonInteraction.customId);
-        if (parsed === null) {
-          return;
-        }
-
-        let newPage = parsed.page ?? 0;
-        const newSort = parsed.sort ?? 'date';
-
-        if (parsed.action === 'sort') {
-          // Sort toggle - use the new sort from the button
-          newPage = 0; // Reset to first page when changing sort
-        }
-
-        const newSortedActivations = sortActivations(
-          activations,
-          newSort,
-          interaction.client,
-          showAll
-        );
-
-        let newEmbed: EmbedBuilder;
-        let newTotalPages: number;
-
-        if (showAll) {
-          // All-servers mode: use guild-aware pagination
-          const newGuildPages = buildGuildPages(newSortedActivations, interaction.client);
-          newTotalPages = newGuildPages.length;
-          newEmbed = buildEmbedAllServers(newGuildPages, newPage, newSort, activations.length);
-        } else {
-          // Single guild mode: use simple pagination
-          newTotalPages = Math.ceil(newSortedActivations.length / CHANNELS_PER_PAGE);
-          newEmbed = buildEmbedSingleGuild(newSortedActivations, newPage, newSort);
-        }
-
-        const newComponents = [buildButtons(newPage, newTotalPages, newSort)];
-
-        void buttonInteraction.update({ embeds: [newEmbed], components: newComponents });
-      });
-
-      collector.on('end', () => {
-        // Disable buttons after timeout
-        void interaction.editReply({ components: [] }).catch(() => {
-          // Ignore errors if message was deleted
-        });
-      });
+      setupPaginationCollector(interaction, response, activations, showAll);
     }
   } catch (error) {
     logger.error(
