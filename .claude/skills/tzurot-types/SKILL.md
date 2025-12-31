@@ -1,7 +1,7 @@
 ---
 name: tzurot-types
 description: Use when creating types, constants, Zod schemas, or working with data validation. Covers common-types package organization, runtime validation, and type guards across microservices.
-lastUpdated: '2025-12-20'
+lastUpdated: '2025-12-31'
 ---
 
 # Tzurot v3 Types & Constants
@@ -220,6 +220,7 @@ export type MyNewType = z.infer<typeof MyNewSchema>;
 
 ## Related Skills
 
+- **tzurot-code-quality** - no-explicit-any, type safety enforcement
 - **tzurot-testing** - Type-safe test fixtures
 - **tzurot-async-flow** - BullMQ job data types
 - **tzurot-db-vector** - Prisma schema types

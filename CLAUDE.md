@@ -81,6 +81,97 @@ await prisma.userPersonalityConfig.upsert({
 | `api-gateway` | ✅ Yes   | Source of truth         |
 | `ai-worker`   | ✅ Yes   | Memory/conversation ops |
 
+## Engineering Standards
+
+### Code Quality Limits (ESLint Enforced)
+
+| Metric | Limit | Level | Why |
+|--------|-------|-------|-----|
+| File length | 500 lines | Error | Prevents monolithic modules |
+| Function length | 100 lines | Warn | SRP enforcement |
+| Cyclomatic complexity | 15 | Warn | Readable branching |
+| Nesting depth | 4 | Warn | Prevents arrow code |
+| Parameters | 5 | Warn | Use options objects |
+| Statements/function | 30 | Warn | Extract helpers |
+| Nested callbacks | 3 | Warn | Use async/await |
+
+**When hitting limits**: Extract helpers, use options objects, split files.
+
+**📚 See**: `tzurot-code-quality` skill for refactoring patterns
+
+### Type Safety (TypeScript Strict Mode)
+
+- `strict: true` - All strict checks enabled
+- `@typescript-eslint/no-explicit-any` - ERROR (use `unknown` + type guards)
+- `@typescript-eslint/no-unsafe-*` - ERROR (no unsafe operations)
+- `@typescript-eslint/strict-boolean-expressions` - ERROR
+
+### Coverage Requirements (Codecov Enforced)
+
+| Target | Threshold | Enforcement |
+|--------|-----------|-------------|
+| Project | 80% | CI blocks if coverage drops >2% |
+| Patch | 80% | New code must be 80%+ covered |
+
+Services tracked separately: ai-worker, api-gateway, bot-client, common-types
+
+### Error Handling Strategy
+
+**Predictable errors return values; unexpected failures throw.**
+
+```typescript
+// ✅ Gateway API responses use Result pattern
+const result = await callGatewayApi<PersonaResponse>('/user/persona', { userId });
+if (!result.ok) {
+  await interaction.editReply(`❌ ${result.error}`);
+  return;
+}
+// result.data is typed correctly here
+```
+
+### Bounded Data Access
+
+**All queries returning arrays must be bounded.**
+
+- Required: `take` limit on `findMany` queries
+- Required: Cursor-based pagination for list endpoints
+
+```typescript
+// ✅ CORRECT - Bounded query
+const items = await prisma.personality.findMany({ take: 100 });
+
+// ❌ WRONG - Unbounded (OOM risk as data grows)
+const items = await prisma.personality.findMany();
+```
+
+### Boy Scout Rule
+
+**Leave code better than you found it.**
+
+When modifying a file:
+- Fix lint warnings in code you touch
+- Add missing types to functions you modify
+- Extract helpers if adding to an already-long function
+
+### Dead Code Policy (YAGNI)
+
+**Delete immediately, don't comment out.**
+
+- ❌ No `// TODO: remove later`
+- ❌ No `if (false) { ... }`
+- ❌ No unused imports/variables (ESLint enforced)
+- ✅ Git history preserves deleted code
+
+### Code Review Checklist
+
+Before approving any PR:
+
+| Category | Checks |
+|----------|--------|
+| **Safety** | No secrets, no unbounded queries, error cases handled |
+| **Quality** | Functions <100 lines, complexity <15, no `any` types |
+| **Testing** | New behavior tested, tests pass, no `.skip` or `.only` |
+
 ## Tech Stack
 
 - **Language**: TypeScript (Node.js 20+, pnpm workspaces)
@@ -94,7 +185,7 @@ await prisma.userPersonalityConfig.upsert({
 
 ```
 tzurot/
-├── .claude/skills/         # 13 project-specific skills
+├── .claude/skills/         # 14 project-specific skills
 ├── services/
 │   ├── bot-client/         # Discord interface
 │   ├── api-gateway/        # HTTP API + BullMQ queue
@@ -170,23 +261,24 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 ## Skills Reference
 
-13 project-specific skills in `.claude/skills/`:
+14 project-specific skills in `.claude/skills/`:
 
-| Skill                | Use When                       |
-| -------------------- | ------------------------------ |
-| tzurot-testing       | Writing tests, mocking         |
-| tzurot-types         | Types, constants, Zod schemas  |
-| tzurot-git-workflow  | Commits, PRs, rebasing         |
-| tzurot-security      | Secrets, user input            |
-| tzurot-observability | Logging, debugging, operations |
-| tzurot-architecture  | Service design, error patterns |
-| tzurot-docs          | Documentation, session handoff |
-| tzurot-gemini-collab | Consulting Gemini MCP          |
-| tzurot-db-vector     | PostgreSQL, pgvector           |
-| tzurot-async-flow    | BullMQ, Discord deferrals      |
-| tzurot-deployment    | Railway, troubleshooting       |
-| tzurot-caching       | Cache patterns                 |
-| tzurot-skills-guide  | Creating/updating skills       |
+| Skill                | Use When                       | Enforces                  |
+| -------------------- | ------------------------------ | ------------------------- |
+| tzurot-code-quality  | Lint errors, refactoring       | ESLint rules, SOLID       |
+| tzurot-testing       | Writing tests, mocking         | Coverage, test behavior   |
+| tzurot-types         | Types, constants, Zod schemas  | Type safety, DRY          |
+| tzurot-git-workflow  | Commits, PRs, rebasing         | Git safety, hooks         |
+| tzurot-security      | Secrets, user input            | Least privilege           |
+| tzurot-observability | Logging, debugging, operations | Structured logging        |
+| tzurot-architecture  | Service design, error patterns | SRP, service boundaries   |
+| tzurot-docs          | Documentation, session handoff | Knowledge continuity      |
+| tzurot-council-mcp   | Consulting external AI         | Second opinions           |
+| tzurot-db-vector     | PostgreSQL, pgvector           | Query patterns            |
+| tzurot-async-flow    | BullMQ, Discord deferrals      | Async patterns            |
+| tzurot-deployment    | Railway, troubleshooting       | Deploy safety             |
+| tzurot-caching       | Cache patterns                 | Cache invalidation        |
+| tzurot-skills-guide  | Creating/updating skills       | Skill quality             |
 
 ## Post-Mortems
 

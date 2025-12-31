@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Use when writing tests, debugging test failures, mocking dependencies, or using fake timers. Covers Vitest patterns, mock factories, and promise rejection handling.
-lastUpdated: '2025-12-20'
+lastUpdated: '2025-12-31'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -156,6 +156,58 @@ function createMockRedis() {
 | New utility      | ✅   | No          | No             |
 | Bug fix          | ✅   | If contract | If integration |
 
+## Contract Tests
+
+Contract tests verify API boundaries between services. Located in `common-types/types/`.
+
+```typescript
+// *.contract.test.ts - Verify schema compatibility
+import { PersonaResponseSchema } from './schemas.js';
+
+describe('PersonaResponse contract', () => {
+  it('should parse valid API response', () => {
+    const response = { id: 'uuid', name: 'Test', preferredName: null };
+    expect(() => PersonaResponseSchema.parse(response)).not.toThrow();
+  });
+
+  it('should reject invalid response', () => {
+    const response = { id: 123 }; // Wrong type
+    expect(() => PersonaResponseSchema.parse(response)).toThrow();
+  });
+});
+```
+
+**When to write**: New API endpoints, schema changes, cross-service communication.
+
+**Purpose**: Catch breaking changes before they hit production. If bot-client expects `{ name: string }` but api-gateway returns `{ displayName: string }`, contract tests fail.
+
+## Integration Tests
+
+Integration tests verify multiple components working together. Located in `tests/integration/`.
+
+```typescript
+// Test actual service interactions (with mocked externals)
+describe('AI generation flow', () => {
+  it('should process job through full pipeline', async () => {
+    // Setup: Create test job data
+    const jobData = createTestGenerationJob();
+
+    // Act: Process through actual handlers (mocking only AI/Discord)
+    const result = await processGenerationJob(jobData);
+
+    // Assert: Verify end-to-end behavior
+    expect(result.response).toBeDefined();
+    expect(mockDiscordWebhook).toHaveBeenCalled();
+  });
+});
+```
+
+**When to write**: Complex workflows, cross-service operations, database interactions.
+
+**Key difference**:
+- **Unit tests**: Mock all dependencies, test one function
+- **Integration tests**: Use real components (except external APIs like Discord, OpenRouter)
+
 ## Anti-Patterns
 
 ```typescript
@@ -172,20 +224,31 @@ console.log('Debug:', value);
 it.skip('broken test', () => {});
 ```
 
-## Coverage Commands
+## Coverage Requirements (CI Enforced)
 
 ```bash
-# All services
+# Check coverage locally
 pnpm test:coverage
 
 # Specific service
 pnpm --filter @tzurot/api-gateway test:coverage
 ```
 
-**Targets:** Services >80%, Utils >90%
+| Target | Threshold | Enforcement |
+|--------|-----------|-------------|
+| Project | 80% | Codecov blocks if drops >2% |
+| Patch | 80% | New code must be 80%+ covered |
+| Services | 80% | Tracked per-service (ai-worker, api-gateway, bot-client) |
+| Utils | 90% | Higher bar for shared utilities |
+
+**CI Gate**: Codecov runs on every PR. Coverage report shows:
+- Overall project coverage change
+- Per-file coverage for changed files
+- Patch coverage (new/modified lines only)
 
 ## Related Skills
 
+- **tzurot-code-quality** - Lint rules, refactoring patterns
 - **tzurot-types** - Type-safe test fixtures
 - **tzurot-git-workflow** - Run tests before pushing
 - **tzurot-observability** - Mock logger in tests

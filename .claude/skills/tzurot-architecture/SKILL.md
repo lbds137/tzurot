@@ -1,7 +1,7 @@
 ---
 name: tzurot-architecture
 description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
-lastUpdated: '2025-12-20'
+lastUpdated: '2025-12-31'
 ---
 
 # Tzurot v3 Architecture
@@ -138,6 +138,19 @@ const service = new MyService(prisma, redis);
 - Stateless utility function
 - Very simple logic
 
+## Complexity Signals (ESLint Warnings)
+
+ESLint warnings indicate when to refactor:
+
+| Warning | Threshold | Action |
+|---------|-----------|--------|
+| `max-statements` | >30 | Extract helper functions |
+| `complexity` | >15 | Use data-driven patterns |
+| `max-lines-per-function` | >100 | Split responsibilities |
+| `max-params` | >5 | Use options object pattern |
+
+**📚 See**: `tzurot-code-quality` skill for refactoring patterns
+
 ## Database Access
 
 **Direct Prisma in services** - No repository pattern
@@ -166,10 +179,11 @@ const timeout = TIMEOUTS.LLM_INVOCATION;
 
 ## Related Skills
 
+- **tzurot-code-quality** - Refactoring patterns for complexity
 - **tzurot-async-flow** - BullMQ job patterns
 - **tzurot-db-vector** - Database patterns
 - **tzurot-types** - Type definitions
-- **tzurot-gemini-collab** - Major design decisions
+- **tzurot-council-mcp** - Major design decisions
 
 ## References
 
