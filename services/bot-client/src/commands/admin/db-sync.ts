@@ -19,6 +19,46 @@ interface SyncResult {
   totalCollections?: number;
 }
 
+/**
+ * Build the summary description for the sync result embed
+ */
+function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
+  const summary: string[] = [];
+
+  if (
+    result.schemaVersion !== undefined &&
+    result.schemaVersion !== null &&
+    result.schemaVersion.length > 0
+  ) {
+    summary.push(`**Schema Version**: \`${result.schemaVersion}\``);
+  }
+
+  if (result.stats) {
+    summary.push('\n**Sync Statistics**:');
+    for (const [table, stats] of Object.entries(result.stats)) {
+      const conflicts =
+        stats.conflicts !== undefined && stats.conflicts !== null && stats.conflicts > 0
+          ? `, ${stats.conflicts} conflicts`
+          : '';
+      summary.push(
+        `\`${table}\`: ${stats.devToProd ?? 0} dev→prod, ${stats.prodToDev ?? 0} prod→dev${conflicts}`
+      );
+    }
+  }
+
+  if (dryRun && result.changes !== undefined && result.changes !== null) {
+    summary.push('\n**Changes Preview**:');
+    summary.push('```');
+    summary.push(
+      JSON.stringify(result.changes, null, 2).slice(0, TEXT_LIMITS.ADMIN_SUMMARY_TRUNCATE)
+    );
+    summary.push('```');
+    summary.push('\n*Run without `--dry-run` to apply these changes.*');
+  }
+
+  return summary.join('\n');
+}
+
 export async function handleDbSync(interaction: ChatInputCommandInteraction): Promise<void> {
   // Note: deferReply is handled by top-level interactionCreate handler
   const dryRun = interaction.options.getBoolean('dry-run') ?? false;
@@ -47,44 +87,8 @@ export async function handleDbSync(interaction: ChatInputCommandInteraction): Pr
     const embed = new EmbedBuilder()
       .setColor(dryRun ? DISCORD_COLORS.WARNING : DISCORD_COLORS.SUCCESS)
       .setTitle(dryRun ? '🔍 Database Sync Preview (Dry Run)' : '✅ Database Sync Complete')
-      .setTimestamp();
-
-    // Add sync summary
-    const summary: string[] = [];
-
-    if (
-      result.schemaVersion !== undefined &&
-      result.schemaVersion !== null &&
-      result.schemaVersion.length > 0
-    ) {
-      summary.push(`**Schema Version**: \`${result.schemaVersion}\``);
-    }
-
-    if (result.stats) {
-      summary.push('\n**Sync Statistics**:');
-      for (const [table, stats] of Object.entries(result.stats)) {
-        summary.push(
-          `\`${table}\`: ` +
-            `${stats.devToProd ?? 0} dev→prod, ` +
-            `${stats.prodToDev ?? 0} prod→dev` +
-            (stats.conflicts !== undefined && stats.conflicts !== null && stats.conflicts > 0
-              ? `, ${stats.conflicts} conflicts`
-              : '')
-        );
-      }
-    }
-
-    if (dryRun === true && result.changes !== undefined && result.changes !== null) {
-      summary.push('\n**Changes Preview**:');
-      summary.push('```');
-      summary.push(
-        JSON.stringify(result.changes, null, 2).slice(0, TEXT_LIMITS.ADMIN_SUMMARY_TRUNCATE)
-      );
-      summary.push('```');
-      summary.push('\n*Run without `--dry-run` to apply these changes.*');
-    }
-
-    embed.setDescription(summary.join('\n'));
+      .setTimestamp()
+      .setDescription(buildSyncSummary(result, dryRun));
 
     if (result.warnings && result.warnings.length > 0) {
       embed.addFields({
