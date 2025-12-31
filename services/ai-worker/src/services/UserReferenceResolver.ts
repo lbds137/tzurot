@@ -69,7 +69,10 @@ interface MatchContext {
 /** Result of processing a single match */
 interface MatchResult {
   updatedText: string;
+  /** Persona to add to results (null if already seen, self-reference, or not found) */
   persona: ResolvedPersona | null;
+  /** Persona ID to mark as seen (null if already seen or not found) */
+  markAsSeen: string | null;
 }
 
 /** Options for processing a match */
@@ -86,12 +89,14 @@ export class UserReferenceResolver {
   constructor(private prisma: PrismaClient) {}
 
   /**
-   * Process a single match and update context
+   * Process a single match (pure function - no mutations)
+   * Returns the updated text, persona to add, and ID to mark as seen
    */
   private processMatch(opts: ProcessMatchOptions): MatchResult {
     const { ctx, fullMatch, persona, logContext, refType, fallbackName } = opts;
+
+    // No persona found - use fallback or keep original
     if (persona === null) {
-      // Use fallback if provided, otherwise keep original
       const replacement = fallbackName ?? fullMatch;
       if (fallbackName !== undefined) {
         logger.debug(
@@ -99,30 +104,31 @@ export class UserReferenceResolver {
           `[UserReferenceResolver] No mapping found, falling back to username`
         );
       }
-      return { updatedText: ctx.currentText.replaceAll(fullMatch, replacement), persona: null };
+      return { updatedText: ctx.currentText.replaceAll(fullMatch, replacement), persona: null, markAsSeen: null };
     }
 
     const updatedText = ctx.currentText.replaceAll(fullMatch, persona.personaName);
 
+    // Already seen - just update text, don't add again
     if (ctx.seenPersonaIds.has(persona.personaId)) {
-      return { updatedText, persona: null };
+      return { updatedText, persona: null, markAsSeen: null };
     }
 
-    ctx.seenPersonaIds.add(persona.personaId);
-
+    // Self-reference - mark as seen but don't add to participants
     if (persona.personaId === ctx.activePersonaId) {
       logger.debug(
         { ...logContext, personaName: persona.personaName },
         `[UserReferenceResolver] Resolved ${refType} self-reference (not adding to participants)`
       );
-      return { updatedText, persona: null };
+      return { updatedText, persona: null, markAsSeen: persona.personaId };
     }
 
+    // Normal case - add persona and mark as seen
     logger.debug(
       { ...logContext, personaName: persona.personaName },
       `[UserReferenceResolver] Resolved ${refType} reference`
     );
-    return { updatedText, persona };
+    return { updatedText, persona, markAsSeen: persona.personaId };
   }
 
   /**
@@ -152,56 +158,61 @@ export class UserReferenceResolver {
       activePersonaId,
     };
 
+    // Helper to apply result to context (explicit mutation in one place)
+    const applyResult = (result: MatchResult): void => {
+      ctx.currentText = result.updatedText;
+      if (result.markAsSeen !== null) {
+        ctx.seenPersonaIds.add(result.markAsSeen);
+      }
+      if (result.persona !== null) {
+        ctx.resolvedPersonas.push(result.persona);
+      }
+    };
+
     // 1. Resolve shapes.inc markdown format: @[username](user:uuid)
     for (const match of [...text.matchAll(USER_REFERENCE_PATTERNS.SHAPES_MARKDOWN)]) {
       const [fullMatch, username, shapesUserId] = match;
       const persona = await this.resolveByShapesUserId(shapesUserId);
-      const result = this.processMatch({
-        ctx,
-        fullMatch,
-        persona,
-        logContext: { shapesUserId },
-        refType: 'shapes.inc',
-        fallbackName: username,
-      });
-      ctx.currentText = result.updatedText;
-      if (result.persona !== null) {
-        ctx.resolvedPersonas.push(result.persona);
-      }
+      applyResult(
+        this.processMatch({
+          ctx,
+          fullMatch,
+          persona,
+          logContext: { shapesUserId },
+          refType: 'shapes.inc',
+          fallbackName: username,
+        })
+      );
     }
 
     // 2. Resolve Discord mention format: <@discord_id>
     for (const match of [...ctx.currentText.matchAll(USER_REFERENCE_PATTERNS.DISCORD_MENTION)]) {
       const [fullMatch, discordId] = match;
       const persona = await this.resolveByDiscordId(discordId);
-      const result = this.processMatch({
-        ctx,
-        fullMatch,
-        persona,
-        logContext: { discordId },
-        refType: 'Discord',
-      });
-      ctx.currentText = result.updatedText;
-      if (result.persona !== null) {
-        ctx.resolvedPersonas.push(result.persona);
-      }
+      applyResult(
+        this.processMatch({
+          ctx,
+          fullMatch,
+          persona,
+          logContext: { discordId },
+          refType: 'Discord',
+        })
+      );
     }
 
     // 3. Resolve simple username format: @username
     for (const match of [...ctx.currentText.matchAll(USER_REFERENCE_PATTERNS.SIMPLE_USERNAME)]) {
       const [fullMatch, username] = match;
       const persona = await this.resolveByUsername(username);
-      const result = this.processMatch({
-        ctx,
-        fullMatch,
-        persona,
-        logContext: { username },
-        refType: 'username',
-      });
-      ctx.currentText = result.updatedText;
-      if (result.persona !== null) {
-        ctx.resolvedPersonas.push(result.persona);
-      }
+      applyResult(
+        this.processMatch({
+          ctx,
+          fullMatch,
+          persona,
+          logContext: { username },
+          refType: 'username',
+        })
+      );
     }
 
     if (ctx.resolvedPersonas.length > 0) {

@@ -3,6 +3,28 @@ import type { Logger, LoggerOptions } from 'pino';
 import { sanitizeLogMessage, sanitizeObject } from './logSanitizer.js';
 
 /**
+ * Error Serialization Pipeline
+ * ============================
+ *
+ * The customErrorSerializer handles various error types through a pipeline of helpers:
+ *
+ *   customErrorSerializer(err)
+ *          │
+ *          ├─► serializeNonObject(err)     → Returns early for null/undefined/primitives
+ *          │
+ *          ├─► determineErrorType(errObj)  → Identifies type from constructor/name property
+ *          │
+ *          ├─► [if DOMException]
+ *          │       └─► serializeDOMException() → Returns early with minimal props
+ *          │
+ *          └─► [else standard object]
+ *                  ├─► extractStandardProps()  → message, stack, cause (recursive)
+ *                  └─► extractExtraProps()     → enumerable + Node.js non-enumerable props
+ *
+ * All string values are sanitized via sanitizeLogMessage() to redact API keys.
+ */
+
+/**
  * Serialize non-object values (null, undefined, primitives)
  */
 function serializeNonObject(err: unknown): object | null {
