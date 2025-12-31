@@ -14,6 +14,31 @@ import { createLogger, getConfig } from '@tzurot/common-types';
 
 const logger = createLogger('deploy-commands');
 
+interface CommandJson {
+  toJSON(): unknown;
+}
+
+/**
+ * Load and validate a single command file
+ * @returns Command data JSON or null if invalid
+ */
+async function loadCommandFile(filePath: string): Promise<unknown> {
+  const command = (await import(filePath)) as Command;
+
+  if (
+    command.data === undefined ||
+    command.data === null ||
+    command.execute === undefined ||
+    command.execute === null
+  ) {
+    logger.warn({}, `Skipping invalid command file: ${filePath}`);
+    return null;
+  }
+
+  logger.info(`Loaded: /${command.data.name}`);
+  return (command.data as CommandJson).toJSON();
+}
+
 /**
  * Recursively get all .ts/.js files from commands directory
  */
@@ -65,22 +90,12 @@ export async function deployCommands(global = true): Promise<void> {
     const commandFiles = getCommandFiles(commandsPath);
     logger.info(`Loading ${commandFiles.length} command files...`);
 
-    const commands = [];
+    const commands: unknown[] = [];
     for (const filePath of commandFiles) {
-      const command = (await import(filePath)) as Command;
-
-      if (
-        command.data === undefined ||
-        command.data === null ||
-        command.execute === undefined ||
-        command.execute === null
-      ) {
-        logger.warn({}, `Skipping invalid command file: ${filePath}`);
-        continue;
+      const commandData = await loadCommandFile(filePath);
+      if (commandData !== null) {
+        commands.push(commandData);
       }
-
-      commands.push(command.data.toJSON());
-      logger.info(`Loaded: /${command.data.name}`);
     }
 
     logger.info(`Deploying ${commands.length} commands to Discord...`);

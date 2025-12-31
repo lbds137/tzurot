@@ -12,41 +12,57 @@ import { adminPutJson } from '../../../utils/adminApiClient.js';
 
 const logger = createLogger('preset-global-edit');
 
+interface EditOptions {
+  name: string | null;
+  model: string | null;
+  provider: string | null;
+  description: string | null;
+  visionModel: string | null;
+}
+
+/**
+ * Build update body from provided options (only non-null fields)
+ */
+function buildUpdateBody(options: EditOptions): Record<string, string> {
+  const body: Record<string, string> = {};
+  if (options.name !== null) {
+    body.name = options.name;
+  }
+  if (options.model !== null) {
+    body.model = options.model;
+  }
+  if (options.provider !== null) {
+    body.provider = options.provider;
+  }
+  if (options.description !== null) {
+    body.description = options.description;
+  }
+  if (options.visionModel !== null) {
+    body.visionModel = options.visionModel;
+  }
+  return body;
+}
+
 /**
  * Handle /preset global edit
  */
 export async function handleGlobalEdit(interaction: ChatInputCommandInteraction): Promise<void> {
   const configId = interaction.options.getString('config', true);
-  const name = interaction.options.getString('name');
-  const model = interaction.options.getString('model');
-  const provider = interaction.options.getString('provider');
-  const description = interaction.options.getString('description');
-  const visionModel = interaction.options.getString('vision-model');
+
+  const updateBody = buildUpdateBody({
+    name: interaction.options.getString('name'),
+    model: interaction.options.getString('model'),
+    provider: interaction.options.getString('provider'),
+    description: interaction.options.getString('description'),
+    visionModel: interaction.options.getString('vision-model'),
+  });
+
+  if (Object.keys(updateBody).length === 0) {
+    await replyWithError(interaction, 'No fields to update. Provide at least one option.');
+    return;
+  }
 
   try {
-    // Build update body (only include provided fields)
-    const updateBody: Record<string, unknown> = {};
-    if (name !== null) {
-      updateBody.name = name;
-    }
-    if (model !== null) {
-      updateBody.model = model;
-    }
-    if (provider !== null) {
-      updateBody.provider = provider;
-    }
-    if (description !== null) {
-      updateBody.description = description;
-    }
-    if (visionModel !== null) {
-      updateBody.visionModel = visionModel;
-    }
-
-    if (Object.keys(updateBody).length === 0) {
-      await replyWithError(interaction, 'No fields to update. Provide at least one option.');
-      return;
-    }
-
     const response = await adminPutJson(`/admin/llm-config/${configId}`, updateBody);
 
     if (!response.ok) {

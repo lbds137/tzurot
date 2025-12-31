@@ -19,6 +19,41 @@ import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-list');
 
+interface PersonaData {
+  name: string;
+  isDefault: boolean;
+  preferredName?: string | null;
+  pronouns?: string | null;
+  content?: string | null;
+}
+
+/**
+ * Build embed field for a single persona
+ */
+function buildPersonaField(persona: PersonaData): { name: string; value: string; inline: boolean } {
+  const safeName = escapeMarkdown(persona.name);
+  const fieldName = persona.isDefault ? `⭐ ${safeName} (default)` : safeName;
+
+  const details: string[] = [];
+  if (persona.preferredName !== undefined && persona.preferredName !== null) {
+    details.push(`**Name:** ${escapeMarkdown(persona.preferredName)}`);
+  }
+  if (persona.pronouns !== undefined && persona.pronouns !== null) {
+    details.push(`**Pronouns:** ${escapeMarkdown(persona.pronouns)}`);
+  }
+  const content = persona.content;
+  if (content !== undefined && content !== null && content.length > 0) {
+    const preview =
+      content.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW
+        ? `${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+        : content;
+    details.push(`**About:** ${escapeMarkdown(preview)}`);
+  }
+
+  const fieldValue = details.length > 0 ? details.join('\n') : '*No details set*';
+  return { name: fieldName, value: fieldValue, inline: false };
+}
+
 /**
  * Handle /me profile list command
  */
@@ -60,28 +95,7 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       );
 
     for (const persona of personas) {
-      const safeName = escapeMarkdown(persona.name);
-      const fieldName = persona.isDefault ? `⭐ ${safeName} (default)` : safeName;
-
-      const details: string[] = [];
-      if (persona.preferredName !== undefined && persona.preferredName !== null) {
-        details.push(`**Name:** ${escapeMarkdown(persona.preferredName)}`);
-      }
-      if (persona.pronouns !== undefined && persona.pronouns !== null) {
-        details.push(`**Pronouns:** ${escapeMarkdown(persona.pronouns)}`);
-      }
-      // Check for both undefined and null since shared schema has content as optional
-      const content = persona.content;
-      if (content !== undefined && content !== null && content.length > 0) {
-        const preview =
-          content.length > TEXT_LIMITS.LOG_PERSONA_PREVIEW
-            ? `${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
-            : content;
-        details.push(`**About:** ${escapeMarkdown(preview)}`);
-      }
-
-      const fieldValue = details.length > 0 ? details.join('\n') : '*No details set*';
-      embed.addFields({ name: fieldName, value: fieldValue, inline: false });
+      embed.addFields(buildPersonaField(persona));
     }
 
     embed.setFooter({
