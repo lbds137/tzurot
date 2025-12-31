@@ -21,7 +21,10 @@ function serializeNonObject(err: unknown): object | null {
 /**
  * Determine the error type from constructor name or name property
  */
-function determineErrorType(errObj: Record<string, unknown>): { type: string; isPlainObject: boolean } {
+function determineErrorType(errObj: Record<string, unknown>): {
+  type: string;
+  isPlainObject: boolean;
+} {
   const constructorName = errObj.constructor?.name;
   if (constructorName !== undefined && constructorName !== 'Object') {
     return { type: constructorName, isPlainObject: false };

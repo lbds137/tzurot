@@ -94,7 +94,10 @@ export class UserReferenceResolver {
       // Use fallback if provided, otherwise keep original
       const replacement = fallbackName ?? fullMatch;
       if (fallbackName !== undefined) {
-        logger.debug({ ...logContext, fallbackName }, `[UserReferenceResolver] No mapping found, falling back to username`);
+        logger.debug(
+          { ...logContext, fallbackName },
+          `[UserReferenceResolver] No mapping found, falling back to username`
+        );
       }
       return { updatedText: ctx.currentText.replaceAll(fullMatch, replacement), persona: null };
     }
@@ -108,11 +111,17 @@ export class UserReferenceResolver {
     ctx.seenPersonaIds.add(persona.personaId);
 
     if (persona.personaId === ctx.activePersonaId) {
-      logger.debug({ ...logContext, personaName: persona.personaName }, `[UserReferenceResolver] Resolved ${refType} self-reference (not adding to participants)`);
+      logger.debug(
+        { ...logContext, personaName: persona.personaName },
+        `[UserReferenceResolver] Resolved ${refType} self-reference (not adding to participants)`
+      );
       return { updatedText, persona: null };
     }
 
-    logger.debug({ ...logContext, personaName: persona.personaName }, `[UserReferenceResolver] Resolved ${refType} reference`);
+    logger.debug(
+      { ...logContext, personaName: persona.personaName },
+      `[UserReferenceResolver] Resolved ${refType} reference`
+    );
     return { updatedText, persona };
   }
 
@@ -148,7 +157,12 @@ export class UserReferenceResolver {
       const [fullMatch, username, shapesUserId] = match;
       const persona = await this.resolveByShapesUserId(shapesUserId);
       const result = this.processMatch({
-        ctx, fullMatch, persona, logContext: { shapesUserId }, refType: 'shapes.inc', fallbackName: username,
+        ctx,
+        fullMatch,
+        persona,
+        logContext: { shapesUserId },
+        refType: 'shapes.inc',
+        fallbackName: username,
       });
       ctx.currentText = result.updatedText;
       if (result.persona !== null) {
@@ -161,7 +175,11 @@ export class UserReferenceResolver {
       const [fullMatch, discordId] = match;
       const persona = await this.resolveByDiscordId(discordId);
       const result = this.processMatch({
-        ctx, fullMatch, persona, logContext: { discordId }, refType: 'Discord',
+        ctx,
+        fullMatch,
+        persona,
+        logContext: { discordId },
+        refType: 'Discord',
       });
       ctx.currentText = result.updatedText;
       if (result.persona !== null) {
@@ -174,7 +192,11 @@ export class UserReferenceResolver {
       const [fullMatch, username] = match;
       const persona = await this.resolveByUsername(username);
       const result = this.processMatch({
-        ctx, fullMatch, persona, logContext: { username }, refType: 'username',
+        ctx,
+        fullMatch,
+        persona,
+        logContext: { username },
+        refType: 'username',
       });
       ctx.currentText = result.updatedText;
       if (result.persona !== null) {
@@ -184,7 +206,10 @@ export class UserReferenceResolver {
 
     if (ctx.resolvedPersonas.length > 0) {
       logger.info(
-        { count: ctx.resolvedPersonas.length, personas: ctx.resolvedPersonas.map(p => p.personaName) },
+        {
+          count: ctx.resolvedPersonas.length,
+          personas: ctx.resolvedPersonas.map(p => p.personaName),
+        },
         '[UserReferenceResolver] Resolved user references in prompt'
       );
     }

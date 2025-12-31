@@ -142,7 +142,7 @@ export async function handleExport(
 
     const character = result.data.personality;
     const canEdit = result.data.canEdit;
-    const displayName = character.displayName ?? character.name;
+    const displayName = String(character.displayName ?? character.name);
 
     // Check ownership - only character owner or bot owner can export
     if (!canEdit && !isBotOwner(interaction.user.id)) {
