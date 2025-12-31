@@ -16,6 +16,20 @@ import { getChannelActivationCacheInvalidationService } from '../../services/ser
 const logger = createLogger('channel-activate');
 
 /**
+ * Invalidate channel activation cache locally and across all instances
+ */
+async function invalidateActivationCache(channelId: string): Promise<void> {
+  invalidateChannelActivationCache(channelId);
+
+  try {
+    const invalidationService = getChannelActivationCacheInvalidationService();
+    await invalidationService.invalidateChannel(channelId);
+  } catch (pubsubError) {
+    logger.warn({ err: pubsubError, channelId }, '[Channel] Failed to publish invalidation event');
+  }
+}
+
+/**
  * Handle /channel activate command
  */
 export async function handleActivate(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -83,21 +97,8 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
     const { activation, replaced } = result.data;
     const replacedNote = replaced ? ' (replaced previous activation)' : '';
 
-    // Invalidate local cache
-    invalidateChannelActivationCache(channelId);
-
-    // Publish invalidation event to all bot-client instances via Redis pub/sub
-    // This ensures horizontal scaling works correctly
-    try {
-      const invalidationService = getChannelActivationCacheInvalidationService();
-      await invalidationService.invalidateChannel(channelId);
-    } catch (pubsubError) {
-      // Log but don't fail the command - local invalidation already happened
-      logger.warn(
-        { err: pubsubError, channelId },
-        '[Channel] Failed to publish invalidation event'
-      );
-    }
+    // Invalidate cache locally and across all bot-client instances
+    await invalidateActivationCache(channelId);
 
     await interaction.editReply(
       `✅ Activated **${activation.personalityName}** in this channel${replacedNote}.\n\n` +

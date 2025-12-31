@@ -18,6 +18,20 @@ import {
 const logger = createLogger('character-avatar');
 
 /**
+ * Validate attachment is a supported image format and size
+ * @returns Error message if invalid, null if valid
+ */
+function validateAttachment(contentType: string | null, size: number): string | null {
+  if (contentType === null || !VALID_IMAGE_TYPES.includes(contentType)) {
+    return '❌ Invalid image format. Please upload a PNG, JPG, GIF, or WebP image.';
+  }
+  if (size > MAX_INPUT_SIZE_BYTES) {
+    return `❌ Image too large. Please upload an image under ${MAX_INPUT_SIZE_MB}MB.`;
+  }
+  return null;
+}
+
+/**
  * Handle avatar upload subcommand
  */
 export async function handleAvatar(
@@ -28,19 +42,9 @@ export async function handleAvatar(
   const slug = interaction.options.getString('character', true);
   const attachment = interaction.options.getAttachment('image', true);
 
-  // Validate attachment is an image
-  if (attachment.contentType === null || !VALID_IMAGE_TYPES.includes(attachment.contentType)) {
-    await interaction.editReply(
-      '❌ Invalid image format. Please upload a PNG, JPG, GIF, or WebP image.'
-    );
-    return;
-  }
-
-  // Check file size - reject extremely large files
-  if (attachment.size > MAX_INPUT_SIZE_BYTES) {
-    await interaction.editReply(
-      `❌ Image too large. Please upload an image under ${MAX_INPUT_SIZE_MB}MB.`
-    );
+  const validationError = validateAttachment(attachment.contentType, attachment.size);
+  if (validationError !== null) {
+    await interaction.editReply(validationError);
     return;
   }
 
