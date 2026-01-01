@@ -77,7 +77,8 @@ async function handleExtendedContextEnable(
     {
       value: 'true',
       description: 'Default extended context setting for channels without explicit override',
-    }
+    },
+    interaction.user.id // Required for isBotOwner check
   );
 
   if (!response.ok) {
@@ -114,7 +115,8 @@ async function handleExtendedContextDisable(
     {
       value: 'false',
       description: 'Default extended context setting for channels without explicit override',
-    }
+    },
+    interaction.user.id // Required for isBotOwner check
   );
 
   if (!response.ok) {
@@ -146,6 +148,7 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
 
   const response = await adminFetch('/admin/settings', {
     method: 'GET',
+    userId: interaction.user.id, // Required for isBotOwner check
   });
 
   if (!response.ok) {
