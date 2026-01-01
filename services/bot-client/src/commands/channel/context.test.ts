@@ -27,12 +27,15 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Use vi.hoisted to ensure mock functions are available before vi.mock hoisting
-const { mockGetChannelSettings, mockGetExtendedContextDefault, mockInvalidateChannelSettingsCache } =
-  vi.hoisted(() => ({
-    mockGetChannelSettings: vi.fn(),
-    mockGetExtendedContextDefault: vi.fn(),
-    mockInvalidateChannelSettingsCache: vi.fn(),
-  }));
+const {
+  mockGetChannelSettings,
+  mockGetExtendedContextDefault,
+  mockInvalidateChannelSettingsCache,
+} = vi.hoisted(() => ({
+  mockGetChannelSettings: vi.fn(),
+  mockGetExtendedContextDefault: vi.fn(),
+  mockInvalidateChannelSettingsCache: vi.fn(),
+}));
 
 vi.mock('../../utils/GatewayClient.js', () => ({
   GatewayClient: class MockGatewayClient {
