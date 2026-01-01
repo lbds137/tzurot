@@ -222,6 +222,24 @@ export class MessageContextBuilder {
             },
             '[MessageContextBuilder] Extended context merged with conversation history'
           );
+
+          // Opportunistic sync: detect edits and deletes in the background
+          // This doesn't block message processing - fire and forget
+          if (fetchResult.rawMessages) {
+            this.channelFetcher
+              .syncWithDatabase(
+                fetchResult.rawMessages,
+                message.channel.id,
+                personality.id,
+                this.conversationHistory
+              )
+              .catch(err => {
+                logger.warn(
+                  { err, channelId: message.channel.id },
+                  '[MessageContextBuilder] Opportunistic sync failed (non-blocking)'
+                );
+              });
+          }
         }
       } else {
         logger.debug(

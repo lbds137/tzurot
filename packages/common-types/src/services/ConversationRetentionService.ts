@@ -151,4 +151,43 @@ export class ConversationRetentionService {
       throw error;
     }
   }
+
+  /**
+   * Hard delete soft-deleted messages (those with deletedAt set) older than X days.
+   * Soft-deleted messages are excluded from context but still take up space.
+   * This performs the final cleanup after the soft-delete grace period.
+   *
+   * Note: Tombstones already exist for these messages (created during soft delete),
+   * so we can safely delete them without creating new tombstones.
+   *
+   * @param daysToKeep Only delete soft-deleted messages older than this many days
+   */
+  async cleanupSoftDeletedMessages(
+    daysToKeep: number = CLEANUP_DEFAULTS.DAYS_TO_KEEP_TOMBSTONES
+  ): Promise<number> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+      // Hard delete messages that were soft-deleted before the cutoff date
+      const result = await this.prisma.conversationHistory.deleteMany({
+        where: {
+          deletedAt: {
+            lt: cutoffDate,
+          },
+        },
+      });
+
+      if (result.count > 0) {
+        logger.info(
+          `Hard deleted ${result.count} soft-deleted messages (deletedAt older than ${daysToKeep} days)`
+        );
+      }
+
+      return result.count;
+    } catch (error) {
+      logger.error({ err: error }, `Failed to cleanup soft-deleted messages`);
+      throw error;
+    }
+  }
 }
