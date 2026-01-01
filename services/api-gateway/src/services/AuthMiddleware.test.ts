@@ -655,5 +655,43 @@ describe('authMiddleware', () => {
         })
       );
     });
+
+    /**
+     * CONTRACT TEST: userId extraction
+     *
+     * Admin routes that check isBotOwner(req.userId) depend on this behavior.
+     * The bot-client sends X-User-Id header with admin requests.
+     * Without this, admin settings commands fail with "Only bot owners can modify settings".
+     */
+    it('should attach userId to request when X-User-Id header is provided', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
+      } as any);
+
+      mockReq.headers = {
+        'x-service-auth': 'valid-service-secret',
+        'x-user-id': 'owner-discord-id',
+      };
+
+      const middleware = requireServiceAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledOnce();
+      expect((mockReq as Request & { userId: string }).userId).toBe('owner-discord-id');
+    });
+
+    it('should not attach userId when X-User-Id header is missing', () => {
+      vi.mocked(commonTypes.getConfig).mockReturnValue({
+        INTERNAL_SERVICE_SECRET: 'valid-service-secret',
+      } as any);
+
+      mockReq.headers = { 'x-service-auth': 'valid-service-secret' };
+
+      const middleware = requireServiceAuth();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledOnce();
+      expect((mockReq as Request & { userId?: string }).userId).toBeUndefined();
+    });
   });
 });
