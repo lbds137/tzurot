@@ -305,4 +305,55 @@ describe('ConversationRetentionService', () => {
       await expect(service.cleanupOldTombstones(7)).rejects.toThrow('Database connection failed');
     });
   });
+
+  describe('cleanupSoftDeletedMessages', () => {
+    it('should hard delete messages with deletedAt older than specified days', async () => {
+      vi.useFakeTimers();
+      const fixedDate = new Date('2025-11-18T00:00:00Z');
+      vi.setSystemTime(fixedDate);
+
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 10 });
+
+      const count = await service.cleanupSoftDeletedMessages(7);
+
+      expect(count).toBe(10);
+
+      const expectedCutoff = new Date(fixedDate);
+      expectedCutoff.setDate(expectedCutoff.getDate() - 7);
+
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
+        where: { deletedAt: { lt: expectedCutoff } },
+      });
+    });
+
+    it('should use default days if not specified', async () => {
+      vi.useFakeTimers();
+      const fixedDate = new Date('2025-11-18T00:00:00Z');
+      vi.setSystemTime(fixedDate);
+
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 5 });
+
+      const count = await service.cleanupSoftDeletedMessages();
+
+      expect(count).toBe(5);
+      expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalled();
+    });
+
+    it('should return 0 when no soft-deleted messages to cleanup', async () => {
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 0 });
+
+      const count = await service.cleanupSoftDeletedMessages(7);
+
+      expect(count).toBe(0);
+    });
+
+    it('should throw error on database failure', async () => {
+      const error = new Error('Database connection failed');
+      mockPrismaClient.conversationHistory.deleteMany.mockRejectedValue(error);
+
+      await expect(service.cleanupSoftDeletedMessages(7)).rejects.toThrow(
+        'Database connection failed'
+      );
+    });
+  });
 });

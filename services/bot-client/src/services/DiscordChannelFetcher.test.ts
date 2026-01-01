@@ -455,4 +455,256 @@ describe('DiscordChannelFetcher', () => {
       expect(merged[0].content).toBe('[Alice]: From Discord');
     });
   });
+
+  describe('syncWithDatabase', () => {
+    it('should return empty result when no Discord messages', async () => {
+      const emptyMessages = new Collection<string, Message>();
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn(),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn(),
+        getMessagesInTimeWindow: vi.fn(),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        emptyMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.updated).toBe(0);
+      expect(result.deleted).toBe(0);
+      expect(mockHistoryService.getMessagesByDiscordIds).not.toHaveBeenCalled();
+    });
+
+    it('should return empty result when no matching DB messages', async () => {
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set('discord1', createMockMessage({ id: 'discord1', content: 'Hello' }));
+
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(new Map()),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn(),
+        getMessagesInTimeWindow: vi.fn(),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.updated).toBe(0);
+      expect(result.deleted).toBe(0);
+    });
+
+    it('should detect and sync edited messages', async () => {
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord1',
+        createMockMessage({
+          id: 'discord1',
+          content: 'Updated message content',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            [
+              'discord1',
+              {
+                id: 'db-msg-1',
+                content: 'Original message content',
+                discordMessageId: ['discord1'],
+                deletedAt: null,
+                createdAt: new Date('2024-01-01T12:00:00Z'),
+              },
+            ],
+          ])
+        ),
+        updateMessageContent: vi.fn().mockResolvedValue(true),
+        softDeleteMessages: vi.fn().mockResolvedValue(0),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.updated).toBe(1);
+      expect(mockHistoryService.updateMessageContent).toHaveBeenCalledWith(
+        'db-msg-1',
+        'Updated message content'
+      );
+    });
+
+    it('should not update messages when content matches (with prefix)', async () => {
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord1',
+        createMockMessage({
+          id: 'discord1',
+          content: 'Hello world',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            [
+              'discord1',
+              {
+                id: 'db-msg-1',
+                content: '[Alice]: Hello world', // Has prefix but same content
+                discordMessageId: ['discord1'],
+                deletedAt: null,
+                createdAt: new Date('2024-01-01T12:00:00Z'),
+              },
+            ],
+          ])
+        ),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn(),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.updated).toBe(0);
+      expect(mockHistoryService.updateMessageContent).not.toHaveBeenCalled();
+    });
+
+    it('should detect and soft-delete missing messages', async () => {
+      const discordMessages = new Collection<string, Message>();
+      // Only one message in Discord
+      discordMessages.set(
+        'discord2',
+        createMockMessage({
+          id: 'discord2',
+          content: 'Still exists',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            [
+              'discord2',
+              {
+                id: 'db-msg-2',
+                content: 'Still exists',
+                discordMessageId: ['discord2'],
+                deletedAt: null,
+                createdAt: new Date('2024-01-01T12:00:00Z'),
+              },
+            ],
+          ])
+        ),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn().mockResolvedValue(1),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([
+          // This message is in DB but not in Discord - should be deleted
+          {
+            id: 'db-msg-1',
+            discordMessageId: ['discord1'],
+            createdAt: new Date('2024-01-01T12:00:00Z'),
+          },
+          // This message is in both - should NOT be deleted
+          {
+            id: 'db-msg-2',
+            discordMessageId: ['discord2'],
+            createdAt: new Date('2024-01-01T12:00:00Z'),
+          },
+        ]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.deleted).toBe(1);
+      expect(mockHistoryService.softDeleteMessages).toHaveBeenCalledWith(['db-msg-1']);
+    });
+
+    it('should skip soft-deleted DB messages when checking for edits', async () => {
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord1',
+        createMockMessage({
+          id: 'discord1',
+          content: 'New content',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            [
+              'discord1',
+              {
+                id: 'db-msg-1',
+                content: 'Old content',
+                discordMessageId: ['discord1'],
+                deletedAt: new Date(), // Already soft-deleted
+                createdAt: new Date('2024-01-01T12:00:00Z'),
+              },
+            ],
+          ])
+        ),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn().mockResolvedValue(0),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.updated).toBe(0);
+      expect(mockHistoryService.updateMessageContent).not.toHaveBeenCalled();
+    });
+
+    it('should handle sync errors gracefully', async () => {
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set('discord1', createMockMessage({ id: 'discord1', content: 'Hello' }));
+
+      const mockHistoryService = {
+        getMessagesByDiscordIds: vi.fn().mockRejectedValue(new Error('Database error')),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn(),
+        getMessagesInTimeWindow: vi.fn(),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockHistoryService as never
+      );
+
+      expect(result.updated).toBe(0);
+      expect(result.deleted).toBe(0);
+    });
+  });
 });
