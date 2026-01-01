@@ -332,7 +332,10 @@ export class DiscordChannelFetcher {
           // This is a heuristic - we check if content has changed significantly
           if (this.contentsDiffer(discordContent, dbMsg.content)) {
             // Update the message content in DB
-            const updated = await conversationHistory.updateMessageContent(dbMsg.id, discordContent);
+            const updated = await conversationHistory.updateMessageContent(
+              dbMsg.id,
+              discordContent
+            );
             if (updated) {
               result.updated++;
               logger.debug(
