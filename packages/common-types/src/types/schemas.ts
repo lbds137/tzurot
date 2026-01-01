@@ -48,6 +48,8 @@ export const discordEnvironmentSchema = z.object({
  * Attachment metadata schema
  */
 export const attachmentMetadataSchema = z.object({
+  /** Discord attachment ID (stable snowflake for caching - preferred over URL hash) */
+  id: z.string().optional(),
   url: z.string(),
   originalUrl: z.string().optional(), // Discord CDN URL (preserved for caching)
   contentType: z.string(),
