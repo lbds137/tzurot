@@ -14,7 +14,9 @@ import type { ExtendedContextSource } from '../services/ExtendedContextResolver.
  * null = Auto, true = On, false = Off
  */
 export function formatTriState(value: boolean | null | undefined): string {
-  if (value === null || value === undefined) return 'Auto';
+  if (value === null || value === undefined) {
+    return 'Auto';
+  }
   return value ? 'On' : 'Off';
 }
 
@@ -86,7 +88,7 @@ export function buildTriStateUpdateMessage(config: UpdateMessageConfig): string 
 
   let message = `**${settingName} set to ${valueLabel}** for **${targetName}**.\n\n`;
 
-  if (newValue === null && effectiveEnabled !== undefined && source) {
+  if (newValue === null && effectiveEnabled !== undefined && source !== undefined) {
     message += `This will follow ${source} settings.\n`;
     message += `Currently: ${effectiveEnabled ? '**enabled**' : '**disabled**'}`;
   } else if (newValue === true) {

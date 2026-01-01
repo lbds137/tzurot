@@ -198,7 +198,7 @@ async function handleShow(
   const personality = result.data.personality;
 
   // Determine current value and source
-  let currentValue: boolean | null = personality.extendedContext;
+  const currentValue: boolean | null = personality.extendedContext;
   let effectiveEnabled: boolean;
   let source: ExtendedContextSource;
 
