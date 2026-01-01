@@ -39,10 +39,7 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  logger.debug(
-    { action, channelId, userId },
-    '[Channel Context] Processing context action'
-  );
+  logger.debug({ action, channelId, userId }, '[Channel Context] Processing context action');
 
   try {
     switch (action) {
@@ -65,7 +62,10 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
         });
     }
   } catch (error) {
-    logger.error({ err: error, action, channelId }, '[Channel Context] Error handling context action');
+    logger.error(
+      { err: error, action, channelId },
+      '[Channel Context] Error handling context action'
+    );
     await interaction.reply({
       content: 'An error occurred while processing your request.',
       ephemeral: true,
@@ -91,7 +91,10 @@ async function handleEnable(
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.warn({ channelId, status: response.status, error: errorText }, '[Channel Context] Failed to enable');
+    logger.warn(
+      { channelId, status: response.status, error: errorText },
+      '[Channel Context] Failed to enable'
+    );
     await interaction.editReply({
       content: `Failed to enable extended context: ${errorText}`,
     });
@@ -103,7 +106,8 @@ async function handleEnable(
 
   logger.info({ channelId, userId }, '[Channel Context] Extended context enabled');
   await interaction.editReply({
-    content: '**Extended context enabled** for this channel.\n\nPersonalities will now see recent channel messages (up to 100) when responding, providing better context for conversations.',
+    content:
+      '**Extended context enabled** for this channel.\n\nPersonalities will now see recent channel messages (up to 100) when responding, providing better context for conversations.',
   });
 }
 
@@ -125,7 +129,10 @@ async function handleDisable(
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.warn({ channelId, status: response.status, error: errorText }, '[Channel Context] Failed to disable');
+    logger.warn(
+      { channelId, status: response.status, error: errorText },
+      '[Channel Context] Failed to disable'
+    );
     await interaction.editReply({
       content: `Failed to disable extended context: ${errorText}`,
     });
@@ -137,7 +144,8 @@ async function handleDisable(
 
   logger.info({ channelId, userId }, '[Channel Context] Extended context disabled');
   await interaction.editReply({
-    content: '**Extended context disabled** for this channel.\n\nPersonalities will only see their own conversation history when responding.',
+    content:
+      '**Extended context disabled** for this channel.\n\nPersonalities will only see their own conversation history when responding.',
   });
 }
 
@@ -158,7 +166,11 @@ async function handleStatus(
   let source: string;
   let enabled: boolean;
 
-  if (settings?.hasSettings === true && settings.settings?.extendedContext !== null && settings.settings?.extendedContext !== undefined) {
+  if (
+    settings?.hasSettings === true &&
+    settings.settings?.extendedContext !== null &&
+    settings.settings?.extendedContext !== undefined
+  ) {
     // Channel has explicit setting
     enabled = settings.settings.extendedContext;
     source = 'channel override';
@@ -171,7 +183,8 @@ async function handleStatus(
   status = enabled ? '**Enabled**' : '**Disabled**';
 
   await interaction.editReply({
-    content: `**Extended Context Status**\n\n` +
+    content:
+      `**Extended Context Status**\n\n` +
       `Current setting: ${status}\n` +
       `Source: ${source}\n` +
       `Global default: ${globalDefault ? 'enabled' : 'disabled'}\n\n` +
@@ -197,7 +210,10 @@ async function handleClear(
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.warn({ channelId, status: response.status, error: errorText }, '[Channel Context] Failed to clear');
+    logger.warn(
+      { channelId, status: response.status, error: errorText },
+      '[Channel Context] Failed to clear'
+    );
     await interaction.editReply({
       content: `Failed to clear channel override: ${errorText}`,
     });

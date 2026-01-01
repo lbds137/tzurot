@@ -60,7 +60,10 @@ export const data = new SlashCommandBuilder()
           .setDescription('Action to perform')
           .setRequired(true)
           .addChoices(
-            { name: 'Enable - Allow personalities to see recent channel messages', value: 'enable' },
+            {
+              name: 'Enable - Allow personalities to see recent channel messages',
+              value: 'enable',
+            },
             { name: 'Disable - Only use bot conversation history', value: 'disable' },
             { name: 'Status - Show current setting', value: 'status' },
             { name: 'Clear - Remove override, use global default', value: 'clear' }
