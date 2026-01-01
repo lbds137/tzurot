@@ -191,9 +191,7 @@ export async function buildMessageContent(
  * @param attachments - Attachment metadata array
  * @returns Formatted attachment description string
  */
-export function formatAttachmentDescription(
-  attachments: AttachmentMetadata[] | undefined
-): string {
+export function formatAttachmentDescription(attachments: AttachmentMetadata[] | undefined): string {
   if (!attachments || attachments.length === 0) {
     return '';
   }

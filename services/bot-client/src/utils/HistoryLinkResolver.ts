@@ -159,7 +159,9 @@ export async function resolveHistoryLinks(
   // If we resolved N links, we need to trim N messages from the end (oldest)
   const trimmedCount = Math.max(0, processedMessages.length + resolvedCount - budget);
   const finalMessages =
-    trimmedCount > 0 ? processedMessages.slice(0, processedMessages.length - trimmedCount) : processedMessages;
+    trimmedCount > 0
+      ? processedMessages.slice(0, processedMessages.length - trimmedCount)
+      : processedMessages;
 
   logger.info(
     {
@@ -259,10 +261,7 @@ async function fetchAndFormatMessage(
 
     if (guild === undefined) {
       // Not in cache - bot might not have access
-      logger.debug(
-        { guildId: link.guildId },
-        '[HistoryLinkResolver] Guild not accessible'
-      );
+      logger.debug({ guildId: link.guildId }, '[HistoryLinkResolver] Guild not accessible');
       return null;
     }
 
