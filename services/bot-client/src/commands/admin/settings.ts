@@ -17,25 +17,14 @@ const logger = createLogger('admin-settings');
 
 type SettingsAction = 'extended-context-enable' | 'extended-context-disable' | 'list';
 
-interface BotSettingResponse {
-  found: boolean;
-  setting?: {
-    id: string;
-    key: string;
-    value: string;
-    description: string | null;
-    updatedAt: string;
-  };
-}
-
 interface BotSettingsListResponse {
-  settings: Array<{
+  settings: {
     id: string;
     key: string;
     value: string;
     description: string | null;
     updatedAt: string;
-  }>;
+  }[];
 }
 
 /**

@@ -31,7 +31,7 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
   const userId = interaction.user.id;
 
   // Check permissions: Manage Messages required
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) !== true) {
     await interaction.reply({
       content: 'You need the **Manage Messages** permission to manage channel context settings.',
       ephemeral: true,
@@ -83,20 +83,19 @@ async function handleEnable(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
+  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
-    body: JSON.stringify({ extendedContext: true }),
+    body: { extendedContext: true },
     userId,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  if (!result.ok) {
     logger.warn(
-      { channelId, status: response.status, error: errorText },
+      { channelId, status: result.status, error: result.error },
       '[Channel Context] Failed to enable'
     );
     await interaction.editReply({
-      content: `Failed to enable extended context: ${errorText}`,
+      content: `Failed to enable extended context: ${result.error}`,
     });
     return;
   }
@@ -121,20 +120,19 @@ async function handleDisable(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
+  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
-    body: JSON.stringify({ extendedContext: false }),
+    body: { extendedContext: false },
     userId,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  if (!result.ok) {
     logger.warn(
-      { channelId, status: response.status, error: errorText },
+      { channelId, status: result.status, error: result.error },
       '[Channel Context] Failed to disable'
     );
     await interaction.editReply({
-      content: `Failed to disable extended context: ${errorText}`,
+      content: `Failed to disable extended context: ${result.error}`,
     });
     return;
   }
@@ -162,7 +160,6 @@ async function handleStatus(
   const settings = await gatewayClient.getChannelSettings(channelId);
   const globalDefault = await gatewayClient.getExtendedContextDefault();
 
-  let status: string;
   let source: string;
   let enabled: boolean;
 
@@ -180,7 +177,7 @@ async function handleStatus(
     source = 'global default';
   }
 
-  status = enabled ? '**Enabled**' : '**Disabled**';
+  const status = enabled ? '**Enabled**' : '**Disabled**';
 
   await interaction.editReply({
     content:
@@ -202,20 +199,19 @@ async function handleClear(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
+  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
-    body: JSON.stringify({ extendedContext: null }),
+    body: { extendedContext: null },
     userId,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  if (!result.ok) {
     logger.warn(
-      { channelId, status: response.status, error: errorText },
+      { channelId, status: result.status, error: result.error },
       '[Channel Context] Failed to clear'
     );
     await interaction.editReply({
-      content: `Failed to clear channel override: ${errorText}`,
+      content: `Failed to clear channel override: ${result.error}`,
     });
     return;
   }

@@ -324,7 +324,7 @@ export class DiscordChannelFetcher {
       // Check for edits
       for (const [discordId, discordMsg] of discordMessages) {
         const dbMsg = dbMessages.get(discordId);
-        if (dbMsg && dbMsg.deletedAt === null) {
+        if (dbMsg?.deletedAt === null) {
           // Message exists in both - check for edit
           // Note: Discord content may have prefix from our conversion, so we compare raw content
           const discordContent = discordMsg.content;
@@ -408,8 +408,9 @@ export class DiscordChannelFetcher {
 
     // Check if DB content is the Discord content with a [Name]: prefix
     // Pattern: [DisplayName]: <actual content>
-    const prefixMatch = dbContent.match(/^\[.+?\]: (.*)$/s);
-    if (prefixMatch) {
+    const prefixRegex = /^\[.+?\]: (.*)$/s;
+    const prefixMatch = prefixRegex.exec(dbContent);
+    if (prefixMatch !== null) {
       const dbContentWithoutPrefix = prefixMatch[1];
       if (discordContent === dbContentWithoutPrefix) {
         return false; // Same content, just has display name prefix

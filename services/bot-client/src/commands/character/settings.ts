@@ -89,34 +89,31 @@ async function handleExtendedContextEnable(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await callGatewayApi(`/user/personality/${characterSlug}`, {
+  const result = await callGatewayApi(`/user/personality/${characterSlug}`, {
     method: 'PUT',
-    body: JSON.stringify({
-      supportsExtendedContext: true,
-    }),
+    body: { supportsExtendedContext: true },
     userId,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    if (response.status === 401) {
+  if (!result.ok) {
+    if (result.status === 401) {
       await interaction.editReply({
         content: 'You do not have permission to edit this character.',
       });
       return;
     }
-    if (response.status === 404) {
+    if (result.status === 404) {
       await interaction.editReply({
         content: `Character "${characterSlug}" not found.`,
       });
       return;
     }
     logger.warn(
-      { characterSlug, status: response.status, error: errorText },
+      { characterSlug, status: result.status, error: result.error },
       '[Character Settings] Failed to enable extended context'
     );
     await interaction.editReply({
-      content: `Failed to update setting: ${errorText}`,
+      content: `Failed to update setting: ${result.error}`,
     });
     return;
   }
@@ -140,34 +137,31 @@ async function handleExtendedContextDisable(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await callGatewayApi(`/user/personality/${characterSlug}`, {
+  const result = await callGatewayApi(`/user/personality/${characterSlug}`, {
     method: 'PUT',
-    body: JSON.stringify({
-      supportsExtendedContext: false,
-    }),
+    body: { supportsExtendedContext: false },
     userId,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    if (response.status === 401) {
+  if (!result.ok) {
+    if (result.status === 401) {
       await interaction.editReply({
         content: 'You do not have permission to edit this character.',
       });
       return;
     }
-    if (response.status === 404) {
+    if (result.status === 404) {
       await interaction.editReply({
         content: `Character "${characterSlug}" not found.`,
       });
       return;
     }
     logger.warn(
-      { characterSlug, status: response.status, error: errorText },
+      { characterSlug, status: result.status, error: result.error },
       '[Character Settings] Failed to disable extended context'
     );
     await interaction.editReply({
-      content: `Failed to update setting: ${errorText}`,
+      content: `Failed to update setting: ${result.error}`,
     });
     return;
   }
@@ -191,31 +185,29 @@ async function handleShow(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await callGatewayApi(`/user/personality/${characterSlug}`, {
+  const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${characterSlug}`, {
     method: 'GET',
     userId,
   });
 
-  if (!response.ok) {
-    if (response.status === 404) {
+  if (!result.ok) {
+    if (result.status === 404) {
       await interaction.editReply({
         content: `Character "${characterSlug}" not found.`,
       });
       return;
     }
-    const errorText = await response.text();
     logger.warn(
-      { characterSlug, status: response.status, error: errorText },
+      { characterSlug, status: result.status, error: result.error },
       '[Character Settings] Failed to get character'
     );
     await interaction.editReply({
-      content: `Failed to get character: ${errorText}`,
+      content: `Failed to get character: ${result.error}`,
     });
     return;
   }
 
-  const data = (await response.json()) as PersonalityResponse;
-  const personality = data.personality;
+  const personality = result.data.personality;
 
   const extendedContextStatus = personality.supportsExtendedContext
     ? '**Enabled**'
