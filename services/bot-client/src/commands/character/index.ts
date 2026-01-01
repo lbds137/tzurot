@@ -171,8 +171,9 @@ export const data = new SlashCommandBuilder()
           .setDescription('Action to perform')
           .setRequired(true)
           .addChoices(
-            { name: 'Enable extended context', value: 'extended-context-enable' },
-            { name: 'Disable extended context', value: 'extended-context-disable' },
+            { name: 'Enable extended context (force ON)', value: 'extended-context-enable' },
+            { name: 'Disable extended context (force OFF)', value: 'extended-context-disable' },
+            { name: 'Auto extended context (follow hierarchy)', value: 'extended-context-auto' },
             { name: 'Show current settings', value: 'show' }
           )
       )

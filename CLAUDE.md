@@ -319,4 +319,5 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 - **CLI**: `docs/reference/RAILWAY_CLI_REFERENCE.md`, `docs/reference/GITHUB_CLI_REFERENCE.md`
 - **Folder Structure**: `docs/standards/FOLDER_STRUCTURE.md`
+- **Tri-State Pattern**: `docs/standards/TRI_STATE_PATTERN.md` (for cascading settings)
 - **v2 Feature Status**: `docs/planning/V2_FEATURE_TRACKING.md`

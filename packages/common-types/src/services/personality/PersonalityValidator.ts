@@ -112,8 +112,8 @@ export interface DatabasePersonality {
   ownerId: string | null;
   // Timestamp for avatar cache-busting
   updatedAt: Date;
-  // Extended context opt-out (default true)
-  supportsExtendedContext: boolean;
+  // Extended context tri-state: null=auto, true=on, false=off
+  extendedContext: boolean | null;
   systemPrompt: {
     content: string;
   } | null;
