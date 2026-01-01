@@ -88,14 +88,20 @@ async function handleExtendedContextEnable(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await adminPutJson(`/admin/settings/${BotSettingKeys.EXTENDED_CONTEXT_DEFAULT}`, {
-    value: 'true',
-    description: 'Default extended context setting for channels without explicit override',
-  });
+  const response = await adminPutJson(
+    `/admin/settings/${BotSettingKeys.EXTENDED_CONTEXT_DEFAULT}`,
+    {
+      value: 'true',
+      description: 'Default extended context setting for channels without explicit override',
+    }
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.warn({ status: response.status, error: errorText }, '[Admin Settings] Failed to enable extended context');
+    logger.warn(
+      { status: response.status, error: errorText },
+      '[Admin Settings] Failed to enable extended context'
+    );
     await interaction.editReply({
       content: `Failed to update setting: ${errorText}`,
     });
@@ -104,7 +110,8 @@ async function handleExtendedContextEnable(
 
   logger.info('[Admin Settings] Extended context enabled globally');
   await interaction.editReply({
-    content: '**Extended context enabled globally by default**.\n\n' +
+    content:
+      '**Extended context enabled globally by default**.\n\n' +
       'All channels without explicit overrides will now have extended context enabled.\n' +
       'Personalities will see recent channel messages (up to 100) when responding.',
   });
@@ -118,14 +125,20 @@ async function handleExtendedContextDisable(
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const response = await adminPutJson(`/admin/settings/${BotSettingKeys.EXTENDED_CONTEXT_DEFAULT}`, {
-    value: 'false',
-    description: 'Default extended context setting for channels without explicit override',
-  });
+  const response = await adminPutJson(
+    `/admin/settings/${BotSettingKeys.EXTENDED_CONTEXT_DEFAULT}`,
+    {
+      value: 'false',
+      description: 'Default extended context setting for channels without explicit override',
+    }
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.warn({ status: response.status, error: errorText }, '[Admin Settings] Failed to disable extended context');
+    logger.warn(
+      { status: response.status, error: errorText },
+      '[Admin Settings] Failed to disable extended context'
+    );
     await interaction.editReply({
       content: `Failed to update setting: ${errorText}`,
     });
@@ -134,7 +147,8 @@ async function handleExtendedContextDisable(
 
   logger.info('[Admin Settings] Extended context disabled globally');
   await interaction.editReply({
-    content: '**Extended context disabled globally by default**.\n\n' +
+    content:
+      '**Extended context disabled globally by default**.\n\n' +
       'All channels without explicit overrides will now have extended context disabled.\n' +
       'Personalities will only see their own conversation history.',
   });
@@ -152,14 +166,17 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.warn({ status: response.status, error: errorText }, '[Admin Settings] Failed to list settings');
+    logger.warn(
+      { status: response.status, error: errorText },
+      '[Admin Settings] Failed to list settings'
+    );
     await interaction.editReply({
       content: `Failed to list settings: ${errorText}`,
     });
     return;
   }
 
-  const data = await response.json() as BotSettingsListResponse;
+  const data = (await response.json()) as BotSettingsListResponse;
 
   if (data.settings.length === 0) {
     await interaction.editReply({
