@@ -42,7 +42,11 @@ describe('Channel Context Subcommand', () => {
   const createMockInteraction = (
     action: string,
     hasPermission = true
-  ): ChatInputCommandInteraction & { reply: ReturnType<typeof vi.fn>; editReply: ReturnType<typeof vi.fn>; deferReply: ReturnType<typeof vi.fn> } => {
+  ): ChatInputCommandInteraction & {
+    reply: ReturnType<typeof vi.fn>;
+    editReply: ReturnType<typeof vi.fn>;
+    deferReply: ReturnType<typeof vi.fn>;
+  } => {
     return {
       options: {
         getString: vi.fn().mockReturnValue(action),

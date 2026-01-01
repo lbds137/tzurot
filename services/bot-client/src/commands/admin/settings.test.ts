@@ -68,13 +68,10 @@ describe('Admin Settings Subcommand', () => {
       await handleSettings(interaction);
 
       expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
-      expect(mockAdminPutJson).toHaveBeenCalledWith(
-        '/admin/settings/extended_context_default',
-        {
-          value: 'true',
-          description: 'Default extended context setting for channels without explicit override',
-        }
-      );
+      expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/settings/extended_context_default', {
+        value: 'true',
+        description: 'Default extended context setting for channels without explicit override',
+      });
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Extended context enabled globally'),
       });
@@ -104,13 +101,10 @@ describe('Admin Settings Subcommand', () => {
       await handleSettings(interaction);
 
       expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
-      expect(mockAdminPutJson).toHaveBeenCalledWith(
-        '/admin/settings/extended_context_default',
-        {
-          value: 'false',
-          description: 'Default extended context setting for channels without explicit override',
-        }
-      );
+      expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/settings/extended_context_default', {
+        value: 'false',
+        description: 'Default extended context setting for channels without explicit override',
+      });
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Extended context disabled globally'),
       });
