@@ -48,22 +48,17 @@ export async function handleSettings(interaction: ChatInputCommandInteraction): 
         await handleList(interaction);
         break;
       default:
-        await interaction.reply({
+        await interaction.editReply({
           content: `Unknown action: ${action as string}`,
-          ephemeral: true,
         });
     }
   } catch (error) {
     logger.error({ err: error, action }, '[Admin Settings] Error handling settings action');
 
-    if (interaction.deferred) {
+    // Only respond if we haven't already (deferReply is handled by top-level handler)
+    if (!interaction.replied) {
       await interaction.editReply({
         content: 'An error occurred while processing your request.',
-      });
-    } else {
-      await interaction.reply({
-        content: 'An error occurred while processing your request.',
-        ephemeral: true,
       });
     }
   }
@@ -75,7 +70,7 @@ export async function handleSettings(interaction: ChatInputCommandInteraction): 
 async function handleExtendedContextEnable(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const response = await adminPutJson(
     `/admin/settings/${BotSettingKeys.EXTENDED_CONTEXT_DEFAULT}`,
@@ -112,7 +107,7 @@ async function handleExtendedContextEnable(
 async function handleExtendedContextDisable(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const response = await adminPutJson(
     `/admin/settings/${BotSettingKeys.EXTENDED_CONTEXT_DEFAULT}`,
@@ -147,7 +142,7 @@ async function handleExtendedContextDisable(
  * List all bot settings
  */
 async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const response = await adminFetch('/admin/settings', {
     method: 'GET',

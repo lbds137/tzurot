@@ -31,10 +31,10 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
   const userId = interaction.user.id;
 
   // Check permissions: Manage Messages required
+  // Note: deferReply is handled by top-level interactionCreate handler
   if (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) !== true) {
-    await interaction.reply({
+    await interaction.editReply({
       content: 'You need the **Manage Messages** permission to manage channel context settings.',
-      ephemeral: true,
     });
     return;
   }
@@ -56,9 +56,8 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
         await handleClear(interaction, channelId, userId);
         break;
       default:
-        await interaction.reply({
+        await interaction.editReply({
           content: `Unknown action: ${action as string}`,
-          ephemeral: true,
         });
     }
   } catch (error) {
@@ -66,10 +65,13 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
       { err: error, action, channelId },
       '[Channel Context] Error handling context action'
     );
-    await interaction.reply({
-      content: 'An error occurred while processing your request.',
-      ephemeral: true,
-    });
+
+    // Only respond if we haven't already (deferReply is handled by top-level handler)
+    if (!interaction.replied) {
+      await interaction.editReply({
+        content: 'An error occurred while processing your request.',
+      });
+    }
   }
 }
 
@@ -81,7 +83,7 @@ async function handleEnable(
   channelId: string,
   userId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
@@ -118,7 +120,7 @@ async function handleDisable(
   channelId: string,
   userId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
@@ -154,7 +156,7 @@ async function handleStatus(
   interaction: ChatInputCommandInteraction,
   channelId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const gatewayClient = new GatewayClient();
   const settings = await gatewayClient.getChannelSettings(channelId);
@@ -197,7 +199,7 @@ async function handleClear(
   channelId: string,
   userId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',

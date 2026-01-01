@@ -34,6 +34,15 @@ module.exports = {
         message:
           'Do not check if timer functions exist. Use dependency injection to provide timer functions.',
       },
+      {
+        // CRITICAL: Prevent deferReply in command handlers
+        // The top-level interactionCreate handler in index.ts already defers all interactions.
+        // Calling deferReply again in command handlers causes InteractionAlreadyReplied errors.
+        // To disable this rule in index.ts, add: // eslint-disable-next-line no-restricted-syntax
+        selector: 'CallExpression[callee.property.name="deferReply"]',
+        message:
+          'Do not call deferReply() in command handlers. The top-level interactionCreate handler already defers all interactions. Use editReply() instead. See services/bot-client/src/index.ts for the top-level deferral.',
+      },
     ],
 
     // Custom rule to detect direct timer usage in constructors

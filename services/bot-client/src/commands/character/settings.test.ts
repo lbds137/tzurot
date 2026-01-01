@@ -34,8 +34,8 @@ describe('Character Settings Subcommand', () => {
   ): ChatInputCommandInteraction & {
     reply: ReturnType<typeof vi.fn>;
     editReply: ReturnType<typeof vi.fn>;
-    deferReply: ReturnType<typeof vi.fn>;
     deferred: boolean;
+    replied: boolean;
   } => {
     return {
       options: {
@@ -48,13 +48,14 @@ describe('Character Settings Subcommand', () => {
       user: { id: 'user-456' },
       reply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
-      deferReply: vi.fn().mockResolvedValue(undefined),
-      deferred: false,
+      // Top-level interactionCreate handler already defers
+      deferred: true,
+      replied: false,
     } as unknown as ChatInputCommandInteraction & {
       reply: ReturnType<typeof vi.fn>;
       editReply: ReturnType<typeof vi.fn>;
-      deferReply: ReturnType<typeof vi.fn>;
       deferred: boolean;
+      replied: boolean;
     };
   };
 
@@ -69,7 +70,7 @@ describe('Character Settings Subcommand', () => {
 
       await handleSettings(interaction, mockConfig);
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'PUT',
         body: { supportsExtendedContext: true },
@@ -121,7 +122,7 @@ describe('Character Settings Subcommand', () => {
 
       await handleSettings(interaction, mockConfig);
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'PUT',
         body: { supportsExtendedContext: false },
@@ -184,7 +185,7 @@ describe('Character Settings Subcommand', () => {
 
       await handleSettings(interaction, mockConfig);
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'GET',
         userId: 'user-456',
@@ -249,29 +250,30 @@ describe('Character Settings Subcommand', () => {
 
       await handleSettings(interaction, mockConfig);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
+      // Uses editReply since top-level handler already deferred
+      expect(interaction.editReply).toHaveBeenCalledWith({
         content: 'Unknown action: invalid-action',
-        ephemeral: true,
       });
     });
   });
 
   describe('error handling', () => {
-    it('should handle unexpected errors when not deferred', async () => {
+    it('should handle unexpected errors with editReply', async () => {
       const interaction = createMockInteraction('extended-context-enable', 'test-char');
-      interaction.deferReply = vi.fn().mockRejectedValue(new Error('Network error'));
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
       await handleSettings(interaction, mockConfig);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
+      // Uses editReply since top-level handler already deferred
+      expect(interaction.editReply).toHaveBeenCalledWith({
         content: 'An error occurred while processing your request.',
-        ephemeral: true,
       });
     });
 
-    it('should handle unexpected errors when already deferred', async () => {
+    it('should not respond again if already replied', async () => {
       const interaction = createMockInteraction('extended-context-enable', 'test-char');
-      Object.defineProperty(interaction, 'deferred', {
+      // Simulate already having replied
+      Object.defineProperty(interaction, 'replied', {
         get: () => true,
         configurable: true,
       });
@@ -279,9 +281,8 @@ describe('Character Settings Subcommand', () => {
 
       await handleSettings(interaction, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'An error occurred while processing your request.',
-      });
+      // Should not call editReply again since already replied
+      expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
 });
