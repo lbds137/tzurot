@@ -190,7 +190,9 @@ describe('Character Settings Subcommand', () => {
         userId: 'user-456',
       });
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringMatching(/Settings for Test Character[\s\S]*Extended Context: \*\*Enabled\*\*/),
+        content: expect.stringMatching(
+          /Settings for Test Character[\s\S]*Extended Context: \*\*Enabled\*\*/
+        ),
       });
     });
 
@@ -212,7 +214,9 @@ describe('Character Settings Subcommand', () => {
       await handleSettings(interaction, mockConfig);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringMatching(/Settings for Test Character[\s\S]*Extended Context: \*\*Disabled\*\*/),
+        content: expect.stringMatching(
+          /Settings for Test Character[\s\S]*Extended Context: \*\*Disabled\*\*/
+        ),
       });
     });
 
