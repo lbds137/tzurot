@@ -249,6 +249,7 @@ client.on(Events.InteractionCreate, interaction => {
           const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
 
           try {
+            // eslint-disable-next-line no-restricted-syntax -- Top-level deferral is intentional and required
             await interaction.deferReply({
               flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
             });

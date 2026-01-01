@@ -26,16 +26,20 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-const mockGetChannelSettings = vi.fn();
-const mockGetExtendedContextDefault = vi.fn();
-const mockInvalidateChannelSettingsCache = vi.fn();
+// Use vi.hoisted to ensure mock functions are available before vi.mock hoisting
+const { mockGetChannelSettings, mockGetExtendedContextDefault, mockInvalidateChannelSettingsCache } =
+  vi.hoisted(() => ({
+    mockGetChannelSettings: vi.fn(),
+    mockGetExtendedContextDefault: vi.fn(),
+    mockInvalidateChannelSettingsCache: vi.fn(),
+  }));
+
 vi.mock('../../utils/GatewayClient.js', () => ({
-  GatewayClient: vi.fn().mockImplementation(() => ({
-    getChannelSettings: mockGetChannelSettings,
-    getExtendedContextDefault: mockGetExtendedContextDefault,
-  })),
-  invalidateChannelSettingsCache: (...args: unknown[]) =>
-    mockInvalidateChannelSettingsCache(...args),
+  GatewayClient: class MockGatewayClient {
+    getChannelSettings = mockGetChannelSettings;
+    getExtendedContextDefault = mockGetExtendedContextDefault;
+  },
+  invalidateChannelSettingsCache: mockInvalidateChannelSettingsCache,
 }));
 
 describe('Channel Context Subcommand', () => {
@@ -45,7 +49,8 @@ describe('Channel Context Subcommand', () => {
   ): ChatInputCommandInteraction & {
     reply: ReturnType<typeof vi.fn>;
     editReply: ReturnType<typeof vi.fn>;
-    deferReply: ReturnType<typeof vi.fn>;
+    deferred: boolean;
+    replied: boolean;
   } => {
     return {
       options: {
@@ -58,11 +63,14 @@ describe('Channel Context Subcommand', () => {
       },
       reply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
-      deferReply: vi.fn().mockResolvedValue(undefined),
+      // Top-level interactionCreate handler already defers
+      deferred: true,
+      replied: false,
     } as unknown as ChatInputCommandInteraction & {
       reply: ReturnType<typeof vi.fn>;
       editReply: ReturnType<typeof vi.fn>;
-      deferReply: ReturnType<typeof vi.fn>;
+      deferred: boolean;
+      replied: boolean;
     };
   };
 
@@ -76,9 +84,9 @@ describe('Channel Context Subcommand', () => {
 
       await handleContext(interaction);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
+      // Uses editReply since top-level handler already deferred
+      expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Manage Messages'),
-        ephemeral: true,
       });
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
@@ -91,7 +99,7 @@ describe('Channel Context Subcommand', () => {
 
       await handleContext(interaction);
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/channel/channel-123/extended-context',
         expect.objectContaining({
@@ -141,7 +149,7 @@ describe('Channel Context Subcommand', () => {
   });
 
   describe('status action', () => {
-    it('should defer reply for status check', async () => {
+    it('should show status with channel override', async () => {
       const interaction = createMockInteraction('status');
       mockGetChannelSettings.mockResolvedValue({
         hasSettings: true,
@@ -151,7 +159,27 @@ describe('Channel Context Subcommand', () => {
 
       await handleContext(interaction);
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      // Note: deferReply is handled by top-level interactionCreate handler
+      expect(mockGetChannelSettings).toHaveBeenCalledWith('channel-123');
+      expect(mockGetExtendedContextDefault).toHaveBeenCalled();
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Extended Context Status'),
+      });
+    });
+
+    it('should show status using global default when no override', async () => {
+      const interaction = createMockInteraction('status');
+      mockGetChannelSettings.mockResolvedValue({
+        hasSettings: false,
+        settings: null,
+      });
+      mockGetExtendedContextDefault.mockResolvedValue(true);
+
+      await handleContext(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('global default'),
+      });
     });
   });
 
@@ -163,7 +191,7 @@ describe('Channel Context Subcommand', () => {
 
       await handleContext(interaction);
 
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/channel/channel-123/extended-context',
         expect.objectContaining({
@@ -197,16 +225,31 @@ describe('Channel Context Subcommand', () => {
   });
 
   describe('error handling', () => {
-    it('should handle unexpected errors gracefully', async () => {
+    it('should handle unexpected errors with editReply', async () => {
       const interaction = createMockInteraction('enable');
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
       await handleContext(interaction);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
+      // Uses editReply since top-level handler already deferred
+      expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('error occurred'),
-        ephemeral: true,
       });
+    });
+
+    it('should not respond again if already replied', async () => {
+      const interaction = createMockInteraction('enable');
+      // Simulate already having replied
+      Object.defineProperty(interaction, 'replied', {
+        get: () => true,
+        configurable: true,
+      });
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+      await handleContext(interaction);
+
+      // Should not call editReply again since already replied
+      expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
 });

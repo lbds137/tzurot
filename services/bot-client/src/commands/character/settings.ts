@@ -55,9 +55,8 @@ export async function handleSettings(
         await handleShow(interaction, characterSlug, userId);
         break;
       default:
-        await interaction.reply({
+        await interaction.editReply({
           content: `Unknown action: ${action as string}`,
-          ephemeral: true,
         });
     }
   } catch (error) {
@@ -66,14 +65,10 @@ export async function handleSettings(
       '[Character Settings] Error handling settings action'
     );
 
-    if (interaction.deferred) {
+    // Only respond if we haven't already (deferReply is handled by top-level handler)
+    if (!interaction.replied) {
       await interaction.editReply({
         content: 'An error occurred while processing your request.',
-      });
-    } else {
-      await interaction.reply({
-        content: 'An error occurred while processing your request.',
-        ephemeral: true,
       });
     }
   }
@@ -87,7 +82,7 @@ async function handleExtendedContextEnable(
   characterSlug: string,
   userId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const result = await callGatewayApi(`/user/personality/${characterSlug}`, {
     method: 'PUT',
@@ -135,7 +130,7 @@ async function handleExtendedContextDisable(
   characterSlug: string,
   userId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const result = await callGatewayApi(`/user/personality/${characterSlug}`, {
     method: 'PUT',
@@ -183,7 +178,7 @@ async function handleShow(
   characterSlug: string,
   userId: string
 ): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  // Note: deferReply is handled by top-level interactionCreate handler
 
   const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${characterSlug}`, {
     method: 'GET',
