@@ -86,12 +86,19 @@ export function createDeleteHandler(
     });
 
     // Store counts before deletion
+    // Extract _count with explicit type to satisfy ESLint strict type checking
+    const personalityCount = personality._count as {
+      conversationHistory: number;
+      memories: number;
+      activatedChannels: number;
+      aliases: number;
+    };
     const deletedCounts = {
-      conversationHistory: personality._count.conversationHistory,
-      memories: personality._count.memories,
+      conversationHistory: personalityCount.conversationHistory,
+      memories: personalityCount.memories,
       pendingMemories: pendingMemoryCount,
-      activatedChannels: personality._count.activatedChannels,
-      aliases: personality._count.aliases,
+      activatedChannels: personalityCount.activatedChannels,
+      aliases: personalityCount.aliases,
     };
 
     logger.info(
