@@ -7,7 +7,7 @@ import { EmbedBuilder, GuildMember, PermissionFlagsBits, PermissionsBitField } f
 import type { ChatInputCommandInteraction, Client, Channel, Guild } from 'discord.js';
 import { handleList, buildGuildPages, CHANNELS_PER_PAGE_ALL_SERVERS } from './list.js';
 import type { GuildPage } from './list.js';
-import type { ActivatedChannel } from '@tzurot/common-types';
+import type { ChannelSettings } from '@tzurot/common-types';
 
 // Mock gateway client
 vi.mock('../../utils/userGatewayClient.js', () => ({
@@ -102,27 +102,31 @@ describe('/channel list', () => {
     mockRequireBotOwner.mockResolvedValue(true);
   });
 
-  it('should list activations successfully', async () => {
+  it('should list channel settings successfully', async () => {
     const interaction = createMockInteraction();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [
+        settings: [
           {
-            id: 'activation-1',
+            id: 'settings-1',
             channelId: '111111111111111111',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'personality-one',
             personalityName: 'Personality One',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-01-01T00:00:00.000Z',
           },
           {
-            id: 'activation-2',
+            id: 'settings-2',
             channelId: '222222222222222222',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'personality-two',
             personalityName: 'Personality Two',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-01-02T00:00:00.000Z',
           },
@@ -147,12 +151,12 @@ describe('/channel list', () => {
     );
   });
 
-  it('should show message when no activations exist', async () => {
+  it('should show message when no channel settings exist', async () => {
     const interaction = createMockInteraction();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [],
+        settings: [],
       },
     });
 
@@ -174,7 +178,7 @@ describe('/channel list', () => {
     await handleList(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to list activations')
+      expect.stringContaining('Failed to list settings')
     );
   });
 
@@ -187,18 +191,20 @@ describe('/channel list', () => {
     expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
   });
 
-  it('should display single activation correctly', async () => {
+  it('should display single channel setting correctly', async () => {
     const interaction = createMockInteraction();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [
+        settings: [
           {
-            id: 'activation-1',
+            id: 'settings-1',
             channelId: '111111111111111111',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'test-char',
             personalityName: 'Test Character',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-06-15T12:00:00.000Z',
           },
@@ -240,13 +246,15 @@ describe('/channel list', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [
+        settings: [
           {
-            id: 'activation-1',
+            id: 'settings-1',
             channelId: '111111111111111111',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'test-char',
             personalityName: 'Test Character',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-06-15T12:00:00.000Z',
           },
@@ -265,18 +273,20 @@ describe('/channel list', () => {
 });
 
 describe('buildGuildPages', () => {
-  // Helper to create mock activation
-  function createActivation(
+  // Helper to create mock channel settings
+  function createChannelSetting(
     channelId: string,
     guildId: string | null,
     personalitySlug = 'test-personality'
-  ): ActivatedChannel {
+  ): ChannelSettings {
     return {
-      id: `activation-${channelId}`,
+      id: `settings-${channelId}`,
       channelId,
       guildId,
       personalitySlug,
       personalityName: `Personality ${channelId}`,
+      autoRespond: true,
+      extendedContext: false,
       activatedBy: 'user-uuid',
       createdAt: '2024-01-01T00:00:00.000Z',
     };
@@ -291,7 +301,7 @@ describe('buildGuildPages', () => {
     } as unknown as Client;
   }
 
-  it('should return empty array for empty activations', () => {
+  it('should return empty array for empty settings', () => {
     const client = createMockClient();
     const result = buildGuildPages([], client);
     expect(result).toEqual([]);
@@ -300,13 +310,13 @@ describe('buildGuildPages', () => {
   it('should create single page for guild with few channels', () => {
     const guildId = 'guild-1';
     const client = createMockClient([{ id: guildId, name: 'Test Server' }]);
-    const activations = [
-      createActivation('ch-1', guildId),
-      createActivation('ch-2', guildId),
-      createActivation('ch-3', guildId),
+    const settings = [
+      createChannelSetting('ch-1', guildId),
+      createChannelSetting('ch-2', guildId),
+      createChannelSetting('ch-3', guildId),
     ];
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
@@ -315,18 +325,18 @@ describe('buildGuildPages', () => {
       isContinuation: false,
       isComplete: true,
     });
-    expect(result[0].activations).toHaveLength(3);
+    expect(result[0].settings).toHaveLength(3);
   });
 
   it('should split large guild across multiple pages', () => {
     const guildId = 'guild-1';
     const client = createMockClient([{ id: guildId, name: 'Big Server' }]);
-    // Create more activations than fit on one page
-    const activations = Array.from({ length: CHANNELS_PER_PAGE_ALL_SERVERS + 3 }, (_, i) =>
-      createActivation(`ch-${i}`, guildId)
+    // Create more settings than fit on one page
+    const settings = Array.from({ length: CHANNELS_PER_PAGE_ALL_SERVERS + 3 }, (_, i) =>
+      createChannelSetting(`ch-${i}`, guildId)
     );
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result).toHaveLength(2);
 
@@ -337,7 +347,7 @@ describe('buildGuildPages', () => {
       isContinuation: false,
       isComplete: false,
     });
-    expect(result[0].activations).toHaveLength(CHANNELS_PER_PAGE_ALL_SERVERS);
+    expect(result[0].settings).toHaveLength(CHANNELS_PER_PAGE_ALL_SERVERS);
 
     // Second page (continuation)
     expect(result[1]).toMatchObject({
@@ -346,7 +356,7 @@ describe('buildGuildPages', () => {
       isContinuation: true,
       isComplete: true,
     });
-    expect(result[1].activations).toHaveLength(3);
+    expect(result[1].settings).toHaveLength(3);
   });
 
   it('should handle multiple guilds with separate pages', () => {
@@ -356,27 +366,27 @@ describe('buildGuildPages', () => {
       { id: guild1, name: 'Server One' },
       { id: guild2, name: 'Server Two' },
     ]);
-    const activations = [
-      createActivation('ch-1', guild1),
-      createActivation('ch-2', guild1),
-      createActivation('ch-3', guild2),
-      createActivation('ch-4', guild2),
+    const settings = [
+      createChannelSetting('ch-1', guild1),
+      createChannelSetting('ch-2', guild1),
+      createChannelSetting('ch-3', guild2),
+      createChannelSetting('ch-4', guild2),
     ];
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result).toHaveLength(2);
     expect(result[0].guildName).toBe('Server One');
-    expect(result[0].activations).toHaveLength(2);
+    expect(result[0].settings).toHaveLength(2);
     expect(result[1].guildName).toBe('Server Two');
-    expect(result[1].activations).toHaveLength(2);
+    expect(result[1].settings).toHaveLength(2);
   });
 
   it('should handle null guildId as "unknown"', () => {
     const client = createMockClient();
-    const activations = [createActivation('ch-1', null), createActivation('ch-2', null)];
+    const settings = [createChannelSetting('ch-1', null), createChannelSetting('ch-2', null)];
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
@@ -390,9 +400,9 @@ describe('buildGuildPages', () => {
   it('should use fallback name for unknown guild IDs', () => {
     const guildId = 'unknown-guild-123';
     const client = createMockClient(); // Empty cache
-    const activations = [createActivation('ch-1', guildId)];
+    const settings = [createChannelSetting('ch-1', guildId)];
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result[0].guildName).toBe(`Unknown Server (${guildId})`);
   });
@@ -401,11 +411,11 @@ describe('buildGuildPages', () => {
     const guildId = 'guild-1';
     const client = createMockClient([{ id: guildId, name: 'Huge Server' }]);
     const channelCount = CHANNELS_PER_PAGE_ALL_SERVERS * 2 + 2; // 18 channels with page size 8
-    const activations = Array.from({ length: channelCount }, (_, i) =>
-      createActivation(`ch-${i}`, guildId)
+    const settings = Array.from({ length: channelCount }, (_, i) =>
+      createChannelSetting(`ch-${i}`, guildId)
     );
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result).toHaveLength(3);
 
@@ -420,7 +430,7 @@ describe('buildGuildPages', () => {
     // Last page
     expect(result[2].isContinuation).toBe(true);
     expect(result[2].isComplete).toBe(true);
-    expect(result[2].activations).toHaveLength(2);
+    expect(result[2].settings).toHaveLength(2);
   });
 
   it('should handle mixed guilds where one spans multiple pages', () => {
@@ -432,17 +442,17 @@ describe('buildGuildPages', () => {
     ]);
 
     // Guild 1 has 2 channels, Guild 2 has 10 (spans 2 pages with page size 8)
-    const activations = [
-      createActivation('ch-1', guild1),
-      createActivation('ch-2', guild1),
-      ...Array.from({ length: 10 }, (_, i) => createActivation(`ch-big-${i}`, guild2)),
+    const settings = [
+      createChannelSetting('ch-1', guild1),
+      createChannelSetting('ch-2', guild1),
+      ...Array.from({ length: 10 }, (_, i) => createChannelSetting(`ch-big-${i}`, guild2)),
     ];
 
-    const result = buildGuildPages(activations, client);
+    const result = buildGuildPages(settings, client);
 
     expect(result).toHaveLength(3);
     expect(result[0].guildName).toBe('Small Server');
-    expect(result[0].activations).toHaveLength(2);
+    expect(result[0].settings).toHaveLength(2);
     expect(result[1].guildName).toBe('Big Server');
     expect(result[1].isContinuation).toBe(false);
     expect(result[2].guildName).toBe('Big Server');
@@ -510,15 +520,17 @@ describe('markdown escaping integration', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [
+        settings: [
           {
-            id: 'activation-1',
+            id: 'settings-1',
             channelId: '111111111111111111',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'test-char',
             // Name with markdown characters that could cause formatting issues
             // Note: Discord strikethrough uses ~~ (double tilde), not single ~
             personalityName: '**Bold** _Italic_ ~~Strike~~ `Code`',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-01-01T00:00:00.000Z',
           },
@@ -550,13 +562,15 @@ describe('markdown escaping integration', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [
+        settings: [
           {
-            id: 'activation-1',
+            id: 'settings-1',
             channelId: '111111111111111111',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'star-char',
             personalityName: '*Star* Character',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-01-01T00:00:00.000Z',
           },
@@ -579,22 +593,26 @@ describe('markdown escaping integration', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        activations: [
+        settings: [
           {
-            id: 'activation-1',
+            id: 'settings-1',
             channelId: '111111111111111111',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'empty-name',
             personalityName: '',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-01-01T00:00:00.000Z',
           },
           {
-            id: 'activation-2',
+            id: 'settings-2',
             channelId: '222222222222222222',
             guildId: MOCK_GUILD_ID,
             personalitySlug: 'whitespace-name',
             personalityName: '   ',
+            autoRespond: true,
+            extendedContext: false,
             activatedBy: 'user-uuid',
             createdAt: '2024-01-01T00:00:00.000Z',
           },

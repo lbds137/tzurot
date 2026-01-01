@@ -49,7 +49,7 @@ describe('PATCH /user/channel/update-guild', () => {
   });
 
   it('should update guildId when activation has null guildId', async () => {
-    mockPrisma.activatedChannel.updateMany.mockResolvedValue({ count: 1 });
+    mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 1 });
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'patch', '/update-guild');
@@ -60,7 +60,7 @@ describe('PATCH /user/channel/update-guild', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.activatedChannel.updateMany).toHaveBeenCalledWith({
+    expect(mockPrisma.channelSettings.updateMany).toHaveBeenCalledWith({
       where: {
         channelId: MOCK_DISCORD_USER_ID,
         guildId: null,
@@ -73,7 +73,7 @@ describe('PATCH /user/channel/update-guild', () => {
   });
 
   it('should return updated=false when no activation needs updating', async () => {
-    mockPrisma.activatedChannel.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 0 });
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'patch', '/update-guild');
@@ -104,7 +104,7 @@ describe('PATCH /user/channel/update-guild', () => {
         error: 'VALIDATION_ERROR',
       })
     );
-    expect(mockPrisma.activatedChannel.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.channelSettings.updateMany).not.toHaveBeenCalled();
   });
 
   it('should reject empty guildId', async () => {
@@ -123,7 +123,7 @@ describe('PATCH /user/channel/update-guild', () => {
         error: 'VALIDATION_ERROR',
       })
     );
-    expect(mockPrisma.activatedChannel.updateMany).not.toHaveBeenCalled();
+    expect(mockPrisma.channelSettings.updateMany).not.toHaveBeenCalled();
   });
 
   it('should reject missing fields', async () => {

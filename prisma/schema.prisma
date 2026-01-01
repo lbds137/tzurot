@@ -10,25 +10,26 @@ datasource db {
 }
 
 model User {
-  id                   String                  @id @default(uuid()) @db.Uuid
-  discordId            String                  @unique @map("discord_id") @db.VarChar(20)
-  username             String                  @db.VarChar(255)
-  timezone             String                  @default("UTC") @db.VarChar(50)
-  isSuperuser          Boolean                 @default(false) @map("is_superuser")
-  defaultLlmConfigId   String?                 @map("default_llm_config_id") @db.Uuid
-  defaultPersonaId     String?                 @map("default_persona_id") @db.Uuid
-  createdAt            DateTime                @default(now()) @map("created_at")
-  updatedAt            DateTime                @updatedAt @map("updated_at")
-  apiKeys              UserApiKey[]
-  usageLogs            UsageLog[]
-  activatedChannels    ActivatedChannel[]
-  defaultLlmConfig     LlmConfig?              @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
-  defaultPersona       Persona?                @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: SetNull)
-  ownedLlmConfigs      LlmConfig[]             @relation("LlmConfigOwner")
-  ownedPersonalities   Personality[]           @relation("PersonalityOwner")
-  personalityOwners    PersonalityOwner[]
-  ownedPersonas        Persona[]               @relation("PersonaOwner")
-  personalityConfigs   UserPersonalityConfig[]
+  id                    String                     @id @default(uuid()) @db.Uuid
+  discordId             String                     @unique @map("discord_id") @db.VarChar(20)
+  username              String                     @db.VarChar(255)
+  timezone              String                     @default("UTC") @db.VarChar(50)
+  isSuperuser           Boolean                    @default(false) @map("is_superuser")
+  defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
+  defaultPersonaId      String?                    @map("default_persona_id") @db.Uuid
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+  apiKeys               UserApiKey[]
+  usageLogs             UsageLog[]
+  channelSettings       ChannelSettings[]
+  botSettingsUpdates    BotSettings[]
+  defaultLlmConfig      LlmConfig?                 @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
+  defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: SetNull)
+  ownedLlmConfigs       LlmConfig[]                @relation("LlmConfigOwner")
+  ownedPersonalities    Personality[]              @relation("PersonalityOwner")
+  personalityOwners     PersonalityOwner[]
+  ownedPersonas         Persona[]                  @relation("PersonaOwner")
+  personalityConfigs    UserPersonalityConfig[]
   personaHistoryConfigs UserPersonaHistoryConfig[]
 
   @@index([discordId])
@@ -59,6 +60,22 @@ model UsageLog {
   @@map("usage_logs")
 }
 
+/// Global bot settings for admin-configurable defaults.
+/// Used for features like extended_context_default that affect all channels.
+model BotSettings {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("bot_settings")
+}
+
 /// Encrypted API keys for BYOK (Bring Your Own Key) support.
 /// Uses AES-256-GCM encryption with separate columns for iv, content, and tag.
 model UserApiKey {
@@ -81,20 +98,20 @@ model UserApiKey {
 }
 
 model Persona {
-  id                          String                  @id @default(uuid()) @db.Uuid
-  name                        String                  @db.VarChar(255)
+  id                          String                     @id @default(uuid()) @db.Uuid
+  name                        String                     @db.VarChar(255)
   description                 String?
   content                     String
-  preferredName               String?                 @map("preferred_name") @db.VarChar(255)
-  pronouns                    String?                 @db.VarChar(100)
-  shareLtmAcrossPersonalities Boolean                 @default(false) @map("share_ltm_across_personalities")
-  ownerId                     String                  @map("owner_id") @db.Uuid
-  createdAt                   DateTime                @default(now()) @map("created_at")
-  updatedAt                   DateTime                @updatedAt @map("updated_at")
+  preferredName               String?                    @map("preferred_name") @db.VarChar(255)
+  pronouns                    String?                    @db.VarChar(100)
+  shareLtmAcrossPersonalities Boolean                    @default(false) @map("share_ltm_across_personalities")
+  ownerId                     String                     @map("owner_id") @db.Uuid
+  createdAt                   DateTime                   @default(now()) @map("created_at")
+  updatedAt                   DateTime                   @updatedAt @map("updated_at")
   conversationHistory         ConversationHistory[]
   memories                    Memory[]
-  owner                       User                    @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  usersWithAsDefault          User[]                  @relation("UserDefaultPersona")
+  owner                       User                       @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  usersWithAsDefault          User[]                     @relation("UserDefaultPersona")
   shapesPersonaMappings       ShapesPersonaMapping[]
   personalityConfigs          UserPersonalityConfig[]
   historyConfigs              UserPersonaHistoryConfig[] @relation("personaHistoryConfigs")
@@ -170,44 +187,47 @@ model PersonalityDefaultConfig {
 }
 
 model Personality {
-  id                     String                    @id @default(uuid()) @db.Uuid
-  name                   String                    @db.VarChar(255)
-  displayName            String?                   @map("display_name") @db.VarChar(255)
-  slug                   String                    @unique @db.VarChar(255)
-  systemPromptId         String?                   @map("system_prompt_id") @db.Uuid
-  ownerId                String?                   @map("owner_id") @db.Uuid
-  characterInfo          String                    @map("character_info")
-  personalityTraits      String                    @map("personality_traits")
-  personalityTone        String?                   @map("personality_tone")
-  personalityAge         String?                   @map("personality_age")
-  personalityAppearance  String?                   @map("personality_appearance")
-  personalityLikes       String?                   @map("personality_likes")
-  personalityDislikes    String?                   @map("personality_dislikes")
-  conversationalGoals    String?                   @map("conversational_goals")
-  conversationalExamples String?                   @map("conversational_examples")
-  customFields           Json?                     @map("custom_fields")
-  errorMessage           String?                   @map("error_message")
-  birthMonth             Int?                      @map("birth_month")
-  birthDay               Int?                      @map("birth_day")
-  birthYear              Int?                      @map("birth_year")
-  isPublic               Boolean                   @default(true) @map("is_public")
-  voiceEnabled           Boolean                   @default(false) @map("voice_enabled")
-  voiceSettings          Json?                     @map("voice_settings")
-  imageEnabled           Boolean                   @default(false) @map("image_enabled")
-  imageSettings          Json?                     @map("image_settings")
-  avatarData             Bytes?                    @map("avatar_data")
-  createdAt              DateTime                  @default(now()) @map("created_at")
-  updatedAt              DateTime                  @updatedAt @map("updated_at")
-  activatedChannels      ActivatedChannel[]
-  aliases                PersonalityAlias[]
-  conversationHistory    ConversationHistory[]
-  memories               Memory[]
-  owner                  User?                     @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  systemPrompt           SystemPrompt?             @relation(fields: [systemPromptId], references: [id])
-  defaultConfigLink      PersonalityDefaultConfig?
-  owners                 PersonalityOwner[]
-  userConfigs            UserPersonalityConfig[]
-  personaHistoryConfigs  UserPersonaHistoryConfig[]
+  id                      String                     @id @default(uuid()) @db.Uuid
+  name                    String                     @db.VarChar(255)
+  displayName             String?                    @map("display_name") @db.VarChar(255)
+  slug                    String                     @unique @db.VarChar(255)
+  systemPromptId          String?                    @map("system_prompt_id") @db.Uuid
+  ownerId                 String?                    @map("owner_id") @db.Uuid
+  characterInfo           String                     @map("character_info")
+  personalityTraits       String                     @map("personality_traits")
+  personalityTone         String?                    @map("personality_tone")
+  personalityAge          String?                    @map("personality_age")
+  personalityAppearance   String?                    @map("personality_appearance")
+  personalityLikes        String?                    @map("personality_likes")
+  personalityDislikes     String?                    @map("personality_dislikes")
+  conversationalGoals     String?                    @map("conversational_goals")
+  conversationalExamples  String?                    @map("conversational_examples")
+  customFields            Json?                      @map("custom_fields")
+  errorMessage            String?                    @map("error_message")
+  birthMonth              Int?                       @map("birth_month")
+  birthDay                Int?                       @map("birth_day")
+  birthYear               Int?                       @map("birth_year")
+  isPublic                Boolean                    @default(true) @map("is_public")
+  voiceEnabled            Boolean                    @default(false) @map("voice_enabled")
+  voiceSettings           Json?                      @map("voice_settings")
+  imageEnabled            Boolean                    @default(false) @map("image_enabled")
+  imageSettings           Json?                      @map("image_settings")
+  avatarData              Bytes?                     @map("avatar_data")
+  /// Personality opt-out for extended context. If false, NEVER fetch channel history
+  /// regardless of channel/global settings. Useful for simple joke bots that waste tokens.
+  supportsExtendedContext Boolean                    @default(true) @map("supports_extended_context")
+  createdAt               DateTime                   @default(now()) @map("created_at")
+  updatedAt               DateTime                   @updatedAt @map("updated_at")
+  channelSettings         ChannelSettings[]
+  aliases                 PersonalityAlias[]
+  conversationHistory     ConversationHistory[]
+  memories                Memory[]
+  owner                   User?                      @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  systemPrompt            SystemPrompt?              @relation(fields: [systemPromptId], references: [id])
+  defaultConfigLink       PersonalityDefaultConfig?
+  owners                  PersonalityOwner[]
+  userConfigs             UserPersonalityConfig[]
+  personaHistoryConfigs   UserPersonaHistoryConfig[]
 
   @@index([slug])
   @@index([ownerId])
@@ -247,18 +267,18 @@ model PersonalityAlias {
 /// Note: STM epoch fields (lastContextReset) are in UserPersonaHistoryConfig,
 /// which tracks per-persona history (user + personality + persona).
 model UserPersonalityConfig {
-  id            String      @id @default(uuid()) @db.Uuid
-  userId        String      @map("user_id") @db.Uuid
-  personalityId String      @map("personality_id") @db.Uuid
-  personaId     String?     @map("persona_id") @db.Uuid
-  llmConfigId   String?     @map("llm_config_id") @db.Uuid
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  personalityId String   @map("personality_id") @db.Uuid
+  personaId     String?  @map("persona_id") @db.Uuid
+  llmConfigId   String?  @map("llm_config_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  llmConfig     LlmConfig?  @relation(fields: [llmConfigId], references: [id])
-  persona       Persona?    @relation(fields: [personaId], references: [id])
-  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  llmConfig   LlmConfig?  @relation(fields: [llmConfigId], references: [id])
+  persona     Persona?    @relation(fields: [personaId], references: [id])
+  personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, personalityId])
   @@index([userId])
@@ -270,21 +290,21 @@ model UserPersonalityConfig {
 /// This enables each persona to have independent conversation history cutoffs
 /// See ADR-003 in docs/planning/SLASH_COMMAND_ARCHITECTURE.md
 model UserPersonaHistoryConfig {
-  id            String      @id @default(uuid()) @db.Uuid
-  userId        String      @map("user_id") @db.Uuid
-  personalityId String      @map("personality_id") @db.Uuid
-  personaId     String      @map("persona_id") @db.Uuid
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  personalityId String   @map("personality_id") @db.Uuid
+  personaId     String   @map("persona_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // STM Epoch System - Non-destructive conversation history filtering per-persona
   // Messages older than lastContextReset are excluded from AI context
   lastContextReset     DateTime? @map("last_context_reset")
   previousContextReset DateTime? @map("previous_context_reset") // For undo support
 
-  persona       Persona     @relation("personaHistoryConfigs", fields: [personaId], references: [id], onDelete: Cascade)
-  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  persona     Persona     @relation("personaHistoryConfigs", fields: [personaId], references: [id], onDelete: Cascade)
+  personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, personalityId, personaId])
   @@index([userId])
@@ -307,6 +327,12 @@ model ConversationHistory {
   /// Separates semantic content (in 'content') from contextual data
   /// See MessageMetadata interface in common-types for schema
   messageMetadata  Json?          @default("{}") @map("message_metadata")
+  /// Soft delete timestamp - message excluded from context when set
+  /// Used for opportunistic sync when Discord message is deleted
+  deletedAt        DateTime?      @map("deleted_at")
+  /// Last edit detected timestamp - updated during opportunistic sync
+  /// when Discord message content differs from stored content
+  editedAt         DateTime?      @map("edited_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   persona          Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
   personality      Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)
@@ -316,6 +342,7 @@ model ConversationHistory {
   @@index([personaId])
   @@index([discordMessageId])
   @@index([messageMetadata], map: "conversation_history_message_metadata_idx", type: Gin)
+  @@index([deletedAt]) // For cleanup queries and filtering soft-deleted messages
   @@map("conversation_history")
 }
 
@@ -354,23 +381,33 @@ model PendingMemory {
   @@map("pending_memories")
 }
 
-model ActivatedChannel {
-  id            String      @id @default(uuid()) @db.Uuid
-  channelId     String      @map("channel_id") @db.VarChar(20)
-  personalityId String      @map("personality_id") @db.Uuid
-  guildId       String?     @map("guild_id") @db.VarChar(20)
-  autoRespond   Boolean     @default(true) @map("auto_respond")
-  createdBy     String?     @map("created_by") @db.Uuid
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  createdByUser User?       @relation(fields: [createdBy], references: [id])
-  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+/// Unified channel settings - replaces ActivatedChannel.
+/// Stores both activation settings and extended context preferences per channel.
+/// Note: channelId is unique (not channelId+personalityId) - one personality per channel.
+model ChannelSettings {
+  id        String  @id @default(uuid()) @db.Uuid
+  channelId String  @unique @map("channel_id") @db.VarChar(20)
+  guildId   String? @map("guild_id") @db.VarChar(20)
 
-  @@unique([channelId, personalityId])
+  // Activation settings (migrated from ActivatedChannel)
+  activatedPersonalityId String? @map("activated_personality_id") @db.Uuid
+  autoRespond            Boolean @default(true) @map("auto_respond")
+
+  // Extended context settings
+  /// null = use global default from BotSettings
+  extendedContext Boolean? @map("extended_context")
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdByUser        User?        @relation(fields: [createdBy], references: [id])
+  activatedPersonality Personality? @relation(fields: [activatedPersonalityId], references: [id], onDelete: SetNull)
+
   @@index([channelId])
-  @@index([personalityId])
   @@index([guildId])
-  @@map("activated_channels")
+  @@index([activatedPersonalityId])
+  @@map("channel_settings")
 }
 
 model Memory {

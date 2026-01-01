@@ -132,6 +132,7 @@ describe('AIJobProcessor Component Test', () => {
         birth_day INTEGER,
         birth_year INTEGER,
         is_public BOOLEAN DEFAULT TRUE,
+        supports_extended_context BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )

@@ -3,7 +3,7 @@
  * Deactivate personality from a Discord channel
  *
  * Removes any personality activation from the channel, so the bot
- * will only respond to @mentions again.
+ * will only respond to @mentions again. Does NOT delete channel settings.
  */
 
 import { type Response, type RequestHandler } from 'express';
@@ -24,7 +24,7 @@ const logger = createLogger('channel-deactivate');
 
 /**
  * Create handler for DELETE /user/channel/deactivate
- * Deactivates any personality from the channel.
+ * Deactivates any personality from the channel by clearing activatedPersonalityId.
  */
 export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -40,12 +40,13 @@ export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] 
 
     const { channelId } = parseResult.data;
 
-    // Find existing activation
-    const existingActivation = await prisma.activatedChannel.findFirst({
+    // Find existing channel settings with activated personality
+    const existingSettings = await prisma.channelSettings.findUnique({
       where: { channelId },
       select: {
         id: true,
-        personality: {
+        activatedPersonalityId: true,
+        activatedPersonality: {
           select: {
             displayName: true,
           },
@@ -53,19 +54,21 @@ export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] 
       },
     });
 
-    // If no activation exists, return success with deactivated=false
-    if (existingActivation === null) {
+    // If no settings or no activated personality, return success with deactivated=false
+    // eslint-disable-next-line @typescript-eslint/prefer-optional-chain -- explicit null checks required for type narrowing
+    if (existingSettings === null || existingSettings.activatedPersonalityId === null) {
       const response = { deactivated: false };
       DeactivateChannelResponseSchema.parse(response);
       sendCustomSuccess(res, response, StatusCodes.OK);
       return;
     }
 
-    const personalityName = existingActivation.personality.displayName;
+    const personalityName = existingSettings.activatedPersonality?.displayName ?? 'Unknown';
 
-    // Delete the activation
-    await prisma.activatedChannel.delete({
-      where: { id: existingActivation.id },
+    // Clear the activated personality (don't delete the settings record)
+    await prisma.channelSettings.update({
+      where: { id: existingSettings.id },
+      data: { activatedPersonalityId: null },
     });
 
     logger.info(

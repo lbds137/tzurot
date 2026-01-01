@@ -1,94 +1,96 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ChannelSettingsSchema,
   ActivatedChannelSchema,
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
   DeactivateChannelRequestSchema,
   DeactivateChannelResponseSchema,
+  GetChannelSettingsResponseSchema,
   GetChannelActivationResponseSchema,
+  ListChannelSettingsResponseSchema,
   ListChannelActivationsResponseSchema,
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
+  UpdateChannelExtendedContextRequestSchema,
+  UpdateChannelExtendedContextResponseSchema,
 } from './channel.js';
 
-describe('Channel Activation Schemas', () => {
-  describe('ActivatedChannelSchema', () => {
-    it('should accept valid activated channel data', () => {
-      const data = {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        channelId: '123456789012345678',
-        guildId: '987654321098765432',
-        personalitySlug: 'lilith',
-        personalityName: 'Lilith',
-        activatedBy: '550e8400-e29b-41d4-a716-446655440001',
-        createdAt: '2025-01-15T12:00:00.000Z',
-      };
-      expect(ActivatedChannelSchema.parse(data)).toEqual(data);
+/** Helper to create valid channel settings data */
+function createValidChannelSettings(overrides = {}) {
+  return {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    channelId: '123456789012345678',
+    guildId: '987654321098765432',
+    personalitySlug: 'lilith',
+    personalityName: 'Lilith',
+    autoRespond: true,
+    extendedContext: null,
+    activatedBy: '550e8400-e29b-41d4-a716-446655440001',
+    createdAt: '2025-01-15T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('Channel Settings Schemas', () => {
+  describe('ChannelSettingsSchema', () => {
+    it('should accept valid channel settings data', () => {
+      const data = createValidChannelSettings();
+      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
     });
 
-    it('should accept null guildId (for legacy records)', () => {
-      const data = {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        channelId: '123456789012345678',
-        guildId: null,
-        personalitySlug: 'lilith',
-        personalityName: 'Lilith',
-        activatedBy: null,
-        createdAt: '2025-01-15T12:00:00.000Z',
-      };
-      expect(ActivatedChannelSchema.parse(data)).toEqual(data);
+    it('should accept null guildId (for DM channels)', () => {
+      const data = createValidChannelSettings({ guildId: null });
+      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept null personalitySlug and personalityName (no activation)', () => {
+      const data = createValidChannelSettings({
+        personalitySlug: null,
+        personalityName: null,
+      });
+      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
     });
 
     it('should accept null activatedBy', () => {
-      const data = {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        channelId: '123456789012345678',
-        guildId: '987654321098765432',
-        personalitySlug: 'lilith',
-        personalityName: 'Lilith',
-        activatedBy: null,
-        createdAt: '2025-01-15T12:00:00.000Z',
-      };
-      expect(ActivatedChannelSchema.parse(data)).toEqual(data);
+      const data = createValidChannelSettings({ activatedBy: null });
+      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept boolean extendedContext', () => {
+      const data = createValidChannelSettings({ extendedContext: true });
+      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
+
+      const data2 = createValidChannelSettings({ extendedContext: false });
+      expect(ChannelSettingsSchema.parse(data2)).toEqual(data2);
+    });
+
+    it('should accept null extendedContext (use global default)', () => {
+      const data = createValidChannelSettings({ extendedContext: null });
+      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
     });
 
     it('should reject invalid UUID for id', () => {
-      const data = {
-        id: 'not-a-uuid',
-        channelId: '123456789012345678',
-        guildId: '987654321098765432',
-        personalitySlug: 'lilith',
-        personalityName: 'Lilith',
-        activatedBy: null,
-        createdAt: '2025-01-15T12:00:00.000Z',
-      };
-      expect(() => ActivatedChannelSchema.parse(data)).toThrow();
+      const data = createValidChannelSettings({ id: 'not-a-uuid' });
+      expect(() => ChannelSettingsSchema.parse(data)).toThrow();
     });
 
     it('should reject empty channelId', () => {
-      const data = {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        channelId: '',
-        guildId: '987654321098765432',
-        personalitySlug: 'lilith',
-        personalityName: 'Lilith',
-        activatedBy: null,
-        createdAt: '2025-01-15T12:00:00.000Z',
-      };
-      expect(() => ActivatedChannelSchema.parse(data)).toThrow();
+      const data = createValidChannelSettings({ channelId: '' });
+      expect(() => ChannelSettingsSchema.parse(data)).toThrow();
     });
 
-    it('should reject empty personalitySlug', () => {
-      const data = {
-        id: '550e8400-e29b-41d4-a716-446655440000',
-        channelId: '123456789012345678',
-        guildId: '987654321098765432',
-        personalitySlug: '',
-        personalityName: 'Lilith',
-        activatedBy: null,
-        createdAt: '2025-01-15T12:00:00.000Z',
-      };
-      expect(() => ActivatedChannelSchema.parse(data)).toThrow();
+    it('should reject empty personalitySlug (use null instead)', () => {
+      const data = createValidChannelSettings({ personalitySlug: '' });
+      expect(() => ChannelSettingsSchema.parse(data)).toThrow();
+    });
+  });
+
+  // ActivatedChannelSchema is an alias for ChannelSettingsSchema
+  describe('ActivatedChannelSchema (deprecated alias)', () => {
+    it('should work the same as ChannelSettingsSchema', () => {
+      const data = createValidChannelSettings();
+      expect(ActivatedChannelSchema.parse(data)).toEqual(data);
     });
   });
 
@@ -138,15 +140,7 @@ describe('Channel Activation Schemas', () => {
   describe('ActivateChannelResponseSchema', () => {
     it('should accept valid response with replaced=false', () => {
       const data = {
-        activation: {
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          channelId: '123456789012345678',
-          guildId: '987654321098765432',
-          personalitySlug: 'lilith',
-          personalityName: 'Lilith',
-          activatedBy: '550e8400-e29b-41d4-a716-446655440001',
-          createdAt: '2025-01-15T12:00:00.000Z',
-        },
+        activation: createValidChannelSettings(),
         replaced: false,
       };
       expect(ActivateChannelResponseSchema.parse(data)).toEqual(data);
@@ -154,15 +148,7 @@ describe('Channel Activation Schemas', () => {
 
     it('should accept valid response with replaced=true', () => {
       const data = {
-        activation: {
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          channelId: '123456789012345678',
-          guildId: '987654321098765432',
-          personalitySlug: 'lilith',
-          personalityName: 'Lilith',
-          activatedBy: null,
-          createdAt: '2025-01-15T12:00:00.000Z',
-        },
+        activation: createValidChannelSettings({ activatedBy: null }),
         replaced: true,
       };
       expect(ActivateChannelResponseSchema.parse(data)).toEqual(data);
@@ -202,19 +188,39 @@ describe('Channel Activation Schemas', () => {
     });
   });
 
-  describe('GetChannelActivationResponseSchema', () => {
+  describe('GetChannelSettingsResponseSchema', () => {
+    it('should accept response with settings', () => {
+      const data = {
+        hasSettings: true,
+        settings: createValidChannelSettings(),
+      };
+      expect(GetChannelSettingsResponseSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept response without settings', () => {
+      const data = {
+        hasSettings: false,
+      };
+      expect(GetChannelSettingsResponseSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept response with hasSettings=false and no settings', () => {
+      const data = {
+        hasSettings: false,
+        settings: undefined,
+      };
+      const result = GetChannelSettingsResponseSchema.parse(data);
+      expect(result.hasSettings).toBe(false);
+      expect(result.settings).toBeUndefined();
+    });
+  });
+
+  // GetChannelActivationResponseSchema is for backward compatibility
+  describe('GetChannelActivationResponseSchema (deprecated)', () => {
     it('should accept response with activation', () => {
       const data = {
         isActivated: true,
-        activation: {
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          channelId: '123456789012345678',
-          guildId: '987654321098765432',
-          personalitySlug: 'lilith',
-          personalityName: 'Lilith',
-          activatedBy: null,
-          createdAt: '2025-01-15T12:00:00.000Z',
-        },
+        activation: createValidChannelSettings(),
       };
       expect(GetChannelActivationResponseSchema.parse(data)).toEqual(data);
     });
@@ -225,40 +231,46 @@ describe('Channel Activation Schemas', () => {
       };
       expect(GetChannelActivationResponseSchema.parse(data)).toEqual(data);
     });
-
-    it('should accept response with isActivated=false and no activation', () => {
-      const data = {
-        isActivated: false,
-        activation: undefined,
-      };
-      const result = GetChannelActivationResponseSchema.parse(data);
-      expect(result.isActivated).toBe(false);
-      expect(result.activation).toBeUndefined();
-    });
   });
 
-  describe('ListChannelActivationsResponseSchema', () => {
-    it('should accept response with multiple activations', () => {
+  describe('ListChannelSettingsResponseSchema', () => {
+    it('should accept response with multiple settings', () => {
       const data = {
-        activations: [
-          {
-            id: '550e8400-e29b-41d4-a716-446655440000',
-            channelId: '123456789012345678',
-            guildId: '987654321098765432',
-            personalitySlug: 'lilith',
-            personalityName: 'Lilith',
-            activatedBy: null,
-            createdAt: '2025-01-15T12:00:00.000Z',
-          },
-          {
+        settings: [
+          createValidChannelSettings(),
+          createValidChannelSettings({
             id: '550e8400-e29b-41d4-a716-446655440001',
             channelId: '123456789012345679',
-            guildId: '987654321098765432',
             personalitySlug: 'sarcastic',
             personalityName: 'Sarcastic Bot',
             activatedBy: '550e8400-e29b-41d4-a716-446655440002',
             createdAt: '2025-01-15T13:00:00.000Z',
-          },
+          }),
+        ],
+      };
+      expect(ListChannelSettingsResponseSchema.parse(data)).toEqual(data);
+    });
+
+    it('should accept empty settings array', () => {
+      const data = { settings: [] };
+      expect(ListChannelSettingsResponseSchema.parse(data)).toEqual(data);
+    });
+  });
+
+  // ListChannelActivationsResponseSchema is for backward compatibility
+  describe('ListChannelActivationsResponseSchema (deprecated)', () => {
+    it('should accept response with multiple activations', () => {
+      const data = {
+        activations: [
+          createValidChannelSettings(),
+          createValidChannelSettings({
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            channelId: '123456789012345679',
+            personalitySlug: 'sarcastic',
+            personalityName: 'Sarcastic Bot',
+            activatedBy: '550e8400-e29b-41d4-a716-446655440002',
+            createdAt: '2025-01-15T13:00:00.000Z',
+          }),
         ],
       };
       expect(ListChannelActivationsResponseSchema.parse(data)).toEqual(data);
@@ -314,6 +326,42 @@ describe('Channel Activation Schemas', () => {
 
     it('should reject missing updated field', () => {
       expect(() => UpdateChannelGuildResponseSchema.parse({})).toThrow();
+    });
+  });
+
+  describe('UpdateChannelExtendedContextRequestSchema', () => {
+    it('should accept boolean extendedContext', () => {
+      expect(UpdateChannelExtendedContextRequestSchema.parse({ extendedContext: true })).toEqual({
+        extendedContext: true,
+      });
+      expect(UpdateChannelExtendedContextRequestSchema.parse({ extendedContext: false })).toEqual({
+        extendedContext: false,
+      });
+    });
+
+    it('should accept null extendedContext (clear override)', () => {
+      expect(UpdateChannelExtendedContextRequestSchema.parse({ extendedContext: null })).toEqual({
+        extendedContext: null,
+      });
+    });
+
+    it('should reject missing extendedContext', () => {
+      expect(() => UpdateChannelExtendedContextRequestSchema.parse({})).toThrow();
+    });
+  });
+
+  describe('UpdateChannelExtendedContextResponseSchema', () => {
+    it('should accept valid response', () => {
+      const data = {
+        updated: true,
+        settings: createValidChannelSettings({ extendedContext: true }),
+      };
+      expect(UpdateChannelExtendedContextResponseSchema.parse(data)).toEqual(data);
+    });
+
+    it('should reject missing fields', () => {
+      expect(() => UpdateChannelExtendedContextResponseSchema.parse({})).toThrow();
+      expect(() => UpdateChannelExtendedContextResponseSchema.parse({ updated: true })).toThrow();
     });
   });
 });

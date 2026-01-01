@@ -28,7 +28,7 @@ export const MOCK_DISCORD_USER_ID = '123456789012345678';
 // Type for mock Prisma client
 export type MockPrisma = ReturnType<typeof createMockPrisma>;
 
-// Mock Prisma client with tables needed for channel activation tests + UserService dependencies
+// Mock Prisma client with tables needed for channel settings tests + UserService dependencies
 export function createMockPrisma(): {
   user: {
     findFirst: ReturnType<typeof vi.fn>;
@@ -45,10 +45,13 @@ export function createMockPrisma(): {
   personalityOwner: {
     findUnique: ReturnType<typeof vi.fn>;
   };
-  activatedChannel: {
+  channelSettings: {
     findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
   };
@@ -75,10 +78,13 @@ export function createMockPrisma(): {
     personalityOwner: {
       findUnique: vi.fn(),
     },
-    activatedChannel: {
+    channelSettings: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      upsert: vi.fn(),
       delete: vi.fn(),
       updateMany: vi.fn(),
     },
@@ -128,7 +134,7 @@ export function createMockPersonality(
 // Valid guild ID for testing
 export const MOCK_GUILD_ID = '987654321098765432';
 
-// Base mock activation for tests
+// Base mock channel settings for tests
 export function createMockActivation(
   overrides: Record<string, unknown> = {}
 ): Record<string, unknown> {
@@ -138,7 +144,10 @@ export function createMockActivation(
     guildId: MOCK_GUILD_ID,
     createdBy: MOCK_USER_UUID,
     createdAt: MOCK_CREATED_AT,
-    personality: {
+    autoRespond: true,
+    extendedContext: false,
+    activatedPersonalityId: MOCK_PERSONALITY_UUID,
+    activatedPersonality: {
       slug: 'test-character',
       displayName: 'Test Character',
     },
@@ -184,7 +193,7 @@ export function getHandler(
   /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions */
 }
 
-// Standard beforeEach setup for tests that need user/personality/activation state
+// Standard beforeEach setup for tests that need user/personality/settings state
 export function setupStandardMocks(mockPrisma: ReturnType<typeof createMockPrisma>): void {
   mockIsBotOwner.mockReturnValue(false);
   mockPrisma.user.findFirst.mockResolvedValue({ id: MOCK_USER_UUID });
@@ -195,7 +204,8 @@ export function setupStandardMocks(mockPrisma: ReturnType<typeof createMockPrism
   });
   mockPrisma.personality.findUnique.mockResolvedValue(null);
   mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
-  mockPrisma.activatedChannel.findFirst.mockResolvedValue(null);
-  mockPrisma.activatedChannel.findMany.mockResolvedValue([]);
-  mockPrisma.activatedChannel.delete.mockResolvedValue({});
+  mockPrisma.channelSettings.findFirst.mockResolvedValue(null);
+  mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
+  mockPrisma.channelSettings.findMany.mockResolvedValue([]);
+  mockPrisma.channelSettings.delete.mockResolvedValue({});
 }

@@ -1,6 +1,6 @@
 /**
  * GET /user/channel/list
- * List all activated channels
+ * List all channel settings with activated personalities
  *
  * Query params:
  * - guildId (optional): Filter to only show channels in a specific guild
@@ -11,7 +11,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  ListChannelActivationsResponseSchema,
+  ListChannelSettingsResponseSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -23,7 +23,7 @@ const logger = createLogger('channel-list');
 
 /**
  * Create handler for GET /user/channel/list
- * Returns all activated channels, optionally filtered by guildId.
+ * Returns all channel settings with activated personalities, optionally filtered by guildId.
  */
 export function createListHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -37,25 +37,25 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
       return sendError(res, ErrorResponses.validationError('guildId cannot be empty'));
     }
 
-    // Build where clause based on whether guildId filter is provided
+    // Build where clause - only include channels with activated personalities
     // Include records with null guildId (legacy data) so bot-client can backfill them
-    const whereClause =
-      guildId !== undefined
-        ? {
-            OR: [{ guildId }, { guildId: null }],
-          }
-        : undefined;
+    const whereClause = {
+      activatedPersonalityId: { not: null },
+      ...(guildId !== undefined ? { OR: [{ guildId }, { guildId: null }] } : {}),
+    };
 
-    // Get activations (optionally filtered by guild)
-    const activations = await prisma.activatedChannel.findMany({
+    // Get settings with activated personalities (optionally filtered by guild)
+    const settingsList = await prisma.channelSettings.findMany({
       where: whereClause,
       select: {
         id: true,
         channelId: true,
         guildId: true,
+        autoRespond: true,
+        extendedContext: true,
         createdBy: true,
         createdAt: true,
-        personality: {
+        activatedPersonality: {
           select: {
             slug: true,
             displayName: true,
@@ -68,26 +68,28 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
     logger.debug(
       {
         discordUserId,
-        activationCount: activations.length,
+        settingsCount: settingsList.length,
         guildIdFilter: guildId ?? 'all',
       },
-      '[Channel] Listed channel activations'
+      '[Channel] Listed channel settings'
     );
 
     // Build response matching schema
     const response = {
-      activations: activations.map(a => ({
-        id: a.id,
-        channelId: a.channelId,
-        guildId: a.guildId,
-        personalitySlug: a.personality.slug,
-        personalityName: a.personality.displayName,
-        activatedBy: a.createdBy,
-        createdAt: a.createdAt.toISOString(),
+      settings: settingsList.map(s => ({
+        id: s.id,
+        channelId: s.channelId,
+        guildId: s.guildId,
+        personalitySlug: s.activatedPersonality?.slug ?? null,
+        personalityName: s.activatedPersonality?.displayName ?? null,
+        autoRespond: s.autoRespond,
+        extendedContext: s.extendedContext,
+        activatedBy: s.createdBy,
+        createdAt: s.createdAt.toISOString(),
       })),
     };
 
-    ListChannelActivationsResponseSchema.parse(response);
+    ListChannelSettingsResponseSchema.parse(response);
 
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
