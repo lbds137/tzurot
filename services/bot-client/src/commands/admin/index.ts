@@ -21,6 +21,7 @@ import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
+import { handleSettings } from './settings.js';
 
 const logger = createLogger('admin-command');
 
@@ -98,6 +99,22 @@ export const data = new SlashCommandBuilder()
             { name: 'Tombstones only', value: 'tombstones' }
           )
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('settings')
+      .setDescription('Manage global bot settings')
+      .addStringOption(option =>
+        option
+          .setName('action')
+          .setDescription('Action to perform')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Enable extended context globally', value: 'extended-context-enable' },
+            { name: 'Disable extended context globally', value: 'extended-context-disable' },
+            { name: 'List all settings', value: 'list' }
+          )
+      )
   );
 
 /**
@@ -112,6 +129,7 @@ function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Prom
       kick: handleKick,
       usage: handleUsage,
       cleanup: handleCleanup,
+      settings: handleSettings,
     },
     { logger, logPrefix: '[Admin]' }
   );

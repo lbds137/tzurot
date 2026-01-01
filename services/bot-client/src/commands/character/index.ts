@@ -26,6 +26,7 @@ import { handleDelete } from './delete.js';
 import { handleAvatar } from './avatar.js';
 import { handleList } from './list.js';
 import { handleChat } from './chat.js';
+import { handleSettings } from './settings.js';
 import {
   handleModalSubmit,
   handleSelectMenu,
@@ -152,6 +153,29 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .setMaxLength(2000)
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('settings')
+      .setDescription('Manage character settings (owner only)')
+      .addStringOption(option =>
+        option
+          .setName('character')
+          .setDescription('Character to manage')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('action')
+          .setDescription('Action to perform')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Enable extended context', value: 'extended-context-enable' },
+            { name: 'Disable extended context', value: 'extended-context-disable' },
+            { name: 'Show current settings', value: 'show' }
+          )
+      )
   );
 
 /**
@@ -172,6 +196,7 @@ function createCharacterRouter(
       export: interaction => handleExport(interaction, config),
       template: interaction => handleTemplate(interaction, config),
       chat: interaction => handleChat(interaction, config),
+      settings: interaction => handleSettings(interaction, config),
     },
     { logger, logPrefix: '[Character]' }
   );
