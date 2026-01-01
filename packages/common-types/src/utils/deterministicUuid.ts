@@ -140,3 +140,18 @@ export function generateMemoryChunkGroupUuid(
 export function generateBotSettingUuid(key: string): string {
   return uuidv5(`bot_setting:${key}`, TZUROT_NAMESPACE);
 }
+
+/**
+ * Generate deterministic UUID for UserPersonaHistoryConfig
+ * Seed: user_persona_history_config:{userId}:{personalityId}:{personaId}
+ */
+export function generateUserPersonaHistoryConfigUuid(
+  userId: string,
+  personalityId: string,
+  personaId: string
+): string {
+  return uuidv5(
+    `user_persona_history_config:${userId}:${personalityId}:${personaId}`,
+    TZUROT_NAMESPACE
+  );
+}

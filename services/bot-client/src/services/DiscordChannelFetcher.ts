@@ -3,10 +3,13 @@
  *
  * Fetches recent messages from Discord channels for extended context.
  * Converts Discord messages to ConversationMessage format compatible with the AI pipeline.
+ *
+ * Uses shared MessageContentBuilder to ensure consistency with MessageFormatter
+ * (used for referenced messages like message links).
  */
 
 import type { Message, TextChannel, DMChannel, NewsChannel, Collection } from 'discord.js';
-import { MessageType } from 'discord.js';
+import { MessageType, MessageReferenceType } from 'discord.js';
 import {
   createLogger,
   MessageRole,
@@ -14,6 +17,9 @@ import {
   ConversationHistoryService,
 } from '@tzurot/common-types';
 import type { ConversationMessage } from '@tzurot/common-types';
+import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
+import { mergeVoiceContext } from '../utils/VoiceContextMerger.js';
+import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 
 const logger = createLogger('DiscordChannelFetcher');
 
@@ -45,6 +51,12 @@ export interface FetchOptions {
   personalityName?: string;
   /** The personality ID (for message tagging) */
   personalityId?: string;
+  /** Optional transcript retriever for voice messages */
+  getTranscript?: (discordMessageId: string, attachmentUrl: string) => Promise<string | null>;
+  /** Whether to resolve Discord message links in history (default: true) */
+  resolveLinks?: boolean;
+  /** Context epoch - ignore messages before this timestamp (from /history clear) */
+  contextEpoch?: Date;
 }
 
 /**
@@ -87,8 +99,51 @@ export class DiscordChannelFetcher {
 
       const discordMessages = await channel.messages.fetch(fetchOptions);
 
-      // Filter and convert messages
-      const messages = this.processMessages(discordMessages, options);
+      // Merge voice message transcripts using the Reverse Zipper algorithm
+      // This injects transcript text into voice messages and removes bot transcript replies
+      const mergeResult = mergeVoiceContext(discordMessages, options.botUserId);
+
+      if (mergeResult.mergedCount > 0 || mergeResult.orphanTranscripts > 0) {
+        logger.debug(
+          {
+            channelId: channel.id,
+            mergedCount: mergeResult.mergedCount,
+            unmergedCount: mergeResult.unmergedCount,
+            orphanTranscripts: mergeResult.orphanTranscripts,
+          },
+          '[DiscordChannelFetcher] Voice context merged'
+        );
+      }
+
+      // Resolve Discord message links in history (if enabled)
+      // This injects linked message content inline and manages the budget
+      let messagesToProcess = mergeResult.messages;
+      const shouldResolveLinks = options.resolveLinks !== false;
+
+      if (shouldResolveLinks && messagesToProcess.length > 0) {
+        const linkResult = await resolveHistoryLinks(messagesToProcess, {
+          client: channel.client,
+          budget: limit,
+        });
+
+        if (linkResult.resolvedCount > 0 || linkResult.trimmedCount > 0) {
+          logger.debug(
+            {
+              channelId: channel.id,
+              resolvedCount: linkResult.resolvedCount,
+              failedCount: linkResult.failedCount,
+              skippedCount: linkResult.skippedCount,
+              trimmedCount: linkResult.trimmedCount,
+            },
+            '[DiscordChannelFetcher] History links resolved'
+          );
+        }
+
+        messagesToProcess = linkResult.messages;
+      }
+
+      // Filter and convert messages (async for transcript retrieval)
+      const messages = await this.processMessages(messagesToProcess, options);
 
       logger.info(
         {
@@ -128,34 +183,40 @@ export class DiscordChannelFetcher {
    *
    * Filters:
    * - System messages (joins, boosts, pins, etc.)
-   * - Messages with empty content (unless they have attachments)
+   * - Messages with empty content (unless they have attachments/embeds/snapshots)
    *
-   * Converts to ConversationMessage format with proper role assignment
+   * Converts to ConversationMessage format with proper role assignment.
+   * Uses shared MessageContentBuilder for consistent message processing.
    */
-  private processMessages(
-    messages: Collection<string, Message>,
+  private async processMessages(
+    messages: Message[],
     options: FetchOptions
-  ): ConversationMessage[] {
+  ): Promise<ConversationMessage[]> {
     const result: ConversationMessage[] = [];
 
     // Sort by timestamp ascending (oldest first), then reverse for newest first
-    const sortedMessages = [...messages.values()].sort(
+    const sortedMessages = [...messages].sort(
       (a, b) => a.createdTimestamp - b.createdTimestamp
     );
 
     for (const msg of sortedMessages) {
-      // Skip system messages
+      // Skip system messages (but allow forwarded messages)
       if (!this.isNormalMessage(msg)) {
         continue;
       }
 
-      // Skip empty messages without attachments
-      if (!msg.content && msg.attachments.size === 0) {
+      // Skip empty messages (no text, attachments, embeds, or snapshots)
+      if (!hasMessageContent(msg)) {
         continue;
       }
 
-      // Convert to ConversationMessage
-      const conversationMessage = this.convertMessage(msg, options);
+      // Skip messages before context epoch (user has cleared history)
+      if (options.contextEpoch !== undefined && msg.createdAt < options.contextEpoch) {
+        continue;
+      }
+
+      // Convert to ConversationMessage (async for transcript retrieval)
+      const conversationMessage = await this.convertMessage(msg, options);
       if (conversationMessage) {
         result.push(conversationMessage);
       }
@@ -167,16 +228,40 @@ export class DiscordChannelFetcher {
 
   /**
    * Check if a message is a normal user/bot message (not a system message)
+   *
+   * Includes:
+   * - Default messages
+   * - Reply messages
+   * - Forwarded messages (detected via reference type, not message type)
    */
   private isNormalMessage(msg: Message): boolean {
-    // Only include DEFAULT and REPLY message types
-    return msg.type === MessageType.Default || msg.type === MessageType.Reply;
+    // Allow DEFAULT and REPLY message types
+    if (msg.type === MessageType.Default || msg.type === MessageType.Reply) {
+      return true;
+    }
+
+    // Also allow forwarded messages (have Forward reference type with snapshots)
+    if (
+      msg.reference?.type === MessageReferenceType.Forward &&
+      msg.messageSnapshots !== undefined &&
+      msg.messageSnapshots.size > 0
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
    * Convert a Discord message to ConversationMessage format
+   *
+   * Uses shared MessageContentBuilder for comprehensive content extraction,
+   * ensuring consistency with MessageFormatter (used for referenced messages).
    */
-  private convertMessage(msg: Message, options: FetchOptions): ConversationMessage | null {
+  private async convertMessage(
+    msg: Message,
+    options: FetchOptions
+  ): Promise<ConversationMessage | null> {
     // Determine role based on whether this is from the bot
     const isBot = msg.author.id === options.botUserId;
     const role = isBot ? MessageRole.Assistant : MessageRole.User;
@@ -185,22 +270,27 @@ export class DiscordChannelFetcher {
     const authorName =
       msg.member?.displayName ?? msg.author.globalName ?? msg.author.username ?? 'Unknown';
 
-    // Build content with author prefix for user messages
-    let content = msg.content;
-    if (role === MessageRole.User && content) {
-      // Prefix user messages with display name for context
-      content = `[${authorName}]: ${content}`;
-    } else if (role === MessageRole.User && msg.attachments.size > 0) {
-      // Handle attachment-only messages
-      const attachmentInfo = [...msg.attachments.values()]
-        .map(a => `[${a.contentType ?? 'file'}: ${a.name ?? 'attachment'}]`)
-        .join(' ');
-      content = `[${authorName}]: ${attachmentInfo}`;
+    // Build comprehensive content using shared utility
+    // This includes: text, attachments, embeds, voice transcripts, forwarded content
+    const { content: rawContent, isForwarded } = await buildMessageContent(msg, {
+      includeEmbeds: true,
+      includeAttachments: true,
+      getTranscript: options.getTranscript,
+    });
+
+    // Skip if no content could be extracted
+    if (!rawContent) {
+      return null;
     }
 
-    // Skip if we still don't have content
-    if (!content) {
-      return null;
+    // Build final content with author prefix for user messages
+    let content: string;
+    if (role === MessageRole.User) {
+      // Prefix user messages with display name for context
+      const forwardedIndicator = isForwarded ? ' (forwarded)' : '';
+      content = `[${authorName}${forwardedIndicator}]: ${rawContent}`;
+    } else {
+      content = rawContent;
     }
 
     return {
