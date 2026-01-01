@@ -758,13 +758,14 @@ describe('MessageContextBuilder', () => {
         botUserId: 'bot-123',
       });
 
-      // Verify channel fetcher was called
+      // Verify channel fetcher was called with transcript retriever
       expect(mockFetchRecentMessages).toHaveBeenCalledWith(mockMessage.channel, {
         limit: 100, // MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
         before: 'message-123',
         botUserId: 'bot-123',
         personalityName: 'Test Bot',
         personalityId: 'personality-123',
+        getTranscript: expect.any(Function), // Transcript retriever for voice messages
       });
 
       // Verify merge was called

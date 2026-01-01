@@ -32,6 +32,7 @@ import { extractEmbedImages } from '../utils/embedImageExtractor.js';
 import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
+import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.js';
 
 const logger = createLogger('MessageContextBuilder');
 
@@ -79,6 +80,7 @@ export class MessageContextBuilder {
   private mentionResolver: MentionResolver;
   private personaResolver: PersonaResolver;
   private channelFetcher: DiscordChannelFetcher;
+  private transcriptRetriever: TranscriptRetriever;
 
   constructor(
     private prisma: PrismaClient,
@@ -89,6 +91,7 @@ export class MessageContextBuilder {
     this.mentionResolver = new MentionResolver(prisma, personaResolver);
     this.personaResolver = personaResolver;
     this.channelFetcher = new DiscordChannelFetcher();
+    this.transcriptRetriever = new TranscriptRetriever(this.conversationHistory);
   }
 
   /**
@@ -206,6 +209,11 @@ export class MessageContextBuilder {
             botUserId: options.botUserId,
             personalityName: personality.displayName,
             personalityId: personality.id,
+            // Provide transcript retriever for voice messages in extended context
+            getTranscript: (discordMessageId, attachmentUrl) =>
+              this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl),
+            // Apply context epoch filter (from /history clear)
+            contextEpoch,
           }
         );
 

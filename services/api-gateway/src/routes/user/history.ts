@@ -17,6 +17,7 @@ import {
   type PrismaClient,
   ConversationHistoryService,
   ConversationRetentionService,
+  generateUserPersonaHistoryConfigUuid,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -459,12 +460,30 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
       // Delete only messages for resolved/specified persona
       const deletedCount = await retentionService.clearHistory(channelId, personalityId, personaId);
 
-      // Clear only this persona's epoch config
-      await prisma.userPersonaHistoryConfig.deleteMany({
+      // Set an irreversible context epoch instead of deleting the config
+      // This ensures extended context (Discord messages) also respects the hard delete
+      // by filtering out messages before this timestamp.
+      // Setting previousContextReset to null blocks undo.
+      const now = new Date();
+      await prisma.userPersonaHistoryConfig.upsert({
         where: {
+          userId_personalityId_personaId: {
+            userId,
+            personalityId,
+            personaId,
+          },
+        },
+        update: {
+          lastContextReset: now,
+          previousContextReset: null, // Blocks undo - makes this irreversible
+        },
+        create: {
+          id: generateUserPersonaHistoryConfigUuid(userId, personalityId, personaId),
           userId,
           personalityId,
           personaId,
+          lastContextReset: now,
+          previousContextReset: null,
         },
       });
 

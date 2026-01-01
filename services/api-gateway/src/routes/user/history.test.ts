@@ -816,9 +816,7 @@ describe('/user/history routes', () => {
       );
     });
 
-    it('should clear only per-persona history config by default', async () => {
-      mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 1 });
-
+    it('should set irreversible context epoch instead of deleting config', async () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/hard-delete');
       const { req, res } = createMockReqRes({
@@ -828,20 +826,35 @@ describe('/user/history routes', () => {
 
       await handler(req, res);
 
-      // Should delete only the resolved persona's config
-      expect(mockPrisma.userPersonaHistoryConfig.deleteMany).toHaveBeenCalledWith({
-        where: {
-          userId: TEST_USER_ID,
-          personalityId: TEST_PERSONALITY_ID,
-          personaId: TEST_PERSONA_ID,
-        },
-      });
+      // Should upsert with irreversible epoch (previousContextReset = null blocks undo)
+      expect(mockPrisma.userPersonaHistoryConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId_personalityId_personaId: {
+              userId: TEST_USER_ID,
+              personalityId: TEST_PERSONALITY_ID,
+              personaId: TEST_PERSONA_ID,
+            },
+          },
+          update: expect.objectContaining({
+            lastContextReset: expect.any(Date),
+            previousContextReset: null, // Blocks undo - makes this irreversible
+          }),
+          create: expect.objectContaining({
+            userId: TEST_USER_ID,
+            personalityId: TEST_PERSONALITY_ID,
+            personaId: TEST_PERSONA_ID,
+            lastContextReset: expect.any(Date),
+            previousContextReset: null,
+          }),
+        })
+      );
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should succeed even when no configs exist to delete', async () => {
-      mockPrisma.userPersonaHistoryConfig.deleteMany.mockResolvedValue({ count: 0 });
+    it('should succeed and set epoch even when no messages to delete', async () => {
+      mockClearHistory.mockResolvedValue(0);
 
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/hard-delete');
@@ -855,8 +868,8 @@ describe('/user/history routes', () => {
       // clearHistory should still be called
       expect(mockClearHistory).toHaveBeenCalled();
 
-      // deleteMany should always be called (even if nothing to delete)
-      expect(mockPrisma.userPersonaHistoryConfig.deleteMany).toHaveBeenCalled();
+      // upsert should be called to set irreversible epoch
+      expect(mockPrisma.userPersonaHistoryConfig.upsert).toHaveBeenCalled();
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
