@@ -38,7 +38,10 @@ export async function handleSettings(
   const characterSlug = interaction.options.getString('character', true);
   const userId = interaction.user.id;
 
-  logger.debug({ action, characterSlug, userId }, '[Character Settings] Processing settings action');
+  logger.debug(
+    { action, characterSlug, userId },
+    '[Character Settings] Processing settings action'
+  );
 
   try {
     switch (action) {
@@ -58,7 +61,10 @@ export async function handleSettings(
         });
     }
   } catch (error) {
-    logger.error({ err: error, action, characterSlug }, '[Character Settings] Error handling settings action');
+    logger.error(
+      { err: error, action, characterSlug },
+      '[Character Settings] Error handling settings action'
+    );
 
     if (interaction.deferred) {
       await interaction.editReply({
