@@ -86,7 +86,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 0,
         memories: 0,
-        activatedChannels: 0,
+        channelSettings: 0,
         aliases: 0,
       },
     });
@@ -109,7 +109,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 10,
         memories: 5,
-        activatedChannels: 2,
+        channelSettings: 2,
         aliases: 1,
       },
     });
@@ -138,7 +138,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 50,
         memories: 25,
-        activatedChannels: 3,
+        channelSettings: 3,
         aliases: 2,
       },
     });
@@ -159,7 +159,7 @@ describe('DELETE /user/personality/:slug', () => {
           conversationHistory: 50,
           memories: 25,
           pendingMemories: 10,
-          activatedChannels: 3,
+          channelSettings: 3,
           aliases: 2,
         },
       })
@@ -174,7 +174,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 5,
         memories: 3,
-        activatedChannels: 1,
+        channelSettings: 1,
         aliases: 0,
       },
     });
@@ -202,7 +202,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 5,
         memories: 3,
-        activatedChannels: 0,
+        channelSettings: 0,
         aliases: 0,
       },
     });
@@ -232,7 +232,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 10,
         memories: 5,
-        activatedChannels: 0,
+        channelSettings: 0,
         aliases: 0,
       },
     });
@@ -260,7 +260,7 @@ describe('DELETE /user/personality/:slug', () => {
       _count: {
         conversationHistory: 0,
         memories: 0,
-        activatedChannels: 0,
+        channelSettings: 0,
         aliases: 0,
       },
     });
@@ -290,7 +290,7 @@ describe('DELETE /user/personality/:slug', () => {
         _count: {
           conversationHistory: 0,
           memories: 0,
-          activatedChannels: 0,
+          channelSettings: 0,
           aliases: 0,
         },
       });
@@ -376,7 +376,7 @@ describe('DELETE /user/personality/:slug', () => {
         _count: {
           conversationHistory: 0,
           memories: 0,
-          activatedChannels: 0,
+          channelSettings: 0,
           aliases: 0,
         },
       });

@@ -59,6 +59,10 @@ const KNOWN_UNTESTED = new Set([
   'services/ai-worker/src/services/PgvectorTypes.ts',
   // Helper functions tested indirectly via handler tests that use them
   'services/api-gateway/src/routes/user/personality/helpers.ts',
+  // Thin command handlers - mostly Discord interaction handling, API calls tested via gateway routes
+  'services/bot-client/src/commands/channel/context.ts',
+  'services/bot-client/src/commands/character/settings.ts',
+  'services/bot-client/src/commands/admin/settings.ts',
 ]);
 
 function getAllTsFiles(dir, files = []) {

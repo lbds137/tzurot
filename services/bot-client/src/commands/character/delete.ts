@@ -167,7 +167,7 @@ export async function handleDeleteButton(
       `• ${counts.memories} long-term memor${counts.memories === 1 ? 'y' : 'ies'}`,
     counts.pendingMemories > 0 &&
       `• ${counts.pendingMemories} pending memor${counts.pendingMemories === 1 ? 'y' : 'ies'}`,
-    counts.activatedChannels > 0 && `• ${counts.activatedChannels} activated channel(s)`,
+    counts.channelSettings > 0 && `• ${counts.channelSettings} channel setting(s)`,
     counts.aliases > 0 && `• ${counts.aliases} alias(es)`,
   ].filter((line): line is string => typeof line === 'string');
 
