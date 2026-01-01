@@ -1117,7 +1117,21 @@ describe('ConversationHistoryService - Token Count Caching', () => {
             createdAt: true,
           },
           orderBy: { createdAt: 'asc' },
+          take: 200,
         });
+      });
+
+      it('should respect custom limit parameter', async () => {
+        const since = new Date('2025-01-01T00:00:00Z');
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+        await service.getMessagesInTimeWindow('channel-123', 'personality-456', since, 50);
+
+        expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            take: 50,
+          })
+        );
       });
 
       it('should return empty array on error', async () => {
