@@ -129,10 +129,14 @@ export type UpdateChannelGuildResponse = z.infer<typeof UpdateChannelGuildRespon
 export const UpdateChannelExtendedContextRequestSchema = z.object({
   extendedContext: z.boolean().nullable(), // null = use global default
 });
-export type UpdateChannelExtendedContextRequest = z.infer<typeof UpdateChannelExtendedContextRequestSchema>;
+export type UpdateChannelExtendedContextRequest = z.infer<
+  typeof UpdateChannelExtendedContextRequestSchema
+>;
 
 export const UpdateChannelExtendedContextResponseSchema = z.object({
   updated: z.boolean(),
   settings: ChannelSettingsSchema,
 });
-export type UpdateChannelExtendedContextResponse = z.infer<typeof UpdateChannelExtendedContextResponseSchema>;
+export type UpdateChannelExtendedContextResponse = z.infer<
+  typeof UpdateChannelExtendedContextResponseSchema
+>;

@@ -29,6 +29,9 @@ describe('PersonalityMessageHandler', () => {
   let mockReferenceEnricher: {
     enrichWithPersonaNames: ReturnType<typeof vi.fn>;
   };
+  let mockExtendedContextResolver: {
+    resolve: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,12 +56,18 @@ describe('PersonalityMessageHandler', () => {
       enrichWithPersonaNames: vi.fn().mockResolvedValue(undefined),
     };
 
+    // Default: extended context disabled
+    mockExtendedContextResolver = {
+      resolve: vi.fn().mockResolvedValue({ enabled: false, source: 'global' }),
+    };
+
     handler = new PersonalityMessageHandler(
       mockGatewayClient as any,
       mockJobTracker as any,
       mockContextBuilder as any,
       mockPersistence as any,
-      mockReferenceEnricher as any
+      mockReferenceEnricher as any,
+      mockExtendedContextResolver as any
     );
   });
 
@@ -91,11 +100,18 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello AI');
 
-      // Should build context
+      // Should resolve extended context
+      expect(mockExtendedContextResolver.resolve).toHaveBeenCalledWith(
+        mockMessage.channel.id,
+        mockPersonality
+      );
+
+      // Should build context with extended context options
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
-        'Hello AI'
+        'Hello AI',
+        { useExtendedContext: false, botUserId: 'bot-123' }
       );
 
       // Should save user message
@@ -206,6 +222,46 @@ describe('PersonalityMessageHandler', () => {
       expect(mockReferenceEnricher.enrichWithPersonaNames).not.toHaveBeenCalled();
     });
 
+    it('should pass extended context enabled to buildContext when resolved', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Enable extended context
+      mockExtendedContextResolver.resolve.mockResolvedValue({
+        enabled: true,
+        source: 'channel',
+      });
+
+      const mockContext = {
+        userMessage: 'Hello with extended context',
+        conversationHistory: [],
+        attachments: [],
+        referencedMessages: [],
+        environment: {},
+      };
+
+      const mockBuildResult = {
+        context: mockContext,
+        personaId: 'persona-123',
+        messageContent: 'Hello with extended context',
+        referencedMessages: [],
+        conversationHistory: [],
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Hello with extended context');
+
+      // Should build context with extended context enabled
+      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
+        mockMessage,
+        mockPersonality,
+        'Hello with extended context',
+        { useExtendedContext: true, botUserId: 'bot-123' }
+      );
+    });
+
     it('should handle voice transcript content', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
@@ -237,7 +293,8 @@ describe('PersonalityMessageHandler', () => {
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
-        voiceTranscript
+        voiceTranscript,
+        { useExtendedContext: false, botUserId: 'bot-123' }
       );
 
       // Should save with voice transcript content
@@ -395,6 +452,11 @@ function createMockMessage(): Message {
     channel: {
       id: 'channel-123',
       type: ChannelType.GuildText,
+    },
+    client: {
+      user: {
+        id: 'bot-123',
+      },
     },
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;

@@ -42,9 +42,7 @@ function createMockPersonality(overrides: Partial<LoadedPersonality> = {}): Load
 }
 
 // Create mock channel settings response
-function createMockChannelSettings(
-  extendedContext: boolean | null
-): GetChannelSettingsResponse {
+function createMockChannelSettings(extendedContext: boolean | null): GetChannelSettingsResponse {
   return {
     hasSettings: true,
     settings: {
@@ -92,9 +90,7 @@ describe('ExtendedContextResolver', () => {
 
     it('should use channel setting when explicitly set to true', async () => {
       const personality = createMockPersonality();
-      mockGatewayClient.getChannelSettings.mockResolvedValue(
-        createMockChannelSettings(true)
-      );
+      mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -105,9 +101,7 @@ describe('ExtendedContextResolver', () => {
 
     it('should use channel setting when explicitly set to false', async () => {
       const personality = createMockPersonality();
-      mockGatewayClient.getChannelSettings.mockResolvedValue(
-        createMockChannelSettings(false)
-      );
+      mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -118,9 +112,7 @@ describe('ExtendedContextResolver', () => {
 
     it('should use global default when channel setting is null', async () => {
       const personality = createMockPersonality();
-      mockGatewayClient.getChannelSettings.mockResolvedValue(
-        createMockChannelSettings(null)
-      );
+      mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(null));
       mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
 
       const result = await resolver.resolve('channel-123', personality);
@@ -167,9 +159,7 @@ describe('ExtendedContextResolver', () => {
 
     it('should check personality support before fetching settings', async () => {
       const personality = createMockPersonality({ supportsExtendedContext: false });
-      mockGatewayClient.getChannelSettings.mockResolvedValue(
-        createMockChannelSettings(true)
-      );
+      mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
       mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
 
       const result = await resolver.resolve('channel-123', personality);
@@ -185,9 +175,7 @@ describe('ExtendedContextResolver', () => {
       // Cast to remove the property
       delete (personality as Partial<LoadedPersonality>).supportsExtendedContext;
 
-      mockGatewayClient.getChannelSettings.mockResolvedValue(
-        createMockChannelSettings(true)
-      );
+      mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 

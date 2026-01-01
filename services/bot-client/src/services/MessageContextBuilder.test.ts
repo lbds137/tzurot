@@ -78,6 +78,17 @@ vi.mock('./MentionResolver.js', () => ({
   },
 }));
 
+// Mock for DiscordChannelFetcher
+const mockFetchRecentMessages = vi.fn();
+const mockMergeWithHistory = vi.fn();
+
+vi.mock('./DiscordChannelFetcher.js', () => ({
+  DiscordChannelFetcher: class {
+    fetchRecentMessages = mockFetchRecentMessages;
+    mergeWithHistory = mockMergeWithHistory;
+  },
+}));
+
 // Import after mocks
 import { ConversationHistoryService, UserService } from '@tzurot/common-types';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
@@ -125,6 +136,7 @@ describe('MessageContextBuilder', () => {
     mockPersonality = {
       id: 'personality-123',
       name: 'Test Bot',
+      displayName: 'Test Bot',
       slug: 'test-bot',
       systemPrompt: 'You are a helpful assistant',
       model: 'gpt-4',
@@ -152,6 +164,7 @@ describe('MessageContextBuilder', () => {
     const mockChannel = {
       id: 'channel-123',
       name: 'general',
+      type: 0, // GuildText channel type (ChannelType.GuildText)
     } as TextChannel;
 
     // Create mock attachments Collection with Discord.js methods
@@ -689,6 +702,123 @@ describe('MessageContextBuilder', () => {
         100,
         undefined
       );
+    });
+
+    it('should fetch and merge extended context when enabled', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+
+      // DB history
+      const dbHistory = [
+        {
+          id: 'db-msg-1',
+          role: MessageRole.User,
+          content: 'Previous from DB',
+          createdAt: new Date('2025-01-01T00:00:00Z'),
+          personaId: 'persona-123',
+          personaName: 'Test Persona',
+          discordMessageId: ['discord-1'],
+        },
+      ];
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue(dbHistory);
+
+      // Extended context messages from Discord
+      const extendedMessages = [
+        {
+          id: 'ext-msg-1',
+          role: MessageRole.User,
+          content: '[Alice]: Hello from Discord',
+          createdAt: new Date('2025-01-01T01:00:00Z'),
+          personaId: 'discord:user-alice',
+          discordMessageId: ['discord-ext-1'],
+        },
+      ];
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: extendedMessages,
+        fetchedCount: 10,
+        filteredCount: 1,
+      });
+
+      // Merged history (what mergeWithHistory returns)
+      const mergedHistory = [...extendedMessages, ...dbHistory];
+      mockMergeWithHistory.mockReturnValue(mergedHistory);
+
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        useExtendedContext: true,
+        botUserId: 'bot-123',
+      });
+
+      // Verify channel fetcher was called
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(mockMessage.channel, {
+        limit: 100, // MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
+        before: 'message-123',
+        botUserId: 'bot-123',
+        personalityName: 'Test Bot',
+        personalityId: 'personality-123',
+      });
+
+      // Verify merge was called
+      expect(mockMergeWithHistory).toHaveBeenCalledWith(extendedMessages, dbHistory);
+
+      // Verify conversation history includes merged data
+      expect(result.conversationHistory).toHaveLength(2);
+    });
+
+    it('should not fetch extended context when disabled', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        useExtendedContext: false,
+        botUserId: 'bot-123',
+      });
+
+      // Should not call channel fetcher
+      expect(mockFetchRecentMessages).not.toHaveBeenCalled();
+      expect(mockMergeWithHistory).not.toHaveBeenCalled();
+    });
+
+    it('should not fetch extended context when botUserId is not provided', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        useExtendedContext: true,
+        // botUserId not provided
+      });
+
+      // Should not call channel fetcher without botUserId
+      expect(mockFetchRecentMessages).not.toHaveBeenCalled();
     });
   });
 });
