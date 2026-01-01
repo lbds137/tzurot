@@ -213,9 +213,11 @@ model Personality {
   imageEnabled            Boolean                    @default(false) @map("image_enabled")
   imageSettings           Json?                      @map("image_settings")
   avatarData              Bytes?                     @map("avatar_data")
-  /// Personality opt-out for extended context. If false, NEVER fetch channel history
-  /// regardless of channel/global settings. Useful for simple joke bots that waste tokens.
-  supportsExtendedContext Boolean                    @default(true) @map("supports_extended_context")
+  /// Tri-state extended context setting (see docs/standards/TRI_STATE_PATTERN.md)
+  /// - null = AUTO (follow channel/global hierarchy)
+  /// - true = ON (force enable, always fetch channel history)
+  /// - false = OFF (force disable, never fetch channel history)
+  extendedContext         Boolean?                   @map("extended_context")
   createdAt               DateTime                   @default(now()) @map("created_at")
   updatedAt               DateTime                   @updatedAt @map("updated_at")
   channelSettings         ChannelSettings[]

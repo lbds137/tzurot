@@ -57,12 +57,12 @@ export const data = new SlashCommandBuilder()
       .addStringOption(option =>
         option.setName('action').setDescription('Action to perform').setRequired(true).addChoices(
           {
-            name: 'Enable - Allow personalities to see recent channel messages',
+            name: 'Enable - Force ON (always fetch channel history)',
             value: 'enable',
           },
-          { name: 'Disable - Only use bot conversation history', value: 'disable' },
-          { name: 'Status - Show current setting', value: 'status' },
-          { name: 'Clear - Remove override, use global default', value: 'clear' }
+          { name: 'Disable - Force OFF (never fetch channel history)', value: 'disable' },
+          { name: 'Auto - Follow global default', value: 'auto' },
+          { name: 'Status - Show current setting', value: 'status' }
         )
       )
   );

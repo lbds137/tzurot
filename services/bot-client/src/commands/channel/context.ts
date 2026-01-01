@@ -6,10 +6,12 @@
  * beyond just bot conversations stored in the database.
  *
  * Actions:
- * - enable: Enable extended context for this channel
- * - disable: Disable extended context for this channel
+ * - enable: Force enable extended context for this channel
+ * - disable: Force disable extended context for this channel
+ * - auto: Follow global default (remove channel override)
  * - status: Show current extended context setting
- * - clear: Remove channel override (use global default)
+ *
+ * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
@@ -17,10 +19,16 @@ import { PermissionFlagsBits } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
+import {
+  buildTriStateStatusMessage,
+  buildTriStateUpdateMessage,
+  EXTENDED_CONTEXT_DESCRIPTION,
+} from '../../utils/triStateHelpers.js';
+import type { ExtendedContextSource } from '../../services/ExtendedContextResolver.js';
 
 const logger = createLogger('channel-context');
 
-type ContextAction = 'enable' | 'disable' | 'status' | 'clear';
+type ContextAction = 'enable' | 'disable' | 'status' | 'auto';
 
 /**
  * Handle /channel context command
@@ -52,8 +60,8 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
       case 'status':
         await handleStatus(interaction, channelId);
         break;
-      case 'clear':
-        await handleClear(interaction, channelId, userId);
+      case 'auto':
+        await handleAuto(interaction, channelId, userId);
         break;
       default:
         await interaction.editReply({
@@ -76,15 +84,13 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
 }
 
 /**
- * Enable extended context for this channel
+ * Enable extended context for this channel (force ON)
  */
 async function handleEnable(
   interaction: ChatInputCommandInteraction,
   channelId: string,
   userId: string
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-
   const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
     body: { extendedContext: true },
@@ -107,21 +113,23 @@ async function handleEnable(
 
   logger.info({ channelId, userId }, '[Channel Context] Extended context enabled');
   await interaction.editReply({
-    content:
-      '**Extended context enabled** for this channel.\n\nPersonalities will now see recent channel messages (up to 100) when responding, providing better context for conversations.',
+    content: buildTriStateUpdateMessage({
+      settingName: 'Extended Context',
+      targetName: 'this channel',
+      newValue: true,
+      targetType: 'channel',
+    }),
   });
 }
 
 /**
- * Disable extended context for this channel
+ * Disable extended context for this channel (force OFF)
  */
 async function handleDisable(
   interaction: ChatInputCommandInteraction,
   channelId: string,
   userId: string
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-
   const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
     body: { extendedContext: false },
@@ -144,8 +152,12 @@ async function handleDisable(
 
   logger.info({ channelId, userId }, '[Channel Context] Extended context disabled');
   await interaction.editReply({
-    content:
-      '**Extended context disabled** for this channel.\n\nPersonalities will only see their own conversation history when responding.',
+    content: buildTriStateUpdateMessage({
+      settingName: 'Extended Context',
+      targetName: 'this channel',
+      newValue: false,
+      targetType: 'channel',
+    }),
   });
 }
 
@@ -156,14 +168,14 @@ async function handleStatus(
   interaction: ChatInputCommandInteraction,
   channelId: string
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-
   const gatewayClient = new GatewayClient();
   const settings = await gatewayClient.getChannelSettings(channelId);
   const globalDefault = await gatewayClient.getExtendedContextDefault();
 
-  let source: string;
-  let enabled: boolean;
+  // Determine current value and source
+  let currentValue: boolean | null = null;
+  let effectiveEnabled: boolean;
+  let source: ExtendedContextSource;
 
   if (
     settings?.hasSettings === true &&
@@ -171,36 +183,36 @@ async function handleStatus(
     settings.settings?.extendedContext !== undefined
   ) {
     // Channel has explicit setting
-    enabled = settings.settings.extendedContext;
-    source = 'channel override';
+    currentValue = settings.settings.extendedContext;
+    effectiveEnabled = currentValue;
+    source = 'channel';
   } else {
-    // Using global default
-    enabled = globalDefault;
-    source = 'global default';
+    // Using global default (channel is AUTO)
+    currentValue = null;
+    effectiveEnabled = globalDefault;
+    source = 'global';
   }
 
-  const status = enabled ? '**Enabled**' : '**Disabled**';
-
   await interaction.editReply({
-    content:
-      `**Extended Context Status**\n\n` +
-      `Current setting: ${status}\n` +
-      `Source: ${source}\n` +
-      `Global default: ${globalDefault ? 'enabled' : 'disabled'}\n\n` +
-      `Extended context allows personalities to see recent channel messages (up to 100) for better conversational awareness.`,
+    content: buildTriStateStatusMessage({
+      settingName: 'Extended Context',
+      targetName: 'this channel',
+      currentValue,
+      effectiveEnabled,
+      source,
+      description: EXTENDED_CONTEXT_DESCRIPTION,
+    }),
   });
 }
 
 /**
- * Clear channel override (use global default)
+ * Set channel to auto (follow global default)
  */
-async function handleClear(
+async function handleAuto(
   interaction: ChatInputCommandInteraction,
   channelId: string,
   userId: string
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-
   const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
     method: 'PATCH',
     body: { extendedContext: null },
@@ -210,10 +222,10 @@ async function handleClear(
   if (!result.ok) {
     logger.warn(
       { channelId, status: result.status, error: result.error },
-      '[Channel Context] Failed to clear'
+      '[Channel Context] Failed to set auto'
     );
     await interaction.editReply({
-      content: `Failed to clear channel override: ${result.error}`,
+      content: `Failed to set auto mode: ${result.error}`,
     });
     return;
   }
@@ -221,12 +233,19 @@ async function handleClear(
   // Invalidate cache for this channel
   invalidateChannelSettingsCache(channelId);
 
-  // Get the current global default
+  // Get the current global default to show what this resolves to
   const gatewayClient = new GatewayClient();
   const globalDefault = await gatewayClient.getExtendedContextDefault();
 
-  logger.info({ channelId, userId }, '[Channel Context] Channel override cleared');
+  logger.info({ channelId, userId }, '[Channel Context] Extended context set to auto');
   await interaction.editReply({
-    content: `**Channel override cleared**.\n\nThis channel will now use the global default setting: ${globalDefault ? '**enabled**' : '**disabled**'}.`,
+    content: buildTriStateUpdateMessage({
+      settingName: 'Extended Context',
+      targetName: 'this channel',
+      newValue: null,
+      effectiveEnabled: globalDefault,
+      source: 'global',
+      targetType: 'channel',
+    }),
   });
 }

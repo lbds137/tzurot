@@ -1,5 +1,7 @@
 /**
  * Tests for Channel Context Subcommand
+ *
+ * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -95,7 +97,7 @@ describe('Channel Context Subcommand', () => {
     });
   });
 
-  describe('enable action', () => {
+  describe('enable action (force ON)', () => {
     it('should enable extended context and invalidate cache', async () => {
       const interaction = createMockInteraction('enable');
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
@@ -113,7 +115,7 @@ describe('Channel Context Subcommand', () => {
       );
       expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Extended context enabled'),
+        content: expect.stringContaining('set to On'),
       });
     });
 
@@ -130,7 +132,7 @@ describe('Channel Context Subcommand', () => {
     });
   });
 
-  describe('disable action', () => {
+  describe('disable action (force OFF)', () => {
     it('should disable extended context and invalidate cache', async () => {
       const interaction = createMockInteraction('disable');
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
@@ -146,13 +148,13 @@ describe('Channel Context Subcommand', () => {
       );
       expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Extended context disabled'),
+        content: expect.stringContaining('set to Off'),
       });
     });
   });
 
   describe('status action', () => {
-    it('should show status with channel override', async () => {
+    it('should show status with channel override ON', async () => {
       const interaction = createMockInteraction('status');
       mockGetChannelSettings.mockResolvedValue({
         hasSettings: true,
@@ -166,11 +168,28 @@ describe('Channel Context Subcommand', () => {
       expect(mockGetChannelSettings).toHaveBeenCalledWith('channel-123');
       expect(mockGetExtendedContextDefault).toHaveBeenCalled();
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Extended Context Status'),
+        content: expect.stringMatching(
+          /Extended Context for this channel[\s\S]*Setting: \*\*On\*\*/
+        ),
       });
     });
 
-    it('should show status using global default when no override', async () => {
+    it('should show status with channel override OFF', async () => {
+      const interaction = createMockInteraction('status');
+      mockGetChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: { extendedContext: false },
+      });
+      mockGetExtendedContextDefault.mockResolvedValue(true);
+
+      await handleContext(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringMatching(/Setting: \*\*Off\*\*/),
+      });
+    });
+
+    it('should show status with AUTO using global default (enabled)', async () => {
       const interaction = createMockInteraction('status');
       mockGetChannelSettings.mockResolvedValue({
         hasSettings: false,
@@ -181,14 +200,33 @@ describe('Channel Context Subcommand', () => {
       await handleContext(interaction);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('global default'),
+        content: expect.stringMatching(
+          /Setting: \*\*Auto\*\*[\s\S]*\*\*enabled\*\* \(from global\)/
+        ),
+      });
+    });
+
+    it('should show status with AUTO using global default (disabled)', async () => {
+      const interaction = createMockInteraction('status');
+      mockGetChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: { extendedContext: null },
+      });
+      mockGetExtendedContextDefault.mockResolvedValue(false);
+
+      await handleContext(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringMatching(
+          /Setting: \*\*Auto\*\*[\s\S]*\*\*disabled\*\* \(from global\)/
+        ),
       });
     });
   });
 
-  describe('clear action', () => {
-    it('should send clear request to API', async () => {
-      const interaction = createMockInteraction('clear');
+  describe('auto action (follow global)', () => {
+    it('should send null to API for auto mode', async () => {
+      const interaction = createMockInteraction('auto');
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
       mockGetExtendedContextDefault.mockResolvedValue(true);
 
@@ -205,7 +243,7 @@ describe('Channel Context Subcommand', () => {
     });
 
     it('should invalidate cache on success', async () => {
-      const interaction = createMockInteraction('clear');
+      const interaction = createMockInteraction('auto');
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
       mockGetExtendedContextDefault.mockResolvedValue(true);
 
@@ -214,14 +252,26 @@ describe('Channel Context Subcommand', () => {
       expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
     });
 
-    it('should handle clear API failure', async () => {
-      const interaction = createMockInteraction('clear');
+    it('should show effective value from global after setting auto', async () => {
+      const interaction = createMockInteraction('auto');
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
+      mockGetExtendedContextDefault.mockResolvedValue(true);
+
+      await handleContext(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringMatching(/set to Auto[\s\S]*Currently: \*\*enabled\*\*/),
+      });
+    });
+
+    it('should handle auto API failure', async () => {
+      const interaction = createMockInteraction('auto');
       mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Not found', status: 404 });
 
       await handleContext(interaction);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to clear'),
+        content: expect.stringContaining('Failed to set auto'),
       });
       expect(mockInvalidateChannelSettingsCache).not.toHaveBeenCalled();
     });

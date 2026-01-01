@@ -1,5 +1,7 @@
 /**
  * Tests for Character Settings Subcommand
+ *
+ * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -23,6 +25,17 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
+
+// Use vi.hoisted to ensure mock functions are available before vi.mock hoisting
+const { mockGetExtendedContextDefault } = vi.hoisted(() => ({
+  mockGetExtendedContextDefault: vi.fn(),
+}));
+
+vi.mock('../../utils/GatewayClient.js', () => ({
+  GatewayClient: class MockGatewayClient {
+    getExtendedContextDefault = mockGetExtendedContextDefault;
+  },
 }));
 
 describe('Character Settings Subcommand', () => {
@@ -63,7 +76,7 @@ describe('Character Settings Subcommand', () => {
     vi.clearAllMocks();
   });
 
-  describe('extended-context-enable action', () => {
+  describe('extended-context-enable action (force ON)', () => {
     it('should enable extended context successfully', async () => {
       const interaction = createMockInteraction('extended-context-enable', 'test-char');
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
@@ -73,11 +86,11 @@ describe('Character Settings Subcommand', () => {
       // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'PUT',
-        body: { supportsExtendedContext: true },
+        body: { extendedContext: true },
         userId: 'user-456',
       });
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Extended context enabled'),
+        content: expect.stringContaining('set to On'),
       });
     });
 
@@ -115,7 +128,7 @@ describe('Character Settings Subcommand', () => {
     });
   });
 
-  describe('extended-context-disable action', () => {
+  describe('extended-context-disable action (force OFF)', () => {
     it('should disable extended context successfully', async () => {
       const interaction = createMockInteraction('extended-context-disable', 'test-char');
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
@@ -125,11 +138,11 @@ describe('Character Settings Subcommand', () => {
       // Note: deferReply is handled by top-level interactionCreate handler
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'PUT',
-        body: { supportsExtendedContext: false },
+        body: { extendedContext: false },
         userId: 'user-456',
       });
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Extended context disabled'),
+        content: expect.stringContaining('set to Off'),
       });
     });
 
@@ -167,8 +180,61 @@ describe('Character Settings Subcommand', () => {
     });
   });
 
+  describe('extended-context-auto action (follow hierarchy)', () => {
+    it('should set auto mode and show effective value', async () => {
+      const interaction = createMockInteraction('extended-context-auto', 'test-char');
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
+      mockGetExtendedContextDefault.mockResolvedValue(true);
+
+      await handleSettings(interaction, mockConfig);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
+        method: 'PUT',
+        body: { extendedContext: null },
+        userId: 'user-456',
+      });
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringMatching(/set to Auto[\s\S]*Currently: \*\*enabled\*\*/),
+      });
+    });
+
+    it('should show disabled when global default is false', async () => {
+      const interaction = createMockInteraction('extended-context-auto', 'test-char');
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
+      mockGetExtendedContextDefault.mockResolvedValue(false);
+
+      await handleSettings(interaction, mockConfig);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringMatching(/set to Auto[\s\S]*Currently: \*\*disabled\*\*/),
+      });
+    });
+
+    it('should handle 401 unauthorized error', async () => {
+      const interaction = createMockInteraction('extended-context-auto', 'test-char');
+      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' });
+
+      await handleSettings(interaction, mockConfig);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'You do not have permission to edit this character.',
+      });
+    });
+
+    it('should handle other API errors', async () => {
+      const interaction = createMockInteraction('extended-context-auto', 'test-char');
+      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Server error' });
+
+      await handleSettings(interaction, mockConfig);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'Failed to update setting: Server error',
+      });
+    });
+  });
+
   describe('show action', () => {
-    it('should show character settings with extended context enabled', async () => {
+    it('should show character settings with extended context ON', async () => {
       const interaction = createMockInteraction('show', 'test-char');
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
@@ -177,7 +243,7 @@ describe('Character Settings Subcommand', () => {
             id: 'personality-123',
             name: 'Test Character',
             slug: 'test-char',
-            supportsExtendedContext: true,
+            extendedContext: true,
             ownerId: 'user-456',
           },
         },
@@ -192,12 +258,12 @@ describe('Character Settings Subcommand', () => {
       });
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringMatching(
-          /Settings for Test Character[\s\S]*Extended Context: \*\*Enabled\*\*/
+          /Extended Context for Test Character[\s\S]*Setting: \*\*On\*\*[\s\S]*\*\*enabled\*\* \(from personality\)/
         ),
       });
     });
 
-    it('should show character settings with extended context disabled', async () => {
+    it('should show character settings with extended context OFF', async () => {
       const interaction = createMockInteraction('show', 'test-char');
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
@@ -206,7 +272,7 @@ describe('Character Settings Subcommand', () => {
             id: 'personality-123',
             name: 'Test Character',
             slug: 'test-char',
-            supportsExtendedContext: false,
+            extendedContext: false,
             ownerId: 'user-456',
           },
         },
@@ -216,7 +282,32 @@ describe('Character Settings Subcommand', () => {
 
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringMatching(
-          /Settings for Test Character[\s\S]*Extended Context: \*\*Disabled\*\*/
+          /Setting: \*\*Off\*\*[\s\S]*\*\*disabled\*\* \(from personality\)/
+        ),
+      });
+    });
+
+    it('should show character settings with extended context AUTO using global default', async () => {
+      const interaction = createMockInteraction('show', 'test-char');
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personality: {
+            id: 'personality-123',
+            name: 'Test Character',
+            slug: 'test-char',
+            extendedContext: null,
+            ownerId: 'user-456',
+          },
+        },
+      });
+      mockGetExtendedContextDefault.mockResolvedValue(true);
+
+      await handleSettings(interaction, mockConfig);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringMatching(
+          /Setting: \*\*Auto\*\*[\s\S]*\*\*enabled\*\* \(from global\)/
         ),
       });
     });

@@ -36,7 +36,8 @@ interface UpdatePersonalityBody {
   conversationalExamples?: string | null;
   errorMessage?: string | null;
   avatarData?: string;
-  supportsExtendedContext?: boolean;
+  /** Extended context tri-state: null=auto, true=on, false=off */
+  extendedContext?: boolean | null;
 }
 
 /**
@@ -94,7 +95,7 @@ export function createUpdateHandler(
       conversationalExamples,
       errorMessage,
       avatarData,
-      supportsExtendedContext,
+      extendedContext,
     } = req.body as UpdatePersonalityBody;
 
     // Build update data (only include fields that were provided)
@@ -145,8 +146,8 @@ export function createUpdateHandler(
     if (errorMessage !== undefined) {
       updateData.errorMessage = errorMessage;
     }
-    if (supportsExtendedContext !== undefined) {
-      updateData.supportsExtendedContext = supportsExtendedContext;
+    if (extendedContext !== undefined) {
+      updateData.extendedContext = extendedContext;
     }
 
     // Process avatar if provided
@@ -186,7 +187,7 @@ export function createUpdateHandler(
         isPublic: true,
         voiceEnabled: true,
         imageEnabled: true,
-        supportsExtendedContext: true,
+        extendedContext: true,
         ownerId: true,
         avatarData: true,
         createdAt: true,
@@ -248,7 +249,7 @@ export function createUpdateHandler(
           isPublic: updated.isPublic,
           voiceEnabled: updated.voiceEnabled,
           imageEnabled: updated.imageEnabled,
-          supportsExtendedContext: updated.supportsExtendedContext,
+          extendedContext: updated.extendedContext,
           ownerId: updated.ownerId,
           hasAvatar: updated.avatarData !== null,
           createdAt: updated.createdAt.toISOString(),
