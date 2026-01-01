@@ -245,6 +245,12 @@ export function requireServiceAuth(customMessage?: string) {
       return;
     }
 
+    // Also extract userId if provided (for routes that need isBotOwner check)
+    const userId = extractUserId(req);
+    if (userId !== undefined && userId.length > 0) {
+      (req as AuthenticatedRequest).userId = userId;
+    }
+
     next();
   };
 }
