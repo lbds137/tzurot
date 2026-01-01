@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2025-12-30
+> Last updated: 2026-01-01
 
 ## Status: Public Beta Live
 
@@ -10,7 +10,28 @@
 
 ---
 
-## Just Completed: Markdown Security & Pagination (PR #392, #393)
+## Just Completed: Extended Channel Context (PR #419)
+
+**Merged** - Personalities can now see recent Discord channel messages beyond their stored conversation history
+
+- ✅ **3-layer settings cascade**: Personality opt-out → Channel override → Global default
+- ✅ **New commands**: `/channel context enable|disable|status|clear`
+- ✅ **Character settings**: `/character settings extended-context` (personality opt-out)
+- ✅ **Admin settings**: `/admin settings extended-context` (global default)
+- ✅ **DiscordChannelFetcher**: Fetches up to 100 recent messages with opportunistic DB sync
+- ✅ **Database migration**: Merged `ActivatedChannel` into `ChannelSettings`, added `BotSettings` table
+- ✅ **Deterministic UUIDs**: `generateBotSettingUuid()` for dev/prod sync
+- ✅ **Comprehensive tests**: 112+ new tests, all bounded queries
+
+**Manual Testing Remaining**:
+
+- [ ] Enable extended context in a channel, verify AI sees recent messages
+- [ ] Disable extended context, verify AI only sees DB history
+- [ ] Personality opt-out prevents extended context fetch
+
+---
+
+## Completed: Markdown Security & Pagination (PR #392, #393)
 
 **Merged** - Security fixes for markdown injection + UX improvements
 
@@ -132,6 +153,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.30** (pending): Extended Channel Context - personalities see recent Discord messages, 3-layer settings cascade
 - **beta.29**: LTM null handling fix, modal command deferral fix, Node 25 upgrade, typescript-eslint 8.51.0
 - **beta.28**: Markdown security fixes, guild-aware pagination, security skill update
 - **beta.27**: UserService race condition fix, persona backfill idempotency
@@ -162,11 +184,19 @@ Full release history: [GitHub Releases](https://github.com/lbds137/tzurot/releas
 - `/preset` - User presets (create, list, delete) - **missing: edit**
 - `/history` - Conversation history (clear, undo, hard-delete, view)
 
+**Channel Management:**
+
+- `/channel activate` - Activate a personality in a channel
+- `/channel deactivate` - Remove personality from channel
+- `/channel list` - List activated channels (server-scoped, paginated)
+- `/channel context` - Extended context settings (enable, disable, status, clear)
+
 **Admin:**
 
 - `/admin` - Bot owner commands (ping, db-sync, servers, kick, usage, cleanup)
+- `/admin settings` - Global bot settings (extended-context default)
 - `/preset global` - Global preset management
-- `/character` - Personality CRUD (create, edit, delete, view, list, avatar, export, import, chat, template)
+- `/character` - Personality CRUD (create, edit, delete, view, list, avatar, export, import, chat, template, settings)
 
 ---
 
