@@ -179,48 +179,80 @@ describe('Admin Settings Routes', () => {
    * CONTRACT TESTS
    *
    * These tests verify the API contract requirements:
-   * - Admin settings routes require X-User-Id header for isBotOwner() check
-   * - Without userId, requests should be rejected with 403
-   *
-   * This prevents the bug where bot-client's adminFetch() was not sending
-   * the X-User-Id header, causing all admin settings requests to fail.
+   * - GET without userId: allowed (service-only operation, e.g., bot reading extended_context_default)
+   * - GET with userId: requires bot owner (user-initiated, e.g., /admin settings list)
+   * - PUT always requires userId + bot owner
    */
   describe('CONTRACT: userId requirement', () => {
     let appWithoutUserId: express.Express;
 
     beforeEach(() => {
-      // Create app WITHOUT userId middleware to test missing userId scenario
+      // Create app WITHOUT userId middleware to test service-only scenario
       appWithoutUserId = express();
       appWithoutUserId.use(express.json());
-      // Intentionally NOT injecting userId - simulating adminFetch without X-User-Id
+      // Intentionally NOT injecting userId - simulating internal service call
       appWithoutUserId.use(
         '/admin/settings',
         createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient)
       );
     });
 
-    it('should reject GET request without userId (isBotOwner check fails)', async () => {
-      // When isBotOwner receives undefined, it should return false
-      mockIsBotOwner.mockReturnValue(false);
+    it('should allow GET request without userId (service-only operation)', async () => {
+      // Service-only operation - no userId means no isBotOwner check needed
+      const mockSettings = [
+        {
+          id: MOCK_SETTING_UUID,
+          key: 'extended_context_default',
+          value: 'true',
+          description: 'Default extended context setting',
+          updatedBy: MOCK_USER_UUID,
+          createdAt: new Date('2024-01-01'),
+          updatedAt: new Date('2024-01-02'),
+        },
+      ];
+      mockPrisma.botSettings.findMany.mockResolvedValue(mockSettings);
 
       const response = await request(appWithoutUserId).get('/admin/settings');
 
-      expect(response.status).toBe(403);
-      expect(response.body.error).toBe('UNAUTHORIZED');
-      // Verify isBotOwner was called with undefined (missing userId)
-      expect(mockIsBotOwner).toHaveBeenCalledWith(undefined);
+      expect(response.status).toBe(200);
+      expect(response.body.settings).toHaveLength(1);
+      // isBotOwner should NOT be called for service-only operations
+      expect(mockIsBotOwner).not.toHaveBeenCalled();
     });
 
-    it('should reject PUT request without userId', async () => {
-      mockIsBotOwner.mockReturnValue(false);
+    it('should allow GET by key without userId (service-only operation)', async () => {
+      // This is the critical path for extended context: bot reading extended_context_default
+      const mockSetting = {
+        id: MOCK_SETTING_UUID,
+        key: 'extended_context_default',
+        value: 'true',
+        description: 'Default extended context setting',
+        updatedBy: MOCK_USER_UUID,
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-02'),
+      };
+      mockPrisma.botSettings.findUnique.mockResolvedValue(mockSetting);
 
+      const response = await request(appWithoutUserId).get(
+        '/admin/settings/extended_context_default'
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.found).toBe(true);
+      expect(response.body.setting.value).toBe('true');
+      // isBotOwner should NOT be called for service-only operations
+      expect(mockIsBotOwner).not.toHaveBeenCalled();
+    });
+
+    it('should reject PUT request without userId (modifications require owner)', async () => {
       const response = await request(appWithoutUserId)
         .put('/admin/settings/extended_context_default')
         .send({ value: 'true' });
 
       expect(response.status).toBe(403);
       expect(response.body.error).toBe('UNAUTHORIZED');
-      expect(mockIsBotOwner).toHaveBeenCalledWith(undefined);
+      // isAuthorizedForWrite short-circuits on undefined userId, so isBotOwner is not called
+      expect(mockIsBotOwner).not.toHaveBeenCalled();
     });
   });
 

@@ -15,15 +15,19 @@ import {
   extractServiceSecret,
   isValidServiceSecret,
   requireServiceAuth,
+  isAuthorizedForRead,
+  isAuthorizedForWrite,
 } from './AuthMiddleware.js';
 import * as commonTypes from '@tzurot/common-types';
 
-// Mock getConfig
+// Mock getConfig and isBotOwner
+const mockIsBotOwnerFn = vi.fn();
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
     getConfig: vi.fn(),
+    isBotOwner: (userId: string) => mockIsBotOwnerFn(userId),
   };
 });
 
@@ -692,6 +696,65 @@ describe('authMiddleware', () => {
 
       expect(mockNext).toHaveBeenCalledOnce();
       expect((mockReq as Request & { userId?: string }).userId).toBeUndefined();
+    });
+  });
+
+  /**
+   * Authorization Helper Functions
+   *
+   * These functions provide clear semantics for READ vs WRITE authorization:
+   * - isAuthorizedForRead: Service-only calls allowed, user calls require bot owner
+   * - isAuthorizedForWrite: Always requires bot owner
+   *
+   * This prevents the bug where internal service calls fail because they
+   * don't have a user context (e.g., bot reading extended_context_default).
+   */
+  describe('isAuthorizedForRead', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return true when userId is undefined (service-only call)', () => {
+      // Service-only operations (no user involved) should always be allowed
+      // isBotOwner is NOT called for undefined userId
+      expect(isAuthorizedForRead(undefined)).toBe(true);
+      expect(mockIsBotOwnerFn).not.toHaveBeenCalled();
+    });
+
+    it('should return true when userId is bot owner', () => {
+      mockIsBotOwnerFn.mockReturnValue(true);
+      expect(isAuthorizedForRead('bot-owner-id')).toBe(true);
+      expect(mockIsBotOwnerFn).toHaveBeenCalledWith('bot-owner-id');
+    });
+
+    it('should return false when userId is not bot owner', () => {
+      mockIsBotOwnerFn.mockReturnValue(false);
+      expect(isAuthorizedForRead('some-other-user')).toBe(false);
+      expect(mockIsBotOwnerFn).toHaveBeenCalledWith('some-other-user');
+    });
+  });
+
+  describe('isAuthorizedForWrite', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return false when userId is undefined', () => {
+      // Write operations ALWAYS require bot owner, short-circuits on undefined
+      expect(isAuthorizedForWrite(undefined)).toBe(false);
+      expect(mockIsBotOwnerFn).not.toHaveBeenCalled();
+    });
+
+    it('should return true when userId is bot owner', () => {
+      mockIsBotOwnerFn.mockReturnValue(true);
+      expect(isAuthorizedForWrite('bot-owner-id')).toBe(true);
+      expect(mockIsBotOwnerFn).toHaveBeenCalledWith('bot-owner-id');
+    });
+
+    it('should return false when userId is not bot owner', () => {
+      mockIsBotOwnerFn.mockReturnValue(false);
+      expect(isAuthorizedForWrite('some-other-user')).toBe(false);
+      expect(mockIsBotOwnerFn).toHaveBeenCalledWith('some-other-user');
     });
   });
 });
