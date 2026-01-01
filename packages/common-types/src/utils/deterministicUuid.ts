@@ -132,3 +132,11 @@ export function generateMemoryChunkGroupUuid(
     TZUROT_NAMESPACE
   );
 }
+
+/**
+ * Generate deterministic UUID for BotSetting
+ * Seed: bot_setting:{key}
+ */
+export function generateBotSettingUuid(key: string): string {
+  return uuidv5(`bot_setting:${key}`, TZUROT_NAMESPACE);
+}

@@ -27,9 +27,10 @@ CREATE UNIQUE INDEX "bot_settings_key_key" ON "bot_settings"("key");
 ALTER TABLE "bot_settings" ADD CONSTRAINT "bot_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Insert default extended_context_default setting
+-- UUID is deterministic: uuidv5('bot_setting:extended_context_default', TZUROT_NAMESPACE)
 INSERT INTO "bot_settings" ("id", "key", "value", "description", "created_at", "updated_at")
 VALUES (
-    gen_random_uuid(),
+    'd3ba618d-42e0-5a62-9fdf-31c10da1a7a7',
     'extended_context_default',
     'false',
     'Default setting for extended channel context. When true, personalities can see recent channel messages (up to 100) when responding.',
