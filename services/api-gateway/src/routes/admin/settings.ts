@@ -18,6 +18,7 @@ import {
   ListBotSettingsResponseSchema,
   GetBotSettingResponseSchema,
   UpdateBotSettingResponseSchema,
+  generateBotSettingUuid,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -162,6 +163,7 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
           updatedBy: user.id,
         },
         create: {
+          id: generateBotSettingUuid(key),
           key,
           value,
           description: description ?? null,

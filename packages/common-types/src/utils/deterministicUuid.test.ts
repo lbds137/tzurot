@@ -154,8 +154,16 @@ describe('Deterministic UUID Generation', () => {
 
   describe('generateMemoryChunkGroupUuid', () => {
     it('should generate consistent UUIDs for the same inputs', () => {
-      const uuid1 = generateMemoryChunkGroupUuid('persona-1', 'personality-1', 'This is the original text');
-      const uuid2 = generateMemoryChunkGroupUuid('persona-1', 'personality-1', 'This is the original text');
+      const uuid1 = generateMemoryChunkGroupUuid(
+        'persona-1',
+        'personality-1',
+        'This is the original text'
+      );
+      const uuid2 = generateMemoryChunkGroupUuid(
+        'persona-1',
+        'personality-1',
+        'This is the original text'
+      );
       expect(uuid1).toBe(uuid2);
     });
 
