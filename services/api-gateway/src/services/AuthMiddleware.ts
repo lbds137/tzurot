@@ -6,7 +6,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { getConfig, createLogger } from '@tzurot/common-types';
+import { getConfig, createLogger, isBotOwner } from '@tzurot/common-types';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../types.js';
 
@@ -200,6 +200,63 @@ export function isValidServiceSecret(providedSecret: string | undefined): boolea
     result |= providedSecret.charCodeAt(i) ^ configuredSecret.charCodeAt(i);
   }
   return result === 0;
+}
+
+/**
+ * Check if request is from bot owner (for user-initiated requests only)
+ *
+ * Use this for READ operations that should:
+ * - Allow service-only requests (no userId) without auth check
+ * - Require bot owner for user-initiated requests (with userId)
+ *
+ * This prevents the bug where internal service calls fail because they
+ * don't have a user context.
+ *
+ * @param userId - The user ID from the request (may be undefined for service calls)
+ * @returns true if authorized (service call OR bot owner), false otherwise
+ *
+ * @example
+ * ```ts
+ * // For READ operations - allow service-only, check owner for user requests
+ * if (!isAuthorizedForRead(req.userId)) {
+ *   sendError(res, ErrorResponses.unauthorized('Only bot owners can view this'));
+ *   return;
+ * }
+ * ```
+ */
+export function isAuthorizedForRead(userId: string | undefined): boolean {
+  // No userId = service-only operation, always allowed
+  if (userId === undefined) {
+    return true;
+  }
+  // Has userId = user-initiated, must be bot owner
+  return isBotOwner(userId);
+}
+
+/**
+ * Check if request is from bot owner (required for modifications)
+ *
+ * Use this for WRITE operations (PUT, POST, DELETE) that always require
+ * bot owner authentication, even for service calls.
+ *
+ * @param userId - The user ID from the request
+ * @returns true if bot owner, false otherwise
+ *
+ * @example
+ * ```ts
+ * // For WRITE operations - always require bot owner
+ * if (!isAuthorizedForWrite(req.userId)) {
+ *   sendError(res, ErrorResponses.unauthorized('Only bot owners can modify this'));
+ *   return;
+ * }
+ * ```
+ */
+export function isAuthorizedForWrite(userId: string | undefined): boolean {
+  // No userId = not authorized for writes
+  if (userId === undefined) {
+    return false;
+  }
+  return isBotOwner(userId);
 }
 
 /**

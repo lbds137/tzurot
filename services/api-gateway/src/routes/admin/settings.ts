@@ -12,7 +12,6 @@ import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  isBotOwner,
   type PrismaClient,
   UpdateBotSettingRequestSchema,
   ListBotSettingsResponseSchema,
@@ -23,6 +22,7 @@ import {
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { isAuthorizedForRead, isAuthorizedForWrite } from '../../services/AuthMiddleware.js';
 
 const logger = createLogger('admin-settings');
 
@@ -36,12 +36,14 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
   /**
    * GET /admin/settings
    * List all bot settings
+   *
+   * Authorization: Uses isAuthorizedForRead() - allows service-only calls,
+   * requires bot owner for user-initiated requests.
    */
   router.get(
     '/',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      // Only bot owners can access settings
-      if (!isBotOwner(req.userId)) {
+      if (!isAuthorizedForRead(req.userId)) {
         sendError(res, ErrorResponses.unauthorized('Only bot owners can view settings'));
         return;
       }
@@ -71,12 +73,14 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
   /**
    * GET /admin/settings/:key
    * Get a specific bot setting
+   *
+   * Authorization: Uses isAuthorizedForRead() - allows service-only calls
+   * (e.g., bot reading extended_context_default), requires bot owner for user requests.
    */
   router.get(
     '/:key',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      // Only bot owners can access settings
-      if (!isBotOwner(req.userId)) {
+      if (!isAuthorizedForRead(req.userId)) {
         sendError(res, ErrorResponses.unauthorized('Only bot owners can view settings'));
         return;
       }
@@ -115,12 +119,13 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
   /**
    * PUT /admin/settings/:key
    * Update or create a bot setting
+   *
+   * Authorization: Uses isAuthorizedForWrite() - always requires bot owner.
    */
   router.put(
     '/:key',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      // Only bot owners can modify settings
-      if (!isBotOwner(req.userId)) {
+      if (!isAuthorizedForWrite(req.userId)) {
         sendError(res, ErrorResponses.unauthorized('Only bot owners can modify settings'));
         return;
       }
