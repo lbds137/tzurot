@@ -256,8 +256,10 @@ export class DiscordChannelFetcher {
 
     // Sort by timestamp descending (newest first)
     merged.sort((a, b) => {
-      const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-      const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+      const timeA =
+        a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+      const timeB =
+        b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
       return timeB - timeA;
     });
 

@@ -3,6 +3,7 @@
  *
  * Builds AI context from Discord messages.
  * Handles attachments, references, environment, and conversation history.
+ * Supports extended context: fetching recent Discord channel messages.
  */
 
 import type { PrismaClient, PersonaResolver } from '@tzurot/common-types';
@@ -15,6 +16,7 @@ import {
   CONTENT_TYPES,
   INTERVALS,
   MESSAGE_LIMITS,
+  isTypingChannel,
 } from '@tzurot/common-types';
 import type {
   LoadedPersonality,
@@ -29,8 +31,24 @@ import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../utils/embedImageExtractor.js';
 import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 import { MentionResolver } from './MentionResolver.js';
+import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 
 const logger = createLogger('MessageContextBuilder');
+
+/**
+ * Options for building message context
+ */
+export interface ContextBuildOptions {
+  /**
+   * Enable extended context: fetch recent messages from Discord channel.
+   * When enabled, merges Discord messages with DB conversation history.
+   */
+  useExtendedContext?: boolean;
+  /**
+   * Bot's Discord user ID (required for extended context to identify assistant messages)
+   */
+  botUserId?: string;
+}
 
 /**
  * Result of building message context
@@ -60,6 +78,7 @@ export class MessageContextBuilder {
   private userService: UserService;
   private mentionResolver: MentionResolver;
   private personaResolver: PersonaResolver;
+  private channelFetcher: DiscordChannelFetcher;
 
   constructor(
     private prisma: PrismaClient,
@@ -69,6 +88,7 @@ export class MessageContextBuilder {
     this.userService = new UserService(prisma);
     this.mentionResolver = new MentionResolver(prisma, personaResolver);
     this.personaResolver = personaResolver;
+    this.channelFetcher = new DiscordChannelFetcher();
   }
 
   /**
@@ -77,14 +97,21 @@ export class MessageContextBuilder {
    * Handles:
    * - User/persona lookup
    * - Conversation history retrieval
+   * - Extended context (optional): fetches recent Discord channel messages
    * - Reference extraction (with deduplication)
    * - Attachment extraction
    * - Environment context
+   *
+   * @param message - The Discord message to process
+   * @param personality - The target personality
+   * @param content - Message content (may be voice transcript)
+   * @param options - Additional options including extended context
    */
   async buildContext(
     message: Message,
     personality: LoadedPersonality,
-    content: string
+    content: string,
+    options: ContextBuildOptions = {}
   ): Promise<ContextBuildResult> {
     // Get or create user record (needed for conversation history query)
     const displayName =
@@ -154,12 +181,55 @@ export class MessageContextBuilder {
     // Get conversation history from PostgreSQL
     // Retrieve more than needed - AI worker will trim based on token budget
     // Apply context epoch filter if user has cleared history
-    const history = await this.conversationHistory.getRecentHistory(
+    let history = await this.conversationHistory.getRecentHistory(
       message.channel.id,
       personality.id,
       MESSAGE_LIMITS.MAX_HISTORY_FETCH,
       contextEpoch
     );
+
+    // Extended context: fetch recent messages from Discord channel
+    // This provides broader context beyond just bot conversations stored in DB
+    if (options.useExtendedContext === true && options.botUserId !== undefined) {
+      // Check if channel supports message fetching
+      if (isTypingChannel(message.channel)) {
+        logger.debug(
+          { channelId: message.channel.id },
+          '[MessageContextBuilder] Fetching extended context from Discord'
+        );
+
+        const fetchResult = await this.channelFetcher.fetchRecentMessages(
+          message.channel as FetchableChannel,
+          {
+            limit: MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT,
+            before: message.id, // Exclude the triggering message
+            botUserId: options.botUserId,
+            personalityName: personality.displayName,
+            personalityId: personality.id,
+          }
+        );
+
+        if (fetchResult.messages.length > 0) {
+          // Merge Discord messages with DB history (deduplicated)
+          history = this.channelFetcher.mergeWithHistory(fetchResult.messages, history);
+
+          logger.info(
+            {
+              channelId: message.channel.id,
+              discordMessages: fetchResult.filteredCount,
+              dbMessages: history.length - fetchResult.messages.length + 1, // Approximate after dedup
+              totalMerged: history.length,
+            },
+            '[MessageContextBuilder] Extended context merged with conversation history'
+          );
+        }
+      } else {
+        logger.debug(
+          { channelId: message.channel.id, channelType: message.channel.type },
+          '[MessageContextBuilder] Channel does not support extended context fetching'
+        );
+      }
+    }
 
     // Extract Discord message IDs and timestamps for deduplication
     const conversationHistoryMessageIds = history

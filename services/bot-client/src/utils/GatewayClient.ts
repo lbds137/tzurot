@@ -397,10 +397,7 @@ export class GatewayClient {
       });
 
       if (!response.ok) {
-        logger.warn(
-          { key, status: response.status },
-          '[GatewayClient] Bot setting fetch failed'
-        );
+        logger.warn({ key, status: response.status }, '[GatewayClient] Bot setting fetch failed');
         return null;
       }
 
@@ -412,10 +409,7 @@ export class GatewayClient {
 
       return result;
     } catch (error) {
-      logger.error(
-        { key, err: error },
-        '[GatewayClient] Failed to fetch bot setting'
-      );
+      logger.error({ key, err: error }, '[GatewayClient] Failed to fetch bot setting');
       return null;
     }
   }

@@ -21,15 +21,15 @@ pnpm --filter @tzurot/api-gateway lint
 
 ## ESLint Limits (eslint.config.js)
 
-| Rule | Limit | Level | Fix Strategy |
-|------|-------|-------|--------------|
-| `max-lines` | 500 | Error | Split into modules |
-| `max-lines-per-function` | 100 | Warn | Extract helpers |
-| `complexity` | 15 | Warn | Data-driven approach |
-| `max-depth` | 4 | Warn | Early returns, extract |
-| `max-params` | 5 | Warn | Options object pattern |
-| `max-statements` | 30 | Warn | Extract helpers |
-| `max-nested-callbacks` | 3 | Warn | Use async/await |
+| Rule                     | Limit | Level | Fix Strategy           |
+| ------------------------ | ----- | ----- | ---------------------- |
+| `max-lines`              | 500   | Error | Split into modules     |
+| `max-lines-per-function` | 100   | Warn  | Extract helpers        |
+| `complexity`             | 15    | Warn  | Data-driven approach   |
+| `max-depth`              | 4     | Warn  | Early returns, extract |
+| `max-params`             | 5     | Warn  | Options object pattern |
+| `max-statements`         | 30    | Warn  | Extract helpers        |
+| `max-nested-callbacks`   | 3     | Warn  | Use async/await        |
 
 ## Refactoring Patterns
 
@@ -85,11 +85,10 @@ const PERSONALITY_FIELDS = [
 ] as const;
 
 function formatField(personality: Personality): string {
-  return PERSONALITY_FIELDS
-    .map(({ key, tag }) => {
-      const value = personality[key];
-      return value ? `<${tag}>${value}</${tag}>` : '';
-    })
+  return PERSONALITY_FIELDS.map(({ key, tag }) => {
+    const value = personality[key];
+    return value ? `<${tag}>${value}</${tag}>` : '';
+  })
     .filter(Boolean)
     .join('\n');
 }
@@ -108,9 +107,9 @@ async function handleRequest(req: Request): Promise<Response> {
 
 // ✅ GOOD - Split into focused helpers
 async function handleRequest(req: Request): Promise<Response> {
-  const validated = validateRequest(req);      // 10 statements extracted
-  const result = await processRequest(validated);  // 15 statements extracted
-  return formatResponse(result);               // 10 statements extracted
+  const validated = validateRequest(req); // 10 statements extracted
+  const result = await processRequest(validated); // 15 statements extracted
+  return formatResponse(result); // 10 statements extracted
 }
 ```
 
@@ -140,12 +139,12 @@ function process(data: Data | null): Result {
 
 ## TypeScript Strict Rules
 
-| Rule | Level | Alternative |
-|------|-------|-------------|
-| `no-explicit-any` | Error | Use `unknown` + type guards |
-| `no-unsafe-assignment` | Error | Validate with Zod |
-| `no-non-null-assertion` | Warn | Use optional chaining + nullish coalescing |
-| `strict-boolean-expressions` | Error | Be explicit: `!== null`, `!== undefined` |
+| Rule                         | Level | Alternative                                |
+| ---------------------------- | ----- | ------------------------------------------ |
+| `no-explicit-any`            | Error | Use `unknown` + type guards                |
+| `no-unsafe-assignment`       | Error | Validate with Zod                          |
+| `no-non-null-assertion`      | Warn  | Use optional chaining + nullish coalescing |
+| `strict-boolean-expressions` | Error | Be explicit: `!== null`, `!== undefined`   |
 
 ```typescript
 // ❌ BAD
@@ -218,9 +217,7 @@ if (!result.ok) {
 For complex domain logic, consider typed error returns:
 
 ```typescript
-type Result<T, E = string> =
-  | { ok: true; data: T }
-  | { ok: false; error: E };
+type Result<T, E = string> = { ok: true; data: T } | { ok: false; error: E };
 
 // Explicit error types at compile time
 type GetUserError = 'NOT_FOUND' | 'FORBIDDEN' | 'INVALID_ID';

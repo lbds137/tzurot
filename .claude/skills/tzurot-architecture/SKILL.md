@@ -142,12 +142,12 @@ const service = new MyService(prisma, redis);
 
 ESLint warnings indicate when to refactor:
 
-| Warning | Threshold | Action |
-|---------|-----------|--------|
-| `max-statements` | >30 | Extract helper functions |
-| `complexity` | >15 | Use data-driven patterns |
-| `max-lines-per-function` | >100 | Split responsibilities |
-| `max-params` | >5 | Use options object pattern |
+| Warning                  | Threshold | Action                     |
+| ------------------------ | --------- | -------------------------- |
+| `max-statements`         | >30       | Extract helper functions   |
+| `complexity`             | >15       | Use data-driven patterns   |
+| `max-lines-per-function` | >100      | Split responsibilities     |
+| `max-params`             | >5        | Use options object pattern |
 
 **📚 See**: `tzurot-code-quality` skill for refactoring patterns
 
