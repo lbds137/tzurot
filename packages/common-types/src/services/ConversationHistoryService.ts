@@ -651,12 +651,14 @@ export class ConversationHistoryService {
    * @param channelId Channel ID
    * @param personalityId Personality ID
    * @param since Only get messages after this timestamp
+   * @param limit Maximum number of messages to return (default 200, bounded for safety)
    * @returns Array of messages with their Discord IDs
    */
   async getMessagesInTimeWindow(
     channelId: string,
     personalityId: string,
-    since: Date
+    since: Date,
+    limit = 200
   ): Promise<
     {
       id: string;
@@ -679,6 +681,7 @@ export class ConversationHistoryService {
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
+        take: limit, // Bounded query to prevent OOM
       });
 
       return messages;
