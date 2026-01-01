@@ -102,9 +102,7 @@ export function mergeVoiceContext(
   const messageArray = Array.isArray(messages) ? messages : [...messages.values()];
 
   // Sort newest-first (critical for the reverse zipper algorithm)
-  const sortedMessages = [...messageArray].sort(
-    (a, b) => b.createdTimestamp - a.createdTimestamp
-  );
+  const sortedMessages = [...messageArray].sort((a, b) => b.createdTimestamp - a.createdTimestamp);
 
   // Map to store transcripts waiting for their parent voice message
   // Key: Voice message ID, Value: Pending transcript info

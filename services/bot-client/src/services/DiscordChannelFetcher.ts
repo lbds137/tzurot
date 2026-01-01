@@ -195,9 +195,7 @@ export class DiscordChannelFetcher {
     const result: ConversationMessage[] = [];
 
     // Sort by timestamp ascending (oldest first), then reverse for newest first
-    const sortedMessages = [...messages].sort(
-      (a, b) => a.createdTimestamp - b.createdTimestamp
-    );
+    const sortedMessages = [...messages].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     for (const msg of sortedMessages) {
       // Skip system messages (but allow forwarded messages)

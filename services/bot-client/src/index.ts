@@ -249,7 +249,6 @@ client.on(Events.InteractionCreate, interaction => {
           const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
 
           try {
-             
             await interaction.deferReply({
               flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
             });
