@@ -3,6 +3,9 @@
  *
  * Centralized utility for making authenticated requests to admin endpoints.
  * Automatically includes the X-Service-Auth header for service-to-service authentication.
+ *
+ * IMPORTANT: Routes that check isBotOwner() require the userId parameter.
+ * Currently this includes /admin/settings endpoints.
  */
 
 import { getConfig, CONTENT_TYPES } from '@tzurot/common-types';
@@ -12,6 +15,11 @@ import { getConfig, CONTENT_TYPES } from '@tzurot/common-types';
  */
 export interface AdminFetchOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
+  /**
+   * Discord user ID for bot owner verification.
+   * Required for routes that check isBotOwner() (e.g., /admin/settings).
+   */
+  userId?: string;
 }
 
 /**
@@ -47,14 +55,22 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
     throw new Error('GATEWAY_URL is not configured');
   }
 
-  const { headers: customHeaders, ...restOptions } = options;
+  const { headers: customHeaders, userId, ...restOptions } = options;
+
+  // Build headers with service auth and optional user ID
+  const headers: Record<string, string> = {
+    ...customHeaders,
+    'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+  };
+
+  // Add user ID header if provided (required for isBotOwner checks)
+  if (userId !== undefined) {
+    headers['X-User-Id'] = userId;
+  }
 
   return fetch(`${gatewayUrl}${path}`, {
     ...restOptions,
-    headers: {
-      ...customHeaders,
-      'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-    },
+    headers,
   });
 }
 
@@ -68,6 +84,7 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
  *
  * @param path - API path (e.g., '/admin/db-sync')
  * @param body - Object to send as JSON body
+ * @param userId - Optional Discord user ID for bot owner verification
  * @returns Fetch response
  *
  * @example
@@ -80,7 +97,8 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
  */
 export async function adminPostJson(
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  userId?: string
 ): Promise<Response> {
   return adminFetch(path, {
     method: 'POST',
@@ -88,6 +106,7 @@ export async function adminPostJson(
       'Content-Type': CONTENT_TYPES.JSON,
     },
     body: JSON.stringify(body),
+    userId,
   });
 }
 
@@ -96,14 +115,20 @@ export async function adminPostJson(
  *
  * @param path - API path (e.g., '/admin/llm-config/123')
  * @param body - Object to send as JSON body
+ * @param userId - Optional Discord user ID for bot owner verification
  * @returns Fetch response
  */
-export async function adminPutJson(path: string, body: Record<string, unknown>): Promise<Response> {
+export async function adminPutJson(
+  path: string,
+  body: Record<string, unknown>,
+  userId?: string
+): Promise<Response> {
   return adminFetch(path, {
     method: 'PUT',
     headers: {
       'Content-Type': CONTENT_TYPES.JSON,
     },
     body: JSON.stringify(body),
+    userId,
   });
 }

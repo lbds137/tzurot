@@ -175,6 +175,55 @@ describe('Admin Settings Routes', () => {
     });
   });
 
+  /**
+   * CONTRACT TESTS
+   *
+   * These tests verify the API contract requirements:
+   * - Admin settings routes require X-User-Id header for isBotOwner() check
+   * - Without userId, requests should be rejected with 403
+   *
+   * This prevents the bug where bot-client's adminFetch() was not sending
+   * the X-User-Id header, causing all admin settings requests to fail.
+   */
+  describe('CONTRACT: userId requirement', () => {
+    let appWithoutUserId: express.Express;
+
+    beforeEach(() => {
+      // Create app WITHOUT userId middleware to test missing userId scenario
+      appWithoutUserId = express();
+      appWithoutUserId.use(express.json());
+      // Intentionally NOT injecting userId - simulating adminFetch without X-User-Id
+      appWithoutUserId.use(
+        '/admin/settings',
+        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient)
+      );
+    });
+
+    it('should reject GET request without userId (isBotOwner check fails)', async () => {
+      // When isBotOwner receives undefined, it should return false
+      mockIsBotOwner.mockReturnValue(false);
+
+      const response = await request(appWithoutUserId).get('/admin/settings');
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('UNAUTHORIZED');
+      // Verify isBotOwner was called with undefined (missing userId)
+      expect(mockIsBotOwner).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should reject PUT request without userId', async () => {
+      mockIsBotOwner.mockReturnValue(false);
+
+      const response = await request(appWithoutUserId)
+        .put('/admin/settings/extended_context_default')
+        .send({ value: 'true' });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('UNAUTHORIZED');
+      expect(mockIsBotOwner).toHaveBeenCalledWith(undefined);
+    });
+  });
+
   describe('PUT /admin/settings/:key', () => {
     it('should create a new setting', async () => {
       const createdSetting = {

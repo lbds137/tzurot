@@ -69,10 +69,14 @@ describe('Admin Settings Subcommand', () => {
       await handleSettings(interaction);
 
       // Note: deferReply is handled by top-level interactionCreate handler
-      expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/settings/extended_context_default', {
-        value: 'true',
-        description: 'Default extended context setting for channels without explicit override',
-      });
+      expect(mockAdminPutJson).toHaveBeenCalledWith(
+        '/admin/settings/extended_context_default',
+        {
+          value: 'true',
+          description: 'Default extended context setting for channels without explicit override',
+        },
+        'user-456' // userId for isBotOwner check
+      );
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Extended context enabled globally'),
       });
@@ -102,10 +106,14 @@ describe('Admin Settings Subcommand', () => {
       await handleSettings(interaction);
 
       // Note: deferReply is handled by top-level interactionCreate handler
-      expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/settings/extended_context_default', {
-        value: 'false',
-        description: 'Default extended context setting for channels without explicit override',
-      });
+      expect(mockAdminPutJson).toHaveBeenCalledWith(
+        '/admin/settings/extended_context_default',
+        {
+          value: 'false',
+          description: 'Default extended context setting for channels without explicit override',
+        },
+        'user-456' // userId for isBotOwner check
+      );
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Extended context disabled globally'),
       });
@@ -148,7 +156,10 @@ describe('Admin Settings Subcommand', () => {
       await handleSettings(interaction);
 
       // Note: deferReply is handled by top-level interactionCreate handler
-      expect(mockAdminFetch).toHaveBeenCalledWith('/admin/settings', { method: 'GET' });
+      expect(mockAdminFetch).toHaveBeenCalledWith('/admin/settings', {
+        method: 'GET',
+        userId: 'user-456', // Required for isBotOwner check
+      });
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('extended_context_default'),
       });
