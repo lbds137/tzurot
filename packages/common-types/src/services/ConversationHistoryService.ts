@@ -491,7 +491,9 @@ export class ConversationHistoryService {
    * @returns Number of messages successfully soft deleted
    */
   async softDeleteMessages(messageIds: string[]): Promise<number> {
-    if (messageIds.length === 0) {return 0;}
+    if (messageIds.length === 0) {
+      return 0;
+    }
 
     try {
       // First get the message details for tombstone creation
@@ -591,7 +593,9 @@ export class ConversationHistoryService {
       }
     >
   > {
-    if (discordMessageIds.length === 0) {return new Map();}
+    if (discordMessageIds.length === 0) {
+      return new Map();
+    }
 
     try {
       const messages = await this.prisma.conversationHistory.findMany({

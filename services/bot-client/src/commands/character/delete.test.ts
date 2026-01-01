@@ -85,7 +85,7 @@ describe('Character Delete Handler', () => {
       conversationHistory: 10,
       memories: 5,
       pendingMemories: 2,
-      activatedChannels: 1,
+      channelSettings: 1,
       aliases: 0,
     },
     ...overrides,
@@ -222,7 +222,7 @@ describe('Character Delete Handler', () => {
           conversationHistory: 42,
           memories: 7,
           pendingMemories: 3,
-          activatedChannels: 2,
+          channelSettings: 2,
           aliases: 1,
         },
       });
@@ -238,7 +238,7 @@ describe('Character Delete Handler', () => {
       expect(lastCall?.content).toContain('42 conversation');
       expect(lastCall?.content).toContain('7 long-term');
       expect(lastCall?.content).toContain('3 pending');
-      expect(lastCall?.content).toContain('2 activated');
+      expect(lastCall?.content).toContain('2 channel setting');
       expect(lastCall?.content).toContain('1 alias');
     });
 
@@ -313,7 +313,7 @@ describe('Character Delete Handler', () => {
           conversationHistory: 0,
           memories: 0,
           pendingMemories: 0,
-          activatedChannels: 0,
+          channelSettings: 0,
           aliases: 0,
         },
       });
@@ -342,7 +342,7 @@ describe('Character Delete Handler', () => {
           conversationHistory: 1,
           memories: 1,
           pendingMemories: 1,
-          activatedChannels: 0,
+          channelSettings: 0,
           aliases: 0,
         },
       });
