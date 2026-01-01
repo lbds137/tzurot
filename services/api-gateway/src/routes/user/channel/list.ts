@@ -63,6 +63,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
         },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500, // Bounded query - reasonable limit for channel list
     });
 
     logger.debug(

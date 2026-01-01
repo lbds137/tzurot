@@ -47,6 +47,7 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
 
       const settings = await prisma.botSettings.findMany({
         orderBy: { key: 'asc' },
+        take: 100, // Bounded query - admin settings should be few
       });
 
       const response = {
