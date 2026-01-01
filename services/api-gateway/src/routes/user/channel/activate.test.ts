@@ -29,7 +29,7 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     isBotOwner: (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args),
-    generateActivatedChannelUuid: vi.fn(() => 'deterministic-activation-uuid'),
+    generateChannelSettingsUuid: vi.fn(() => 'deterministic-activation-uuid'),
   };
 });
 
@@ -56,10 +56,10 @@ describe('POST /user/channel/activate', () => {
 
   it('should activate a public personality in a channel', async () => {
     const personality = createMockPersonality({ isPublic: true });
-    const createdActivation = createMockActivation();
+    const createdSettings = createMockActivation();
 
     mockPrisma.personality.findUnique.mockResolvedValue(personality);
-    mockPrisma.activatedChannel.create.mockResolvedValue(createdActivation);
+    mockPrisma.channelSettings.upsert.mockResolvedValue(createdSettings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'post', '/activate');
@@ -85,18 +85,16 @@ describe('POST /user/channel/activate', () => {
   });
 
   it('should replace existing activation with new personality', async () => {
-    const oldActivationId = '550e8400-e29b-41d4-a716-446655440099';
     const oldPersonalityId = '550e8400-e29b-41d4-a716-446655440088';
     const personality = createMockPersonality({ isPublic: true });
-    const existingActivation = createMockActivation({
-      id: oldActivationId,
-      personalityId: oldPersonalityId,
-    });
-    const newActivation = createMockActivation();
+    // Existing settings with a different personality
+    const existingSettings = { activatedPersonalityId: oldPersonalityId };
+    const updatedSettings = createMockActivation();
 
     mockPrisma.personality.findUnique.mockResolvedValue(personality);
-    mockPrisma.activatedChannel.findFirst.mockResolvedValue(existingActivation);
-    mockPrisma.activatedChannel.create.mockResolvedValue(newActivation);
+    // findUnique now used to check existing settings
+    mockPrisma.channelSettings.findUnique.mockResolvedValue(existingSettings);
+    mockPrisma.channelSettings.upsert.mockResolvedValue(updatedSettings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'post', '/activate');
@@ -108,10 +106,8 @@ describe('POST /user/channel/activate', () => {
 
     await handler(req, res);
 
-    // Should delete old activation
-    expect(mockPrisma.activatedChannel.delete).toHaveBeenCalledWith({
-      where: { id: oldActivationId },
-    });
+    // Uses upsert now, not delete + create
+    expect(mockPrisma.channelSettings.upsert).toHaveBeenCalled();
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
@@ -197,10 +193,10 @@ describe('POST /user/channel/activate', () => {
       isPublic: false,
       ownerId: otherUserUuid,
     });
-    const activation = createMockActivation();
+    const settings = createMockActivation();
 
     mockPrisma.personality.findUnique.mockResolvedValue(privatePersonality);
-    mockPrisma.activatedChannel.create.mockResolvedValue(activation);
+    mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'post', '/activate');
@@ -220,10 +216,10 @@ describe('POST /user/channel/activate', () => {
       isPublic: false,
       ownerId: MOCK_USER_UUID, // Same as user's internal ID
     });
-    const activation = createMockActivation();
+    const settings = createMockActivation();
 
     mockPrisma.personality.findUnique.mockResolvedValue(ownedPersonality);
-    mockPrisma.activatedChannel.create.mockResolvedValue(activation);
+    mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'post', '/activate');
@@ -240,11 +236,11 @@ describe('POST /user/channel/activate', () => {
 
   it('should create user if they do not exist', async () => {
     const personality = createMockPersonality({ isPublic: true });
-    const activation = createMockActivation();
+    const settings = createMockActivation();
 
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.personality.findUnique.mockResolvedValue(personality);
-    mockPrisma.activatedChannel.create.mockResolvedValue(activation);
+    mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'post', '/activate');

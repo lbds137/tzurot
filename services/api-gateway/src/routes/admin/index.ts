@@ -20,6 +20,7 @@ import { createInvalidateCacheRoute } from './invalidateCache.js';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
 import { createAdminUsageRoutes } from './usage.js';
 import { createCleanupRoute } from './cleanup.js';
+import { createAdminSettingsRoutes } from './settings.js';
 
 /**
  * Create admin router with injected dependencies
@@ -53,6 +54,9 @@ export function createAdminRouter(
 
   // Usage statistics endpoint
   router.use('/usage', createAdminUsageRoutes(prisma));
+
+  // Bot settings endpoint
+  router.use('/settings', createAdminSettingsRoutes(prisma));
 
   // Cleanup endpoint (for conversation history and tombstones)
   if (retentionService !== undefined) {

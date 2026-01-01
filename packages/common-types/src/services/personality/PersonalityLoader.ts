@@ -24,6 +24,7 @@ const PERSONALITY_SELECT = {
   isPublic: true,
   ownerId: true,
   updatedAt: true, // For avatar cache-busting
+  supportsExtendedContext: true, // Extended context opt-out
   characterInfo: true,
   personalityTraits: true,
   personalityTone: true,

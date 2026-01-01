@@ -10,16 +10,16 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type ActivateChannelResponse } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
-import { invalidateChannelActivationCache } from '../../utils/GatewayClient.js';
+import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
 const logger = createLogger('channel-activate');
 
 /**
- * Invalidate channel activation cache locally and across all instances
+ * Invalidate channel settings cache locally and across all instances
  */
-async function invalidateActivationCache(channelId: string): Promise<void> {
-  invalidateChannelActivationCache(channelId);
+async function invalidateSettingsCache(channelId: string): Promise<void> {
+  invalidateChannelSettingsCache(channelId);
 
   try {
     const invalidationService = getChannelActivationCacheInvalidationService();
@@ -98,7 +98,7 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
     const replacedNote = replaced ? ' (replaced previous activation)' : '';
 
     // Invalidate cache locally and across all bot-client instances
-    await invalidateActivationCache(channelId);
+    await invalidateSettingsCache(channelId);
 
     await interaction.editReply(
       `✅ Activated **${activation.personalityName}** in this channel${replacedNote}.\n\n` +

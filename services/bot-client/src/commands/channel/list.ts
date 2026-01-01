@@ -19,8 +19,8 @@ import {
 import {
   createLogger,
   requireBotOwner,
-  type ListChannelActivationsResponse,
-  type ActivatedChannel,
+  type ListChannelSettingsResponse,
+  type ChannelSettings,
   DISCORD_COLORS,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -39,44 +39,44 @@ export { CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from './listTypes.js';
 const logger = createLogger('channel-list');
 
 /**
- * Format a single activation for display
+ * Format a single channel settings entry for display
  */
-function formatActivation(activation: ActivatedChannel): string {
-  const channelMention = `<#${activation.channelId}>`;
-  const activatedDate = new Date(activation.createdAt).toLocaleDateString();
-  const safeName = escapeMarkdown(activation.personalityName);
-  return `${channelMention} → **${safeName}** (\`${activation.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
+function formatChannelSettings(settings: ChannelSettings): string {
+  const channelMention = `<#${settings.channelId}>`;
+  const activatedDate = new Date(settings.createdAt).toLocaleDateString();
+  const safeName = escapeMarkdown(settings.personalityName ?? 'Unknown');
+  return `${channelMention} → **${safeName}** (\`${settings.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
 }
 
 /**
- * Sort activations by the specified sort type
+ * Sort channel settings by the specified sort type
  * When isAllServers=true, groups by guild first, then sorts within each guild
  */
-function sortActivations(
-  activations: ActivatedChannel[],
+function sortChannelSettings(
+  settings: ChannelSettings[],
   sortType: ChannelListSortType,
   client: Client,
   isAllServers = false
-): ActivatedChannel[] {
-  const sorted = [...activations];
+): ChannelSettings[] {
+  const sorted = [...settings];
 
   // Helper to get channel name for sorting
-  const getChannelName = (activation: ActivatedChannel): string => {
-    const channel = client.channels.cache.get(activation.channelId) as TextChannel | undefined;
-    return channel?.name ?? activation.channelId;
+  const getChannelName = (s: ChannelSettings): string => {
+    const channel = client.channels.cache.get(s.channelId) as TextChannel | undefined;
+    return channel?.name ?? s.channelId;
   };
 
   // Helper to get guild name for sorting
-  const getGuildName = (activation: ActivatedChannel): string => {
-    if (activation.guildId === null) {
+  const getGuildName = (s: ChannelSettings): string => {
+    if (s.guildId === null) {
       return 'zzz_unknown'; // Sort unknown guilds last
     }
-    const guild = client.guilds.cache.get(activation.guildId);
-    return guild?.name ?? activation.guildId;
+    const guild = client.guilds.cache.get(s.guildId);
+    return guild?.name ?? s.guildId;
   };
 
   // Secondary sort function (within guild or for single-guild mode)
-  const secondarySort = (a: ActivatedChannel, b: ActivatedChannel): number => {
+  const secondarySort = (a: ChannelSettings, b: ChannelSettings): number => {
     if (sortType === 'name') {
       return getChannelName(a).localeCompare(getChannelName(b));
     } else {
@@ -106,11 +106,11 @@ function sortActivations(
  * Each page contains channels from a single guild only.
  * Large guilds are split across multiple pages with continuation indicators.
  */
-export function buildGuildPages(activations: ActivatedChannel[], client: Client): GuildPage[] {
+export function buildGuildPages(activations: ChannelSettings[], client: Client): GuildPage[] {
   const pages: GuildPage[] = [];
 
   // Group by guild (activations are already sorted by guild)
-  const guildGroups: { guildId: string; guildName: string; activations: ActivatedChannel[] }[] = [];
+  const guildGroups: { guildId: string; guildName: string; settings: ChannelSettings[] }[] = [];
   let currentGroup: (typeof guildGroups)[0] | null = null;
 
   for (const activation of activations) {
@@ -119,29 +119,29 @@ export function buildGuildPages(activations: ActivatedChannel[], client: Client)
     if (currentGroup === null || currentGroup.guildId !== guildId) {
       const guild = guildId !== 'unknown' ? client.guilds.cache.get(guildId) : undefined;
       const guildName: string = guild?.name ?? `Unknown Server (${guildId})`;
-      currentGroup = { guildId, guildName, activations: [] };
+      currentGroup = { guildId, guildName, settings: [] };
       guildGroups.push(currentGroup);
     }
-    currentGroup.activations.push(activation);
+    currentGroup.settings.push(activation);
   }
 
   // Split each guild into pages
   for (const group of guildGroups) {
-    const totalChannels = group.activations.length;
+    const totalChannels = group.settings.length;
     let offset = 0;
 
     while (offset < totalChannels) {
-      const pageActivations = group.activations.slice(
+      const pageSettings = group.settings.slice(
         offset,
         offset + CHANNELS_PER_PAGE_ALL_SERVERS
       );
       const isContinuation = offset > 0;
-      const isComplete = offset + pageActivations.length >= totalChannels;
+      const isComplete = offset + pageSettings.length >= totalChannels;
 
       pages.push({
         guildId: group.guildId,
         guildName: group.guildName,
-        activations: pageActivations,
+        settings: pageSettings,
         isContinuation,
         isComplete,
       });
@@ -207,7 +207,7 @@ function buildButtons(
  * Build embed for a page of activations (single guild mode)
  */
 function buildEmbedSingleGuild(
-  activations: ActivatedChannel[],
+  activations: ChannelSettings[],
   page: number,
   sortType: ChannelListSortType
 ): EmbedBuilder {
@@ -220,7 +220,7 @@ function buildEmbedSingleGuild(
     .setTitle('📍 Activated Channels')
     .setColor(DISCORD_COLORS.BLURPLE);
 
-  const lines = pageActivations.map(formatActivation);
+  const lines = pageActivations.map(formatChannelSettings);
   embed.setDescription(lines.join('\n\n') || 'No activated channels in this server.');
 
   const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
@@ -252,15 +252,15 @@ function buildEmbedAllServers(
 
   const embed = new EmbedBuilder().setTitle(title).setColor(DISCORD_COLORS.BLURPLE);
 
-  const channelList = guildPage.activations
-    .map(a => `<#${a.channelId}> → **${escapeMarkdown(a.personalityName)}**`)
+  const channelList = guildPage.settings
+    .map(a => `<#${a.channelId}> → **${escapeMarkdown(a.personalityName ?? 'Unknown')}**`)
     .join('\n');
 
   embed.setDescription(channelList || 'No activated channels found.');
 
   // Build footer with context
   const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
-  const channelCount = guildPage.activations.length;
+  const channelCount = guildPage.settings.length;
   const guildStatus =
     guildPage.isContinuation || !guildPage.isComplete
       ? ` (${channelCount} shown)`
@@ -277,7 +277,7 @@ function buildEmbedAllServers(
  * Perform lazy backfill of missing guildId for activations
  */
 async function backfillMissingGuildIds(
-  activations: ActivatedChannel[],
+  activations: ChannelSettings[],
   client: Client,
   userId: string
 ): Promise<void> {
@@ -332,8 +332,8 @@ function getEmptyStateMessage(showAll: boolean): string {
 }
 
 interface PageViewOptions {
-  activations: ActivatedChannel[];
-  sortedActivations: ActivatedChannel[];
+  activations: ChannelSettings[];
+  sortedActivations: ChannelSettings[];
   page: number;
   sortType: ChannelListSortType;
   showAll: boolean;
@@ -363,7 +363,7 @@ function buildPageView(opts: PageViewOptions): { embed: EmbedBuilder; totalPages
 function setupPaginationCollector(
   interaction: ChatInputCommandInteraction,
   response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
-  activations: ActivatedChannel[],
+  activations: ChannelSettings[],
   showAll: boolean
 ): void {
   const collector = response.createMessageComponentCollector({
@@ -385,7 +385,7 @@ function setupPaginationCollector(
       newPage = 0; // Reset to first page when changing sort
     }
 
-    const newSortedActivations = sortActivations(activations, newSort, interaction.client, showAll);
+    const newSortedActivations = sortChannelSettings(activations, newSort, interaction.client, showAll);
     const { embed, totalPages } = buildPageView({
       activations,
       sortedActivations: newSortedActivations,
@@ -430,7 +430,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       ? '/user/channel/list'
       : `/user/channel/list?guildId=${interaction.guildId}`;
 
-    const result = await callGatewayApi<ListChannelActivationsResponse>(queryPath, {
+    const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
       userId: interaction.user.id,
       method: 'GET',
     });
@@ -440,33 +440,33 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
         { userId: interaction.user.id, error: result.error, status: result.status },
         '[Channel] List failed'
       );
-      await interaction.editReply(`❌ Failed to list activations: ${result.error}`);
+      await interaction.editReply(`❌ Failed to list settings: ${result.error}`);
       return;
     }
 
-    let { activations } = result.data;
+    let { settings } = result.data;
 
     // Lazy backfill missing guildIds
-    await backfillMissingGuildIds(activations, interaction.client, interaction.user.id);
+    await backfillMissingGuildIds(settings, interaction.client, interaction.user.id);
 
     // For current server view, filter again after backfill (in case some got resolved)
     if (!showAll && interaction.guildId !== null) {
-      activations = activations.filter(a => a.guildId === interaction.guildId);
+      settings = settings.filter(s => s.guildId === interaction.guildId);
     }
 
-    if (activations.length === 0) {
+    if (settings.length === 0) {
       await interaction.editReply(getEmptyStateMessage(showAll));
       return;
     }
 
     // Initial sort: chronological (newest first), grouped by guild if showing all
     const sortType: ChannelListSortType = 'date';
-    const sortedActivations = sortActivations(activations, sortType, interaction.client, showAll);
+    const sortedSettings = sortChannelSettings(settings, sortType, interaction.client, showAll);
 
     // Build initial embed and components
     const { embed, totalPages } = buildPageView({
-      activations,
-      sortedActivations,
+      activations: settings,
+      sortedActivations: sortedSettings,
       page: 0,
       sortType,
       showAll,
@@ -477,13 +477,13 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     const response = await interaction.editReply({ embeds: [embed], components });
 
     logger.info(
-      { userId: interaction.user.id, count: activations.length, showAll },
-      '[Channel] Listed activations'
+      { userId: interaction.user.id, count: settings.length, showAll },
+      '[Channel] Listed channel settings'
     );
 
     // Set up button collector for pagination and sorting
     if (components.length > 0) {
-      setupPaginationCollector(interaction, response, activations, showAll);
+      setupPaginationCollector(interaction, response, settings, showAll);
     }
   } catch (error) {
     logger.error(

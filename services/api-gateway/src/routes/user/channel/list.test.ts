@@ -59,15 +59,15 @@ describe('GET /user/channel/list', () => {
       createMockActivation({
         id: activation1Id,
         channelId: '111111111111111111',
-        personality: { slug: 'char-one', displayName: 'Character One' },
+        activatedPersonality: { slug: 'char-one', displayName: 'Character One' },
       }),
       createMockActivation({
         id: activation2Id,
         channelId: '222222222222222222',
-        personality: { slug: 'char-two', displayName: 'Character Two' },
+        activatedPersonality: { slug: 'char-two', displayName: 'Character Two' },
       }),
     ];
-    mockPrisma.activatedChannel.findMany.mockResolvedValue(activations);
+    mockPrisma.channelSettings.findMany.mockResolvedValue(activations);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/list');
@@ -78,7 +78,7 @@ describe('GET /user/channel/list', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        activations: expect.arrayContaining([
+        settings: expect.arrayContaining([
           expect.objectContaining({
             id: activation1Id,
             channelId: '111111111111111111',
@@ -97,7 +97,7 @@ describe('GET /user/channel/list', () => {
   });
 
   it('should return empty array when no activations exist', async () => {
-    mockPrisma.activatedChannel.findMany.mockResolvedValue([]);
+    mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/list');
@@ -107,13 +107,13 @@ describe('GET /user/channel/list', () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
-      activations: [],
+      settings: [],
     });
   });
 
   it('should include all activation fields in response', async () => {
     const activation = createMockActivation();
-    mockPrisma.activatedChannel.findMany.mockResolvedValue([activation]);
+    mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/list');
@@ -122,13 +122,15 @@ describe('GET /user/channel/list', () => {
     await handler(req, res);
 
     expect(res.json).toHaveBeenCalledWith({
-      activations: [
+      settings: [
         {
           id: MOCK_ACTIVATION_UUID,
           channelId: MOCK_DISCORD_USER_ID,
           guildId: MOCK_GUILD_ID,
           personalitySlug: 'test-character',
           personalityName: 'Test Character',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: MOCK_USER_UUID,
           createdAt: MOCK_CREATED_AT.toISOString(),
         },
@@ -138,7 +140,7 @@ describe('GET /user/channel/list', () => {
 
   it('should filter by guildId when query param provided', async () => {
     const activation = createMockActivation();
-    mockPrisma.activatedChannel.findMany.mockResolvedValue([activation]);
+    mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/list');
@@ -147,17 +149,19 @@ describe('GET /user/channel/list', () => {
     await handler(req, res);
 
     // Should include records with matching guildId OR null guildId (for backfill)
-    expect(mockPrisma.activatedChannel.findMany).toHaveBeenCalledWith(
+    // and only those with activated personalities
+    expect(mockPrisma.channelSettings.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          activatedPersonalityId: { not: null },
           OR: [{ guildId: MOCK_GUILD_ID }, { guildId: null }],
         },
       })
     );
   });
 
-  it('should not filter when no guildId query param', async () => {
-    mockPrisma.activatedChannel.findMany.mockResolvedValue([]);
+  it('should only return channels with activated personalities', async () => {
+    mockPrisma.channelSettings.findMany.mockResolvedValue([]);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/list');
@@ -165,16 +169,19 @@ describe('GET /user/channel/list', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.activatedChannel.findMany).toHaveBeenCalledWith(
+    // Should filter to only activated channels (with personalityId set)
+    expect(mockPrisma.channelSettings.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: undefined,
+        where: {
+          activatedPersonalityId: { not: null },
+        },
       })
     );
   });
 
   it('should handle activation with null createdBy', async () => {
     const activation = createMockActivation({ createdBy: null });
-    mockPrisma.activatedChannel.findMany.mockResolvedValue([activation]);
+    mockPrisma.channelSettings.findMany.mockResolvedValue([activation]);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/list');
@@ -184,7 +191,7 @@ describe('GET /user/channel/list', () => {
 
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        activations: [
+        settings: [
           expect.objectContaining({
             activatedBy: null,
           }),
@@ -200,7 +207,7 @@ describe('GET /user/channel/list', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.activatedChannel.findMany).toHaveBeenCalledWith(
+    expect(mockPrisma.channelSettings.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         orderBy: { createdAt: 'desc' },
       })

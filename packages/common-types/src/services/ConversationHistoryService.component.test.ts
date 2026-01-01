@@ -102,6 +102,7 @@ describe('ConversationHistoryService Component Test', () => {
         image_enabled BOOLEAN DEFAULT FALSE,
         image_settings JSONB,
         avatar_data BYTEA,
+        supports_extended_context BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
@@ -119,7 +120,9 @@ describe('ConversationHistoryService Component Test', () => {
         token_count INTEGER,
         discord_message_id TEXT[] DEFAULT '{}',
         message_metadata JSONB DEFAULT '{}',
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        deleted_at TIMESTAMP,
+        edited_at TIMESTAMP
       )
     `);
 

@@ -209,5 +209,8 @@ export function mapToPersonality(
 
     // Custom error message
     errorMessage: db.errorMessage ?? undefined,
+
+    // Extended context configuration
+    supportsExtendedContext: db.supportsExtendedContext,
   };
 }

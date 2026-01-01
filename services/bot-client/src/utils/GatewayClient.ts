@@ -12,7 +12,9 @@ import {
   INTERVALS,
   TIMEOUTS,
   TTLCache,
-  type GetChannelActivationResponse,
+  BotSettingKeys,
+  type GetChannelSettingsResponse,
+  type GetBotSettingResponse,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
@@ -20,37 +22,54 @@ const logger = createLogger('GatewayClient');
 const config = getConfig();
 
 /**
- * Cache for channel activation lookups.
+ * Cache for channel settings lookups.
  * TTL of 30 seconds balances performance with responsiveness to changes.
  * Max 1000 channels to prevent unbounded memory growth.
  */
-const channelActivationCache = new TTLCache<GetChannelActivationResponse>({
+const channelSettingsCache = new TTLCache<GetChannelSettingsResponse>({
   ttl: 30 * 1000, // 30 seconds
   maxSize: 1000,
 });
 
 /**
- * Invalidate channel activation cache for a specific channel.
- * Call this when a channel is activated or deactivated.
+ * Cache for bot settings lookups.
+ * Longer TTL since these change rarely (admin-only).
  */
-export function invalidateChannelActivationCache(channelId: string): void {
-  channelActivationCache.delete(channelId);
-  logger.debug({ channelId }, '[GatewayClient] Invalidated channel activation cache');
+const botSettingsCache = new TTLCache<GetBotSettingResponse>({
+  ttl: 60 * 1000, // 60 seconds
+  maxSize: 100,
+});
+
+/**
+ * Invalidate channel settings cache for a specific channel.
+ * Call this when a channel is activated, deactivated, or settings change.
+ */
+export function invalidateChannelSettingsCache(channelId: string): void {
+  channelSettingsCache.delete(channelId);
+  logger.debug({ channelId }, '[GatewayClient] Invalidated channel settings cache');
 }
 
 /**
- * Clear all entries in the channel activation cache.
+ * Clear all entries in the channel settings cache.
  * Used by pub/sub invalidation for 'all' events and for testing.
  */
-export function clearAllChannelActivationCache(): void {
-  channelActivationCache.clear();
+export function clearAllChannelSettingsCache(): void {
+  channelSettingsCache.clear();
 }
 
 /**
  * Alias for testing compatibility
  * @internal For testing only
  */
-export const _clearChannelActivationCacheForTesting = clearAllChannelActivationCache;
+export const _clearChannelSettingsCacheForTesting = clearAllChannelSettingsCache;
+
+// Backward compatibility aliases
+/** @deprecated Use invalidateChannelSettingsCache */
+export const invalidateChannelActivationCache = invalidateChannelSettingsCache;
+/** @deprecated Use clearAllChannelSettingsCache */
+export const clearAllChannelActivationCache = clearAllChannelSettingsCache;
+/** @deprecated Use _clearChannelSettingsCacheForTesting */
+export const _clearChannelActivationCacheForTesting = clearAllChannelSettingsCache;
 
 /**
  * API Gateway client for making AI generation requests
@@ -280,23 +299,23 @@ export class GatewayClient {
   }
 
   /**
-   * Get channel activation status
+   * Get channel settings
    *
-   * Checks if a channel has an activated personality for auto-responses.
+   * Checks if a channel has settings including activated personality for auto-responses.
    * Used by ActivatedChannelProcessor to determine if messages should
    * receive automatic responses.
    *
    * Results are cached for 30 seconds to avoid HTTP requests on every message.
-   * Use invalidateChannelActivationCache() when activation status changes.
+   * Use invalidateChannelSettingsCache() when settings change.
    *
    * @param channelId - Discord channel ID to check
-   * @returns Activation status and details if activated
+   * @returns Channel settings including activation status
    */
-  async getChannelActivation(channelId: string): Promise<GetChannelActivationResponse | null> {
+  async getChannelSettings(channelId: string): Promise<GetChannelSettingsResponse | null> {
     // Check cache first
-    const cached = channelActivationCache.get(channelId);
+    const cached = channelSettingsCache.get(channelId);
     if (cached !== null) {
-      logger.debug({ channelId }, '[GatewayClient] Channel activation cache hit');
+      logger.debug({ channelId }, '[GatewayClient] Channel settings cache hit');
       return cached;
     }
 
@@ -312,25 +331,33 @@ export class GatewayClient {
       if (!response.ok) {
         logger.warn(
           { channelId, status: response.status },
-          '[GatewayClient] Channel activation check failed'
+          '[GatewayClient] Channel settings check failed'
         );
         return null;
       }
 
-      const data = (await response.json()) as GetChannelActivationResponse;
+      const data = (await response.json()) as GetChannelSettingsResponse;
 
-      // Cache the result (including "not activated" responses)
-      channelActivationCache.set(channelId, data);
+      // Cache the result (including "no settings" responses)
+      channelSettingsCache.set(channelId, data);
       logger.debug(
-        { channelId, isActivated: data.isActivated },
-        '[GatewayClient] Cached channel activation'
+        { channelId, hasSettings: data.hasSettings },
+        '[GatewayClient] Cached channel settings'
       );
 
       return data;
     } catch (error) {
-      logger.error({ err: error, channelId }, '[GatewayClient] Channel activation check error');
+      logger.error({ err: error, channelId }, '[GatewayClient] Channel settings check error');
       return null;
     }
+  }
+
+  /**
+   * Get channel activation status (backward compatibility)
+   * @deprecated Use getChannelSettings instead
+   */
+  async getChannelActivation(channelId: string): Promise<GetChannelSettingsResponse | null> {
+    return this.getChannelSettings(channelId);
   }
 
   /**
@@ -344,5 +371,69 @@ export class GatewayClient {
       logger.error({ err: error }, '[GatewayClient] Health check failed');
       return false;
     }
+  }
+
+  /**
+   * Get a bot setting by key
+   * Uses cache to reduce API calls for frequently accessed settings.
+   *
+   * @param key - The setting key to fetch
+   * @returns The setting response or null on error
+   */
+  async getBotSetting(key: string): Promise<GetBotSettingResponse | null> {
+    // Check cache first
+    const cached = botSettingsCache.get(key);
+    if (cached !== null) {
+      logger.debug({ key }, '[GatewayClient] Bot setting cache hit');
+      return cached;
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/admin/settings/${key}`, {
+        headers: {
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        logger.warn(
+          { key, status: response.status },
+          '[GatewayClient] Bot setting fetch failed'
+        );
+        return null;
+      }
+
+      const result = (await response.json()) as GetBotSettingResponse;
+
+      // Cache the result
+      botSettingsCache.set(key, result);
+      logger.debug({ key, found: result.found }, '[GatewayClient] Bot setting fetched and cached');
+
+      return result;
+    } catch (error) {
+      logger.error(
+        { key, err: error },
+        '[GatewayClient] Failed to fetch bot setting'
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get the global extended context default setting
+   *
+   * @returns true if extended context is enabled by default, false otherwise
+   */
+  async getExtendedContextDefault(): Promise<boolean> {
+    const setting = await this.getBotSetting(BotSettingKeys.EXTENDED_CONTEXT_DEFAULT);
+
+    if (setting === null || !setting.found || setting.setting === undefined) {
+      // Default to false if setting doesn't exist
+      return false;
+    }
+
+    // Parse boolean string value
+    return setting.setting.value === 'true';
   }
 }

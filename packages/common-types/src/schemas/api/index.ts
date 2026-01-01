@@ -28,3 +28,6 @@ export * from './usage.js';
 
 // Channel activation endpoints
 export * from './channel.js';
+
+// Bot settings endpoints (admin)
+export * from './botSettings.js';

@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ActivatedChannelProcessor } from './ActivatedChannelProcessor.js';
 import { _resetNotificationCacheForTesting } from './notificationCache.js';
 import type { Message } from 'discord.js';
-import type { LoadedPersonality, GetChannelActivationResponse } from '@tzurot/common-types';
+import type { LoadedPersonality, GetChannelSettingsResponse } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
@@ -59,7 +59,7 @@ const mockLilithPersonality: LoadedPersonality = {
 describe('ActivatedChannelProcessor', () => {
   let processor: ActivatedChannelProcessor;
   let mockGatewayClient: {
-    getChannelActivation: ReturnType<typeof vi.fn>;
+    getChannelSettings: ReturnType<typeof vi.fn>;
   };
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
@@ -73,7 +73,7 @@ describe('ActivatedChannelProcessor', () => {
     _resetNotificationCacheForTesting();
 
     mockGatewayClient = {
-      getChannelActivation: vi.fn(),
+      getChannelSettings: vi.fn(),
     };
 
     mockPersonalityService = {
@@ -94,20 +94,20 @@ describe('ActivatedChannelProcessor', () => {
   describe('Channel activation check', () => {
     it('should continue processing when channel is not activated', async () => {
       const message = createMockMessage();
-      mockGatewayClient.getChannelActivation.mockResolvedValue(null);
+      mockGatewayClient.getChannelSettings.mockResolvedValue(null);
 
       const result = await processor.process(message);
 
       expect(result).toBe(false); // Should continue to next processor
-      expect(mockGatewayClient.getChannelActivation).toHaveBeenCalledWith('channel-123');
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledWith('channel-123');
       expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
     });
 
-    it('should continue processing when activation response has isActivated=false', async () => {
+    it('should continue processing when settings response has hasSettings=false', async () => {
       const message = createMockMessage();
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: false,
-      } as GetChannelActivationResponse);
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: false,
+      } as GetChannelSettingsResponse);
 
       const result = await processor.process(message);
 
@@ -117,22 +117,25 @@ describe('ActivatedChannelProcessor', () => {
 
     it('should auto-respond when channel has activated personality', async () => {
       const message = createMockMessage({ content: 'Hello there' });
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'activator-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
 
       const result = await processor.process(message);
 
-      expect(mockGatewayClient.getChannelActivation).toHaveBeenCalledWith('channel-123');
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledWith('channel-123');
       expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('lilith', 'user-123');
       expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
         message,
@@ -145,17 +148,20 @@ describe('ActivatedChannelProcessor', () => {
 
     it('should continue processing when personality is not accessible to user', async () => {
       const message = createMockMessage({ userId: 'unique-user-access-test' });
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'private-personality',
           personalityName: 'Private Personality',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'other-user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       // User doesn't have access to the private personality
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
@@ -171,17 +177,20 @@ describe('ActivatedChannelProcessor', () => {
 
     it('should notify user when they lack access to private personality', async () => {
       const message = createMockMessage({ userId: 'unique-user-notify-test' });
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'private-personality',
           personalityName: 'Secret Bot',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'other-user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
       await processor.process(message);
@@ -200,19 +209,22 @@ describe('ActivatedChannelProcessor', () => {
       const message1 = createMockMessage({ userId: 'spam-test-user', channelId: 'spam-channel' });
       const message2 = createMockMessage({ userId: 'spam-test-user', channelId: 'spam-channel' });
 
-      const activationResponse = {
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      const settingsResponse = {
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'spam-channel',
+          guildId: 'guild-123',
           personalitySlug: 'private-personality',
           personalityName: 'Private Bot',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'other-user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse;
+      } as GetChannelSettingsResponse;
 
-      mockGatewayClient.getChannelActivation.mockResolvedValue(activationResponse);
+      mockGatewayClient.getChannelSettings.mockResolvedValue(settingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
       // First message should trigger notification
@@ -234,19 +246,22 @@ describe('ActivatedChannelProcessor', () => {
         channelId: 'notify-channel',
       });
 
-      const activationResponse = {
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      const settingsResponse = {
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'notify-channel',
+          guildId: 'guild-123',
           personalitySlug: 'private-personality',
           personalityName: 'Private Bot',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'other-user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse;
+      } as GetChannelSettingsResponse;
 
-      mockGatewayClient.getChannelActivation.mockResolvedValue(activationResponse);
+      mockGatewayClient.getChannelSettings.mockResolvedValue(settingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
       // User A gets notification
@@ -260,17 +275,20 @@ describe('ActivatedChannelProcessor', () => {
 
     it('should continue processing when activated personality was deleted', async () => {
       const message = createMockMessage();
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'deleted-personality',
           personalityName: 'Deleted Personality',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       // Personality was deleted
       mockPersonalityService.loadPersonality.mockResolvedValue(null);
 
@@ -284,17 +302,20 @@ describe('ActivatedChannelProcessor', () => {
   describe('Voice transcript integration', () => {
     it('should use voice transcript when available', async () => {
       const message = createMockMessage({ content: 'Text content' });
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
       (VoiceMessageProcessor.getVoiceTranscript as ReturnType<typeof vi.fn>).mockReturnValue(
         'Voice transcript text'
@@ -312,17 +333,20 @@ describe('ActivatedChannelProcessor', () => {
 
     it('should use message content when no voice transcript', async () => {
       const message = createMockMessage({ content: 'Text content' });
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
       (VoiceMessageProcessor.getVoiceTranscript as ReturnType<typeof vi.fn>).mockReturnValue(
         undefined
@@ -342,17 +366,20 @@ describe('ActivatedChannelProcessor', () => {
   describe('isAutoResponse flag', () => {
     it('should always pass isAutoResponse: true when handling activated channel messages', async () => {
       const message = createMockMessage();
-      mockGatewayClient.getChannelActivation.mockResolvedValue({
-        isActivated: true,
-        activation: {
-          id: 'activation-id',
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
           channelId: 'channel-123',
+          guildId: 'guild-123',
           personalitySlug: 'lilith',
           personalityName: 'Lilith',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: 'user-uuid',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
-      } as GetChannelActivationResponse);
+      } as GetChannelSettingsResponse);
       mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
 
       await processor.process(message);
