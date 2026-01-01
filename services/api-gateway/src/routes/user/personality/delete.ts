@@ -60,7 +60,7 @@ export function createDeleteHandler(
           select: {
             conversationHistory: true,
             memories: true,
-            activatedChannels: true,
+            channelSettings: true,
             aliases: true,
           },
         },
@@ -90,14 +90,14 @@ export function createDeleteHandler(
     const personalityCount = personality._count as {
       conversationHistory: number;
       memories: number;
-      activatedChannels: number;
+      channelSettings: number;
       aliases: number;
     };
     const deletedCounts = {
       conversationHistory: personalityCount.conversationHistory,
       memories: personalityCount.memories,
       pendingMemories: pendingMemoryCount,
-      activatedChannels: personalityCount.activatedChannels,
+      channelSettings: personalityCount.channelSettings,
       aliases: personalityCount.aliases,
     };
 

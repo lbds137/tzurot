@@ -111,8 +111,8 @@ export const DeletedCountsSchema = z.object({
   memories: z.number().int().nonnegative(),
   /** Number of pending memory entries deleted */
   pendingMemories: z.number().int().nonnegative(),
-  /** Number of activated channels deleted */
-  activatedChannels: z.number().int().nonnegative(),
+  /** Number of channel settings deleted */
+  channelSettings: z.number().int().nonnegative(),
   /** Number of aliases deleted */
   aliases: z.number().int().nonnegative(),
 });
