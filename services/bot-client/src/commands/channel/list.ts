@@ -131,10 +131,7 @@ export function buildGuildPages(activations: ChannelSettings[], client: Client):
     let offset = 0;
 
     while (offset < totalChannels) {
-      const pageSettings = group.settings.slice(
-        offset,
-        offset + CHANNELS_PER_PAGE_ALL_SERVERS
-      );
+      const pageSettings = group.settings.slice(offset, offset + CHANNELS_PER_PAGE_ALL_SERVERS);
       const isContinuation = offset > 0;
       const isComplete = offset + pageSettings.length >= totalChannels;
 
@@ -385,7 +382,12 @@ function setupPaginationCollector(
       newPage = 0; // Reset to first page when changing sort
     }
 
-    const newSortedActivations = sortChannelSettings(activations, newSort, interaction.client, showAll);
+    const newSortedActivations = sortChannelSettings(
+      activations,
+      newSort,
+      interaction.client,
+      showAll
+    );
     const { embed, totalPages } = buildPageView({
       activations,
       sortedActivations: newSortedActivations,

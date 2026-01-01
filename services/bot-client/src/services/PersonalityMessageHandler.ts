@@ -14,6 +14,7 @@ import { JobTracker } from './JobTracker.js';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
+import { ExtendedContextResolver } from './ExtendedContextResolver.js';
 
 const logger = createLogger('PersonalityMessageHandler');
 
@@ -26,7 +27,8 @@ export class PersonalityMessageHandler {
     private readonly jobTracker: JobTracker,
     private readonly contextBuilder: MessageContextBuilder,
     private readonly persistence: ConversationPersistence,
-    private readonly referenceEnricher: ReferenceEnrichmentService
+    private readonly referenceEnricher: ReferenceEnrichmentService,
+    private readonly extendedContextResolver: ExtendedContextResolver
   ) {}
 
   /**
@@ -45,8 +47,31 @@ export class PersonalityMessageHandler {
     options: { isAutoResponse?: boolean } = {}
   ): Promise<void> {
     try {
+      // Resolve extended context setting for this channel + personality
+      const extendedContext = await this.extendedContextResolver.resolve(
+        message.channel.id,
+        personality
+      );
+
+      if (extendedContext.enabled) {
+        logger.debug(
+          {
+            channelId: message.channel.id,
+            source: extendedContext.source,
+            personalityId: personality.id,
+          },
+          '[PersonalityMessageHandler] Extended context enabled for this request'
+        );
+      }
+
       // Build AI context (user lookup, history, references, attachments, environment)
-      const buildResult = await this.contextBuilder.buildContext(message, personality, content);
+      // Pass extended context option to enable Discord channel message fetching
+      // Get bot user ID from the message's client (available after login)
+      const botUserId = message.client.user?.id;
+      const buildResult = await this.contextBuilder.buildContext(message, personality, content, {
+        useExtendedContext: extendedContext.enabled,
+        botUserId,
+      });
       const { context, personaId, messageContent, referencedMessages, conversationHistory } =
         buildResult;
 

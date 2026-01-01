@@ -205,6 +205,7 @@ describe('AI generation flow', () => {
 **When to write**: Complex workflows, cross-service operations, database interactions.
 
 **Key difference**:
+
 - **Unit tests**: Mock all dependencies, test one function
 - **Integration tests**: Use real components (except external APIs like Discord, OpenRouter)
 
@@ -234,14 +235,15 @@ pnpm test:coverage
 pnpm --filter @tzurot/api-gateway test:coverage
 ```
 
-| Target | Threshold | Enforcement |
-|--------|-----------|-------------|
-| Project | 80% | Codecov blocks if drops >2% |
-| Patch | 80% | New code must be 80%+ covered |
-| Services | 80% | Tracked per-service (ai-worker, api-gateway, bot-client) |
-| Utils | 90% | Higher bar for shared utilities |
+| Target   | Threshold | Enforcement                                              |
+| -------- | --------- | -------------------------------------------------------- |
+| Project  | 80%       | Codecov blocks if drops >2%                              |
+| Patch    | 80%       | New code must be 80%+ covered                            |
+| Services | 80%       | Tracked per-service (ai-worker, api-gateway, bot-client) |
+| Utils    | 90%       | Higher bar for shared utilities                          |
 
 **CI Gate**: Codecov runs on every PR. Coverage report shows:
+
 - Overall project coverage change
 - Per-file coverage for changed files
 - Patch coverage (new/modified lines only)

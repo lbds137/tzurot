@@ -28,18 +28,20 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 // Helper to create mock Discord messages
-function createMockMessage(overrides: Partial<{
-  id: string;
-  content: string;
-  authorId: string;
-  authorUsername: string;
-  authorGlobalName: string | null;
-  memberDisplayName: string | null;
-  isBot: boolean;
-  type: MessageType;
-  createdAt: Date;
-  attachments: Map<string, { contentType: string | null; name: string | null }>;
-}>): Message {
+function createMockMessage(
+  overrides: Partial<{
+    id: string;
+    content: string;
+    authorId: string;
+    authorUsername: string;
+    authorGlobalName: string | null;
+    memberDisplayName: string | null;
+    isBot: boolean;
+    type: MessageType;
+    createdAt: Date;
+    attachments: Map<string, { contentType: string | null; name: string | null }>;
+  }>
+): Message {
   const defaults = {
     id: '123456789',
     content: 'Test message',
@@ -302,9 +304,7 @@ describe('DiscordChannelFetcher', () => {
     });
 
     it('should respect before parameter', async () => {
-      const messages = [
-        createMockMessage({ id: '1', content: 'First' }),
-      ];
+      const messages = [createMockMessage({ id: '1', content: 'First' })];
 
       const channel = createMockChannel(messages);
 

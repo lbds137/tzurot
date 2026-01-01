@@ -85,15 +85,15 @@ await prisma.userPersonalityConfig.upsert({
 
 ### Code Quality Limits (ESLint Enforced)
 
-| Metric | Limit | Level | Why |
-|--------|-------|-------|-----|
-| File length | 500 lines | Error | Prevents monolithic modules |
-| Function length | 100 lines | Warn | SRP enforcement |
-| Cyclomatic complexity | 15 | Warn | Readable branching |
-| Nesting depth | 4 | Warn | Prevents arrow code |
-| Parameters | 5 | Warn | Use options objects |
-| Statements/function | 30 | Warn | Extract helpers |
-| Nested callbacks | 3 | Warn | Use async/await |
+| Metric                | Limit     | Level | Why                         |
+| --------------------- | --------- | ----- | --------------------------- |
+| File length           | 500 lines | Error | Prevents monolithic modules |
+| Function length       | 100 lines | Warn  | SRP enforcement             |
+| Cyclomatic complexity | 15        | Warn  | Readable branching          |
+| Nesting depth         | 4         | Warn  | Prevents arrow code         |
+| Parameters            | 5         | Warn  | Use options objects         |
+| Statements/function   | 30        | Warn  | Extract helpers             |
+| Nested callbacks      | 3         | Warn  | Use async/await             |
 
 **When hitting limits**: Extract helpers, use options objects, split files.
 
@@ -108,10 +108,10 @@ await prisma.userPersonalityConfig.upsert({
 
 ### Coverage Requirements (Codecov Enforced)
 
-| Target | Threshold | Enforcement |
-|--------|-----------|-------------|
-| Project | 80% | CI blocks if coverage drops >2% |
-| Patch | 80% | New code must be 80%+ covered |
+| Target  | Threshold | Enforcement                     |
+| ------- | --------- | ------------------------------- |
+| Project | 80%       | CI blocks if coverage drops >2% |
+| Patch   | 80%       | New code must be 80%+ covered   |
 
 Services tracked separately: ai-worker, api-gateway, bot-client, common-types
 
@@ -149,6 +149,7 @@ const items = await prisma.personality.findMany();
 **Leave code better than you found it.**
 
 When modifying a file:
+
 - Fix lint warnings in code you touch
 - Add missing types to functions you modify
 - Extract helpers if adding to an already-long function
@@ -166,10 +167,10 @@ When modifying a file:
 
 Before approving any PR:
 
-| Category | Checks |
-|----------|--------|
-| **Safety** | No secrets, no unbounded queries, error cases handled |
-| **Quality** | Functions <100 lines, complexity <15, no `any` types |
+| Category    | Checks                                                 |
+| ----------- | ------------------------------------------------------ |
+| **Safety**  | No secrets, no unbounded queries, error cases handled  |
+| **Quality** | Functions <100 lines, complexity <15, no `any` types   |
 | **Testing** | New behavior tested, tests pass, no `.skip` or `.only` |
 
 ## Tech Stack
@@ -263,22 +264,22 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 14 project-specific skills in `.claude/skills/`:
 
-| Skill                | Use When                       | Enforces                  |
-| -------------------- | ------------------------------ | ------------------------- |
-| tzurot-code-quality  | Lint errors, refactoring       | ESLint rules, SOLID       |
-| tzurot-testing       | Writing tests, mocking         | Coverage, test behavior   |
-| tzurot-types         | Types, constants, Zod schemas  | Type safety, DRY          |
-| tzurot-git-workflow  | Commits, PRs, rebasing         | Git safety, hooks         |
-| tzurot-security      | Secrets, user input            | Least privilege           |
-| tzurot-observability | Logging, debugging, operations | Structured logging        |
-| tzurot-architecture  | Service design, error patterns | SRP, service boundaries   |
-| tzurot-docs          | Documentation, session handoff | Knowledge continuity      |
-| tzurot-council-mcp   | Consulting external AI         | Second opinions           |
-| tzurot-db-vector     | PostgreSQL, pgvector           | Query patterns            |
-| tzurot-async-flow    | BullMQ, Discord deferrals      | Async patterns            |
-| tzurot-deployment    | Railway, troubleshooting       | Deploy safety             |
-| tzurot-caching       | Cache patterns                 | Cache invalidation        |
-| tzurot-skills-guide  | Creating/updating skills       | Skill quality             |
+| Skill                | Use When                       | Enforces                |
+| -------------------- | ------------------------------ | ----------------------- |
+| tzurot-code-quality  | Lint errors, refactoring       | ESLint rules, SOLID     |
+| tzurot-testing       | Writing tests, mocking         | Coverage, test behavior |
+| tzurot-types         | Types, constants, Zod schemas  | Type safety, DRY        |
+| tzurot-git-workflow  | Commits, PRs, rebasing         | Git safety, hooks       |
+| tzurot-security      | Secrets, user input            | Least privilege         |
+| tzurot-observability | Logging, debugging, operations | Structured logging      |
+| tzurot-architecture  | Service design, error patterns | SRP, service boundaries |
+| tzurot-docs          | Documentation, session handoff | Knowledge continuity    |
+| tzurot-council-mcp   | Consulting external AI         | Second opinions         |
+| tzurot-db-vector     | PostgreSQL, pgvector           | Query patterns          |
+| tzurot-async-flow    | BullMQ, Discord deferrals      | Async patterns          |
+| tzurot-deployment    | Railway, troubleshooting       | Deploy safety           |
+| tzurot-caching       | Cache patterns                 | Cache invalidation      |
+| tzurot-skills-guide  | Creating/updating skills       | Skill quality           |
 
 ## Post-Mortems
 

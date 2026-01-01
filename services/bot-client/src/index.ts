@@ -33,6 +33,7 @@ import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentServic
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
+import { ExtendedContextResolver } from './services/ExtendedContextResolver.js';
 import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
@@ -136,13 +137,17 @@ function createServices(): Services {
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
   const replyResolver = new ReplyResolutionService(personalityIdCache);
 
+  // Extended context resolver for fetching recent channel messages
+  const extendedContextResolver = new ExtendedContextResolver(gatewayClient);
+
   // Personality message handler (used by multiple processors)
   const personalityHandler = new PersonalityMessageHandler(
     gatewayClient,
     jobTracker,
     contextBuilder,
     persistence,
-    referenceEnricher
+    referenceEnricher,
+    extendedContextResolver
   );
 
   // Create processor chain (order matters!)
