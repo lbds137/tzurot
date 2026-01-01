@@ -7,7 +7,12 @@
 
 import type { Message, TextChannel, DMChannel, NewsChannel, Collection } from 'discord.js';
 import { MessageType } from 'discord.js';
-import { createLogger, MessageRole, MESSAGE_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  MessageRole,
+  MESSAGE_LIMITS,
+  ConversationHistoryService,
+} from '@tzurot/common-types';
 import type { ConversationMessage } from '@tzurot/common-types';
 
 const logger = createLogger('DiscordChannelFetcher');
@@ -22,6 +27,8 @@ export interface FetchResult {
   fetchedCount: number;
   /** Number of messages after filtering */
   filteredCount: number;
+  /** Raw Discord messages for opportunistic sync (if needed) */
+  rawMessages?: Collection<string, Message>;
 }
 
 /**
@@ -96,6 +103,7 @@ export class DiscordChannelFetcher {
         messages,
         fetchedCount: discordMessages.size,
         filteredCount: messages.length,
+        rawMessages: discordMessages, // For opportunistic sync
       };
     } catch (error) {
       logger.error(
@@ -265,4 +273,170 @@ export class DiscordChannelFetcher {
 
     return merged;
   }
+
+  // ============================================================================
+  // Opportunistic Sync Methods
+  // ============================================================================
+
+  /**
+   * Perform opportunistic sync between Discord messages and database
+   *
+   * Detects:
+   * - Edits: Discord message content differs from DB
+   * - Deletes: Message in DB but not in Discord fetch (within time window)
+   *
+   * @param discordMessages - Raw Discord messages from fetch
+   * @param channelId - Channel ID
+   * @param personalityId - Personality ID to filter DB messages
+   * @param conversationHistory - Service to perform sync operations
+   * @returns Sync result with counts of edits and deletes
+   */
+  async syncWithDatabase(
+    discordMessages: Collection<string, Message>,
+    channelId: string,
+    personalityId: string,
+    conversationHistory: ConversationHistoryService
+  ): Promise<SyncResult> {
+    const result: SyncResult = { updated: 0, deleted: 0 };
+
+    try {
+      // Get Discord message IDs for lookup
+      const discordMessageIds = [...discordMessages.keys()];
+      if (discordMessageIds.length === 0) {
+        return result;
+      }
+
+      // Look up these messages in the database
+      const dbMessages = await conversationHistory.getMessagesByDiscordIds(
+        discordMessageIds,
+        channelId,
+        personalityId
+      );
+
+      if (dbMessages.size === 0) {
+        logger.debug(
+          { channelId, discordCount: discordMessageIds.length },
+          '[DiscordChannelFetcher] No matching DB messages for sync'
+        );
+        return result;
+      }
+
+      // Check for edits
+      for (const [discordId, discordMsg] of discordMessages) {
+        const dbMsg = dbMessages.get(discordId);
+        if (dbMsg && dbMsg.deletedAt === null) {
+          // Message exists in both - check for edit
+          // Note: Discord content may have prefix from our conversion, so we compare raw content
+          const discordContent = discordMsg.content;
+          // DB content might have [DisplayName]: prefix, extract the raw part for comparison
+          // This is a heuristic - we check if content has changed significantly
+          if (this.contentsDiffer(discordContent, dbMsg.content)) {
+            // Update the message content in DB
+            const updated = await conversationHistory.updateMessageContent(dbMsg.id, discordContent);
+            if (updated) {
+              result.updated++;
+              logger.debug(
+                { messageId: dbMsg.id, discordId },
+                '[DiscordChannelFetcher] Synced edited message'
+              );
+            }
+          }
+        }
+      }
+
+      // Check for deletes - find DB messages that should be in Discord but aren't
+      // Only check messages within the fetch window (oldest Discord message timestamp)
+      const oldestDiscordTime = this.getOldestTimestamp(discordMessages);
+      if (oldestDiscordTime) {
+        const dbMessagesInWindow = await conversationHistory.getMessagesInTimeWindow(
+          channelId,
+          personalityId,
+          oldestDiscordTime
+        );
+
+        const discordIdSet = new Set(discordMessageIds);
+        const deletedMessageIds: string[] = [];
+
+        for (const dbMsg of dbMessagesInWindow) {
+          // Check if any of this message's Discord IDs are in the fetch
+          const hasMatchingDiscordId = dbMsg.discordMessageId.some(id => discordIdSet.has(id));
+          if (!hasMatchingDiscordId) {
+            // Message is in DB but not in Discord - it was deleted
+            deletedMessageIds.push(dbMsg.id);
+          }
+        }
+
+        if (deletedMessageIds.length > 0) {
+          const deleteCount = await conversationHistory.softDeleteMessages(deletedMessageIds);
+          result.deleted = deleteCount;
+          logger.info(
+            { channelId, deletedCount: deleteCount },
+            '[DiscordChannelFetcher] Soft deleted messages not found in Discord'
+          );
+        }
+      }
+
+      if (result.updated > 0 || result.deleted > 0) {
+        logger.info(
+          { channelId, personalityId, updated: result.updated, deleted: result.deleted },
+          '[DiscordChannelFetcher] Opportunistic sync completed'
+        );
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(
+        { channelId, personalityId, error: error instanceof Error ? error.message : String(error) },
+        '[DiscordChannelFetcher] Sync failed'
+      );
+      return result;
+    }
+  }
+
+  /**
+   * Check if two message contents differ significantly
+   * Handles the case where DB content may have display name prefix
+   */
+  private contentsDiffer(discordContent: string, dbContent: string): boolean {
+    // Direct comparison first
+    if (discordContent === dbContent) {
+      return false;
+    }
+
+    // Check if DB content is the Discord content with a [Name]: prefix
+    // Pattern: [DisplayName]: <actual content>
+    const prefixMatch = dbContent.match(/^\[.+?\]: (.*)$/s);
+    if (prefixMatch) {
+      const dbContentWithoutPrefix = prefixMatch[1];
+      if (discordContent === dbContentWithoutPrefix) {
+        return false; // Same content, just has display name prefix
+      }
+    }
+
+    // Contents actually differ
+    return true;
+  }
+
+  /**
+   * Get the oldest timestamp from a collection of Discord messages
+   */
+  private getOldestTimestamp(messages: Collection<string, Message>): Date | null {
+    let oldest: Date | null = null;
+    for (const msg of messages.values()) {
+      if (oldest === null || msg.createdAt < oldest) {
+        oldest = msg.createdAt;
+      }
+    }
+    return oldest;
+  }
+}
+
+/**
+ * Result of opportunistic database sync
+ */
+export interface SyncResult {
+  /** Number of messages updated (edits detected) */
+  updated: number;
+  /** Number of messages soft-deleted (deletes detected) */
+  deleted: number;
 }

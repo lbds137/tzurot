@@ -55,19 +55,15 @@ export const data = new SlashCommandBuilder()
       .setName('context')
       .setDescription('Manage extended context settings for this channel')
       .addStringOption(option =>
-        option
-          .setName('action')
-          .setDescription('Action to perform')
-          .setRequired(true)
-          .addChoices(
-            {
-              name: 'Enable - Allow personalities to see recent channel messages',
-              value: 'enable',
-            },
-            { name: 'Disable - Only use bot conversation history', value: 'disable' },
-            { name: 'Status - Show current setting', value: 'status' },
-            { name: 'Clear - Remove override, use global default', value: 'clear' }
-          )
+        option.setName('action').setDescription('Action to perform').setRequired(true).addChoices(
+          {
+            name: 'Enable - Allow personalities to see recent channel messages',
+            value: 'enable',
+          },
+          { name: 'Disable - Only use bot conversation history', value: 'disable' },
+          { name: 'Status - Show current setting', value: 'status' },
+          { name: 'Clear - Remove override, use global default', value: 'clear' }
+        )
       )
   );
 
