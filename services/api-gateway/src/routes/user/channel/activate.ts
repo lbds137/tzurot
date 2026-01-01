@@ -11,7 +11,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  generateActivatedChannelUuid,
+  generateChannelSettingsUuid,
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
 } from '@tzurot/common-types';
@@ -76,56 +76,48 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
-    // Create new activation with deterministic UUID
-    const activationId = generateActivatedChannelUuid(channelId, personality.id);
+    // Create or update channel settings with deterministic UUID
+    const settingsId = generateChannelSettingsUuid(channelId);
 
-    // Use transaction to atomically delete existing + create new (prevents race conditions)
-    const { activation, replaced } = await prisma.$transaction(async tx => {
-      // Check if there's an existing activation for this channel (any personality)
-      const existingActivation = await tx.activatedChannel.findFirst({
-        where: { channelId },
-        select: { id: true, personalityId: true },
-      });
+    // Check for existing settings to determine if we're replacing
+    const existingSettings = await prisma.channelSettings.findUnique({
+      where: { channelId },
+      select: { activatedPersonalityId: true },
+    });
 
-      const wasReplaced = existingActivation !== null;
+    const wasReplaced =
+      existingSettings !== null && existingSettings.activatedPersonalityId !== personality.id;
 
-      // If there's an existing activation, delete it first (one personality per channel)
-      if (existingActivation !== null) {
-        await tx.activatedChannel.delete({
-          where: { id: existingActivation.id },
-        });
-        logger.info(
-          { channelId, previousPersonalityId: existingActivation.personalityId },
-          '[Channel] Removed previous activation'
-        );
-      }
-
-      // Create new activation
-      const newActivation = await tx.activatedChannel.create({
-        data: {
-          id: activationId,
-          channelId,
-          personalityId: personality.id,
-          guildId,
-          autoRespond: true,
-          createdBy: user.id,
-        },
-        select: {
-          id: true,
-          channelId: true,
-          guildId: true,
-          createdBy: true,
-          createdAt: true,
-          personality: {
-            select: {
-              slug: true,
-              displayName: true,
-            },
+    // Upsert channel settings (create or update)
+    const settings = await prisma.channelSettings.upsert({
+      where: { channelId },
+      create: {
+        id: settingsId,
+        channelId,
+        guildId,
+        activatedPersonalityId: personality.id,
+        autoRespond: true,
+        createdBy: user.id,
+      },
+      update: {
+        activatedPersonalityId: personality.id,
+        guildId, // Update guildId in case it changed
+      },
+      select: {
+        id: true,
+        channelId: true,
+        guildId: true,
+        autoRespond: true,
+        extendedContext: true,
+        createdBy: true,
+        createdAt: true,
+        activatedPersonality: {
+          select: {
+            slug: true,
+            displayName: true,
           },
         },
-      });
-
-      return { activation: newActivation, replaced: wasReplaced };
+      },
     });
 
     logger.info(
@@ -133,7 +125,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
         discordUserId,
         channelId,
         personalitySlug,
-        replaced,
+        replaced: wasReplaced,
       },
       '[Channel] Activated personality in channel'
     );
@@ -141,15 +133,17 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     // Build response matching schema
     const response = {
       activation: {
-        id: activation.id,
-        channelId: activation.channelId,
-        guildId: activation.guildId,
-        personalitySlug: activation.personality.slug,
-        personalityName: activation.personality.displayName,
-        activatedBy: activation.createdBy,
-        createdAt: activation.createdAt.toISOString(),
+        id: settings.id,
+        channelId: settings.channelId,
+        guildId: settings.guildId,
+        personalitySlug: settings.activatedPersonality?.slug ?? null,
+        personalityName: settings.activatedPersonality?.displayName ?? null,
+        autoRespond: settings.autoRespond,
+        extendedContext: settings.extendedContext,
+        activatedBy: settings.createdBy,
+        createdAt: settings.createdAt.toISOString(),
       },
-      replaced,
+      replaced: wasReplaced,
     };
 
     // Validate response matches schema

@@ -10,7 +10,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type DeactivateChannelResponse } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
-import { invalidateChannelActivationCache } from '../../utils/GatewayClient.js';
+import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
 const logger = createLogger('channel-deactivate');
@@ -55,7 +55,7 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
     const { deactivated, personalityName } = result.data;
 
     // Invalidate local cache
-    invalidateChannelActivationCache(channelId);
+    invalidateChannelSettingsCache(channelId);
 
     // Publish invalidation event to all bot-client instances via Redis pub/sub
     // This ensures horizontal scaling works correctly

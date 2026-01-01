@@ -50,8 +50,8 @@ describe('DELETE /user/channel/deactivate', () => {
   });
 
   it('should deactivate an existing activation', async () => {
-    const existingActivation = createMockActivation();
-    mockPrisma.activatedChannel.findFirst.mockResolvedValue(existingActivation);
+    const existingSettings = createMockActivation();
+    mockPrisma.channelSettings.findUnique.mockResolvedValue(existingSettings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'delete', '/deactivate');
@@ -61,8 +61,10 @@ describe('DELETE /user/channel/deactivate', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.activatedChannel.delete).toHaveBeenCalledWith({
+    // Now uses update to clear activatedPersonalityId instead of delete
+    expect(mockPrisma.channelSettings.update).toHaveBeenCalledWith({
       where: { id: MOCK_ACTIVATION_UUID },
+      data: { activatedPersonalityId: null },
     });
 
     expect(res.status).toHaveBeenCalledWith(200);
@@ -74,8 +76,8 @@ describe('DELETE /user/channel/deactivate', () => {
     );
   });
 
-  it('should return deactivated=false when no activation exists', async () => {
-    mockPrisma.activatedChannel.findFirst.mockResolvedValue(null);
+  it('should return deactivated=false when no settings exist', async () => {
+    mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'delete', '/deactivate');
@@ -85,7 +87,7 @@ describe('DELETE /user/channel/deactivate', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.activatedChannel.delete).not.toHaveBeenCalled();
+    expect(mockPrisma.channelSettings.update).not.toHaveBeenCalled();
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({

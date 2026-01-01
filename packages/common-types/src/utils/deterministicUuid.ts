@@ -93,11 +93,12 @@ export function generateConversationHistoryUuid(
 }
 
 /**
- * Generate deterministic UUID for ActivatedChannel
- * Seed: activated_channel:{channelId}:{personalityId}
+ * Generate deterministic UUID for ChannelSettings
+ * Seed: channel_settings:{channelId}
+ * Note: channelId is unique per channel (not per channel+personality like old ActivatedChannel)
  */
-export function generateActivatedChannelUuid(channelId: string, personalityId: string): string {
-  return uuidv5(`activated_channel:${channelId}:${personalityId}`, TZUROT_NAMESPACE);
+export function generateChannelSettingsUuid(channelId: string): string {
+  return uuidv5(`channel_settings:${channelId}`, TZUROT_NAMESPACE);
 }
 
 /**

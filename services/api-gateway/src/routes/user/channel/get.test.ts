@@ -50,9 +50,9 @@ describe('GET /user/channel/:channelId', () => {
     setupStandardMocks(mockPrisma);
   });
 
-  it('should return activation status when channel is activated', async () => {
-    const activation = createMockActivation();
-    mockPrisma.activatedChannel.findFirst.mockResolvedValue(activation);
+  it('should return settings when channel has settings', async () => {
+    const settings = createMockActivation();
+    mockPrisma.channelSettings.findUnique.mockResolvedValue(settings);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/:channelId');
@@ -63,11 +63,13 @@ describe('GET /user/channel/:channelId', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        isActivated: true,
-        activation: expect.objectContaining({
+        hasSettings: true,
+        settings: expect.objectContaining({
           channelId: MOCK_DISCORD_USER_ID,
           personalitySlug: 'test-character',
           personalityName: 'Test Character',
+          autoRespond: true,
+          extendedContext: false,
           activatedBy: MOCK_USER_UUID,
           createdAt: MOCK_CREATED_AT.toISOString(),
         }),
@@ -75,8 +77,8 @@ describe('GET /user/channel/:channelId', () => {
     );
   });
 
-  it('should return isActivated=false when channel has no activation', async () => {
-    mockPrisma.activatedChannel.findFirst.mockResolvedValue(null);
+  it('should return hasSettings=false when channel has no settings', async () => {
+    mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/:channelId');
@@ -86,7 +88,7 @@ describe('GET /user/channel/:channelId', () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
-      isActivated: false,
+      hasSettings: false,
     });
   });
 
@@ -105,11 +107,11 @@ describe('GET /user/channel/:channelId', () => {
     );
   });
 
-  it('should handle activation with null createdBy', async () => {
-    const activationWithNullCreator = createMockActivation({
+  it('should handle settings with null createdBy', async () => {
+    const settingsWithNullCreator = createMockActivation({
       createdBy: null,
     });
-    mockPrisma.activatedChannel.findFirst.mockResolvedValue(activationWithNullCreator);
+    mockPrisma.channelSettings.findUnique.mockResolvedValue(settingsWithNullCreator);
 
     const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'get', '/:channelId');
@@ -120,8 +122,8 @@ describe('GET /user/channel/:channelId', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        isActivated: true,
-        activation: expect.objectContaining({
+        hasSettings: true,
+        settings: expect.objectContaining({
           activatedBy: null,
         }),
       })

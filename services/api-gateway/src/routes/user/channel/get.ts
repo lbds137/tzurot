@@ -1,6 +1,6 @@
 /**
  * GET /user/channel/:channelId
- * Get activation status for a specific channel
+ * Get settings for a specific channel
  */
 
 import { type Response, type RequestHandler } from 'express';
@@ -8,7 +8,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  GetChannelActivationResponseSchema,
+  GetChannelSettingsResponseSchema,
 } from '@tzurot/common-types';
 import { requireServiceAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -20,7 +20,7 @@ const logger = createLogger('channel-get');
 
 /**
  * Create handler for GET /user/channel/:channelId
- * Returns whether the channel has an activated personality.
+ * Returns channel settings including activation status.
  */
 export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -32,16 +32,18 @@ export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
-    // Find activation for this channel
-    const activation = await prisma.activatedChannel.findFirst({
+    // Find settings for this channel
+    const settings = await prisma.channelSettings.findUnique({
       where: { channelId },
       select: {
         id: true,
         channelId: true,
         guildId: true,
+        autoRespond: true,
+        extendedContext: true,
         createdBy: true,
         createdAt: true,
-        personality: {
+        activatedPersonality: {
           select: {
             slug: true,
             displayName: true,
@@ -50,10 +52,10 @@ export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
       },
     });
 
-    // No activation found
-    if (activation === null) {
-      const response = { isActivated: false };
-      GetChannelActivationResponseSchema.parse(response);
+    // No settings found
+    if (settings === null) {
+      const response = { hasSettings: false };
+      GetChannelSettingsResponseSchema.parse(response);
       sendCustomSuccess(res, response, StatusCodes.OK);
       return;
     }
@@ -61,26 +63,28 @@ export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
     logger.debug(
       {
         channelId,
-        personalitySlug: activation.personality.slug,
+        personalitySlug: settings.activatedPersonality?.slug ?? null,
       },
-      '[Channel] Retrieved channel activation'
+      '[Channel] Retrieved channel settings'
     );
 
     // Build response matching schema
     const response = {
-      isActivated: true,
-      activation: {
-        id: activation.id,
-        channelId: activation.channelId,
-        guildId: activation.guildId,
-        personalitySlug: activation.personality.slug,
-        personalityName: activation.personality.displayName,
-        activatedBy: activation.createdBy,
-        createdAt: activation.createdAt.toISOString(),
+      hasSettings: true,
+      settings: {
+        id: settings.id,
+        channelId: settings.channelId,
+        guildId: settings.guildId,
+        personalitySlug: settings.activatedPersonality?.slug ?? null,
+        personalityName: settings.activatedPersonality?.displayName ?? null,
+        autoRespond: settings.autoRespond,
+        extendedContext: settings.extendedContext,
+        activatedBy: settings.createdBy,
+        createdAt: settings.createdAt.toISOString(),
       },
     };
 
-    GetChannelActivationResponseSchema.parse(response);
+    GetChannelSettingsResponseSchema.parse(response);
 
     sendCustomSuccess(res, response, StatusCodes.OK);
   });

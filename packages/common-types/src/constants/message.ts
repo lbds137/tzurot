@@ -39,4 +39,9 @@ export const MESSAGE_LIMITS = {
    * AI worker will further trim based on token budget
    */
   MAX_HISTORY_FETCH: 100,
+  /**
+   * Maximum messages to fetch from Discord for extended context
+   * These are merged with DB history for broader channel awareness
+   */
+  MAX_EXTENDED_CONTEXT: 100,
 } as const;

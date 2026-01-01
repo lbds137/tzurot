@@ -32,13 +32,17 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
     const userId = message.author.id;
 
     // Check if this channel has an activated personality
-    const activation = await this.gatewayClient.getChannelActivation(channelId);
+    const channelSettings = await this.gatewayClient.getChannelSettings(channelId);
 
-    if (activation?.isActivated !== true || activation?.activation === undefined) {
+    if (
+      channelSettings?.hasSettings !== true ||
+      channelSettings?.settings?.personalitySlug === undefined ||
+      channelSettings.settings.personalitySlug === null
+    ) {
       return false; // No activation, continue chain
     }
 
-    const { personalitySlug, personalityName } = activation.activation;
+    const { personalitySlug, personalityName } = channelSettings.settings;
 
     logger.debug(
       { channelId, personalitySlug, userId },

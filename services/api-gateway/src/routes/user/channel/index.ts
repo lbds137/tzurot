@@ -1,13 +1,14 @@
 /**
- * Channel Activation Routes
- * Manage personality activation in Discord channels
+ * Channel Settings Routes
+ * Manage personality activation and settings in Discord channels
  *
  * Endpoints:
  * - POST /user/channel/activate - Activate a personality in a channel
  * - DELETE /user/channel/deactivate - Deactivate personality from a channel
- * - GET /user/channel/:channelId - Get activation status for a channel
- * - GET /user/channel/list - List all activated channels
+ * - GET /user/channel/:channelId - Get settings for a channel
+ * - GET /user/channel/list - List all channel settings
  * - PATCH /user/channel/update-guild - Update guildId for backfill
+ * - PATCH /user/channel/extended-context/:channelId - Update extended context setting
  */
 
 import { Router } from 'express';
@@ -17,6 +18,7 @@ import { createDeactivateHandler } from './deactivate.js';
 import { createGetHandler } from './get.js';
 import { createListHandler } from './list.js';
 import { createUpdateGuildHandler } from './updateGuild.js';
+import { createExtendedContextHandler } from './extendedContext.js';
 
 /**
  * Create channel activation router with injected dependencies
@@ -37,7 +39,10 @@ export function createChannelRoutes(prisma: PrismaClient): Router {
   // Update guildId - PATCH /update-guild (for lazy backfill)
   router.patch('/update-guild', ...createUpdateGuildHandler(prisma));
 
-  // Get activation status - GET /:channelId
+  // Update extended context - PATCH /extended-context/:channelId
+  router.patch('/extended-context/:channelId', ...createExtendedContextHandler(prisma));
+
+  // Get settings - GET /:channelId
   router.get('/:channelId', ...createGetHandler(prisma));
 
   return router;

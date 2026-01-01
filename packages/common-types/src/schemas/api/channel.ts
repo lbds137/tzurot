@@ -15,17 +15,24 @@ import { z } from 'zod';
 // Shared Sub-schemas
 // ============================================================================
 
-/** Activated channel record (returned in responses) */
-export const ActivatedChannelSchema = z.object({
+/** Channel settings record (replaces ActivatedChannel) */
+export const ChannelSettingsSchema = z.object({
   id: z.string().uuid(),
   channelId: z.string().min(1),
-  guildId: z.string().nullable(), // Nullable for legacy records (backfilled lazily)
-  personalitySlug: z.string().min(1),
-  personalityName: z.string().min(1),
+  guildId: z.string().nullable(), // Nullable for DM channels
+  personalitySlug: z.string().min(1).nullable(), // Null if no personality activated
+  personalityName: z.string().min(1).nullable(), // Null if no personality activated
+  autoRespond: z.boolean(),
+  extendedContext: z.boolean().nullable(), // null = use global default
   activatedBy: z.string().uuid().nullable(),
   createdAt: z.string(),
 });
-export type ActivatedChannel = z.infer<typeof ActivatedChannelSchema>;
+export type ChannelSettings = z.infer<typeof ChannelSettingsSchema>;
+
+/** @deprecated Use ChannelSettingsSchema - kept for backward compatibility during migration */
+export const ActivatedChannelSchema = ChannelSettingsSchema;
+/** @deprecated Use ChannelSettings - kept for backward compatibility during migration */
+export type ActivatedChannel = ChannelSettings;
 
 // ============================================================================
 // POST /user/channel/activate
@@ -40,7 +47,7 @@ export const ActivateChannelRequestSchema = z.object({
 export type ActivateChannelRequest = z.infer<typeof ActivateChannelRequestSchema>;
 
 export const ActivateChannelResponseSchema = z.object({
-  activation: ActivatedChannelSchema,
+  activation: ChannelSettingsSchema,
   replaced: z.boolean(), // True if an existing activation was replaced
 });
 export type ActivateChannelResponse = z.infer<typeof ActivateChannelResponseSchema>;
@@ -63,29 +70,44 @@ export type DeactivateChannelResponse = z.infer<typeof DeactivateChannelResponse
 
 // ============================================================================
 // GET /user/channel/:channelId
-// Gets activation status for a specific channel
+// Gets settings for a specific channel
 // ============================================================================
 
+export const GetChannelSettingsResponseSchema = z.object({
+  hasSettings: z.boolean(),
+  settings: ChannelSettingsSchema.optional(),
+});
+export type GetChannelSettingsResponse = z.infer<typeof GetChannelSettingsResponseSchema>;
+
+/** @deprecated Use GetChannelSettingsResponseSchema */
 export const GetChannelActivationResponseSchema = z.object({
   isActivated: z.boolean(),
-  activation: ActivatedChannelSchema.optional(),
+  activation: ChannelSettingsSchema.optional(),
 });
+/** @deprecated Use GetChannelSettingsResponse */
 export type GetChannelActivationResponse = z.infer<typeof GetChannelActivationResponseSchema>;
 
 // ============================================================================
 // GET /user/channel/list
-// Lists all activated channels (optionally filtered by guild)
+// Lists all channel settings (optionally filtered by guild)
 // Query params: ?guildId=xxx (optional)
 // ============================================================================
 
-export const ListChannelActivationsResponseSchema = z.object({
-  activations: z.array(ActivatedChannelSchema),
+export const ListChannelSettingsResponseSchema = z.object({
+  settings: z.array(ChannelSettingsSchema),
 });
+export type ListChannelSettingsResponse = z.infer<typeof ListChannelSettingsResponseSchema>;
+
+/** @deprecated Use ListChannelSettingsResponseSchema */
+export const ListChannelActivationsResponseSchema = z.object({
+  activations: z.array(ChannelSettingsSchema),
+});
+/** @deprecated Use ListChannelActivationsResponse */
 export type ListChannelActivationsResponse = z.infer<typeof ListChannelActivationsResponseSchema>;
 
 // ============================================================================
 // PATCH /user/channel/update-guild
-// Updates guildId for an existing activation (for lazy backfill)
+// Updates guildId for an existing channel settings record
 // ============================================================================
 
 export const UpdateChannelGuildRequestSchema = z.object({
@@ -98,3 +120,19 @@ export const UpdateChannelGuildResponseSchema = z.object({
   updated: z.boolean(),
 });
 export type UpdateChannelGuildResponse = z.infer<typeof UpdateChannelGuildResponseSchema>;
+
+// ============================================================================
+// PATCH /user/channel/settings/:channelId
+// Updates extended context setting for a channel
+// ============================================================================
+
+export const UpdateChannelExtendedContextRequestSchema = z.object({
+  extendedContext: z.boolean().nullable(), // null = use global default
+});
+export type UpdateChannelExtendedContextRequest = z.infer<typeof UpdateChannelExtendedContextRequestSchema>;
+
+export const UpdateChannelExtendedContextResponseSchema = z.object({
+  updated: z.boolean(),
+  settings: ChannelSettingsSchema,
+});
+export type UpdateChannelExtendedContextResponse = z.infer<typeof UpdateChannelExtendedContextResponseSchema>;

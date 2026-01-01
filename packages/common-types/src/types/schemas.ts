@@ -193,6 +193,9 @@ export const loadedPersonalitySchema = z.object({
 
   // Custom error message for this personality (shown to users on LLM failures)
   errorMessage: z.string().optional(),
+
+  // Extended context configuration
+  supportsExtendedContext: z.boolean().optional(), // Default true - personalities can opt out
 });
 
 /**
