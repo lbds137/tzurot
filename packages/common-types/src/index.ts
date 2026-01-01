@@ -37,6 +37,7 @@ export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export * from './utils/textChunker.js';
+export { Duration, DurationParseError, type DurationBounds, type DurationValidation } from './utils/Duration.js';
 export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
 export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
@@ -75,7 +76,7 @@ export * from './services/LlmConfigCacheInvalidationService.js';
 export * from './services/PersonaCacheInvalidationService.js';
 export * from './services/ChannelActivationCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
-export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
+export { VisionDescriptionCache, type VisionCacheKeyOptions } from './services/VisionDescriptionCache.js';
 
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';

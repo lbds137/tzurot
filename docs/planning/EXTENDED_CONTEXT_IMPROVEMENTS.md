@@ -32,15 +32,15 @@ This plan addresses feature parity gaps between Message References (explicit) an
 
 ### Feature Comparison: References vs Extended Context
 
-| Feature | References | Extended Context | Decision |
-|---------|-----------|------------------|----------|
-| **Image Processing** | Vision model describes | Placeholder only | Add Lazy Vision cache |
-| **Voice Transcription** | Live API + DB fallback | DB lookup only | Keep as-is (acceptable) |
-| **Message Links** | BFS crawl, `[Reference N]` | Inline blockquote, depth=1 | Keep as-is (by design) |
-| **Timestamps** | Full ISO timestamps | None | Add time gap markers |
-| **Location Context** | Full hierarchy | None | Keep as-is (by design) |
-| **Format** | XML structured | `[Author]: content` | Keep as-is (better for LLMs) |
-| **Limits** | 20 (constant) | 100 (constant) | Make configurable |
+| Feature                 | References                 | Extended Context           | Decision                     |
+| ----------------------- | -------------------------- | -------------------------- | ---------------------------- |
+| **Image Processing**    | Vision model describes     | Placeholder only           | Add Lazy Vision cache        |
+| **Voice Transcription** | Live API + DB fallback     | DB lookup only             | Keep as-is (acceptable)      |
+| **Message Links**       | BFS crawl, `[Reference N]` | Inline blockquote, depth=1 | Keep as-is (by design)       |
+| **Timestamps**          | Full ISO timestamps        | None                       | Add time gap markers         |
+| **Location Context**    | Full hierarchy             | None                       | Keep as-is (by design)       |
+| **Format**              | XML structured             | `[Author]: content`        | Keep as-is (better for LLMs) |
+| **Limits**              | 20 (constant)              | 100 (constant)             | Make configurable            |
 
 ### "By Design" Gaps - Validated
 
@@ -84,8 +84,8 @@ model Personality {
 ```typescript
 // Boolean Resolution: Channel explicit OFF beats everything
 function resolveExtendedContextEnabled(
-  personality: boolean | null,  // null = auto
-  channel: boolean | null,      // null = auto
+  personality: boolean | null, // null = auto
+  channel: boolean | null, // null = auto
   globalDefault: boolean
 ): boolean {
   // Channel explicit OFF is definitive (server admin intent)
@@ -162,12 +162,12 @@ function resolveMaxMessages(
 
 ### Default Values
 
-| Level | Default | Rationale |
-|-------|---------|-----------|
-| Global | 20 | Safe, low cost, sufficient for peripheral awareness |
-| Channel | null (follow global) | Most channels don't need customization |
-| Personality | null (follow channel/global) | Most personalities don't need customization |
-| Hard Cap | 100 | Discord API single-fetch limit |
+| Level       | Default                      | Rationale                                           |
+| ----------- | ---------------------------- | --------------------------------------------------- |
+| Global      | 20                           | Safe, low cost, sufficient for peripheral awareness |
+| Channel     | null (follow global)         | Most channels don't need customization              |
+| Personality | null (follow channel/global) | Most personalities don't need customization         |
+| Hard Cap    | 100                          | Discord API single-fetch limit                      |
 
 ---
 
@@ -194,7 +194,7 @@ Instead of timestamping every message (token-expensive), inject **time gap marke
 
 ```typescript
 const TIME_GAP_THRESHOLDS = {
-  MINOR: 15 * 60 * 1000,    // 15 minutes
+  MINOR: 15 * 60 * 1000, // 15 minutes
   MAJOR: 2 * 60 * 60 * 1000, // 2 hours
   HUGE: 24 * 60 * 60 * 1000, // 24 hours
 };
@@ -236,6 +236,7 @@ model Personality {
 ```
 
 **Key points:**
+
 - `null` = disabled (no age filtering, only count-based limits apply)
 - When enabled, messages older than this threshold are excluded
 - Uses the same resolution hierarchy as message count limits
@@ -250,6 +251,7 @@ model Personality {
 ### Problem
 
 Processing images in extended context is expensive:
+
 - 100 messages × ~2 images = 200 vision API calls
 - Each call costs money and adds latency
 
@@ -282,6 +284,7 @@ model Personality {
 **Resolution**: Same "most restrictive wins" as message count limits.
 
 **Values**:
+
 - `0` = No proactive processing (pure lazy mode - only process on explicit reference)
 - `1-10` = Process up to N most recent images in extended context
 - Recommended default: `0` or `3` depending on cost tolerance
@@ -328,6 +331,7 @@ model Personality {
 ### Example Scenarios
 
 **Scenario 1: maxImages = 0 (Pure Lazy Mode)**
+
 ```
 Extended context has 5 images
   → All show as placeholders: "[Attachments: [image/png: cat.png]]"
@@ -337,6 +341,7 @@ Extended context has 5 images
 ```
 
 **Scenario 2: maxImages = 3 (Proactive + Lazy)**
+
 ```
 Extended context has 5 images (newest to oldest: A, B, C, D, E)
   → Check cache for all 5
@@ -346,6 +351,7 @@ Extended context has 5 images (newest to oldest: A, B, C, D, E)
 ```
 
 **Scenario 3: Channel override for meme channel**
+
 ```
 Global default: maxImages = 3
 #memes channel: maxImages = 0  (channel overrides to save costs)
@@ -356,6 +362,7 @@ Global default: maxImages = 3
 ### Explicit Reference Still Works
 
 When a user replies to or links a message with an image:
+
 1. Existing `ReferencedMessageFormatter` processes it via vision API
 2. **NEW**: Description is cached in database
 3. Future extended context lookups use the cached description
@@ -379,14 +386,16 @@ model ImageDescriptionCache {
 ```
 
 **Cache Key Strategy**:
+
 1. **Primary**: Use `discordAttachmentId` (snowflake) for Discord attachments - stable across URL expiration
 2. **Fallback**: Use `imageUrlHash` for embed images that don't have Discord attachment IDs
 
 **AttachmentMetadata Update**:
+
 ```typescript
 // packages/common-types/src/types/schemas.ts
 export const attachmentMetadataSchema = z.object({
-  id: z.string().optional(),        // NEW: Discord attachment ID (stable snowflake)
+  id: z.string().optional(), // NEW: Discord attachment ID (stable snowflake)
   url: z.string(),
   originalUrl: z.string().optional(),
   contentType: z.string(),
@@ -400,6 +409,7 @@ export const attachmentMetadataSchema = z.object({
 
 **Existing VisionDescriptionCache Update**:
 The Redis-based `VisionDescriptionCache` in `packages/common-types/src/services/VisionDescriptionCache.ts` should also be updated to use attachment ID when available:
+
 ```typescript
 // Updated to prefer attachment ID over URL hash
 getCacheKey(attachment: { id?: string; url: string }): string {
@@ -589,17 +599,17 @@ Create reusable components in `services/bot-client/src/utils/dashboard/settings/
 // settingsDashboard.ts
 
 interface ContextSettings {
-  enabled: boolean | null;        // null = auto
-  maxMessages: number | null;     // null = auto
-  maxAge: number | null;          // seconds, null = auto/disabled
-  maxImages: number | null;       // null = auto
+  enabled: boolean | null; // null = auto
+  maxMessages: number | null; // null = auto
+  maxAge: number | null; // seconds, null = auto/disabled
+  maxImages: number | null; // null = auto
 }
 
 interface DashboardConfig {
   level: 'global' | 'channel' | 'character';
-  targetName: string;             // "Global", "#general", "Aria"
+  targetName: string; // "Global", "#general", "Aria"
   currentSettings: ContextSettings;
-  effectiveSettings: ContextSettings;  // What actually applies (resolved)
+  effectiveSettings: ContextSettings; // What actually applies (resolved)
   sources: {
     enabled: 'global' | 'channel' | 'personality';
     maxMessages: 'global' | 'channel' | 'personality';
@@ -618,12 +628,12 @@ function buildSettingModal(setting: keyof ContextSettings, current: ContextSetti
 
 Each setting type has appropriate input handling:
 
-| Setting | Modal Input | Validation |
-|---------|-------------|------------|
-| Enabled | Select: On / Off / Auto | N/A |
-| Max Messages | Text: number or "auto" | 1-100 or "auto" |
-| Max Age | Text: duration or "auto"/"off" | Duration utility |
-| Max Images | Text: number or "auto" | 0-10 or "auto" |
+| Setting      | Modal Input                    | Validation       |
+| ------------ | ------------------------------ | ---------------- |
+| Enabled      | Select: On / Off / Auto        | N/A              |
+| Max Messages | Text: number or "auto"         | 1-100 or "auto"  |
+| Max Age      | Text: duration or "auto"/"off" | Duration utility |
+| Max Images   | Text: number or "auto"         | 0-10 or "auto"   |
 
 ### Display Format for "Auto" Values
 
@@ -639,16 +649,16 @@ Max Messages: **30** ← Override        ← This level has an override
 
 Since none of these features are live yet, we can cleanly replace:
 
-| Old Command | New Command |
-|-------------|-------------|
-| `/admin settings action:extended-context-enable` | `/admin settings` dashboard |
-| `/admin settings action:extended-context-disable` | `/admin settings` dashboard |
-| `/admin settings action:list` | `/admin settings` dashboard |
-| `/channel context action:enable` | `/channel settings` dashboard |
-| `/channel context action:disable` | `/channel settings` dashboard |
-| `/channel context action:status` | `/channel settings` dashboard |
-| `/channel context action:auto` | Dashboard "Reset to Auto" button |
-| `/character settings action:extended-context-*` | `/character settings` dashboard |
+| Old Command                                       | New Command                      |
+| ------------------------------------------------- | -------------------------------- |
+| `/admin settings action:extended-context-enable`  | `/admin settings` dashboard      |
+| `/admin settings action:extended-context-disable` | `/admin settings` dashboard      |
+| `/admin settings action:list`                     | `/admin settings` dashboard      |
+| `/channel context action:enable`                  | `/channel settings` dashboard    |
+| `/channel context action:disable`                 | `/channel settings` dashboard    |
+| `/channel context action:status`                  | `/channel settings` dashboard    |
+| `/channel context action:auto`                    | Dashboard "Reset to Auto" button |
+| `/character settings action:extended-context-*`   | `/character settings` dashboard  |
 
 The dashboard approach consolidates all actions into a single, intuitive interface per level.
 
@@ -657,6 +667,7 @@ The dashboard approach consolidates all actions into a single, intuitive interfa
 ## Implementation Priority
 
 ### Phase 0: Foundation (Do First)
+
 1. **Duration utility** (`packages/common-types/src/utils/Duration.ts`)
    - Parse human-readable durations
    - Store as seconds in DB
@@ -664,6 +675,7 @@ The dashboard approach consolidates all actions into a single, intuitive interfa
    - See: `docs/planning/DURATION_UTILITY.md`
 
 2. **Schema changes** (single migration)
+
    ```prisma
    model AdminSettings {
      extendedContextDefault       Boolean @default(true)
@@ -692,6 +704,7 @@ The dashboard approach consolidates all actions into a single, intuitive interfa
    - Returns both raw values and effective values with sources
 
 ### Phase 1: Interactive Dashboard
+
 1. **Shared dashboard components** (`utils/dashboard/settings/`)
    - Embed builder
    - Button/menu builders
@@ -709,11 +722,13 @@ The dashboard approach consolidates all actions into a single, intuitive interfa
    - `PUT /user/personality/:slug` (extend existing)
 
 ### Phase 2: Time Features
+
 1. Time gap marker injection in `DiscordChannelFetcher`
 2. Staleness filtering using resolved `maxAge`
 3. Duration autocomplete handler
 
 ### Phase 3: Vision Cache
+
 1. `ImageDescriptionCache` schema
 2. Cache population in `ReferencedMessageFormatter`
 3. Cache lookup in `MessageContentBuilder`

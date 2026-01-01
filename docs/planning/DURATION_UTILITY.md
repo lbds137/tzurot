@@ -12,17 +12,19 @@ A type-safe utility for handling user-configurable time durations across the cod
 
 **Important**: In the tiered settings hierarchy, `null` has different meanings at different levels:
 
-| Level | `null` Means | Example |
-|-------|--------------|---------|
-| **Channel/Personality** | "Inherit from parent" (auto) | `maxAge: null` → follow global default |
-| **Global (AdminSettings)** | "Feature disabled" | `extendedContextMaxAge: null` → no age filtering |
+| Level                      | `null` Means                 | Example                                          |
+| -------------------------- | ---------------------------- | ------------------------------------------------ |
+| **Channel/Personality**    | "Inherit from parent" (auto) | `maxAge: null` → follow global default           |
+| **Global (AdminSettings)** | "Feature disabled"           | `extendedContextMaxAge: null` → no age filtering |
 
 **The Duration class handles this by**:
+
 - `Duration.parse(null)` → returns a disabled Duration
 - `Duration.fromDb(null)` → returns a disabled Duration
 - When resolving tiered settings, the resolver service handles the inheritance chain
 
 **Resolution Example**:
+
 ```typescript
 // Personality maxAge = null (auto), Channel maxAge = null (auto), Global maxAge = 3600
 // Resolved: 3600 seconds (1 hour)
@@ -33,12 +35,12 @@ A type-safe utility for handling user-configurable time durations across the cod
 
 ## Use Cases
 
-| Feature | Example Setting | Notes |
-|---------|-----------------|-------|
-| Extended context staleness | `24h`, `off` | Ignore messages older than X |
-| Usage stats lookback | `7d`, `30d` | Time window for statistics |
-| Memory search window | `1w`, `30d` | LTM query time bounds |
-| Rate limit windows | `1h`, `15m` | Cooldown periods |
+| Feature                    | Example Setting | Notes                        |
+| -------------------------- | --------------- | ---------------------------- |
+| Extended context staleness | `24h`, `off`    | Ignore messages older than X |
+| Usage stats lookback       | `7d`, `30d`     | Time window for statistics   |
+| Memory search window       | `1w`, `30d`     | LTM query time bounds        |
+| Rate limit windows         | `1h`, `15m`     | Cooldown periods             |
 
 ## Design
 
@@ -51,6 +53,7 @@ model AdminSettings {
 ```
 
 **Why seconds?**
+
 - Granular enough for any Discord use case
 - Simple SQL queries: `WHERE created_at > NOW() - interval '${seconds} seconds'`
 - `null` naturally represents "disabled"
@@ -60,13 +63,13 @@ model AdminSettings {
 
 Accept human-readable strings:
 
-| Input | Meaning |
-|-------|---------|
-| `off`, `disable`, `none`, `0` | Disabled |
-| `30m`, `30min`, `30 minutes` | 30 minutes |
-| `2h`, `2hr`, `2 hours` | 2 hours |
-| `1d`, `1 day` | 1 day |
-| `1w`, `1 week` | 1 week |
+| Input                         | Meaning    |
+| ----------------------------- | ---------- |
+| `off`, `disable`, `none`, `0` | Disabled   |
+| `30m`, `30min`, `30 minutes`  | 30 minutes |
+| `2h`, `2hr`, `2 hours`        | 2 hours    |
+| `1d`, `1 day`                 | 1 day      |
+| `1w`, `1 week`                | 1 week     |
 
 ### The Duration Class
 
@@ -76,8 +79,8 @@ Accept human-readable strings:
 import parseDuration from 'parse-duration';
 
 export interface DurationBounds {
-  min?: number;  // Minimum seconds (when enabled)
-  max?: number;  // Maximum seconds
+  min?: number; // Minimum seconds (when enabled)
+  max?: number; // Maximum seconds
 }
 
 export interface DurationValidation {
@@ -389,8 +392,8 @@ async function handleSetStaleness(interaction: ChatInputCommandInteraction) {
 
     // Validate bounds (min 5 minutes, max 30 days)
     const validation = duration.validate({
-      min: 5 * 60,        // 5 minutes
-      max: 30 * 24 * 60 * 60,  // 30 days
+      min: 5 * 60, // 5 minutes
+      max: 30 * 24 * 60 * 60, // 30 days
     });
 
     if (!validation.valid) {
@@ -409,7 +412,7 @@ async function handleSetStaleness(interaction: ChatInputCommandInteraction) {
       const cutoff = duration.getCutoffDate()!;
       await interaction.editReply(
         `✅ Extended context staleness set to **${duration.toHuman()}**.\n` +
-        `Messages before <t:${Math.floor(cutoff.getTime() / 1000)}:R> will be ignored.`
+          `Messages before <t:${Math.floor(cutoff.getTime() / 1000)}:R> will be ignored.`
       );
     } else {
       await interaction.editReply(
@@ -418,9 +421,7 @@ async function handleSetStaleness(interaction: ChatInputCommandInteraction) {
     }
   } catch (error) {
     if (error instanceof DurationParseError) {
-      await interaction.editReply(
-        `❌ Invalid duration format. Try "2h", "30m", "1d", or "off".`
-      );
+      await interaction.editReply(`❌ Invalid duration format. Try "2h", "30m", "1d", or "off".`);
     } else {
       throw error;
     }

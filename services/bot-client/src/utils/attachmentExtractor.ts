@@ -22,6 +22,8 @@ export function extractAttachments(
   }
 
   return Array.from(attachments.values()).map(attachment => ({
+    // Discord attachment ID - stable snowflake for caching (preferred over URL hash)
+    id: attachment.id,
     url: attachment.url,
     contentType: attachment.contentType ?? CONTENT_TYPES.BINARY,
     name: attachment.name,
