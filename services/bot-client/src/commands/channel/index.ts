@@ -6,6 +6,7 @@
  * - /channel activate <personality> - Activate a personality in the current channel
  * - /channel deactivate - Deactivate the personality from the current channel
  * - /channel list - List all activated channels
+ * - /channel context <action> - Manage extended context settings
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -15,6 +16,7 @@ import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
 import { handleList } from './list.js';
+import { handleContext } from './context.js';
 import { handleAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('channel-command');
@@ -47,6 +49,23 @@ export const data = new SlashCommandBuilder()
       .addBooleanOption(option =>
         option.setName('all').setDescription('Show all servers (bot owner only)').setRequired(false)
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('context')
+      .setDescription('Manage extended context settings for this channel')
+      .addStringOption(option =>
+        option
+          .setName('action')
+          .setDescription('Action to perform')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Enable - Allow personalities to see recent channel messages', value: 'enable' },
+            { name: 'Disable - Only use bot conversation history', value: 'disable' },
+            { name: 'Status - Show current setting', value: 'status' },
+            { name: 'Clear - Remove override, use global default', value: 'clear' }
+          )
+      )
   );
 
 /**
@@ -57,6 +76,7 @@ const channelRouter = createSubcommandRouter(
     activate: handleActivate,
     deactivate: handleDeactivate,
     list: handleList,
+    context: handleContext,
   },
   { logger, logPrefix: '[Channel]' }
 );
