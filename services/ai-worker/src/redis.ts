@@ -18,6 +18,8 @@ import {
   createBullMQRedisConfig,
   VoiceTranscriptCache,
   VisionDescriptionCache,
+  PersistentVisionCache,
+  getPrismaClient,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 import { modelSupportsVision, clearCapabilityCache } from './services/ModelCapabilityChecker.js';
@@ -90,8 +92,14 @@ export const redisService = new RedisService(redis);
 // Export singleton VoiceTranscriptCache instance
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
 
-// Export singleton VisionDescriptionCache instance
+// Export singleton VisionDescriptionCache instance with L2 persistent cache
 export const visionDescriptionCache = new VisionDescriptionCache(redis);
+
+// Set up L2 (PostgreSQL) cache for persistent storage
+// This survives Redis restarts and reduces API costs
+const prisma = getPrismaClient();
+const persistentVisionCache = new PersistentVisionCache(prisma);
+visionDescriptionCache.setL2Cache(persistentVisionCache);
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.

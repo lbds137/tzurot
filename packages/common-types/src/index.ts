@@ -92,7 +92,12 @@ export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
 export {
   VisionDescriptionCache,
   type VisionCacheKeyOptions,
+  type VisionStoreOptions,
 } from './services/VisionDescriptionCache.js';
+export {
+  PersistentVisionCache,
+  type PersistentVisionCacheEntry,
+} from './services/PersistentVisionCache.js';
 
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';

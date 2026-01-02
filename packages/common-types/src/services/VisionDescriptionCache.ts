@@ -1,26 +1,32 @@
 /**
  * VisionDescriptionCache
- * Caches image descriptions to avoid duplicate vision API calls
+ * Two-tier cache for image descriptions to avoid duplicate vision API calls
  *
- * This addresses the two different code paths for image processing:
- * 1. Direct attachments: Preprocessed via ImageDescriptionJob
- * 2. Referenced message images: Processed inline by ReferencedMessageFormatter
+ * Cache Architecture:
+ * - L1 (Redis): Fast, ephemeral, TTL-based (1 hour default)
+ * - L2 (PostgreSQL): Persistent, survives Redis restarts, no TTL
  *
- * By caching descriptions by image URL, both code paths benefit from the cache,
- * avoiding duplicate API calls for the same image across different contexts.
+ * Lookup Strategy:
+ * 1. Check L1 (Redis) → return if found
+ * 2. Check L2 (PostgreSQL) → populate L1 and return if found
+ * 3. Return null (cache miss)
+ *
+ * Write Strategy:
+ * - Always write to L1 (Redis)
+ * - Write to L2 (PostgreSQL) only when attachmentId is available (stable key)
  *
  * Cache Key Strategy:
  * 1. Prefer Discord attachment ID (stable snowflake) when available
  * 2. Fall back to URL hash (with query params stripped) for embed images
  *
- * This fixes the issue where Discord CDN URLs expire and change query params,
- * causing cache misses for the same image.
+ * @see PersistentVisionCache for L2 implementation
  */
 
 import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { createLogger } from '../utils/logger.js';
 import { REDIS_KEY_PREFIXES, INTERVALS, TEXT_LIMITS } from '../constants/index.js';
+import type { PersistentVisionCache } from './PersistentVisionCache.js';
 
 const logger = createLogger('VisionDescriptionCache');
 
@@ -32,8 +38,25 @@ export interface VisionCacheKeyOptions {
   url: string;
 }
 
+/** Options for storing with L2 cache */
+export interface VisionStoreOptions extends VisionCacheKeyOptions {
+  /** Model that generated the description (for L2 cache) */
+  model?: string;
+}
+
 export class VisionDescriptionCache {
+  private l2Cache: PersistentVisionCache | null = null;
+
   constructor(private redis: Redis) {}
+
+  /**
+   * Set the L2 (PostgreSQL) cache for persistent storage
+   * @param cache PersistentVisionCache instance
+   */
+  setL2Cache(cache: PersistentVisionCache): void {
+    this.l2Cache = cache;
+    logger.info('[VisionDescriptionCache] L2 cache enabled');
+  }
 
   /**
    * Store vision description in cache
@@ -42,11 +65,12 @@ export class VisionDescriptionCache {
    * @param ttlSeconds Time to live in seconds (default: 1 hour)
    */
   async store(
-    options: VisionCacheKeyOptions,
+    options: VisionStoreOptions,
     description: string,
     ttlSeconds: number = INTERVALS.VISION_DESCRIPTION_TTL
   ): Promise<void> {
     try {
+      // Always write to L1 (Redis)
       const key = this.getCacheKey(options);
       await this.redis.setex(key, ttlSeconds, description);
       logger.debug(
@@ -54,32 +78,70 @@ export class VisionDescriptionCache {
           attachmentId: options.attachmentId,
           urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
         },
-        '[VisionDescriptionCache] Stored description'
+        '[VisionDescriptionCache] Stored description in L1'
       );
+
+      // Write to L2 (PostgreSQL) only when attachmentId is available
+      // L2 uses stable attachment IDs, not URL hashes
+      if (
+        this.l2Cache !== null &&
+        options.attachmentId !== undefined &&
+        options.attachmentId !== ''
+      ) {
+        await this.l2Cache.set({
+          attachmentId: options.attachmentId,
+          description,
+          model: options.model ?? 'unknown',
+        });
+        logger.debug(
+          { attachmentId: options.attachmentId },
+          '[VisionDescriptionCache] Stored description in L2'
+        );
+      }
     } catch (error) {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to store description');
     }
   }
 
   /**
-   * Get cached vision description
+   * Get cached vision description (checks L1, then L2)
    * @param options Cache key options (attachmentId preferred, url as fallback)
    * @returns Description text or null if not found
    */
   async get(options: VisionCacheKeyOptions): Promise<string | null> {
     try {
+      // Step 1: Check L1 (Redis)
       const key = this.getCacheKey(options);
-      const description = await this.redis.get(key);
+      const l1Description = await this.redis.get(key);
 
-      if (description !== null && description.length > 0) {
+      if (l1Description !== null && l1Description.length > 0) {
         logger.info(
           {
             attachmentId: options.attachmentId,
             urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
           },
-          '[VisionDescriptionCache] Cache HIT - avoiding duplicate vision API call'
+          '[VisionDescriptionCache] L1 cache HIT'
         );
-        return description;
+        return l1Description;
+      }
+
+      // Step 2: Check L2 (PostgreSQL) if attachmentId is available
+      if (
+        this.l2Cache !== null &&
+        options.attachmentId !== undefined &&
+        options.attachmentId !== ''
+      ) {
+        const l2Entry = await this.l2Cache.get(options.attachmentId);
+
+        if (l2Entry !== null) {
+          // Populate L1 from L2 for future fast access
+          await this.redis.setex(key, INTERVALS.VISION_DESCRIPTION_TTL, l2Entry.description);
+          logger.info(
+            { attachmentId: options.attachmentId },
+            '[VisionDescriptionCache] L2 cache HIT - populated L1'
+          );
+          return l2Entry.description;
+        }
       }
 
       logger.debug(
@@ -87,7 +149,7 @@ export class VisionDescriptionCache {
           attachmentId: options.attachmentId,
           urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
         },
-        '[VisionDescriptionCache] Cache MISS'
+        '[VisionDescriptionCache] Cache MISS (L1 and L2)'
       );
       return null;
     } catch (error) {
