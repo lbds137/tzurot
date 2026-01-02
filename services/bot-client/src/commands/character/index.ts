@@ -166,15 +166,19 @@ export const data = new SlashCommandBuilder()
           .setAutocomplete(true)
       )
       .addStringOption(option =>
-        option.setName('action').setDescription('Action to perform').setRequired(true).addChoices(
-          { name: 'Status - Show current settings', value: 'show' },
-          { name: 'Enable - Force ON (always fetch channel history)', value: 'enable' },
-          { name: 'Disable - Force OFF (never fetch channel history)', value: 'disable' },
-          { name: 'Auto - Follow channel/global defaults', value: 'auto' },
-          { name: 'Set max messages (1-100)', value: 'set-max-messages' },
-          { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
-          { name: 'Set max images (0-20)', value: 'set-max-images' }
-        )
+        option
+          .setName('action')
+          .setDescription('Action to perform')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Status - Show current settings', value: 'show' },
+            { name: 'Enable - Force ON (always fetch channel history)', value: 'enable' },
+            { name: 'Disable - Force OFF (never fetch channel history)', value: 'disable' },
+            { name: 'Auto - Follow channel/global defaults', value: 'auto' },
+            { name: 'Set max messages (1-100)', value: 'set-max-messages' },
+            { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
+            { name: 'Set max images (0-20)', value: 'set-max-images' }
+          )
       )
       .addIntegerOption(option =>
         option
