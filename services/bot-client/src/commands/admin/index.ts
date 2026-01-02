@@ -110,10 +110,26 @@ export const data = new SlashCommandBuilder()
           .setDescription('Action to perform')
           .setRequired(true)
           .addChoices(
-            { name: 'Enable extended context globally', value: 'extended-context-enable' },
-            { name: 'Disable extended context globally', value: 'extended-context-disable' },
-            { name: 'List all settings', value: 'list' }
+            { name: 'Show current settings', value: 'show' },
+            { name: 'Toggle extended context default', value: 'toggle-extended-context' },
+            { name: 'Set max messages (1-100)', value: 'set-max-messages' },
+            { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
+            { name: 'Set max images (0-20)', value: 'set-max-images' }
           )
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('value')
+          .setDescription('Value for set-max-messages or set-max-images')
+          .setRequired(false)
+          .setMinValue(0)
+          .setMaxValue(100)
+      )
+      .addStringOption(option =>
+        option
+          .setName('duration')
+          .setDescription('Duration for set-max-age (e.g., 2h, 30m, 1d, off)')
+          .setRequired(false)
       )
   );
 

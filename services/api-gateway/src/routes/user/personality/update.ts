@@ -38,6 +38,12 @@ interface UpdatePersonalityBody {
   avatarData?: string;
   /** Extended context tri-state: null=auto, true=on, false=off */
   extendedContext?: boolean | null;
+  /** Max messages for extended context (null = follow channel/global) */
+  extendedContextMaxMessages?: number | null;
+  /** Max age in seconds for extended context (null = follow channel/global) */
+  extendedContextMaxAge?: number | null;
+  /** Max images for extended context (null = follow channel/global) */
+  extendedContextMaxImages?: number | null;
 }
 
 /**
@@ -96,6 +102,9 @@ export function createUpdateHandler(
       errorMessage,
       avatarData,
       extendedContext,
+      extendedContextMaxMessages,
+      extendedContextMaxAge,
+      extendedContextMaxImages,
     } = req.body as UpdatePersonalityBody;
 
     // Build update data (only include fields that were provided)
@@ -149,6 +158,15 @@ export function createUpdateHandler(
     if (extendedContext !== undefined) {
       updateData.extendedContext = extendedContext;
     }
+    if (extendedContextMaxMessages !== undefined) {
+      updateData.extendedContextMaxMessages = extendedContextMaxMessages;
+    }
+    if (extendedContextMaxAge !== undefined) {
+      updateData.extendedContextMaxAge = extendedContextMaxAge;
+    }
+    if (extendedContextMaxImages !== undefined) {
+      updateData.extendedContextMaxImages = extendedContextMaxImages;
+    }
 
     // Process avatar if provided
     const avatarWasUpdated = avatarData !== undefined && avatarData.length > 0;
@@ -188,6 +206,9 @@ export function createUpdateHandler(
         voiceEnabled: true,
         imageEnabled: true,
         extendedContext: true,
+        extendedContextMaxMessages: true,
+        extendedContextMaxAge: true,
+        extendedContextMaxImages: true,
         ownerId: true,
         avatarData: true,
         createdAt: true,
@@ -250,6 +271,9 @@ export function createUpdateHandler(
           voiceEnabled: updated.voiceEnabled,
           imageEnabled: updated.imageEnabled,
           extendedContext: updated.extendedContext,
+          extendedContextMaxMessages: updated.extendedContextMaxMessages,
+          extendedContextMaxAge: updated.extendedContextMaxAge,
+          extendedContextMaxImages: updated.extendedContextMaxImages,
           ownerId: updated.ownerId,
           hasAvatar: updated.avatarData !== null,
           createdAt: updated.createdAt.toISOString(),

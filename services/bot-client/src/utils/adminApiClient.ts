@@ -132,3 +132,26 @@ export async function adminPutJson(
     userId,
   });
 }
+
+/**
+ * Make an authenticated JSON PATCH request to an admin endpoint
+ *
+ * @param path - API path (e.g., '/admin/settings')
+ * @param body - Object to send as JSON body (partial update)
+ * @param userId - Optional Discord user ID for bot owner verification
+ * @returns Fetch response
+ */
+export async function adminPatchJson(
+  path: string,
+  body: Record<string, unknown>,
+  userId?: string
+): Promise<Response> {
+  return adminFetch(path, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': CONTENT_TYPES.JSON,
+    },
+    body: JSON.stringify(body),
+    userId,
+  });
+}
