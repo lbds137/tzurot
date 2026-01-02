@@ -119,10 +119,7 @@ export class PersistentVisionCache {
       logger.debug({ attachmentId }, '[PersistentVisionCache] Deleted entry');
     } catch (error) {
       // Ignore "not found" errors
-      if (
-        error instanceof Error &&
-        error.message.includes('Record to delete does not exist')
-      ) {
+      if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
         return;
       }
       logger.error({ err: error, attachmentId }, '[PersistentVisionCache] Failed to delete entry');
