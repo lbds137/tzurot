@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PersistentVisionCache } from './PersistentVisionCache.js';
-import type { PrismaClient } from '../generated/prisma/client.js';
+import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
 import { generateImageDescriptionCacheUuid } from '../utils/deterministicUuid.js';
 
 // Mock logger
@@ -157,12 +157,15 @@ describe('PersistentVisionCache', () => {
       });
     });
 
-    it('should ignore "not found" errors', async () => {
-      mockImageDescriptionCache.delete.mockRejectedValue(
-        new Error('Record to delete does not exist')
+    it('should ignore P2025 "not found" errors', async () => {
+      // Create a proper Prisma P2025 error (record not found)
+      const notFoundError = new Prisma.PrismaClientKnownRequestError(
+        'Record to delete does not exist',
+        { code: 'P2025', clientVersion: '5.0.0' }
       );
+      mockImageDescriptionCache.delete.mockRejectedValue(notFoundError);
 
-      // Should not throw
+      // Should not throw - delete is idempotent
       await expect(cache.delete('nonexistent')).resolves.toBeUndefined();
     });
 
