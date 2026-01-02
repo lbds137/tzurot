@@ -536,6 +536,5 @@ model ImageDescriptionCache {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@index([attachmentId])
   @@map("image_description_cache")
 }

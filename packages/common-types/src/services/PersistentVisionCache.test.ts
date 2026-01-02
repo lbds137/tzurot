@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PersistentVisionCache } from './PersistentVisionCache.js';
 import type { PrismaClient } from '../generated/prisma/client.js';
+import { generateImageDescriptionCacheUuid } from '../utils/deterministicUuid.js';
 
 // Mock logger
 vi.mock('../utils/logger.js', () => ({
@@ -72,17 +73,15 @@ describe('PersistentVisionCache', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null and log error on database failure', async () => {
+    it('should propagate database errors', async () => {
       mockImageDescriptionCache.findUnique.mockRejectedValue(new Error('DB error'));
 
-      const result = await cache.get('123');
-
-      expect(result).toBeNull();
+      await expect(cache.get('123')).rejects.toThrow('DB error');
     });
   });
 
   describe('set', () => {
-    it('should upsert entry into cache', async () => {
+    it('should upsert entry into cache with deterministic ID', async () => {
       const entry = {
         attachmentId: '123456789012345678',
         description: 'A photo of a dog',
@@ -95,6 +94,7 @@ describe('PersistentVisionCache', () => {
       expect(mockImageDescriptionCache.upsert).toHaveBeenCalledWith({
         where: { attachmentId: '123456789012345678' },
         create: {
+          id: generateImageDescriptionCacheUuid('123456789012345678'),
           attachmentId: '123456789012345678',
           description: 'A photo of a dog',
           model: 'claude-3-opus',
@@ -106,17 +106,16 @@ describe('PersistentVisionCache', () => {
       });
     });
 
-    it('should handle database errors gracefully', async () => {
+    it('should propagate database errors', async () => {
       mockImageDescriptionCache.upsert.mockRejectedValue(new Error('DB error'));
 
-      // Should not throw
       await expect(
         cache.set({
           attachmentId: '123',
           description: 'test',
           model: 'test-model',
         })
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow('DB error');
     });
   });
 
@@ -140,12 +139,10 @@ describe('PersistentVisionCache', () => {
       expect(result).toBe(false);
     });
 
-    it('should return false on database error', async () => {
+    it('should propagate database errors', async () => {
       mockImageDescriptionCache.count.mockRejectedValue(new Error('DB error'));
 
-      const result = await cache.has('123');
-
-      expect(result).toBe(false);
+      await expect(cache.has('123')).rejects.toThrow('DB error');
     });
   });
 
@@ -169,11 +166,10 @@ describe('PersistentVisionCache', () => {
       await expect(cache.delete('nonexistent')).resolves.toBeUndefined();
     });
 
-    it('should handle other database errors gracefully', async () => {
+    it('should propagate other database errors', async () => {
       mockImageDescriptionCache.delete.mockRejectedValue(new Error('Connection error'));
 
-      // Should not throw
-      await expect(cache.delete('123')).resolves.toBeUndefined();
+      await expect(cache.delete('123')).rejects.toThrow('Connection error');
     });
   });
 });
