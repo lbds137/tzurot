@@ -30,7 +30,7 @@ describe('PersonalityMessageHandler', () => {
     enrichWithPersonaNames: ReturnType<typeof vi.fn>;
   };
   let mockExtendedContextResolver: {
-    resolve: ReturnType<typeof vi.fn>;
+    resolveAll: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -56,9 +56,20 @@ describe('PersonalityMessageHandler', () => {
       enrichWithPersonaNames: vi.fn().mockResolvedValue(undefined),
     };
 
-    // Default: extended context disabled
+    // Default: extended context disabled with full settings
     mockExtendedContextResolver = {
-      resolve: vi.fn().mockResolvedValue({ enabled: false, source: 'global' }),
+      resolveAll: vi.fn().mockResolvedValue({
+        enabled: false,
+        maxMessages: 20,
+        maxAge: null,
+        maxImages: 0,
+        sources: {
+          enabled: 'global',
+          maxMessages: 'global',
+          maxAge: 'global',
+          maxImages: 'global',
+        },
+      }),
     };
 
     handler = new PersonalityMessageHandler(
@@ -101,7 +112,7 @@ describe('PersonalityMessageHandler', () => {
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello AI');
 
       // Should resolve extended context
-      expect(mockExtendedContextResolver.resolve).toHaveBeenCalledWith(
+      expect(mockExtendedContextResolver.resolveAll).toHaveBeenCalledWith(
         mockMessage.channel.id,
         mockPersonality
       );
@@ -111,7 +122,21 @@ describe('PersonalityMessageHandler', () => {
         mockMessage,
         mockPersonality,
         'Hello AI',
-        { useExtendedContext: false, botUserId: 'bot-123' }
+        {
+          extendedContext: {
+            enabled: false,
+            maxMessages: 20,
+            maxAge: null,
+            maxImages: 0,
+            sources: {
+              enabled: 'global',
+              maxMessages: 'global',
+              maxAge: 'global',
+              maxImages: 'global',
+            },
+          },
+          botUserId: 'bot-123',
+        }
       );
 
       // Should save user message
@@ -226,11 +251,20 @@ describe('PersonalityMessageHandler', () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
 
-      // Enable extended context
-      mockExtendedContextResolver.resolve.mockResolvedValue({
+      // Enable extended context with channel-level settings
+      const resolvedSettings = {
         enabled: true,
-        source: 'channel',
-      });
+        maxMessages: 15,
+        maxAge: 3600,
+        maxImages: 5,
+        sources: {
+          enabled: 'channel',
+          maxMessages: 'channel',
+          maxAge: 'channel',
+          maxImages: 'global',
+        },
+      };
+      mockExtendedContextResolver.resolveAll.mockResolvedValue(resolvedSettings);
 
       const mockContext = {
         userMessage: 'Hello with extended context',
@@ -253,12 +287,12 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello with extended context');
 
-      // Should build context with extended context enabled
+      // Should build context with extended context settings
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
         'Hello with extended context',
-        { useExtendedContext: true, botUserId: 'bot-123' }
+        { extendedContext: resolvedSettings, botUserId: 'bot-123' }
       );
     });
 
@@ -294,7 +328,10 @@ describe('PersonalityMessageHandler', () => {
         mockMessage,
         mockPersonality,
         voiceTranscript,
-        { useExtendedContext: false, botUserId: 'bot-123' }
+        expect.objectContaining({
+          extendedContext: expect.objectContaining({ enabled: false }),
+          botUserId: 'bot-123',
+        })
       );
 
       // Should save with voice transcript content

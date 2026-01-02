@@ -6,7 +6,7 @@
  * Supports extended context: fetching recent Discord channel messages.
  */
 
-import type { PrismaClient, PersonaResolver } from '@tzurot/common-types';
+import type { PrismaClient, PersonaResolver, ResolvedExtendedContextSettings } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,
@@ -41,10 +41,11 @@ const logger = createLogger('MessageContextBuilder');
  */
 export interface ContextBuildOptions {
   /**
-   * Enable extended context: fetch recent messages from Discord channel.
+   * Extended context settings: resolved settings for fetching recent Discord messages.
+   * Includes enabled flag, maxMessages, maxAge, and maxImages limits.
    * When enabled, merges Discord messages with DB conversation history.
    */
-  useExtendedContext?: boolean;
+  extendedContext?: ResolvedExtendedContextSettings;
   /**
    * Bot's Discord user ID (required for extended context to identify assistant messages)
    */
@@ -193,18 +194,22 @@ export class MessageContextBuilder {
 
     // Extended context: fetch recent messages from Discord channel
     // This provides broader context beyond just bot conversations stored in DB
-    if (options.useExtendedContext === true && options.botUserId !== undefined) {
+    if (options.extendedContext?.enabled === true && options.botUserId !== undefined) {
       // Check if channel supports message fetching
       if (isTypingChannel(message.channel)) {
         logger.debug(
-          { channelId: message.channel.id },
+          {
+            channelId: message.channel.id,
+            maxMessages: options.extendedContext.maxMessages,
+            maxAge: options.extendedContext.maxAge,
+          },
           '[MessageContextBuilder] Fetching extended context from Discord'
         );
 
         const fetchResult = await this.channelFetcher.fetchRecentMessages(
           message.channel as FetchableChannel,
           {
-            limit: MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT,
+            limit: options.extendedContext.maxMessages, // Use resolved limit instead of constant
             before: message.id, // Exclude the triggering message
             botUserId: options.botUserId,
             personalityName: personality.displayName,
@@ -214,6 +219,8 @@ export class MessageContextBuilder {
               this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl),
             // Apply context epoch filter (from /history clear)
             contextEpoch,
+            // Apply max age filter if configured
+            maxAge: options.extendedContext.maxAge,
           }
         );
 

@@ -114,6 +114,10 @@ export interface DatabasePersonality {
   updatedAt: Date;
   // Extended context tri-state: null=auto, true=on, false=off
   extendedContext: boolean | null;
+  // Extended context limits (null = follow hierarchy)
+  extendedContextMaxMessages: number | null;
+  extendedContextMaxAge: number | null;
+  extendedContextMaxImages: number | null;
   systemPrompt: {
     content: string;
   } | null;

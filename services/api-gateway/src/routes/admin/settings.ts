@@ -17,6 +17,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
+  Prisma,
   GetAdminSettingsResponseSchema,
   UpdateAdminSettingsRequestSchema,
   UpdateAdminSettingsResponseSchema,
@@ -39,7 +40,7 @@ interface AuthenticatedRequest extends Request {
  */
 async function getOrCreateSettings(
   prisma: PrismaClient
-): ReturnType<typeof prisma.adminSettings.upsert> {
+): Promise<Prisma.AdminSettingsGetPayload<object>> {
   return prisma.adminSettings.upsert({
     where: { id: ADMIN_SETTINGS_SINGLETON_ID },
     create: {

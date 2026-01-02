@@ -129,6 +129,9 @@ describe('PATCH /user/channel/extended-context/:channelId', () => {
       createdAt: MOCK_CREATED_AT,
       autoRespond: true,
       extendedContext: true,
+      extendedContextMaxMessages: null,
+      extendedContextMaxAge: null,
+      extendedContextMaxImages: null,
       activatedPersonalityId: null,
       activatedPersonality: null,
     };

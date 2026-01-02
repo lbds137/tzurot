@@ -47,29 +47,32 @@ export class PersonalityMessageHandler {
     options: { isAutoResponse?: boolean } = {}
   ): Promise<void> {
     try {
-      // Resolve extended context setting for this channel + personality
-      const extendedContext = await this.extendedContextResolver.resolve(
+      // Resolve all extended context settings for this channel + personality
+      const extendedContextSettings = await this.extendedContextResolver.resolveAll(
         message.channel.id,
         personality
       );
 
-      if (extendedContext.enabled) {
+      if (extendedContextSettings.enabled) {
         logger.debug(
           {
             channelId: message.channel.id,
-            source: extendedContext.source,
             personalityId: personality.id,
+            maxMessages: extendedContextSettings.maxMessages,
+            maxAge: extendedContextSettings.maxAge,
+            maxImages: extendedContextSettings.maxImages,
+            sources: extendedContextSettings.sources,
           },
           '[PersonalityMessageHandler] Extended context enabled for this request'
         );
       }
 
       // Build AI context (user lookup, history, references, attachments, environment)
-      // Pass extended context option to enable Discord channel message fetching
+      // Pass extended context settings to enable Discord channel message fetching
       // Get bot user ID from the message's client (available after login)
       const botUserId = message.client.user?.id;
       const buildResult = await this.contextBuilder.buildContext(message, personality, content, {
-        useExtendedContext: extendedContext.enabled,
+        extendedContext: extendedContextSettings,
         botUserId,
       });
       const { context, personaId, messageContent, referencedMessages, conversationHistory } =
