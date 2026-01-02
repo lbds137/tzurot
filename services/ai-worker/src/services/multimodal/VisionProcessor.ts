@@ -106,9 +106,7 @@ export async function describeImage(
     } else {
       // Priority 3: Use fallback vision model
       // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
-      usedModel = isGuestMode
-        ? MODEL_DEFAULTS.VISION_FALLBACK_FREE
-        : config.VISION_FALLBACK_MODEL;
+      usedModel = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
 
       logger.info(
         { mainModel: personality.model, fallbackModel: usedModel, isGuestMode },
