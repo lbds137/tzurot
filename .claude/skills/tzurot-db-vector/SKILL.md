@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: '2025-12-31'
+lastUpdated: '2026-01-01'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -11,10 +11,12 @@ lastUpdated: '2025-12-31'
 ## Quick Reference
 
 ```bash
-# Migration workflow (ALWAYS use this)
-npx prisma migrate dev --create-only --name descriptive_name
-# Review generated SQL for DROP INDEX statements!
-npx prisma migrate deploy
+# PREFERRED: Create migration with automatic drift sanitization
+pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+
+# Inspect current database state (tables, indexes, migrations)
+pnpm --filter @tzurot/scripts run db:inspect
+pnpm --filter @tzurot/scripts run db:inspect -- --table memories
 
 # Check migration status
 npx prisma migrate status
@@ -50,39 +52,69 @@ async getPersonality() {
 
 **Pool configuration:** `connectionLimit = 20` per service (3 services = 60, leaving headroom)
 
-## 🚨 pgvector Index Protection (CRITICAL)
+## 🚨 Protected Indexes (CRITICAL)
+
+### Known Drift Patterns
+
+Prisma can't represent these indexes and tries to "fix" them:
+
+| Index | Type | Why It's Protected |
+|-------|------|-------------------|
+| `idx_memories_embedding` | IVFFlat vector | Prisma doesn't support `Unsupported` type indexes |
+| `memories_chunk_group_id_idx` | Partial B-tree | Prisma can't represent `WHERE` clauses |
 
 ### The Problem
 
-Prisma doesn't support pgvector indexes. It sees the index as "drift" and generates:
+When creating migrations, Prisma generates dangerous statements:
 
 ```sql
-DROP INDEX "idx_memories_embedding"  -- 100x slower queries!
+DROP INDEX "idx_memories_embedding";  -- 100x slower queries!
+CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");  -- Fails: already exists
 ```
 
-### The Solution
+### The Solution: Use Safe Migration Script
 
-**NEVER run `prisma migrate dev` directly.** Always:
+```bash
+# PREFERRED - Automatically sanitizes drift patterns
+pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+```
+
+This script:
+1. Runs `prisma migrate dev --create-only`
+2. Removes known drift patterns from `prisma/drift-ignore.json`
+3. Reports what was sanitized
+4. Shows the clean migration for review
+
+### Manual Migration Workflow
+
+If you must create migrations manually:
 
 ```bash
 # 1. Generate only
 npx prisma migrate dev --create-only --name your_name
 
-# 2. REVIEW the SQL - delete any DROP INDEX lines!
+# 2. REVIEW the SQL - delete any lines matching:
+#    - DROP INDEX "idx_memories_embedding"
+#    - DROP INDEX "memories_chunk_group_id_idx"
+#    - CREATE INDEX "memories_chunk_group_id_idx" (without WHERE)
 cat prisma/migrations/<timestamp>/migration.sql
 
 # 3. Apply
-npx prisma migrate deploy
+npx prisma migrate dev
 ```
 
-**Pre-commit hook** automatically blocks commits with `DROP INDEX.*idx_memories_embedding`.
-
-### If Index Was Dropped
+### Recovering Protected Indexes
 
 ```sql
+-- IVFFlat vector index (if dropped)
 CREATE INDEX IF NOT EXISTS idx_memories_embedding
 ON memories USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 50);
+
+-- Partial index for chunk groups (if dropped/replaced)
+DROP INDEX IF EXISTS "memories_chunk_group_id_idx";
+CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id")
+WHERE "chunk_group_id" IS NOT NULL;
 ```
 
 ## Vector Operations
@@ -224,8 +256,29 @@ This updates the checksum in `_prisma_migrations` to match the current file.
 Located in `scripts/src/db/`:
 
 ```bash
+# Inspect database state (tables, columns, indexes, migrations)
+pnpm --filter @tzurot/scripts run db:inspect
+pnpm --filter @tzurot/scripts run db:inspect -- --table <name>
+pnpm --filter @tzurot/scripts run db:inspect -- --indexes
+
+# Create migration with automatic drift sanitization
+pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+
+# Check/fix migration checksum drift
 pnpm --filter @tzurot/scripts run db:check-drift
 pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>
+```
+
+### ⚠️ Prisma db execute Limitation
+
+`npx prisma db execute` runs SQL but **does not show query results**. It only shows "Script executed successfully."
+
+**Use `db:inspect` instead** for visibility, or use raw `$queryRaw` in a script:
+
+```typescript
+// To see actual query results, use a script with Prisma client
+const result = await prisma.$queryRaw`SELECT * FROM admin_settings`;
+console.log(JSON.stringify(result, null, 2));
 ```
 
 ## Query Patterns
