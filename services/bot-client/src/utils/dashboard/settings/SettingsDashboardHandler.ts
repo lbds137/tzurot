@@ -111,11 +111,7 @@ export async function handleSettingsSelectMenu(
   }
 
   // Get session
-  const session = getSession(
-    interaction.user.id,
-    config.entityType,
-    parsed.entityId
-  );
+  const session = getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
     await interaction.reply({
@@ -181,11 +177,7 @@ export async function handleSettingsButton(
   }
 
   // Get session
-  const session = getSession(
-    interaction.user.id,
-    config.entityType,
-    parsed.entityId
-  );
+  const session = getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
     await interaction.reply({
@@ -407,11 +399,7 @@ export async function handleSettingsModal(
   }
 
   // Get session
-  const session = getSession(
-    interaction.user.id,
-    config.entityType,
-    parsed.entityId
-  );
+  const session = getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
     await interaction.reply({

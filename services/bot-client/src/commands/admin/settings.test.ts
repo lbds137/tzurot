@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ChatInputCommandInteraction, ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import {
   handleSettings,
   handleAdminSettingsButton,
@@ -302,7 +306,9 @@ describe('Admin Settings Dashboard', () => {
 
   describe('handleAdminSettingsButton', () => {
     it('should ignore non-admin-settings interactions', async () => {
-      const interaction = createMockButtonInteraction('channel-context::set::chan-123::enabled:true');
+      const interaction = createMockButtonInteraction(
+        'channel-context::set::chan-123::enabled:true'
+      );
 
       await handleAdminSettingsButton(interaction);
 

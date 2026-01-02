@@ -139,9 +139,10 @@ export function parseDurationInput(
   }
 
   // Try to parse as duration (e.g., "2h", "30m", "1d")
-  const durationMatch = /^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.exec(
-    trimmed
-  );
+  const durationMatch =
+    /^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.exec(
+      trimmed
+    );
 
   if (durationMatch === null) {
     return {

@@ -83,13 +83,10 @@ export async function handleSettings(
 
   try {
     // Fetch current character data from API gateway
-    const result = await callGatewayApi<PersonalityResponse>(
-      `/user/personality/${characterSlug}`,
-      {
-        method: 'GET',
-        userId,
-      }
-    );
+    const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${characterSlug}`, {
+      method: 'GET',
+      userId,
+    });
 
     if (!result.ok) {
       if (result.status === 404) {
@@ -170,9 +167,7 @@ export async function handleCharacterSettingsSelectMenu(
 /**
  * Handle button interactions for character settings
  */
-export async function handleCharacterSettingsButton(
-  interaction: ButtonInteraction
-): Promise<void> {
+export async function handleCharacterSettingsButton(interaction: ButtonInteraction): Promise<void> {
   if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
     return;
   }
@@ -367,10 +362,7 @@ async function handleSettingUpdate(
 /**
  * Map dashboard setting ID to API field update
  */
-function mapSettingToApiUpdate(
-  settingId: string,
-  value: unknown
-): Record<string, unknown> | null {
+function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
     case 'enabled':
       // null means auto (inherit from channel/global)
