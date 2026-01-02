@@ -43,6 +43,14 @@ export {
   type DurationBounds,
   type DurationValidation,
 } from './utils/Duration.js';
+export {
+  shouldShowGap,
+  calculateTimeGap,
+  formatTimeGap,
+  formatTimeGapMarker,
+  DEFAULT_TIME_GAP_CONFIG,
+  type TimeGapConfig,
+} from './utils/timeGap.js';
 export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
 export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';

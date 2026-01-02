@@ -11,7 +11,11 @@ import {
   createLogger,
   escapeXml,
   escapeXmlContent,
+  shouldShowGap,
+  calculateTimeGap,
+  formatTimeGapMarker,
   type StoredReferencedMessage,
+  type TimeGapConfig,
 } from '@tzurot/common-types';
 
 const logger = createLogger('conversationUtils');
@@ -282,6 +286,14 @@ export function formatSingleHistoryEntryAsXml(
 }
 
 /**
+ * Options for formatting conversation history as XML
+ */
+export interface FormatConversationHistoryOptions {
+  /** Configuration for time gap markers. If provided, gaps between messages will be marked. */
+  timeGapConfig?: TimeGapConfig;
+}
+
+/**
  * Format conversation history as XML for inclusion in system prompt
  *
  * Uses semantic XML structure with <message> tags for each message.
@@ -291,24 +303,47 @@ export function formatSingleHistoryEntryAsXml(
  * For user messages with referenced messages (replies, message links), the references
  * are included as nested <quoted_messages> elements within the message.
  *
+ * When timeGapConfig is provided, significant time gaps between messages are marked
+ * with <time_gap duration="X hours" /> elements to help the AI understand
+ * temporal breaks in the conversation.
+ *
  * @param history - Raw conversation history entries
  * @param personalityName - Name of the AI personality (for marking its own messages)
+ * @param options - Optional formatting options including time gap configuration
  * @returns Formatted XML string for the chat_log section
  */
 export function formatConversationHistoryAsXml(
   history: RawHistoryEntry[],
-  personalityName: string
+  personalityName: string,
+  options?: FormatConversationHistoryOptions
 ): string {
   if (history.length === 0) {
     return '';
   }
 
   const messages: string[] = [];
+  let previousTimestamp: string | undefined;
 
   for (const msg of history) {
+    // Check for time gap before this message
+    if (
+      options?.timeGapConfig !== undefined &&
+      previousTimestamp !== undefined &&
+      msg.createdAt !== undefined
+    ) {
+      const gapMs = calculateTimeGap(previousTimestamp, msg.createdAt);
+      if (shouldShowGap(gapMs, options.timeGapConfig)) {
+        messages.push(formatTimeGapMarker(gapMs));
+      }
+    }
+
     const formatted = formatSingleHistoryEntryAsXml(msg, personalityName);
     if (formatted.length > 0) {
       messages.push(formatted);
+      // Update previous timestamp for next iteration
+      if (msg.createdAt !== undefined) {
+        previousTimestamp = msg.createdAt;
+      }
     }
   }
 
