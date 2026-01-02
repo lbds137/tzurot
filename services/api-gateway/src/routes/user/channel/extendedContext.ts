@@ -56,13 +56,18 @@ export function createExtendedContextHandler(prisma: PrismaClient): RequestHandl
     // Build update object with only specified fields
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: Record<string, any> = {};
-    if (extendedContext !== undefined) {updateData.extendedContext = extendedContext;}
-    if (extendedContextMaxMessages !== undefined)
-      {updateData.extendedContextMaxMessages = extendedContextMaxMessages;}
-    if (extendedContextMaxAge !== undefined)
-      {updateData.extendedContextMaxAge = extendedContextMaxAge;}
-    if (extendedContextMaxImages !== undefined)
-      {updateData.extendedContextMaxImages = extendedContextMaxImages;}
+    if (extendedContext !== undefined) {
+      updateData.extendedContext = extendedContext;
+    }
+    if (extendedContextMaxMessages !== undefined) {
+      updateData.extendedContextMaxMessages = extendedContextMaxMessages;
+    }
+    if (extendedContextMaxAge !== undefined) {
+      updateData.extendedContextMaxAge = extendedContextMaxAge;
+    }
+    if (extendedContextMaxImages !== undefined) {
+      updateData.extendedContextMaxImages = extendedContextMaxImages;
+    }
 
     // Get or create internal user
     const user = await getOrCreateInternalUser(prisma, discordUserId);
