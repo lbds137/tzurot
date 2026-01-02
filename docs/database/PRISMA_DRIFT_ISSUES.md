@@ -111,6 +111,7 @@ pnpm --filter @tzurot/scripts run db:migrate:safe -- <migration_name>
 ```
 
 This script:
+
 1. Runs `prisma migrate dev --create-only`
 2. Scans the generated SQL for known drift patterns
 3. Removes dangerous DROP/CREATE statements automatically
@@ -122,11 +123,13 @@ This script:
 If you need to run Prisma directly:
 
 1. **Inspect current state first:**
+
    ```bash
    pnpm --filter @tzurot/scripts run db:inspect
    ```
 
 2. **Create the migration:**
+
    ```bash
    npx prisma migrate dev --create-only --name <name>
    ```

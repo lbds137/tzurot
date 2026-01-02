@@ -104,7 +104,7 @@ export class VisionDescriptionCache {
    * 2. Otherwise, hash the URL with query params stripped (for URL stability)
    */
   private getCacheKey(options: VisionCacheKeyOptions): string {
-    if (options.attachmentId) {
+    if (options.attachmentId !== undefined && options.attachmentId !== '') {
       // Attachment ID is stable - use it directly
       return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:${options.attachmentId}`;
     }
