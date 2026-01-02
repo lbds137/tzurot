@@ -545,7 +545,10 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should ignore non-admin-settings modal interactions', async () => {
-      const interaction = createMockModalInteraction('channel-context::modal::chan-123::enabled', '50');
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::chan-123::enabled',
+        '50'
+      );
 
       await handleAdminSettingsModal(interaction as never);
 
@@ -574,10 +577,7 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should update maxAge setting with duration string (2h)', async () => {
-      const interaction = createMockModalInteraction(
-        'admin-settings::modal::global::maxAge',
-        '2h'
-      );
+      const interaction = createMockModalInteraction('admin-settings::modal::global::maxAge', '2h');
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockAdminPatchJson.mockResolvedValue({

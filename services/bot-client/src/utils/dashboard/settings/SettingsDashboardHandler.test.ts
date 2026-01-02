@@ -449,7 +449,11 @@ describe('SettingsDashboardHandler', () => {
   });
 
   describe('handleSettingsSelectMenu', () => {
-    const createSelectInteraction = (customId: string, selectedValue: string, userId = 'user-123') => ({
+    const createSelectInteraction = (
+      customId: string,
+      selectedValue: string,
+      userId = 'user-123'
+    ) => ({
       customId,
       user: { id: userId },
       values: [selectedValue],
@@ -494,7 +498,11 @@ describe('SettingsDashboardHandler', () => {
         },
       });
 
-      const interaction = createSelectInteraction('test-settings::select::entity-1', 'enabled', 'user-123');
+      const interaction = createSelectInteraction(
+        'test-settings::select::entity-1',
+        'enabled',
+        'user-123'
+      );
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -517,7 +525,10 @@ describe('SettingsDashboardHandler', () => {
         },
       });
 
-      const interaction = createSelectInteraction('test-settings::select::entity-1', 'nonexistent-setting');
+      const interaction = createSelectInteraction(
+        'test-settings::select::entity-1',
+        'nonexistent-setting'
+      );
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -700,7 +711,9 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createButtonInteraction('test-settings::set::entity-1::nonexistent:true');
+        const interaction = createButtonInteraction(
+          'test-settings::set::entity-1::nonexistent:true'
+        );
         const config = createTestConfig();
         const updateHandler = vi.fn();
 
@@ -726,7 +739,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:auto');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -751,7 +766,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -776,7 +793,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:false');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsButton(interaction as never, config, updateHandler);
 
@@ -938,7 +957,10 @@ describe('SettingsDashboardHandler', () => {
     it('should reply with expired message when session not found', async () => {
       mockSessionManager.get.mockReturnValue(null);
 
-      const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '50');
+      const interaction = createModalInteraction(
+        'test-settings::modal::entity-1::maxMessages',
+        '50'
+      );
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -961,7 +983,10 @@ describe('SettingsDashboardHandler', () => {
         },
       });
 
-      const interaction = createModalInteraction('test-settings::modal::entity-1::nonexistent', '50');
+      const interaction = createModalInteraction(
+        'test-settings::modal::entity-1::nonexistent',
+        '50'
+      );
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -986,9 +1011,14 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '75');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxMessages',
+          '75'
+        );
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1011,9 +1041,14 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', 'auto');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxMessages',
+          'auto'
+        );
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1036,9 +1071,14 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '  ');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxMessages',
+          '  '
+        );
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1061,7 +1101,10 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', 'abc');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxMessages',
+          'abc'
+        );
         const config = createTestConfig();
         const updateHandler = vi.fn();
 
@@ -1086,7 +1129,10 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '0');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxMessages',
+          '0'
+        );
         const config = createTestConfig();
         const updateHandler = vi.fn();
 
@@ -1111,7 +1157,10 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '999');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxMessages',
+          '999'
+        );
         const config = createTestConfig();
         const updateHandler = vi.fn();
 
@@ -1140,7 +1189,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '2h');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1165,7 +1216,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '30m');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1190,7 +1243,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '1d');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1215,7 +1270,9 @@ describe('SettingsDashboardHandler', () => {
 
         const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', 'off');
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1238,9 +1295,14 @@ describe('SettingsDashboardHandler', () => {
           },
         });
 
-        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', 'disabled');
+        const interaction = createModalInteraction(
+          'test-settings::modal::entity-1::maxAge',
+          'disabled'
+        );
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         await handleSettingsModal(interaction as never, config, updateHandler);
 
@@ -1314,22 +1376,48 @@ describe('SettingsDashboardHandler', () => {
         });
 
         const config = createTestConfig();
-        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
 
         // Test "hours"
-        const interaction1 = createModalInteraction('test-settings::modal::entity-1::maxAge', '2 hours');
+        const interaction1 = createModalInteraction(
+          'test-settings::modal::entity-1::maxAge',
+          '2 hours'
+        );
         await handleSettingsModal(interaction1 as never, config, updateHandler);
-        expect(updateHandler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'maxAge', 7200);
+        expect(updateHandler).toHaveBeenLastCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          7200
+        );
 
         // Test "minutes"
-        const interaction2 = createModalInteraction('test-settings::modal::entity-1::maxAge', '90 minutes');
+        const interaction2 = createModalInteraction(
+          'test-settings::modal::entity-1::maxAge',
+          '90 minutes'
+        );
         await handleSettingsModal(interaction2 as never, config, updateHandler);
-        expect(updateHandler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'maxAge', 5400);
+        expect(updateHandler).toHaveBeenLastCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          5400
+        );
 
         // Test "day"
-        const interaction3 = createModalInteraction('test-settings::modal::entity-1::maxAge', '1 day');
+        const interaction3 = createModalInteraction(
+          'test-settings::modal::entity-1::maxAge',
+          '1 day'
+        );
         await handleSettingsModal(interaction3 as never, config, updateHandler);
-        expect(updateHandler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'maxAge', 86400);
+        expect(updateHandler).toHaveBeenLastCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          86400
+        );
       });
     });
 
@@ -1344,7 +1432,10 @@ describe('SettingsDashboardHandler', () => {
         },
       });
 
-      const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '50');
+      const interaction = createModalInteraction(
+        'test-settings::modal::entity-1::maxMessages',
+        '50'
+      );
       const config = createTestConfig();
       const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
 
@@ -1365,7 +1456,10 @@ describe('SettingsDashboardHandler', () => {
         },
       });
 
-      const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '50');
+      const interaction = createModalInteraction(
+        'test-settings::modal::entity-1::maxMessages',
+        '50'
+      );
       const config = createTestConfig();
       const newData = createTestData();
       newData.maxMessages.localValue = 50;
