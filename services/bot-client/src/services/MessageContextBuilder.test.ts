@@ -754,13 +754,25 @@ describe('MessageContextBuilder', () => {
       });
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        useExtendedContext: true,
+        extendedContext: {
+          enabled: true,
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: {
+            enabled: 'global',
+            maxMessages: 'global',
+            maxAge: 'global',
+            maxImages: 'global',
+          },
+        },
         botUserId: 'bot-123',
       });
 
       // Verify channel fetcher was called with transcript retriever
       expect(mockFetchRecentMessages).toHaveBeenCalledWith(mockMessage.channel, {
-        limit: 100, // MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
+        limit: 20, // From resolved extendedContext.maxMessages
+        maxAge: null, // From resolved extendedContext.maxAge
         before: 'message-123',
         botUserId: 'bot-123',
         personalityName: 'Test Bot',
@@ -790,11 +802,22 @@ describe('MessageContextBuilder', () => {
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        useExtendedContext: false,
+        extendedContext: {
+          enabled: false,
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: {
+            enabled: 'global',
+            maxMessages: 'global',
+            maxAge: 'global',
+            maxImages: 'global',
+          },
+        },
         botUserId: 'bot-123',
       });
 
-      // Should not call channel fetcher
+      // Should not call channel fetcher when extended context is disabled
       expect(mockFetchRecentMessages).not.toHaveBeenCalled();
       expect(mockMergeWithHistory).not.toHaveBeenCalled();
     });
@@ -814,7 +837,18 @@ describe('MessageContextBuilder', () => {
       });
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        useExtendedContext: true,
+        extendedContext: {
+          enabled: true,
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: {
+            enabled: 'global',
+            maxMessages: 'global',
+            maxAge: 'global',
+            maxImages: 'global',
+          },
+        },
         // botUserId not provided
       });
 

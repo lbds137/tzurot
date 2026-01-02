@@ -57,6 +57,8 @@ export interface FetchOptions {
   resolveLinks?: boolean;
   /** Context epoch - ignore messages before this timestamp (from /history clear) */
   contextEpoch?: Date;
+  /** Maximum age in seconds - ignore messages older than this (null = disabled) */
+  maxAge?: number | null;
 }
 
 /**
@@ -211,6 +213,14 @@ export class DiscordChannelFetcher {
       // Skip messages before context epoch (user has cleared history)
       if (options.contextEpoch !== undefined && msg.createdAt < options.contextEpoch) {
         continue;
+      }
+
+      // Skip messages older than maxAge (if configured)
+      if (options.maxAge !== undefined && options.maxAge !== null) {
+        const cutoffTime = new Date(Date.now() - options.maxAge * 1000);
+        if (msg.createdAt < cutoffTime) {
+          continue;
+        }
       }
 
       // Convert to ConversationMessage (async for transcript retrieval)

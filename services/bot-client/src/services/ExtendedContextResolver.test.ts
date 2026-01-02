@@ -5,13 +5,10 @@
  * - Personality: null (AUTO), true (ON), false (OFF)
  * - Channel: null (AUTO), true (ON), false (OFF)
  *
- * Resolution cascade (first non-null wins):
- * 1. Personality OFF (false) → disabled
- * 2. Personality ON (true) → enabled
- * 3. Personality AUTO (null) → check channel
- * 4. Channel OFF (false) → disabled
- * 5. Channel ON (true) → enabled
- * 6. Channel AUTO (null) → use global default
+ * Resolution cascade (most restrictive wins):
+ * 1. If ANY level is OFF → disabled (OFF always wins)
+ * 2. If all non-null levels are ON → enabled
+ * 3. If all levels are AUTO → use global default
  *
  * @see docs/standards/TRI_STATE_PATTERN.md
  */
@@ -68,9 +65,22 @@ function createMockChannelSettings(extendedContext: boolean | null): GetChannelS
       personalityName: 'Test Personality',
       autoRespond: true,
       extendedContext,
+      extendedContextMaxMessages: null,
+      extendedContextMaxAge: null,
+      extendedContextMaxImages: null,
       activatedBy: 'user-123',
       createdAt: new Date().toISOString(),
     },
+  };
+}
+
+// Create mock admin settings response
+function createMockAdminSettings(extendedContextDefaultValue: boolean = false) {
+  return {
+    extendedContextDefault: extendedContextDefaultValue,
+    extendedContextMaxMessages: 20,
+    extendedContextMaxAge: null,
+    extendedContextMaxImages: 0,
   };
 }
 
@@ -79,6 +89,7 @@ describe('ExtendedContextResolver', () => {
   let mockGatewayClient: {
     getChannelSettings: ReturnType<typeof vi.fn>;
     getExtendedContextDefault: ReturnType<typeof vi.fn>;
+    getAdminSettings: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -86,6 +97,7 @@ describe('ExtendedContextResolver', () => {
     mockGatewayClient = {
       getChannelSettings: vi.fn(),
       getExtendedContextDefault: vi.fn(),
+      getAdminSettings: vi.fn().mockResolvedValue(createMockAdminSettings(false)),
     };
     resolver = new ExtendedContextResolver(mockGatewayClient as unknown as GatewayClient);
   });
@@ -94,32 +106,30 @@ describe('ExtendedContextResolver', () => {
     it('should be disabled when personality=OFF, channel=ON, global=true', async () => {
       const personality = createMockPersonality(false);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
       expect(result.enabled).toBe(false);
       expect(result.source).toBe('personality');
-      // Should not call gateway client at all
-      expect(mockGatewayClient.getChannelSettings).not.toHaveBeenCalled();
-      expect(mockGatewayClient.getExtendedContextDefault).not.toHaveBeenCalled();
     });
 
     it('should be disabled when personality=OFF, channel=OFF, global=true', async () => {
       const personality = createMockPersonality(false);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(false));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
       expect(result.enabled).toBe(false);
-      expect(result.source).toBe('personality');
+      // Both are OFF, source reports the first OFF found in hierarchy (channel is evaluated first)
+      expect(result.source).toBe('channel');
     });
 
     it('should be disabled when personality=OFF, channel=AUTO, global=true', async () => {
       const personality = createMockPersonality(false);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(null));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -128,36 +138,35 @@ describe('ExtendedContextResolver', () => {
     });
   });
 
-  describe('resolve - personality ON (true) takes precedence', () => {
-    it('should be enabled when personality=ON, channel=ON, global=false', async () => {
+  describe('resolve - personality ON (true) behavior', () => {
+    it('should be enabled when personality=ON, channel=ON (both agree)', async () => {
       const personality = createMockPersonality(true);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(false);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
       expect(result.enabled).toBe(true);
-      expect(result.source).toBe('personality');
-      // Should not call gateway client at all
-      expect(mockGatewayClient.getChannelSettings).not.toHaveBeenCalled();
-      expect(mockGatewayClient.getExtendedContextDefault).not.toHaveBeenCalled();
+      // Both are ON, source reports first ON found (channel is first non-null)
+      expect(result.source).toBe('channel');
     });
 
-    it('should be enabled when personality=ON, channel=OFF, global=false', async () => {
+    it('should be disabled when personality=ON, channel=OFF (OFF wins)', async () => {
       const personality = createMockPersonality(true);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(false));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(false);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
-      expect(result.enabled).toBe(true);
-      expect(result.source).toBe('personality');
+      // OFF is most restrictive, so it wins
+      expect(result.enabled).toBe(false);
+      expect(result.source).toBe('channel');
     });
 
-    it('should be enabled when personality=ON, channel=AUTO, global=false', async () => {
+    it('should be enabled when personality=ON, channel=AUTO (ON wins over AUTO)', async () => {
       const personality = createMockPersonality(true);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(null));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(false);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -170,42 +179,40 @@ describe('ExtendedContextResolver', () => {
     it('should be enabled when personality=AUTO, channel=ON, global=false', async () => {
       const personality = createMockPersonality(null);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
       expect(result.enabled).toBe(true);
       expect(result.source).toBe('channel');
-      expect(mockGatewayClient.getExtendedContextDefault).not.toHaveBeenCalled();
     });
 
     it('should be disabled when personality=AUTO, channel=OFF, global=true', async () => {
       const personality = createMockPersonality(null);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(false));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
       expect(result.enabled).toBe(false);
       expect(result.source).toBe('channel');
-      expect(mockGatewayClient.getExtendedContextDefault).not.toHaveBeenCalled();
     });
 
     it('should use global default when personality=AUTO, channel=AUTO, global=true', async () => {
       const personality = createMockPersonality(null);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(null));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
       expect(result.enabled).toBe(true);
       expect(result.source).toBe('global');
-      expect(mockGatewayClient.getExtendedContextDefault).toHaveBeenCalled();
     });
 
     it('should use global default when personality=AUTO, channel=AUTO, global=false', async () => {
       const personality = createMockPersonality(null);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(null));
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(false);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -220,7 +227,7 @@ describe('ExtendedContextResolver', () => {
       mockGatewayClient.getChannelSettings.mockResolvedValue({
         hasSettings: false,
       });
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(false);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -231,7 +238,7 @@ describe('ExtendedContextResolver', () => {
     it('should use global default when channel settings request returns null', async () => {
       const personality = createMockPersonality(null);
       mockGatewayClient.getChannelSettings.mockResolvedValue(null);
-      mockGatewayClient.getExtendedContextDefault.mockResolvedValue(true);
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(true));
 
       const result = await resolver.resolve('channel-123', personality);
 
@@ -243,6 +250,7 @@ describe('ExtendedContextResolver', () => {
       // extendedContext undefined should be treated as AUTO
       const personality = createMockPersonality(undefined);
       mockGatewayClient.getChannelSettings.mockResolvedValue(createMockChannelSettings(true));
+      mockGatewayClient.getAdminSettings.mockResolvedValue(createMockAdminSettings(false));
 
       const result = await resolver.resolve('channel-123', personality);
 

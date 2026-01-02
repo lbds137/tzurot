@@ -1,18 +1,26 @@
 /**
  * Extended Context Resolver
  *
- * Resolves whether extended context (Discord channel history) should be used
- * for AI responses. Implements 3-layer tri-state resolution:
+ * Resolves extended context settings (enabled, maxMessages, maxAge, maxImages)
+ * using 3-layer cascading resolution:
  *
- * Resolution cascade (first non-null value wins):
- * 1. Personality: If extendedContext is true/false, use it
- * 2. Channel: If extendedContext is true/false, use it
- * 3. Global: Use BotSettings.extended_context_default (defaults to false)
+ * Resolution hierarchy:
+ * 1. Channel OFF beats everything (server admin decision)
+ * 2. Personality can opt-out even in enabled channels
+ * 3. Numeric limits use "most restrictive wins" logic
  *
  * @see docs/standards/TRI_STATE_PATTERN.md
+ * @see docs/planning/EXTENDED_CONTEXT_IMPROVEMENTS.md
  */
 
-import { createLogger } from '@tzurot/common-types';
+import {
+  createLogger,
+  resolveExtendedContextSettings,
+  toGlobalSettings,
+  toLevelSettings,
+  type ResolvedExtendedContextSettings,
+  type LevelSettings,
+} from '@tzurot/common-types';
 import type { LoadedPersonality } from '../types.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
 
@@ -20,11 +28,13 @@ const logger = createLogger('ExtendedContextResolver');
 
 /**
  * Source of the extended context setting
+ * @deprecated Use ResolvedExtendedContextSettings.sources instead
  */
 export type ExtendedContextSource = 'personality' | 'channel' | 'global';
 
 /**
- * Result of resolving extended context setting
+ * Result of resolving extended context setting (legacy interface)
+ * @deprecated Use ResolvedExtendedContextSettings instead
  */
 export interface ExtendedContextResolution {
   /** Whether extended context is enabled */
@@ -34,21 +44,81 @@ export interface ExtendedContextResolution {
 }
 
 /**
- * Resolves extended context settings with caching
+ * Resolves extended context settings with 3-layer cascading
  */
 export class ExtendedContextResolver {
   constructor(private gatewayClient: GatewayClient) {}
 
   /**
+   * Resolve all extended context settings for a channel/personality
+   *
+   * Uses the new 3-layer resolver from common-types that properly handles:
+   * - Channel admin intent (OFF beats everything)
+   * - Personality opt-out
+   * - Most restrictive wins for numeric limits
+   *
+   * @param channelId - Discord channel ID
+   * @param personality - Loaded personality with extended context settings
+   * @returns Fully resolved settings with source tracking
+   */
+  async resolveAll(
+    channelId: string,
+    personality: LoadedPersonality
+  ): Promise<ResolvedExtendedContextSettings> {
+    // Fetch admin settings (global defaults)
+    const adminSettings = await this.gatewayClient.getAdminSettings();
+
+    // Use sensible defaults if admin settings unavailable (shouldn't happen in production)
+    const globalSettings = toGlobalSettings({
+      extendedContextDefault: adminSettings?.extendedContextDefault ?? true,
+      extendedContextMaxMessages: adminSettings?.extendedContextMaxMessages ?? 20,
+      extendedContextMaxAge: adminSettings?.extendedContextMaxAge ?? null,
+      extendedContextMaxImages: adminSettings?.extendedContextMaxImages ?? 0,
+    });
+
+    // Fetch channel settings
+    let channelLevelSettings: LevelSettings | null = null;
+    const channelResult = await this.gatewayClient.getChannelSettings(channelId);
+    if (channelResult?.hasSettings === true && channelResult.settings !== undefined) {
+      channelLevelSettings = toLevelSettings({
+        extendedContext: channelResult.settings.extendedContext,
+        extendedContextMaxMessages: channelResult.settings.extendedContextMaxMessages,
+        extendedContextMaxAge: channelResult.settings.extendedContextMaxAge,
+        extendedContextMaxImages: channelResult.settings.extendedContextMaxImages,
+      });
+    }
+
+    // Get personality settings
+    const personalityLevelSettings = toLevelSettings({
+      extendedContext: personality.extendedContext,
+      extendedContextMaxMessages: personality.extendedContextMaxMessages,
+      extendedContextMaxAge: personality.extendedContextMaxAge,
+      extendedContextMaxImages: personality.extendedContextMaxImages,
+    });
+
+    // Resolve using the 3-layer cascading logic
+    const resolved = resolveExtendedContextSettings(
+      globalSettings,
+      channelLevelSettings,
+      personalityLevelSettings
+    );
+
+    logger.debug(
+      {
+        channelId,
+        personalitySlug: personality.slug,
+        resolved,
+      },
+      '[ExtendedContextResolver] Resolved extended context settings'
+    );
+
+    return resolved;
+  }
+
+  /**
    * Resolve whether extended context should be used for a channel/personality
    *
-   * Resolution cascade (first non-null value wins):
-   * 1. Personality OFF (false) -> disabled
-   * 2. Personality ON (true) -> enabled
-   * 3. Personality AUTO (null) -> check channel
-   * 4. Channel OFF (false) -> disabled
-   * 5. Channel ON (true) -> enabled
-   * 6. Channel AUTO (null) -> use global default
+   * @deprecated Use resolveAll() to get all settings including limits
    *
    * @param channelId - Discord channel ID
    * @param personality - Loaded personality (includes extendedContext tri-state)
@@ -58,69 +128,11 @@ export class ExtendedContextResolver {
     channelId: string,
     personality: LoadedPersonality
   ): Promise<ExtendedContextResolution> {
-    // Check 1: Personality OFF (force disable)
-    if (personality.extendedContext === false) {
-      logger.debug(
-        { channelId, personalitySlug: personality.slug },
-        '[ExtendedContextResolver] Personality extended context OFF'
-      );
-      return {
-        enabled: false,
-        source: 'personality',
-      };
-    }
-
-    // Check 2: Personality ON (force enable)
-    if (personality.extendedContext === true) {
-      logger.debug(
-        { channelId, personalitySlug: personality.slug },
-        '[ExtendedContextResolver] Personality extended context ON'
-      );
-      return {
-        enabled: true,
-        source: 'personality',
-      };
-    }
-
-    // Check 3: Personality AUTO (null) - fall through to channel
-    const channelSettings = await this.gatewayClient.getChannelSettings(channelId);
-
-    if (channelSettings?.hasSettings === true && channelSettings.settings !== undefined) {
-      const channelExtendedContext = channelSettings.settings.extendedContext;
-
-      // Check 4: Channel OFF (force disable)
-      if (channelExtendedContext === false) {
-        logger.debug({ channelId }, '[ExtendedContextResolver] Channel extended context OFF');
-        return {
-          enabled: false,
-          source: 'channel',
-        };
-      }
-
-      // Check 5: Channel ON (force enable)
-      if (channelExtendedContext === true) {
-        logger.debug({ channelId }, '[ExtendedContextResolver] Channel extended context ON');
-        return {
-          enabled: true,
-          source: 'channel',
-        };
-      }
-    }
-
-    // Check 6: Channel AUTO (null) or no settings - use global default
-    const globalDefault = await this.gatewayClient.getExtendedContextDefault();
-
-    logger.debug(
-      {
-        channelId,
-        globalDefault,
-      },
-      '[ExtendedContextResolver] Using global extended context default'
-    );
+    const resolved = await this.resolveAll(channelId, personality);
 
     return {
-      enabled: globalDefault,
-      source: 'global',
+      enabled: resolved.enabled,
+      source: resolved.sources.enabled,
     };
   }
 }

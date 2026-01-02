@@ -25,6 +25,9 @@ const PERSONALITY_SELECT = {
   ownerId: true,
   updatedAt: true, // For avatar cache-busting
   extendedContext: true, // Extended context tri-state: null=auto, true=on, false=off
+  extendedContextMaxMessages: true, // Override max messages limit
+  extendedContextMaxAge: true, // Override max age (seconds)
+  extendedContextMaxImages: true, // Override max images to process
   characterInfo: true,
   personalityTraits: true,
   personalityTone: true,
