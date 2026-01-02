@@ -14,6 +14,7 @@ import {
   handleSettings,
   handleAdminSettingsButton,
   handleAdminSettingsSelectMenu,
+  handleAdminSettingsModal,
   isAdminSettingsInteraction,
 } from './settings.js';
 
@@ -314,6 +315,192 @@ describe('Admin Settings Dashboard', () => {
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
+
+    it('should call update handler when setting enabled to true', async () => {
+      const interaction = {
+        customId: 'admin-settings::set::global::enabled:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'global',
+          data: {
+            enabled: { localValue: false, effectiveValue: false, source: 'default' },
+            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
+            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
+            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: true }),
+      });
+
+      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextDefault: true },
+        'user-456'
+      );
+    });
+
+    it('should handle setting enabled to false', async () => {
+      const interaction = {
+        customId: 'admin-settings::set::global::enabled:false',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'global',
+          data: {
+            enabled: { localValue: true, effectiveValue: true, source: 'default' },
+            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
+            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
+            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: false }),
+      });
+
+      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextDefault: false },
+        'user-456'
+      );
+    });
+
+    it('should handle setting enabled to auto (default)', async () => {
+      const interaction = {
+        customId: 'admin-settings::set::global::enabled:auto',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'global',
+          data: {
+            enabled: { localValue: false, effectiveValue: false, source: 'default' },
+            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
+            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
+            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: true }),
+      });
+
+      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
+
+      // For global settings, auto means default (true)
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextDefault: true },
+        'user-456'
+      );
+    });
+
+    it('should handle API failure gracefully', async () => {
+      const interaction = {
+        customId: 'admin-settings::set::global::enabled:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'global',
+          data: {
+            enabled: { localValue: false, effectiveValue: false, source: 'default' },
+            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
+            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
+            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockAdminPatchJson.mockResolvedValue({
+        ok: false,
+        text: vi.fn().mockResolvedValue('Permission denied'),
+      });
+
+      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Permission denied'),
+        })
+      );
+    });
+
+    it('should handle unknown setting ID', async () => {
+      const interaction = {
+        customId: 'admin-settings::set::global::unknownSetting:value',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'global',
+          data: {
+            enabled: { localValue: true, effectiveValue: true, source: 'default' },
+            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
+            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
+            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
+          },
+          view: 'setting',
+          activeSetting: 'unknownSetting',
+        },
+      });
+
+      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Unknown setting'),
+        })
+      );
+    });
   });
 
   describe('handleAdminSettingsSelectMenu', () => {
@@ -326,6 +513,211 @@ describe('Admin Settings Dashboard', () => {
       await handleAdminSettingsSelectMenu(interaction);
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleAdminSettingsModal', () => {
+    const createMockModalInteraction = (customId: string, inputValue: string) => ({
+      customId,
+      user: { id: 'user-456' },
+      fields: {
+        getTextInputValue: vi.fn().mockReturnValue(inputValue),
+      },
+      reply: vi.fn(),
+      update: vi.fn(),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const createSessionWithSetting = (settingId: string) => ({
+      data: {
+        userId: 'user-456',
+        entityId: 'global',
+        data: {
+          enabled: { localValue: true, effectiveValue: true, source: 'default' },
+          maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
+          maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
+          maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
+        },
+        view: 'setting',
+        activeSetting: settingId,
+      },
+    });
+
+    it('should ignore non-admin-settings modal interactions', async () => {
+      const interaction = createMockModalInteraction('channel-context::modal::chan-123::enabled', '50');
+
+      await handleAdminSettingsModal(interaction as never);
+
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should update maxMessages setting', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxMessages',
+        '75'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxMessages: 75 }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxMessages: 75 },
+        'user-456'
+      );
+    });
+
+    it('should update maxAge setting with duration string (2h)', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxAge',
+        '2h'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxAge: 7200 }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxAge: 7200 }, // 2h = 7200 seconds
+        'user-456'
+      );
+    });
+
+    it('should update maxAge setting to "off" (disabled)', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxAge',
+        'off'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxAge: null }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxAge: null }, // "off" maps to null
+        'user-456'
+      );
+    });
+
+    it('should use default maxAge when set to "auto"', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxAge',
+        'auto'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxAge: 7200 }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      // For global settings, auto means use default (2 hours)
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxAge: 7200 },
+        'user-456'
+      );
+    });
+
+    it('should update maxImages setting', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxImages',
+        '10'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxImages: 10 }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxImages: 10 },
+        'user-456'
+      );
+    });
+
+    it('should use default maxImages when set to "auto"', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxImages',
+        'auto'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxImages: 0 }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      // For global settings, auto means use default (0)
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxImages: 0 },
+        'user-456'
+      );
+    });
+
+    it('should use default maxMessages when set to "auto"', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxMessages',
+        'auto'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockAdminPatchJson.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxMessages: 20 }),
+      });
+
+      await handleAdminSettingsModal(interaction as never);
+
+      // For global settings, auto means use default (20)
+      expect(mockAdminPatchJson).toHaveBeenCalledWith(
+        '/admin/settings',
+        { extendedContextMaxMessages: 20 },
+        'user-456'
+      );
+    });
+
+    it('should handle network error gracefully', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::maxMessages',
+        '50'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockAdminPatchJson.mockRejectedValue(new Error('Network error'));
+
+      // Should not throw
+      await handleAdminSettingsModal(interaction as never);
+
+      // When update fails, the handler returns early without editing the reply
+      // (preserves the previous dashboard state)
+      expect(mockAdminPatchJson).toHaveBeenCalled();
+      expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
 });

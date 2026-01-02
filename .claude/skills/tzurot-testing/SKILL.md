@@ -149,12 +149,27 @@ function createMockRedis() {
 
 ## When to Add Tests
 
-| Change           | Unit | Contract    | Integration    |
-| ---------------- | ---- | ----------- | -------------- |
-| New API endpoint | ✅   | ✅          | Consider       |
-| New service      | ✅   | If shared   | Consider       |
-| New utility      | ✅   | No          | No             |
-| Bug fix          | ✅   | If contract | If integration |
+| Change              | Unit | Contract      | Integration                    |
+| ------------------- | ---- | ------------- | ------------------------------ |
+| New API endpoint    | ✅   | ✅ Required   | ✅ If DB/multi-service         |
+| New `*.service.ts`  | ✅   | If shared     | ✅ For complex DB operations   |
+| New utility/helper  | ✅   | No            | No                             |
+| Bug fix             | ✅   | If contract   | If multi-component interaction |
+| New dashboard/modal | ✅   | If API types  | No (UI logic, mock sessions)   |
+
+### Integration Test Guidance
+
+**When Required**:
+- Database operations with complex queries (joins, transactions)
+- Cross-service communication (bot-client → api-gateway → ai-worker)
+- Business logic spanning multiple services
+
+**When NOT Needed**:
+- Pure utility functions
+- UI/Discord interaction handlers (mock the session/API instead)
+- Simple CRUD operations
+
+**Future Enhancement**: Service-pairing ratchet where every `*.service.ts` requires `*.integration.test.ts`
 
 ## Contract Tests
 
