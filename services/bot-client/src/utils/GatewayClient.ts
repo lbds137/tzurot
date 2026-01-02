@@ -12,9 +12,8 @@ import {
   INTERVALS,
   TIMEOUTS,
   TTLCache,
-  BotSettingKeys,
   type GetChannelSettingsResponse,
-  type GetBotSettingResponse,
+  type GetAdminSettingsResponse,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
@@ -32,12 +31,13 @@ const channelSettingsCache = new TTLCache<GetChannelSettingsResponse>({
 });
 
 /**
- * Cache for bot settings lookups.
+ * Cache for admin settings singleton.
  * Longer TTL since these change rarely (admin-only).
+ * Single entry since AdminSettings is a singleton.
  */
-const botSettingsCache = new TTLCache<GetBotSettingResponse>({
+const adminSettingsCache = new TTLCache<GetAdminSettingsResponse>({
   ttl: 60 * 1000, // 60 seconds
-  maxSize: 100,
+  maxSize: 1, // Singleton - only one entry needed
 });
 
 /**
@@ -374,22 +374,26 @@ export class GatewayClient {
   }
 
   /**
-   * Get a bot setting by key
+   * Cache key for admin settings singleton
+   */
+  private static readonly ADMIN_SETTINGS_CACHE_KEY = 'admin-settings';
+
+  /**
+   * Get admin settings singleton
    * Uses cache to reduce API calls for frequently accessed settings.
    *
-   * @param key - The setting key to fetch
-   * @returns The setting response or null on error
+   * @returns Admin settings or null on error
    */
-  async getBotSetting(key: string): Promise<GetBotSettingResponse | null> {
+  async getAdminSettings(): Promise<GetAdminSettingsResponse | null> {
     // Check cache first
-    const cached = botSettingsCache.get(key);
+    const cached = adminSettingsCache.get(GatewayClient.ADMIN_SETTINGS_CACHE_KEY);
     if (cached !== null) {
-      logger.debug({ key }, '[GatewayClient] Bot setting cache hit');
+      logger.debug('[GatewayClient] Admin settings cache hit');
       return cached;
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/admin/settings/${key}`, {
+      const response = await fetch(`${this.baseUrl}/admin/settings`, {
         headers: {
           'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
         },
@@ -397,21 +401,30 @@ export class GatewayClient {
       });
 
       if (!response.ok) {
-        logger.warn({ key, status: response.status }, '[GatewayClient] Bot setting fetch failed');
+        logger.warn({ status: response.status }, '[GatewayClient] Admin settings fetch failed');
         return null;
       }
 
-      const result = (await response.json()) as GetBotSettingResponse;
+      const result = (await response.json()) as GetAdminSettingsResponse;
 
       // Cache the result
-      botSettingsCache.set(key, result);
-      logger.debug({ key, found: result.found }, '[GatewayClient] Bot setting fetched and cached');
+      adminSettingsCache.set(GatewayClient.ADMIN_SETTINGS_CACHE_KEY, result);
+      logger.debug('[GatewayClient] Admin settings fetched and cached');
 
       return result;
     } catch (error) {
-      logger.error({ key, err: error }, '[GatewayClient] Failed to fetch bot setting');
+      logger.error({ err: error }, '[GatewayClient] Failed to fetch admin settings');
       return null;
     }
+  }
+
+  /**
+   * Invalidate the admin settings cache.
+   * Call this when admin settings are updated.
+   */
+  invalidateAdminSettingsCache(): void {
+    adminSettingsCache.delete(GatewayClient.ADMIN_SETTINGS_CACHE_KEY);
+    logger.debug('[GatewayClient] Invalidated admin settings cache');
   }
 
   /**
@@ -420,14 +433,13 @@ export class GatewayClient {
    * @returns true if extended context is enabled by default, false otherwise
    */
   async getExtendedContextDefault(): Promise<boolean> {
-    const setting = await this.getBotSetting(BotSettingKeys.EXTENDED_CONTEXT_DEFAULT);
+    const settings = await this.getAdminSettings();
 
-    if (setting === null || !setting.found || setting.setting === undefined) {
-      // Default to false if setting doesn't exist
+    if (settings === null) {
+      // Default to false if settings unavailable
       return false;
     }
 
-    // Parse boolean string value
-    return setting.setting.value === 'true';
+    return settings.extendedContextDefault;
   }
 }

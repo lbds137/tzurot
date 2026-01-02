@@ -1,11 +1,15 @@
 /**
- * Admin Bot Settings Routes
- * Owner-only endpoints for managing bot-wide settings
+ * Admin Settings Routes
+ * Owner-only endpoints for managing the global AdminSettings singleton
  *
  * Endpoints:
- * - GET /admin/settings - List all bot settings
- * - GET /admin/settings/:key - Get a specific setting
- * - PUT /admin/settings/:key - Update or create a setting
+ * - GET /admin/settings - Get the AdminSettings singleton
+ * - PATCH /admin/settings - Update AdminSettings fields
+ *
+ * This replaces the legacy key-value BotSettings pattern with
+ * a structured singleton model with typed columns.
+ *
+ * @see docs/planning/EXTENDED_CONTEXT_IMPROVEMENTS.md
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -13,11 +17,10 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  UpdateBotSettingRequestSchema,
-  ListBotSettingsResponseSchema,
-  GetBotSettingResponseSchema,
-  UpdateBotSettingResponseSchema,
-  generateBotSettingUuid,
+  GetAdminSettingsResponseSchema,
+  UpdateAdminSettingsRequestSchema,
+  UpdateAdminSettingsResponseSchema,
+  ADMIN_SETTINGS_SINGLETON_ID,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -30,15 +33,32 @@ interface AuthenticatedRequest extends Request {
   userId: string;
 }
 
+/**
+ * Get or create the AdminSettings singleton.
+ * Uses upsert to ensure the singleton always exists.
+ */
+async function getOrCreateSettings(
+  prisma: PrismaClient
+): ReturnType<typeof prisma.adminSettings.upsert> {
+  return prisma.adminSettings.upsert({
+    where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+    create: {
+      id: ADMIN_SETTINGS_SINGLETON_ID,
+      // All other fields use Prisma defaults
+    },
+    update: {}, // No-op if exists
+  });
+}
+
 export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
   const router = Router();
 
   /**
    * GET /admin/settings
-   * List all bot settings
+   * Get the AdminSettings singleton
    *
-   * Authorization: Uses isAuthorizedForRead() - allows service-only calls,
-   * requires bot owner for user-initiated requests.
+   * Authorization: Uses isAuthorizedForRead() - allows service-only calls
+   * (bot reading extended context defaults), requires bot owner for user requests.
    */
   router.get(
     '/',
@@ -48,98 +68,52 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      const settings = await prisma.botSettings.findMany({
-        orderBy: { key: 'asc' },
-        take: 100, // Bounded query - admin settings should be few
-      });
+      const settings = await getOrCreateSettings(prisma);
 
       const response = {
-        settings: settings.map(s => ({
-          id: s.id,
-          key: s.key,
-          value: s.value,
-          description: s.description,
-          updatedBy: s.updatedBy,
-          createdAt: s.createdAt.toISOString(),
-          updatedAt: s.updatedAt.toISOString(),
-        })),
+        id: settings.id,
+        updatedBy: settings.updatedBy,
+        createdAt: settings.createdAt.toISOString(),
+        updatedAt: settings.updatedAt.toISOString(),
+        extendedContextDefault: settings.extendedContextDefault,
+        extendedContextMaxMessages: settings.extendedContextMaxMessages,
+        extendedContextMaxAge: settings.extendedContextMaxAge,
+        extendedContextMaxImages: settings.extendedContextMaxImages,
       };
 
-      ListBotSettingsResponseSchema.parse(response);
+      GetAdminSettingsResponseSchema.parse(response);
       sendCustomSuccess(res, response, StatusCodes.OK);
     })
   );
 
   /**
-   * GET /admin/settings/:key
-   * Get a specific bot setting
-   *
-   * Authorization: Uses isAuthorizedForRead() - allows service-only calls
-   * (e.g., bot reading extended_context_default), requires bot owner for user requests.
-   */
-  router.get(
-    '/:key',
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      if (!isAuthorizedForRead(req.userId)) {
-        sendError(res, ErrorResponses.unauthorized('Only bot owners can view settings'));
-        return;
-      }
-
-      const { key } = req.params;
-
-      const setting = await prisma.botSettings.findUnique({
-        where: { key },
-      });
-
-      if (setting === null) {
-        const response = { found: false };
-        GetBotSettingResponseSchema.parse(response);
-        sendCustomSuccess(res, response, StatusCodes.OK);
-        return;
-      }
-
-      const response = {
-        found: true,
-        setting: {
-          id: setting.id,
-          key: setting.key,
-          value: setting.value,
-          description: setting.description,
-          updatedBy: setting.updatedBy,
-          createdAt: setting.createdAt.toISOString(),
-          updatedAt: setting.updatedAt.toISOString(),
-        },
-      };
-
-      GetBotSettingResponseSchema.parse(response);
-      sendCustomSuccess(res, response, StatusCodes.OK);
-    })
-  );
-
-  /**
-   * PUT /admin/settings/:key
-   * Update or create a bot setting
+   * PATCH /admin/settings
+   * Update AdminSettings fields
    *
    * Authorization: Uses isAuthorizedForWrite() - always requires bot owner.
    */
-  router.put(
-    '/:key',
+  router.patch(
+    '/',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       if (!isAuthorizedForWrite(req.userId)) {
         sendError(res, ErrorResponses.unauthorized('Only bot owners can modify settings'));
         return;
       }
 
-      const { key } = req.params;
-
       // Validate request body
-      const parseResult = UpdateBotSettingRequestSchema.safeParse(req.body);
+      const parseResult = UpdateAdminSettingsRequestSchema.safeParse(req.body);
       if (!parseResult.success) {
         sendError(res, ErrorResponses.validationError(parseResult.error.message));
         return;
       }
 
-      const { value, description } = parseResult.data;
+      const updates = parseResult.data;
+
+      // Check if any fields are being updated
+      if (Object.keys(updates).length === 0) {
+        sendError(res, ErrorResponses.validationError('No fields to update'));
+        return;
+      }
 
       // Get the user's internal UUID
       const user = await prisma.user.findFirst({
@@ -152,47 +126,35 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
         return;
       }
 
-      // Check if setting exists
-      const existing = await prisma.botSettings.findUnique({
-        where: { key },
-      });
-
-      const created = existing === null;
-
-      // Upsert the setting
-      const setting = await prisma.botSettings.upsert({
-        where: { key },
-        update: {
-          value,
-          description: description ?? existing?.description,
-          updatedBy: user.id,
-        },
+      // Update the singleton (upsert to ensure it exists)
+      const settings = await prisma.adminSettings.upsert({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
         create: {
-          id: generateBotSettingUuid(key),
-          key,
-          value,
-          description: description ?? null,
+          id: ADMIN_SETTINGS_SINGLETON_ID,
           updatedBy: user.id,
+          ...updates,
+        },
+        update: {
+          updatedBy: user.id,
+          ...updates,
         },
       });
 
-      logger.info({ key, value, updatedBy: req.userId, created }, 'Bot setting updated');
+      logger.info({ updates, updatedBy: req.userId }, 'AdminSettings updated');
 
       const response = {
-        setting: {
-          id: setting.id,
-          key: setting.key,
-          value: setting.value,
-          description: setting.description,
-          updatedBy: setting.updatedBy,
-          createdAt: setting.createdAt.toISOString(),
-          updatedAt: setting.updatedAt.toISOString(),
-        },
-        created,
+        id: settings.id,
+        updatedBy: settings.updatedBy,
+        createdAt: settings.createdAt.toISOString(),
+        updatedAt: settings.updatedAt.toISOString(),
+        extendedContextDefault: settings.extendedContextDefault,
+        extendedContextMaxMessages: settings.extendedContextMaxMessages,
+        extendedContextMaxAge: settings.extendedContextMaxAge,
+        extendedContextMaxImages: settings.extendedContextMaxImages,
       };
 
-      UpdateBotSettingResponseSchema.parse(response);
-      sendCustomSuccess(res, response, created ? StatusCodes.CREATED : StatusCodes.OK);
+      UpdateAdminSettingsResponseSchema.parse(response);
+      sendCustomSuccess(res, response, StatusCodes.OK);
     })
   );
 

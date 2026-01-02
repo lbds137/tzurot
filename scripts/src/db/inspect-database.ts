@@ -218,7 +218,9 @@ async function main(): Promise<void> {
 
   console.log('🔍 DATABASE INSPECTOR');
   console.log('═'.repeat(70));
-  console.log(`   Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('/')[0] ?? 'unknown'}`);
+  console.log(
+    `   Database: ${process.env.DATABASE_URL?.split('@')[1]?.split('/')[0] ?? 'unknown'}`
+  );
 
   // Parse arguments
   const showIndexes = args.includes('--indexes') || args.includes('-i');
