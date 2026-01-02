@@ -6,7 +6,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
-import type { ChatInputCommandInteraction, ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import {
   handleContext,
   handleChannelContextButton,
@@ -80,7 +84,9 @@ describe('Channel Context Dashboard', () => {
     extendedContextMaxImages: 5,
   };
 
-  const createMockInteraction = (hasPermission = true): ChatInputCommandInteraction & {
+  const createMockInteraction = (
+    hasPermission = true
+  ): ChatInputCommandInteraction & {
     reply: ReturnType<typeof vi.fn>;
     editReply: ReturnType<typeof vi.fn>;
     deferred: boolean;
@@ -259,7 +265,9 @@ describe('Channel Context Dashboard', () => {
   describe('isChannelContextInteraction', () => {
     it('should return true for channel context custom IDs', () => {
       expect(isChannelContextInteraction('channel-context::select::chan-123')).toBe(true);
-      expect(isChannelContextInteraction('channel-context::set::chan-123::enabled:true')).toBe(true);
+      expect(isChannelContextInteraction('channel-context::set::chan-123::enabled:true')).toBe(
+        true
+      );
       expect(isChannelContextInteraction('channel-context::back::chan-123')).toBe(true);
       expect(isChannelContextInteraction('channel-context::close::chan-123')).toBe(true);
     });

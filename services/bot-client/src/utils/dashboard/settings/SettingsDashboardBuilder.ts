@@ -151,7 +151,8 @@ export function buildSettingEmbed(
       }
       case SettingType.DURATION: {
         const durationValue = value.effectiveValue as number | null;
-        inheritedDisplay = durationValue === null ? 'Off' : Duration.fromSeconds(durationValue).toHuman();
+        inheritedDisplay =
+          durationValue === null ? 'Off' : Duration.fromSeconds(durationValue).toHuman();
         break;
       }
       default:
@@ -223,7 +224,9 @@ export function buildTriStateButtons(
   // Auto button (inherit from parent)
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:auto`))
+      .setCustomId(
+        buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:auto`)
+      )
       .setLabel('Auto (Inherit)')
       .setEmoji('🔄')
       .setStyle(localValue === null ? ButtonStyle.Primary : ButtonStyle.Secondary)
@@ -232,7 +235,9 @@ export function buildTriStateButtons(
   // Enable button
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:true`))
+      .setCustomId(
+        buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:true`)
+      )
       .setLabel('Enable')
       .setEmoji('✅')
       .setStyle(localValue === true ? ButtonStyle.Success : ButtonStyle.Secondary)
@@ -241,7 +246,9 @@ export function buildTriStateButtons(
   // Disable button
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:false`))
+      .setCustomId(
+        buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:false`)
+      )
       .setLabel('Disable')
       .setEmoji('❌')
       .setStyle(localValue === false ? ButtonStyle.Danger : ButtonStyle.Secondary)
@@ -275,7 +282,9 @@ export function buildEditButtons(
   // Reset to auto button (only show if there's an override)
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:auto`))
+      .setCustomId(
+        buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:auto`)
+      )
       .setLabel('Reset to Auto')
       .setEmoji('🔄')
       .setStyle(ButtonStyle.Secondary)

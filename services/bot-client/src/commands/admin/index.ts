@@ -113,9 +113,7 @@ export const data = new SlashCommandBuilder()
       )
   )
   .addSubcommand(subcommand =>
-    subcommand
-      .setName('settings')
-      .setDescription('Open global settings dashboard')
+    subcommand.setName('settings').setDescription('Open global settings dashboard')
   );
 
 /**
