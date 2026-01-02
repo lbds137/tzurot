@@ -59,7 +59,8 @@ export function createExtendedContextHandler(prisma: PrismaClient): RequestHandl
     if (extendedContext !== undefined) updateData.extendedContext = extendedContext;
     if (extendedContextMaxMessages !== undefined)
       updateData.extendedContextMaxMessages = extendedContextMaxMessages;
-    if (extendedContextMaxAge !== undefined) updateData.extendedContextMaxAge = extendedContextMaxAge;
+    if (extendedContextMaxAge !== undefined)
+      updateData.extendedContextMaxAge = extendedContextMaxAge;
     if (extendedContextMaxImages !== undefined)
       updateData.extendedContextMaxImages = extendedContextMaxImages;
 

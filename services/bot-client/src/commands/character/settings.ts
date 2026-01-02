@@ -228,21 +228,25 @@ async function handleShow(
 
   // Extended Context Enabled
   const extendedContextValue = personality.extendedContext;
-  const extendedContextEffective =
-    extendedContextValue ?? adminSettings.extendedContextDefault;
+  const extendedContextEffective = extendedContextValue ?? adminSettings.extendedContextDefault;
   const extendedContextSource: ExtendedContextSource =
     extendedContextValue !== null ? 'personality' : 'global';
 
   embed.addFields({
     name: 'Extended Context',
-    value: formatSettingValue(extendedContextValue, extendedContextEffective, extendedContextSource),
+    value: formatSettingValue(
+      extendedContextValue,
+      extendedContextEffective,
+      extendedContextSource
+    ),
     inline: false,
   });
 
   // Max Messages
   const maxMessagesValue = personality.extendedContextMaxMessages;
   const maxMessagesEffective = maxMessagesValue ?? adminSettings.extendedContextMaxMessages;
-  const maxMessagesSource: ExtendedContextSource = maxMessagesValue !== null ? 'personality' : 'global';
+  const maxMessagesSource: ExtendedContextSource =
+    maxMessagesValue !== null ? 'personality' : 'global';
 
   embed.addFields({
     name: 'Max Messages',
@@ -305,7 +309,8 @@ function formatNumericSetting(
   effective: number,
   source: ExtendedContextSource
 ): string {
-  const characterLabel = characterValue === null || characterValue === undefined ? 'Auto' : `${characterValue}`;
+  const characterLabel =
+    characterValue === null || characterValue === undefined ? 'Auto' : `${characterValue}`;
   return `Setting: **${characterLabel}**\nEffective: **${effective}** (from ${source})`;
 }
 
@@ -346,7 +351,10 @@ async function handleSetMaxMessages(
 
     if (!result.ok) {
       await interaction.editReply({
-        content: result.status === 404 ? `Character "${characterSlug}" not found.` : `Failed: ${result.error}`,
+        content:
+          result.status === 404
+            ? `Character "${characterSlug}" not found.`
+            : `Failed: ${result.error}`,
       });
       return;
     }
@@ -355,7 +363,7 @@ async function handleSetMaxMessages(
     const adminSettings = await gatewayClient.getAdminSettings();
 
     const characterValue = result.data.personality.extendedContextMaxMessages;
-    const effectiveValue = characterValue ?? (adminSettings?.extendedContextMaxMessages ?? 20);
+    const effectiveValue = characterValue ?? adminSettings?.extendedContextMaxMessages ?? 20;
 
     await interaction.editReply({
       content:
@@ -373,7 +381,9 @@ async function handleSetMaxMessages(
 
   // Validate range
   if (updateValue !== null && (updateValue < 1 || updateValue > 100)) {
-    await interaction.editReply({ content: 'Max messages must be between 1 and 100, or 0 for auto.' });
+    await interaction.editReply({
+      content: 'Max messages must be between 1 and 100, or 0 for auto.',
+    });
     return;
   }
 
@@ -388,7 +398,10 @@ async function handleSetMaxMessages(
     return;
   }
 
-  logger.info({ characterSlug, value: updateValue, userId }, '[Character Settings] Max messages updated');
+  logger.info(
+    { characterSlug, value: updateValue, userId },
+    '[Character Settings] Max messages updated'
+  );
 
   if (updateValue === null) {
     await interaction.editReply({
@@ -420,7 +433,10 @@ async function handleSetMaxAge(
 
     if (!result.ok) {
       await interaction.editReply({
-        content: result.status === 404 ? `Character "${characterSlug}" not found.` : `Failed: ${result.error}`,
+        content:
+          result.status === 404
+            ? `Character "${characterSlug}" not found.`
+            : `Failed: ${result.error}`,
       });
       return;
     }
@@ -537,7 +553,10 @@ async function handleSetMaxImages(
 
     if (!result.ok) {
       await interaction.editReply({
-        content: result.status === 404 ? `Character "${characterSlug}" not found.` : `Failed: ${result.error}`,
+        content:
+          result.status === 404
+            ? `Character "${characterSlug}" not found.`
+            : `Failed: ${result.error}`,
       });
       return;
     }
@@ -546,7 +565,7 @@ async function handleSetMaxImages(
     const adminSettings = await gatewayClient.getAdminSettings();
 
     const characterValue = result.data.personality.extendedContextMaxImages;
-    const effectiveValue = characterValue ?? (adminSettings?.extendedContextMaxImages ?? 0);
+    const effectiveValue = characterValue ?? adminSettings?.extendedContextMaxImages ?? 0;
 
     await interaction.editReply({
       content:

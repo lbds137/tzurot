@@ -366,7 +366,9 @@ describe('Character Settings Subcommand', () => {
     });
 
     it('should reject invalid duration format', async () => {
-      const interaction = createMockInteraction('set-max-age', 'test-char', { duration: 'invalid' });
+      const interaction = createMockInteraction('set-max-age', 'test-char', {
+        duration: 'invalid',
+      });
 
       await handleSettings(interaction, mockConfig);
 
