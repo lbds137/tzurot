@@ -21,8 +21,9 @@ const mockVisionCacheStore = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../redis.js', () => ({
   checkModelVisionSupport: (modelId: string) => mockCheckModelVisionSupport(modelId),
   visionDescriptionCache: {
-    get: (url: string) => mockVisionCacheGet(url),
-    store: (url: string, description: string) => mockVisionCacheStore(url, description),
+    get: (options: { attachmentId?: string; url: string }) => mockVisionCacheGet(options),
+    store: (options: { attachmentId?: string; url: string; model?: string }, description: string) =>
+      mockVisionCacheStore(options, description),
   },
 }));
 
@@ -80,6 +81,7 @@ describe('VisionProcessor', () => {
 
   describe('describeImage', () => {
     const mockAttachment: AttachmentMetadata = {
+      id: '123456789012345678',
       url: 'https://example.com/test-image.png',
       name: 'test-image.png',
       contentType: 'image/png',
@@ -369,7 +371,10 @@ describe('VisionProcessor', () => {
         const result = await describeImage(mockAttachment, personality);
 
         expect(result).toBe(cachedDescription);
-        expect(mockVisionCacheGet).toHaveBeenCalledWith(mockAttachment.url);
+        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+        });
         // Should NOT call the vision API
         expect(mockChatOpenAIInvoke).not.toHaveBeenCalled();
         // Should NOT store in cache (already cached)
@@ -394,10 +399,13 @@ describe('VisionProcessor', () => {
         const result = await describeImage(mockAttachment, personality);
 
         expect(result).toBe('Mocked image description');
-        expect(mockVisionCacheGet).toHaveBeenCalledWith(mockAttachment.url);
+        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+        });
         expect(mockChatOpenAIInvoke).toHaveBeenCalledTimes(1);
         expect(mockVisionCacheStore).toHaveBeenCalledWith(
-          mockAttachment.url,
+          { attachmentId: mockAttachment.id, url: mockAttachment.url, model: 'gpt-4o' },
           'Mocked image description'
         );
       });
@@ -423,7 +431,10 @@ describe('VisionProcessor', () => {
         );
 
         // Should have checked cache
-        expect(mockVisionCacheGet).toHaveBeenCalledWith(mockAttachment.url);
+        expect(mockVisionCacheGet).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+        });
         // Should NOT have stored anything (API failed)
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
       });

@@ -520,3 +520,22 @@ model JobResult {
   @@index([status, completedAt])
   @@map("job_results")
 }
+
+/// Persistent L2 cache for vision (image) descriptions.
+/// Survives Redis restarts and reduces API costs by storing descriptions long-term.
+/// L1 (Redis) is checked first; L2 (PostgreSQL) is fallback.
+/// Uses Discord attachment snowflake ID as stable cache key.
+model ImageDescriptionCache {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Discord attachment snowflake ID - stable identifier for the image
+  attachmentId String   @unique @map("attachment_id") @db.VarChar(20)
+  /// The generated image description
+  description  String
+  /// Model that generated the description (for cache invalidation if model changes)
+  model        String   @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([attachmentId])
+  @@map("image_description_cache")
+}

@@ -8,7 +8,8 @@
     "db:check-drift": "tsx src/db/check-migration-drift.ts",
     "db:fix-drift": "tsx src/db/fix-migration-drift.ts",
     "db:inspect": "tsx src/db/inspect-database.ts",
-    "db:migrate:safe": "tsx src/db/create-safe-migration.ts"
+    "db:migrate:safe": "tsx src/db/create-safe-migration.ts",
+    "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts"
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
