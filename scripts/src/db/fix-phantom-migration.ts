@@ -16,7 +16,9 @@ async function main() {
   console.log(`\n🔍 Checking for migration: ${migrationName}...\n`);
 
   // 1. Check if it exists
-  const existing = await prisma.$queryRaw<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }[]>`
+  const existing = await prisma.$queryRaw<
+    { migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }[]
+  >`
     SELECT migration_name, finished_at, rolled_back_at
     FROM _prisma_migrations
     WHERE migration_name = ${migrationName}
@@ -38,12 +40,15 @@ async function main() {
   const recent = await prisma.$queryRaw<{ migration_name: string }[]>`
     SELECT migration_name FROM _prisma_migrations ORDER BY started_at DESC LIMIT 5
   `;
-  console.log('\n📋 Recent migrations:', recent.map(r => r.migration_name));
+  console.log(
+    '\n📋 Recent migrations:',
+    recent.map(r => r.migration_name)
+  );
 
   await disconnectPrisma();
 }
 
-main().catch(async (e) => {
+main().catch(async e => {
   console.error(e);
   await disconnectPrisma();
   process.exit(1);

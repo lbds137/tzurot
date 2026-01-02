@@ -17,12 +17,14 @@
 Three phases of improvements to the extended context system:
 
 ### Phase 1: Time Gap Markers
+
 - ✅ `formatTimeGap()` utility - human-readable gap formatting ("2 hours 15 minutes")
 - ✅ `shouldShowGap()` with configurable threshold (default: 1 hour)
 - ✅ `<time_gap duration="...">` markers injected into conversation XML
 - ✅ Tests for gap formatting and conversation history injection
 
 ### Phase 2: Interactive Settings Dashboard
+
 - ✅ `/admin settings extended-context` - global defaults dashboard with edit modals
 - ✅ `/channel settings extended-context` - channel-level overrides with cascade resolution
 - ✅ `/character settings extended-context` - personality-level opt-out
@@ -30,6 +32,7 @@ Three phases of improvements to the extended context system:
 - ✅ Shared `settingsConfig.ts` for consistent field definitions
 
 ### Phase 3: Vision Cache L2 (Persistent)
+
 - ✅ `ImageDescriptionCache` Prisma model - PostgreSQL L2 cache
 - ✅ `PersistentVisionCache` service - L2 cache operations
 - ✅ Two-tier caching: L1 (Redis) → L2 (PostgreSQL) fallback
