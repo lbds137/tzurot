@@ -1,78 +1,143 @@
 /**
- * Admin Settings Subcommand
+ * Admin Settings Dashboard
  *
- * Manages global bot settings via AdminSettings singleton (owner only).
+ * Interactive dashboard for managing global bot settings (owner only).
+ * Uses button-based UI with modals for value editing.
  *
- * Actions:
- * - show: Display current settings dashboard
- * - toggle-extended-context: Toggle extended context default (on/off)
- * - set-max-messages: Set max messages for extended context (1-100)
- * - set-max-age: Set max age for extended context (e.g., "2h", "off")
- * - set-max-images: Set max images for extended context (0-20)
+ * Settings:
+ * - Extended Context Default: Enable/Disable/Auto
+ * - Max Messages: 1-100
+ * - Max Age: Duration or Off
+ * - Max Images: 0-20
  *
  * @see docs/planning/EXTENDED_CONTEXT_IMPROVEMENTS.md
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { EmbedBuilder } from 'discord.js';
-import {
-  createLogger,
-  Duration,
-  DISCORD_COLORS,
-  type GetAdminSettingsResponse,
-} from '@tzurot/common-types';
+import type {
+  ChatInputCommandInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
+import { createLogger, DISCORD_COLORS, type GetAdminSettingsResponse } from '@tzurot/common-types';
 import { adminFetch, adminPatchJson } from '../../utils/adminApiClient.js';
+import {
+  type SettingsDashboardConfig,
+  type SettingsDashboardSession,
+  type SettingsData,
+  type SettingUpdateResult,
+  createSettingsDashboard,
+  handleSettingsSelectMenu,
+  handleSettingsButton,
+  handleSettingsModal,
+  isSettingsInteraction,
+  EXTENDED_CONTEXT_SETTINGS,
+} from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('admin-settings');
 
-type SettingsAction =
-  | 'show'
-  | 'toggle-extended-context'
-  | 'set-max-messages'
-  | 'set-max-age'
-  | 'set-max-images';
+/**
+ * Entity type for custom IDs
+ */
+const ENTITY_TYPE = 'admin-settings';
 
 /**
- * Handle /admin settings command
+ * Dashboard configuration for admin settings
+ */
+const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
+  level: 'global',
+  entityType: ENTITY_TYPE,
+  titlePrefix: 'Global',
+  color: DISCORD_COLORS.BLURPLE,
+  settings: EXTENDED_CONTEXT_SETTINGS,
+};
+
+/**
+ * Handle /admin settings command - shows interactive dashboard
  */
 export async function handleSettings(interaction: ChatInputCommandInteraction): Promise<void> {
-  const action = interaction.options.getString('action', true) as SettingsAction;
   const userId = interaction.user.id;
 
-  logger.debug({ action, userId }, '[Admin Settings] Processing settings action');
+  logger.debug({ userId }, '[Admin Settings] Opening dashboard');
 
   try {
-    switch (action) {
-      case 'show':
-        await handleShow(interaction);
-        break;
-      case 'toggle-extended-context':
-        await handleToggleExtendedContext(interaction);
-        break;
-      case 'set-max-messages':
-        await handleSetMaxMessages(interaction);
-        break;
-      case 'set-max-age':
-        await handleSetMaxAge(interaction);
-        break;
-      case 'set-max-images':
-        await handleSetMaxImages(interaction);
-        break;
-      default:
-        await interaction.editReply({
-          content: `Unknown action: ${action as string}`,
-        });
-    }
-  } catch (error) {
-    logger.error({ err: error, action }, '[Admin Settings] Error handling settings action');
+    // Fetch current settings from API gateway
+    const settings = await fetchAdminSettings(userId);
 
-    // Only respond if we haven't already (deferReply is handled by top-level handler)
+    if (settings === null) {
+      await interaction.editReply({
+        content: 'Failed to fetch admin settings.',
+      });
+      return;
+    }
+
+    // Convert API response to dashboard data format
+    const data = convertToSettingsData(settings);
+
+    // Create and display the dashboard
+    await createSettingsDashboard(interaction, {
+      config: ADMIN_SETTINGS_CONFIG,
+      data,
+      entityId: 'global',
+      entityName: 'Global Settings',
+      userId,
+      updateHandler: handleSettingUpdate,
+    });
+
+    logger.info({ userId }, '[Admin Settings] Dashboard opened');
+  } catch (error) {
+    logger.error({ err: error }, '[Admin Settings] Error opening dashboard');
+
     if (!interaction.replied) {
       await interaction.editReply({
-        content: 'An error occurred while processing your request.',
+        content: 'An error occurred while opening the settings dashboard.',
       });
     }
   }
+}
+
+/**
+ * Handle select menu interactions for admin settings
+ */
+export async function handleAdminSettingsSelectMenu(
+  interaction: StringSelectMenuInteraction
+): Promise<void> {
+  if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
+    return;
+  }
+
+  await handleSettingsSelectMenu(interaction, ADMIN_SETTINGS_CONFIG, handleSettingUpdate);
+}
+
+/**
+ * Handle button interactions for admin settings
+ */
+export async function handleAdminSettingsButton(interaction: ButtonInteraction): Promise<void> {
+  if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
+    return;
+  }
+
+  await handleSettingsButton(interaction, ADMIN_SETTINGS_CONFIG, handleSettingUpdate);
+}
+
+/**
+ * Handle modal submissions for admin settings
+ */
+export async function handleAdminSettingsModal(
+  interaction: ModalSubmitInteraction
+): Promise<void> {
+  if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
+    return;
+  }
+
+  await handleSettingsModal(interaction, ADMIN_SETTINGS_CONFIG, handleSettingUpdate);
+}
+
+/**
+ * Check if a custom ID belongs to admin settings dashboard
+ */
+export function isAdminSettingsInteraction(customId: string): boolean {
+  return isSettingsInteraction(customId, ENTITY_TYPE);
 }
 
 /**
@@ -92,273 +157,114 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
 }
 
 /**
- * Update AdminSettings via API gateway
+ * Convert API response to dashboard SettingsData format
  */
-async function updateAdminSettings(
-  userId: string,
-  updates: Record<string, unknown>
-): Promise<{ success: boolean; error?: string; data?: GetAdminSettingsResponse }> {
-  const response = await adminPatchJson('/admin/settings', updates, userId);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    return { success: false, error: errorText };
-  }
-
-  const data = (await response.json()) as GetAdminSettingsResponse;
-  return { success: true, data };
+function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData {
+  return {
+    enabled: {
+      localValue: settings.extendedContextDefault,
+      effectiveValue: settings.extendedContextDefault,
+      source: 'default',
+    },
+    maxMessages: {
+      localValue: settings.extendedContextMaxMessages,
+      effectiveValue: settings.extendedContextMaxMessages,
+      source: 'default',
+    },
+    maxAge: {
+      localValue: settings.extendedContextMaxAge,
+      effectiveValue: settings.extendedContextMaxAge,
+      source: 'default',
+    },
+    maxImages: {
+      localValue: settings.extendedContextMaxImages,
+      effectiveValue: settings.extendedContextMaxImages,
+      source: 'default',
+    },
+  };
 }
 
 /**
- * Build settings dashboard embed
+ * Handle setting updates from the dashboard
  */
-function buildSettingsEmbed(settings: GetAdminSettingsResponse): EmbedBuilder {
-  const maxAgeDuration = Duration.fromDb(settings.extendedContextMaxAge);
+async function handleSettingUpdate(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  _session: SettingsDashboardSession,
+  settingId: string,
+  newValue: unknown
+): Promise<SettingUpdateResult> {
+  const userId = interaction.user.id;
 
-  return new EmbedBuilder()
-    .setTitle('Admin Settings')
-    .setDescription('Global bot configuration for extended context and other features.')
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .addFields(
-      {
-        name: 'Extended Context Default',
-        value: settings.extendedContextDefault ? '**Enabled**' : '**Disabled**',
-        inline: true,
-      },
-      {
-        name: 'Max Messages',
-        value: `**${settings.extendedContextMaxMessages}**`,
-        inline: true,
-      },
-      {
-        name: 'Max Age',
-        value: `**${maxAgeDuration.toHuman()}**`,
-        inline: true,
-      },
-      {
-        name: 'Max Images',
-        value: `**${settings.extendedContextMaxImages}**`,
-        inline: true,
-      }
-    )
-    .setFooter({ text: `Last updated: ${new Date(settings.updatedAt).toLocaleString()}` })
-    .setTimestamp();
-}
+  logger.debug({ settingId, newValue, userId }, '[Admin Settings] Updating setting');
 
-/**
- * Show current settings dashboard
- */
-async function handleShow(interaction: ChatInputCommandInteraction): Promise<void> {
-  const settings = await fetchAdminSettings(interaction.user.id);
-
-  if (settings === null) {
-    await interaction.editReply({
-      content: 'Failed to fetch admin settings.',
-    });
-    return;
-  }
-
-  const embed = buildSettingsEmbed(settings);
-  await interaction.editReply({ embeds: [embed] });
-}
-
-/**
- * Toggle extended context default on/off
- */
-async function handleToggleExtendedContext(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  // Fetch current settings
-  const current = await fetchAdminSettings(interaction.user.id);
-  if (current === null) {
-    await interaction.editReply({ content: 'Failed to fetch current settings.' });
-    return;
-  }
-
-  // Toggle the value
-  const newValue = !current.extendedContextDefault;
-  const result = await updateAdminSettings(interaction.user.id, {
-    extendedContextDefault: newValue,
-  });
-
-  if (!result.success) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
-
-  logger.info(
-    { newValue, userId: interaction.user.id },
-    '[Admin Settings] Extended context default toggled'
-  );
-
-  await interaction.editReply({
-    content:
-      `**Extended context ${newValue ? 'enabled' : 'disabled'} globally by default.**\n\n` +
-      (newValue
-        ? 'Channels without explicit overrides will now have extended context enabled.'
-        : 'Channels without explicit overrides will now have extended context disabled.'),
-  });
-}
-
-/**
- * Set max messages for extended context
- */
-async function handleSetMaxMessages(interaction: ChatInputCommandInteraction): Promise<void> {
-  const value = interaction.options.getInteger('value');
-
-  if (value === null) {
-    // Show current value
-    const settings = await fetchAdminSettings(interaction.user.id);
-    if (settings === null) {
-      await interaction.editReply({ content: 'Failed to fetch current settings.' });
-      return;
-    }
-    await interaction.editReply({
-      content: `**Current max messages:** ${settings.extendedContextMaxMessages}\n\nTo change, use \`/admin settings action:set-max-messages value:<1-100>\``,
-    });
-    return;
-  }
-
-  // Validate range (Zod in API will also validate, but good UX to check early)
-  if (value < 1 || value > 100) {
-    await interaction.editReply({ content: 'Max messages must be between 1 and 100.' });
-    return;
-  }
-
-  const result = await updateAdminSettings(interaction.user.id, {
-    extendedContextMaxMessages: value,
-  });
-
-  if (!result.success) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
-
-  logger.info({ value, userId: interaction.user.id }, '[Admin Settings] Max messages updated');
-
-  await interaction.editReply({
-    content: `**Max messages set to ${value}.**\n\nExtended context will now fetch up to ${value} recent messages from Discord channels.`,
-  });
-}
-
-/**
- * Set max age for extended context
- */
-async function handleSetMaxAge(interaction: ChatInputCommandInteraction): Promise<void> {
-  const value = interaction.options.getString('duration');
-
-  if (value === null) {
-    // Show current value
-    const settings = await fetchAdminSettings(interaction.user.id);
-    if (settings === null) {
-      await interaction.editReply({ content: 'Failed to fetch current settings.' });
-      return;
-    }
-
-    const duration = Duration.fromDb(settings.extendedContextMaxAge);
-    await interaction.editReply({
-      content:
-        `**Current max age:** ${duration.toHuman()}\n\n` +
-        `To change, use \`/admin settings action:set-max-age value:<duration>\`\n` +
-        `Examples: \`2h\`, \`30m\`, \`1d\`, \`off\` (to disable age filter)`,
-    });
-    return;
-  }
-
-  // Parse the duration
-  let duration: Duration;
   try {
-    duration = Duration.parse(value);
-  } catch {
-    await interaction.editReply({
-      content:
-        `Invalid duration: "${value}"\n\n` +
-        `Use formats like \`2h\`, \`30m\`, \`1d\`, or \`off\` to disable.`,
-    });
-    return;
-  }
+    // Map setting ID to API field name
+    const updates = mapSettingToApiUpdate(settingId, newValue);
 
-  // Validate bounds if enabled
-  if (duration.isEnabled) {
-    const seconds = duration.toSeconds();
-    if (seconds !== null && seconds < 60) {
-      await interaction.editReply({ content: 'Max age must be at least 1 minute.' });
-      return;
+    if (updates === null) {
+      return { success: false, error: 'Unknown setting' };
     }
-  }
 
-  const result = await updateAdminSettings(interaction.user.id, {
-    extendedContextMaxAge: duration.toDb(),
-  });
+    // Send update to API gateway
+    const response = await adminPatchJson('/admin/settings', updates, userId);
 
-  if (!result.success) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.warn({ settingId, error: errorText }, '[Admin Settings] Update failed');
+      return { success: false, error: errorText };
+    }
 
-  logger.info(
-    { value: duration.toDb(), userId: interaction.user.id },
-    '[Admin Settings] Max age updated'
-  );
+    // Fetch fresh data and convert to SettingsData
+    const newSettings = (await response.json()) as GetAdminSettingsResponse;
+    const newData = convertToSettingsData(newSettings);
 
-  if (duration.isEnabled) {
-    await interaction.editReply({
-      content: `**Max age set to ${duration.toHuman()}.**\n\nExtended context will only include messages from the last ${duration.toHuman()}.`,
-    });
-  } else {
-    await interaction.editReply({
-      content:
-        '**Max age filter disabled.**\n\nExtended context will include messages of any age (up to max messages limit).',
-    });
+    logger.info({ settingId, newValue, userId }, '[Admin Settings] Setting updated');
+
+    return { success: true, newData };
+  } catch (error) {
+    logger.error({ err: error, settingId }, '[Admin Settings] Error updating setting');
+    return { success: false, error: 'Failed to update setting' };
   }
 }
 
 /**
- * Set max images for extended context
+ * Map dashboard setting ID to API field update
  */
-async function handleSetMaxImages(interaction: ChatInputCommandInteraction): Promise<void> {
-  const value = interaction.options.getInteger('value');
+function mapSettingToApiUpdate(
+  settingId: string,
+  value: unknown
+): Record<string, unknown> | null {
+  switch (settingId) {
+    case 'enabled':
+      // For global settings, null means default (true)
+      // So we always store the actual value
+      return { extendedContextDefault: value ?? true };
 
-  if (value === null) {
-    // Show current value
-    const settings = await fetchAdminSettings(interaction.user.id);
-    if (settings === null) {
-      await interaction.editReply({ content: 'Failed to fetch current settings.' });
-      return;
+    case 'maxMessages':
+      // null means use default (20)
+      return { extendedContextMaxMessages: value ?? 20 };
+
+    case 'maxAge': {
+      // value can be:
+      // - null: use default
+      // - -1: "off" (disabled, store as null in DB)
+      // - number: seconds
+      if (value === null) {
+        // Use default (2 hours)
+        return { extendedContextMaxAge: 2 * 60 * 60 };
+      }
+      if (value === -1) {
+        // "off" means disabled
+        return { extendedContextMaxAge: null };
+      }
+      return { extendedContextMaxAge: value };
     }
-    await interaction.editReply({
-      content:
-        `**Current max images:** ${settings.extendedContextMaxImages}\n\n` +
-        `To change, use \`/admin settings action:set-max-images value:<0-20>\``,
-    });
-    return;
-  }
 
-  // Validate range
-  if (value < 0 || value > 20) {
-    await interaction.editReply({ content: 'Max images must be between 0 and 20.' });
-    return;
-  }
+    case 'maxImages':
+      // null means use default (0)
+      return { extendedContextMaxImages: value ?? 0 };
 
-  const result = await updateAdminSettings(interaction.user.id, {
-    extendedContextMaxImages: value,
-  });
-
-  if (!result.success) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
-
-  logger.info({ value, userId: interaction.user.id }, '[Admin Settings] Max images updated');
-
-  if (value === 0) {
-    await interaction.editReply({
-      content:
-        '**Max images set to 0.**\n\nImages from extended context messages will not be sent to the AI.',
-    });
-  } else {
-    await interaction.editReply({
-      content: `**Max images set to ${value}.**\n\nUp to ${value} images from extended context messages may be included in AI context.`,
-    });
+    default:
+      return null;
   }
 }

@@ -10,7 +10,13 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
 import { createLogger, requireBotOwner, DISCORD_LIMITS } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
@@ -21,7 +27,13 @@ import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
-import { handleSettings } from './settings.js';
+import {
+  handleSettings,
+  handleAdminSettingsSelectMenu,
+  handleAdminSettingsButton,
+  handleAdminSettingsModal,
+  isAdminSettingsInteraction,
+} from './settings.js';
 
 const logger = createLogger('admin-command');
 
@@ -103,34 +115,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('settings')
-      .setDescription('Manage global bot settings')
-      .addStringOption(option =>
-        option
-          .setName('action')
-          .setDescription('Action to perform')
-          .setRequired(true)
-          .addChoices(
-            { name: 'Show current settings', value: 'show' },
-            { name: 'Toggle extended context default', value: 'toggle-extended-context' },
-            { name: 'Set max messages (1-100)', value: 'set-max-messages' },
-            { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
-            { name: 'Set max images (0-20)', value: 'set-max-images' }
-          )
-      )
-      .addIntegerOption(option =>
-        option
-          .setName('value')
-          .setDescription('Value for set-max-messages or set-max-images')
-          .setRequired(false)
-          .setMinValue(0)
-          .setMaxValue(100)
-      )
-      .addStringOption(option =>
-        option
-          .setName('duration')
-          .setDescription('Duration for set-max-age (e.g., 2h, 30m, 1d, off)')
-          .setRequired(false)
-      )
+      .setDescription('Open global settings dashboard')
   );
 
 /**
@@ -155,9 +140,17 @@ function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Prom
  * Command execution router
  * Routes to the appropriate subcommand handler
  */
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function execute(
+  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
+): Promise<void> {
   // Owner-only check
   if (!(await requireBotOwner(interaction))) {
+    return;
+  }
+
+  // Handle modal submissions for settings
+  if (interaction.isModalSubmit()) {
+    await handleModal(interaction);
     return;
   }
 
@@ -214,4 +207,37 @@ async function handleServerAutocomplete(
     .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
   await interaction.respond(servers);
+}
+
+/**
+ * Handle select menu interactions for admin commands
+ */
+export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  // Settings dashboard interactions
+  if (isAdminSettingsInteraction(interaction.customId)) {
+    // Note: Owner check is done via session ownership (dashboard is only created for owner)
+    await handleAdminSettingsSelectMenu(interaction);
+  }
+}
+
+/**
+ * Handle button interactions for admin commands
+ */
+export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  // Settings dashboard interactions
+  if (isAdminSettingsInteraction(interaction.customId)) {
+    // Note: Owner check is done via session ownership (dashboard is only created for owner)
+    await handleAdminSettingsButton(interaction);
+  }
+}
+
+/**
+ * Handle modal submissions for admin commands
+ */
+export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+  // Settings dashboard interactions
+  if (isAdminSettingsInteraction(interaction.customId)) {
+    // Note: Owner check is done via session ownership (dashboard is only created for owner)
+    await handleAdminSettingsModal(interaction);
+  }
 }

@@ -88,6 +88,7 @@ describe('/channel command group', () => {
         },
         user: { id: 'user-123' },
         reply: vi.fn().mockResolvedValue(undefined),
+        isModalSubmit: vi.fn().mockReturnValue(false),
       } as unknown as ChatInputCommandInteraction;
     }
 
