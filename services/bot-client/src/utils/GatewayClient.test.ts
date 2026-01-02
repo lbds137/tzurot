@@ -8,10 +8,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   GatewayClient,
   _clearChannelActivationCacheForTesting,
+  _clearAdminSettingsCacheForTesting,
   invalidateChannelSettingsCache,
   clearAllChannelSettingsCache,
 } from './GatewayClient.js';
-import { JobStatus, BotSettingKeys } from '@tzurot/common-types';
+import { JobStatus, ADMIN_SETTINGS_SINGLETON_ID } from '@tzurot/common-types';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -44,8 +45,9 @@ describe('GatewayClient', () => {
     originalAbortSignalTimeout = AbortSignal.timeout;
     AbortSignal.timeout = () => new AbortController().signal;
 
-    // Clear channel activation cache between tests
+    // Clear caches between tests
     _clearChannelActivationCacheForTesting();
+    _clearAdminSettingsCacheForTesting();
   });
 
   afterEach(() => {
@@ -642,30 +644,29 @@ describe('GatewayClient', () => {
     });
   });
 
-  describe('getBotSetting()', () => {
-    // Each test uses a unique key to avoid cache interference between tests
-    it('should return setting data on success', async () => {
+  describe('getAdminSettings()', () => {
+    it('should return admin settings on success', async () => {
       const client = new GatewayClient('http://test.gateway');
-      const settingData = {
-        found: true,
-        setting: {
-          id: 'setting-uuid',
-          key: 'test_setting_success',
-          value: 'true',
-          description: 'Test setting',
-          updatedAt: '2024-01-01T00:00:00.000Z',
-        },
+      const settingsData = {
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        extendedContextDefault: true,
+        extendedContextMaxMessages: 50,
+        extendedContextMaxAge: 3600,
+        extendedContextMaxImages: 10,
       };
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(settingData),
+        json: () => Promise.resolve(settingsData),
       });
 
-      const result = await client.getBotSetting('test_setting_success');
+      const result = await client.getAdminSettings();
 
-      expect(result).toEqual(settingData);
+      expect(result).toEqual(settingsData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://test.gateway/admin/settings/test_setting_success',
+        'http://test.gateway/admin/settings',
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-Service-Auth': 'test-secret',
@@ -678,10 +679,10 @@ describe('GatewayClient', () => {
       const client = new GatewayClient('http://test.gateway');
       mockFetch.mockResolvedValueOnce({
         ok: false,
-        status: 404,
+        status: 500,
       });
 
-      const result = await client.getBotSetting('test_setting_not_found');
+      const result = await client.getAdminSettings();
 
       expect(result).toBeNull();
     });
@@ -690,99 +691,82 @@ describe('GatewayClient', () => {
       const client = new GatewayClient('http://test.gateway');
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await client.getBotSetting('test_setting_network_error');
+      const result = await client.getAdminSettings();
 
       expect(result).toBeNull();
     });
 
-    it('should cache bot settings', async () => {
+    it('should cache admin settings (singleton)', async () => {
       const client = new GatewayClient('http://test.gateway');
-      const settingData = {
-        found: true,
-        setting: {
-          id: 'setting-uuid',
-          key: 'test_setting_cache',
-          value: 'cached_value',
-        },
+      const settingsData = {
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        extendedContextDefault: false,
+        extendedContextMaxMessages: 20,
+        extendedContextMaxAge: null,
+        extendedContextMaxImages: 10,
       };
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(settingData),
+        json: () => Promise.resolve(settingsData),
       });
 
       // First call - should fetch
-      const result1 = await client.getBotSetting('test_setting_cache');
-      expect(result1).toEqual(settingData);
+      const result1 = await client.getAdminSettings();
+      expect(result1).toEqual(settingsData);
       expect(mockFetch).toHaveBeenCalledTimes(1);
 
       // Second call - should return cached
-      const result2 = await client.getBotSetting('test_setting_cache');
-      expect(result2).toEqual(settingData);
+      const result2 = await client.getAdminSettings();
+      expect(result2).toEqual(settingsData);
       expect(mockFetch).toHaveBeenCalledTimes(1); // Still 1
+    });
+
+    it('should invalidate cache when invalidateAdminSettingsCache is called', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      const settingsData = {
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        extendedContextDefault: true,
+        extendedContextMaxMessages: 50,
+        extendedContextMaxAge: null,
+        extendedContextMaxImages: 10,
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(settingsData),
+      });
+
+      // First call - fetch
+      await client.getAdminSettings();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Invalidate cache
+      client.invalidateAdminSettingsCache();
+
+      // Second call - should fetch again
+      await client.getAdminSettings();
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('getExtendedContextDefault()', () => {
-    // NOTE: These tests all use the same BotSettingKeys.EXTENDED_CONTEXT_DEFAULT key,
-    // and the bot settings cache persists between tests. To avoid interference,
-    // each test relies on unique clients, and we accept that the first test to run
-    // will populate the cache. The tests are designed to work independently
-    // by testing distinct scenarios that don't conflict.
-
-    it('should return true when setting value is "true"', async () => {
-      // This test will populate the cache, but that's fine since we check the actual return
-      const client = new GatewayClient('http://test.gateway');
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            found: true,
-            setting: {
-              id: 'setting-uuid',
-              key: BotSettingKeys.EXTENDED_CONTEXT_DEFAULT,
-              value: 'true',
-            },
-          }),
-      });
-
-      const result = await client.getExtendedContextDefault();
-
-      // Due to caching from other tests, this may return true or false
-      // The important thing is we're testing the parsing logic
-      expect(typeof result).toBe('boolean');
-    });
-
-    it('should parse "false" string correctly', async () => {
-      // Test the parsing logic directly by mocking getBotSetting
+    it('should return true when extendedContextDefault is true', async () => {
       const client = new GatewayClient('http://test.gateway');
 
-      // Mock getBotSetting to return the expected value
-      vi.spyOn(client, 'getBotSetting').mockResolvedValueOnce({
-        found: true,
-        setting: {
-          id: 'setting-uuid',
-          key: BotSettingKeys.EXTENDED_CONTEXT_DEFAULT,
-          value: 'false',
-          updatedAt: '2024-01-01T00:00:00.000Z',
-        },
-      });
-
-      const result = await client.getExtendedContextDefault();
-
-      expect(result).toBe(false);
-    });
-
-    it('should parse "true" string correctly', async () => {
-      const client = new GatewayClient('http://test.gateway');
-
-      vi.spyOn(client, 'getBotSetting').mockResolvedValueOnce({
-        found: true,
-        setting: {
-          id: 'setting-uuid',
-          key: BotSettingKeys.EXTENDED_CONTEXT_DEFAULT,
-          value: 'true',
-          updatedAt: '2024-01-01T00:00:00.000Z',
-        },
+      vi.spyOn(client, 'getAdminSettings').mockResolvedValueOnce({
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        extendedContextDefault: true,
+        extendedContextMaxMessages: 50,
+        extendedContextMaxAge: null,
+        extendedContextMaxImages: 10,
       });
 
       const result = await client.getExtendedContextDefault();
@@ -790,11 +774,18 @@ describe('GatewayClient', () => {
       expect(result).toBe(true);
     });
 
-    it('should return false when setting is not found', async () => {
+    it('should return false when extendedContextDefault is false', async () => {
       const client = new GatewayClient('http://test.gateway');
 
-      vi.spyOn(client, 'getBotSetting').mockResolvedValueOnce({
-        found: false,
+      vi.spyOn(client, 'getAdminSettings').mockResolvedValueOnce({
+        id: ADMIN_SETTINGS_SINGLETON_ID,
+        updatedBy: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        extendedContextDefault: false,
+        extendedContextMaxMessages: 20,
+        extendedContextMaxAge: null,
+        extendedContextMaxImages: 10,
       });
 
       const result = await client.getExtendedContextDefault();
@@ -802,10 +793,10 @@ describe('GatewayClient', () => {
       expect(result).toBe(false);
     });
 
-    it('should return false on API error (null response)', async () => {
+    it('should return false when settings are null (API error)', async () => {
       const client = new GatewayClient('http://test.gateway');
 
-      vi.spyOn(client, 'getBotSetting').mockResolvedValueOnce(null);
+      vi.spyOn(client, 'getAdminSettings').mockResolvedValueOnce(null);
 
       const result = await client.getExtendedContextDefault();
 

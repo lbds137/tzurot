@@ -93,9 +93,7 @@ export const ResolvedExtendedContextSettingsSchema = z.object({
     maxImages: z.enum(['global', 'channel', 'personality']),
   }),
 });
-export type ResolvedExtendedContextSettings = z.infer<
-  typeof ResolvedExtendedContextSettingsSchema
->;
+export type ResolvedExtendedContextSettings = z.infer<typeof ResolvedExtendedContextSettingsSchema>;
 
 /**
  * Raw settings at a single level (channel or personality).
