@@ -22,7 +22,8 @@ model User {
   apiKeys               UserApiKey[]
   usageLogs             UsageLog[]
   channelSettings       ChannelSettings[]
-  botSettingsUpdates    BotSettings[]
+  adminSettingsUpdates  AdminSettings[]
+  botSettingsUpdates    BotSettings[] // @deprecated - for migration only
   defaultLlmConfig      LlmConfig?                 @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
   defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: SetNull)
   ownedLlmConfigs       LlmConfig[]                @relation("LlmConfigOwner")
@@ -60,8 +61,32 @@ model UsageLog {
   @@map("usage_logs")
 }
 
-/// Global bot settings for admin-configurable defaults.
-/// Used for features like extended_context_default that affect all channels.
+/// Global admin settings for bot-wide defaults.
+/// Singleton row - only one row should exist (enforced by application code).
+/// Replaces the old key-value BotSettings model with proper typed columns.
+model AdminSettings {
+  id        String   @id @default(uuid()) @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Extended Context Settings
+  /// Global default for extended context (channel/personality can override)
+  extendedContextDefault     Boolean @default(true) @map("extended_context_default")
+  /// Default max messages to fetch (hard cap: 100)
+  extendedContextMaxMessages Int     @default(20) @map("extended_context_max_messages")
+  /// Max age for messages in seconds (null = no limit/disabled)
+  extendedContextMaxAge      Int?    @map("extended_context_max_age")
+  /// Max images to proactively process (0 = disabled)
+  extendedContextMaxImages   Int     @default(0) @map("extended_context_max_images")
+
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("admin_settings")
+}
+
+/// @deprecated Legacy key-value settings - use AdminSettings instead.
+/// Kept for migration purposes only. Will be removed in future release.
 model BotSettings {
   id          String   @id @default(uuid()) @db.Uuid
   key         String   @unique @db.VarChar(100)
@@ -213,11 +238,16 @@ model Personality {
   imageEnabled            Boolean                    @default(false) @map("image_enabled")
   imageSettings           Json?                      @map("image_settings")
   avatarData              Bytes?                     @map("avatar_data")
-  /// Tri-state extended context setting (see docs/standards/TRI_STATE_PATTERN.md)
-  /// - null = AUTO (follow channel/global hierarchy)
-  /// - true = ON (force enable, always fetch channel history)
-  /// - false = OFF (force disable, never fetch channel history)
-  extendedContext         Boolean?                   @map("extended_context")
+  // Extended context settings (null = inherit from channel/global hierarchy)
+  /// Tri-state: null=auto, true=on, false=off (see docs/standards/TRI_STATE_PATTERN.md)
+  extendedContext           Boolean?                   @map("extended_context")
+  /// Max messages to fetch (null = follow channel/global)
+  extendedContextMaxMessages Int?                      @map("extended_context_max_messages")
+  /// Max age in seconds (null = follow channel/global)
+  extendedContextMaxAge      Int?                      @map("extended_context_max_age")
+  /// Max images to process (null = follow channel/global)
+  extendedContextMaxImages   Int?                      @map("extended_context_max_images")
+
   createdAt               DateTime                   @default(now()) @map("created_at")
   updatedAt               DateTime                   @updatedAt @map("updated_at")
   channelSettings         ChannelSettings[]
@@ -395,9 +425,15 @@ model ChannelSettings {
   activatedPersonalityId String? @map("activated_personality_id") @db.Uuid
   autoRespond            Boolean @default(true) @map("auto_respond")
 
-  // Extended context settings
-  /// null = use global default from BotSettings
-  extendedContext Boolean? @map("extended_context")
+  // Extended context settings (null = inherit from AdminSettings global defaults)
+  /// Tri-state: null=auto (follow global), true=on, false=off
+  extendedContext           Boolean? @map("extended_context")
+  /// Max messages to fetch (null = follow global)
+  extendedContextMaxMessages Int?    @map("extended_context_max_messages")
+  /// Max age in seconds (null = follow global)
+  extendedContextMaxAge      Int?    @map("extended_context_max_age")
+  /// Max images to process (null = follow global)
+  extendedContextMaxImages   Int?    @map("extended_context_max_images")
 
   createdBy String?  @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
@@ -453,7 +489,7 @@ model Memory {
   // managed via raw migration. Prisma schema declares it for drift detection but
   // the actual index excludes NULL values to save space on non-chunked memories.
   @@index([chunkGroupId])
-  // NOTE: The HNSW vector index (idx_memories_embedding) is managed outside Prisma
+  // NOTE: The IVFFlat vector index (idx_memories_embedding) is managed outside Prisma
   // because Unsupported types don't support vector-specific operators (VectorCosineOps)
   // See: docs/database/PRISMA_DRIFT_ISSUES.md
   @@map("memories")

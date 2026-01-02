@@ -1,0 +1,45 @@
+{
+  "$schema": "./drift-ignore.schema.json",
+  "description": "Known Prisma drift patterns to ignore or sanitize during migration creation",
+  "protectedIndexes": [
+    {
+      "name": "idx_memories_embedding",
+      "table": "memories",
+      "type": "ivfflat",
+      "description": "IVFFlat vector index for similarity search - Prisma can't represent Unsupported type indexes",
+      "recreateSQL": "CREATE INDEX \"idx_memories_embedding\" ON \"memories\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50);",
+      "dropPattern": "DROP INDEX.*idx_memories_embedding",
+      "createPattern": "CREATE INDEX.*idx_memories_embedding"
+    },
+    {
+      "name": "memories_chunk_group_id_idx",
+      "table": "memories",
+      "type": "partial",
+      "description": "Partial index with WHERE clause - Prisma generates non-partial version causing conflicts",
+      "recreateSQL": "CREATE INDEX \"memories_chunk_group_id_idx\" ON \"memories\"(\"chunk_group_id\") WHERE \"chunk_group_id\" IS NOT NULL;",
+      "dropPattern": "DROP INDEX.*memories_chunk_group_id_idx",
+      "createPattern": "CREATE INDEX.*memories_chunk_group_id_idx"
+    }
+  ],
+  "ignorePatterns": [
+    {
+      "pattern": "DROP INDEX.*idx_memories_embedding",
+      "reason": "HNSW index cannot be represented in Prisma schema",
+      "action": "remove"
+    },
+    {
+      "pattern": "CREATE INDEX.*memories_chunk_group_id_idx(?!.*WHERE)",
+      "reason": "Prisma generates non-partial index, but we need the partial version",
+      "action": "remove"
+    },
+    {
+      "pattern": "DROP INDEX.*memories_chunk_group_id_idx",
+      "reason": "Partial index cannot be represented in Prisma schema",
+      "action": "remove"
+    }
+  ],
+  "documentation": {
+    "driftIssuesDoc": "docs/database/PRISMA_DRIFT_ISSUES.md",
+    "vectorSkill": ".claude/skills/tzurot-db-vector/SKILL.md"
+  }
+}
