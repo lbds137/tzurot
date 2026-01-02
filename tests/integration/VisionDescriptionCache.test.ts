@@ -167,7 +167,10 @@ describe('VisionDescriptionCache Integration', () => {
       const otherId = '999000111222333444';
       const url = 'https://cdn.discordapp.com/attachments/123/456/image.png';
 
-      await cache.store({ attachmentId: baseId, url, model: 'gpt-4-vision' }, 'Base ID description');
+      await cache.store(
+        { attachmentId: baseId, url, model: 'gpt-4-vision' },
+        'Base ID description'
+      );
       await cache.store(
         { attachmentId: otherId, url, model: 'gpt-4-vision' },
         'Other ID description'
