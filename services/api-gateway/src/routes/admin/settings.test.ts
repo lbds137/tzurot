@@ -52,16 +52,18 @@ function createMockPrisma(): {
   };
 }
 
-function createDefaultSettings(overrides: Partial<{
-  id: string;
-  updatedBy: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  extendedContextDefault: boolean;
-  extendedContextMaxMessages: number;
-  extendedContextMaxAge: number | null;
-  extendedContextMaxImages: number;
-}> = {}) {
+function createDefaultSettings(
+  overrides: Partial<{
+    id: string;
+    updatedBy: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    extendedContextDefault: boolean;
+    extendedContextMaxMessages: number;
+    extendedContextMaxAge: number | null;
+    extendedContextMaxImages: number;
+  }> = {}
+) {
   return {
     id: ADMIN_SETTINGS_SINGLETON_ID,
     updatedBy: null,
