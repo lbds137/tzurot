@@ -69,6 +69,7 @@ describe('extractAttachments', () => {
       expect(result).toBeDefined();
       expect(result).toHaveLength(1);
       expect(result![0]).toEqual({
+        id: '123',
         url: 'https://cdn.discord.com/attachments/guild/channel/123/image.png',
         contentType: 'image/png',
         name: 'image.png',

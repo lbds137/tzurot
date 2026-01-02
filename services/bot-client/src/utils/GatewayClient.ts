@@ -72,6 +72,14 @@ export const clearAllChannelActivationCache = clearAllChannelSettingsCache;
 export const _clearChannelActivationCacheForTesting = clearAllChannelSettingsCache;
 
 /**
+ * Clear admin settings cache.
+ * @internal For testing only
+ */
+export function _clearAdminSettingsCacheForTesting(): void {
+  adminSettingsCache.clear();
+}
+
+/**
  * API Gateway client for making AI generation requests
  */
 export class GatewayClient {
