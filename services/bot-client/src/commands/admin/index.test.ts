@@ -117,6 +117,7 @@ describe('admin command', () => {
           getSubcommand: vi.fn(),
         },
         reply: vi.fn().mockResolvedValue(undefined),
+        isModalSubmit: vi.fn().mockReturnValue(false),
       } as unknown as ChatInputCommandInteraction;
     });
 

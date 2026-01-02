@@ -26,18 +26,49 @@ import { handleDelete } from './delete.js';
 import { handleAvatar } from './avatar.js';
 import { handleList } from './list.js';
 import { handleChat } from './chat.js';
-import { handleSettings } from './settings.js';
+import {
+  handleSettings,
+  handleCharacterSettingsSelectMenu,
+  handleCharacterSettingsButton,
+  handleCharacterSettingsModal,
+  isCharacterSettingsInteraction,
+} from './settings.js';
 import {
   handleModalSubmit,
-  handleSelectMenu,
-  handleButton,
+  handleSelectMenu as handleDashboardSelectMenu,
+  handleButton as handleDashboardButton,
   isCharacterDashboardInteraction,
 } from './dashboard.js';
 
 const logger = createLogger('character-command');
 
+// Create combined handlers that route to appropriate sub-handler
+export async function handleSelectMenu(
+  interaction: import('discord.js').StringSelectMenuInteraction
+): Promise<void> {
+  // Check if it's a settings dashboard interaction
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsSelectMenu(interaction);
+    return;
+  }
+  // Otherwise route to character edit dashboard
+  await handleDashboardSelectMenu(interaction);
+}
+
+export async function handleButton(
+  interaction: import('discord.js').ButtonInteraction
+): Promise<void> {
+  // Check if it's a settings dashboard interaction
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsButton(interaction);
+    return;
+  }
+  // Otherwise route to character edit dashboard
+  await handleDashboardButton(interaction);
+}
+
 // Re-export for external use
-export { handleSelectMenu, handleButton, isCharacterDashboardInteraction };
+export { isCharacterDashboardInteraction };
 
 /**
  * Slash command definition
@@ -157,42 +188,13 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('settings')
-      .setDescription('Manage character settings (owner only)')
+      .setDescription('Open character settings dashboard (owner only)')
       .addStringOption(option =>
         option
           .setName('character')
           .setDescription('Character to manage')
           .setRequired(true)
           .setAutocomplete(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('action')
-          .setDescription('Action to perform')
-          .setRequired(true)
-          .addChoices(
-            { name: 'Status - Show current settings', value: 'show' },
-            { name: 'Enable - Force ON (always fetch channel history)', value: 'enable' },
-            { name: 'Disable - Force OFF (never fetch channel history)', value: 'disable' },
-            { name: 'Auto - Follow channel/global defaults', value: 'auto' },
-            { name: 'Set max messages (1-100)', value: 'set-max-messages' },
-            { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
-            { name: 'Set max images (0-20)', value: 'set-max-images' }
-          )
-      )
-      .addIntegerOption(option =>
-        option
-          .setName('value')
-          .setDescription('Value for set-max-messages or set-max-images')
-          .setRequired(false)
-          .setMinValue(0)
-          .setMaxValue(100)
-      )
-      .addStringOption(option =>
-        option
-          .setName('duration')
-          .setDescription('Duration for set-max-age (e.g., 2h, 30m, 1d, off, auto)')
-          .setRequired(false)
       )
   );
 
@@ -230,6 +232,12 @@ export async function execute(
 
   // Handle modal submissions
   if (interaction.isModalSubmit()) {
+    // Check if it's a settings dashboard modal
+    if (isCharacterSettingsInteraction(interaction.customId)) {
+      await handleCharacterSettingsModal(interaction);
+      return;
+    }
+    // Otherwise route to character edit dashboard
     await handleModalSubmit(interaction, config);
     return;
   }

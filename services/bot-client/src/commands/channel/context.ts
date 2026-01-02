@@ -1,49 +1,63 @@
 /**
- * Channel Context Subcommand
+ * Channel Context Dashboard
  *
- * Manages extended context settings for channels.
- * Extended context allows personalities to see recent channel messages
- * beyond just bot conversations stored in the database.
+ * Interactive dashboard for managing channel-level extended context settings.
+ * Supports tri-state (auto/on/off) with inheritance from global defaults.
  *
- * Actions:
- * - status: Show current extended context settings
- * - enable: Force enable extended context for this channel
- * - disable: Force disable extended context for this channel
- * - auto: Follow global default (remove channel override)
- * - set-max-messages: Set max messages for this channel (1-100)
- * - set-max-age: Set max age for this channel (e.g., 2h, off, auto)
- * - set-max-images: Set max images for this channel (0-20)
+ * Settings:
+ * - Extended Context: Auto/Enable/Disable
+ * - Max Messages: 1-100 or Auto
+ * - Max Age: Duration, Off, or Auto
+ * - Max Images: 0-20 or Auto
  *
  * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { PermissionFlagsBits, EmbedBuilder } from 'discord.js';
-import { createLogger, Duration, DISCORD_COLORS } from '@tzurot/common-types';
+import type {
+  ChatInputCommandInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
+import { PermissionFlagsBits } from 'discord.js';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import {
-  buildTriStateUpdateMessage,
-  EXTENDED_CONTEXT_DESCRIPTION,
-} from '../../utils/triStateHelpers.js';
-import type { ExtendedContextSource } from '../../services/ExtendedContextResolver.js';
+  type SettingsDashboardConfig,
+  type SettingsDashboardSession,
+  type SettingsData,
+  type SettingUpdateResult,
+  createSettingsDashboard,
+  handleSettingsSelectMenu,
+  handleSettingsButton,
+  handleSettingsModal,
+  isSettingsInteraction,
+  EXTENDED_CONTEXT_SETTINGS,
+} from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-context');
 
-type ContextAction =
-  | 'enable'
-  | 'disable'
-  | 'status'
-  | 'auto'
-  | 'set-max-messages'
-  | 'set-max-age'
-  | 'set-max-images';
+/**
+ * Entity type for custom IDs
+ */
+const ENTITY_TYPE = 'channel-context';
 
 /**
- * Handle /channel context command
+ * Dashboard configuration for channel context settings
+ */
+const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
+  level: 'channel',
+  entityType: ENTITY_TYPE,
+  titlePrefix: 'Channel',
+  color: DISCORD_COLORS.BLURPLE,
+  settings: EXTENDED_CONTEXT_SETTINGS,
+};
+
+/**
+ * Handle /channel context command - shows interactive dashboard
  */
 export async function handleContext(interaction: ChatInputCommandInteraction): Promise<void> {
-  const action = interaction.options.getString('action', true) as ContextAction;
   const channelId = interaction.channelId;
   const userId = interaction.user.id;
 
@@ -55,530 +69,275 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  logger.debug({ action, channelId, userId }, '[Channel Context] Processing context action');
+  logger.debug({ channelId, userId }, '[Channel Context] Opening dashboard');
 
   try {
-    switch (action) {
-      case 'enable':
-        await handleEnable(interaction, channelId, userId);
-        break;
-      case 'disable':
-        await handleDisable(interaction, channelId, userId);
-        break;
-      case 'status':
-        await handleStatus(interaction, channelId);
-        break;
-      case 'auto':
-        await handleAuto(interaction, channelId, userId);
-        break;
-      case 'set-max-messages':
-        await handleSetMaxMessages(interaction, channelId, userId);
-        break;
-      case 'set-max-age':
-        await handleSetMaxAge(interaction, channelId, userId);
-        break;
-      case 'set-max-images':
-        await handleSetMaxImages(interaction, channelId, userId);
-        break;
-      default:
-        await interaction.editReply({
-          content: `Unknown action: ${action as string}`,
-        });
+    // Fetch current settings from API gateway
+    const gatewayClient = new GatewayClient();
+    const settings = await gatewayClient.getChannelSettings(channelId);
+    const adminSettings = await gatewayClient.getAdminSettings();
+
+    if (adminSettings === null) {
+      await interaction.editReply({
+        content: 'Failed to fetch global settings.',
+      });
+      return;
     }
+
+    // Convert to dashboard data format
+    const data = convertToSettingsData(settings, adminSettings);
+
+    // Create and display the dashboard
+    await createSettingsDashboard(interaction, {
+      config: CHANNEL_CONTEXT_CONFIG,
+      data,
+      entityId: channelId,
+      entityName: `<#${channelId}>`,
+      userId,
+      updateHandler: (buttonInteraction, session, settingId, newValue) =>
+        handleSettingUpdate(buttonInteraction, session, settingId, newValue, channelId),
+    });
+
+    logger.info({ channelId, userId }, '[Channel Context] Dashboard opened');
   } catch (error) {
-    logger.error(
-      { err: error, action, channelId },
-      '[Channel Context] Error handling context action'
-    );
+    logger.error({ err: error, channelId }, '[Channel Context] Error opening dashboard');
 
     if (!interaction.replied) {
       await interaction.editReply({
-        content: 'An error occurred while processing your request.',
+        content: 'An error occurred while opening the context settings dashboard.',
       });
     }
   }
 }
 
 /**
- * Enable extended context for this channel (force ON)
+ * Handle select menu interactions for channel context
  */
-async function handleEnable(
-  interaction: ChatInputCommandInteraction,
-  channelId: string,
-  userId: string
+export async function handleChannelContextSelectMenu(
+  interaction: StringSelectMenuInteraction
 ): Promise<void> {
-  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-    method: 'PATCH',
-    body: { extendedContext: true },
-    userId,
-  });
-
-  if (!result.ok) {
-    logger.warn(
-      { channelId, status: result.status, error: result.error },
-      '[Channel Context] Failed to enable'
-    );
-    await interaction.editReply({
-      content: `Failed to enable extended context: ${result.error}`,
-    });
+  if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
     return;
   }
 
-  invalidateChannelSettingsCache(channelId);
+  // Extract channel ID from the custom ID
+  const channelId = extractChannelId(interaction.customId);
+  if (channelId === null) {
+    return;
+  }
 
-  logger.info({ channelId, userId }, '[Channel Context] Extended context enabled');
-  await interaction.editReply({
-    content: buildTriStateUpdateMessage({
-      settingName: 'Extended Context',
-      targetName: 'this channel',
-      newValue: true,
-      targetType: 'channel',
-    }),
-  });
+  await handleSettingsSelectMenu(
+    interaction,
+    CHANNEL_CONTEXT_CONFIG,
+    (buttonInteraction, session, settingId, newValue) =>
+      handleSettingUpdate(buttonInteraction, session, settingId, newValue, channelId)
+  );
 }
 
 /**
- * Disable extended context for this channel (force OFF)
+ * Handle button interactions for channel context
  */
-async function handleDisable(
-  interaction: ChatInputCommandInteraction,
-  channelId: string,
-  userId: string
-): Promise<void> {
-  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-    method: 'PATCH',
-    body: { extendedContext: false },
-    userId,
-  });
-
-  if (!result.ok) {
-    logger.warn(
-      { channelId, status: result.status, error: result.error },
-      '[Channel Context] Failed to disable'
-    );
-    await interaction.editReply({
-      content: `Failed to disable extended context: ${result.error}`,
-    });
+export async function handleChannelContextButton(interaction: ButtonInteraction): Promise<void> {
+  if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
     return;
   }
 
-  invalidateChannelSettingsCache(channelId);
+  // Extract channel ID from the custom ID
+  const channelId = extractChannelId(interaction.customId);
+  if (channelId === null) {
+    return;
+  }
 
-  logger.info({ channelId, userId }, '[Channel Context] Extended context disabled');
-  await interaction.editReply({
-    content: buildTriStateUpdateMessage({
-      settingName: 'Extended Context',
-      targetName: 'this channel',
-      newValue: false,
-      targetType: 'channel',
-    }),
-  });
+  await handleSettingsButton(
+    interaction,
+    CHANNEL_CONTEXT_CONFIG,
+    (buttonInteraction, session, settingId, newValue) =>
+      handleSettingUpdate(buttonInteraction, session, settingId, newValue, channelId)
+  );
 }
 
 /**
- * Show current extended context status with all settings
+ * Handle modal submissions for channel context
  */
-async function handleStatus(
-  interaction: ChatInputCommandInteraction,
-  channelId: string
+export async function handleChannelContextModal(
+  interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const gatewayClient = new GatewayClient();
-  const settings = await gatewayClient.getChannelSettings(channelId);
-  const adminSettings = await gatewayClient.getAdminSettings();
-
-  if (adminSettings === null) {
-    await interaction.editReply({ content: 'Failed to fetch global settings.' });
+  if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
     return;
   }
 
-  // Build embed with all settings
-  const embed = new EmbedBuilder()
-    .setTitle('Extended Context Settings')
-    .setDescription(`Settings for <#${channelId}>`)
-    .setColor(DISCORD_COLORS.BLURPLE);
+  // Extract channel ID from the custom ID
+  const channelId = extractChannelId(interaction.customId);
+  if (channelId === null) {
+    return;
+  }
 
-  // Determine current values and sources
-  const channelSettings = settings?.settings;
+  await handleSettingsModal(
+    interaction,
+    CHANNEL_CONTEXT_CONFIG,
+    (buttonInteraction, session, settingId, newValue) =>
+      handleSettingUpdate(buttonInteraction, session, settingId, newValue, channelId)
+  );
+}
 
-  // Extended Context Enabled
-  const extendedContextValue = channelSettings?.extendedContext ?? null;
-  const extendedContextEffective = extendedContextValue ?? adminSettings.extendedContextDefault;
-  const extendedContextSource: ExtendedContextSource =
-    extendedContextValue !== null && extendedContextValue !== undefined ? 'channel' : 'global';
+/**
+ * Check if a custom ID belongs to channel context dashboard
+ */
+export function isChannelContextInteraction(customId: string): boolean {
+  return isSettingsInteraction(customId, ENTITY_TYPE);
+}
 
-  embed.addFields({
-    name: 'Extended Context',
-    value: formatSettingValue(
-      extendedContextValue,
-      extendedContextEffective,
-      extendedContextSource
-    ),
-    inline: false,
-  });
+/**
+ * Extract channel ID from custom ID
+ * Format: channel-context::action::channelId::extra
+ */
+function extractChannelId(customId: string): string | null {
+  const parts = customId.split('::');
+  if (parts.length >= 3) {
+    return parts[2];
+  }
+  return null;
+}
+
+/**
+ * Convert API responses to dashboard SettingsData format
+ */
+function convertToSettingsData(
+  channelSettings: { settings?: Record<string, unknown> } | null,
+  adminSettings: Record<string, unknown>
+): SettingsData {
+  const channel = channelSettings?.settings ?? {};
+
+  // Extended Context
+  const enabledLocal = channel.extendedContext as boolean | null | undefined;
+  const enabledGlobal = adminSettings.extendedContextDefault as boolean;
 
   // Max Messages
-  const maxMessagesValue = channelSettings?.extendedContextMaxMessages ?? null;
-  const maxMessagesEffective = maxMessagesValue ?? adminSettings.extendedContextMaxMessages;
-  const maxMessagesSource: ExtendedContextSource = maxMessagesValue !== null ? 'channel' : 'global';
-
-  embed.addFields({
-    name: 'Max Messages',
-    value: formatNumericSetting(maxMessagesValue, maxMessagesEffective, maxMessagesSource),
-    inline: true,
-  });
+  const maxMessagesLocal = channel.extendedContextMaxMessages as number | null | undefined;
+  const maxMessagesGlobal = adminSettings.extendedContextMaxMessages as number;
 
   // Max Age
-  const maxAgeValue = channelSettings?.extendedContextMaxAge ?? null;
-  const maxAgeEffective = maxAgeValue ?? adminSettings.extendedContextMaxAge;
-  const maxAgeSource: ExtendedContextSource = maxAgeValue !== null ? 'channel' : 'global';
-
-  const maxAgeDuration = Duration.fromDb(maxAgeEffective);
-  embed.addFields({
-    name: 'Max Age',
-    value: formatDurationSetting(maxAgeValue, maxAgeDuration.toHuman(), maxAgeSource),
-    inline: true,
-  });
+  const maxAgeLocal = channel.extendedContextMaxAge as number | null | undefined;
+  const maxAgeGlobal = adminSettings.extendedContextMaxAge as number | null;
 
   // Max Images
-  const maxImagesValue = channelSettings?.extendedContextMaxImages ?? null;
-  const maxImagesEffective = maxImagesValue ?? adminSettings.extendedContextMaxImages;
-  const maxImagesSource: ExtendedContextSource = maxImagesValue !== null ? 'channel' : 'global';
+  const maxImagesLocal = channel.extendedContextMaxImages as number | null | undefined;
+  const maxImagesGlobal = adminSettings.extendedContextMaxImages as number;
 
-  embed.addFields({
-    name: 'Max Images',
-    value: formatNumericSetting(maxImagesValue, maxImagesEffective, maxImagesSource),
-    inline: true,
-  });
-
-  // Footer with description
-  embed.setFooter({ text: EXTENDED_CONTEXT_DESCRIPTION });
-
-  await interaction.editReply({ embeds: [embed] });
+  return {
+    enabled: {
+      localValue: enabledLocal ?? null,
+      effectiveValue: enabledLocal ?? enabledGlobal,
+      source: enabledLocal !== null && enabledLocal !== undefined ? 'channel' : 'global',
+    },
+    maxMessages: {
+      localValue: maxMessagesLocal ?? null,
+      effectiveValue: maxMessagesLocal ?? maxMessagesGlobal,
+      source: maxMessagesLocal !== null && maxMessagesLocal !== undefined ? 'channel' : 'global',
+    },
+    maxAge: {
+      localValue: maxAgeLocal ?? null,
+      effectiveValue: maxAgeLocal ?? maxAgeGlobal,
+      source: maxAgeLocal !== null && maxAgeLocal !== undefined ? 'channel' : 'global',
+    },
+    maxImages: {
+      localValue: maxImagesLocal ?? null,
+      effectiveValue: maxImagesLocal ?? maxImagesGlobal,
+      source: maxImagesLocal !== null && maxImagesLocal !== undefined ? 'channel' : 'global',
+    },
+  };
 }
 
 /**
- * Format boolean setting value with source
+ * Handle setting updates from the dashboard
  */
-function formatSettingValue(
-  channelValue: boolean | null | undefined,
-  effective: boolean,
-  source: ExtendedContextSource
-): string {
-  const channelLabel =
-    channelValue === null || channelValue === undefined ? 'Auto' : channelValue ? 'On' : 'Off';
-  const effectiveLabel = effective ? '**Enabled**' : '**Disabled**';
-  return `Setting: **${channelLabel}**\nEffective: ${effectiveLabel} (from ${source})`;
-}
+async function handleSettingUpdate(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  _session: SettingsDashboardSession,
+  settingId: string,
+  newValue: unknown,
+  channelId: string
+): Promise<SettingUpdateResult> {
+  const userId = interaction.user.id;
 
-/**
- * Format numeric setting with source
- */
-function formatNumericSetting(
-  channelValue: number | null | undefined,
-  effective: number,
-  source: ExtendedContextSource
-): string {
-  const channelLabel =
-    channelValue === null || channelValue === undefined ? 'Auto' : `${channelValue}`;
-  return `Setting: **${channelLabel}**\nEffective: **${effective}** (from ${source})`;
-}
+  logger.debug({ settingId, newValue, channelId, userId }, '[Channel Context] Updating setting');
 
-/**
- * Format duration setting with source
- */
-function formatDurationSetting(
-  channelValue: number | null | undefined,
-  effectiveHuman: string,
-  source: ExtendedContextSource
-): string {
-  let channelLabel: string;
-  if (channelValue === null || channelValue === undefined) {
-    channelLabel = 'Auto';
-  } else {
-    const duration = Duration.fromDb(channelValue);
-    channelLabel = duration.toHuman();
-  }
-  return `Setting: **${channelLabel}**\nEffective: **${effectiveHuman}** (from ${source})`;
-}
+  try {
+    // Map setting ID to API field name
+    const body = mapSettingToApiUpdate(settingId, newValue);
 
-/**
- * Set channel to auto (follow global default)
- */
-async function handleAuto(
-  interaction: ChatInputCommandInteraction,
-  channelId: string,
-  userId: string
-): Promise<void> {
-  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-    method: 'PATCH',
-    body: { extendedContext: null },
-    userId,
-  });
-
-  if (!result.ok) {
-    logger.warn(
-      { channelId, status: result.status, error: result.error },
-      '[Channel Context] Failed to set auto'
-    );
-    await interaction.editReply({
-      content: `Failed to set auto mode: ${result.error}`,
-    });
-    return;
-  }
-
-  invalidateChannelSettingsCache(channelId);
-
-  const gatewayClient = new GatewayClient();
-  const globalDefault = await gatewayClient.getExtendedContextDefault();
-
-  logger.info({ channelId, userId }, '[Channel Context] Extended context set to auto');
-  await interaction.editReply({
-    content: buildTriStateUpdateMessage({
-      settingName: 'Extended Context',
-      targetName: 'this channel',
-      newValue: null,
-      effectiveEnabled: globalDefault,
-      source: 'global',
-      targetType: 'channel',
-    }),
-  });
-}
-
-/**
- * Set max messages for this channel
- */
-async function handleSetMaxMessages(
-  interaction: ChatInputCommandInteraction,
-  channelId: string,
-  userId: string
-): Promise<void> {
-  const value = interaction.options.getInteger('value');
-
-  if (value === null) {
-    // Show current value with hint
-    const gatewayClient = new GatewayClient();
-    const settings = await gatewayClient.getChannelSettings(channelId);
-    const adminSettings = await gatewayClient.getAdminSettings();
-
-    const channelValue = settings?.settings?.extendedContextMaxMessages ?? null;
-    const effectiveValue = channelValue ?? adminSettings?.extendedContextMaxMessages ?? 20;
-
-    await interaction.editReply({
-      content:
-        `**Max Messages for this channel**\n\n` +
-        `Channel setting: **${channelValue ?? 'Auto'}**\n` +
-        `Effective value: **${effectiveValue}** (from ${channelValue === null ? 'global' : 'channel'})\n\n` +
-        `To change, use \`/channel context action:set-max-messages value:<1-100>\`\n` +
-        `To use global setting, use \`value:0\` (auto)`,
-    });
-    return;
-  }
-
-  // Handle 0 as "auto" (use global default)
-  const updateValue = value === 0 ? null : value;
-
-  // Validate range
-  if (updateValue !== null && (updateValue < 1 || updateValue > 100)) {
-    await interaction.editReply({
-      content: 'Max messages must be between 1 and 100, or 0 for auto.',
-    });
-    return;
-  }
-
-  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-    method: 'PATCH',
-    body: { extendedContextMaxMessages: updateValue },
-    userId,
-  });
-
-  if (!result.ok) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
-
-  invalidateChannelSettingsCache(channelId);
-
-  logger.info({ channelId, value: updateValue, userId }, '[Channel Context] Max messages updated');
-
-  if (updateValue === null) {
-    await interaction.editReply({
-      content:
-        '**Max messages set to Auto** for this channel.\n\nThis will follow the global default.',
-    });
-  } else {
-    await interaction.editReply({
-      content: `**Max messages set to ${updateValue}** for this channel.\n\nExtended context will fetch up to ${updateValue} recent messages.`,
-    });
-  }
-}
-
-/**
- * Set max age for this channel
- */
-async function handleSetMaxAge(
-  interaction: ChatInputCommandInteraction,
-  channelId: string,
-  userId: string
-): Promise<void> {
-  const value = interaction.options.getString('duration');
-
-  if (value === null) {
-    // Show current value with hint
-    const gatewayClient = new GatewayClient();
-    const settings = await gatewayClient.getChannelSettings(channelId);
-    const adminSettings = await gatewayClient.getAdminSettings();
-
-    const channelValue = settings?.settings?.extendedContextMaxAge ?? null;
-    const effectiveValue = channelValue ?? adminSettings?.extendedContextMaxAge;
-    const effectiveDuration = Duration.fromDb(effectiveValue ?? null);
-
-    let channelLabel: string;
-    if (channelValue === null || channelValue === undefined) {
-      channelLabel = 'Auto';
-    } else {
-      channelLabel = Duration.fromDb(channelValue).toHuman();
+    if (body === null) {
+      return { success: false, error: 'Unknown setting' };
     }
 
-    await interaction.editReply({
-      content:
-        `**Max Age for this channel**\n\n` +
-        `Channel setting: **${channelLabel}**\n` +
-        `Effective value: **${effectiveDuration.toHuman()}** (from ${channelValue === null ? 'global' : 'channel'})\n\n` +
-        `To change, use \`/channel context action:set-max-age duration:<value>\`\n` +
-        `Examples: \`2h\`, \`30m\`, \`1d\`, \`off\` (disable age filter), \`auto\` (use global)`,
-    });
-    return;
-  }
-
-  // Handle "auto" to reset to global
-  if (value.toLowerCase() === 'auto') {
+    // Send update to API gateway
     const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
       method: 'PATCH',
-      body: { extendedContextMaxAge: null },
+      body,
       userId,
     });
 
     if (!result.ok) {
-      await interaction.editReply({ content: `Failed to update: ${result.error}` });
-      return;
+      logger.warn({ settingId, error: result.error, channelId }, '[Channel Context] Update failed');
+      return { success: false, error: result.error };
     }
 
+    // Invalidate cache
     invalidateChannelSettingsCache(channelId);
 
-    await interaction.editReply({
-      content: '**Max age set to Auto** for this channel.\n\nThis will follow the global default.',
-    });
-    return;
-  }
+    // Fetch fresh data
+    const gatewayClient = new GatewayClient();
+    const newChannelSettings = await gatewayClient.getChannelSettings(channelId);
+    const adminSettings = await gatewayClient.getAdminSettings();
 
-  // Parse the duration
-  let duration: Duration;
-  try {
-    duration = Duration.parse(value);
-  } catch {
-    await interaction.editReply({
-      content:
-        `Invalid duration: "${value}"\n\n` +
-        `Use formats like \`2h\`, \`30m\`, \`1d\`, \`off\`, or \`auto\`.`,
-    });
-    return;
-  }
-
-  // Validate bounds if enabled
-  if (duration.isEnabled) {
-    const seconds = duration.toSeconds();
-    if (seconds !== null && seconds < 60) {
-      await interaction.editReply({ content: 'Max age must be at least 1 minute.' });
-      return;
+    if (adminSettings === null) {
+      return { success: false, error: 'Failed to fetch updated settings' };
     }
-  }
 
-  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-    method: 'PATCH',
-    body: { extendedContextMaxAge: duration.toDb() },
-    userId,
-  });
+    const newData = convertToSettingsData(newChannelSettings, adminSettings);
 
-  if (!result.ok) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
+    logger.info({ settingId, newValue, channelId, userId }, '[Channel Context] Setting updated');
 
-  invalidateChannelSettingsCache(channelId);
-
-  logger.info({ channelId, value: duration.toDb(), userId }, '[Channel Context] Max age updated');
-
-  if (duration.isEnabled) {
-    await interaction.editReply({
-      content: `**Max age set to ${duration.toHuman()}** for this channel.\n\nExtended context will only include messages from the last ${duration.toHuman()}.`,
-    });
-  } else {
-    await interaction.editReply({
-      content:
-        '**Max age filter disabled** for this channel.\n\nExtended context will include messages of any age (up to max messages limit).',
-    });
+    return { success: true, newData };
+  } catch (error) {
+    logger.error({ err: error, settingId, channelId }, '[Channel Context] Error updating setting');
+    return { success: false, error: 'Failed to update setting' };
   }
 }
 
 /**
- * Set max images for this channel
+ * Map dashboard setting ID to API field update
  */
-async function handleSetMaxImages(
-  interaction: ChatInputCommandInteraction,
-  channelId: string,
-  userId: string
-): Promise<void> {
-  const value = interaction.options.getInteger('value');
+function mapSettingToApiUpdate(
+  settingId: string,
+  value: unknown
+): Record<string, unknown> | null {
+  switch (settingId) {
+    case 'enabled':
+      // null means auto (inherit from global)
+      return { extendedContext: value };
 
-  if (value === null) {
-    // Show current value with hint
-    const gatewayClient = new GatewayClient();
-    const settings = await gatewayClient.getChannelSettings(channelId);
-    const adminSettings = await gatewayClient.getAdminSettings();
+    case 'maxMessages':
+      // null means auto (inherit from global)
+      return { extendedContextMaxMessages: value };
 
-    const channelValue = settings?.settings?.extendedContextMaxImages ?? null;
-    const effectiveValue = channelValue ?? adminSettings?.extendedContextMaxImages ?? 0;
+    case 'maxAge': {
+      // value can be:
+      // - null: auto (inherit from global)
+      // - -1: "off" (disabled)
+      // - number: seconds
+      if (value === -1) {
+        // "off" means disabled - store as special null value
+        return { extendedContextMaxAge: null };
+      }
+      return { extendedContextMaxAge: value };
+    }
 
-    await interaction.editReply({
-      content:
-        `**Max Images for this channel**\n\n` +
-        `Channel setting: **${channelValue ?? 'Auto'}**\n` +
-        `Effective value: **${effectiveValue}** (from ${channelValue === null ? 'global' : 'channel'})\n\n` +
-        `To change, use \`/channel context action:set-max-images value:<0-20>\`\n` +
-        `Use \`value:0\` for 0 images, or type \`auto\` in duration field to use global`,
-    });
-    return;
-  }
+    case 'maxImages':
+      // null means auto (inherit from global)
+      return { extendedContextMaxImages: value };
 
-  // Validate range
-  if (value < 0 || value > 20) {
-    await interaction.editReply({ content: 'Max images must be between 0 and 20.' });
-    return;
-  }
-
-  const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-    method: 'PATCH',
-    body: { extendedContextMaxImages: value },
-    userId,
-  });
-
-  if (!result.ok) {
-    await interaction.editReply({ content: `Failed to update: ${result.error}` });
-    return;
-  }
-
-  invalidateChannelSettingsCache(channelId);
-
-  logger.info({ channelId, value, userId }, '[Channel Context] Max images updated');
-
-  if (value === 0) {
-    await interaction.editReply({
-      content:
-        '**Max images set to 0** for this channel.\n\nImages from extended context messages will not be sent to the AI.',
-    });
-  } else {
-    await interaction.editReply({
-      content: `**Max images set to ${value}** for this channel.\n\nUp to ${value} images from extended context messages may be included.`,
-    });
+    default:
+      return null;
   }
 }
