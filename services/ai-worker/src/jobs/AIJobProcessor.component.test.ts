@@ -133,6 +133,9 @@ describe('AIJobProcessor Component Test', () => {
         birth_year INTEGER,
         is_public BOOLEAN DEFAULT TRUE,
         extended_context BOOLEAN,
+        extended_context_max_messages INTEGER,
+        extended_context_max_age INTEGER,
+        extended_context_max_images INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
