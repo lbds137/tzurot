@@ -60,7 +60,7 @@ function loadPGliteSchema(): string {
   const schemaPath = join(__dirname, 'schema', 'pglite-schema.sql');
   try {
     return readFileSync(schemaPath, 'utf-8');
-  } catch (error) {
+  } catch {
     throw new Error(
       `Failed to load PGLite schema from ${schemaPath}. ` +
         `Run ./scripts/testing/regenerate-pglite-schema.sh to generate it.`

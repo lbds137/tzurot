@@ -123,9 +123,7 @@ export async function handleAdminSettingsButton(interaction: ButtonInteraction):
 /**
  * Handle modal submissions for admin settings
  */
-export async function handleAdminSettingsModal(
-  interaction: ModalSubmitInteraction
-): Promise<void> {
+export async function handleAdminSettingsModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
     return;
   }
@@ -230,10 +228,7 @@ async function handleSettingUpdate(
 /**
  * Map dashboard setting ID to API field update
  */
-function mapSettingToApiUpdate(
-  settingId: string,
-  value: unknown
-): Record<string, unknown> | null {
+function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
     case 'enabled':
       // For global settings, null means default (true)

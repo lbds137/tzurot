@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ChatInputCommandInteraction, ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import {
   handleSettings,
   handleCharacterSettingsButton,
@@ -300,9 +304,9 @@ describe('Character Settings Dashboard', () => {
   describe('isCharacterSettingsInteraction', () => {
     it('should return true for character settings custom IDs', () => {
       expect(isCharacterSettingsInteraction('personality-settings::select::aurora')).toBe(true);
-      expect(isCharacterSettingsInteraction('personality-settings::set::aurora::enabled:true')).toBe(
-        true
-      );
+      expect(
+        isCharacterSettingsInteraction('personality-settings::set::aurora::enabled:true')
+      ).toBe(true);
       expect(isCharacterSettingsInteraction('personality-settings::back::aurora')).toBe(true);
       expect(isCharacterSettingsInteraction('personality-settings::close::aurora')).toBe(true);
     });
@@ -320,7 +324,9 @@ describe('Character Settings Dashboard', () => {
 
   describe('handleCharacterSettingsButton', () => {
     it('should ignore non-character-settings interactions', async () => {
-      const interaction = createMockButtonInteraction('channel-context::set::chan-123::enabled:true');
+      const interaction = createMockButtonInteraction(
+        'channel-context::set::chan-123::enabled:true'
+      );
 
       await handleCharacterSettingsButton(interaction);
 

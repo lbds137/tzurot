@@ -297,9 +297,7 @@ describe('SettingsDashboardBuilder', () => {
 
       const row = buildSettingsSelectMenu(config, session);
       const menu = getSelectMenu(row);
-      const enabledOption = menu?.options?.find(
-        (o: { value?: string }) => o.value === 'enabled'
-      );
+      const enabledOption = menu?.options?.find((o: { value?: string }) => o.value === 'enabled');
 
       expect(enabledOption?.label).toBe('Extended Context');
     });
@@ -312,9 +310,7 @@ describe('SettingsDashboardBuilder', () => {
 
       const row = buildSettingsSelectMenu(config, session);
       const menu = getSelectMenu(row);
-      const enabledOption = menu?.options?.find(
-        (o: { value?: string }) => o.value === 'enabled'
-      );
+      const enabledOption = menu?.options?.find((o: { value?: string }) => o.value === 'enabled');
 
       expect(enabledOption?.description).toContain('Enabled');
     });

@@ -308,10 +308,7 @@ async function handleSettingUpdate(
 /**
  * Map dashboard setting ID to API field update
  */
-function mapSettingToApiUpdate(
-  settingId: string,
-  value: unknown
-): Record<string, unknown> | null {
+function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
     case 'enabled':
       // null means auto (inherit from global)

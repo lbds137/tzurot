@@ -4,7 +4,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { TextInputStyle } from 'discord.js';
-import { buildSettingEditModal, parseNumericInput, parseDurationInput } from './SettingsModalFactory.js';
+import {
+  buildSettingEditModal,
+  parseNumericInput,
+  parseDurationInput,
+} from './SettingsModalFactory.js';
 import { type SettingDefinition, SettingType } from './types.js';
 
 // Helper to extract component data from modal JSON
