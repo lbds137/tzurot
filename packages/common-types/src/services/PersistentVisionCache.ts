@@ -14,6 +14,7 @@
 
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { createLogger } from '../utils/logger.js';
+import { generateImageDescriptionCacheUuid } from '../utils/deterministicUuid.js';
 
 const logger = createLogger('PersistentVisionCache');
 
@@ -32,30 +33,25 @@ export class PersistentVisionCache {
    * @returns Description and model, or null if not found
    */
   async get(attachmentId: string): Promise<PersistentVisionCacheEntry | null> {
-    try {
-      const entry = await this.prisma.imageDescriptionCache.findUnique({
-        where: { attachmentId },
-        select: {
-          attachmentId: true,
-          description: true,
-          model: true,
-        },
-      });
+    const entry = await this.prisma.imageDescriptionCache.findUnique({
+      where: { attachmentId },
+      select: {
+        attachmentId: true,
+        description: true,
+        model: true,
+      },
+    });
 
-      if (entry !== null) {
-        logger.info(
-          { attachmentId },
-          '[PersistentVisionCache] L2 cache HIT - found persistent description'
-        );
-        return entry;
-      }
-
-      logger.debug({ attachmentId }, '[PersistentVisionCache] L2 cache MISS');
-      return null;
-    } catch (error) {
-      logger.error({ err: error, attachmentId }, '[PersistentVisionCache] Failed to get entry');
-      return null;
+    if (entry !== null) {
+      logger.info(
+        { attachmentId },
+        '[PersistentVisionCache] L2 cache HIT - found persistent description'
+      );
+      return entry;
     }
+
+    logger.debug({ attachmentId }, '[PersistentVisionCache] L2 cache MISS');
+    return null;
   }
 
   /**
@@ -64,30 +60,24 @@ export class PersistentVisionCache {
    * @param entry The cache entry to store
    */
   async set(entry: PersistentVisionCacheEntry): Promise<void> {
-    try {
-      await this.prisma.imageDescriptionCache.upsert({
-        where: { attachmentId: entry.attachmentId },
-        create: {
-          attachmentId: entry.attachmentId,
-          description: entry.description,
-          model: entry.model,
-        },
-        update: {
-          description: entry.description,
-          model: entry.model,
-        },
-      });
+    await this.prisma.imageDescriptionCache.upsert({
+      where: { attachmentId: entry.attachmentId },
+      create: {
+        id: generateImageDescriptionCacheUuid(entry.attachmentId),
+        attachmentId: entry.attachmentId,
+        description: entry.description,
+        model: entry.model,
+      },
+      update: {
+        description: entry.description,
+        model: entry.model,
+      },
+    });
 
-      logger.debug(
-        { attachmentId: entry.attachmentId, model: entry.model },
-        '[PersistentVisionCache] Stored description in L2 cache'
-      );
-    } catch (error) {
-      logger.error(
-        { err: error, attachmentId: entry.attachmentId },
-        '[PersistentVisionCache] Failed to store entry'
-      );
-    }
+    logger.debug(
+      { attachmentId: entry.attachmentId, model: entry.model },
+      '[PersistentVisionCache] Stored description in L2 cache'
+    );
   }
 
   /**
@@ -96,15 +86,10 @@ export class PersistentVisionCache {
    * @returns true if entry exists
    */
   async has(attachmentId: string): Promise<boolean> {
-    try {
-      const count = await this.prisma.imageDescriptionCache.count({
-        where: { attachmentId },
-      });
-      return count > 0;
-    } catch (error) {
-      logger.error({ err: error, attachmentId }, '[PersistentVisionCache] Failed to check entry');
-      return false;
-    }
+    const count = await this.prisma.imageDescriptionCache.count({
+      where: { attachmentId },
+    });
+    return count > 0;
   }
 
   /**
@@ -118,11 +103,12 @@ export class PersistentVisionCache {
       });
       logger.debug({ attachmentId }, '[PersistentVisionCache] Deleted entry');
     } catch (error) {
-      // Ignore "not found" errors
+      // Ignore "not found" errors - delete is idempotent
       if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
         return;
       }
-      logger.error({ err: error, attachmentId }, '[PersistentVisionCache] Failed to delete entry');
+      // Re-throw actual database errors
+      throw error;
     }
   }
 }
