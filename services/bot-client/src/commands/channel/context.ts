@@ -202,14 +202,17 @@ async function handleStatus(
 
   // Extended Context Enabled
   const extendedContextValue = channelSettings?.extendedContext ?? null;
-  const extendedContextEffective =
-    extendedContextValue ?? adminSettings.extendedContextDefault;
+  const extendedContextEffective = extendedContextValue ?? adminSettings.extendedContextDefault;
   const extendedContextSource: ExtendedContextSource =
     extendedContextValue !== null && extendedContextValue !== undefined ? 'channel' : 'global';
 
   embed.addFields({
     name: 'Extended Context',
-    value: formatSettingValue(extendedContextValue, extendedContextEffective, extendedContextSource),
+    value: formatSettingValue(
+      extendedContextValue,
+      extendedContextEffective,
+      extendedContextSource
+    ),
     inline: false,
   });
 
@@ -262,11 +265,7 @@ function formatSettingValue(
   source: ExtendedContextSource
 ): string {
   const channelLabel =
-    channelValue === null || channelValue === undefined
-      ? 'Auto'
-      : channelValue
-        ? 'On'
-        : 'Off';
+    channelValue === null || channelValue === undefined ? 'Auto' : channelValue ? 'On' : 'Off';
   const effectiveLabel = effective ? '**Enabled**' : '**Disabled**';
   return `Setting: **${channelLabel}**\nEffective: ${effectiveLabel} (from ${source})`;
 }
@@ -279,7 +278,8 @@ function formatNumericSetting(
   effective: number,
   source: ExtendedContextSource
 ): string {
-  const channelLabel = channelValue === null || channelValue === undefined ? 'Auto' : `${channelValue}`;
+  const channelLabel =
+    channelValue === null || channelValue === undefined ? 'Auto' : `${channelValue}`;
   return `Setting: **${channelLabel}**\nEffective: **${effective}** (from ${source})`;
 }
 
@@ -361,7 +361,7 @@ async function handleSetMaxMessages(
     const adminSettings = await gatewayClient.getAdminSettings();
 
     const channelValue = settings?.settings?.extendedContextMaxMessages ?? null;
-    const effectiveValue = channelValue ?? (adminSettings?.extendedContextMaxMessages ?? 20);
+    const effectiveValue = channelValue ?? adminSettings?.extendedContextMaxMessages ?? 20;
 
     await interaction.editReply({
       content:
@@ -379,7 +379,9 @@ async function handleSetMaxMessages(
 
   // Validate range
   if (updateValue !== null && (updateValue < 1 || updateValue > 100)) {
-    await interaction.editReply({ content: 'Max messages must be between 1 and 100, or 0 for auto.' });
+    await interaction.editReply({
+      content: 'Max messages must be between 1 and 100, or 0 for auto.',
+    });
     return;
   }
 
@@ -400,7 +402,8 @@ async function handleSetMaxMessages(
 
   if (updateValue === null) {
     await interaction.editReply({
-      content: '**Max messages set to Auto** for this channel.\n\nThis will follow the global default.',
+      content:
+        '**Max messages set to Auto** for this channel.\n\nThis will follow the global default.',
     });
   } else {
     await interaction.editReply({
@@ -503,10 +506,7 @@ async function handleSetMaxAge(
 
   invalidateChannelSettingsCache(channelId);
 
-  logger.info(
-    { channelId, value: duration.toDb(), userId },
-    '[Channel Context] Max age updated'
-  );
+  logger.info({ channelId, value: duration.toDb(), userId }, '[Channel Context] Max age updated');
 
   if (duration.isEnabled) {
     await interaction.editReply({
@@ -514,7 +514,8 @@ async function handleSetMaxAge(
     });
   } else {
     await interaction.editReply({
-      content: '**Max age filter disabled** for this channel.\n\nExtended context will include messages of any age (up to max messages limit).',
+      content:
+        '**Max age filter disabled** for this channel.\n\nExtended context will include messages of any age (up to max messages limit).',
     });
   }
 }
@@ -536,7 +537,7 @@ async function handleSetMaxImages(
     const adminSettings = await gatewayClient.getAdminSettings();
 
     const channelValue = settings?.settings?.extendedContextMaxImages ?? null;
-    const effectiveValue = channelValue ?? (adminSettings?.extendedContextMaxImages ?? 0);
+    const effectiveValue = channelValue ?? adminSettings?.extendedContextMaxImages ?? 0;
 
     await interaction.editReply({
       content:
@@ -572,7 +573,8 @@ async function handleSetMaxImages(
 
   if (value === 0) {
     await interaction.editReply({
-      content: '**Max images set to 0** for this channel.\n\nImages from extended context messages will not be sent to the AI.',
+      content:
+        '**Max images set to 0** for this channel.\n\nImages from extended context messages will not be sent to the AI.',
     });
   } else {
     await interaction.editReply({

@@ -78,9 +78,7 @@ export async function handleSettings(interaction: ChatInputCommandInteraction): 
 /**
  * Fetch AdminSettings from API gateway
  */
-async function fetchAdminSettings(
-  userId: string
-): Promise<GetAdminSettingsResponse | null> {
+async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsResponse | null> {
   const response = await adminFetch('/admin/settings', {
     method: 'GET',
     userId,
@@ -309,7 +307,8 @@ async function handleSetMaxAge(interaction: ChatInputCommandInteraction): Promis
     });
   } else {
     await interaction.editReply({
-      content: '**Max age filter disabled.**\n\nExtended context will include messages of any age (up to max messages limit).',
+      content:
+        '**Max age filter disabled.**\n\nExtended context will include messages of any age (up to max messages limit).',
     });
   }
 }
@@ -354,7 +353,8 @@ async function handleSetMaxImages(interaction: ChatInputCommandInteraction): Pro
 
   if (value === 0) {
     await interaction.editReply({
-      content: '**Max images set to 0.**\n\nImages from extended context messages will not be sent to the AI.',
+      content:
+        '**Max images set to 0.**\n\nImages from extended context messages will not be sent to the AI.',
     });
   } else {
     await interaction.editReply({
