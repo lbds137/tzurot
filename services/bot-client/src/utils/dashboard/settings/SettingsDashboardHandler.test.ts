@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSettingsDashboard } from './SettingsDashboardHandler.js';
+import {
+  createSettingsDashboard,
+  handleSettingsSelectMenu,
+  handleSettingsButton,
+  handleSettingsModal,
+  getUpdateHandler,
+} from './SettingsDashboardHandler.js';
 import {
   type SettingsDashboardConfig,
   type SettingsData,
@@ -439,6 +445,966 @@ describe('SettingsDashboardHandler', () => {
       expect(maxMessages?.max).toBe(100);
       expect(maxImages?.min).toBe(0);
       expect(maxImages?.max).toBe(20);
+    });
+  });
+
+  describe('handleSettingsSelectMenu', () => {
+    const createSelectInteraction = (customId: string, selectedValue: string, userId = 'user-123') => ({
+      customId,
+      user: { id: userId },
+      values: [selectedValue],
+      reply: vi.fn(),
+      update: vi.fn(),
+    });
+
+    it('should return early for invalid customId', async () => {
+      const interaction = createSelectInteraction('invalid', 'enabled');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).not.toHaveBeenCalled();
+      expect(interaction.update).not.toHaveBeenCalled();
+    });
+
+    it('should reply with expired message when session not found', async () => {
+      mockSessionManager.get.mockReturnValue(null);
+
+      const interaction = createSelectInteraction('test-settings::select::entity-1', 'enabled');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('expired'),
+        })
+      );
+    });
+
+    it('should reject when session belongs to another user', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'other-user',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'overview',
+        },
+      });
+
+      const interaction = createSelectInteraction('test-settings::select::entity-1', 'enabled', 'user-123');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('another user'),
+        })
+      );
+    });
+
+    it('should reply with unknown setting for invalid setting ID', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-123',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'overview',
+        },
+      });
+
+      const interaction = createSelectInteraction('test-settings::select::entity-1', 'nonexistent-setting');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Unknown setting'),
+        })
+      );
+    });
+
+    it('should update to setting view when valid setting selected', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-123',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'overview',
+        },
+      });
+
+      const interaction = createSelectInteraction('test-settings::select::entity-1', 'enabled');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsSelectMenu(interaction as never, config, updateHandler);
+
+      expect(interaction.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+    });
+  });
+
+  describe('handleSettingsButton', () => {
+    const createButtonInteraction = (customId: string, userId = 'user-123') => ({
+      customId,
+      user: { id: userId },
+      reply: vi.fn(),
+      update: vi.fn(),
+      showModal: vi.fn(),
+    });
+
+    it('should return early for invalid customId', async () => {
+      const interaction = createButtonInteraction('invalid');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).not.toHaveBeenCalled();
+      expect(interaction.update).not.toHaveBeenCalled();
+    });
+
+    it('should reply with expired message when session not found', async () => {
+      mockSessionManager.get.mockReturnValue(null);
+
+      const interaction = createButtonInteraction('test-settings::back::entity-1');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('expired'),
+        })
+      );
+    });
+
+    it('should reject when session belongs to another user', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'other-user',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'setting',
+        },
+      });
+
+      const interaction = createButtonInteraction('test-settings::back::entity-1', 'user-123');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsButton(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('another user'),
+        })
+      );
+    });
+
+    describe('back button', () => {
+      it('should return to overview', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'enabled',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::back::entity-1');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            embeds: expect.any(Array),
+            components: expect.any(Array),
+          })
+        );
+      });
+    });
+
+    describe('close button', () => {
+      it('should delete session and update message', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'overview',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::close::entity-1');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(mockSessionManager.delete).toHaveBeenCalled();
+        expect(interaction.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('closed'),
+            embeds: [],
+            components: [],
+          })
+        );
+      });
+    });
+
+    describe('set button', () => {
+      it('should return early when extra data is missing', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).not.toHaveBeenCalled();
+        expect(interaction.update).not.toHaveBeenCalled();
+      });
+
+      it('should reply with unknown setting for invalid setting ID', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1::nonexistent:true');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('Unknown setting'),
+          })
+        );
+      });
+
+      it('should parse "auto" value as null', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'enabled',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:auto');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'enabled',
+          null
+        );
+      });
+
+      it('should parse "true" value as boolean true', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'enabled',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'enabled',
+          true
+        );
+      });
+
+      it('should parse "false" value as boolean false', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'enabled',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:false');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'enabled',
+          false
+        );
+      });
+
+      it('should reply with error when update fails', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'enabled',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: false, error: 'API error' });
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('API error'),
+          })
+        );
+      });
+
+      it('should update view after successful change', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'enabled',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
+        const config = createTestConfig();
+        const newData = createTestData();
+        newData.enabled.localValue = true;
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData });
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.update).toHaveBeenCalled();
+      });
+    });
+
+    describe('edit button', () => {
+      it('should return early when setting ID is missing', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::edit::entity-1');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.showModal).not.toHaveBeenCalled();
+      });
+
+      it('should reply with unknown setting for invalid setting ID', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::edit::entity-1::nonexistent');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('Unknown setting'),
+          })
+        );
+      });
+
+      it('should show modal for valid setting', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+          },
+        });
+
+        const interaction = createButtonInteraction('test-settings::edit::entity-1::maxMessages');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(interaction.showModal).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('handleSettingsModal', () => {
+    const createModalInteraction = (customId: string, inputValue: string, userId = 'user-123') => ({
+      customId,
+      user: { id: userId },
+      fields: {
+        getTextInputValue: vi.fn().mockReturnValue(inputValue),
+      },
+      reply: vi.fn(),
+      deferUpdate: vi.fn(),
+      editReply: vi.fn(),
+    });
+
+    it('should return early for invalid customId', async () => {
+      const interaction = createModalInteraction('invalid', '50');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsModal(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should reply with invalid submission when setting ID is missing', async () => {
+      const interaction = createModalInteraction('test-settings::modal::entity-1', '50');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsModal(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Invalid modal'),
+        })
+      );
+    });
+
+    it('should reply with expired message when session not found', async () => {
+      mockSessionManager.get.mockReturnValue(null);
+
+      const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '50');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsModal(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('expired'),
+        })
+      );
+    });
+
+    it('should reply with unknown setting for invalid setting ID', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-123',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'setting',
+        },
+      });
+
+      const interaction = createModalInteraction('test-settings::modal::entity-1::nonexistent', '50');
+      const config = createTestConfig();
+      const updateHandler = vi.fn();
+
+      await handleSettingsModal(interaction as never, config, updateHandler);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Unknown setting'),
+        })
+      );
+    });
+
+    describe('numeric input parsing', () => {
+      it('should parse valid number', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxMessages',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '75');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxMessages',
+          75
+        );
+      });
+
+      it('should parse "auto" as null', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxMessages',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', 'auto');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxMessages',
+          null
+        );
+      });
+
+      it('should parse empty string as null', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxMessages',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '  ');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxMessages',
+          null
+        );
+      });
+
+      it('should reject invalid number', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxMessages',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', 'abc');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('Invalid number'),
+          })
+        );
+        expect(updateHandler).not.toHaveBeenCalled();
+      });
+
+      it('should reject number below minimum', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxMessages',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '0');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('between'),
+          })
+        );
+        expect(updateHandler).not.toHaveBeenCalled();
+      });
+
+      it('should reject number above maximum', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxMessages',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '999');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('between'),
+          })
+        );
+        expect(updateHandler).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('duration input parsing', () => {
+      it('should parse hours format', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '2h');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          7200 // 2 hours in seconds
+        );
+      });
+
+      it('should parse minutes format', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '30m');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          1800 // 30 minutes in seconds
+        );
+      });
+
+      it('should parse days format', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '1d');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          86400 // 1 day in seconds
+        );
+      });
+
+      it('should parse "off" as -1 sentinel', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', 'off');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          -1
+        );
+      });
+
+      it('should parse "disabled" as -1 sentinel', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', 'disabled');
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'maxAge',
+          -1
+        );
+      });
+
+      it('should reject invalid duration format', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', 'abc');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('Invalid duration'),
+          })
+        );
+        expect(updateHandler).not.toHaveBeenCalled();
+      });
+
+      it('should reject duration less than 1 minute', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const interaction = createModalInteraction('test-settings::modal::entity-1::maxAge', '30s');
+        const config = createTestConfig();
+        const updateHandler = vi.fn();
+
+        await handleSettingsModal(interaction as never, config, updateHandler);
+
+        expect(interaction.reply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            content: expect.stringContaining('at least 1 minute'),
+          })
+        );
+        expect(updateHandler).not.toHaveBeenCalled();
+      });
+
+      it('should parse long form units (hours, minutes, days)', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'maxAge',
+          },
+        });
+
+        const config = createTestConfig();
+        const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+        // Test "hours"
+        const interaction1 = createModalInteraction('test-settings::modal::entity-1::maxAge', '2 hours');
+        await handleSettingsModal(interaction1 as never, config, updateHandler);
+        expect(updateHandler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'maxAge', 7200);
+
+        // Test "minutes"
+        const interaction2 = createModalInteraction('test-settings::modal::entity-1::maxAge', '90 minutes');
+        await handleSettingsModal(interaction2 as never, config, updateHandler);
+        expect(updateHandler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'maxAge', 5400);
+
+        // Test "day"
+        const interaction3 = createModalInteraction('test-settings::modal::entity-1::maxAge', '1 day');
+        await handleSettingsModal(interaction3 as never, config, updateHandler);
+        expect(updateHandler).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), 'maxAge', 86400);
+      });
+    });
+
+    it('should defer update and call handler', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-123',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'setting',
+          activeSetting: 'maxMessages',
+        },
+      });
+
+      const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '50');
+      const config = createTestConfig();
+      const updateHandler = vi.fn().mockResolvedValue({ success: true, newData: createTestData() });
+
+      await handleSettingsModal(interaction as never, config, updateHandler);
+
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(updateHandler).toHaveBeenCalled();
+    });
+
+    it('should update view after successful change', async () => {
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-123',
+          entityId: 'entity-1',
+          data: createTestData(),
+          view: 'setting',
+          activeSetting: 'maxMessages',
+        },
+      });
+
+      const interaction = createModalInteraction('test-settings::modal::entity-1::maxMessages', '50');
+      const config = createTestConfig();
+      const newData = createTestData();
+      newData.maxMessages.localValue = 50;
+      const updateHandler = vi.fn().mockResolvedValue({ success: true, newData });
+
+      await handleSettingsModal(interaction as never, config, updateHandler);
+
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+    });
+  });
+
+  describe('getUpdateHandler', () => {
+    it('should return undefined for unknown session', () => {
+      const handler = getUpdateHandler('unknown-user', 'unknown-type', 'unknown-entity');
+      expect(handler).toBeUndefined();
+    });
+
+    it('should return handler after dashboard creation', async () => {
+      const config = createTestConfig();
+      const data = createTestData();
+      const interaction = createMockInteraction({ channelId: 'channel-123' });
+      const updateHandler = vi.fn();
+
+      await createSettingsDashboard(interaction as never, {
+        config,
+        data,
+        entityId: 'test-entity',
+        entityName: 'Test',
+        userId: 'user-123',
+        updateHandler,
+      });
+
+      const retrieved = getUpdateHandler('user-123', 'test-settings', 'test-entity');
+      expect(retrieved).toBe(updateHandler);
     });
   });
 });
