@@ -46,7 +46,22 @@ export function createExtendedContextHandler(prisma: PrismaClient): RequestHandl
       return;
     }
 
-    const { extendedContext } = parseResult.data;
+    const {
+      extendedContext,
+      extendedContextMaxMessages,
+      extendedContextMaxAge,
+      extendedContextMaxImages,
+    } = parseResult.data;
+
+    // Build update object with only specified fields
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: Record<string, any> = {};
+    if (extendedContext !== undefined) updateData.extendedContext = extendedContext;
+    if (extendedContextMaxMessages !== undefined)
+      updateData.extendedContextMaxMessages = extendedContextMaxMessages;
+    if (extendedContextMaxAge !== undefined) updateData.extendedContextMaxAge = extendedContextMaxAge;
+    if (extendedContextMaxImages !== undefined)
+      updateData.extendedContextMaxImages = extendedContextMaxImages;
 
     // Get or create internal user
     const user = await getOrCreateInternalUser(prisma, discordUserId);
@@ -60,12 +75,10 @@ export function createExtendedContextHandler(prisma: PrismaClient): RequestHandl
       create: {
         id: settingsId,
         channelId,
-        extendedContext,
+        ...updateData,
         createdBy: user.id,
       },
-      update: {
-        extendedContext,
-      },
+      update: updateData,
       select: {
         id: true,
         channelId: true,
@@ -90,9 +103,9 @@ export function createExtendedContextHandler(prisma: PrismaClient): RequestHandl
       {
         discordUserId,
         channelId,
-        extendedContext,
+        updates: updateData,
       },
-      '[Channel] Updated extended context setting'
+      '[Channel] Updated extended context settings'
     );
 
     // Build response matching schema

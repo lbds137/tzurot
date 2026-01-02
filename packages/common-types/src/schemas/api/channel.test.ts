@@ -348,8 +348,54 @@ describe('Channel Settings Schemas', () => {
       });
     });
 
-    it('should reject missing extendedContext', () => {
+    it('should accept maxMessages, maxAge, and maxImages', () => {
+      expect(
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: 50 })
+      ).toEqual({ extendedContextMaxMessages: 50 });
+      expect(
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxAge: 7200 })
+      ).toEqual({ extendedContextMaxAge: 7200 });
+      expect(
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxImages: 10 })
+      ).toEqual({ extendedContextMaxImages: 10 });
+    });
+
+    it('should accept null for numeric fields (use global)', () => {
+      expect(
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: null })
+      ).toEqual({ extendedContextMaxMessages: null });
+    });
+
+    it('should accept multiple fields at once', () => {
+      const result = UpdateChannelExtendedContextRequestSchema.parse({
+        extendedContext: true,
+        extendedContextMaxMessages: 75,
+        extendedContextMaxAge: null,
+      });
+      expect(result).toEqual({
+        extendedContext: true,
+        extendedContextMaxMessages: 75,
+        extendedContextMaxAge: null,
+      });
+    });
+
+    it('should reject empty object (at least one field required)', () => {
       expect(() => UpdateChannelExtendedContextRequestSchema.parse({})).toThrow();
+    });
+
+    it('should reject invalid numeric values', () => {
+      expect(() =>
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: 0 })
+      ).toThrow();
+      expect(() =>
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: 150 })
+      ).toThrow();
+      expect(() =>
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxImages: -1 })
+      ).toThrow();
+      expect(() =>
+        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxImages: 25 })
+      ).toThrow();
     });
   });
 
