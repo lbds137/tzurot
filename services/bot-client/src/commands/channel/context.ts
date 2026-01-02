@@ -366,7 +366,7 @@ async function handleSetMaxMessages(
     await interaction.editReply({
       content:
         `**Max Messages for this channel**\n\n` +
-        `Channel setting: **${channelValue === null ? 'Auto' : channelValue}**\n` +
+        `Channel setting: **${channelValue ?? 'Auto'}**\n` +
         `Effective value: **${effectiveValue}** (from ${channelValue === null ? 'global' : 'channel'})\n\n` +
         `To change, use \`/channel context action:set-max-messages value:<1-100>\`\n` +
         `To use global setting, use \`value:0\` (auto)`,
@@ -542,7 +542,7 @@ async function handleSetMaxImages(
     await interaction.editReply({
       content:
         `**Max Images for this channel**\n\n` +
-        `Channel setting: **${channelValue === null ? 'Auto' : channelValue}**\n` +
+        `Channel setting: **${channelValue ?? 'Auto'}**\n` +
         `Effective value: **${effectiveValue}** (from ${channelValue === null ? 'global' : 'channel'})\n\n` +
         `To change, use \`/channel context action:set-max-images value:<0-20>\`\n` +
         `Use \`value:0\` for 0 images, or type \`auto\` in duration field to use global`,

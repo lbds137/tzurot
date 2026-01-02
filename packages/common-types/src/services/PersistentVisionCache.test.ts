@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PersistentVisionCache } from './PersistentVisionCache.js';
+import type { PrismaClient } from '../generated/prisma/client.js';
 
 // Mock logger
 vi.mock('../utils/logger.js', () => ({
@@ -15,21 +16,30 @@ vi.mock('../utils/logger.js', () => ({
   }),
 }));
 
-describe('PersistentVisionCache', () => {
-  const mockPrisma = {
-    imageDescriptionCache: {
-      findUnique: vi.fn(),
-      upsert: vi.fn(),
-      count: vi.fn(),
-      delete: vi.fn(),
-    },
-  };
+// Mock structure for imageDescriptionCache operations
+interface MockImageDescriptionCache {
+  findUnique: ReturnType<typeof vi.fn>;
+  upsert: ReturnType<typeof vi.fn>;
+  count: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+}
 
+describe('PersistentVisionCache', () => {
+  let mockImageDescriptionCache: MockImageDescriptionCache;
   let cache: PersistentVisionCache;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    cache = new PersistentVisionCache(mockPrisma as never);
+    mockImageDescriptionCache = {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      count: vi.fn(),
+      delete: vi.fn(),
+    };
+    const mockPrisma = {
+      imageDescriptionCache: mockImageDescriptionCache,
+    } as unknown as PrismaClient;
+    cache = new PersistentVisionCache(mockPrisma);
   });
 
   describe('get', () => {
@@ -39,12 +49,12 @@ describe('PersistentVisionCache', () => {
         description: 'A photo of a cat',
         model: 'gpt-4-vision-preview',
       };
-      mockPrisma.imageDescriptionCache.findUnique.mockResolvedValue(entry);
+      mockImageDescriptionCache.findUnique.mockResolvedValue(entry);
 
       const result = await cache.get('123456789012345678');
 
       expect(result).toEqual(entry);
-      expect(mockPrisma.imageDescriptionCache.findUnique).toHaveBeenCalledWith({
+      expect(mockImageDescriptionCache.findUnique).toHaveBeenCalledWith({
         where: { attachmentId: '123456789012345678' },
         select: {
           attachmentId: true,
@@ -55,7 +65,7 @@ describe('PersistentVisionCache', () => {
     });
 
     it('should return null when not found', async () => {
-      mockPrisma.imageDescriptionCache.findUnique.mockResolvedValue(null);
+      mockImageDescriptionCache.findUnique.mockResolvedValue(null);
 
       const result = await cache.get('nonexistent');
 
@@ -63,7 +73,7 @@ describe('PersistentVisionCache', () => {
     });
 
     it('should return null and log error on database failure', async () => {
-      mockPrisma.imageDescriptionCache.findUnique.mockRejectedValue(new Error('DB error'));
+      mockImageDescriptionCache.findUnique.mockRejectedValue(new Error('DB error'));
 
       const result = await cache.get('123');
 
@@ -78,11 +88,11 @@ describe('PersistentVisionCache', () => {
         description: 'A photo of a dog',
         model: 'claude-3-opus',
       };
-      mockPrisma.imageDescriptionCache.upsert.mockResolvedValue(entry);
+      mockImageDescriptionCache.upsert.mockResolvedValue(entry);
 
       await cache.set(entry);
 
-      expect(mockPrisma.imageDescriptionCache.upsert).toHaveBeenCalledWith({
+      expect(mockImageDescriptionCache.upsert).toHaveBeenCalledWith({
         where: { attachmentId: '123456789012345678' },
         create: {
           attachmentId: '123456789012345678',
@@ -97,7 +107,7 @@ describe('PersistentVisionCache', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockPrisma.imageDescriptionCache.upsert.mockRejectedValue(new Error('DB error'));
+      mockImageDescriptionCache.upsert.mockRejectedValue(new Error('DB error'));
 
       // Should not throw
       await expect(
@@ -112,18 +122,18 @@ describe('PersistentVisionCache', () => {
 
   describe('has', () => {
     it('should return true when entry exists', async () => {
-      mockPrisma.imageDescriptionCache.count.mockResolvedValue(1);
+      mockImageDescriptionCache.count.mockResolvedValue(1);
 
       const result = await cache.has('123456789012345678');
 
       expect(result).toBe(true);
-      expect(mockPrisma.imageDescriptionCache.count).toHaveBeenCalledWith({
+      expect(mockImageDescriptionCache.count).toHaveBeenCalledWith({
         where: { attachmentId: '123456789012345678' },
       });
     });
 
     it('should return false when entry does not exist', async () => {
-      mockPrisma.imageDescriptionCache.count.mockResolvedValue(0);
+      mockImageDescriptionCache.count.mockResolvedValue(0);
 
       const result = await cache.has('nonexistent');
 
@@ -131,7 +141,7 @@ describe('PersistentVisionCache', () => {
     });
 
     it('should return false on database error', async () => {
-      mockPrisma.imageDescriptionCache.count.mockRejectedValue(new Error('DB error'));
+      mockImageDescriptionCache.count.mockRejectedValue(new Error('DB error'));
 
       const result = await cache.has('123');
 
@@ -141,17 +151,17 @@ describe('PersistentVisionCache', () => {
 
   describe('delete', () => {
     it('should delete entry from cache', async () => {
-      mockPrisma.imageDescriptionCache.delete.mockResolvedValue({});
+      mockImageDescriptionCache.delete.mockResolvedValue({});
 
       await cache.delete('123456789012345678');
 
-      expect(mockPrisma.imageDescriptionCache.delete).toHaveBeenCalledWith({
+      expect(mockImageDescriptionCache.delete).toHaveBeenCalledWith({
         where: { attachmentId: '123456789012345678' },
       });
     });
 
     it('should ignore "not found" errors', async () => {
-      mockPrisma.imageDescriptionCache.delete.mockRejectedValue(
+      mockImageDescriptionCache.delete.mockRejectedValue(
         new Error('Record to delete does not exist')
       );
 
@@ -160,7 +170,7 @@ describe('PersistentVisionCache', () => {
     });
 
     it('should handle other database errors gracefully', async () => {
-      mockPrisma.imageDescriptionCache.delete.mockRejectedValue(new Error('Connection error'));
+      mockImageDescriptionCache.delete.mockRejectedValue(new Error('Connection error'));
 
       // Should not throw
       await expect(cache.delete('123')).resolves.toBeUndefined();
