@@ -58,10 +58,10 @@ async getPersonality() {
 
 Prisma can't represent these indexes and tries to "fix" them:
 
-| Index | Type | Why It's Protected |
-|-------|------|-------------------|
-| `idx_memories_embedding` | IVFFlat vector | Prisma doesn't support `Unsupported` type indexes |
-| `memories_chunk_group_id_idx` | Partial B-tree | Prisma can't represent `WHERE` clauses |
+| Index                         | Type           | Why It's Protected                                |
+| ----------------------------- | -------------- | ------------------------------------------------- |
+| `idx_memories_embedding`      | IVFFlat vector | Prisma doesn't support `Unsupported` type indexes |
+| `memories_chunk_group_id_idx` | Partial B-tree | Prisma can't represent `WHERE` clauses            |
 
 ### The Problem
 
@@ -80,6 +80,7 @@ pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
 ```
 
 This script:
+
 1. Runs `prisma migrate dev --create-only`
 2. Removes known drift patterns from `prisma/drift-ignore.json`
 3. Reports what was sanitized

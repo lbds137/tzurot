@@ -29,5 +29,8 @@ export * from './usage.js';
 // Channel activation endpoints
 export * from './channel.js';
 
-// Bot settings endpoints (admin)
+// Bot settings endpoints (admin) - LEGACY, kept for backward compat during transition
 export * from './botSettings.js';
+
+// Admin settings endpoints (new singleton pattern)
+export * from './adminSettings.js';
