@@ -125,13 +125,21 @@ export const UpdateChannelGuildResponseSchema = z.object({
 export type UpdateChannelGuildResponse = z.infer<typeof UpdateChannelGuildResponseSchema>;
 
 // ============================================================================
-// PATCH /user/channel/settings/:channelId
-// Updates extended context setting for a channel
+// PATCH /user/channel/:channelId/extended-context
+// Updates extended context settings for a channel
+// All fields are optional - only specified fields are updated
 // ============================================================================
 
-export const UpdateChannelExtendedContextRequestSchema = z.object({
-  extendedContext: z.boolean().nullable(), // null = use global default
-});
+export const UpdateChannelExtendedContextRequestSchema = z
+  .object({
+    extendedContext: z.boolean().nullable().optional(), // null = use global default
+    extendedContextMaxMessages: z.number().int().min(1).max(100).nullable().optional(),
+    extendedContextMaxAge: z.number().int().min(1).nullable().optional(), // seconds
+    extendedContextMaxImages: z.number().int().min(0).max(20).nullable().optional(),
+  })
+  .refine(data => Object.values(data).some(v => v !== undefined), {
+    message: 'At least one field must be specified',
+  });
 export type UpdateChannelExtendedContextRequest = z.infer<
   typeof UpdateChannelExtendedContextRequestSchema
 >;

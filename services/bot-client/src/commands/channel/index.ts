@@ -56,14 +56,28 @@ export const data = new SlashCommandBuilder()
       .setDescription('Manage extended context settings for this channel')
       .addStringOption(option =>
         option.setName('action').setDescription('Action to perform').setRequired(true).addChoices(
-          {
-            name: 'Enable - Force ON (always fetch channel history)',
-            value: 'enable',
-          },
+          { name: 'Status - Show current settings', value: 'status' },
+          { name: 'Enable - Force ON (always fetch channel history)', value: 'enable' },
           { name: 'Disable - Force OFF (never fetch channel history)', value: 'disable' },
           { name: 'Auto - Follow global default', value: 'auto' },
-          { name: 'Status - Show current setting', value: 'status' }
+          { name: 'Set max messages (1-100)', value: 'set-max-messages' },
+          { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
+          { name: 'Set max images (0-20)', value: 'set-max-images' }
         )
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('value')
+          .setDescription('Value for set-max-messages or set-max-images')
+          .setRequired(false)
+          .setMinValue(0)
+          .setMaxValue(100)
+      )
+      .addStringOption(option =>
+        option
+          .setName('duration')
+          .setDescription('Duration for set-max-age (e.g., 2h, 30m, 1d, off, auto)')
+          .setRequired(false)
       )
   );
 
