@@ -24,6 +24,9 @@ export const ChannelSettingsSchema = z.object({
   personalityName: z.string().min(1).nullable(), // Null if no personality activated
   autoRespond: z.boolean(),
   extendedContext: z.boolean().nullable(), // null = use global default
+  extendedContextMaxMessages: z.number().int().min(1).max(100).nullable(), // null = use global
+  extendedContextMaxAge: z.number().int().min(1).nullable(), // seconds, null = use global
+  extendedContextMaxImages: z.number().int().min(0).max(20).nullable(), // null = use global
   activatedBy: z.string().uuid().nullable(),
   createdAt: z.string(),
 });
