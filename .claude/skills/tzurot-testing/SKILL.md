@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Use when writing tests, debugging test failures, mocking dependencies, or using fake timers. Covers Vitest patterns, mock factories, and promise rejection handling.
-lastUpdated: '2025-12-31'
+lastUpdated: '2026-01-02'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -209,6 +209,93 @@ describe('AI generation flow', () => {
 - **Unit tests**: Mock all dependencies, test one function
 - **Integration tests**: Use real components (except external APIs like Discord, OpenRouter)
 
+### PGLite for Local Integration Tests
+
+Integration tests use PGLite (in-memory PostgreSQL with pgvector) for zero-setup database testing:
+
+```bash
+# Run integration tests (no DATABASE_URL needed)
+pnpm test:integration
+
+# Schema is auto-generated from Prisma
+./scripts/testing/regenerate-pglite-schema.sh
+```
+
+**Schema Management** (CRITICAL):
+
+- Schema SQL is auto-generated from `prisma/schema.prisma`
+- Stored in `tests/integration/schema/pglite-schema.sql`
+- **Regenerate after Prisma migrations**: `./scripts/testing/regenerate-pglite-schema.sh`
+- Uses `prisma migrate diff --from-empty --to-schema` - never write SQL manually
+
+**Environment Detection**:
+
+| Environment               | Database         | Redis |
+| ------------------------- | ---------------- | ----- |
+| Local (no DATABASE_URL)   | PGLite           | Mock  |
+| Local (with DATABASE_URL) | Real Postgres    | Mock  |
+| CI (GITHUB_ACTIONS=true)  | Service Postgres | Real  |
+
+**Setup in Tests**:
+
+```typescript
+import { setupTestEnvironment, type TestEnvironment } from './setup';
+
+let testEnv: TestEnvironment;
+
+beforeAll(async () => {
+  testEnv = await setupTestEnvironment();
+  // testEnv.prisma, testEnv.redis available
+});
+
+afterAll(async () => {
+  await testEnv.cleanup();
+});
+```
+
+## Contract Coverage Audit
+
+The project uses a ratchet system to prevent new APIs from being added without contract tests:
+
+```bash
+# Check coverage (fails if NEW gaps detected)
+npx tsx scripts/testing/audit-contract-coverage.ts
+
+# Update baseline (after adding contract tests)
+npx tsx scripts/testing/audit-contract-coverage.ts --update-baseline
+
+# Strict mode (fails on ANY gap)
+npx tsx scripts/testing/audit-contract-coverage.ts --strict
+```
+
+**How It Works**:
+
+1. Finds all Zod schemas in `packages/common-types/src/schemas/api/`
+2. Checks which have `.safeParse()` calls in contract tests
+3. Compares against `contract-coverage-baseline.json`
+4. **Fails CI** if NEW untested schemas are added
+
+**Adding Contract Tests**:
+
+```typescript
+// packages/common-types/src/types/MyFeature.contract.test.ts
+import { MyResponseSchema } from '../schemas/api/myFeature.js';
+
+describe('MyFeature API Contract', () => {
+  it('should validate response structure', () => {
+    const response = { id: '123', name: 'Test' };
+    expect(MyResponseSchema.safeParse(response).success).toBe(true);
+  });
+
+  it('should reject invalid response', () => {
+    const invalid = { id: 123 }; // Wrong type
+    expect(MyResponseSchema.safeParse(invalid).success).toBe(false);
+  });
+});
+```
+
+**After Adding Tests**: Update baseline if needed to remove fixed gaps
+
 ## Anti-Patterns
 
 ```typescript
@@ -260,3 +347,6 @@ pnpm --filter @tzurot/api-gateway test:coverage
 - Full testing guide: `docs/guides/TESTING.md`
 - Mock factories: `services/*/src/test/mocks/`
 - Global philosophy: `~/.claude/CLAUDE.md#universal-testing-philosophy`
+- PGLite setup: `tests/integration/setup.ts`
+- Contract audit: `scripts/testing/audit-contract-coverage.ts`
+- Schema regeneration: `scripts/testing/regenerate-pglite-schema.sh`
