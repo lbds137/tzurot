@@ -18,18 +18,19 @@ import {
 } from './conversationUtils.js';
 import { MessageRole, type StoredReferencedMessage } from '@tzurot/common-types';
 
-// Mock common-types
+// Mock common-types - use importOriginal to get actual implementations
+// but override logger and formatRelativeTime for test isolation
 vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    formatRelativeTime: vi.fn((timestamp: string) => {
+    formatRelativeTime: vi.fn((_timestamp: string) => {
       // Simple mock that returns a formatted string
       return 'just now';
     }),
@@ -933,6 +934,142 @@ describe('Conversation Utilities', () => {
 
       // Lengths should be the same since no disambiguation needed
       expect(result).toBe(resultWithoutDiscord);
+    });
+  });
+
+  describe('Time Gap Markers', () => {
+    it('should not inject gap markers when timeGapConfig is not provided', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First message', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'assistant', content: 'Response', createdAt: '2025-01-01T14:00:00Z' }, // 4 hours later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<time_gap');
+    });
+
+    it('should inject gap marker when gap exceeds threshold', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First message', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'assistant', content: 'Response', createdAt: '2025-01-01T14:00:00Z' }, // 4 hours later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 }, // 1 hour threshold
+      });
+
+      expect(result).toContain('<time_gap duration="4 hours" />');
+    });
+
+    it('should not inject gap marker when gap is below threshold', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First message', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'assistant', content: 'Response', createdAt: '2025-01-01T10:30:00Z' }, // 30 minutes later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 }, // 1 hour threshold
+      });
+
+      expect(result).not.toContain('<time_gap');
+    });
+
+    it('should inject multiple gap markers for multiple significant gaps', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'Morning', createdAt: '2025-01-01T08:00:00Z' },
+        { role: 'assistant', content: 'Good morning!', createdAt: '2025-01-01T08:01:00Z' },
+        { role: 'user', content: 'Afternoon', createdAt: '2025-01-01T14:00:00Z' }, // 6 hours later
+        { role: 'assistant', content: 'Good afternoon!', createdAt: '2025-01-01T14:01:00Z' },
+        { role: 'user', content: 'Evening', createdAt: '2025-01-01T20:00:00Z' }, // 6 hours later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 }, // 1 hour threshold
+      });
+
+      // Should have 2 gap markers
+      const gapCount = (result.match(/<time_gap/g) || []).length;
+      expect(gapCount).toBe(2);
+    });
+
+    it('should format combined duration for gaps with hours and minutes', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'user', content: 'Second', createdAt: '2025-01-01T11:30:00Z' }, // 1 hour 30 minutes later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 }, // 1 hour threshold
+      });
+
+      expect(result).toContain('<time_gap duration="1 hour 30 minutes" />');
+    });
+
+    it('should format day gaps correctly', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'Yesterday', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'user', content: 'Today', createdAt: '2025-01-02T14:00:00Z' }, // 1 day 4 hours later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 }, // 1 hour threshold
+      });
+
+      expect(result).toContain('<time_gap duration="1 day 4 hours" />');
+    });
+
+    it('should skip gap calculation when timestamps are missing', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First' }, // No createdAt
+        { role: 'user', content: 'Second', createdAt: '2025-01-01T14:00:00Z' },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 },
+      });
+
+      // Should not inject gap since first message has no timestamp
+      expect(result).not.toContain('<time_gap');
+    });
+
+    it('should place gap marker between the correct messages', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'user', content: 'Second', createdAt: '2025-01-01T14:00:00Z' }, // 4 hours later
+        { role: 'user', content: 'Third', createdAt: '2025-01-01T14:05:00Z' }, // 5 minutes later
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 },
+      });
+
+      // Gap should be between First and Second
+      const lines = result.split('\n');
+      const gapIndex = lines.findIndex(l => l.includes('<time_gap'));
+      const secondIndex = lines.findIndex(l => l.includes('Second'));
+
+      expect(gapIndex).toBeLessThan(secondIndex);
+      expect(gapIndex).toBeGreaterThan(0); // After first message
+    });
+
+    it('should respect custom threshold configuration', () => {
+      const history: RawHistoryEntry[] = [
+        { role: 'user', content: 'First', createdAt: '2025-01-01T10:00:00Z' },
+        { role: 'user', content: 'Second', createdAt: '2025-01-01T10:45:00Z' }, // 45 minutes later
+      ];
+
+      // With 30-minute threshold, should show gap
+      const resultWith30Min = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 30 * 60 * 1000 },
+      });
+      expect(resultWith30Min).toContain('<time_gap');
+
+      // With 1-hour threshold, should not show gap
+      const resultWith1Hour = formatConversationHistoryAsXml(history, 'TestBot', {
+        timeGapConfig: { minGapMs: 60 * 60 * 1000 },
+      });
+      expect(resultWith1Hour).not.toContain('<time_gap');
     });
   });
 

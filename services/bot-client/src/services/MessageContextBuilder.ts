@@ -6,7 +6,11 @@
  * Supports extended context: fetching recent Discord channel messages.
  */
 
-import type { PrismaClient, PersonaResolver, ResolvedExtendedContextSettings } from '@tzurot/common-types';
+import type {
+  PrismaClient,
+  PersonaResolver,
+  ResolvedExtendedContextSettings,
+} from '@tzurot/common-types';
 import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,
