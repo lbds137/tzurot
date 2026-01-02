@@ -12,7 +12,7 @@
  * @see VisionDescriptionCache for L1 (Redis) cache
  */
 
-import type { PrismaClient } from '../generated/prisma/client.js';
+import { Prisma, type PrismaClient } from '../generated/prisma/client.js';
 import { createLogger } from '../utils/logger.js';
 import { generateImageDescriptionCacheUuid } from '../utils/deterministicUuid.js';
 
@@ -103,8 +103,11 @@ export class PersistentVisionCache {
       });
       logger.debug({ attachmentId }, '[PersistentVisionCache] Deleted entry');
     } catch (error) {
-      // Ignore "not found" errors - delete is idempotent
-      if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
+      // P2025: Record not found - delete is idempotent, ignore this error
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
         return;
       }
       // Re-throw actual database errors
