@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2026-01-01
+> Last updated: 2026-01-02
 
 ## Status: Public Beta Live
 
@@ -10,7 +10,35 @@
 
 ---
 
-## Just Completed: Extended Channel Context (PR #419)
+## Just Completed: Extended Context Improvements
+
+**Branch**: `feature/extended-context-improvements`
+
+Three phases of improvements to the extended context system:
+
+### Phase 1: Time Gap Markers
+- ✅ `formatTimeGap()` utility - human-readable gap formatting ("2 hours 15 minutes")
+- ✅ `shouldShowGap()` with configurable threshold (default: 1 hour)
+- ✅ `<time_gap duration="...">` markers injected into conversation XML
+- ✅ Tests for gap formatting and conversation history injection
+
+### Phase 2: Interactive Settings Dashboard
+- ✅ `/admin settings extended-context` - global defaults dashboard with edit modals
+- ✅ `/channel settings extended-context` - channel-level overrides with cascade resolution
+- ✅ `/character settings extended-context` - personality-level opt-out
+- ✅ `ExtendedContextSettingsResolver` - 3-layer cascade resolution (personality → channel → global)
+- ✅ Shared `settingsConfig.ts` for consistent field definitions
+
+### Phase 3: Vision Cache L2 (Persistent)
+- ✅ `ImageDescriptionCache` Prisma model - PostgreSQL L2 cache
+- ✅ `PersistentVisionCache` service - L2 cache operations
+- ✅ Two-tier caching: L1 (Redis) → L2 (PostgreSQL) fallback
+- ✅ Cache key strategy: Discord attachment snowflake IDs (stable vs ephemeral URLs)
+- ✅ L2 survives Redis restarts, reduces API costs
+
+---
+
+## Completed: Extended Channel Context (PR #419)
 
 **Merged** - Personalities can now see recent Discord channel messages beyond their stored conversation history
 
@@ -153,7 +181,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **beta.30** (pending): Extended Channel Context - personalities see recent Discord messages, 3-layer settings cascade
+- **beta.30** (pending): Extended Context Improvements - time gap markers, interactive settings dashboards, persistent vision cache (L2)
 - **beta.29**: LTM null handling fix, modal command deferral fix, Node 25 upgrade, typescript-eslint 8.51.0
 - **beta.28**: Markdown security fixes, guild-aware pagination, security skill update
 - **beta.27**: UserService race condition fix, persona backfill idempotency
