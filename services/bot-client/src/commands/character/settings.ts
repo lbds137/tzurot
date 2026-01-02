@@ -368,7 +368,7 @@ async function handleSetMaxMessages(
     await interaction.editReply({
       content:
         `**Max Messages for ${characterSlug}**\n\n` +
-        `Character setting: **${characterValue === null ? 'Auto' : characterValue}**\n` +
+        `Character setting: **${characterValue ?? 'Auto'}**\n` +
         `Effective value: **${effectiveValue}** (from ${characterValue === null ? 'global' : 'character'})\n\n` +
         `To change, use \`/character settings character:${characterSlug} action:set-max-messages value:<1-100>\`\n` +
         `To use global setting, use \`value:0\` (auto)`,
@@ -570,7 +570,7 @@ async function handleSetMaxImages(
     await interaction.editReply({
       content:
         `**Max Images for ${characterSlug}**\n\n` +
-        `Character setting: **${characterValue === null ? 'Auto' : characterValue}**\n` +
+        `Character setting: **${characterValue ?? 'Auto'}**\n` +
         `Effective value: **${effectiveValue}** (from ${characterValue === null ? 'global' : 'character'})\n\n` +
         `To change, use \`/character settings character:${characterSlug} action:set-max-images value:<0-20>\`\n` +
         `Use \`value:0\` for 0 images`,

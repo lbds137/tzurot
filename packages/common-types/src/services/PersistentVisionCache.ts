@@ -12,7 +12,7 @@
  * @see VisionDescriptionCache for L1 (Redis) cache
  */
 
-import type { PrismaClient } from '../generated/prisma/index.js';
+import type { PrismaClient } from '../generated/prisma/client.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('PersistentVisionCache');
