@@ -104,10 +104,7 @@ export class PersistentVisionCache {
       logger.debug({ attachmentId }, '[PersistentVisionCache] Deleted entry');
     } catch (error) {
       // P2025: Record not found - delete is idempotent, ignore this error
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         return;
       }
       // Re-throw actual database errors
