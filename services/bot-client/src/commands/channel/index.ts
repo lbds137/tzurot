@@ -10,13 +10,25 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
 import { handleList } from './list.js';
-import { handleContext } from './context.js';
+import {
+  handleContext,
+  handleChannelContextSelectMenu,
+  handleChannelContextButton,
+  handleChannelContextModal,
+  isChannelContextInteraction,
+} from './context.js';
 import { handleAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('channel-command');
@@ -53,36 +65,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(subcommand =>
     subcommand
       .setName('context')
-      .setDescription('Manage extended context settings for this channel')
-      .addStringOption(option =>
-        option
-          .setName('action')
-          .setDescription('Action to perform')
-          .setRequired(true)
-          .addChoices(
-            { name: 'Status - Show current settings', value: 'status' },
-            { name: 'Enable - Force ON (always fetch channel history)', value: 'enable' },
-            { name: 'Disable - Force OFF (never fetch channel history)', value: 'disable' },
-            { name: 'Auto - Follow global default', value: 'auto' },
-            { name: 'Set max messages (1-100)', value: 'set-max-messages' },
-            { name: 'Set max age (e.g., 2h, off)', value: 'set-max-age' },
-            { name: 'Set max images (0-20)', value: 'set-max-images' }
-          )
-      )
-      .addIntegerOption(option =>
-        option
-          .setName('value')
-          .setDescription('Value for set-max-messages or set-max-images')
-          .setRequired(false)
-          .setMinValue(0)
-          .setMaxValue(100)
-      )
-      .addStringOption(option =>
-        option
-          .setName('duration')
-          .setDescription('Duration for set-max-age (e.g., 2h, 30m, 1d, off, auto)')
-          .setRequired(false)
-      )
+      .setDescription('Open extended context settings dashboard for this channel')
   );
 
 /**
@@ -101,7 +84,17 @@ const channelRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function execute(
+  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
+): Promise<void> {
+  // Handle modal submissions for context
+  if (interaction.isModalSubmit()) {
+    if (isChannelContextInteraction(interaction.customId)) {
+      await handleChannelContextModal(interaction);
+    }
+    return;
+  }
+
   await channelRouter(interaction);
 }
 
@@ -110,4 +103,24 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
  */
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   await handleAutocomplete(interaction);
+}
+
+/**
+ * Handle select menu interactions for channel commands
+ */
+export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  // Context dashboard interactions
+  if (isChannelContextInteraction(interaction.customId)) {
+    await handleChannelContextSelectMenu(interaction);
+  }
+}
+
+/**
+ * Handle button interactions for channel commands
+ */
+export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  // Context dashboard interactions
+  if (isChannelContextInteraction(interaction.customId)) {
+    await handleChannelContextButton(interaction);
+  }
 }

@@ -1,13 +1,18 @@
 /**
- * Tests for Character Settings Subcommand
+ * Tests for Character Settings Dashboard
  *
- * @see docs/standards/TRI_STATE_PATTERN.md
+ * Tests the interactive settings dashboard for character settings.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { handleSettings } from './settings.js';
+import type { ChatInputCommandInteraction, ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import {
+  handleSettings,
+  handleCharacterSettingsButton,
+  handleCharacterSettingsSelectMenu,
+  isCharacterSettingsInteraction,
+} from './settings.js';
+import type { EnvConfig } from '@tzurot/common-types';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -28,49 +33,67 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Use vi.hoisted to ensure mock functions are available before vi.mock hoisting
-const { mockGetExtendedContextDefault, mockGetAdminSettings } = vi.hoisted(() => ({
-  mockGetExtendedContextDefault: vi.fn(),
-  mockGetAdminSettings: vi.fn(),
-}));
-
+// Mock getAdminSettings
+const mockGetAdminSettings = vi.fn();
 vi.mock('../../utils/GatewayClient.js', () => ({
   GatewayClient: class MockGatewayClient {
-    getExtendedContextDefault = mockGetExtendedContextDefault;
     getAdminSettings = mockGetAdminSettings;
   },
 }));
 
-describe('Character Settings Subcommand', () => {
-  const mockConfig = {} as never;
+// Mock the session manager
+const mockSessionManager = {
+  set: vi.fn(),
+  get: vi.fn(),
+  delete: vi.fn(),
+};
 
-  const createMockInteraction = (
-    action: string,
-    character: string,
-    options: { value?: number | null; duration?: string | null } = {}
-  ): ChatInputCommandInteraction & {
+vi.mock('../../utils/dashboard/SessionManager.js', () => ({
+  getSessionManager: vi.fn(() => mockSessionManager),
+  DashboardSessionManager: {
+    getInstance: vi.fn(() => mockSessionManager),
+  },
+}));
+
+describe('Character Settings Dashboard', () => {
+  const mockPersonality = {
+    personality: {
+      id: 'personality-123',
+      name: 'Aurora',
+      slug: 'aurora',
+      extendedContext: null,
+      extendedContextMaxMessages: null,
+      extendedContextMaxAge: null,
+      extendedContextMaxImages: null,
+      ownerId: 'user-456',
+    },
+  };
+
+  const mockAdminSettings = {
+    extendedContextDefault: true,
+    extendedContextMaxMessages: 50,
+    extendedContextMaxAge: 7200,
+    extendedContextMaxImages: 5,
+  };
+
+  const mockConfig: EnvConfig = {} as EnvConfig;
+
+  const createMockInteraction = (): ChatInputCommandInteraction & {
     reply: ReturnType<typeof vi.fn>;
     editReply: ReturnType<typeof vi.fn>;
     deferred: boolean;
     replied: boolean;
+    options: {
+      getString: ReturnType<typeof vi.fn>;
+    };
   } => {
     return {
       options: {
-        getString: vi.fn((name: string) => {
-          if (name === 'action') return action;
-          if (name === 'character') return character;
-          if (name === 'duration') return options.duration ?? null;
-          return null;
-        }),
-        getInteger: vi.fn((name: string) => {
-          if (name === 'value') return options.value ?? null;
-          return null;
-        }),
+        getString: vi.fn().mockReturnValue('aurora'),
       },
       user: { id: 'user-456' },
       reply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      // Top-level interactionCreate handler already defers
+      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
       deferred: true,
       replied: false,
     } as unknown as ChatInputCommandInteraction & {
@@ -78,378 +101,190 @@ describe('Character Settings Subcommand', () => {
       editReply: ReturnType<typeof vi.fn>;
       deferred: boolean;
       replied: boolean;
+      options: {
+        getString: ReturnType<typeof vi.fn>;
+      };
     };
   };
 
-  const createMockAdminSettings = (overrides = {}) => ({
-    extendedContextDefault: true,
-    extendedContextMaxMessages: 20,
-    extendedContextMaxAge: 7200,
-    extendedContextMaxImages: 5,
-    ...overrides,
-  });
+  const createMockButtonInteraction = (
+    customId: string
+  ): ButtonInteraction & {
+    deferUpdate: ReturnType<typeof vi.fn>;
+    editReply: ReturnType<typeof vi.fn>;
+    message: { id: string };
+  } => {
+    return {
+      customId,
+      user: { id: 'user-456' },
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      message: { id: 'message-123' },
+    } as unknown as ButtonInteraction & {
+      deferUpdate: ReturnType<typeof vi.fn>;
+      editReply: ReturnType<typeof vi.fn>;
+      message: { id: string };
+    };
+  };
 
-  const createMockPersonality = (overrides = {}) => ({
-    id: 'personality-123',
-    name: 'Test Character',
-    slug: 'test-char',
-    extendedContext: null,
-    extendedContextMaxMessages: null,
-    extendedContextMaxAge: null,
-    extendedContextMaxImages: null,
-    ownerId: 'user-456',
-    ...overrides,
-  });
+  const createMockSelectMenuInteraction = (
+    customId: string,
+    value: string
+  ): StringSelectMenuInteraction & {
+    deferUpdate: ReturnType<typeof vi.fn>;
+    editReply: ReturnType<typeof vi.fn>;
+    message: { id: string };
+    values: string[];
+  } => {
+    return {
+      customId,
+      user: { id: 'user-456' },
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+      message: { id: 'message-123' },
+      values: [value],
+    } as unknown as StringSelectMenuInteraction & {
+      deferUpdate: ReturnType<typeof vi.fn>;
+      editReply: ReturnType<typeof vi.fn>;
+      message: { id: string };
+      values: string[];
+    };
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetAdminSettings.mockResolvedValue(createMockAdminSettings());
   });
 
-  describe('enable action (force ON)', () => {
-    it('should enable extended context successfully', async () => {
-      const interaction = createMockInteraction('enable', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
-        method: 'PUT',
-        body: { extendedContext: true },
-        userId: 'user-456',
-      });
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('set to On'),
-      });
-    });
-
-    it('should handle 401 unauthorized error', async () => {
-      const interaction = createMockInteraction('enable', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'You do not have permission to edit this character.',
-      });
-    });
-
-    it('should handle 404 not found error', async () => {
-      const interaction = createMockInteraction('enable', 'nonexistent');
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'Character "nonexistent" not found.',
-      });
-    });
-
-    it('should handle other API errors', async () => {
-      const interaction = createMockInteraction('enable', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Server error' });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'Failed to update setting: Server error',
-      });
-    });
-  });
-
-  describe('disable action (force OFF)', () => {
-    it('should disable extended context successfully', async () => {
-      const interaction = createMockInteraction('disable', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
-        method: 'PUT',
-        body: { extendedContext: false },
-        userId: 'user-456',
-      });
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('set to Off'),
-      });
-    });
-  });
-
-  describe('auto action (follow hierarchy)', () => {
-    it('should set auto mode and show effective value', async () => {
-      const interaction = createMockInteraction('auto', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-      mockGetExtendedContextDefault.mockResolvedValue(true);
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
-        method: 'PUT',
-        body: { extendedContext: null },
-        userId: 'user-456',
-      });
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringMatching(/set to Auto[\s\S]*Currently: \*\*enabled\*\*/),
-      });
-    });
-
-    it('should show disabled when global default is false', async () => {
-      const interaction = createMockInteraction('auto', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-      mockGetExtendedContextDefault.mockResolvedValue(false);
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringMatching(/set to Auto[\s\S]*Currently: \*\*disabled\*\*/),
-      });
-    });
-  });
-
-  describe('show action', () => {
-    it('should show character settings with embed', async () => {
-      const interaction = createMockInteraction('show', 'test-char');
+  describe('handleSettings', () => {
+    it('should display settings dashboard embed', async () => {
+      const interaction = createMockInteraction();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
-        data: { personality: createMockPersonality({ extendedContext: true }) },
+        data: mockPersonality,
       });
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleSettings(interaction, mockConfig);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
         method: 'GET',
         userId: 'user-456',
       });
-      expect(mockGetAdminSettings).toHaveBeenCalled();
+      expect(interaction.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+    });
+
+    it('should include Character Settings title in embed', async () => {
+      const interaction = createMockInteraction();
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: mockPersonality,
+      });
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleSettings(interaction, mockConfig);
+
+      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      expect(editReplyCall.embeds).toHaveLength(1);
+
+      const embedJson = editReplyCall.embeds[0].toJSON();
+      expect(embedJson.title).toBe('Character Settings');
+    });
+
+    it('should include character name in embed description', async () => {
+      const interaction = createMockInteraction();
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: mockPersonality,
+      });
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleSettings(interaction, mockConfig);
+
+      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const embedJson = editReplyCall.embeds[0].toJSON();
+
+      expect(embedJson.description).toContain('Aurora');
+    });
+
+    it('should include all 4 settings fields', async () => {
+      const interaction = createMockInteraction();
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: mockPersonality,
+      });
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleSettings(interaction, mockConfig);
+
+      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const embedJson = editReplyCall.embeds[0].toJSON();
+
+      expect(embedJson.fields).toHaveLength(4);
+    });
+
+    it('should handle character not found', async () => {
+      const interaction = createMockInteraction();
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        status: 404,
+        error: 'Not found',
+      });
+
+      await handleSettings(interaction, mockConfig);
+
       expect(interaction.editReply).toHaveBeenCalledWith({
-        embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
+        content: expect.stringContaining('not found'),
       });
     });
 
-    it('should handle missing admin settings', async () => {
-      const interaction = createMockInteraction('show', 'test-char');
+    it('should handle API errors gracefully', async () => {
+      const interaction = createMockInteraction();
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        status: 500,
+        error: 'Server error',
+      });
+
+      await handleSettings(interaction, mockConfig);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to fetch character'),
+      });
+    });
+
+    it('should handle admin settings fetch failure', async () => {
+      const interaction = createMockInteraction();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
-        data: { personality: createMockPersonality() },
+        data: mockPersonality,
       });
       mockGetAdminSettings.mockResolvedValue(null);
 
       await handleSettings(interaction, mockConfig);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to fetch global settings'),
+        content: 'Failed to fetch global settings.',
       });
     });
 
-    it('should handle 404 not found error', async () => {
-      const interaction = createMockInteraction('show', 'nonexistent');
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'Character "nonexistent" not found.',
-      });
-    });
-
-    it('should handle other API errors', async () => {
-      const interaction = createMockInteraction('show', 'test-char');
-      mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Server error' });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'Failed to get character: Server error',
-      });
-    });
-  });
-
-  describe('set-max-messages action', () => {
-    it('should show current value when no value provided', async () => {
-      const interaction = createMockInteraction('set-max-messages', 'test-char', { value: null });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personality: createMockPersonality({ extendedContextMaxMessages: 50 }) },
-      });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Max Messages'),
-      });
-    });
-
-    it('should update max messages with valid value', async () => {
-      const interaction = createMockInteraction('set-max-messages', 'test-char', { value: 50 });
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-char',
-        expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxMessages: 50 },
-        })
-      );
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Max messages set to 50'),
-      });
-    });
-
-    it('should set to auto when value is 0', async () => {
-      const interaction = createMockInteraction('set-max-messages', 'test-char', { value: 0 });
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-char',
-        expect.objectContaining({
-          body: { extendedContextMaxMessages: null },
-        })
-      );
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Auto'),
-      });
-    });
-  });
-
-  describe('set-max-age action', () => {
-    it('should show current value when no duration provided', async () => {
-      const interaction = createMockInteraction('set-max-age', 'test-char', { duration: null });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personality: createMockPersonality({ extendedContextMaxAge: 7200 }) },
-      });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Max Age'),
-      });
-    });
-
-    it('should update max age with valid duration', async () => {
-      const interaction = createMockInteraction('set-max-age', 'test-char', { duration: '2h' });
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-char',
-        expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxAge: 7200 },
-        })
-      );
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Max age set to'),
-      });
-    });
-
-    it('should set to auto when duration is "auto"', async () => {
-      const interaction = createMockInteraction('set-max-age', 'test-char', { duration: 'auto' });
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-char',
-        expect.objectContaining({
-          body: { extendedContextMaxAge: null },
-        })
-      );
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Auto'),
-      });
-    });
-
-    it('should reject invalid duration format', async () => {
-      const interaction = createMockInteraction('set-max-age', 'test-char', {
-        duration: 'invalid',
-      });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Invalid duration'),
-      });
-    });
-  });
-
-  describe('set-max-images action', () => {
-    it('should show current value when no value provided', async () => {
-      const interaction = createMockInteraction('set-max-images', 'test-char', { value: null });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { personality: createMockPersonality({ extendedContextMaxImages: 10 }) },
-      });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Max Images'),
-      });
-    });
-
-    it('should update max images with valid value', async () => {
-      const interaction = createMockInteraction('set-max-images', 'test-char', { value: 10 });
-      mockCallGatewayApi.mockResolvedValue({ ok: true, data: {} });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/test-char',
-        expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxImages: 10 },
-        })
-      );
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Max images set to 10'),
-      });
-    });
-
-    it('should reject invalid max images value', async () => {
-      const interaction = createMockInteraction('set-max-images', 'test-char', { value: 25 });
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('between 0 and 20'),
-      });
-    });
-  });
-
-  describe('unknown action', () => {
-    it('should reply with unknown action message', async () => {
-      const interaction = createMockInteraction('invalid-action', 'test-char');
-
-      await handleSettings(interaction, mockConfig);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'Unknown action: invalid-action',
-      });
-    });
-  });
-
-  describe('error handling', () => {
-    it('should handle unexpected errors with editReply', async () => {
-      const interaction = createMockInteraction('enable', 'test-char');
+    it('should handle unexpected errors gracefully', async () => {
+      const interaction = createMockInteraction();
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
       await handleSettings(interaction, mockConfig);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
-        content: 'An error occurred while processing your request.',
+        content: 'An error occurred while opening the settings dashboard.',
       });
     });
 
     it('should not respond again if already replied', async () => {
-      const interaction = createMockInteraction('enable', 'test-char');
+      const interaction = createMockInteraction();
       Object.defineProperty(interaction, 'replied', {
         get: () => true,
         configurable: true,
@@ -459,6 +294,50 @@ describe('Character Settings Subcommand', () => {
       await handleSettings(interaction, mockConfig);
 
       expect(interaction.editReply).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isCharacterSettingsInteraction', () => {
+    it('should return true for character settings custom IDs', () => {
+      expect(isCharacterSettingsInteraction('personality-settings::select::aurora')).toBe(true);
+      expect(isCharacterSettingsInteraction('personality-settings::set::aurora::enabled:true')).toBe(
+        true
+      );
+      expect(isCharacterSettingsInteraction('personality-settings::back::aurora')).toBe(true);
+      expect(isCharacterSettingsInteraction('personality-settings::close::aurora')).toBe(true);
+    });
+
+    it('should return false for non-character settings custom IDs', () => {
+      expect(isCharacterSettingsInteraction('channel-context::select::chan-123')).toBe(false);
+      expect(isCharacterSettingsInteraction('admin-settings::set::global')).toBe(false);
+      expect(isCharacterSettingsInteraction('character::edit::my-char')).toBe(false);
+    });
+
+    it('should return false for empty custom ID', () => {
+      expect(isCharacterSettingsInteraction('')).toBe(false);
+    });
+  });
+
+  describe('handleCharacterSettingsButton', () => {
+    it('should ignore non-character-settings interactions', async () => {
+      const interaction = createMockButtonInteraction('channel-context::set::chan-123::enabled:true');
+
+      await handleCharacterSettingsButton(interaction);
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleCharacterSettingsSelectMenu', () => {
+    it('should ignore non-character-settings interactions', async () => {
+      const interaction = createMockSelectMenuInteraction(
+        'channel-context::select::chan-123',
+        'enabled'
+      );
+
+      await handleCharacterSettingsSelectMenu(interaction);
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
   });
 });

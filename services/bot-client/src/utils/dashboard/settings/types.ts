@@ -1,0 +1,196 @@
+/**
+ * Settings Dashboard Types
+ *
+ * Type definitions for the interactive settings dashboard pattern.
+ * Used by /admin settings, /channel context, and /character settings commands.
+ */
+
+import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+
+/**
+ * Setting type determines the UI pattern used
+ */
+export enum SettingType {
+  /** Boolean with auto/on/off - uses 3 buttons */
+  TRI_STATE = 'tri_state',
+  /** Numeric value with optional auto - uses modal */
+  NUMERIC = 'numeric',
+  /** Duration string with optional auto/off - uses modal */
+  DURATION = 'duration',
+}
+
+/**
+ * Source of a resolved setting value
+ */
+export type SettingSource = 'global' | 'channel' | 'personality' | 'default';
+
+/**
+ * A single setting definition
+ */
+export interface SettingDefinition {
+  /** Unique setting ID */
+  id: string;
+  /** Display label */
+  label: string;
+  /** Emoji for the setting */
+  emoji: string;
+  /** Description shown in drill-down view */
+  description: string;
+  /** Type of setting (determines UI) */
+  type: SettingType;
+  /** For numeric: min value */
+  min?: number;
+  /** For numeric: max value */
+  max?: number;
+  /** For duration: placeholder hint */
+  placeholder?: string;
+  /** Help text for the modal */
+  helpText?: string;
+}
+
+/**
+ * Current value of a setting with source tracking
+ */
+export interface SettingValue<T = unknown> {
+  /** The local value at this level (null = auto/inherit) */
+  localValue: T | null;
+  /** The effective/resolved value after inheritance */
+  effectiveValue: T;
+  /** Where the effective value came from */
+  source: SettingSource;
+}
+
+/**
+ * All settings values for the dashboard
+ */
+export interface SettingsData {
+  enabled: SettingValue<boolean>;
+  maxMessages: SettingValue<number>;
+  maxAge: SettingValue<number | null>; // null = disabled
+  maxImages: SettingValue<number>;
+}
+
+/**
+ * Dashboard level determines which entity we're editing
+ */
+export type DashboardLevel = 'global' | 'channel' | 'personality';
+
+/**
+ * Dashboard view state
+ */
+export enum DashboardView {
+  /** Overview showing all settings */
+  OVERVIEW = 'overview',
+  /** Drill-down view for a specific setting */
+  SETTING = 'setting',
+}
+
+/**
+ * Dashboard session state
+ */
+export interface SettingsDashboardSession {
+  /** Dashboard level */
+  level: DashboardLevel;
+  /** Entity ID (channel ID, personality slug, or 'global') */
+  entityId: string;
+  /** Display name for the entity */
+  entityName: string;
+  /** Current settings data */
+  data: SettingsData;
+  /** Current view */
+  view: DashboardView;
+  /** If in setting view, which setting */
+  activeSetting?: string;
+  /** User ID who owns this session */
+  userId: string;
+  /** Message ID of the dashboard */
+  messageId: string;
+  /** Channel ID where dashboard is displayed */
+  channelId: string;
+  /** Timestamp of last activity */
+  lastActivityAt: Date;
+}
+
+/**
+ * Configuration for a settings dashboard
+ */
+export interface SettingsDashboardConfig {
+  /** Dashboard level */
+  level: DashboardLevel;
+  /** Entity type for custom IDs */
+  entityType: string;
+  /** Title prefix (e.g., "Global", "Channel", "Personality") */
+  titlePrefix: string;
+  /** Color for the embed */
+  color: number;
+  /** Available settings */
+  settings: SettingDefinition[];
+}
+
+/**
+ * Result of updating a setting
+ */
+export interface SettingUpdateResult {
+  success: boolean;
+  error?: string;
+  newData?: SettingsData;
+}
+
+/**
+ * Handler for setting updates
+ */
+export type SettingUpdateHandler = (
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  session: SettingsDashboardSession,
+  settingId: string,
+  newValue: unknown
+) => Promise<SettingUpdateResult>;
+
+/**
+ * Custom ID delimiter for settings dashboard
+ */
+export const SETTINGS_CUSTOM_ID_DELIMITER = '::';
+
+/**
+ * Build a custom ID for settings dashboard interactions
+ */
+export function buildSettingsCustomId(
+  entityType: string,
+  action: string,
+  entityId: string,
+  extra?: string
+): string {
+  const parts = [entityType, action, entityId];
+  if (extra !== undefined) {
+    parts.push(extra);
+  }
+  return parts.join(SETTINGS_CUSTOM_ID_DELIMITER);
+}
+
+/**
+ * Parse a settings dashboard custom ID
+ */
+export function parseSettingsCustomId(customId: string): {
+  entityType: string;
+  action: string;
+  entityId: string;
+  extra?: string;
+} | null {
+  const parts = customId.split(SETTINGS_CUSTOM_ID_DELIMITER);
+  if (parts.length < 3) {
+    return null;
+  }
+  return {
+    entityType: parts[0],
+    action: parts[1],
+    entityId: parts[2],
+    extra: parts[3],
+  };
+}
+
+/**
+ * Check if a custom ID belongs to a settings dashboard
+ */
+export function isSettingsInteraction(customId: string, entityType: string): boolean {
+  return customId.startsWith(`${entityType}${SETTINGS_CUSTOM_ID_DELIMITER}`);
+}
