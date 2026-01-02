@@ -155,3 +155,14 @@ export function generateUserPersonaHistoryConfigUuid(
     TZUROT_NAMESPACE
   );
 }
+
+/**
+ * Generate deterministic UUID for ImageDescriptionCache
+ * Seed: image_description_cache:{attachmentId}
+ *
+ * The attachmentId is the Discord snowflake ID which is already stable/deterministic.
+ * This generator ensures the primary key is also deterministic for sync purposes.
+ */
+export function generateImageDescriptionCacheUuid(attachmentId: string): string {
+  return uuidv5(`image_description_cache:${attachmentId}`, TZUROT_NAMESPACE);
+}
