@@ -68,16 +68,18 @@ export async function describeImage(
   // Check cache first to avoid duplicate vision API calls
   // This is especially important for referenced message images which may be processed
   // both inline (ReferencedMessageFormatter) and via preprocessing (ImageDescriptionJob)
-  const cachedDescription = await visionDescriptionCache.get(attachment.url);
+  const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url };
+  const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
   if (cachedDescription !== null) {
     logger.info(
-      { attachmentName: attachment.name },
+      { attachmentName: attachment.name, attachmentId: attachment.id },
       'Using cached vision description - avoiding duplicate API call'
     );
     return cachedDescription;
   }
 
   let description: string;
+  let usedModel: string;
 
   // Priority 1: Use personality's configured vision model if specified
   if (
@@ -89,7 +91,8 @@ export async function describeImage(
       { visionModel: personality.visionModel },
       'Using configured vision model (personality override)'
     );
-    description = await describeWithVisionModel(attachment, personality, personality.visionModel);
+    usedModel = personality.visionModel;
+    description = await describeWithVisionModel(attachment, personality, usedModel);
   } else {
     // Priority 2: Use personality's main model if it has native vision support
     const mainModelHasVision = await hasVisionSupport(personality.model);
@@ -98,16 +101,17 @@ export async function describeImage(
         { model: personality.model },
         'Using main LLM for vision (native vision support detected)'
       );
-      description = await describeWithVisionModel(attachment, personality, personality.model);
+      usedModel = personality.model;
+      description = await describeWithVisionModel(attachment, personality, usedModel);
     } else {
       // Priority 3: Use fallback vision model
       // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
-      const fallbackModel = isGuestMode
+      usedModel = isGuestMode
         ? MODEL_DEFAULTS.VISION_FALLBACK_FREE
         : config.VISION_FALLBACK_MODEL;
 
       logger.info(
-        { mainModel: personality.model, fallbackModel, isGuestMode },
+        { mainModel: personality.model, fallbackModel: usedModel, isGuestMode },
         'Using fallback vision model - main LLM lacks vision support'
       );
       description = await describeWithFallbackVision(
@@ -115,13 +119,16 @@ export async function describeImage(
         personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
           ? personality.systemPrompt
           : '',
-        fallbackModel
+        usedModel
       );
     }
   }
 
-  // Cache the description for future use (both code paths benefit)
-  await visionDescriptionCache.store(attachment.url, description);
+  // Cache the description for future use (both L1 Redis and L2 PostgreSQL)
+  await visionDescriptionCache.store(
+    { attachmentId: attachment.id, url: attachment.url, model: usedModel },
+    description
+  );
 
   return description;
 }
