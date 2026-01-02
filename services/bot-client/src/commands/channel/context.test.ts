@@ -15,6 +15,7 @@ import {
   handleContext,
   handleChannelContextButton,
   handleChannelContextSelectMenu,
+  handleChannelContextModal,
   isChannelContextInteraction,
 } from './context.js';
 
@@ -291,6 +292,119 @@ describe('Channel Context Dashboard', () => {
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
+
+    it('should call update handler when setting enabled to true', async () => {
+      const interaction = {
+        customId: 'channel-context::set::channel-123::enabled:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'channel-123',
+          data: {
+            enabled: { localValue: null, effectiveValue: true, source: 'global' },
+            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
+            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextButton(interaction as unknown as ButtonInteraction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/channel/channel-123/extended-context',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { extendedContext: true },
+        })
+      );
+    });
+
+    it('should handle setting enabled to auto (null)', async () => {
+      const interaction = {
+        customId: 'channel-context::set::channel-123::enabled:auto',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'channel-123',
+          data: {
+            enabled: { localValue: true, effectiveValue: true, source: 'channel' },
+            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
+            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextButton(interaction as unknown as ButtonInteraction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/channel/channel-123/extended-context',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { extendedContext: null },
+        })
+      );
+    });
+
+    it('should handle API failure gracefully', async () => {
+      const interaction = {
+        customId: 'channel-context::set::channel-123::enabled:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'channel-123',
+          data: {
+            enabled: { localValue: null, effectiveValue: true, source: 'global' },
+            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
+            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
+          },
+          view: 'setting',
+          activeSetting: 'enabled',
+        },
+      });
+
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        error: 'Server error',
+      });
+
+      await handleChannelContextButton(interaction as unknown as ButtonInteraction);
+
+      // On failure, handler returns early and doesn't call editReply
+      expect(interaction.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleChannelContextSelectMenu', () => {
@@ -303,6 +417,166 @@ describe('Channel Context Dashboard', () => {
       await handleChannelContextSelectMenu(interaction);
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleChannelContextModal', () => {
+    const createMockModalInteraction = (customId: string, inputValue: string) => ({
+      customId,
+      user: { id: 'user-456' },
+      fields: {
+        getTextInputValue: vi.fn().mockReturnValue(inputValue),
+      },
+      reply: vi.fn(),
+      update: vi.fn(),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const createSessionWithSetting = (settingId: string) => ({
+      data: {
+        userId: 'user-456',
+        entityId: 'channel-123',
+        data: {
+          enabled: { localValue: null, effectiveValue: true, source: 'global' },
+          maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+          maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
+          maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
+        },
+        view: 'setting',
+        activeSetting: settingId,
+      },
+    });
+
+    it('should ignore non-channel-context modal interactions', async () => {
+      const interaction = createMockModalInteraction(
+        'admin-settings::modal::global::enabled',
+        '50'
+      );
+
+      await handleChannelContextModal(interaction as never);
+
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should update maxMessages setting', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::channel-123::maxMessages',
+        '75'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextModal(interaction as never);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/channel/channel-123/extended-context',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { extendedContextMaxMessages: 75 },
+        })
+      );
+    });
+
+    it('should update maxAge setting with duration string (2h)', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::channel-123::maxAge',
+        '2h'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextModal(interaction as never);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/channel/channel-123/extended-context',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { extendedContextMaxAge: 7200 },
+        })
+      );
+    });
+
+    it('should update maxAge setting to "off" (disabled)', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::channel-123::maxAge',
+        'off'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextModal(interaction as never);
+
+      // "off" maps to null for channel settings
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/channel/channel-123/extended-context',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { extendedContextMaxAge: null },
+        })
+      );
+    });
+
+    it('should update maxImages setting', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::channel-123::maxImages',
+        '10'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextModal(interaction as never);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/channel/channel-123/extended-context',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { extendedContextMaxImages: 10 },
+        })
+      );
+    });
+
+    it('should invalidate cache after successful update', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::channel-123::maxMessages',
+        '50'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+
+      await handleChannelContextModal(interaction as never);
+
+      expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
+    });
+
+    it('should handle network error gracefully', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-context::modal::channel-123::maxMessages',
+        '50'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+      await handleChannelContextModal(interaction as never);
+
+      // When update fails, handler returns early
+      expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
 });
