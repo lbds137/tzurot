@@ -21,19 +21,17 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname, basename, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '../..');
 
-interface BaselineFile {
-  knownGaps: string[];
-  exempt: string[]; // Services that don't need component tests (pure logic, re-exports)
-  lastUpdated: string;
-  version: number;
-}
-
+// Constants
 const BASELINE_PATH = join(projectRoot, 'service-integration-baseline.json');
+
+/** Number of lines to check for backward compatibility comments at file level */
+const BACKWARD_COMPAT_COMMENT_SEARCH_LINES = 10;
 
 // Directories to search for service files
 const SERVICE_DIRS = [
@@ -42,6 +40,27 @@ const SERVICE_DIRS = [
   join(projectRoot, 'services/bot-client/src'),
   join(projectRoot, 'packages/common-types/src'),
 ];
+
+// Zod schema for baseline file validation
+const BaselineFileSchema = z.object({
+  knownGaps: z.array(z.string()),
+  exempt: z.array(z.string()),
+  lastUpdated: z.string(),
+  version: z.number(),
+});
+
+type BaselineFile = z.infer<typeof BaselineFileSchema>;
+
+interface AuditResult {
+  allServices: string[];
+  auditableServices: string[];
+  testedServices: string[];
+  untestedServices: string[];
+  coverage: number;
+  newGaps: string[];
+  fixedGaps: string[];
+  baseline: BaselineFile;
+}
 
 /**
  * Recursively find all files matching a pattern
@@ -66,6 +85,12 @@ function findFiles(dir: string, pattern: RegExp, results: string[] = []): string
 
 /**
  * Check if a service file is a re-export/barrel file (shouldn't need tests)
+ *
+ * A file is considered a re-export if:
+ * 1. All non-comment lines are export statements, OR
+ * 2. The file header (first N lines) contains "backward compatibility" comment
+ *
+ * Note: Empty files or comment-only files return false (not re-exports)
  */
 function isReExportFile(filePath: string): boolean {
   const content = readFileSync(filePath, 'utf-8');
@@ -86,8 +111,11 @@ function isReExportFile(filePath: string): boolean {
   const hasOnlyExports = lines.length > 0 && exportLines.length === lines.length;
 
   // Also check for explicit backward compatibility comment at file level
-  // (must appear in first 10 lines of file to indicate the whole file is a compat shim)
-  const firstLines = content.split('\n').slice(0, 10).join('\n').toLowerCase();
+  const firstLines = content
+    .split('\n')
+    .slice(0, BACKWARD_COMPAT_COMMENT_SEARCH_LINES)
+    .join('\n')
+    .toLowerCase();
   const hasBackwardCompatComment =
     firstLines.includes('backward compatibility') || firstLines.includes('backwards compatibility');
 
@@ -142,7 +170,8 @@ function findTestedServices(services: string[]): string[] {
 }
 
 /**
- * Load baseline file or create default one
+ * Load baseline file with Zod validation
+ * @throws {z.ZodError} if baseline file exists but has invalid structure
  */
 function loadBaseline(): BaselineFile {
   if (!existsSync(BASELINE_PATH)) {
@@ -155,7 +184,8 @@ function loadBaseline(): BaselineFile {
   }
 
   const content = readFileSync(BASELINE_PATH, 'utf-8');
-  return JSON.parse(content) as BaselineFile;
+  const parsed: unknown = JSON.parse(content);
+  return BaselineFileSchema.parse(parsed);
 }
 
 /**
@@ -166,90 +196,89 @@ function saveBaseline(baseline: BaselineFile): void {
 }
 
 /**
- * Main audit function
+ * Collect audit data without printing
  */
-function auditServiceIntegration(updateBaseline: boolean, strictMode: boolean): boolean {
-  console.log('🔍 Auditing service integration test coverage...\n');
-
-  // Find all services
+function collectAuditData(): AuditResult {
   const allServices = findServiceFiles();
   const baseline = loadBaseline();
 
-  // Filter out exempt services
   const auditableServices = allServices.filter(s => !baseline.exempt.includes(s));
-
-  // Find tested services
   const testedServices = findTestedServices(auditableServices);
-
-  // Determine which services are untested
   const untestedServices = auditableServices.filter(s => !testedServices.includes(s));
 
-  // Calculate coverage
   const coverage =
     auditableServices.length > 0
       ? ((auditableServices.length - untestedServices.length) / auditableServices.length) * 100
       : 100;
 
-  // Print results
+  const newGaps = untestedServices.filter(s => !baseline.knownGaps.includes(s));
+  const fixedGaps = baseline.knownGaps.filter(s => !untestedServices.includes(s));
+
+  return {
+    allServices,
+    auditableServices,
+    testedServices,
+    untestedServices,
+    coverage,
+    newGaps,
+    fixedGaps,
+    baseline,
+  };
+}
+
+/**
+ * Print the coverage report
+ */
+function printReport(result: AuditResult): void {
   console.log(`📊 Service Integration Test Coverage Report`);
   console.log(`${'─'.repeat(50)}`);
-  console.log(`Total services:     ${allServices.length}`);
-  console.log(`Exempt services:    ${baseline.exempt.length}`);
-  console.log(`Auditable services: ${auditableServices.length}`);
-  console.log(`With component test: ${testedServices.length}`);
-  console.log(`Missing tests:      ${untestedServices.length}`);
-  console.log(`Coverage:           ${coverage.toFixed(1)}%\n`);
+  console.log(`Total services:     ${result.allServices.length}`);
+  console.log(`Exempt services:    ${result.baseline.exempt.length}`);
+  console.log(`Auditable services: ${result.auditableServices.length}`);
+  console.log(`With component test: ${result.testedServices.length}`);
+  console.log(`Missing tests:      ${result.untestedServices.length}`);
+  console.log(`Coverage:           ${result.coverage.toFixed(1)}%\n`);
 
-  if (testedServices.length > 0) {
+  if (result.testedServices.length > 0) {
     console.log('✅ Services with component tests:');
-    for (const service of testedServices) {
+    for (const service of result.testedServices) {
       console.log(`   ✓ ${service}`);
     }
     console.log();
   }
 
-  if (untestedServices.length > 0) {
+  if (result.untestedServices.length > 0) {
     console.log('📋 Services missing component tests:');
-    for (const service of untestedServices) {
+    for (const service of result.untestedServices) {
       console.log(`   - ${service}`);
     }
     console.log();
   }
 
-  if (baseline.exempt.length > 0) {
+  if (result.baseline.exempt.length > 0) {
     console.log('⏭️  Exempt services (no component test required):');
-    for (const service of baseline.exempt) {
+    for (const service of result.baseline.exempt) {
       console.log(`   ~ ${service}`);
     }
     console.log();
   }
+}
 
-  // Check for new gaps
-  const newGaps = untestedServices.filter(s => !baseline.knownGaps.includes(s));
-  const fixedGaps = baseline.knownGaps.filter(s => !untestedServices.includes(s));
-
-  if (updateBaseline) {
-    console.log('📝 Updating baseline file...\n');
-    baseline.knownGaps = untestedServices;
-    baseline.lastUpdated = new Date().toISOString();
-    baseline.version += 1;
-    saveBaseline(baseline);
-    console.log(`✅ Baseline updated: ${BASELINE_PATH}\n`);
-    return true;
-  }
-
-  // Report changes from baseline
-  if (fixedGaps.length > 0) {
+/**
+ * Print gap analysis (new gaps and fixed gaps)
+ */
+function printGapAnalysis(result: AuditResult): void {
+  if (result.fixedGaps.length > 0) {
     console.log('🎉 Fixed gaps (now have component tests):');
-    for (const gap of fixedGaps) {
+    for (const gap of result.fixedGaps) {
       console.log(`   ✅ ${gap}`);
     }
     console.log();
   }
 
-  if (newGaps.length > 0) {
+  if (result.newGaps.length > 0) {
     console.log('❌ NEW GAPS (services added without component tests):');
-    for (const gap of newGaps) {
+    for (const gap of result.newGaps) {
       console.log(`   ❌ ${gap}`);
     }
     console.log();
@@ -257,29 +286,70 @@ function auditServiceIntegration(updateBaseline: boolean, strictMode: boolean): 
     console.log('   Or add to "exempt" in baseline if no component test needed');
     console.log('   Or run with --update-baseline to accept current state\n');
   }
+}
+
+/**
+ * Main audit function
+ */
+function auditServiceIntegration(updateBaseline: boolean, strictMode: boolean): boolean {
+  console.log('🔍 Auditing service integration test coverage...\n');
+
+  const result = collectAuditData();
+  printReport(result);
+
+  if (updateBaseline) {
+    console.log('📝 Updating baseline file...\n');
+    const updatedBaseline: BaselineFile = {
+      ...result.baseline,
+      knownGaps: result.untestedServices,
+      lastUpdated: new Date().toISOString(),
+      version: result.baseline.version + 1,
+    };
+    saveBaseline(updatedBaseline);
+    console.log(`✅ Baseline updated: ${BASELINE_PATH}\n`);
+    return true;
+  }
+
+  printGapAnalysis(result);
 
   // Determine pass/fail
-  if (strictMode) {
-    if (untestedServices.length > 0) {
-      console.log('❌ STRICT MODE: All services must have component tests\n');
-      return false;
-    }
-  } else {
-    if (newGaps.length > 0) {
-      console.log('❌ RATCHET FAILED: New services added without component tests\n');
-      return false;
-    }
+  if (strictMode && result.untestedServices.length > 0) {
+    console.log('❌ STRICT MODE: All services must have component tests\n');
+    return false;
+  }
+
+  if (!strictMode && result.newGaps.length > 0) {
+    console.log('❌ RATCHET FAILED: New services added without component tests\n');
+    return false;
   }
 
   console.log('✅ Service integration test audit passed\n');
   return true;
 }
 
-// Parse arguments
-const args = process.argv.slice(2);
-const updateBaseline = args.includes('--update-baseline');
-const strictMode = args.includes('--strict');
+// Only run if executed directly (not imported as module)
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  const args = process.argv.slice(2);
+  const updateBaselineFlag = args.includes('--update-baseline');
+  const strictModeFlag = args.includes('--strict');
 
-// Run audit
-const success = auditServiceIntegration(updateBaseline, strictMode);
-process.exit(success ? 0 : 1);
+  const success = auditServiceIntegration(updateBaselineFlag, strictModeFlag);
+  process.exit(success ? 0 : 1);
+}
+
+// Export for testing
+export {
+  findFiles,
+  isReExportFile,
+  findServiceFiles,
+  findTestedServices,
+  loadBaseline,
+  saveBaseline,
+  collectAuditData,
+  auditServiceIntegration,
+  BaselineFileSchema,
+  BACKWARD_COMPAT_COMMENT_SEARCH_LINES,
+  type BaselineFile,
+  type AuditResult,
+};
