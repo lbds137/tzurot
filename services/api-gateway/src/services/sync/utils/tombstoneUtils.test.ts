@@ -92,7 +92,7 @@ describe('tombstoneUtils', () => {
       expect(result.size).toBe(0);
     });
 
-    it('should query with correct select clause', async () => {
+    it('should query with correct paginated parameters', async () => {
       devClient.conversationHistoryTombstone.findMany.mockResolvedValue([]);
       prodClient.conversationHistoryTombstone.findMany.mockResolvedValue([]);
 
@@ -101,11 +101,20 @@ describe('tombstoneUtils', () => {
         prodClient as unknown as PrismaClient
       );
 
+      // Now uses pagination with cursor-based approach
       expect(devClient.conversationHistoryTombstone.findMany).toHaveBeenCalledWith({
         select: { id: true },
+        orderBy: { id: 'asc' },
+        take: 1000,
+        skip: 0,
+        cursor: undefined,
       });
       expect(prodClient.conversationHistoryTombstone.findMany).toHaveBeenCalledWith({
         select: { id: true },
+        orderBy: { id: 'asc' },
+        take: 1000,
+        skip: 0,
+        cursor: undefined,
       });
     });
 

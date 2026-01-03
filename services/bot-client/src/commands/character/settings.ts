@@ -39,8 +39,10 @@ const logger = createLogger('character-settings');
 
 /**
  * Entity type for custom IDs
+ * Uses hyphen separator to avoid conflicts with :: delimiter
+ * CommandHandler uses alias mapping to route 'character-settings' → 'character'
  */
-const ENTITY_TYPE = 'personality-settings';
+const ENTITY_TYPE = 'character-settings';
 
 /**
  * Dashboard configuration for character settings

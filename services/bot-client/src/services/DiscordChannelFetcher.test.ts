@@ -459,7 +459,7 @@ describe('DiscordChannelFetcher', () => {
   describe('syncWithDatabase', () => {
     it('should return empty result when no Discord messages', async () => {
       const emptyMessages = new Collection<string, Message>();
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn(),
         updateMessageContent: vi.fn(),
         softDeleteMessages: vi.fn(),
@@ -470,19 +470,19 @@ describe('DiscordChannelFetcher', () => {
         emptyMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.updated).toBe(0);
       expect(result.deleted).toBe(0);
-      expect(mockHistoryService.getMessagesByDiscordIds).not.toHaveBeenCalled();
+      expect(mockSyncService.getMessagesByDiscordIds).not.toHaveBeenCalled();
     });
 
     it('should return empty result when no matching DB messages', async () => {
       const discordMessages = new Collection<string, Message>();
       discordMessages.set('discord1', createMockMessage({ id: 'discord1', content: 'Hello' }));
 
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn().mockResolvedValue(new Map()),
         updateMessageContent: vi.fn(),
         softDeleteMessages: vi.fn(),
@@ -493,7 +493,7 @@ describe('DiscordChannelFetcher', () => {
         discordMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.updated).toBe(0);
@@ -511,7 +511,7 @@ describe('DiscordChannelFetcher', () => {
         })
       );
 
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn().mockResolvedValue(
           new Map([
             [
@@ -535,11 +535,11 @@ describe('DiscordChannelFetcher', () => {
         discordMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.updated).toBe(1);
-      expect(mockHistoryService.updateMessageContent).toHaveBeenCalledWith(
+      expect(mockSyncService.updateMessageContent).toHaveBeenCalledWith(
         'db-msg-1',
         'Updated message content'
       );
@@ -556,7 +556,7 @@ describe('DiscordChannelFetcher', () => {
         })
       );
 
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn().mockResolvedValue(
           new Map([
             [
@@ -580,11 +580,11 @@ describe('DiscordChannelFetcher', () => {
         discordMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.updated).toBe(0);
-      expect(mockHistoryService.updateMessageContent).not.toHaveBeenCalled();
+      expect(mockSyncService.updateMessageContent).not.toHaveBeenCalled();
     });
 
     it('should detect and soft-delete missing messages', async () => {
@@ -599,7 +599,7 @@ describe('DiscordChannelFetcher', () => {
         })
       );
 
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn().mockResolvedValue(
           new Map([
             [
@@ -636,11 +636,11 @@ describe('DiscordChannelFetcher', () => {
         discordMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.deleted).toBe(1);
-      expect(mockHistoryService.softDeleteMessages).toHaveBeenCalledWith(['db-msg-1']);
+      expect(mockSyncService.softDeleteMessages).toHaveBeenCalledWith(['db-msg-1']);
     });
 
     it('should skip soft-deleted DB messages when checking for edits', async () => {
@@ -654,7 +654,7 @@ describe('DiscordChannelFetcher', () => {
         })
       );
 
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn().mockResolvedValue(
           new Map([
             [
@@ -678,18 +678,18 @@ describe('DiscordChannelFetcher', () => {
         discordMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.updated).toBe(0);
-      expect(mockHistoryService.updateMessageContent).not.toHaveBeenCalled();
+      expect(mockSyncService.updateMessageContent).not.toHaveBeenCalled();
     });
 
     it('should handle sync errors gracefully', async () => {
       const discordMessages = new Collection<string, Message>();
       discordMessages.set('discord1', createMockMessage({ id: 'discord1', content: 'Hello' }));
 
-      const mockHistoryService = {
+      const mockSyncService = {
         getMessagesByDiscordIds: vi.fn().mockRejectedValue(new Error('Database error')),
         updateMessageContent: vi.fn(),
         softDeleteMessages: vi.fn(),
@@ -700,7 +700,7 @@ describe('DiscordChannelFetcher', () => {
         discordMessages,
         'channel123',
         'personality123',
-        mockHistoryService as never
+        mockSyncService as never
       );
 
       expect(result.updated).toBe(0);

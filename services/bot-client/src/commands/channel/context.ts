@@ -40,8 +40,10 @@ const logger = createLogger('channel-context');
 
 /**
  * Entity type for custom IDs
+ * Uses hyphen separator to avoid conflicts with :: delimiter
+ * CommandHandler uses alias mapping to route 'channel-settings' → 'channel'
  */
-const ENTITY_TYPE = 'channel-context';
+const ENTITY_TYPE = 'channel-settings';
 
 /**
  * Dashboard configuration for channel context settings

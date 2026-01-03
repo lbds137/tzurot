@@ -304,17 +304,18 @@ describe('Character Settings Dashboard', () => {
 
   describe('isCharacterSettingsInteraction', () => {
     it('should return true for character settings custom IDs', () => {
-      expect(isCharacterSettingsInteraction('personality-settings::select::aurora')).toBe(true);
-      expect(
-        isCharacterSettingsInteraction('personality-settings::set::aurora::enabled:true')
-      ).toBe(true);
-      expect(isCharacterSettingsInteraction('personality-settings::back::aurora')).toBe(true);
-      expect(isCharacterSettingsInteraction('personality-settings::close::aurora')).toBe(true);
+      expect(isCharacterSettingsInteraction('character-settings::select::aurora')).toBe(true);
+      expect(isCharacterSettingsInteraction('character-settings::set::aurora::enabled:true')).toBe(
+        true
+      );
+      expect(isCharacterSettingsInteraction('character-settings::back::aurora')).toBe(true);
+      expect(isCharacterSettingsInteraction('character-settings::close::aurora')).toBe(true);
     });
 
     it('should return false for non-character settings custom IDs', () => {
-      expect(isCharacterSettingsInteraction('channel-context::select::chan-123')).toBe(false);
+      expect(isCharacterSettingsInteraction('channel-settings::select::chan-123')).toBe(false);
       expect(isCharacterSettingsInteraction('admin-settings::set::global')).toBe(false);
+      // character::edit is the character editor, not settings
       expect(isCharacterSettingsInteraction('character::edit::my-char')).toBe(false);
     });
 
@@ -326,7 +327,7 @@ describe('Character Settings Dashboard', () => {
   describe('handleCharacterSettingsButton', () => {
     it('should ignore non-character-settings interactions', async () => {
       const interaction = createMockButtonInteraction(
-        'channel-context::set::chan-123::enabled:true'
+        'channel-settings::set::chan-123::enabled:true'
       );
 
       await handleCharacterSettingsButton(interaction);
@@ -336,7 +337,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should call update handler when setting enabled to true', async () => {
       const interaction = {
-        customId: 'personality-settings::set::aurora::enabled:true',
+        customId: 'character-settings::set::aurora::enabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -376,7 +377,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle setting enabled to auto (null)', async () => {
       const interaction = {
-        customId: 'personality-settings::set::aurora::enabled:auto',
+        customId: 'character-settings::set::aurora::enabled:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -417,7 +418,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle permission denied (401) response', async () => {
       const interaction = {
-        customId: 'personality-settings::set::aurora::enabled:true',
+        customId: 'character-settings::set::aurora::enabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -456,7 +457,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle character not found (404) response', async () => {
       const interaction = {
-        customId: 'personality-settings::set::aurora::enabled:true',
+        customId: 'character-settings::set::aurora::enabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -497,7 +498,7 @@ describe('Character Settings Dashboard', () => {
   describe('handleCharacterSettingsSelectMenu', () => {
     it('should ignore non-character-settings interactions', async () => {
       const interaction = createMockSelectMenuInteraction(
-        'channel-context::select::chan-123',
+        'channel-settings::select::chan-123',
         'enabled'
       );
 
@@ -548,7 +549,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxMessages setting', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxMessages',
+        'character-settings::modal::aurora::maxMessages',
         '75'
       );
 
@@ -571,7 +572,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxAge setting with duration string (2h)', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxAge',
+        'character-settings::modal::aurora::maxAge',
         '2h'
       );
 
@@ -594,7 +595,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxAge setting to "off" (disabled)', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxAge',
+        'character-settings::modal::aurora::maxAge',
         'off'
       );
 
@@ -618,7 +619,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should set maxAge to auto (null) when empty', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxAge',
+        'character-settings::modal::aurora::maxAge',
         'auto'
       );
 
@@ -642,7 +643,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxImages setting', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxImages',
+        'character-settings::modal::aurora::maxImages',
         '10'
       );
 
@@ -665,7 +666,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle refresh failure after update', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxMessages',
+        'character-settings::modal::aurora::maxMessages',
         '50'
       );
 
@@ -682,7 +683,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle admin settings fetch failure after update', async () => {
       const interaction = createMockModalInteraction(
-        'personality-settings::modal::aurora::maxMessages',
+        'character-settings::modal::aurora::maxMessages',
         '50'
       );
 

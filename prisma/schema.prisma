@@ -9,8 +9,12 @@ datasource db {
   extensions = [vector]
 }
 
+/// NOTE: All models use explicit IDs (no @default(uuid())) to enforce deterministic UUIDs.
+/// This project syncs data between dev and prod - random UUIDs cause sync failures.
+/// Application code MUST provide IDs using generators from deterministicUuid.ts.
+/// See CLAUDE.md "Deterministic UUIDs Required" section.
 model User {
-  id                    String                     @id @default(uuid()) @db.Uuid
+  id                    String                     @id @db.Uuid
   discordId             String                     @unique @map("discord_id") @db.VarChar(20)
   username              String                     @db.VarChar(255)
   timezone              String                     @default("UTC") @db.VarChar(50)
@@ -42,7 +46,7 @@ model User {
 /// Tracks API usage per user for monitoring, billing, and abuse prevention.
 /// Even with BYOK, we track usage to prevent infrastructure abuse.
 model UsageLog {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @db.Uuid
   userId      String   @map("user_id") @db.Uuid
   provider    String   @db.VarChar(20)
   model       String   @db.VarChar(255)
@@ -65,7 +69,7 @@ model UsageLog {
 /// Singleton row - only one row should exist (enforced by application code).
 /// Replaces the old key-value BotSettings model with proper typed columns.
 model AdminSettings {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @db.Uuid
   updatedBy String?  @map("updated_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -88,7 +92,7 @@ model AdminSettings {
 /// @deprecated Legacy key-value settings - use AdminSettings instead.
 /// Kept for migration purposes only. Will be removed in future release.
 model BotSettings {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @db.Uuid
   key         String   @unique @db.VarChar(100)
   value       String   @db.Text
   description String?  @db.Text
@@ -104,7 +108,7 @@ model BotSettings {
 /// Encrypted API keys for BYOK (Bring Your Own Key) support.
 /// Uses AES-256-GCM encryption with separate columns for iv, content, and tag.
 model UserApiKey {
-  id         String    @id @default(uuid()) @db.Uuid
+  id         String    @id @db.Uuid
   userId     String    @map("user_id") @db.Uuid
   provider   String    @default("openrouter") @db.VarChar(20)
   iv         String    @db.VarChar(32)
@@ -123,7 +127,7 @@ model UserApiKey {
 }
 
 model Persona {
-  id                          String                     @id @default(uuid()) @db.Uuid
+  id                          String                     @id @db.Uuid
   name                        String                     @db.VarChar(255)
   description                 String?
   content                     String
@@ -146,7 +150,7 @@ model Persona {
 }
 
 model SystemPrompt {
-  id            String        @id @default(uuid()) @db.Uuid
+  id            String        @id @db.Uuid
   name          String        @db.VarChar(255)
   description   String?
   content       String
@@ -160,7 +164,7 @@ model SystemPrompt {
 }
 
 model LlmConfig {
-  id                          String                     @id @default(uuid()) @db.Uuid
+  id                          String                     @id @db.Uuid
   name                        String                     @db.VarChar(255)
   description                 String?
   ownerId                     String?                    @map("owner_id") @db.Uuid
@@ -212,7 +216,7 @@ model PersonalityDefaultConfig {
 }
 
 model Personality {
-  id                      String                     @id @default(uuid()) @db.Uuid
+  id                      String                     @id @db.Uuid
   name                    String                     @db.VarChar(255)
   displayName             String?                    @map("display_name") @db.VarChar(255)
   slug                    String                     @unique @db.VarChar(255)
@@ -284,7 +288,7 @@ model PersonalityOwner {
 /// Aliases for personalities (e.g., "lily" -> lilith, "sassy" -> sarcastic)
 /// Enables users to reference personalities by multiple names
 model PersonalityAlias {
-  id            String      @id @default(uuid()) @db.Uuid
+  id            String      @id @db.Uuid
   alias         String      @unique @db.VarChar(100)
   personalityId String      @map("personality_id") @db.Uuid
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -299,7 +303,7 @@ model PersonalityAlias {
 /// Note: STM epoch fields (lastContextReset) are in UserPersonaHistoryConfig,
 /// which tracks per-persona history (user + personality + persona).
 model UserPersonalityConfig {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String   @id @db.Uuid
   userId        String   @map("user_id") @db.Uuid
   personalityId String   @map("personality_id") @db.Uuid
   personaId     String?  @map("persona_id") @db.Uuid
@@ -322,7 +326,7 @@ model UserPersonalityConfig {
 /// This enables each persona to have independent conversation history cutoffs
 /// See ADR-003 in docs/planning/SLASH_COMMAND_ARCHITECTURE.md
 model UserPersonaHistoryConfig {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String   @id @db.Uuid
   userId        String   @map("user_id") @db.Uuid
   personalityId String   @map("personality_id") @db.Uuid
   personaId     String   @map("persona_id") @db.Uuid
@@ -346,7 +350,7 @@ model UserPersonaHistoryConfig {
 }
 
 model ConversationHistory {
-  id               String         @id @default(uuid()) @db.Uuid
+  id               String         @id @db.Uuid
   channelId        String         @map("channel_id") @db.VarChar(20)
   guildId          String?        @map("guild_id") @db.VarChar(20) // Null for DMs
   personalityId    String         @map("personality_id") @db.Uuid
@@ -394,7 +398,7 @@ model ConversationHistoryTombstone {
 }
 
 model PendingMemory {
-  id                    String               @id @default(uuid()) @db.Uuid
+  id                    String               @id @db.Uuid
   conversationHistoryId String?              @unique @map("conversation_history_id") @db.Uuid
   personaId             String               @map("persona_id") @db.Uuid
   personalityId         String               @map("personality_id") @db.Uuid
@@ -417,7 +421,7 @@ model PendingMemory {
 /// Stores both activation settings and extended context preferences per channel.
 /// Note: channelId is unique (not channelId+personalityId) - one personality per channel.
 model ChannelSettings {
-  id        String  @id @default(uuid()) @db.Uuid
+  id        String  @id @db.Uuid
   channelId String  @unique @map("channel_id") @db.VarChar(20)
   guildId   String? @map("guild_id") @db.VarChar(20)
 
@@ -449,7 +453,7 @@ model ChannelSettings {
 }
 
 model Memory {
-  id                   String                 @id @default(uuid()) @db.Uuid
+  id                   String                 @id @db.Uuid
   personaId            String?                @map("persona_id") @db.Uuid
   personalityId        String                 @map("personality_id") @db.Uuid
   content              String
@@ -496,7 +500,7 @@ model Memory {
 }
 
 model ShapesPersonaMapping {
-  id                 String   @id @default(uuid()) @db.Uuid
+  id                 String   @id @db.Uuid
   shapesUserId       String   @unique @map("shapes_user_id") @db.Uuid
   personaId          String   @map("persona_id") @db.Uuid
   mappedAt           DateTime @default(now()) @map("mapped_at")
@@ -526,7 +530,7 @@ model JobResult {
 /// L1 (Redis) is checked first; L2 (PostgreSQL) is fallback.
 /// Uses Discord attachment snowflake ID as stable cache key.
 model ImageDescriptionCache {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String   @id @db.Uuid
   /// Discord attachment snowflake ID - stable identifier for the image
   attachmentId String   @unique @map("attachment_id") @db.VarChar(20)
   /// The generated image description

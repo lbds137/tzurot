@@ -22,88 +22,96 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 describe('llmConfigSingletons', () => {
   let devClient: {
-    $queryRawUnsafe: ReturnType<typeof vi.fn>;
-    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+    llmConfig: {
+      findMany: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
   };
   let prodClient: {
-    $queryRawUnsafe: ReturnType<typeof vi.fn>;
-    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+    llmConfig: {
+      findMany: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
   };
 
   beforeEach(() => {
     devClient = {
-      $queryRawUnsafe: vi.fn(),
-      $executeRawUnsafe: vi.fn(),
+      llmConfig: {
+        findMany: vi.fn(),
+        update: vi.fn(),
+      },
     };
     prodClient = {
-      $queryRawUnsafe: vi.fn(),
-      $executeRawUnsafe: vi.fn(),
+      llmConfig: {
+        findMany: vi.fn(),
+        update: vi.fn(),
+      },
     };
   });
 
   describe('prepareLlmConfigSingletonFlags', () => {
     it('should not update when no configs have singleton flags', async () => {
-      devClient.$queryRawUnsafe.mockResolvedValue([]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+      devClient.llmConfig.findMany.mockResolvedValue([]);
+      prodClient.llmConfig.findMany.mockResolvedValue([]);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
         prodClient as unknown as PrismaClient
       );
 
-      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
-      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(devClient.llmConfig.update).not.toHaveBeenCalled();
+      expect(prodClient.llmConfig.update).not.toHaveBeenCalled();
     });
 
     it('should not update when only one database has the flag', async () => {
-      devClient.$queryRawUnsafe.mockResolvedValue([
-        { id: 'config-1', is_default: true, is_free_default: false, updated_at: new Date() },
+      devClient.llmConfig.findMany.mockResolvedValue([
+        { id: 'config-1', isDefault: true, isFreeDefault: false, updatedAt: new Date() },
       ]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([]);
+      prodClient.llmConfig.findMany.mockResolvedValue([]);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
         prodClient as unknown as PrismaClient
       );
 
-      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
-      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(devClient.llmConfig.update).not.toHaveBeenCalled();
+      expect(prodClient.llmConfig.update).not.toHaveBeenCalled();
     });
 
     it('should not update when same config has flag in both databases', async () => {
       const sharedConfig = {
         id: 'config-1',
-        is_default: true,
-        is_free_default: false,
-        updated_at: new Date(),
+        isDefault: true,
+        isFreeDefault: false,
+        updatedAt: new Date(),
       };
-      devClient.$queryRawUnsafe.mockResolvedValue([sharedConfig]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([sharedConfig]);
+      devClient.llmConfig.findMany.mockResolvedValue([sharedConfig]);
+      prodClient.llmConfig.findMany.mockResolvedValue([sharedConfig]);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
         prodClient as unknown as PrismaClient
       );
 
-      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
-      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(devClient.llmConfig.update).not.toHaveBeenCalled();
+      expect(prodClient.llmConfig.update).not.toHaveBeenCalled();
     });
 
-    it('should clear flag in prod when dev config is newer (is_default)', async () => {
+    it('should clear flag in prod when dev config is newer (isDefault)', async () => {
       const devConfig = {
         id: 'dev-config',
-        is_default: true,
-        is_free_default: false,
-        updated_at: new Date('2025-01-02'),
+        isDefault: true,
+        isFreeDefault: false,
+        updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
-        is_default: true,
-        is_free_default: false,
-        updated_at: new Date('2025-01-01'),
+        isDefault: true,
+        isFreeDefault: false,
+        updatedAt: new Date('2025-01-01'),
       };
-      devClient.$queryRawUnsafe.mockResolvedValue([devConfig]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([prodConfig]);
+      devClient.llmConfig.findMany.mockResolvedValue([devConfig]);
+      prodClient.llmConfig.findMany.mockResolvedValue([prodConfig]);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
@@ -111,28 +119,28 @@ describe('llmConfigSingletons', () => {
       );
 
       // Should clear the flag in prod (older)
-      expect(prodClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('is_default = false'),
-        'prod-config'
-      );
-      expect(devClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(prodClient.llmConfig.update).toHaveBeenCalledWith({
+        where: { id: 'prod-config' },
+        data: { isDefault: false, updatedAt: expect.any(Date) },
+      });
+      expect(devClient.llmConfig.update).not.toHaveBeenCalled();
     });
 
-    it('should clear flag in dev when prod config is newer (is_default)', async () => {
+    it('should clear flag in dev when prod config is newer (isDefault)', async () => {
       const devConfig = {
         id: 'dev-config',
-        is_default: true,
-        is_free_default: false,
-        updated_at: new Date('2025-01-01'),
+        isDefault: true,
+        isFreeDefault: false,
+        updatedAt: new Date('2025-01-01'),
       };
       const prodConfig = {
         id: 'prod-config',
-        is_default: true,
-        is_free_default: false,
-        updated_at: new Date('2025-01-02'),
+        isDefault: true,
+        isFreeDefault: false,
+        updatedAt: new Date('2025-01-02'),
       };
-      devClient.$queryRawUnsafe.mockResolvedValue([devConfig]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([prodConfig]);
+      devClient.llmConfig.findMany.mockResolvedValue([devConfig]);
+      prodClient.llmConfig.findMany.mockResolvedValue([prodConfig]);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
@@ -140,28 +148,28 @@ describe('llmConfigSingletons', () => {
       );
 
       // Should clear the flag in dev (older)
-      expect(devClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('is_default = false'),
-        'dev-config'
-      );
-      expect(prodClient.$executeRawUnsafe).not.toHaveBeenCalled();
+      expect(devClient.llmConfig.update).toHaveBeenCalledWith({
+        where: { id: 'dev-config' },
+        data: { isDefault: false, updatedAt: expect.any(Date) },
+      });
+      expect(prodClient.llmConfig.update).not.toHaveBeenCalled();
     });
 
-    it('should handle is_free_default flag conflicts', async () => {
+    it('should handle isFreeDefault flag conflicts', async () => {
       const devConfig = {
         id: 'dev-config',
-        is_default: false,
-        is_free_default: true,
-        updated_at: new Date('2025-01-02'),
+        isDefault: false,
+        isFreeDefault: true,
+        updatedAt: new Date('2025-01-02'),
       };
       const prodConfig = {
         id: 'prod-config',
-        is_default: false,
-        is_free_default: true,
-        updated_at: new Date('2025-01-01'),
+        isDefault: false,
+        isFreeDefault: true,
+        updatedAt: new Date('2025-01-01'),
       };
-      devClient.$queryRawUnsafe.mockResolvedValue([devConfig]);
-      prodClient.$queryRawUnsafe.mockResolvedValue([prodConfig]);
+      devClient.llmConfig.findMany.mockResolvedValue([devConfig]);
+      prodClient.llmConfig.findMany.mockResolvedValue([prodConfig]);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
@@ -169,59 +177,59 @@ describe('llmConfigSingletons', () => {
       );
 
       // Should clear the flag in prod (older)
-      expect(prodClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('is_free_default = false'),
-        'prod-config'
-      );
+      expect(prodClient.llmConfig.update).toHaveBeenCalledWith({
+        where: { id: 'prod-config' },
+        data: { isFreeDefault: false, updatedAt: expect.any(Date) },
+      });
     });
 
     it('should handle both flags having conflicts independently', async () => {
       const devConfigs = [
         {
           id: 'dev-default',
-          is_default: true,
-          is_free_default: false,
-          updated_at: new Date('2025-01-02'),
+          isDefault: true,
+          isFreeDefault: false,
+          updatedAt: new Date('2025-01-02'),
         },
         {
           id: 'dev-free',
-          is_default: false,
-          is_free_default: true,
-          updated_at: new Date('2025-01-01'),
+          isDefault: false,
+          isFreeDefault: true,
+          updatedAt: new Date('2025-01-01'),
         },
       ];
       const prodConfigs = [
         {
           id: 'prod-default',
-          is_default: true,
-          is_free_default: false,
-          updated_at: new Date('2025-01-01'),
+          isDefault: true,
+          isFreeDefault: false,
+          updatedAt: new Date('2025-01-01'),
         },
         {
           id: 'prod-free',
-          is_default: false,
-          is_free_default: true,
-          updated_at: new Date('2025-01-02'),
+          isDefault: false,
+          isFreeDefault: true,
+          updatedAt: new Date('2025-01-02'),
         },
       ];
-      devClient.$queryRawUnsafe.mockResolvedValue(devConfigs);
-      prodClient.$queryRawUnsafe.mockResolvedValue(prodConfigs);
+      devClient.llmConfig.findMany.mockResolvedValue(devConfigs);
+      prodClient.llmConfig.findMany.mockResolvedValue(prodConfigs);
 
       await prepareLlmConfigSingletonFlags(
         devClient as unknown as PrismaClient,
         prodClient as unknown as PrismaClient
       );
 
-      // is_default: dev is newer, so clear prod
-      expect(prodClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('is_default = false'),
-        'prod-default'
-      );
-      // is_free_default: prod is newer, so clear dev
-      expect(devClient.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('is_free_default = false'),
-        'dev-free'
-      );
+      // isDefault: dev is newer, so clear prod
+      expect(prodClient.llmConfig.update).toHaveBeenCalledWith({
+        where: { id: 'prod-default' },
+        data: { isDefault: false, updatedAt: expect.any(Date) },
+      });
+      // isFreeDefault: prod is newer, so clear dev
+      expect(devClient.llmConfig.update).toHaveBeenCalledWith({
+        where: { id: 'dev-free' },
+        data: { isFreeDefault: false, updatedAt: expect.any(Date) },
+      });
     });
   });
 });

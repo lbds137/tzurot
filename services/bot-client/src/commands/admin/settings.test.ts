@@ -295,9 +295,10 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should return false for non-admin settings custom IDs', () => {
-      expect(isAdminSettingsInteraction('channel-context::select::chan-123')).toBe(false);
-      expect(isAdminSettingsInteraction('personality-settings::set::aurora')).toBe(false);
-      expect(isAdminSettingsInteraction('character::edit::my-char')).toBe(false);
+      expect(isAdminSettingsInteraction('channel-settings::select::chan-123')).toBe(false);
+      expect(isAdminSettingsInteraction('character-settings::set::aurora')).toBe(false);
+      // admin::servers is a different admin subcommand, not settings
+      expect(isAdminSettingsInteraction('admin::servers::list')).toBe(false);
     });
 
     it('should return false for empty custom ID', () => {
@@ -308,7 +309,7 @@ describe('Admin Settings Dashboard', () => {
   describe('handleAdminSettingsButton', () => {
     it('should ignore non-admin-settings interactions', async () => {
       const interaction = createMockButtonInteraction(
-        'channel-context::set::chan-123::enabled:true'
+        'channel-settings::set::chan-123::enabled:true'
       );
 
       await handleAdminSettingsButton(interaction);
@@ -506,7 +507,7 @@ describe('Admin Settings Dashboard', () => {
   describe('handleAdminSettingsSelectMenu', () => {
     it('should ignore non-admin-settings interactions', async () => {
       const interaction = createMockSelectMenuInteraction(
-        'channel-context::select::chan-123',
+        'channel-settings::select::chan-123',
         'enabled'
       );
 
@@ -546,7 +547,7 @@ describe('Admin Settings Dashboard', () => {
 
     it('should ignore non-admin-settings modal interactions', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::chan-123::enabled',
+        'channel-settings::modal::chan-123::enabled',
         '50'
       );
 

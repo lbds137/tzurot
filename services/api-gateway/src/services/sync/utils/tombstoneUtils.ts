@@ -10,26 +10,65 @@ import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('db-sync-tombstones');
 
+/** Batch size for paginated tombstone loading to prevent OOM */
+const TOMBSTONE_BATCH_SIZE = 1000;
+
 /**
- * Load all tombstone IDs from both databases
+ * Load tombstone IDs from a single database using cursor-based pagination
+ */
+async function loadTombstonesFromDb(client: PrismaClient, dbName: string): Promise<string[]> {
+  const ids: string[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const batch = await client.conversationHistoryTombstone.findMany({
+      select: { id: true },
+      take: TOMBSTONE_BATCH_SIZE,
+      skip: cursor !== undefined ? 1 : 0,
+      cursor: cursor !== undefined ? { id: cursor } : undefined,
+      orderBy: { id: 'asc' },
+    });
+
+    if (batch.length === 0) {
+      break;
+    }
+
+    for (const row of batch) {
+      ids.push(row.id);
+    }
+
+    cursor = batch[batch.length - 1].id;
+
+    // If we got less than batch size, we're done
+    if (batch.length < TOMBSTONE_BATCH_SIZE) {
+      break;
+    }
+  }
+
+  logger.debug({ dbName, count: ids.length }, '[Sync] Loaded tombstones from database');
+  return ids;
+}
+
+/**
+ * Load all tombstone IDs from both databases using cursor-based pagination
  * Used to prevent syncing deleted conversation history
  */
 export async function loadTombstoneIds(
   devClient: PrismaClient,
   prodClient: PrismaClient
 ): Promise<Set<string>> {
-  // Use typed Prisma methods instead of $queryRawUnsafe for safety
+  // Load tombstones from both databases with pagination
   const [devTombstones, prodTombstones] = await Promise.all([
-    devClient.conversationHistoryTombstone.findMany({ select: { id: true } }),
-    prodClient.conversationHistoryTombstone.findMany({ select: { id: true } }),
+    loadTombstonesFromDb(devClient, 'dev'),
+    loadTombstonesFromDb(prodClient, 'prod'),
   ]);
 
   const tombstoneIds = new Set<string>();
-  for (const row of devTombstones) {
-    tombstoneIds.add(row.id);
+  for (const id of devTombstones) {
+    tombstoneIds.add(id);
   }
-  for (const row of prodTombstones) {
-    tombstoneIds.add(row.id);
+  for (const id of prodTombstones) {
+    tombstoneIds.add(id);
   }
 
   logger.debug(
