@@ -6,7 +6,7 @@
 
 import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
-import type { SyncTableName, TableSyncConfig } from '../config/syncTables.js';
+import { SYNC_CONFIG, type SyncTableName, type TableSyncConfig } from '../config/syncTables.js';
 
 const logger = createLogger('db-sync');
 
@@ -131,4 +131,89 @@ export async function validateSyncConfig(
   }
 
   return warnings;
+}
+
+/**
+ * Whitelist of allowed table names for raw SQL operations.
+ * Derived from SYNC_CONFIG keys for runtime validation.
+ */
+const ALLOWED_TABLES = new Set<string>(Object.keys(SYNC_CONFIG));
+
+/**
+ * Validate that a table name is in the allowed whitelist.
+ * Provides runtime defense-in-depth for SQL interpolation safety.
+ *
+ * @param tableName - Table name to validate
+ * @throws Error if table name is not in the allowed whitelist
+ */
+export function assertValidTableName(tableName: string): asserts tableName is SyncTableName {
+  if (!ALLOWED_TABLES.has(tableName)) {
+    throw new Error(
+      `Invalid table name: "${tableName}". ` +
+        `Only tables in SYNC_CONFIG are allowed: ${Array.from(ALLOWED_TABLES).join(', ')}`
+    );
+  }
+}
+
+/**
+ * Build a set of allowed column names for a specific table.
+ * Combines all column types from the table's sync config.
+ *
+ * @param tableName - Table name (must be valid)
+ * @returns Set of allowed column names for the table
+ */
+export function getAllowedColumnsForTable(tableName: SyncTableName): Set<string> {
+  const config = SYNC_CONFIG[tableName];
+  const columns = new Set<string>();
+
+  // Add primary key columns
+  const pkFields = typeof config.pk === 'string' ? [config.pk] : config.pk;
+  for (const pk of pkFields) {
+    columns.add(pk);
+  }
+
+  // Add UUID columns
+  for (const col of config.uuidColumns) {
+    columns.add(col);
+  }
+
+  // Add timestamp columns
+  for (const col of config.timestampColumns) {
+    columns.add(col);
+  }
+
+  // Add deferred FK columns
+  if (config.deferredFkColumns) {
+    for (const col of config.deferredFkColumns) {
+      columns.add(col);
+    }
+  }
+
+  // Add createdAt and updatedAt if defined
+  if (config.createdAt !== undefined) {
+    columns.add(config.createdAt);
+  }
+  if (config.updatedAt !== undefined) {
+    columns.add(config.updatedAt);
+  }
+
+  return columns;
+}
+
+/**
+ * Validate that a column name is allowed for SQL interpolation.
+ * Must be alphanumeric with underscores only (no special chars).
+ *
+ * @param columnName - Column name to validate
+ * @throws Error if column name contains invalid characters
+ */
+export function assertValidColumnName(columnName: string): void {
+  // Column names must be alphanumeric with underscores only
+  // This prevents SQL injection via column names
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)) {
+    throw new Error(
+      `Invalid column name: "${columnName}". ` +
+        `Column names must match pattern [a-zA-Z_][a-zA-Z0-9_]*`
+    );
+  }
 }

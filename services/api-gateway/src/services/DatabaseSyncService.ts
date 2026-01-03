@@ -7,7 +7,12 @@
 import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import { SYNC_CONFIG, SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
-import { checkSchemaVersions, validateSyncConfig } from './sync/utils/syncValidation.js';
+import {
+  checkSchemaVersions,
+  validateSyncConfig,
+  assertValidTableName,
+  assertValidColumnName,
+} from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
 import { prepareLlmConfigSingletonFlags } from './sync/utils/llmConfigSingletons.js';
 import { ForeignKeyReconciler } from './sync/ForeignKeyReconciler.js';
@@ -306,6 +311,9 @@ export class DatabaseSyncService {
    * Fetch all rows from a table using raw SQL
    */
   private async fetchAllRows(client: PrismaClient, tableName: string): Promise<unknown[]> {
+    // Defense-in-depth: validate table name before SQL interpolation
+    assertValidTableName(tableName);
+
     // Special handling for memories table - cast vector to text for Prisma deserialization
     if (tableName === 'memories') {
       const rows = await client.$queryRawUnsafe(`
@@ -410,14 +418,22 @@ export class DatabaseSyncService {
       deferredFkColumns = [],
     } = options;
 
+    // Defense-in-depth: validate table name before SQL interpolation
+    assertValidTableName(tableName);
+
     if (typeof row !== 'object' || row === null) {
       throw new Error('Row is not an object');
     }
 
     const rowObj = row as Record<string, unknown>;
 
-    // Build column names and values
+    // Defense-in-depth: validate all column names before SQL interpolation
     const columns = Object.keys(rowObj);
+    for (const col of columns) {
+      assertValidColumnName(col);
+    }
+
+    // Build values (columns already validated above)
     const values = Object.values(rowObj).map((val, i) => {
       const col = columns[i];
       // Set deferred FK columns to NULL (will be updated in pass 2)
