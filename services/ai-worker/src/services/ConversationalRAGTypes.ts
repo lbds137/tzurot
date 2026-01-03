@@ -58,9 +58,16 @@ export interface ConversationContext {
   rawConversationHistory?: { role: string; content: string; tokenCount?: number }[];
   oldestHistoryTimestamp?: number;
   participants?: ParticipantPersona[];
+  /** Attachments from triggering message */
   attachments?: AttachmentMetadata[];
+  /** Pre-processed attachments (vision descriptions) from triggering message */
   preprocessedAttachments?: ProcessedAttachment[];
+  /** Pre-processed attachments from referenced messages */
   preprocessedReferenceAttachments?: Record<number, ProcessedAttachment[]>;
+  /** Image attachments from extended context (limited by maxImages setting) */
+  extendedContextAttachments?: AttachmentMetadata[];
+  /** Pre-processed extended context attachments (vision descriptions) */
+  preprocessedExtendedContextAttachments?: ProcessedAttachment[];
   environment?: DiscordEnvironment;
   referencedMessages?: ReferencedMessage[];
   referencedChannels?: { channelId: string; channelName: string }[];
@@ -84,6 +91,8 @@ export interface ProcessedInputs {
   referencedMessagesDescriptions: string | undefined;
   referencedMessagesTextForSearch: string | undefined;
   searchQuery: string;
+  /** Formatted descriptions of images from extended context messages */
+  extendedContextDescriptions: string | undefined;
 }
 
 /** Result of loading personas and resolving user references */
@@ -122,6 +131,8 @@ export interface BudgetAllocationOptions {
   userMessage: string;
   processedAttachments: ProcessedAttachment[];
   referencedMessagesDescriptions: string | undefined;
+  /** Formatted descriptions of images from extended context */
+  extendedContextDescriptions: string | undefined;
 }
 
 /** Options for model invocation */

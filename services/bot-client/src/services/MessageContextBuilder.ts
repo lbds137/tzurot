@@ -29,6 +29,7 @@ import type {
   ReferencedChannel,
   ReferencedMessage,
   ConversationMessage,
+  AttachmentMetadata,
 } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
@@ -201,6 +202,8 @@ export class MessageContextBuilder {
 
     // Extended context: fetch recent messages from Discord channel
     // This provides broader context beyond just bot conversations stored in DB
+    let extendedContextAttachments: AttachmentMetadata[] | undefined;
+
     if (options.extendedContext?.enabled === true && options.botUserId !== undefined) {
       // Check if channel supports message fetching
       if (isTypingChannel(message.channel)) {
@@ -209,6 +212,7 @@ export class MessageContextBuilder {
             channelId: message.channel.id,
             maxMessages: options.extendedContext.maxMessages,
             maxAge: options.extendedContext.maxAge,
+            maxImages: options.extendedContext.maxImages,
           },
           '[MessageContextBuilder] Fetching extended context from Discord'
         );
@@ -244,6 +248,23 @@ export class MessageContextBuilder {
             },
             '[MessageContextBuilder] Extended context merged with conversation history'
           );
+
+          // Collect image attachments for proactive processing (maxImages limit)
+          // Images are already sorted newest-first from DiscordChannelFetcher
+          const maxImages = options.extendedContext.maxImages ?? 0;
+          if (maxImages > 0 && fetchResult.imageAttachments && fetchResult.imageAttachments.length > 0) {
+            // Take top N newest images for proactive description
+            extendedContextAttachments = fetchResult.imageAttachments.slice(0, maxImages);
+            logger.debug(
+              {
+                channelId: message.channel.id,
+                availableImages: fetchResult.imageAttachments.length,
+                maxImages,
+                selectedImages: extendedContextAttachments.length,
+              },
+              '[MessageContextBuilder] Collected extended context images for processing'
+            );
+          }
 
           // Opportunistic sync: detect edits and deletes in the background
           // This doesn't block message processing - fire and forget
@@ -420,6 +441,7 @@ export class MessageContextBuilder {
       activePersonaName: personaName ?? undefined,
       conversationHistory,
       attachments,
+      extendedContextAttachments, // Images from extended context (limited by maxImages)
       environment,
       referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined,
       mentionedPersonas,

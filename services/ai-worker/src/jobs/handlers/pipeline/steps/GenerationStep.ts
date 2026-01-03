@@ -89,6 +89,9 @@ export class GenerationStep implements IPipelineStep {
             preprocessing && Object.keys(preprocessing.referenceAttachments).length > 0
               ? preprocessing.referenceAttachments
               : undefined,
+          // Extended context attachments (raw and preprocessed)
+          extendedContextAttachments: jobContext.extendedContextAttachments,
+          preprocessedExtendedContextAttachments: preprocessing?.extendedContextAttachments,
           environment: jobContext.environment,
           referencedMessages: jobContext.referencedMessages,
           referencedChannels: jobContext.referencedChannels,
