@@ -23,6 +23,14 @@ vi.mock('./autocomplete.js', () => ({
   handleAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('./settings.js', () => ({
+  handleContext: vi.fn().mockResolvedValue(undefined),
+  handleChannelContextSelectMenu: vi.fn().mockResolvedValue(undefined),
+  handleChannelContextButton: vi.fn().mockResolvedValue(undefined),
+  handleChannelContextModal: vi.fn().mockResolvedValue(undefined),
+  isChannelContextInteraction: vi.fn().mockReturnValue(false),
+}));
+
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -41,6 +49,7 @@ import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
 import { handleList } from './list.js';
 import { handleAutocomplete } from './autocomplete.js';
+import { handleContext } from './settings.js';
 
 describe('/channel command group', () => {
   beforeEach(() => {
@@ -78,6 +87,14 @@ describe('/channel command group', () => {
       const listSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'list');
       expect(listSubcommand).toBeDefined();
     });
+
+    it('should have settings subcommand', () => {
+      const json = data.toJSON();
+      const settingsSubcommand = json.options?.find(
+        (opt: { name: string }) => opt.name === 'settings'
+      );
+      expect(settingsSubcommand).toBeDefined();
+    });
   });
 
   describe('execute', () => {
@@ -114,6 +131,14 @@ describe('/channel command group', () => {
       await execute(interaction);
 
       expect(handleList).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route to settings handler', async () => {
+      const interaction = createMockInteraction('settings');
+
+      await execute(interaction);
+
+      expect(handleContext).toHaveBeenCalledWith(interaction);
     });
   });
 
