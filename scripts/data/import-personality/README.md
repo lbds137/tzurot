@@ -184,5 +184,5 @@ npx tsx scripts/import-personality/test-custom-fields.ts
 - **Import plan**: `/docs/migration/SHAPES_INC_IMPORT_PLAN.md`
 - **V3 schema**: `/prisma/schema.prisma`
 - **Qdrant metadata**: `/services/ai-worker/src/memory/QdrantMemoryAdapter.ts`
-- **Personality service**: `/packages/common-types/src/services/PersonalityService.ts`
+- **Personality service**: `/packages/common-types/src/services/personality/`
 - **Test data**: `/tzurot-legacy/data/personalities/cold-kerach-batuach/`
