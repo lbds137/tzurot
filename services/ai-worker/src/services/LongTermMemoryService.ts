@@ -9,7 +9,12 @@
  */
 
 import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import { createLogger, getPrismaClient, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  createLogger,
+  getPrismaClient,
+  type LoadedPersonality,
+  generatePendingMemoryUuid,
+} from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGService.js';
 
 const logger = createLogger('LongTermMemoryService');
@@ -70,6 +75,7 @@ export class LongTermMemoryService {
       // Note: conversationHistoryId is optional (bot-client can backfill if needed)
       const pendingMemory = await prisma.pendingMemory.create({
         data: {
+          id: generatePendingMemoryUuid(personaId, personality.id, interactionText),
           personaId,
           personalityId: personality.id,
           text: interactionText,
