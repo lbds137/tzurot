@@ -21,6 +21,7 @@
 **Solution**: Intermediate Representation (IR) pattern - single `extractMessageContent()` function returns `UnifiedMessageContent`, both paths consume and map to their specific output types.
 
 **Recent bugs from this pattern**:
+
 - 2026-01-03: Forwarded message attachments not extracted in extended context (fixed)
 - Previous: Extended context missing embed images
 - Previous: Voice transcript handling inconsistencies

@@ -1,6 +1,6 @@
 {
   "name": "tzurot",
-  "version": "3.0.0-beta.30",
+  "version": "3.0.0-beta.31",
   "private": true,
   "description": "Next-generation Discord AI bot with customizable personalities",
   "type": "module",
@@ -28,7 +28,8 @@
     "migrate-legacy-persona": "tsx scripts/data/import-personality/migrate-legacy-persona.ts",
     "migrate-memory-format": "tsx scripts/_archive/qdrant/migrate-memory-format.ts",
     "migrate-memory-format:dry-run": "tsx scripts/_archive/qdrant/migrate-memory-format.ts --dry-run",
-    "check:migrations": "bash -c 'for f in prisma/migrations/**/*.sql; do if grep -q \"DROP INDEX.*idx_memories_embedding\" \"$f\" && ! grep -q \"CREATE INDEX.*idx_memories_embedding\" \"$f\"; then echo \"⚠️  DANGER: $f drops vector index without recreating!\"; exit 1; fi; done; echo \"✅ Migrations safe\"'"
+    "check:migrations": "bash -c 'for f in prisma/migrations/**/*.sql; do if grep -q \"DROP INDEX.*idx_memories_embedding\" \"$f\" && ! grep -q \"CREATE INDEX.*idx_memories_embedding\" \"$f\"; then echo \"⚠️  DANGER: $f drops vector index without recreating!\"; exit 1; fi; done; echo \"✅ Migrations safe\"'",
+    "bump-version": "bash scripts/utils/bump-version.sh"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",

@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/import-scripts",
-  "version": "3.0.0-beta.30",
+  "version": "3.0.0-beta.31",
   "private": true,
   "type": "module",
   "description": "Import scripts for shapes.inc personality data",
