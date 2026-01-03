@@ -45,6 +45,9 @@ jobs:
       - name: Audit contract test coverage
         run: npx tsx scripts/testing/audit-contract-coverage.ts
 
+      - name: Audit service integration test coverage
+        run: npx tsx scripts/testing/audit-service-integration.ts
+
   test:
     runs-on: ubuntu-latest
     steps:
