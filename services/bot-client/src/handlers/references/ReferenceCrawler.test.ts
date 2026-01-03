@@ -324,10 +324,48 @@ describe('ReferenceCrawler', () => {
   });
 
   describe('Deduplication', () => {
-    it('should skip messages already in conversation history (exact match)', async () => {
+    it('should skip LINK references already in conversation history (exact match)', async () => {
+      // LINK references can be deduplicated - they're incidental mentions in message text
       const referencedMessage = createMockMessage({
         id: 'ref-1',
         content: 'Already in history',
+      });
+
+      const message = createMockMessage({
+        id: 'msg-1',
+        content: 'Check this: https://discord.com/channels/1/2/ref-1',
+      });
+
+      vi.mocked(mockStrategy.extract).mockResolvedValue([
+        {
+          messageId: 'ref-1',
+          channelId: 'channel-1',
+          guildId: 'guild-1',
+          type: ReferenceType.LINK, // Link references ARE deduplicated
+          discordUrl: 'https://discord.com/channels/1/2/ref-1',
+        },
+      ]);
+
+      vi.mocked(mockLinkExtractor.fetchMessageFromLink).mockResolvedValue(referencedMessage);
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+        conversationHistoryMessageIds: new Set(['ref-1']), // Mark as already in history
+      });
+
+      const result = await crawler.crawl(message);
+
+      expect(result.messages.size).toBe(0); // Link references should be excluded if in history
+    });
+
+    it('should NOT skip direct REPLY references even if in conversation history', async () => {
+      // Direct REPLY references should NEVER be deduplicated - they indicate explicit user intent
+      // The user is saying "I am responding to THIS specific message"
+      const referencedMessage = createMockMessage({
+        id: 'ref-1',
+        content: 'Already in history but user is replying to it',
       });
 
       const message = createMockMessage({
@@ -341,7 +379,7 @@ describe('ReferenceCrawler', () => {
           messageId: 'ref-1',
           channelId: 'channel-1',
           guildId: 'guild-1',
-          type: ReferenceType.REPLY,
+          type: ReferenceType.REPLY, // Reply references are NOT deduplicated
         },
       ]);
 
@@ -354,7 +392,9 @@ describe('ReferenceCrawler', () => {
 
       const result = await crawler.crawl(message);
 
-      expect(result.messages.size).toBe(0); // Should be excluded
+      // Direct reply should be included even though it's in history
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.has('ref-1')).toBe(true);
     });
 
     it('should skip duplicate references within same crawl', async () => {

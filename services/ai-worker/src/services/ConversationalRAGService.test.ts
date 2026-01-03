@@ -860,4 +860,236 @@ describe('ConversationalRAGService', () => {
       );
     });
   });
+
+  describe('inline image descriptions', () => {
+    it('should inject image descriptions into matching history entries', async () => {
+      const personality = createMockPersonality();
+
+      // Create history with a message that has an image
+      const rawHistory = [
+        {
+          id: 'msg-with-image-123',
+          role: 'user' as const,
+          content: 'Check out this image!',
+          speaker: 'Alice',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: 'msg-no-image-456',
+          role: 'assistant' as const,
+          content: 'Nice image!',
+          speaker: 'TestBot',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      // Create preprocessed attachments with sourceDiscordMessageId matching history
+      const preprocessedAttachments = [
+        {
+          type: AttachmentType.Image,
+          description: 'A beautiful sunset over the ocean',
+          metadata: {
+            url: 'https://example.com/sunset.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            name: 'sunset.png',
+            size: 2048,
+            sourceDiscordMessageId: 'msg-with-image-123',
+          },
+        },
+      ];
+
+      const context = createMockContext({
+        rawConversationHistory: rawHistory,
+        preprocessedExtendedContextAttachments: preprocessedAttachments,
+      });
+
+      await service.generateResponse(personality, 'What do you see?', context);
+
+      // Verify that the history entry was mutated to include imageDescriptions
+      expect(rawHistory[0].messageMetadata).toBeDefined();
+      expect(rawHistory[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'sunset.png', description: 'A beautiful sunset over the ocean' },
+      ]);
+      // The second message should not have imageDescriptions
+      expect(rawHistory[1].messageMetadata).toBeUndefined();
+    });
+
+    it('should handle multiple images on the same message', async () => {
+      const personality = createMockPersonality();
+
+      const rawHistory = [
+        {
+          id: 'msg-multi-images',
+          role: 'user' as const,
+          content: 'Here are some photos from my trip!',
+          speaker: 'Bob',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const preprocessedAttachments = [
+        {
+          type: AttachmentType.Image,
+          description: 'Mountain landscape with snow',
+          metadata: {
+            url: 'https://example.com/mountain.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            name: 'mountain.png',
+            size: 3000,
+            sourceDiscordMessageId: 'msg-multi-images',
+          },
+        },
+        {
+          type: AttachmentType.Image,
+          description: 'Beach with palm trees',
+          metadata: {
+            url: 'https://example.com/beach.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            name: 'beach.png',
+            size: 2500,
+            sourceDiscordMessageId: 'msg-multi-images',
+          },
+        },
+      ];
+
+      const context = createMockContext({
+        rawConversationHistory: rawHistory,
+        preprocessedExtendedContextAttachments: preprocessedAttachments,
+      });
+
+      await service.generateResponse(personality, 'Describe the photos', context);
+
+      expect(rawHistory[0].messageMetadata?.imageDescriptions).toHaveLength(2);
+      expect(rawHistory[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'mountain.png', description: 'Mountain landscape with snow' },
+        { filename: 'beach.png', description: 'Beach with palm trees' },
+      ]);
+    });
+
+    it('should skip images without sourceDiscordMessageId', async () => {
+      const personality = createMockPersonality();
+
+      const rawHistory = [
+        {
+          id: 'msg-123',
+          role: 'user' as const,
+          content: 'Some message',
+          speaker: 'Charlie',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      // Attachment without sourceDiscordMessageId
+      const preprocessedAttachments = [
+        {
+          type: AttachmentType.Image,
+          description: 'An orphan image',
+          metadata: {
+            url: 'https://example.com/orphan.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            name: 'orphan.png',
+            size: 1000,
+            // No sourceDiscordMessageId
+          },
+        },
+      ];
+
+      const context = createMockContext({
+        rawConversationHistory: rawHistory,
+        preprocessedExtendedContextAttachments: preprocessedAttachments,
+      });
+
+      await service.generateResponse(personality, 'Test', context);
+
+      // No injection should happen
+      expect(rawHistory[0].messageMetadata).toBeUndefined();
+    });
+
+    it('should handle empty preprocessedExtendedContextAttachments', async () => {
+      const personality = createMockPersonality();
+
+      const rawHistory = [
+        {
+          id: 'msg-123',
+          role: 'user' as const,
+          content: 'No images here',
+          speaker: 'Dave',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const context = createMockContext({
+        rawConversationHistory: rawHistory,
+        preprocessedExtendedContextAttachments: [],
+      });
+
+      await service.generateResponse(personality, 'Test', context);
+
+      // Should complete without errors
+      expect(rawHistory[0].messageMetadata).toBeUndefined();
+    });
+
+    it('should handle undefined preprocessedExtendedContextAttachments', async () => {
+      const personality = createMockPersonality();
+
+      const rawHistory = [
+        {
+          id: 'msg-123',
+          role: 'user' as const,
+          content: 'No extended context',
+          speaker: 'Eve',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const context = createMockContext({
+        rawConversationHistory: rawHistory,
+        // preprocessedExtendedContextAttachments is undefined
+      });
+
+      await service.generateResponse(personality, 'Test', context);
+
+      // Should complete without errors
+      expect(rawHistory[0].messageMetadata).toBeUndefined();
+    });
+
+    it('should use default filename when attachment name is undefined', async () => {
+      const personality = createMockPersonality();
+
+      const rawHistory = [
+        {
+          id: 'msg-unnamed',
+          role: 'user' as const,
+          content: 'Image with no name',
+          speaker: 'Frank',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const preprocessedAttachments = [
+        {
+          type: AttachmentType.Image,
+          description: 'A mystery image',
+          metadata: {
+            url: 'https://example.com/unnamed.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            // name is undefined
+            size: 500,
+            sourceDiscordMessageId: 'msg-unnamed',
+          },
+        },
+      ];
+
+      const context = createMockContext({
+        rawConversationHistory: rawHistory,
+        preprocessedExtendedContextAttachments: preprocessedAttachments,
+      });
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(rawHistory[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'image', description: 'A mystery image' },
+      ]);
+    });
+  });
 });

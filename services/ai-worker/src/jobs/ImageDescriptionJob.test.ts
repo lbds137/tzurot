@@ -479,7 +479,8 @@ describe('ImageDescriptionJob', () => {
       expect(mockDescribeImage).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
-        true // isGuestMode
+        true, // isGuestMode
+        undefined // userApiKey (guests don't have one)
       );
     });
 
@@ -534,7 +535,8 @@ describe('ImageDescriptionJob', () => {
       expect(mockDescribeImage).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
-        false // isGuestMode
+        false, // isGuestMode
+        'sk-user-provided-key' // userApiKey (BYOK users get their key passed)
       );
     });
 
@@ -579,7 +581,8 @@ describe('ImageDescriptionJob', () => {
       expect(mockDescribeImage).toHaveBeenCalledWith(
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
-        true // isGuestMode defaults to true on error
+        true, // isGuestMode defaults to true on error
+        undefined // userApiKey is undefined on error (no key resolved)
       );
     });
   });

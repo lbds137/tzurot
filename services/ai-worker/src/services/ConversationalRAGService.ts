@@ -37,6 +37,7 @@ import { PersonaResolver } from './resolvers/index.js';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
 import { buildAttachmentDescriptions, generateStopSequences } from './RAGUtils.js';
+import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 import type {
   ConversationContext,
   ProcessedInputs,
@@ -142,24 +143,10 @@ export class ConversationalRAGService {
       recentHistoryWindow
     );
 
-    // Format extended context image descriptions (from extended context messages)
-    let extendedContextDescriptions: string | undefined;
-    if (
-      context.preprocessedExtendedContextAttachments &&
-      context.preprocessedExtendedContextAttachments.length > 0
-    ) {
-      const descriptions = context.preprocessedExtendedContextAttachments
-        .map((att, idx) => `[Image ${idx + 1}]: ${att.description}`)
-        .join('\n');
-      extendedContextDescriptions = `<recent_channel_images>
-The following images were shared in recent channel messages:
-${descriptions}
-</recent_channel_images>`;
-      logger.info(
-        { count: context.preprocessedExtendedContextAttachments.length },
-        '[RAG] Formatted extended context image descriptions'
-      );
-    }
+    // Note: Extended context image descriptions are now injected inline into
+    // conversation history entries (via injectImageDescriptions), not formatted
+    // as a separate section. This improves context colocation - the AI sees
+    // image descriptions directly within the messages they came from.
 
     return {
       processedAttachments,
@@ -167,7 +154,6 @@ ${descriptions}
       referencedMessagesDescriptions,
       referencedMessagesTextForSearch,
       searchQuery,
-      extendedContextDescriptions,
     };
   }
 
@@ -359,6 +345,13 @@ ${descriptions}
       // Step 1: Process inputs (attachments, messages, search query)
       const inputs = await this.processInputs(personality, message, context, isGuestMode);
 
+      // Step 1.5: Inject image descriptions into history for inline display
+      // This replaces the separate <recent_channel_images> section with inline descriptions
+      const imageDescriptionMap = this.buildImageDescriptionMap(
+        context.preprocessedExtendedContextAttachments
+      );
+      this.injectImageDescriptions(context.rawConversationHistory, imageDescriptionMap);
+
       // Step 2: Load personas and resolve user references
       const { participantPersonas, processedPersonality } =
         await this.loadPersonasAndResolveReferences(personality, context);
@@ -374,6 +367,8 @@ ${descriptions}
       );
 
       // Step 4: Allocate token budgets and select content
+      // Note: Image descriptions are now injected inline into history entries
+      // (via injectImageDescriptions above) rather than passed separately
       const budgetResult = this.contentBudgetManager.allocate({
         personality,
         processedPersonality,
@@ -383,7 +378,6 @@ ${descriptions}
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
-        extendedContextDescriptions: inputs.extendedContextDescriptions,
       });
 
       // Step 5: Invoke model and clean response
@@ -454,6 +448,91 @@ ${descriptions}
       );
     } else {
       logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
+    }
+  }
+
+  /**
+   * Build a map from Discord message ID to image descriptions
+   *
+   * This allows us to associate preprocessed image descriptions with their
+   * source messages in the conversation history for inline display.
+   *
+   * @param attachments Preprocessed extended context attachments
+   * @returns Map of Discord message ID to array of image descriptions
+   */
+  private buildImageDescriptionMap(
+    attachments: ProcessedAttachment[] | undefined
+  ): Map<string, InlineImageDescription[]> {
+    const map = new Map<string, InlineImageDescription[]>();
+
+    if (!attachments || attachments.length === 0) {
+      return map;
+    }
+
+    for (const att of attachments) {
+      const msgId = att.metadata.sourceDiscordMessageId;
+      if (msgId === undefined || msgId.length === 0) {
+        continue;
+      }
+
+      const existingList = map.get(msgId) ?? [];
+      existingList.push({
+        filename: att.metadata.name ?? 'image',
+        description: att.description,
+      });
+      if (!map.has(msgId)) {
+        map.set(msgId, existingList);
+      }
+    }
+
+    if (map.size > 0) {
+      logger.debug(
+        { messageCount: map.size, totalImages: attachments.length },
+        '[RAG] Built image description map for inline display'
+      );
+    }
+
+    return map;
+  }
+
+  /**
+   * Inject image descriptions into conversation history entries
+   *
+   * Modifies history entries in-place to add imageDescriptions to their
+   * messageMetadata. This enables inline display of image descriptions
+   * within the chat_log rather than a separate section.
+   *
+   * @param history Raw conversation history (will be mutated)
+   * @param imageMap Map of Discord message ID to image descriptions
+   */
+  private injectImageDescriptions(
+    history: ConversationContext['rawConversationHistory'],
+    imageMap: Map<string, InlineImageDescription[]>
+  ): void {
+    if (!history || history.length === 0 || imageMap.size === 0) {
+      return;
+    }
+
+    let injectedCount = 0;
+
+    for (const entry of history) {
+      // For extended context messages, entry.id IS the Discord message ID
+      if (entry.id !== undefined && entry.id.length > 0 && imageMap.has(entry.id)) {
+        const descriptions = imageMap.get(entry.id);
+        if (descriptions !== undefined && descriptions.length > 0) {
+          // Ensure messageMetadata exists
+          entry.messageMetadata ??= {};
+          entry.messageMetadata.imageDescriptions = descriptions;
+          injectedCount++;
+        }
+      }
+    }
+
+    if (injectedCount > 0) {
+      logger.info(
+        { injectedCount },
+        '[RAG] Injected image descriptions into history entries for inline display'
+      );
     }
   }
 

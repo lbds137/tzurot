@@ -49,11 +49,14 @@ export async function hasVisionSupport(modelName: string): Promise<boolean> {
  * @param personality - Personality configuration for vision model selection
  * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
  *                      Guest users use free vision models, BYOK users use paid models
+ * @param userApiKey - Optional user's BYOK API key (for BYOK users, this should be passed
+ *                     so their API key is used instead of the bot's primary key)
  */
 export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
-  isGuestMode = false
+  isGuestMode = false,
+  userApiKey?: string
 ): Promise<string> {
   logger.info(
     {
@@ -92,7 +95,7 @@ export async function describeImage(
       'Using configured vision model (personality override)'
     );
     usedModel = personality.visionModel;
-    description = await describeWithVisionModel(attachment, personality, usedModel);
+    description = await describeWithVisionModel(attachment, personality, usedModel, userApiKey);
   } else {
     // Priority 2: Use personality's main model if it has native vision support
     const mainModelHasVision = await hasVisionSupport(personality.model);
@@ -102,7 +105,7 @@ export async function describeImage(
         'Using main LLM for vision (native vision support detected)'
       );
       usedModel = personality.model;
-      description = await describeWithVisionModel(attachment, personality, usedModel);
+      description = await describeWithVisionModel(attachment, personality, usedModel, userApiKey);
     } else {
       // Priority 3: Use fallback vision model
       // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
@@ -117,7 +120,8 @@ export async function describeImage(
         personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
           ? personality.systemPrompt
           : '',
-        usedModel
+        usedModel,
+        userApiKey
       );
     }
   }
@@ -137,7 +141,8 @@ export async function describeImage(
 async function describeWithVisionModel(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
-  modelName: string
+  modelName: string,
+  userApiKey?: string
 ): Promise<string> {
   // Determine API key and base URL based on model
   let apiKey: string | undefined;
@@ -145,11 +150,17 @@ async function describeWithVisionModel(
 
   if (modelName.includes('gpt-') || modelName.includes('openai')) {
     // Use direct OpenAI API for OpenAI models
-    apiKey = config.OPENAI_API_KEY;
+    // BYOK users use their own key, otherwise fall back to system key
+    apiKey = userApiKey ?? config.OPENAI_API_KEY;
   } else {
     // Use OpenRouter for all other models (including Claude, Gemini, Llama, etc.)
-    apiKey = config.OPENROUTER_API_KEY;
+    // BYOK users use their own key, otherwise fall back to system key
+    apiKey = userApiKey ?? config.OPENROUTER_API_KEY;
     baseURL = AI_ENDPOINTS.OPENROUTER_BASE_URL;
+  }
+
+  if (userApiKey !== undefined) {
+    logger.info({ modelName }, 'Using user BYOK API key for vision processing');
   }
 
   const model = new ChatOpenAI({
@@ -223,11 +234,19 @@ async function describeWithVisionModel(
 async function describeWithFallbackVision(
   attachment: AttachmentMetadata,
   systemPrompt: string,
-  fallbackModelName: string
+  fallbackModelName: string,
+  userApiKey?: string
 ): Promise<string> {
+  // BYOK users use their own key, otherwise fall back to system key
+  const apiKey = userApiKey ?? config.OPENROUTER_API_KEY;
+
+  if (userApiKey !== undefined) {
+    logger.info({ fallbackModelName }, 'Using user BYOK API key for fallback vision processing');
+  }
+
   const model = new ChatOpenAI({
     modelName: fallbackModelName,
-    apiKey: config.OPENROUTER_API_KEY,
+    apiKey,
     configuration: {
       baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
     },
