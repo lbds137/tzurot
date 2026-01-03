@@ -142,25 +142,24 @@ git push --force-with-lease origin feat/your-feature
 ### Version Bump (ALL package.json files!)
 
 ```bash
-sed -i 's/"version": "3.0.0-beta.22"/"version": "3.0.0-beta.23"/g' \
-  ./package.json \
-  ./services/ai-worker/package.json \
-  ./services/api-gateway/package.json \
-  ./services/bot-client/package.json \
-  ./packages/common-types/package.json \
-  ./scripts/package.json \
-  ./scripts/data/import-personality/package.json
+# Use the bump-version script - handles all 9 package.json files
+pnpm bump-version 3.0.0-beta.31
+
+# Review changes
+git diff
+
+# Commit
+git commit -am "chore: bump version to 3.0.0-beta.31"
+git push origin develop
 ```
+
+**Script location:** `scripts/utils/bump-version.sh`
 
 ### Create Release PR
 
 ```bash
-git add package.json services/*/package.json packages/*/package.json scripts/package.json
-git commit -m "chore: bump version to 3.0.0-beta.23"
-git push origin develop
-
 gh pr create --base main --head develop \
-  --title "Release v3.0.0-beta.23: Description"
+  --title "Release v3.0.0-beta.31: Description"
 ```
 
 ## Anti-Patterns

@@ -214,6 +214,9 @@ pnpm --filter @tzurot/ai-worker test
 
 # Test summary (always run after tests)
 pnpm test 2>&1 | grep -E "(Test Files|Tests)" | sed 's/\x1b\[[0-9;]*m//g'
+
+# Release management
+pnpm bump-version 3.0.0-beta.31  # Bump version in all package.json files
 ```
 
 **Note**: Use pnpm, NOT npm. ESLint uses flat config (`eslint.config.js`), NOT `.eslintrc.*`.

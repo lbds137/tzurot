@@ -214,5 +214,57 @@ describe('RAGUtils', () => {
       expect(result).toContain('\nTestBot:');
       expect(result.length).toBe(11); // 1 personality + 10 XML tags
     });
+
+    it('should cap stop sequences at 16 (Google API limit)', () => {
+      // Create many participants to exceed the limit
+      // Max is 16, with 10 XML + 1 personality = 11 reserved, leaving 5 for participants
+      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
+        ['User1', { content: '', isActive: true }],
+        ['User2', { content: '', isActive: true }],
+        ['User3', { content: '', isActive: true }],
+        ['User4', { content: '', isActive: true }],
+        ['User5', { content: '', isActive: true }],
+        ['User6', { content: '', isActive: true }], // Should be truncated
+        ['User7', { content: '', isActive: true }], // Should be truncated
+        ['User8', { content: '', isActive: true }], // Should be truncated
+      ]);
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // Should be exactly 16 (the max allowed)
+      expect(result.length).toBe(16);
+
+      // XML sequences should always be present
+      expect(result).toContain('<message ');
+      expect(result).toContain('</chat_log>');
+
+      // Personality should always be present
+      expect(result).toContain('\nLilith:');
+
+      // First 5 participants should be present
+      expect(result).toContain('\nUser1:');
+      expect(result).toContain('\nUser5:');
+
+      // User6+ should be truncated
+      expect(result).not.toContain('\nUser6:');
+      expect(result).not.toContain('\nUser7:');
+      expect(result).not.toContain('\nUser8:');
+    });
+
+    it('should not truncate when under the limit', () => {
+      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
+        ['User1', { content: '', isActive: true }],
+        ['User2', { content: '', isActive: true }],
+        ['User3', { content: '', isActive: true }],
+      ]);
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // 3 participants + 1 personality + 10 XML = 14 (under limit)
+      expect(result.length).toBe(14);
+      expect(result).toContain('\nUser1:');
+      expect(result).toContain('\nUser2:');
+      expect(result).toContain('\nUser3:');
+    });
   });
 });

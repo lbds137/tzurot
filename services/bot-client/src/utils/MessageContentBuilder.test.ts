@@ -209,6 +209,98 @@ describe('MessageContentBuilder', () => {
       expect(result.content).toContain('[Forwarded message]: Original forwarded content');
     });
 
+    it('should extract attachments from forwarded message snapshots', async () => {
+      // Create snapshot with attachments (critical for forwarded images!)
+      const snapshotAttachments = new Collection<string, Attachment>();
+      snapshotAttachments.set(
+        'snap-attach-1',
+        createMockAttachment({
+          id: 'snap-attach-1',
+          name: 'forwarded-image.jpg',
+          contentType: 'image/jpeg',
+          url: 'https://cdn.discord.com/attachments/123/789/forwarded-image.jpg',
+        })
+      );
+      snapshotAttachments.set(
+        'snap-attach-2',
+        createMockAttachment({
+          id: 'snap-attach-2',
+          name: 'forwarded-doc.pdf',
+          contentType: 'application/pdf',
+          url: 'https://cdn.discord.com/attachments/123/790/forwarded-doc.pdf',
+        })
+      );
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Check out these files',
+        embeds: [],
+        attachments: snapshotAttachments,
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const result = await buildMessageContent(message);
+
+      expect(result.isForwarded).toBe(true);
+      expect(result.attachments).toHaveLength(2);
+      expect(result.attachments[0].name).toBe('forwarded-image.jpg');
+      expect(result.attachments[0].contentType).toBe('image/jpeg');
+      expect(result.attachments[1].name).toBe('forwarded-doc.pdf');
+    });
+
+    it('should combine forwarded snapshot attachments with main message attachments', async () => {
+      // Snapshot with image
+      const snapshotAttachments = new Collection<string, Attachment>();
+      snapshotAttachments.set(
+        'snap-1',
+        createMockAttachment({
+          id: 'snap-1',
+          name: 'from-snapshot.png',
+          contentType: 'image/png',
+        })
+      );
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: 'Forwarded content',
+        embeds: [],
+        attachments: snapshotAttachments,
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      // Main message also has an attachment (rare but possible)
+      const mainAttachments = new Collection<string, Attachment>();
+      mainAttachments.set(
+        'main-1',
+        createMockAttachment({
+          id: 'main-1',
+          name: 'on-main-message.gif',
+          contentType: 'image/gif',
+        })
+      );
+
+      const message = createMockMessage({
+        content: '',
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+        attachments: mainAttachments,
+      });
+
+      const result = await buildMessageContent(message);
+
+      // Should have both snapshot and main message attachments
+      expect(result.attachments).toHaveLength(2);
+      // Snapshot attachments come first
+      expect(result.attachments[0].name).toBe('from-snapshot.png');
+      expect(result.attachments[1].name).toBe('on-main-message.gif');
+    });
+
     it('should combine text content with attachments and embeds', async () => {
       const attachments = new Collection<string, Attachment>();
       attachments.set('1', createMockAttachment({ name: 'photo.jpg', contentType: 'image/jpeg' }));

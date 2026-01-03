@@ -17,7 +17,7 @@ import {
   handleChannelContextSelectMenu,
   handleChannelContextModal,
   isChannelContextInteraction,
-} from './context.js';
+} from './settings.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {

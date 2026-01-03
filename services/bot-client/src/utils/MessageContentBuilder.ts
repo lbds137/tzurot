@@ -2,9 +2,24 @@
  * Message Content Builder
  *
  * Builds comprehensive text content from Discord messages, including
- * attachments, embeds, and voice transcripts. This utility is shared
- * between MessageFormatter (for referenced messages) and
- * DiscordChannelFetcher (for extended context) to ensure consistency.
+ * attachments, embeds, and voice transcripts.
+ *
+ * IMPORTANT: This is the SINGLE SOURCE OF TRUTH for extracting content from Discord messages.
+ * Both main message handling and extended context MUST use this utility to ensure consistency.
+ *
+ * Used by:
+ * - DiscordChannelFetcher (extended context messages)
+ * - HistoryLinkResolver (inline link resolution)
+ *
+ * This utility handles:
+ * - Regular message content
+ * - Forwarded message snapshots (content, attachments, embeds)
+ * - Voice message transcripts
+ * - Embed parsing
+ * - Attachment extraction (from message AND from forwarded snapshots)
+ *
+ * @see SnapshotFormatter - Uses similar logic for referenced message formatting
+ *      If adding features here, consider if SnapshotFormatter needs the same updates.
  */
 
 import type { Message, APIEmbed } from 'discord.js';
@@ -66,6 +81,9 @@ export async function buildMessageContent(
   const contentParts: string[] = [];
   let isForwarded = false;
 
+  // Collect attachments from forwarded message snapshots
+  const snapshotAttachments: AttachmentMetadata[] = [];
+
   // Check if this is a forwarded message
   if (
     message.reference?.type === MessageReferenceType.Forward &&
@@ -78,6 +96,21 @@ export async function buildMessageContent(
       if (snapshot.content) {
         contentParts.push(`[Forwarded message]: ${snapshot.content}`);
       }
+
+      // Extract attachments from snapshot (critical for forwarded images!)
+      if (snapshot.attachments !== undefined && snapshot.attachments !== null) {
+        const extracted = extractAttachments(snapshot.attachments);
+        if (extracted) {
+          snapshotAttachments.push(...extracted);
+        }
+      }
+
+      // Extract images from snapshot embeds
+      const snapshotEmbedImages = extractEmbedImages(snapshot.embeds);
+      if (snapshotEmbedImages) {
+        snapshotAttachments.push(...snapshotEmbedImages);
+      }
+
       // Process snapshot embeds
       if (includeEmbeds && snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
         const embedText = snapshot.embeds
@@ -103,10 +136,14 @@ export async function buildMessageContent(
     contentParts.push(message.content);
   }
 
-  // Extract and combine attachments from regular attachments and embed images
+  // Extract and combine attachments from all sources:
+  // 1. Forwarded message snapshot attachments (extracted above)
+  // 2. Regular attachments on the main message
+  // 3. Embed images from main message embeds
   const regularAttachments = extractAttachments(message.attachments);
   const embedImages = extractEmbedImages(message.embeds);
   const allAttachments: AttachmentMetadata[] = [
+    ...snapshotAttachments,
     ...(regularAttachments ?? []),
     ...(embedImages ?? []),
   ];

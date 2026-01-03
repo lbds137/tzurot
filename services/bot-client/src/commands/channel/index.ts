@@ -6,7 +6,7 @@
  * - /channel activate <personality> - Activate a personality in the current channel
  * - /channel deactivate - Deactivate the personality from the current channel
  * - /channel list - List all activated channels
- * - /channel context <action> - Manage extended context settings
+ * - /channel settings - Open extended context settings dashboard
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -28,7 +28,7 @@ import {
   handleChannelContextButton,
   handleChannelContextModal,
   isChannelContextInteraction,
-} from './context.js';
+} from './settings.js';
 import { handleAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('channel-command');
@@ -70,7 +70,7 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand(subcommand =>
     subcommand
-      .setName('context')
+      .setName('settings')
       .setDescription('Open extended context settings dashboard for this channel')
   );
 
@@ -82,7 +82,7 @@ const channelRouter = createSubcommandRouter(
     activate: handleActivate,
     deactivate: handleDeactivate,
     list: handleList,
-    context: handleContext,
+    settings: handleContext,
   },
   { logger, logPrefix: '[Channel]' }
 );

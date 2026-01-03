@@ -6,6 +6,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Prevent accidental JS commits in TS source directories
+# (TypeScript compiles to dist/, not alongside source files)
+services/**/*.js
+packages/**/*.js
+!**/*.config.js
+
 # Environment variables
 .env
 .env.local

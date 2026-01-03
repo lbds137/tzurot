@@ -68,6 +68,7 @@ export class ContentBudgetManager {
       relevantMemories,
       context,
       referencedMessagesFormatted: opts.referencedMessagesDescriptions,
+      extendedContextDescriptions: opts.extendedContextDescriptions,
       serializedHistory,
     });
 

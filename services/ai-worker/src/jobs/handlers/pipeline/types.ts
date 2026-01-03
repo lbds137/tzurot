@@ -83,6 +83,8 @@ export interface PreprocessingResults {
   transcriptions: string[];
   /** Attachments from referenced messages, keyed by reference number */
   referenceAttachments: Record<number, ProcessedAttachment[]>;
+  /** Processed attachments from extended context (inline processing) */
+  extendedContextAttachments?: ProcessedAttachment[];
 }
 
 /**
