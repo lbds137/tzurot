@@ -14,6 +14,7 @@
     "test": "pnpm --filter './services/*' --filter './packages/*' test",
     "test:coverage": "pnpm --filter './services/*' --filter './packages/*' test:coverage",
     "test:integration": "vitest --config vitest.integration.config.ts",
+    "test:low-mem": "pnpm --workspace-concurrency=1 --filter './services/*' --filter './packages/*' test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "audit:contracts": "tsx scripts/testing/audit-contract-coverage.ts",

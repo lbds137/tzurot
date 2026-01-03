@@ -26,17 +26,16 @@ const createMockPrismaClient = () => {
   return client;
 };
 
-const mockPrismaClient = createMockPrismaClient();
-
-// Spy on countTextTokens to verify it's called correctly
-vi.spyOn(tokenCounter, 'countTextTokens');
-
 describe('ConversationSyncService', () => {
   let service: ConversationSyncService;
+  let mockPrismaClient: ReturnType<typeof createMockPrismaClient>;
 
   beforeEach(() => {
+    // Create fresh mocks for each test
+    mockPrismaClient = createMockPrismaClient();
     service = new ConversationSyncService(mockPrismaClient as unknown as PrismaClient);
-    vi.clearAllMocks();
+    // Create fresh spy for each test
+    vi.spyOn(tokenCounter, 'countTextTokens');
   });
 
   describe('softDeleteMessage', () => {

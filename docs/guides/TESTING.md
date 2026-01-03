@@ -1,6 +1,6 @@
 # Testing Guide
 
-**Last Updated:** 2025-11-02
+**Last Updated:** 2026-01-03
 **Status:** Foundation complete, expanding coverage
 
 > **Purpose:** Guidelines and patterns for writing tests in Tzurot v3
@@ -14,9 +14,10 @@
 3. [Writing Tests](#writing-tests)
 4. [Mocking Dependencies](#mocking-dependencies)
 5. [Running Tests](#running-tests)
-6. [Examples](#examples)
-7. [Common Patterns](#common-patterns)
-8. [Troubleshooting](#troubleshooting)
+6. [Memory Optimization](#memory-optimization)
+7. [Examples](#examples)
+8. [Common Patterns](#common-patterns)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -513,6 +514,98 @@ Tests run automatically on:
 - Pre-commit hooks (future)
 - Pull request CI (future)
 - Before deployments (future)
+
+---
+
+## Memory Optimization
+
+When running the full test suite (5000+ tests), memory usage can spike significantly due to multiple Vitest processes and workers. This section documents strategies for reducing RAM consumption.
+
+### Current Configuration
+
+The base `vitest.config.ts` includes these memory-saving settings:
+
+```typescript
+// Vitest 4 top-level pool options (replaces poolOptions.threads)
+pool: 'threads',
+maxWorkers: 3,       // Limit workers (default uses all CPU cores)
+minWorkers: 1,
+mockReset: true,     // Clear mocks between tests
+restoreMocks: true,  // Restore original implementations
+```
+
+### Available Commands
+
+| Command | Memory Usage | Speed | Use Case |
+|---------|-------------|-------|----------|
+| `pnpm test` | Moderate | Fast | CI, machines with 16GB+ RAM |
+| `pnpm test:low-mem` | Low | Slower | Development on limited RAM |
+
+The `test:low-mem` command uses `--workspace-concurrency=1` to run one service at a time instead of all 4 in parallel.
+
+### IDE Tips
+
+- **Run full suite in external terminal** - The integrated terminal shares renderer memory with the IDE
+- **Disable auto-watch for full suite** - Watch mode on 5000+ tests consumes significant resources
+- **Run individual service tests during development** - `pnpm --filter @tzurot/bot-client test`
+
+### Advanced Options (Not Currently Implemented)
+
+If memory issues persist, consider these additional strategies:
+
+#### 1. Vitest Workspaces (Single Process)
+
+Instead of 4 separate Vitest processes, use a single root instance:
+
+```typescript
+// vitest.workspace.ts (in project root)
+export default ['packages/*', 'services/*']
+```
+
+Then run `vitest run` instead of pnpm filter. One process manages all tests, sharing the worker pool efficiently.
+
+#### 2. Node.js Memory Flags
+
+Set a hard memory limit to crash gracefully instead of freezing:
+
+```bash
+NODE_OPTIONS="--max-old-space-size=4096" pnpm test
+```
+
+Or add `--logHeapUsage` to Vitest to identify memory-heavy test files.
+
+#### 3. Forks Pool (Better Isolation)
+
+Switch from threads to forks for cleaner memory slate per test file:
+
+```typescript
+pool: 'forks',
+poolOptions: {
+  forks: {
+    maxForks: 2,
+    minForks: 1,
+  },
+},
+```
+
+Trade-off: Slower startup per file but better memory isolation.
+
+#### 4. Heap Usage Logging
+
+Identify which test files consume the most memory:
+
+```typescript
+test: {
+  logHeapUsage: true,
+}
+```
+
+### Reference
+
+These recommendations were developed with MCP council consultation (Gemini) analyzing:
+- 8-core CPU with 14GB RAM (Steam Deck)
+- 4 pnpm workspace packages running in parallel
+- Heavy mocking throughout tests (500MB-1GB per worker)
 
 ---
 

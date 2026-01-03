@@ -4,6 +4,16 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Limit worker threads to reduce memory usage (default uses all CPU cores)
+    // With heavy mocking, each worker can consume 500MB-1GB
+    // 3 workers × ~700MB = ~2.1GB (safe for 5GB available RAM)
+    // Note: Vitest 4 moved poolOptions to top-level options
+    pool: 'threads',
+    maxWorkers: 3,
+    minWorkers: 1,
+    // Note: mockReset/restoreMocks were attempted but broke 57+ tests across
+    // api-gateway and bot-client that rely on module-level mock persistence.
+    // The thread limits above are the main memory optimization.
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
