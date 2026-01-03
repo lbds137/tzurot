@@ -106,8 +106,8 @@ export function generateStopSequences(
   const truncatedParticipants = participantStopSequences.slice(0, availableForParticipants);
   const participantsTruncated = participantStopSequences.length - truncatedParticipants.length;
 
-  // Combine in priority order
-  const stopSequences = [...truncatedParticipants, personalityStopSequence, ...xmlStopSequences];
+  // Combine in priority order (highest priority first)
+  const stopSequences = [...xmlStopSequences, personalityStopSequence, ...truncatedParticipants];
 
   // Log summary
   if (stopSequences.length > 0) {

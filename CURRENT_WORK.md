@@ -4,7 +4,7 @@
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.30
+**Version**: v3.0.0-beta.31
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
@@ -23,6 +23,7 @@
 **Recent bugs from this pattern**:
 
 - 2026-01-03: Forwarded message attachments not extracted in extended context (fixed)
+- 2026-01-03: Google API rejected >16 stop sequences (fixed, was exceeding limit)
 - Previous: Extended context missing embed images
 - Previous: Voice transcript handling inconsistencies
 
