@@ -38,6 +38,8 @@ const logger = createLogger('admin-settings');
 
 /**
  * Entity type for custom IDs
+ * Uses hyphen separator to avoid conflicts with :: delimiter
+ * CommandHandler uses alias mapping to route 'admin-settings' → 'admin'
  */
 const ENTITY_TYPE = 'admin-settings';
 

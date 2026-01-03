@@ -169,6 +169,12 @@ export function buildSettingsCustomId(
 
 /**
  * Parse a settings dashboard custom ID
+ *
+ * Format: {entityType}::{action}::{entityId}[::{extra}]
+ * Example: 'admin-settings::select::global' or 'admin-settings::set::global::enabled:true'
+ *
+ * Note: entityType should NOT contain '::' delimiter to ensure correct parsing.
+ * Use hyphens for compound types (e.g., 'admin-settings' not 'admin::settings').
  */
 export function parseSettingsCustomId(customId: string): {
   entityType: string;
@@ -180,11 +186,16 @@ export function parseSettingsCustomId(customId: string): {
   if (parts.length < 3) {
     return null;
   }
+
+  // Use destructuring with rest to preserve extra segments
+  const [entityType, action, entityId, ...rest] = parts;
+
   return {
-    entityType: parts[0],
-    action: parts[1],
-    entityId: parts[2],
-    extra: parts[3],
+    entityType,
+    action,
+    entityId,
+    // Re-join extra segments in case they contain the delimiter
+    extra: rest.length > 0 ? rest.join(SETTINGS_CUSTOM_ID_DELIMITER) : undefined,
   };
 }
 

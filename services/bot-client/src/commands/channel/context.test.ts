@@ -265,18 +265,19 @@ describe('Channel Context Dashboard', () => {
 
   describe('isChannelContextInteraction', () => {
     it('should return true for channel context custom IDs', () => {
-      expect(isChannelContextInteraction('channel-context::select::chan-123')).toBe(true);
-      expect(isChannelContextInteraction('channel-context::set::chan-123::enabled:true')).toBe(
+      expect(isChannelContextInteraction('channel-settings::select::chan-123')).toBe(true);
+      expect(isChannelContextInteraction('channel-settings::set::chan-123::enabled:true')).toBe(
         true
       );
-      expect(isChannelContextInteraction('channel-context::back::chan-123')).toBe(true);
-      expect(isChannelContextInteraction('channel-context::close::chan-123')).toBe(true);
+      expect(isChannelContextInteraction('channel-settings::back::chan-123')).toBe(true);
+      expect(isChannelContextInteraction('channel-settings::close::chan-123')).toBe(true);
     });
 
     it('should return false for non-channel-context custom IDs', () => {
-      expect(isChannelContextInteraction('personality-settings::select::aurora')).toBe(false);
+      expect(isChannelContextInteraction('character-settings::select::aurora')).toBe(false);
       expect(isChannelContextInteraction('admin-settings::set::global')).toBe(false);
-      expect(isChannelContextInteraction('character::edit::my-char')).toBe(false);
+      // channel::list is channel list pagination, not settings
+      expect(isChannelContextInteraction('channel::list::1::date')).toBe(false);
     });
 
     it('should return false for empty custom ID', () => {
@@ -295,7 +296,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should call update handler when setting enabled to true', async () => {
       const interaction = {
-        customId: 'channel-context::set::channel-123::enabled:true',
+        customId: 'channel-settings::set::channel-123::enabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -334,7 +335,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should handle setting enabled to auto (null)', async () => {
       const interaction = {
-        customId: 'channel-context::set::channel-123::enabled:auto',
+        customId: 'channel-settings::set::channel-123::enabled:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -373,7 +374,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should handle API failure gracefully', async () => {
       const interaction = {
-        customId: 'channel-context::set::channel-123::enabled:true',
+        customId: 'channel-settings::set::channel-123::enabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -461,7 +462,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should update maxMessages setting', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::channel-123::maxMessages',
+        'channel-settings::modal::channel-123::maxMessages',
         '75'
       );
 
@@ -483,7 +484,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should update maxAge setting with duration string (2h)', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::channel-123::maxAge',
+        'channel-settings::modal::channel-123::maxAge',
         '2h'
       );
 
@@ -505,7 +506,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should update maxAge setting to "off" (disabled)', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::channel-123::maxAge',
+        'channel-settings::modal::channel-123::maxAge',
         'off'
       );
 
@@ -528,7 +529,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should update maxImages setting', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::channel-123::maxImages',
+        'channel-settings::modal::channel-123::maxImages',
         '10'
       );
 
@@ -550,7 +551,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should invalidate cache after successful update', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::channel-123::maxMessages',
+        'channel-settings::modal::channel-123::maxMessages',
         '50'
       );
 
@@ -566,7 +567,7 @@ describe('Channel Context Dashboard', () => {
 
     it('should handle network error gracefully', async () => {
       const interaction = createMockModalInteraction(
-        'channel-context::modal::channel-123::maxMessages',
+        'channel-settings::modal::channel-123::maxMessages',
         '50'
       );
 

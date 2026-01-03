@@ -10,11 +10,11 @@ import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('db-sync-llm-config');
 
-interface LlmConfigFlags {
+interface LlmConfigWithFlags {
   id: string;
-  is_default: boolean;
-  is_free_default: boolean;
-  updated_at: Date;
+  isDefault: boolean;
+  isFreeDefault: boolean;
+  updatedAt: Date;
 }
 
 /**
@@ -28,24 +28,23 @@ export async function prepareLlmConfigSingletonFlags(
   devClient: PrismaClient,
   prodClient: PrismaClient
 ): Promise<void> {
-  // Fetch llm_configs with singleton flags from both databases
-  const devConfigs = await devClient.$queryRawUnsafe<LlmConfigFlags[]>(`
-    SELECT id, is_default, is_free_default, updated_at
-    FROM llm_configs
-    WHERE is_default = true OR is_free_default = true
-  `);
-
-  const prodConfigs = await prodClient.$queryRawUnsafe<LlmConfigFlags[]>(`
-    SELECT id, is_default, is_free_default, updated_at
-    FROM llm_configs
-    WHERE is_default = true OR is_free_default = true
-  `);
+  // Fetch llm_configs with singleton flags from both databases using typed Prisma methods
+  const [devConfigs, prodConfigs] = await Promise.all([
+    devClient.llmConfig.findMany({
+      where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
+      select: { id: true, isDefault: true, isFreeDefault: true, updatedAt: true },
+    }),
+    prodClient.llmConfig.findMany({
+      where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
+      select: { id: true, isDefault: true, isFreeDefault: true, updatedAt: true },
+    }),
+  ]);
 
   // Handle is_default singleton
-  await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'is_default');
+  await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'isDefault');
 
   // Handle is_free_default singleton
-  await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'is_free_default');
+  await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'isFreeDefault');
 }
 
 /**
@@ -55,9 +54,9 @@ export async function prepareLlmConfigSingletonFlags(
 async function resolveSingletonFlag(
   devClient: PrismaClient,
   prodClient: PrismaClient,
-  devConfigs: LlmConfigFlags[],
-  prodConfigs: LlmConfigFlags[],
-  flagName: 'is_default' | 'is_free_default'
+  devConfigs: LlmConfigWithFlags[],
+  prodConfigs: LlmConfigWithFlags[],
+  flagName: 'isDefault' | 'isFreeDefault'
 ): Promise<void> {
   const devWithFlag = devConfigs.find(c => c[flagName]);
   const prodWithFlag = prodConfigs.find(c => c[flagName]);
@@ -73,32 +72,47 @@ async function resolveSingletonFlag(
   }
 
   // Different configs have the flag - resolve using updated_at
-  const devTime = new Date(devWithFlag.updated_at).getTime();
-  const prodTime = new Date(prodWithFlag.updated_at).getTime();
+  const devTime = new Date(devWithFlag.updatedAt).getTime();
+  const prodTime = new Date(prodWithFlag.updatedAt).getTime();
 
   logger.info(
     {
       flagName,
       devConfigId: devWithFlag.id,
-      devUpdatedAt: devWithFlag.updated_at,
+      devUpdatedAt: devWithFlag.updatedAt,
       prodConfigId: prodWithFlag.id,
-      prodUpdatedAt: prodWithFlag.updated_at,
+      prodUpdatedAt: prodWithFlag.updatedAt,
       winner: devTime >= prodTime ? 'dev' : 'prod',
     },
     '[Sync] Resolving llm_configs singleton flag conflict'
   );
 
+  // Use typed Prisma update instead of raw SQL to avoid injection risk
   if (devTime >= prodTime) {
     // Dev wins - clear the flag in prod (so dev's config can be synced)
-    await prodClient.$executeRawUnsafe(
-      `UPDATE llm_configs SET ${flagName} = false, updated_at = NOW() WHERE id = $1::uuid`,
-      prodWithFlag.id
-    );
+    if (flagName === 'isDefault') {
+      await prodClient.llmConfig.update({
+        where: { id: prodWithFlag.id },
+        data: { isDefault: false, updatedAt: new Date() },
+      });
+    } else {
+      await prodClient.llmConfig.update({
+        where: { id: prodWithFlag.id },
+        data: { isFreeDefault: false, updatedAt: new Date() },
+      });
+    }
   } else {
     // Prod wins - clear the flag in dev (so prod's config can be synced)
-    await devClient.$executeRawUnsafe(
-      `UPDATE llm_configs SET ${flagName} = false, updated_at = NOW() WHERE id = $1::uuid`,
-      devWithFlag.id
-    );
+    if (flagName === 'isDefault') {
+      await devClient.llmConfig.update({
+        where: { id: devWithFlag.id },
+        data: { isDefault: false, updatedAt: new Date() },
+      });
+    } else {
+      await devClient.llmConfig.update({
+        where: { id: devWithFlag.id },
+        data: { isFreeDefault: false, updatedAt: new Date() },
+      });
+    }
   }
 }

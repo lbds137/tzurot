@@ -42,6 +42,12 @@ import {
 
 const logger = createLogger('character-command');
 
+/**
+ * Additional prefixes this command handles
+ * Used by CommandHandler to route component interactions
+ */
+export const componentPrefixes = ['character-settings'];
+
 // Create combined handlers that route to appropriate sub-handler
 export async function handleSelectMenu(
   interaction: import('discord.js').StringSelectMenuInteraction
@@ -225,25 +231,27 @@ function createCharacterRouter(
 /**
  * Command execution router
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-): Promise<void> {
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const config = getConfig();
+  const router = createCharacterRouter(config);
+  await router(interaction);
+}
+
+/**
+ * Handle modal interactions for character commands
+ * Routes to settings dashboard or edit dashboard based on customId prefix
+ */
+export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const config = getConfig();
 
-  // Handle modal submissions
-  if (interaction.isModalSubmit()) {
-    // Check if it's a settings dashboard modal
-    if (isCharacterSettingsInteraction(interaction.customId)) {
-      await handleCharacterSettingsModal(interaction);
-      return;
-    }
-    // Otherwise route to character edit dashboard
-    await handleModalSubmit(interaction, config);
+  // Check if it's a settings dashboard modal
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsModal(interaction);
     return;
   }
 
-  const router = createCharacterRouter(config);
-  await router(interaction);
+  // Otherwise route to character edit dashboard
+  await handleModalSubmit(interaction, config);
 }
 
 /**

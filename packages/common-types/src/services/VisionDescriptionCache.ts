@@ -28,6 +28,13 @@ import { createLogger } from '../utils/logger.js';
 import { REDIS_KEY_PREFIXES, INTERVALS, TEXT_LIMITS } from '../constants/index.js';
 import type { PersistentVisionCache } from './PersistentVisionCache.js';
 
+/** Configuration for L2 cache write retries */
+const L2_RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelayMs: 100,
+  maxDelayMs: 1000,
+} as const;
+
 const logger = createLogger('VisionDescriptionCache');
 
 /** Options for cache key generation */
@@ -88,14 +95,11 @@ export class VisionDescriptionCache {
         options.attachmentId !== undefined &&
         options.attachmentId !== ''
       ) {
-        await this.l2Cache.set({
-          attachmentId: options.attachmentId,
+        // L2 write with retry logic for resilience
+        await this.writeToL2WithRetry(
+          options.attachmentId,
           description,
-          model: options.model ?? 'unknown',
-        });
-        logger.debug(
-          { attachmentId: options.attachmentId },
-          '[VisionDescriptionCache] Stored description in L2'
+          options.model ?? 'unknown'
         );
       }
     } catch (error) {
@@ -156,6 +160,52 @@ export class VisionDescriptionCache {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to get description');
       return null;
     }
+  }
+
+  /**
+   * Write to L2 cache with exponential backoff retry
+   * Fire-and-forget with logging - doesn't throw on failure
+   */
+  private async writeToL2WithRetry(
+    attachmentId: string,
+    description: string,
+    model: string
+  ): Promise<void> {
+    if (this.l2Cache === null) {
+      return;
+    }
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt < L2_RETRY_CONFIG.maxRetries; attempt++) {
+      try {
+        await this.l2Cache.set({ attachmentId, description, model });
+        logger.debug(
+          { attachmentId, attempt: attempt + 1 },
+          '[VisionDescriptionCache] Stored description in L2'
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < L2_RETRY_CONFIG.maxRetries - 1) {
+          // Exponential backoff with jitter
+          const delay = Math.min(
+            L2_RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt) + Math.random() * 100,
+            L2_RETRY_CONFIG.maxDelayMs
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          logger.debug(
+            { attachmentId, attempt: attempt + 1, delayMs: delay },
+            '[VisionDescriptionCache] L2 write failed, retrying'
+          );
+        }
+      }
+    }
+
+    // All retries exhausted - log warning but don't throw
+    logger.warn(
+      { attachmentId, err: lastError, maxRetries: L2_RETRY_CONFIG.maxRetries },
+      '[VisionDescriptionCache] L2 write failed after all retries - L1 cache still valid'
+    );
   }
 
   /**

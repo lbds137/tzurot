@@ -29,12 +29,34 @@ const __dirname = dirname(__filename);
 
 /**
  * Command Handler - manages slash command registration and execution
+ *
+ * Uses a prefix-to-command map for component routing:
+ * - Command name is automatically registered as a prefix
+ * - Commands can declare additional prefixes via componentPrefixes
+ * - Collision detection prevents duplicate prefix registration
  */
 export class CommandHandler {
   private commands: Collection<string, Command>;
+  private prefixToCommand: Map<string, Command>;
 
   constructor() {
     this.commands = new Collection();
+    this.prefixToCommand = new Map();
+  }
+
+  /**
+   * Register a prefix for a command with collision detection
+   * @throws Error if prefix is already registered to a different command
+   */
+  private registerPrefix(prefix: string, command: Command): void {
+    const existing = this.prefixToCommand.get(prefix);
+    if (existing !== undefined && existing !== command) {
+      throw new Error(
+        `Prefix collision: '${prefix}' is already registered to '${existing.data.name}' ` +
+          `but '${command.data.name}' tried to claim it`
+      );
+    }
+    this.prefixToCommand.set(prefix, command);
   }
 
   /**
@@ -78,11 +100,25 @@ export class CommandHandler {
           autocomplete: importedModule.autocomplete,
           handleSelectMenu: importedModule.handleSelectMenu,
           handleButton: importedModule.handleButton,
+          handleModal: importedModule.handleModal,
+          componentPrefixes: importedModule.componentPrefixes,
           category,
         };
 
-        this.commands.set(importedModule.data.name, commandWithCategory);
-        logger.info(`[CommandHandler] Loaded command: ${importedModule.data.name}`);
+        const commandName = importedModule.data.name;
+        this.commands.set(commandName, commandWithCategory);
+
+        // Register command name as a prefix for component routing
+        this.registerPrefix(commandName, commandWithCategory);
+
+        // Register any additional prefixes declared by the command
+        if (commandWithCategory.componentPrefixes !== undefined) {
+          for (const prefix of commandWithCategory.componentPrefixes) {
+            this.registerPrefix(prefix, commandWithCategory);
+          }
+        }
+
+        logger.info(`[CommandHandler] Loaded command: ${commandName}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(
@@ -122,12 +158,14 @@ export class CommandHandler {
   async handleInteraction(
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction
   ): Promise<void> {
-    // For modal submits, extract command name from customId
-    // Supports both new "::" format and legacy "-" format
-    const commandName = interaction.isModalSubmit()
-      ? (getCommandFromCustomId(interaction.customId) ?? interaction.customId)
-      : interaction.commandName;
+    // Handle modal submits via prefix routing
+    if (interaction.isModalSubmit()) {
+      await this.handleModalInteraction(interaction);
+      return;
+    }
 
+    // Handle slash commands
+    const commandName = interaction.commandName;
     const command = this.commands.get(commandName);
 
     if (!command) {
@@ -140,23 +178,62 @@ export class CommandHandler {
     }
 
     try {
-      logger.info(
-        `[CommandHandler] Executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`
-      );
+      logger.info(`[CommandHandler] Executing command: ${commandName}`);
 
       // Pass commands collection to help command
-      if (commandName === 'help' && interaction.isChatInputCommand()) {
+      if (commandName === 'help') {
         await command.execute(interaction, this.commands);
       } else {
         await command.execute(interaction);
       }
     } catch (error) {
-      logger.error(
-        { err: error },
-        `[CommandHandler] Error executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`
-      );
+      logger.error({ err: error }, `[CommandHandler] Error executing command: ${commandName}`);
 
       const errorMessage = 'There was an error executing this command!';
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      } else {
+        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+      }
+    }
+  }
+
+  /**
+   * Handle a modal submit interaction
+   * Routes via prefix map and uses handleModal if available
+   */
+  private async handleModalInteraction(interaction: ModalSubmitInteraction): Promise<void> {
+    const customId = interaction.customId;
+    const prefix = getCommandFromCustomId(customId) ?? customId;
+
+    // Look up command by prefix
+    const command = this.prefixToCommand.get(prefix);
+
+    if (!command) {
+      logger.warn({ customId, prefix }, '[CommandHandler] Unknown prefix for modal');
+      await interaction.reply({
+        content: 'Unknown interaction!',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const commandName = command.data.name;
+
+    try {
+      // Use handleModal if available, otherwise fall back to execute
+      if (command.handleModal !== undefined) {
+        logger.info(`[CommandHandler] Executing modal handler: ${commandName}`);
+        await command.handleModal(interaction);
+      } else {
+        logger.info(`[CommandHandler] Executing modal via execute: ${commandName}`);
+        await command.execute(interaction);
+      }
+    } catch (error) {
+      logger.error({ err: error, customId }, `[CommandHandler] Error in modal: ${commandName}`);
+
+      const errorMessage = 'There was an error processing this interaction!';
 
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
@@ -204,23 +281,20 @@ export class CommandHandler {
   /**
    * Handle a component interaction (select menu or button)
    *
-   * Routes based on customId prefix.
-   * Supports both new "::" format (e.g., "character::menu::abc") and legacy "-" format.
+   * Routes based on customId prefix using the prefixToCommand map.
+   * Commands declare their prefixes via componentPrefixes.
    */
   async handleComponentInteraction(
     interaction: StringSelectMenuInteraction | ButtonInteraction
   ): Promise<void> {
-    // Extract command name from customId prefix using utility that handles both formats
     const customId = interaction.customId;
-    const commandName = getCommandFromCustomId(customId) ?? customId;
+    const prefix = getCommandFromCustomId(customId) ?? customId;
 
-    const command = this.commands.get(commandName);
+    // Look up command by prefix
+    const command = this.prefixToCommand.get(prefix);
 
     if (!command) {
-      logger.warn(
-        { customId, commandName },
-        '[CommandHandler] Unknown command for component interaction'
-      );
+      logger.warn({ customId, prefix }, '[CommandHandler] Unknown prefix for component');
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: 'Unknown interaction!',
@@ -229,6 +303,8 @@ export class CommandHandler {
       }
       return;
     }
+
+    const commandName = command.data.name;
 
     try {
       if (interaction.isStringSelectMenu()) {

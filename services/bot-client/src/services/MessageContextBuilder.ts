@@ -14,6 +14,7 @@ import type {
 import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,
+  ConversationSyncService,
   UserService,
   createLogger,
   MessageRole,
@@ -81,6 +82,7 @@ export interface ContextBuildResult {
  */
 export class MessageContextBuilder {
   private conversationHistory: ConversationHistoryService;
+  private conversationSync: ConversationSyncService;
   private userService: UserService;
   private mentionResolver: MentionResolver;
   private personaResolver: PersonaResolver;
@@ -92,6 +94,7 @@ export class MessageContextBuilder {
     personaResolver: PersonaResolver
   ) {
     this.conversationHistory = new ConversationHistoryService(prisma);
+    this.conversationSync = new ConversationSyncService(prisma);
     this.userService = new UserService(prisma);
     this.mentionResolver = new MentionResolver(prisma, personaResolver);
     this.personaResolver = personaResolver;
@@ -250,7 +253,7 @@ export class MessageContextBuilder {
                 fetchResult.rawMessages,
                 message.channel.id,
                 personality.id,
-                this.conversationHistory
+                this.conversationSync
               )
               .catch(err => {
                 logger.warn(

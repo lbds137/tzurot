@@ -59,14 +59,33 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
 export interface Command {
   data: SlashCommandBuilder;
   category?: string;
+
+  /**
+   * Execute slash command
+   * Note: ModalSubmitInteraction support is for backwards compatibility.
+   * New commands should use handleModal instead.
+   */
   execute: (
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction,
     ...args: unknown[]
   ) => Promise<void>;
+
   /** Optional autocomplete handler for commands with autocomplete options */
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+
   /** Optional select menu handler for commands with select menus */
   handleSelectMenu?: (interaction: StringSelectMenuInteraction) => Promise<void>;
+
   /** Optional button handler for commands with buttons */
   handleButton?: (interaction: ButtonInteraction) => Promise<void>;
+
+  /** Optional modal handler for commands with modals */
+  handleModal?: (interaction: ModalSubmitInteraction) => Promise<void>;
+
+  /**
+   * Additional customId prefixes this command handles.
+   * The command name is automatically registered as a prefix.
+   * Use this for sub-features with different prefixes (e.g., 'admin-settings').
+   */
+  componentPrefixes?: string[];
 }

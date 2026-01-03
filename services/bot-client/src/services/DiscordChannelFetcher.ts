@@ -14,7 +14,7 @@ import {
   createLogger,
   MessageRole,
   MESSAGE_LIMITS,
-  ConversationHistoryService,
+  ConversationSyncService,
 } from '@tzurot/common-types';
 import type { ConversationMessage } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
@@ -386,14 +386,14 @@ export class DiscordChannelFetcher {
    * @param discordMessages - Raw Discord messages from fetch
    * @param channelId - Channel ID
    * @param personalityId - Personality ID to filter DB messages
-   * @param conversationHistory - Service to perform sync operations
+   * @param conversationSync - Service to perform sync operations
    * @returns Sync result with counts of edits and deletes
    */
   async syncWithDatabase(
     discordMessages: Collection<string, Message>,
     channelId: string,
     personalityId: string,
-    conversationHistory: ConversationHistoryService
+    conversationSync: ConversationSyncService
   ): Promise<SyncResult> {
     const result: SyncResult = { updated: 0, deleted: 0 };
 
@@ -405,7 +405,7 @@ export class DiscordChannelFetcher {
       }
 
       // Look up these messages in the database
-      const dbMessages = await conversationHistory.getMessagesByDiscordIds(
+      const dbMessages = await conversationSync.getMessagesByDiscordIds(
         discordMessageIds,
         channelId,
         personalityId
@@ -430,10 +430,7 @@ export class DiscordChannelFetcher {
           // This is a heuristic - we check if content has changed significantly
           if (this.contentsDiffer(discordContent, dbMsg.content)) {
             // Update the message content in DB
-            const updated = await conversationHistory.updateMessageContent(
-              dbMsg.id,
-              discordContent
-            );
+            const updated = await conversationSync.updateMessageContent(dbMsg.id, discordContent);
             if (updated) {
               result.updated++;
               logger.debug(
@@ -449,7 +446,7 @@ export class DiscordChannelFetcher {
       // Only check messages within the fetch window (oldest Discord message timestamp)
       const oldestDiscordTime = this.getOldestTimestamp(discordMessages);
       if (oldestDiscordTime) {
-        const dbMessagesInWindow = await conversationHistory.getMessagesInTimeWindow(
+        const dbMessagesInWindow = await conversationSync.getMessagesInTimeWindow(
           channelId,
           personalityId,
           oldestDiscordTime
@@ -460,7 +457,9 @@ export class DiscordChannelFetcher {
 
         for (const dbMsg of dbMessagesInWindow) {
           // Check if any of this message's Discord IDs are in the fetch
-          const hasMatchingDiscordId = dbMsg.discordMessageId.some(id => discordIdSet.has(id));
+          const hasMatchingDiscordId = dbMsg.discordMessageId.some((id: string) =>
+            discordIdSet.has(id)
+          );
           if (!hasMatchingDiscordId) {
             // Message is in DB but not in Discord - it was deleted
             deletedMessageIds.push(dbMsg.id);
@@ -468,7 +467,7 @@ export class DiscordChannelFetcher {
         }
 
         if (deletedMessageIds.length > 0) {
-          const deleteCount = await conversationHistory.softDeleteMessages(deletedMessageIds);
+          const deleteCount = await conversationSync.softDeleteMessages(deletedMessageIds);
           result.deleted = deleteCount;
           logger.info(
             { channelId, deletedCount: deleteCount },

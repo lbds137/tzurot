@@ -81,6 +81,7 @@ export * from './services/prisma.js';
 export * from './services/personality/index.js';
 export * from './services/ConversationHistoryService.js';
 export * from './services/ConversationRetentionService.js';
+export * from './services/ConversationSyncService.js';
 export * from './services/UserService.js';
 export * from './services/BaseCacheInvalidationService.js';
 export * from './services/CacheInvalidationService.js';

@@ -34,6 +34,12 @@ import { handleAutocomplete } from './autocomplete.js';
 const logger = createLogger('channel-command');
 
 /**
+ * Additional prefixes this command handles
+ * Used by CommandHandler to route component interactions
+ */
+export const componentPrefixes = ['channel-settings'];
+
+/**
  * Slash command definition
  */
 export const data = new SlashCommandBuilder()
@@ -84,17 +90,7 @@ const channelRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-): Promise<void> {
-  // Handle modal submissions for context
-  if (interaction.isModalSubmit()) {
-    if (isChannelContextInteraction(interaction.customId)) {
-      await handleChannelContextModal(interaction);
-    }
-    return;
-  }
-
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await channelRouter(interaction);
 }
 
@@ -122,5 +118,15 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // Context dashboard interactions
   if (isChannelContextInteraction(interaction.customId)) {
     await handleChannelContextButton(interaction);
+  }
+}
+
+/**
+ * Handle modal interactions for channel commands
+ */
+export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+  // Context dashboard interactions
+  if (isChannelContextInteraction(interaction.customId)) {
+    await handleChannelContextModal(interaction);
   }
 }

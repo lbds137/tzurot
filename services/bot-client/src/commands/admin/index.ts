@@ -38,6 +38,12 @@ import {
 const logger = createLogger('admin-command');
 
 /**
+ * Additional prefixes this command handles
+ * Used by CommandHandler to route component interactions
+ */
+export const componentPrefixes = ['admin-settings'];
+
+/**
  * Slash command definition
  */
 export const data = new SlashCommandBuilder()
@@ -138,17 +144,9 @@ function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Prom
  * Command execution router
  * Routes to the appropriate subcommand handler
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-): Promise<void> {
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   // Owner-only check
   if (!(await requireBotOwner(interaction))) {
-    return;
-  }
-
-  // Handle modal submissions for settings
-  if (interaction.isModalSubmit()) {
-    await handleModal(interaction);
     return;
   }
 

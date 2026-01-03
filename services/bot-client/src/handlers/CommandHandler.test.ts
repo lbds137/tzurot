@@ -95,6 +95,9 @@ describe('CommandHandler', () => {
       };
 
       handler.getCommands().set('test', mockCommand);
+      // Also register the prefix for modal routing
+      // Access private map via type assertion for testing
+      (handler as any).prefixToCommand.set('test', mockCommand);
     });
 
     it('should execute chat input command', async () => {
@@ -114,7 +117,7 @@ describe('CommandHandler', () => {
       expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
     });
 
-    it('should execute modal submit interaction', async () => {
+    it('should execute modal submit interaction (fallback to execute when no handleModal)', async () => {
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
@@ -129,6 +132,36 @@ describe('CommandHandler', () => {
 
       const command = handler.getCommands().get('test');
       expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
+    });
+
+    it('should call handleModal when defined on command', async () => {
+      const mockHandleModal = vi.fn().mockResolvedValue(undefined);
+      const mockCommand: Command = {
+        data: {
+          name: 'modal-test',
+          description: 'Test command with handleModal',
+        },
+        execute: vi.fn().mockResolvedValue(undefined),
+        handleModal: mockHandleModal,
+      };
+
+      handler.getCommands().set('modal-test', mockCommand);
+      (handler as any).prefixToCommand.set('modal-test', mockCommand);
+
+      const mockInteraction = {
+        isChatInputCommand: () => false,
+        isModalSubmit: () => true,
+        customId: 'modal-test::create',
+        reply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as ModalSubmitInteraction;
+
+      await handler.handleInteraction(mockInteraction);
+
+      expect(mockHandleModal).toHaveBeenCalledWith(mockInteraction);
+      expect(mockCommand.execute).not.toHaveBeenCalled();
     });
 
     it('should extract command name from modal customId using :: delimiter', async () => {
@@ -147,6 +180,38 @@ describe('CommandHandler', () => {
       // Should extract 'test' from 'test::edit::entity-123'
       const command = handler.getCommands().get('test');
       expect(command?.execute).toHaveBeenCalled();
+    });
+
+    it('should route to command via componentPrefixes', async () => {
+      const mockHandleModal = vi.fn().mockResolvedValue(undefined);
+      const mockCommand: Command = {
+        data: {
+          name: 'admin',
+          description: 'Admin command',
+        },
+        execute: vi.fn().mockResolvedValue(undefined),
+        handleModal: mockHandleModal,
+        componentPrefixes: ['admin-settings'],
+      };
+
+      handler.getCommands().set('admin', mockCommand);
+      // Register both the command name and the additional prefix
+      (handler as any).prefixToCommand.set('admin', mockCommand);
+      (handler as any).prefixToCommand.set('admin-settings', mockCommand);
+
+      const mockInteraction = {
+        isChatInputCommand: () => false,
+        isModalSubmit: () => true,
+        customId: 'admin-settings::modal::global::maxAge',
+        reply: vi.fn().mockResolvedValue(undefined),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as ModalSubmitInteraction;
+
+      await handler.handleInteraction(mockInteraction);
+
+      expect(mockHandleModal).toHaveBeenCalledWith(mockInteraction);
     });
 
     it('should reply with error for unknown command', async () => {
