@@ -70,7 +70,10 @@ export interface JobContext {
     personaId?: string;
     personaName?: string;
   }[];
+  /** Attachments from triggering message */
   attachments?: AttachmentMetadata[];
+  /** Image attachments from extended context (limited by maxImages setting) */
+  extendedContextAttachments?: AttachmentMetadata[];
   environment?: DiscordEnvironment;
   referencedMessages?: ReferencedMessage[];
   mentionedPersonas?: MentionedPersona[];
@@ -291,6 +294,7 @@ export const jobContextSchema = z.object({
   activePersonaName: z.string().optional(),
   conversationHistory: z.array(apiConversationMessageSchema).optional(),
   attachments: z.array(attachmentMetadataSchema).optional(),
+  extendedContextAttachments: z.array(attachmentMetadataSchema).optional(),
   environment: discordEnvironmentSchema.optional(),
   referencedMessages: z.array(referencedMessageSchema).optional(),
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),

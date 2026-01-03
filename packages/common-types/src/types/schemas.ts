@@ -245,8 +245,10 @@ export const requestContextSchema = z.object({
   activePersonaName: z.string().optional(),
   // Conversation history
   conversationHistory: z.array(apiConversationMessageSchema).optional(),
-  // Attachments
+  // Attachments (from triggering message)
   attachments: z.array(attachmentMetadataSchema).optional(),
+  // Extended context attachments (proactively fetched images, limited by maxImages setting)
+  extendedContextAttachments: z.array(attachmentMetadataSchema).optional(),
   // Discord environment
   environment: discordEnvironmentSchema.optional(),
   // Referenced messages (from replies and message links)

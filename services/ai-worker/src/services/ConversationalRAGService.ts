@@ -142,12 +142,32 @@ export class ConversationalRAGService {
       recentHistoryWindow
     );
 
+    // Format extended context image descriptions (from extended context messages)
+    let extendedContextDescriptions: string | undefined;
+    if (
+      context.preprocessedExtendedContextAttachments &&
+      context.preprocessedExtendedContextAttachments.length > 0
+    ) {
+      const descriptions = context.preprocessedExtendedContextAttachments
+        .map((att, idx) => `[Image ${idx + 1}]: ${att.description}`)
+        .join('\n');
+      extendedContextDescriptions = `<recent_channel_images>
+The following images were shared in recent channel messages:
+${descriptions}
+</recent_channel_images>`;
+      logger.info(
+        { count: context.preprocessedExtendedContextAttachments.length },
+        '[RAG] Formatted extended context image descriptions'
+      );
+    }
+
     return {
       processedAttachments,
       userMessage,
       referencedMessagesDescriptions,
       referencedMessagesTextForSearch,
       searchQuery,
+      extendedContextDescriptions,
     };
   }
 
@@ -363,6 +383,7 @@ export class ConversationalRAGService {
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
+        extendedContextDescriptions: inputs.extendedContextDescriptions,
       });
 
       // Step 5: Invoke model and clean response

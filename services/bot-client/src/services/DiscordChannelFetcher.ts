@@ -16,7 +16,7 @@ import {
   MESSAGE_LIMITS,
   ConversationSyncService,
 } from '@tzurot/common-types';
-import type { ConversationMessage } from '@tzurot/common-types';
+import type { ConversationMessage, AttachmentMetadata } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { mergeVoiceContext } from '../utils/VoiceContextMerger.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
@@ -35,6 +35,8 @@ export interface FetchResult {
   filteredCount: number;
   /** Raw Discord messages for opportunistic sync (if needed) */
   rawMessages?: Collection<string, Message>;
+  /** Image attachments collected from extended context messages (newest first) */
+  imageAttachments?: AttachmentMetadata[];
 }
 
 /**
@@ -145,22 +147,25 @@ export class DiscordChannelFetcher {
       }
 
       // Filter and convert messages (async for transcript retrieval)
-      const messages = await this.processMessages(messagesToProcess, options);
+      const processResult = await this.processMessages(messagesToProcess, options);
 
       logger.info(
         {
           channelId: channel.id,
           fetchedCount: discordMessages.size,
-          filteredCount: messages.length,
+          filteredCount: processResult.messages.length,
+          imageAttachmentCount: processResult.imageAttachments.length,
         },
         '[DiscordChannelFetcher] Fetched and processed channel messages'
       );
 
       return {
-        messages,
+        messages: processResult.messages,
         fetchedCount: discordMessages.size,
-        filteredCount: messages.length,
+        filteredCount: processResult.messages.length,
         rawMessages: discordMessages, // For opportunistic sync
+        imageAttachments:
+          processResult.imageAttachments.length > 0 ? processResult.imageAttachments : undefined,
       };
     } catch (error) {
       logger.error(
@@ -181,6 +186,16 @@ export class DiscordChannelFetcher {
   }
 
   /**
+   * Result of processing messages (internal)
+   */
+  private processMessagesResult(
+    messages: ConversationMessage[],
+    imageAttachments: AttachmentMetadata[]
+  ): { messages: ConversationMessage[]; imageAttachments: AttachmentMetadata[] } {
+    return { messages, imageAttachments };
+  }
+
+  /**
    * Process and filter Discord messages
    *
    * Filters:
@@ -189,12 +204,14 @@ export class DiscordChannelFetcher {
    *
    * Converts to ConversationMessage format with proper role assignment.
    * Uses shared MessageContentBuilder for consistent message processing.
+   * Collects image attachments for extended context processing.
    */
   private async processMessages(
     messages: Message[],
     options: FetchOptions
-  ): Promise<ConversationMessage[]> {
+  ): Promise<{ messages: ConversationMessage[]; imageAttachments: AttachmentMetadata[] }> {
     const result: ConversationMessage[] = [];
+    const collectedImageAttachments: AttachmentMetadata[] = [];
 
     // Sort by timestamp ascending (oldest first), then reverse for newest first
     const sortedMessages = [...messages].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
@@ -224,14 +241,21 @@ export class DiscordChannelFetcher {
       }
 
       // Convert to ConversationMessage (async for transcript retrieval)
-      const conversationMessage = await this.convertMessage(msg, options);
-      if (conversationMessage) {
-        result.push(conversationMessage);
+      const conversionResult = await this.convertMessage(msg, options);
+      if (conversionResult) {
+        result.push(conversionResult.message);
+        // Collect image attachments (only images, not voice messages)
+        if (conversionResult.attachments.length > 0) {
+          const images = conversionResult.attachments.filter(
+            a => a.contentType?.startsWith('image/') && a.isVoiceMessage !== true
+          );
+          collectedImageAttachments.push(...images);
+        }
       }
     }
 
     // Return in reverse order (newest first) to match conversation history format
-    return result.reverse();
+    return this.processMessagesResult(result.reverse(), collectedImageAttachments.reverse());
   }
 
   /**
@@ -261,15 +285,26 @@ export class DiscordChannelFetcher {
   }
 
   /**
+   * Result of converting a single message (internal)
+   */
+  private convertMessageResult(
+    message: ConversationMessage,
+    attachments: AttachmentMetadata[]
+  ): { message: ConversationMessage; attachments: AttachmentMetadata[] } {
+    return { message, attachments };
+  }
+
+  /**
    * Convert a Discord message to ConversationMessage format
    *
    * Uses shared MessageContentBuilder for comprehensive content extraction,
    * ensuring consistency with MessageFormatter (used for referenced messages).
+   * Returns both the converted message and any attachments for collection.
    */
   private async convertMessage(
     msg: Message,
     options: FetchOptions
-  ): Promise<ConversationMessage | null> {
+  ): Promise<{ message: ConversationMessage; attachments: AttachmentMetadata[] } | null> {
     // Determine role based on whether this is from the bot
     const isBot = msg.author.id === options.botUserId;
     const role = isBot ? MessageRole.Assistant : MessageRole.User;
@@ -280,7 +315,7 @@ export class DiscordChannelFetcher {
 
     // Build comprehensive content using shared utility
     // This includes: text, attachments, embeds, voice transcripts, forwarded content
-    const { content: rawContent, isForwarded } = await buildMessageContent(msg, {
+    const { content: rawContent, isForwarded, attachments } = await buildMessageContent(msg, {
       includeEmbeds: true,
       includeAttachments: true,
       getTranscript: options.getTranscript,
@@ -301,7 +336,7 @@ export class DiscordChannelFetcher {
       content = rawContent;
     }
 
-    return {
+    const message: ConversationMessage = {
       // Use Discord message ID as the conversation ID
       // This ensures uniqueness and allows deduplication with DB history
       id: msg.id,
@@ -316,6 +351,8 @@ export class DiscordChannelFetcher {
       discordMessageId: [msg.id],
       // No token count - will be computed if needed
     };
+
+    return this.convertMessageResult(message, attachments);
   }
 
   /**

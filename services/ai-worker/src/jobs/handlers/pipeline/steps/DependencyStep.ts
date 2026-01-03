@@ -3,6 +3,7 @@
  *
  * Fetches and processes preprocessing results from dependency jobs
  * (audio transcriptions, image descriptions) from Redis.
+ * Also processes extended context image attachments inline.
  */
 
 import {
@@ -13,6 +14,7 @@ import {
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
 } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
 
@@ -42,27 +44,40 @@ export class DependencyStep implements IPipelineStep {
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job } = context;
-    const { dependencies } = job.data;
+    const { dependencies, context: jobContext, personality } = job.data;
 
-    if (!dependencies || dependencies.length === 0) {
-      return {
-        ...context,
-        preprocessing: { processedAttachments: [], transcriptions: [], referenceAttachments: {} },
-      };
+    // Build initial preprocessing results from dependency jobs
+    let preprocessing: PreprocessingResults = {
+      processedAttachments: [],
+      transcriptions: [],
+      referenceAttachments: {},
+    };
+
+    if (dependencies && dependencies.length > 0) {
+      logger.info(
+        { jobId: job.id, dependencyCount: dependencies.length },
+        '[DependencyStep] Fetching preprocessing results from dependency jobs'
+      );
+
+      const { redisService } = await import('../../../../redis.js');
+      const { audioTranscriptions, imageDescriptions } = await this.fetchDependencyResults(
+        dependencies,
+        redisService
+      );
+
+      preprocessing = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
     }
 
-    logger.info(
-      { jobId: job.id, dependencyCount: dependencies.length },
-      '[DependencyStep] Fetching preprocessing results from dependency jobs'
-    );
+    // Process extended context attachments inline (not from dependency jobs)
+    if (jobContext?.extendedContextAttachments && jobContext.extendedContextAttachments.length > 0) {
+      const extendedContextAttachments = await this.processExtendedContextAttachments(
+        jobContext.extendedContextAttachments,
+        personality,
+        job.id
+      );
+      preprocessing.extendedContextAttachments = extendedContextAttachments;
+    }
 
-    const { redisService } = await import('../../../../redis.js');
-    const { audioTranscriptions, imageDescriptions } = await this.fetchDependencyResults(
-      dependencies,
-      redisService
-    );
-
-    const preprocessing = this.buildPreprocessingResults(audioTranscriptions, imageDescriptions);
     this.logPreprocessingResults(job.id, preprocessing);
 
     return { ...context, preprocessing };
@@ -144,6 +159,48 @@ export class DependencyStep implements IPipelineStep {
     return [];
   }
 
+  /**
+   * Process extended context attachments inline using MultimodalProcessor
+   * These are images from extended context messages (limited by maxImages setting)
+   */
+  private async processExtendedContextAttachments(
+    attachments: AttachmentMetadata[],
+    personality: GenerationContext['job']['data']['personality'],
+    jobId: string | undefined
+  ): Promise<ProcessedAttachment[]> {
+    // Filter to only images
+    const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
+    if (imageAttachments.length === 0) {
+      return [];
+    }
+
+    logger.info(
+      { jobId, imageCount: imageAttachments.length },
+      '[DependencyStep] Processing extended context images inline'
+    );
+
+    try {
+      // Import processAttachments (lazy import to avoid circular deps)
+      const { processAttachments } = await import('../../../../services/MultimodalProcessor.js');
+
+      // Process images using MultimodalProcessor (uses VisionDescriptionCache)
+      const processed = await processAttachments(imageAttachments, personality);
+
+      logger.info(
+        { jobId, processedCount: processed.length },
+        '[DependencyStep] Extended context images processed successfully'
+      );
+
+      return processed;
+    } catch (error) {
+      logger.error(
+        { err: error, jobId },
+        '[DependencyStep] Failed to process extended context images - continuing without them'
+      );
+      return [];
+    }
+  }
+
   private logPreprocessingResults(
     jobId: string | undefined,
     preprocessing: PreprocessingResults
@@ -153,15 +210,18 @@ export class DependencyStep implements IPipelineStep {
       (sum, arr) => sum + arr.length,
       0
     );
+    const extendedCount = preprocessing.extendedContextAttachments?.length ?? 0;
     logger.info(
       {
         jobId,
         directAttachmentCount: preprocessing.processedAttachments.length,
         referencedMessageCount: refCount,
         referencedAttachmentCount: refAttachmentCount,
-        totalPreprocessed: preprocessing.processedAttachments.length + refAttachmentCount,
+        extendedContextAttachmentCount: extendedCount,
+        totalPreprocessed:
+          preprocessing.processedAttachments.length + refAttachmentCount + extendedCount,
       },
-      '[DependencyStep] Fetched preprocessing results from dependency jobs'
+      '[DependencyStep] Preprocessing results ready'
     );
   }
 
