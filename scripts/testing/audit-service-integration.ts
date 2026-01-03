@@ -26,14 +26,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '../..');
 
-interface ServiceCoverage {
-  services: string[];
-  testedServices: string[];
-  untestedServices: string[];
-  coverage: number;
-  timestamp: string;
-}
-
 interface BaselineFile {
   knownGaps: string[];
   exempt: string[]; // Services that don't need component tests (pure logic, re-exports)

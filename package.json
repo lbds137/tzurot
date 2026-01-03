@@ -16,6 +16,8 @@
     "test:integration": "vitest --config vitest.integration.config.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "audit:contracts": "tsx scripts/testing/audit-contract-coverage.ts",
+    "audit:services": "tsx scripts/testing/audit-service-integration.ts",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "update-deps": "tsx scripts/utils/update-deps.ts",
