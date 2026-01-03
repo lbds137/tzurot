@@ -1,6 +1,6 @@
 {
   "name": "tzurot",
-  "version": "3.0.0-beta.29",
+  "version": "3.0.0-beta.30",
   "private": true,
   "description": "Next-generation Discord AI bot with customizable personalities",
   "type": "module",
