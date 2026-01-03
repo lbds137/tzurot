@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/ai-worker",
-  "version": "3.0.0-beta.29",
+  "version": "3.0.0-beta.30",
   "private": true,
   "type": "module",
   "description": "AI processing worker service for Tzurot bot",
