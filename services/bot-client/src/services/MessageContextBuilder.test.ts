@@ -855,5 +855,150 @@ describe('MessageContextBuilder', () => {
       // Should not call channel fetcher without botUserId
       expect(mockFetchRecentMessages).not.toHaveBeenCalled();
     });
+
+    it('should collect image attachments when maxImages > 0', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+
+      // Extended context with image attachments
+      const imageAttachments = [
+        {
+          url: 'https://cdn.discord.com/attachments/img1.jpg',
+          name: 'img1.jpg',
+          contentType: 'image/jpeg',
+          size: 1000,
+        },
+        {
+          url: 'https://cdn.discord.com/attachments/img2.png',
+          name: 'img2.png',
+          contentType: 'image/png',
+          size: 2000,
+        },
+        {
+          url: 'https://cdn.discord.com/attachments/img3.gif',
+          name: 'img3.gif',
+          contentType: 'image/gif',
+          size: 3000,
+        },
+      ];
+
+      // Need at least one message for the image collection block to execute
+      const extendedMessages = [
+        {
+          id: 'ext-msg-1',
+          role: MessageRole.User,
+          content: '[Alice]: Hello',
+          createdAt: new Date('2025-01-01T01:00:00Z'),
+          personaId: 'discord:user-alice',
+          discordMessageId: ['discord-ext-1'],
+        },
+      ];
+
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: extendedMessages,
+        fetchedCount: 10,
+        filteredCount: 1,
+        imageAttachments,
+      });
+      mockMergeWithHistory.mockReturnValue(extendedMessages);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        extendedContext: {
+          enabled: true,
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 2, // Only take 2 images
+          sources: {
+            enabled: 'global',
+            maxMessages: 'global',
+            maxAge: 'global',
+            maxImages: 'global',
+          },
+        },
+        botUserId: 'bot-123',
+      });
+
+      // Should include the first 2 images (limited by maxImages)
+      // Note: buildContext returns { context, ... } so access via context property
+      expect(result.context.extendedContextAttachments).toHaveLength(2);
+      expect(result.context.extendedContextAttachments?.[0].url).toBe(
+        'https://cdn.discord.com/attachments/img1.jpg'
+      );
+      expect(result.context.extendedContextAttachments?.[1].url).toBe(
+        'https://cdn.discord.com/attachments/img2.png'
+      );
+    });
+
+    it('should not collect images when maxImages is 0', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+
+      // Need messages so the extended context block executes
+      const extendedMessages = [
+        {
+          id: 'ext-msg-1',
+          role: MessageRole.User,
+          content: '[Alice]: Hello',
+          createdAt: new Date('2025-01-01T01:00:00Z'),
+          personaId: 'discord:user-alice',
+          discordMessageId: ['discord-ext-1'],
+        },
+      ];
+
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: extendedMessages,
+        fetchedCount: 10,
+        filteredCount: 1,
+        imageAttachments: [
+          {
+            url: 'https://cdn.discord.com/img.jpg',
+            name: 'img.jpg',
+            contentType: 'image/jpeg',
+            size: 1000,
+          },
+        ],
+      });
+      mockMergeWithHistory.mockReturnValue(extendedMessages);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        extendedContext: {
+          enabled: true,
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0, // No images
+          sources: {
+            enabled: 'global',
+            maxMessages: 'global',
+            maxAge: 'global',
+            maxImages: 'global',
+          },
+        },
+        botUserId: 'bot-123',
+      });
+
+      // Should not include any images when maxImages is 0
+      // Note: buildContext returns { context, ... } so access via context property
+      expect(result.context.extendedContextAttachments).toBeUndefined();
+    });
   });
 });
