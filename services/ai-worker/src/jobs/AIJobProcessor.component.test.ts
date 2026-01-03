@@ -21,7 +21,13 @@ import type {
   ConversationalRAGService,
   RAGResponse,
 } from '../services/ConversationalRAGService.js';
-import { JobType, MessageRole, type LLMGenerationJobData } from '@tzurot/common-types';
+import {
+  JobType,
+  MessageRole,
+  type LLMGenerationJobData,
+  generateSystemPromptUuid,
+  generatePersonalityUuid,
+} from '@tzurot/common-types';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
@@ -153,9 +159,10 @@ describe('AIJobProcessor Component Test', () => {
       )
     `);
 
-    // Seed test data
+    // Seed test data (using deterministic UUIDs for consistency)
     const systemPrompt = await prisma.systemPrompt.create({
       data: {
+        id: generateSystemPromptUuid('test-component-prompt'),
         name: 'test-component-prompt',
         content: 'You are a test assistant for component testing.',
       },
@@ -163,6 +170,7 @@ describe('AIJobProcessor Component Test', () => {
 
     await prisma.personality.create({
       data: {
+        id: generatePersonalityUuid('test-component'),
         name: 'TestComponent',
         slug: 'test-component',
         displayName: 'Test Component Bot',
