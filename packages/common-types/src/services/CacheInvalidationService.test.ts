@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CacheInvalidationService } from './CacheInvalidationService.js';
-import { PersonalityService } from './PersonalityService.js';
+import { PersonalityService } from './personality/index.js';
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
 import type { PrismaClient } from './prisma.js';
