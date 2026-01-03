@@ -10,6 +10,23 @@
 
 ---
 
+## High Priority (Deferred): DRY Message Extraction Refactor
+
+**Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)
+**Estimated Effort**: 2-3 sessions
+**Status**: Planning complete, deferred until after bugfix release
+
+**Problem**: Two parallel message processing paths (main vs extended context) keep diverging, causing recurring bugs where fixes to one path don't propagate to the other.
+
+**Solution**: Intermediate Representation (IR) pattern - single `extractMessageContent()` function returns `UnifiedMessageContent`, both paths consume and map to their specific output types.
+
+**Recent bugs from this pattern**:
+- 2026-01-03: Forwarded message attachments not extracted in extended context (fixed)
+- Previous: Extended context missing embed images
+- Previous: Voice transcript handling inconsistencies
+
+---
+
 ## Just Completed: Extended Context Improvements
 
 **Branch**: `feature/extended-context-improvements`
@@ -195,7 +212,8 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **beta.30** (pending): Extended Context Improvements - time gap markers, interactive settings dashboards, persistent vision cache (L2)
+- **beta.31** (pending): Bugfixes - stop sequences capped at 16 (Google API limit), forwarded message attachment extraction, qs vulnerability patch
+- **beta.30**: Extended Context Improvements - time gap markers, interactive settings dashboards, persistent vision cache (L2), maxImages enforcement
 - **beta.29**: LTM null handling fix, modal command deferral fix, Node 25 upgrade, typescript-eslint 8.51.0
 - **beta.28**: Markdown security fixes, guild-aware pagination, security skill update
 - **beta.27**: UserService race condition fix, persona backfill idempotency
