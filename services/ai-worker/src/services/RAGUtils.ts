@@ -11,6 +11,13 @@ import type { ProcessedAttachment } from './MultimodalProcessor.js';
 const logger = createLogger('RAGUtils');
 
 /**
+ * Maximum stop sequences allowed by Google/Gemini API.
+ * Error says "from 1 (inclusive) to 17 (exclusive)", meaning max is 16.
+ * We apply this limit universally since other providers have higher limits.
+ */
+const MAX_STOP_SEQUENCES = 16;
+
+/**
  * Build attachment descriptions for storage and display
  *
  * Formats processed attachments into human-readable descriptions with headers
@@ -65,36 +72,53 @@ export function generateStopSequences(
   personalityName: string,
   participantPersonas: Map<string, { content: string; isActive: boolean }>
 ): string[] {
-  const stopSequences: string[] = [];
-
-  // Add stop sequence for each participant (users)
-  // Use newline prefix to catch the common "Name:" pattern at line start
-  for (const participantName of participantPersonas.keys()) {
-    stopSequences.push(`\n${participantName}:`);
-  }
-
-  // Add stop sequence for the AI itself (prevent "Lilith: [third person]" then self-quoting)
-  stopSequences.push(`\n${personalityName}:`);
-
-  // Add XML tag stop sequences to prevent AI from outputting chat_log structure
+  // Priority 1: XML tag stop sequences (most critical - prevent format leakage)
   // Must match actual tags used in formatConversationHistoryAsXml()
-  stopSequences.push('<message ');
-  stopSequences.push('<message>');
-  stopSequences.push('</message>');
-  stopSequences.push('<chat_log>');
-  stopSequences.push('</chat_log>');
-  // Stop sequences for quoted message structure
-  stopSequences.push('<quoted_messages>');
-  stopSequences.push('</quoted_messages>');
-  stopSequences.push('<quote ');
-  stopSequences.push('<quote>');
-  stopSequences.push('</quote>');
+  const xmlStopSequences = [
+    '<message ',
+    '<message>',
+    '</message>',
+    '<chat_log>',
+    '</chat_log>',
+    '<quoted_messages>',
+    '</quoted_messages>',
+    '<quote ',
+    '<quote>',
+    '</quote>',
+  ];
+
+  // Priority 2: Personality name stop sequence (prevent self-quoting)
+  const personalityStopSequence = `\n${personalityName}:`;
+
+  // Priority 3: Participant stop sequences (can truncate if many participants)
+  // Use newline prefix to catch the common "Name:" pattern at line start
+  const participantStopSequences = Array.from(participantPersonas.keys()).map(
+    name => `\n${name}:`
+  );
+
+  // Calculate available slots for participants
+  // Total budget: MAX_STOP_SEQUENCES (16)
+  // Reserved: XML sequences (10) + personality (1) = 11
+  // Available for participants: 5
+  const reservedCount = xmlStopSequences.length + 1; // XML + personality
+  const availableForParticipants = MAX_STOP_SEQUENCES - reservedCount;
+
+  // Truncate participants if necessary (newest/most recent should be prioritized,
+  // but since we don't have ordering info, just take first N)
+  const truncatedParticipants = participantStopSequences.slice(0, availableForParticipants);
+  const participantsTruncated = participantStopSequences.length - truncatedParticipants.length;
+
+  // Combine in priority order
+  const stopSequences = [...truncatedParticipants, personalityStopSequence, ...xmlStopSequences];
 
   // Log summary
   if (stopSequences.length > 0) {
     logger.info(
       {
         count: stopSequences.length,
+        maxAllowed: MAX_STOP_SEQUENCES,
+        participantCount: participantStopSequences.length,
+        participantsTruncated,
         participants: Array.from(participantPersonas.keys()),
         personalityName,
       },
