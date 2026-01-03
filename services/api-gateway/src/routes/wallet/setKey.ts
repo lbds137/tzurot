@@ -18,6 +18,7 @@ import {
   UserService,
   type PrismaClient,
   type ApiKeyCacheInvalidationService,
+  generateUserApiKeyUuid,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -129,6 +130,7 @@ export function createSetKeyRoute(
           updatedAt: new Date(),
         },
         create: {
+          id: generateUserApiKeyUuid(userId, provider),
           userId,
           provider,
           iv: encrypted.iv,

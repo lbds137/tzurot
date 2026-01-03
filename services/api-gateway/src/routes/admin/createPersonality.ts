@@ -5,7 +5,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, AVATAR_LIMITS, assertDefined } from '@tzurot/common-types';
+import { createLogger, AVATAR_LIMITS, assertDefined, generatePersonalityUuid } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
@@ -150,6 +150,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
       // Create personality in database
       const personality = await prisma.personality.create({
         data: {
+          id: generatePersonalityUuid(slug),
           name: name,
           slug: slug,
           displayName: displayName ?? null,

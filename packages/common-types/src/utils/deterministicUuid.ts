@@ -194,3 +194,13 @@ export function generatePendingMemoryUuid(
   const contentHash = crypto.createHash('sha256').update(text).digest('hex').slice(0, 32);
   return uuidv5(`pending_memory:${personaId}:${personalityId}:${contentHash}`, TZUROT_NAMESPACE);
 }
+
+/**
+ * Generate deterministic UUID for UserApiKey
+ * Seed: user_api_key:{userId}:{provider}
+ *
+ * User API keys are unique per user+provider combination.
+ */
+export function generateUserApiKeyUuid(userId: string, provider: string): string {
+  return uuidv5(`user_api_key:${userId}:${provider}`, TZUROT_NAMESPACE);
+}
