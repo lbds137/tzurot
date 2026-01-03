@@ -38,6 +38,12 @@ vi.mock('../../../../redis.js', () => ({
   },
 }));
 
+// Mock MultimodalProcessor
+const mockProcessAttachments = vi.fn();
+vi.mock('../../../../services/MultimodalProcessor.js', () => ({
+  processAttachments: mockProcessAttachments,
+}));
+
 const TEST_PERSONALITY: LoadedPersonality = {
   id: 'personality-123',
   name: 'TestBot',
@@ -332,6 +338,131 @@ describe('DependencyStep', () => {
       await step.process(context);
 
       expect(mockGetJobResult).toHaveBeenCalledWith('audio-job-fallback');
+    });
+  });
+
+  describe('extended context attachments', () => {
+    it('should process extended context image attachments', async () => {
+      const processedAttachment = {
+        type: AttachmentType.Image,
+        description: 'A cat sitting on a couch',
+        originalUrl: 'https://example.com/cat.jpg',
+        metadata: {
+          url: 'https://example.com/cat.jpg',
+          name: 'cat.jpg',
+          contentType: 'image/jpeg',
+          size: 1024,
+        },
+      };
+
+      mockProcessAttachments.mockResolvedValueOnce([processedAttachment]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/cat.jpg',
+                name: 'cat.jpg',
+                contentType: 'image/jpeg',
+                size: 1024,
+              },
+            ],
+          },
+        }),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/cat.jpg' })],
+        TEST_PERSONALITY
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+      expect(result.preprocessing?.extendedContextAttachments?.[0].description).toBe(
+        'A cat sitting on a couch'
+      );
+    });
+
+    it('should filter out non-image attachments from extended context', async () => {
+      mockProcessAttachments.mockResolvedValueOnce([]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/doc.pdf',
+                name: 'doc.pdf',
+                contentType: 'application/pdf',
+                size: 2048,
+              },
+            ],
+          },
+        }),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Should not call processAttachments since no images (filter returns empty before calling)
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
+      // Returns empty array when filtering removes all non-image attachments
+      expect(result.preprocessing?.extendedContextAttachments).toEqual([]);
+    });
+
+    it('should handle errors in extended context image processing gracefully', async () => {
+      mockProcessAttachments.mockRejectedValueOnce(new Error('Vision API failed'));
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/image.png',
+                name: 'image.png',
+                contentType: 'image/png',
+                size: 1024,
+              },
+            ],
+          },
+        }),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Should not throw, just return empty
+      expect(result.preprocessing?.extendedContextAttachments).toEqual([]);
+    });
+
+    it('should handle empty extended context attachments array', async () => {
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [],
+          },
+        }),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
+      expect(result.preprocessing?.extendedContextAttachments).toBeUndefined();
     });
   });
 });

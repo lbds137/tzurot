@@ -579,6 +579,58 @@ describe('ConversationalRAGService', () => {
         undefined
       );
     });
+
+    it('should process extended context image attachments without errors', async () => {
+      const preprocessedExtendedContextAttachments = [
+        {
+          type: AttachmentType.Image,
+          description: 'A cat sitting on a couch',
+          originalUrl: 'https://example.com/cat.jpg',
+          metadata: {
+            url: 'https://example.com/cat.jpg',
+            name: 'cat.jpg',
+            contentType: CONTENT_TYPES.IMAGE_PREFIX + '/jpeg',
+            size: 2000,
+          },
+        },
+        {
+          type: AttachmentType.Image,
+          description: 'A dog playing in the park',
+          originalUrl: 'https://example.com/dog.jpg',
+          metadata: {
+            url: 'https://example.com/dog.jpg',
+            name: 'dog.jpg',
+            contentType: CONTENT_TYPES.IMAGE_PREFIX + '/jpeg',
+            size: 3000,
+          },
+        },
+      ];
+
+      const context = createMockContext({
+        preprocessedExtendedContextAttachments,
+      });
+      const personality = createMockPersonality();
+
+      // Should not throw and should complete normally
+      const result = await service.generateResponse(
+        personality,
+        'What images did you see?',
+        context
+      );
+
+      expect(result.content).toBe('AI response');
+    });
+
+    it('should handle empty extended context attachments gracefully', async () => {
+      const context = createMockContext({
+        preprocessedExtendedContextAttachments: [],
+      });
+      const personality = createMockPersonality();
+
+      const result = await service.generateResponse(personality, 'No images', context);
+
+      expect(result.content).toBe('AI response');
+    });
   });
 
   describe('censored response retry behavior in full RAG flow', () => {
