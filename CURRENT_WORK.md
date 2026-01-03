@@ -1,10 +1,10 @@
 # Current Work
 
-> Last updated: 2026-01-02
+> Last updated: 2026-01-03
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.29
+**Version**: v3.0.0-beta.30
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
@@ -38,6 +38,17 @@ Three phases of improvements to the extended context system:
 - ✅ Two-tier caching: L1 (Redis) → L2 (PostgreSQL) fallback
 - ✅ Cache key strategy: Discord attachment snowflake IDs (stable vs ephemeral URLs)
 - ✅ L2 survives Redis restarts, reduces API costs
+
+---
+
+## Follow-ups (from PR #423 Review)
+
+Non-blocking suggestions to address when convenient:
+
+- [ ] Add ESLint rule to detect `findMany` without `take` limit
+- [ ] Add integration test for large messageIds arrays in ConversationSyncService
+- [ ] Document vision cache L1/L2 strategy in `tzurot-caching` skill
+- [ ] Consider removing `@default(uuid())` from Prisma schema (make deterministic UUID usage explicit)
 
 ---
 
