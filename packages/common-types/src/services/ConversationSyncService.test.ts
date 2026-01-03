@@ -105,6 +105,7 @@ describe('ConversationSyncService', () => {
           personalityId: true,
           personaId: true,
         },
+        take: 3, // Math.min(messageIds.length, SYNC_LIMITS.MAX_MESSAGE_BATCH)
       });
     });
 

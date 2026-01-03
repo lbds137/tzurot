@@ -55,6 +55,7 @@ export class ConversationSyncService {
 
     try {
       // First get the message details for tombstone creation
+      // Bounded query to prevent OOM with large arrays
       const messages = await this.prisma.conversationHistory.findMany({
         where: { id: { in: messageIds } },
         select: {
@@ -63,6 +64,7 @@ export class ConversationSyncService {
           personalityId: true,
           personaId: true,
         },
+        take: Math.min(messageIds.length, SYNC_LIMITS.MAX_MESSAGE_BATCH),
       });
 
       // Soft delete messages and create tombstones in a transaction
