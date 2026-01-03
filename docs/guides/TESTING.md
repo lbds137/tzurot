@@ -536,10 +536,10 @@ restoreMocks: true,  // Restore original implementations
 
 ### Available Commands
 
-| Command | Memory Usage | Speed | Use Case |
-|---------|-------------|-------|----------|
-| `pnpm test` | Moderate | Fast | CI, machines with 16GB+ RAM |
-| `pnpm test:low-mem` | Low | Slower | Development on limited RAM |
+| Command             | Memory Usage | Speed  | Use Case                    |
+| ------------------- | ------------ | ------ | --------------------------- |
+| `pnpm test`         | Moderate     | Fast   | CI, machines with 16GB+ RAM |
+| `pnpm test:low-mem` | Low          | Slower | Development on limited RAM  |
 
 The `test:low-mem` command uses `--workspace-concurrency=1` to run one service at a time instead of all 4 in parallel.
 
@@ -559,7 +559,7 @@ Instead of 4 separate Vitest processes, use a single root instance:
 
 ```typescript
 // vitest.workspace.ts (in project root)
-export default ['packages/*', 'services/*']
+export default ['packages/*', 'services/*'];
 ```
 
 Then run `vitest run` instead of pnpm filter. One process manages all tests, sharing the worker pool efficiently.
@@ -603,6 +603,7 @@ test: {
 ### Reference
 
 These recommendations were developed with MCP council consultation (Gemini) analyzing:
+
 - 8-core CPU with 14GB RAM (Steam Deck)
 - 4 pnpm workspace packages running in parallel
 - Heavy mocking throughout tests (500MB-1GB per worker)
