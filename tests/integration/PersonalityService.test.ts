@@ -11,7 +11,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PersonalityService } from '@tzurot/common-types';
+import {
+  PersonalityService,
+  generateSystemPromptUuid,
+  generatePersonalityUuid,
+} from '@tzurot/common-types';
 import { setupTestEnvironment, type TestEnvironment } from './setup';
 
 describe('PersonalityService Integration', () => {
@@ -21,9 +25,10 @@ describe('PersonalityService Integration', () => {
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
 
-    // Seed test system prompts
+    // Seed test system prompts (using deterministic UUIDs for sync compatibility)
     const systemPrompt1 = await testEnv.prisma.systemPrompt.create({
       data: {
+        id: generateSystemPromptUuid('test-system-prompt-1'),
         name: 'test-system-prompt-1',
         content: 'You are a helpful test personality for integration testing.',
       },
@@ -31,15 +36,17 @@ describe('PersonalityService Integration', () => {
 
     const systemPrompt2 = await testEnv.prisma.systemPrompt.create({
       data: {
+        id: generateSystemPromptUuid('test-system-prompt-2'),
         name: 'test-system-prompt-2',
         content: 'You are a professional test personality for integration testing.',
       },
     });
 
-    // Seed test personalities
+    // Seed test personalities (using deterministic UUIDs for sync compatibility)
     await testEnv.prisma.personality.createMany({
       data: [
         {
+          id: generatePersonalityUuid('test-personality-1'),
           name: 'test-personality-1',
           slug: 'test-personality-1',
           displayName: 'Test Personality 1',
@@ -48,6 +55,7 @@ describe('PersonalityService Integration', () => {
           personalityTraits: 'Helpful, friendly, and responsive',
         },
         {
+          id: generatePersonalityUuid('test-personality-2'),
           name: 'test-personality-2',
           slug: 'test-personality-2',
           displayName: 'Test Personality 2',
