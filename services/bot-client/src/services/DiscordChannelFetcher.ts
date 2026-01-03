@@ -254,8 +254,10 @@ export class DiscordChannelFetcher {
       }
     }
 
-    // Return in reverse order (newest first) to match conversation history format
-    return this.processMessagesResult(result.reverse(), collectedImageAttachments.reverse());
+    // Return messages in reverse order (newest first) to match conversation history format
+    // Image attachments stay in chronological order (oldest message's images first, preserving
+    // attachment order within each message) so Image 1 = first attachment, not last
+    return this.processMessagesResult(result.reverse(), collectedImageAttachments);
   }
 
   /**
