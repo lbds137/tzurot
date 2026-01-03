@@ -15,6 +15,11 @@ import {
   generateMemoryDuplicateUuid,
   generateMemoryChunkGroupUuid,
   generateBotSettingUuid,
+  generateUserPersonaHistoryConfigUuid,
+  generateImageDescriptionCacheUuid,
+  generateUsageLogUuid,
+  generatePendingMemoryUuid,
+  generateUserApiKeyUuid,
 } from './deterministicUuid.js';
 
 describe('Deterministic UUID Generation', () => {
@@ -191,6 +196,79 @@ describe('Deterministic UUID Generation', () => {
       // This ensures the migration uses the correct deterministic UUID
       const uuid = generateBotSettingUuid('extended_context_default');
       expect(uuid).toBe('d3ba618d-42e0-5a62-9fdf-31c10da1a7a7');
+    });
+  });
+
+  describe('generateUserPersonaHistoryConfigUuid', () => {
+    it('should generate consistent UUIDs for the same inputs', () => {
+      const uuid1 = generateUserPersonaHistoryConfigUuid('user-1', 'personality-1', 'persona-1');
+      const uuid2 = generateUserPersonaHistoryConfigUuid('user-1', 'personality-1', 'persona-1');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different inputs', () => {
+      const uuid1 = generateUserPersonaHistoryConfigUuid('user-1', 'personality-1', 'persona-1');
+      const uuid2 = generateUserPersonaHistoryConfigUuid('user-1', 'personality-1', 'persona-2');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateImageDescriptionCacheUuid', () => {
+    it('should generate consistent UUIDs for the same attachmentId', () => {
+      const uuid1 = generateImageDescriptionCacheUuid('attachment-123');
+      const uuid2 = generateImageDescriptionCacheUuid('attachment-123');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different attachmentIds', () => {
+      const uuid1 = generateImageDescriptionCacheUuid('attachment-123');
+      const uuid2 = generateImageDescriptionCacheUuid('attachment-456');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateUsageLogUuid', () => {
+    it('should generate consistent UUIDs for the same inputs', () => {
+      const date = new Date('2025-01-01T00:00:00Z');
+      const uuid1 = generateUsageLogUuid('user-1', 'gpt-4', date);
+      const uuid2 = generateUsageLogUuid('user-1', 'gpt-4', date);
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different timestamps', () => {
+      const date1 = new Date('2025-01-01T00:00:00Z');
+      const date2 = new Date('2025-01-01T00:00:01Z');
+      const uuid1 = generateUsageLogUuid('user-1', 'gpt-4', date1);
+      const uuid2 = generateUsageLogUuid('user-1', 'gpt-4', date2);
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generatePendingMemoryUuid', () => {
+    it('should generate consistent UUIDs for the same inputs', () => {
+      const uuid1 = generatePendingMemoryUuid('persona-1', 'personality-1', 'hello world');
+      const uuid2 = generatePendingMemoryUuid('persona-1', 'personality-1', 'hello world');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different text content', () => {
+      const uuid1 = generatePendingMemoryUuid('persona-1', 'personality-1', 'hello world');
+      const uuid2 = generatePendingMemoryUuid('persona-1', 'personality-1', 'goodbye world');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateUserApiKeyUuid', () => {
+    it('should generate consistent UUIDs for the same inputs', () => {
+      const uuid1 = generateUserApiKeyUuid('user-1', 'openrouter');
+      const uuid2 = generateUserApiKeyUuid('user-1', 'openrouter');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different providers', () => {
+      const uuid1 = generateUserApiKeyUuid('user-1', 'openrouter');
+      const uuid2 = generateUserApiKeyUuid('user-1', 'openai');
+      expect(uuid1).not.toBe(uuid2);
     });
   });
 });

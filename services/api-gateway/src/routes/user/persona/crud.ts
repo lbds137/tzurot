@@ -9,7 +9,7 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, DISCORD_LIMITS, generatePersonaUuid } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -168,6 +168,7 @@ export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
 
       const persona = await prisma.persona.create({
         data: {
+          id: generatePersonaUuid(nameValue, user.id),
           name: nameValue,
           preferredName: preferredNameValue,
           description: descriptionValue,

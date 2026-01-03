@@ -120,6 +120,7 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
             previousContextReset: prevEpoch,
           },
           create: {
+            id: generateUserPersonaHistoryConfigUuid(userId, personalityId, personaId),
             userId,
             personalityId,
             personaId,

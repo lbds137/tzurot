@@ -15,6 +15,7 @@ import {
   UserService,
   type PrismaClient,
   type LlmConfigSummary,
+  generateLlmConfigUuid,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -159,6 +160,7 @@ export function createLlmConfigRoutes(prisma: PrismaClient): Router {
       // Create the config
       const config = await prisma.llmConfig.create({
         data: {
+          id: generateLlmConfigUuid(body.name.trim()),
           name: body.name.trim(),
           description: body.description ?? null,
           ownerId: userId,

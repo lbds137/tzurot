@@ -17,6 +17,7 @@ import {
   createLogger,
   type PrismaClient,
   type LlmConfigCacheInvalidationService,
+  generateLlmConfigUuid,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -131,6 +132,7 @@ export function createAdminLlmConfigRoutes(
       // Create the global config
       const config = await prisma.llmConfig.create({
         data: {
+          id: generateLlmConfigUuid(body.name.trim()),
           name: body.name.trim(),
           description: body.description ?? null,
           ownerId: null, // Global configs have no owner

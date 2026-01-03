@@ -10,6 +10,7 @@ import {
   type PrismaClient,
   AVATAR_LIMITS,
   assertDefined,
+  generatePersonalityUuid,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -151,6 +152,7 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
     const hasDisplayName = displayName !== null && displayName !== undefined && displayName !== '';
     const personality = await prisma.personality.create({
       data: {
+        id: generatePersonalityUuid(slug),
         name,
         slug,
         displayName: hasDisplayName ? displayName : name,
