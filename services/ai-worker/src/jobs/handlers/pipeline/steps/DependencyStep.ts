@@ -69,7 +69,10 @@ export class DependencyStep implements IPipelineStep {
     }
 
     // Process extended context attachments inline (not from dependency jobs)
-    if (jobContext?.extendedContextAttachments && jobContext.extendedContextAttachments.length > 0) {
+    if (
+      jobContext?.extendedContextAttachments &&
+      jobContext.extendedContextAttachments.length > 0
+    ) {
       const extendedContextAttachments = await this.processExtendedContextAttachments(
         jobContext.extendedContextAttachments,
         personality,
