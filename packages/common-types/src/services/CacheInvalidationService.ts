@@ -16,7 +16,7 @@
 import { createLogger } from '../utils/logger.js';
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import type { Redis } from 'ioredis';
-import type { PersonalityService } from './PersonalityService.js';
+import type { PersonalityService } from './personality/index.js';
 
 const logger = createLogger('CacheInvalidationService');
 

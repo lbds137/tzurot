@@ -886,5 +886,5 @@ async function checkAvatarStorage() {
 - Shapes.inc backup format: `tzurot-legacy/data/personalities/`
 - V3 schema: `prisma/schema.prisma`
 - Qdrant metadata: `services/ai-worker/src/memory/QdrantMemoryAdapter.ts`
-- Personality service: `packages/common-types/src/services/PersonalityService.ts`
+- Personality service: `packages/common-types/src/services/personality/`
 - V2 avatar storage: `tzurot-legacy/src/utils/avatarStorage.js` (reference implementation)
