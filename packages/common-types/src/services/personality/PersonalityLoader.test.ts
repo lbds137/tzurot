@@ -132,6 +132,7 @@ describe('PersonalityLoader', () => {
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
+          take: 100, // SYNC_LIMITS.MAX_PERSONALITY_SEARCH
         });
       });
 
@@ -348,6 +349,7 @@ describe('PersonalityLoader', () => {
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
+          take: 100, // SYNC_LIMITS.MAX_PERSONALITY_SEARCH
         });
       });
 
@@ -368,6 +370,7 @@ describe('PersonalityLoader', () => {
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
+          take: 100, // SYNC_LIMITS.MAX_PERSONALITY_SEARCH
         });
       });
 
@@ -413,6 +416,7 @@ describe('PersonalityLoader', () => {
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
+          take: 100, // SYNC_LIMITS.MAX_PERSONALITY_SEARCH
         });
       });
 
@@ -449,6 +453,7 @@ describe('PersonalityLoader', () => {
           },
           orderBy: { createdAt: 'asc' },
           select: expect.any(Object),
+          take: 100, // SYNC_LIMITS.MAX_PERSONALITY_SEARCH
         });
       });
 
@@ -562,6 +567,7 @@ describe('PersonalityLoader', () => {
       expect(result[1].id).toBe('id-2');
       expect(vi.mocked(mockPrisma.personality.findMany)).toHaveBeenCalledWith({
         select: expect.any(Object),
+        take: 1000, // SYNC_LIMITS.MAX_PERSONALITY_CATALOG
       });
     });
 

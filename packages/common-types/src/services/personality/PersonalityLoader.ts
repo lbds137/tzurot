@@ -6,7 +6,7 @@
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { isBotOwner } from '../../utils/ownerMiddleware.js';
-import { isValidUUID } from '../../constants/service.js';
+import { isValidUUID, SYNC_LIMITS } from '../../constants/index.js';
 import type { DatabasePersonality, LlmConfig } from './PersonalityValidator.js';
 import { parseLlmConfig } from './PersonalityValidator.js';
 
@@ -187,6 +187,7 @@ export class PersonalityLoader {
 
       // Step 1b+1c: Fetch name OR slug candidates in single query, prioritize in-memory
       // This optimizes from 2 sequential queries to 1 query with in-memory prioritization
+      // Bounded query with safety cap for search results
       const candidates = await this.prisma.personality.findMany({
         where: {
           AND: [
@@ -201,6 +202,7 @@ export class PersonalityLoader {
         },
         orderBy: { createdAt: 'asc' },
         select: PERSONALITY_SELECT,
+        take: SYNC_LIMITS.MAX_PERSONALITY_SEARCH,
       });
 
       // Prioritize in-memory: Name match takes priority over slug match
@@ -330,8 +332,10 @@ export class PersonalityLoader {
    */
   async loadAllFromDatabase(): Promise<DatabasePersonality[]> {
     try {
+      // Bounded query with reasonable cap for personality catalog
       const dbPersonalities = await this.prisma.personality.findMany({
         select: PERSONALITY_SELECT,
+        take: SYNC_LIMITS.MAX_PERSONALITY_CATALOG,
       });
 
       logger.info(`Loaded ${dbPersonalities.length} personalities from database`);

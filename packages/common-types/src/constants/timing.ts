@@ -185,6 +185,12 @@ export const SYNC_LIMITS = {
   MAX_DISCORD_ID_LOOKUP: 500,
   /** Default limit for time window queries in sync operations */
   DEFAULT_TIME_WINDOW_LIMIT: 200,
+  /** Maximum messages to fetch/delete in a single batch operation */
+  MAX_MESSAGE_BATCH: 1000,
+  /** Maximum personalities to load from database catalog */
+  MAX_PERSONALITY_CATALOG: 1000,
+  /** Maximum search results for personality lookup */
+  MAX_PERSONALITY_SEARCH: 100,
 } as const;
 
 /**
