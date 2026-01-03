@@ -214,7 +214,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **beta.31** (pending): Bugfixes - stop sequences capped at 16 (Google API limit), forwarded message attachment extraction, qs vulnerability patch
+- **beta.31**: Inline image descriptions in chat_log (better AI context), BYOK vision API key fix, stop sequences capped at 16, forwarded message attachment extraction, qs vulnerability patch
 - **beta.30**: Extended Context Improvements - time gap markers, interactive settings dashboards, persistent vision cache (L2), maxImages enforcement
 - **beta.29**: LTM null handling fix, modal command deferral fix, Node 25 upgrade, typescript-eslint 8.51.0
 - **beta.28**: Markdown security fixes, guild-aware pagination, security skill update
