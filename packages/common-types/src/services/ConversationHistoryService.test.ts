@@ -29,17 +29,18 @@ const createMockPrismaClient = () => {
   return client;
 };
 
-const mockPrismaClient = createMockPrismaClient();
-
-// Spy on countTextTokens to verify it's called correctly
-vi.spyOn(tokenCounter, 'countTextTokens');
-
 describe('ConversationHistoryService - Token Count Caching', () => {
   let service: ConversationHistoryService;
+  let mockPrismaClient: ReturnType<typeof createMockPrismaClient>;
 
   beforeEach(() => {
-    service = new ConversationHistoryService(mockPrismaClient as unknown as PrismaClient);
+    // Clear mocks from previous tests
     vi.clearAllMocks();
+    // Create fresh mocks for each test
+    mockPrismaClient = createMockPrismaClient();
+    service = new ConversationHistoryService(mockPrismaClient as unknown as PrismaClient);
+    // Create fresh spy for each test
+    vi.spyOn(tokenCounter, 'countTextTokens');
   });
 
   describe('addMessage - Token Count Computation', () => {

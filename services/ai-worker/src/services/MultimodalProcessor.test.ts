@@ -7,13 +7,22 @@ import { describeImage, transcribeAudio, processAttachments } from './Multimodal
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
 import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
 
-// Create mock functions that can be reassigned in tests
-const mockChatOpenAIInvoke = vi.fn().mockResolvedValue({
-  content: 'Mocked image description',
-});
-
-// Whisper with response_format:'text' returns string directly, not {text: string}
-const mockWhisperCreate = vi.fn().mockResolvedValue('Mocked transcription');
+// Use vi.hoisted() to create mocks that persist across test resets
+const {
+  mockChatOpenAIInvoke,
+  mockWhisperCreate,
+  mockGetVoiceTranscript,
+  mockCheckModelVisionSupport,
+  mockVisionCacheGet,
+  mockVisionCacheStore,
+} = vi.hoisted(() => ({
+  mockChatOpenAIInvoke: vi.fn(),
+  mockWhisperCreate: vi.fn(),
+  mockGetVoiceTranscript: vi.fn(),
+  mockCheckModelVisionSupport: vi.fn(),
+  mockVisionCacheGet: vi.fn(),
+  mockVisionCacheStore: vi.fn(),
+}));
 
 // Mock dependencies
 vi.mock('@langchain/openai', () => ({
@@ -37,11 +46,11 @@ global.fetch = vi.fn();
 
 // Mock redis module (transcribeAudio tries to import it, VisionProcessor uses checkModelVisionSupport and visionDescriptionCache)
 vi.mock('../redis.js', () => ({
-  getVoiceTranscript: vi.fn().mockResolvedValue(null), // Return null to skip cache
-  checkModelVisionSupport: vi.fn().mockResolvedValue(false), // Default to no vision support
+  getVoiceTranscript: mockGetVoiceTranscript,
+  checkModelVisionSupport: mockCheckModelVisionSupport,
   visionDescriptionCache: {
-    get: vi.fn().mockResolvedValue(null), // Default: cache miss
-    store: vi.fn().mockResolvedValue(undefined),
+    get: mockVisionCacheGet,
+    store: mockVisionCacheStore,
   },
 }));
 
@@ -67,6 +76,12 @@ describe('MultimodalProcessor', () => {
 
     // Whisper with response_format:'text' returns string directly, not {text: string}
     mockWhisperCreate.mockResolvedValue('Mocked transcription');
+
+    // Reset redis mocks to default
+    mockGetVoiceTranscript.mockResolvedValue(null); // Return null to skip cache
+    mockCheckModelVisionSupport.mockResolvedValue(false); // Default to no vision support
+    mockVisionCacheGet.mockResolvedValue(null); // Default: cache miss
+    mockVisionCacheStore.mockResolvedValue(undefined);
 
     // Don't reset fetch - let tests set it up themselves
     // (global.fetch as any).mockReset();

@@ -6,10 +6,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import type { ReferencedMessage, LoadedPersonality } from '@tzurot/common-types';
 
+// Use vi.hoisted() to create mocks that persist across test resets
+const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta } = vi.hoisted(
+  () => ({
+    mockDescribeImage: vi.fn(),
+    mockTranscribeAudio: vi.fn(),
+    mockFormatTimestampWithDelta: vi.fn(),
+  })
+);
+
 // Mock the MultimodalProcessor module
 vi.mock('./MultimodalProcessor.js', () => ({
-  describeImage: vi.fn(),
-  transcribeAudio: vi.fn(),
+  describeImage: mockDescribeImage,
+  transcribeAudio: mockTranscribeAudio,
 }));
 
 // Mock formatTimestampWithDelta for consistent test output
@@ -17,10 +26,7 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    formatTimestampWithDelta: vi.fn(() => ({
-      absolute: 'Fri, Dec 6, 2025',
-      relative: 'just now',
-    })),
+    formatTimestampWithDelta: mockFormatTimestampWithDelta,
   };
 });
 
@@ -29,6 +35,14 @@ describe('ReferencedMessageFormatter', () => {
   let mockPersonality: LoadedPersonality;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Restore default mock implementations after mockReset clears them
+    mockFormatTimestampWithDelta.mockReturnValue({
+      absolute: 'Fri, Dec 6, 2025',
+      relative: 'just now',
+    });
+
     formatter = new ReferencedMessageFormatter();
     mockPersonality = {
       id: 'test-personality',
@@ -43,8 +57,6 @@ describe('ReferencedMessageFormatter', () => {
       characterInfo: 'Test character',
       personalityTraits: 'Test traits',
     };
-
-    vi.clearAllMocks();
   });
 
   describe('XML wrapper', () => {
@@ -278,11 +290,8 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('Image attachment processing', () => {
     it('should process image attachments in parallel', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
-
-      // Mock describeImage to return different descriptions with delays
-      mockDescribeImage.mockImplementation(async attachment => {
+      // Use hoisted mock directly (mockDescribeImage from vi.hoisted())
+      mockDescribeImage.mockImplementation(async (attachment: { name: string }) => {
         await new Promise(resolve => setTimeout(resolve, 100)); // Simulate processing time
         return `Description of ${attachment.name}`;
       });
@@ -337,9 +346,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should handle image processing failures gracefully', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
-
+      // Use hoisted mock directly
       mockDescribeImage.mockRejectedValue(new Error('Vision model failed'));
 
       const references: ReferencedMessage[] = [
@@ -370,14 +377,21 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should handle mixed success and failure in parallel processing', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
-
-      // First image succeeds, second fails, third succeeds
-      mockDescribeImage
-        .mockResolvedValueOnce('Description of image1')
-        .mockRejectedValueOnce(new Error('Failed'))
-        .mockResolvedValueOnce('Description of image3');
+      // Use URL-based implementation to avoid mockOnce timing issues with parallel calls
+      mockDescribeImage.mockImplementation(
+        async (attachment: { url: string; name: string }): Promise<string> => {
+          if (attachment.url.includes('image1')) {
+            return 'Description of image1';
+          }
+          if (attachment.url.includes('image2')) {
+            throw new Error('Failed');
+          }
+          if (attachment.url.includes('image3')) {
+            return 'Description of image3';
+          }
+          return 'Unknown';
+        }
+      );
 
       const references: ReferencedMessage[] = [
         {
@@ -423,10 +437,8 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('Voice message processing', () => {
     it('should transcribe voice messages in parallel', async () => {
-      const { transcribeAudio } = await import('./MultimodalProcessor.js');
-      const mockTranscribeAudio = vi.mocked(transcribeAudio);
-
-      mockTranscribeAudio.mockImplementation(async attachment => {
+      // Use hoisted mock directly
+      mockTranscribeAudio.mockImplementation(async (attachment: { duration: number }) => {
         await new Promise(resolve => setTimeout(resolve, 100));
         return `Transcription of voice ${attachment.duration}s`;
       });
@@ -476,9 +488,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should handle voice transcription failures gracefully', async () => {
-      const { transcribeAudio } = await import('./MultimodalProcessor.js');
-      const mockTranscribeAudio = vi.mocked(transcribeAudio);
-
+      // Use hoisted mock directly
       mockTranscribeAudio.mockRejectedValue(new Error('Whisper API failed'));
 
       const references: ReferencedMessage[] = [
@@ -513,10 +523,7 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('Mixed attachment types', () => {
     it('should handle images, voice messages, and files together in parallel', async () => {
-      const { describeImage, transcribeAudio } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
-      const mockTranscribeAudio = vi.mocked(transcribeAudio);
-
+      // Use hoisted mocks directly
       mockDescribeImage.mockResolvedValue('Image description');
       mockTranscribeAudio.mockResolvedValue('Voice transcription');
 
@@ -568,8 +575,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should handle non-voice audio files as regular files', async () => {
-      const { transcribeAudio } = await import('./MultimodalProcessor.js');
-      const mockTranscribeAudio = vi.mocked(transcribeAudio);
+      // Uses hoisted mockTranscribeAudio - no setup needed, just verify it's not called
 
       const references: ReferencedMessage[] = [
         {
@@ -751,8 +757,7 @@ describe('ReferencedMessageFormatter', () => {
 
   describe('preprocessed attachments', () => {
     it('should use preprocessed image descriptions instead of calling vision API', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
+      // Uses hoisted mockDescribeImage - verify it's NOT called when preprocessed data exists
 
       const references: ReferencedMessage[] = [
         {
@@ -808,8 +813,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should use preprocessed voice transcriptions instead of calling Whisper API', async () => {
-      const { transcribeAudio } = await import('./MultimodalProcessor.js');
-      const mockTranscribeAudio = vi.mocked(transcribeAudio);
+      // Uses hoisted mockTranscribeAudio - verify it's NOT called when preprocessed data exists
 
       const references: ReferencedMessage[] = [
         {
@@ -871,8 +875,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should fall back to inline processing when no preprocessed data exists', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
+      // Use hoisted mock directly
       mockDescribeImage.mockResolvedValue('Inline processed description');
 
       const references: ReferencedMessage[] = [
@@ -911,8 +914,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should fall back when preprocessed data has wrong URL', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
+      // Use hoisted mock directly
       mockDescribeImage.mockResolvedValue('Inline fallback description');
 
       const references: ReferencedMessage[] = [
@@ -967,8 +969,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should handle multiple referenced messages with separate preprocessed data', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
+      // Uses hoisted mockDescribeImage - verify it's NOT called when preprocessed data exists
 
       const references: ReferencedMessage[] = [
         {
@@ -1057,8 +1058,7 @@ describe('ReferencedMessageFormatter', () => {
     });
 
     it('should skip preprocessed data with empty description', async () => {
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const mockDescribeImage = vi.mocked(describeImage);
+      // Use hoisted mock directly
       mockDescribeImage.mockResolvedValue('Inline description');
 
       const references: ReferencedMessage[] = [
@@ -1266,10 +1266,9 @@ Line three`;
       // Contract test: Verify that formatReferencedMessages output is compatible with extractTextForSearch
       // This test protects against format changes that would break the text extraction
 
-      const { describeImage } = await import('./MultimodalProcessor.js');
-      const { transcribeAudio } = await import('./MultimodalProcessor.js');
-      vi.mocked(describeImage).mockResolvedValue('A cat sitting on a windowsill');
-      vi.mocked(transcribeAudio).mockResolvedValue('This is a test transcription');
+      // Use hoisted mocks directly
+      mockDescribeImage.mockResolvedValue('A cat sitting on a windowsill');
+      mockTranscribeAudio.mockResolvedValue('This is a test transcription');
 
       const references: ReferencedMessage[] = [
         {

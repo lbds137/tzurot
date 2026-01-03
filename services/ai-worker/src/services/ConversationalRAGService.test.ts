@@ -72,6 +72,7 @@ import {
   mockReplacePromptPlaceholders,
   createMockPersonality,
   createMockContext,
+  resetAllMocks,
 } from '../test/mocks/index.js';
 
 describe('ConversationalRAGService', () => {
@@ -79,6 +80,8 @@ describe('ConversationalRAGService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Restore default mock implementations after mockReset clears them
+    resetAllMocks();
     // Create service - this populates the mock instances via constructors
     service = new ConversationalRAGService();
   });

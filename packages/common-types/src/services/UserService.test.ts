@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UserService } from './UserService.js';
 import { resetConfig } from '../config/index.js';
 
+// Use vi.hoisted() to create mocks that persist across test resets
+const { mockGenerateUserUuid, mockGeneratePersonaUuid } = vi.hoisted(() => ({
+  mockGenerateUserUuid: vi.fn(),
+  mockGeneratePersonaUuid: vi.fn(),
+}));
+
 // Mock dependencies
 vi.mock('./prisma.js', () => ({
   Prisma: {
@@ -10,8 +16,8 @@ vi.mock('./prisma.js', () => ({
 }));
 
 vi.mock('../utils/deterministicUuid.js', () => ({
-  generateUserUuid: vi.fn().mockReturnValue('test-user-uuid'),
-  generatePersonaUuid: vi.fn().mockReturnValue('test-persona-uuid'),
+  generateUserUuid: mockGenerateUserUuid,
+  generatePersonaUuid: mockGeneratePersonaUuid,
 }));
 
 describe('UserService', () => {
@@ -33,6 +39,10 @@ describe('UserService', () => {
   };
 
   beforeEach(() => {
+    // Set up deterministic UUID mock return values for each test
+    mockGenerateUserUuid.mockReturnValue('test-user-uuid');
+    mockGeneratePersonaUuid.mockReturnValue('test-persona-uuid');
+
     mockPrisma = {
       user: {
         findUnique: vi.fn(),
