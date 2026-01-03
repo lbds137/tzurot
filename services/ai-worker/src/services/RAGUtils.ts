@@ -92,9 +92,7 @@ export function generateStopSequences(
 
   // Priority 3: Participant stop sequences (can truncate if many participants)
   // Use newline prefix to catch the common "Name:" pattern at line start
-  const participantStopSequences = Array.from(participantPersonas.keys()).map(
-    name => `\n${name}:`
-  );
+  const participantStopSequences = Array.from(participantPersonas.keys()).map(name => `\n${name}:`);
 
   // Calculate available slots for participants
   // Total budget: MAX_STOP_SEQUENCES (16)
