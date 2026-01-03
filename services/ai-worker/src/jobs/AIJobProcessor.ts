@@ -26,6 +26,7 @@ import {
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
   type LLMGenerationResult,
+  generateUsageLogUuid,
 } from '@tzurot/common-types';
 import type { PrismaClient, Prisma } from '@tzurot/common-types';
 import { redisService } from '../redis.js';
@@ -318,14 +319,17 @@ export class AIJobProcessor {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        const createdAt = new Date();
         await this.prisma.usageLog.create({
           data: {
+            id: generateUsageLogUuid(userInternalId, modelUsed, createdAt),
             userId: userInternalId,
             provider,
             model: modelUsed,
             tokensIn,
             tokensOut,
             requestType: 'llm_generation',
+            createdAt,
           },
         });
 

@@ -166,3 +166,31 @@ export function generateUserPersonaHistoryConfigUuid(
 export function generateImageDescriptionCacheUuid(attachmentId: string): string {
   return uuidv5(`image_description_cache:${attachmentId}`, TZUROT_NAMESPACE);
 }
+
+/**
+ * Generate deterministic UUID for UsageLog
+ * Seed: usage_log:{userId}:{model}:{timestamp}
+ *
+ * Usage logs are time-series data. The timestamp ensures uniqueness while
+ * keeping the same request reproducible if retried within the same millisecond.
+ */
+export function generateUsageLogUuid(userId: string, model: string, createdAt: Date): string {
+  const timestamp = createdAt.getTime();
+  return uuidv5(`usage_log:${userId}:${model}:${timestamp}`, TZUROT_NAMESPACE);
+}
+
+/**
+ * Generate deterministic UUID for PendingMemory
+ * Seed: pending_memory:{personaId}:{personalityId}:{contentHash}
+ *
+ * Pending memories are a safety net before vector storage. Using content hash
+ * ensures the same memory text produces the same UUID if retried.
+ */
+export function generatePendingMemoryUuid(
+  personaId: string,
+  personalityId: string,
+  text: string
+): string {
+  const contentHash = crypto.createHash('sha256').update(text).digest('hex').slice(0, 32);
+  return uuidv5(`pending_memory:${personaId}:${personalityId}:${contentHash}`, TZUROT_NAMESPACE);
+}

@@ -19,6 +19,7 @@
     "packages/common-types/src/services/BaseCacheInvalidationService.ts",
     "packages/common-types/src/services/CacheInvalidationService.ts",
     "packages/common-types/src/services/ChannelActivationCacheInvalidationService.ts",
+    "packages/common-types/src/services/ConversationSyncService.ts",
     "packages/common-types/src/services/LlmConfigCacheInvalidationService.ts",
     "packages/common-types/src/services/PersonaCacheInvalidationService.ts"
   ],
