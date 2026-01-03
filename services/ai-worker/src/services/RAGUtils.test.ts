@@ -194,6 +194,26 @@ describe('RAGUtils', () => {
       expect(result).toContain('</quote>');
     });
 
+    it('should return stop sequences in priority order (XML first, then personality, then participants)', () => {
+      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
+        ['Alice', { content: '', isActive: true }],
+        ['Bob', { content: '', isActive: true }],
+      ]);
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // XML tags should be first (indices 0-9)
+      expect(result[0]).toBe('<message ');
+      expect(result[9]).toBe('</quote>');
+
+      // Personality should be next (index 10)
+      expect(result[10]).toBe('\nLilith:');
+
+      // Participants should be last (indices 11+)
+      expect(result[11]).toBe('\nAlice:');
+      expect(result[12]).toBe('\nBob:');
+    });
+
     it('should return correct total count of stop sequences', () => {
       const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
         ['Alice', { content: 'User persona', isActive: true }],
