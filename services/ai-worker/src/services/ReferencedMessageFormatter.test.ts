@@ -7,13 +7,11 @@ import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import type { ReferencedMessage, LoadedPersonality } from '@tzurot/common-types';
 
 // Use vi.hoisted() to create mocks that persist across test resets
-const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta } = vi.hoisted(
-  () => ({
-    mockDescribeImage: vi.fn(),
-    mockTranscribeAudio: vi.fn(),
-    mockFormatTimestampWithDelta: vi.fn(),
-  })
-);
+const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta } = vi.hoisted(() => ({
+  mockDescribeImage: vi.fn(),
+  mockTranscribeAudio: vi.fn(),
+  mockFormatTimestampWithDelta: vi.fn(),
+}));
 
 // Mock the MultimodalProcessor module
 vi.mock('./MultimodalProcessor.js', () => ({
