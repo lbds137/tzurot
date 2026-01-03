@@ -245,10 +245,14 @@ export class DiscordChannelFetcher {
       if (conversionResult) {
         result.push(conversionResult.message);
         // Collect image attachments (only images, not voice messages)
+        // Add sourceDiscordMessageId to track which message each image came from
         if (conversionResult.attachments.length > 0) {
-          const images = conversionResult.attachments.filter(
-            a => a.contentType?.startsWith('image/') && a.isVoiceMessage !== true
-          );
+          const images = conversionResult.attachments
+            .filter(a => a.contentType?.startsWith('image/') && a.isVoiceMessage !== true)
+            .map(img => ({
+              ...img,
+              sourceDiscordMessageId: msg.id,
+            }));
           collectedImageAttachments.push(...images);
         }
       }

@@ -55,7 +55,28 @@ export interface ConversationContext {
   activePersonaName?: string;
   discordUsername?: string;
   conversationHistory?: BaseMessage[];
-  rawConversationHistory?: { role: string; content: string; tokenCount?: number }[];
+  rawConversationHistory?: {
+    /** Message ID - for extended context messages this IS the Discord message ID */
+    id?: string;
+    role: string;
+    content: string;
+    tokenCount?: number;
+    /** Structured metadata (referenced messages, image descriptions) */
+    messageMetadata?: {
+      referencedMessages?: {
+        discordMessageId: string;
+        authorUsername: string;
+        authorDisplayName: string;
+        content: string;
+        embeds?: string;
+        timestamp: string;
+        locationContext: string;
+        attachments?: { url: string; contentType: string; name?: string }[];
+        isForwarded?: boolean;
+      }[];
+      imageDescriptions?: { filename: string; description: string }[];
+    };
+  }[];
   oldestHistoryTimestamp?: number;
   participants?: ParticipantPersona[];
   /** Attachments from triggering message */
@@ -91,8 +112,8 @@ export interface ProcessedInputs {
   referencedMessagesDescriptions: string | undefined;
   referencedMessagesTextForSearch: string | undefined;
   searchQuery: string;
-  /** Formatted descriptions of images from extended context messages */
-  extendedContextDescriptions: string | undefined;
+  // Note: extendedContextDescriptions removed - image descriptions are now
+  // injected inline into conversation history entries for better context colocation
 }
 
 /** Result of loading personas and resolving user references */
@@ -131,8 +152,8 @@ export interface BudgetAllocationOptions {
   userMessage: string;
   processedAttachments: ProcessedAttachment[];
   referencedMessagesDescriptions: string | undefined;
-  /** Formatted descriptions of images from extended context */
-  extendedContextDescriptions: string | undefined;
+  // Note: extendedContextDescriptions removed - image descriptions are now
+  // injected inline into conversation history entries for better context colocation
 }
 
 /** Options for model invocation */

@@ -139,8 +139,12 @@ export class ReferenceCrawler {
           continue;
         }
 
-        // Check deduplication
-        if (!this.shouldIncludeReference(referencedMessage)) {
+        // Check deduplication - but NEVER deduplicate direct replies (depth 0)
+        // Direct replies indicate explicit user intent to reference that specific message,
+        // even if it's already in conversation history. The user is saying "I'm responding to THIS".
+        // Link references (URLs) can be deduplicated since they're just incidental mentions.
+        const isDirectReply = refResult.type === ReferenceType.REPLY && depth === 0;
+        if (!isDirectReply && !this.shouldIncludeReference(referencedMessage)) {
           logger.debug(
             {
               messageId: referencedMessage.id,

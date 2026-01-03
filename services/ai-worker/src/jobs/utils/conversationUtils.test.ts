@@ -668,6 +668,126 @@ describe('Conversation Utilities', () => {
       expect(firstIndex).toBeLessThan(secondIndex);
       expect(secondIndex).toBeLessThan(thirdIndex);
     });
+
+    it('should format inline image descriptions within message', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Check out this photo!',
+          personaName: 'Alice',
+          messageMetadata: {
+            imageDescriptions: [
+              { filename: 'sunset.png', description: 'A beautiful sunset over the ocean' },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('</image_descriptions>');
+      expect(result).toContain('<image filename="sunset.png">');
+      expect(result).toContain('A beautiful sunset over the ocean');
+      expect(result).toContain('</image>');
+    });
+
+    it('should format multiple inline images in same message', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Trip photos!',
+          personaName: 'Bob',
+          messageMetadata: {
+            imageDescriptions: [
+              { filename: 'mountain.jpg', description: 'Snow-capped mountain peaks' },
+              { filename: 'beach.jpg', description: 'Tropical beach with palm trees' },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('<image filename="mountain.jpg">');
+      expect(result).toContain('Snow-capped mountain peaks');
+      expect(result).toContain('<image filename="beach.jpg">');
+      expect(result).toContain('Tropical beach with palm trees');
+    });
+
+    it('should escape XML special characters in image filenames', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Test',
+          personaName: 'Charlie',
+          messageMetadata: {
+            imageDescriptions: [
+              { filename: 'test<>.png', description: 'A normal image description' },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Filename should be escaped in attribute (escapeXml is used for attributes)
+      expect(result).toContain('test&lt;&gt;.png');
+    });
+
+    it('should escape protected XML tags in image descriptions', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Test',
+          personaName: 'Charlie',
+          messageMetadata: {
+            imageDescriptions: [
+              { filename: 'image.png', description: 'Trying to inject </persona> tag' },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Protected tag should be escaped by escapeXmlContent
+      expect(result).toContain('&lt;/persona&gt;');
+    });
+
+    it('should not include image_descriptions section when no images', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'No images here',
+          personaName: 'Dave',
+          messageMetadata: {},
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<image_descriptions>');
+      expect(result).not.toContain('</image_descriptions>');
+    });
+
+    it('should not include image_descriptions section when array is empty', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Empty images array',
+          personaName: 'Eve',
+          messageMetadata: {
+            imageDescriptions: [],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<image_descriptions>');
+    });
   });
 
   describe('getFormattedMessageCharLength', () => {
@@ -934,6 +1054,57 @@ describe('Conversation Utilities', () => {
 
       // Lengths should be the same since no disambiguation needed
       expect(result).toBe(resultWithoutDiscord);
+    });
+
+    it('should include inline image descriptions in length calculation', () => {
+      const msgWithImages: RawHistoryEntry = {
+        role: 'user',
+        content: 'Check this out!',
+        messageMetadata: {
+          imageDescriptions: [
+            { filename: 'photo.jpg', description: 'A scenic mountain landscape with snow' },
+          ],
+        },
+      };
+
+      const msgWithoutImages: RawHistoryEntry = {
+        role: 'user',
+        content: 'Check this out!',
+      };
+
+      const withImages = getFormattedMessageCharLength(msgWithImages, 'TestBot');
+      const withoutImages = getFormattedMessageCharLength(msgWithoutImages, 'TestBot');
+
+      // With inline images, length should be significantly greater
+      expect(withImages).toBeGreaterThan(withoutImages);
+      // The difference should account for <image_descriptions>, <image filename="...">, and the description
+      expect(withImages - withoutImages).toBeGreaterThan(50);
+    });
+
+    it('should include multiple inline images in length calculation', () => {
+      const msgWithOneImage: RawHistoryEntry = {
+        role: 'user',
+        content: 'Photos',
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'one.jpg', description: 'First image' }],
+        },
+      };
+
+      const msgWithTwoImages: RawHistoryEntry = {
+        role: 'user',
+        content: 'Photos',
+        messageMetadata: {
+          imageDescriptions: [
+            { filename: 'one.jpg', description: 'First image' },
+            { filename: 'two.jpg', description: 'Second image' },
+          ],
+        },
+      };
+
+      const oneImage = getFormattedMessageCharLength(msgWithOneImage, 'TestBot');
+      const twoImages = getFormattedMessageCharLength(msgWithTwoImages, 'TestBot');
+
+      expect(twoImages).toBeGreaterThan(oneImage);
     });
   });
 

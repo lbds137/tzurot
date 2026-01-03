@@ -31,29 +31,46 @@ interface ImageProcessResult {
 }
 
 /**
- * Resolve guest mode status via BYOK lookup
+ * Result of API key resolution for vision processing
  */
-async function resolveGuestModeStatus(
+interface VisionApiKeyResult {
+  isGuestMode: boolean;
+  userApiKey?: string;
+}
+
+/**
+ * Resolve API key for vision processing via BYOK lookup
+ *
+ * Returns the user's API key if they have one (BYOK), otherwise indicates guest mode.
+ * The API key is resolved at job processing time to avoid storing keys in Redis.
+ */
+async function resolveVisionApiKey(
   apiKeyResolver: ApiKeyResolver | undefined,
   userId: string
-): Promise<boolean> {
+): Promise<VisionApiKeyResult> {
   if (!apiKeyResolver) {
-    return false;
+    return { isGuestMode: false };
   }
 
   try {
     const keyResult = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
     logger.debug(
-      { userId, isGuestMode: keyResult.isGuestMode },
-      '[ImageDescriptionJob] Resolved guest mode status'
+      { userId, isGuestMode: keyResult.isGuestMode, source: keyResult.source },
+      '[ImageDescriptionJob] Resolved API key for vision processing'
     );
-    return keyResult.isGuestMode;
+
+    // Return the user's API key if they have one (source='user')
+    // For system keys (source='system'), we still pass undefined so VisionProcessor uses its fallback
+    return {
+      isGuestMode: keyResult.isGuestMode,
+      userApiKey: keyResult.source === 'user' ? keyResult.apiKey : undefined,
+    };
   } catch (error) {
     logger.warn(
       { err: error, userId },
       '[ImageDescriptionJob] Failed to resolve API key, defaulting to guest mode'
     );
-    return true;
+    return { isGuestMode: true };
   }
 }
 
@@ -63,14 +80,18 @@ async function resolveGuestModeStatus(
 async function processSingleImage(
   attachment: ImageDescriptionJobData['attachments'][0],
   personality: ImageDescriptionJobData['personality'],
-  isGuestMode: boolean
+  isGuestMode: boolean,
+  userApiKey?: string
 ): Promise<ImageProcessResult> {
   try {
-    const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
-      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-      logger,
-      operationName: `Image description (${attachment.name})`,
-    });
+    const result = await withRetry(
+      () => describeImage(attachment, personality, isGuestMode, userApiKey),
+      {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        logger,
+        operationName: `Image description (${attachment.name})`,
+      }
+    );
     return { url: attachment.url, description: result.value, success: true };
   } catch (error) {
     logger.warn(
@@ -132,7 +153,7 @@ export async function processImageDescriptionJob(
   }
 
   const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
-  const isGuestMode = await resolveGuestModeStatus(apiKeyResolver, context.userId);
+  const { isGuestMode, userApiKey } = await resolveVisionApiKey(apiKeyResolver, context.userId);
 
   logger.info(
     { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
@@ -149,7 +170,9 @@ export async function processImageDescriptionJob(
 
     // Process all images in parallel with graceful degradation
     const results = await Promise.all(
-      attachments.map(attachment => processSingleImage(attachment, personality, isGuestMode))
+      attachments.map(attachment =>
+        processSingleImage(attachment, personality, isGuestMode, userApiKey)
+      )
     );
 
     // Filter for successful descriptions

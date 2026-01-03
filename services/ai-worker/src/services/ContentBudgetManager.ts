@@ -62,13 +62,13 @@ export class ContentBudgetManager {
     );
 
     // Build final system prompt
+    // Note: Image descriptions are now inline in serializedHistory (via injectImageDescriptions)
     const systemPrompt = this.promptBuilder.buildFullSystemPrompt({
       personality: processedPersonality,
       participantPersonas,
       relevantMemories,
       context,
       referencedMessagesFormatted: opts.referencedMessagesDescriptions,
-      extendedContextDescriptions: opts.extendedContextDescriptions,
       serializedHistory,
     });
 
