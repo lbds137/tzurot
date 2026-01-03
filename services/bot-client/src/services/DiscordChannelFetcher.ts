@@ -315,7 +315,11 @@ export class DiscordChannelFetcher {
 
     // Build comprehensive content using shared utility
     // This includes: text, attachments, embeds, voice transcripts, forwarded content
-    const { content: rawContent, isForwarded, attachments } = await buildMessageContent(msg, {
+    const {
+      content: rawContent,
+      isForwarded,
+      attachments,
+    } = await buildMessageContent(msg, {
       includeEmbeds: true,
       includeAttachments: true,
       getTranscript: options.getTranscript,

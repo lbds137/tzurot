@@ -252,7 +252,11 @@ export class MessageContextBuilder {
           // Collect image attachments for proactive processing (maxImages limit)
           // Images are already sorted newest-first from DiscordChannelFetcher
           const maxImages = options.extendedContext.maxImages ?? 0;
-          if (maxImages > 0 && fetchResult.imageAttachments && fetchResult.imageAttachments.length > 0) {
+          if (
+            maxImages > 0 &&
+            fetchResult.imageAttachments &&
+            fetchResult.imageAttachments.length > 0
+          ) {
             // Take top N newest images for proactive description
             extendedContextAttachments = fetchResult.imageAttachments.slice(0, maxImages);
             logger.debug(
