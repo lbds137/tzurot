@@ -79,7 +79,15 @@ function isReExportFile(filePath: string): boolean {
   const content = readFileSync(filePath, 'utf-8');
 
   // Check for common re-export patterns in non-comment lines
-  const lines = content.split('\n').filter(l => l.trim() && !l.trim().startsWith('//') && !l.trim().startsWith('/*') && !l.trim().startsWith('*'));
+  const lines = content
+    .split('\n')
+    .filter(
+      l =>
+        l.trim() &&
+        !l.trim().startsWith('//') &&
+        !l.trim().startsWith('/*') &&
+        !l.trim().startsWith('*')
+    );
 
   // If the file is mostly export statements, it's a re-export
   const exportLines = lines.filter(l => l.trim().startsWith('export'));
@@ -88,7 +96,8 @@ function isReExportFile(filePath: string): boolean {
   // Also check for explicit backward compatibility comment at file level
   // (must appear in first 10 lines of file to indicate the whole file is a compat shim)
   const firstLines = content.split('\n').slice(0, 10).join('\n').toLowerCase();
-  const hasBackwardCompatComment = firstLines.includes('backward compatibility') || firstLines.includes('backwards compatibility');
+  const hasBackwardCompatComment =
+    firstLines.includes('backward compatibility') || firstLines.includes('backwards compatibility');
 
   return hasOnlyExports || hasBackwardCompatComment;
 }
