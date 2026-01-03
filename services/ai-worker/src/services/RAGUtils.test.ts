@@ -266,5 +266,32 @@ describe('RAGUtils', () => {
       expect(result).toContain('\nUser2:');
       expect(result).toContain('\nUser3:');
     });
+
+    it('should not truncate when exactly at the limit (16)', () => {
+      // 5 participants + 1 personality + 10 XML = exactly 16 (the limit)
+      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
+        ['User1', { content: '', isActive: true }],
+        ['User2', { content: '', isActive: true }],
+        ['User3', { content: '', isActive: true }],
+        ['User4', { content: '', isActive: true }],
+        ['User5', { content: '', isActive: true }],
+      ]);
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // Should be exactly 16 with no truncation
+      expect(result.length).toBe(16);
+
+      // All participants should be present
+      expect(result).toContain('\nUser1:');
+      expect(result).toContain('\nUser2:');
+      expect(result).toContain('\nUser3:');
+      expect(result).toContain('\nUser4:');
+      expect(result).toContain('\nUser5:');
+
+      // Personality and XML should be present
+      expect(result).toContain('\nLilith:');
+      expect(result).toContain('<message ');
+    });
   });
 });

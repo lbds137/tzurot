@@ -46,8 +46,12 @@ for file in $PACKAGE_FILES; do
   CURRENT=$(grep -o '"version": *"[^"]*"' "$file" | head -1 | sed 's/.*: *"\([^"]*\)"/\1/')
 
   if [ -n "$CURRENT" ] && [ "$CURRENT" != "$NEW_VERSION" ]; then
-    # Update version using sed (works on both Linux and macOS)
-    sed -i "s/\"version\": *\"$CURRENT\"/\"version\": \"$NEW_VERSION\"/" "$file"
+    # Update version using sed (handle macOS vs Linux differences)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      sed -i '' "s/\"version\": *\"$CURRENT\"/\"version\": \"$NEW_VERSION\"/" "$file"
+    else
+      sed -i "s/\"version\": *\"$CURRENT\"/\"version\": \"$NEW_VERSION\"/" "$file"
+    fi
     echo "  $file: $CURRENT -> $NEW_VERSION"
     UPDATED=$((UPDATED + 1))
   elif [ "$CURRENT" = "$NEW_VERSION" ]; then
