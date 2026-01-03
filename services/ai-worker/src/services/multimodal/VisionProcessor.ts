@@ -293,7 +293,7 @@ async function describeWithFallbackVision(
   } catch (error) {
     const context: Record<string, unknown> = {
       modelName: fallbackModelName,
-      apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 15) + '...',
+      apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 10) + '...',
     };
 
     // Extract API response details if available
