@@ -9,14 +9,18 @@
     "db:fix-drift": "tsx src/db/fix-migration-drift.ts",
     "db:inspect": "tsx src/db/inspect-database.ts",
     "db:migrate:safe": "tsx src/db/create-safe-migration.ts",
-    "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts"
+    "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
     "tsx": "^4.21.0",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1"
+    "@types/node": "^24.10.1",
+    "vitest": "^4.0.16"
   }
 }
