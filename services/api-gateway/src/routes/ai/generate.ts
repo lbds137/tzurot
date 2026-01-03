@@ -84,6 +84,19 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
         localAttachments = await attachmentStorage.downloadAndStore(requestId, localAttachments);
       }
 
+      // Also download extended context attachments (images from recent channel messages)
+      let localExtendedContextAttachments = request.context.extendedContextAttachments;
+      if (localExtendedContextAttachments && localExtendedContextAttachments.length > 0) {
+        logger.info(
+          { requestId, count: localExtendedContextAttachments.length },
+          '[AI] Downloading extended context attachments to local storage'
+        );
+        localExtendedContextAttachments = await attachmentStorage.downloadAndStore(
+          requestId,
+          localExtendedContextAttachments
+        );
+      }
+
       // Debug: Log referenced messages if present
       if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
         logger.info(
@@ -104,6 +117,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
           context: {
             ...request.context,
             attachments: localAttachments, // Use local URLs instead of Discord CDN
+            extendedContextAttachments: localExtendedContextAttachments, // Use local URLs
           },
           responseDestination: {
             type: 'api' as const,

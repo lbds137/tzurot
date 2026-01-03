@@ -30,9 +30,9 @@ export interface BuildFullSystemPromptOptions {
   relevantMemories: MemoryDocument[];
   context: ConversationContext;
   referencedMessagesFormatted?: string;
-  /** Descriptions of images from extended context (recent channel messages) */
-  extendedContextDescriptions?: string;
   serializedHistory?: string;
+  // Note: extendedContextDescriptions removed - image descriptions are now
+  // injected inline into serializedHistory entries for better context colocation
 }
 
 export class PromptBuilder {
@@ -214,7 +214,6 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
       relevantMemories,
       context,
       referencedMessagesFormatted,
-      extendedContextDescriptions,
       serializedHistory,
     } = options;
 
@@ -283,12 +282,9 @@ ${identityConstraints}
       );
     }
 
-    // Extended context image descriptions (from recent channel messages)
-    // Added after references but before chat log for context about recent media
-    const extendedContextSection =
-      extendedContextDescriptions !== undefined && extendedContextDescriptions.length > 0
-        ? `\n\n${extendedContextDescriptions}`
-        : '';
+    // Note: Extended context image descriptions are now embedded inline within
+    // serializedHistory entries (via <image_descriptions> tags) for better colocation.
+    // This improves AI context awareness when users reference recent images.
 
     // Conversation history as XML - THIS IS THE KEY CHANGE
     // History is now serialized inside the system prompt, not as separate messages
@@ -305,13 +301,13 @@ ${serializedHistory}
       protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 
     // Assemble in correct order for U-shaped attention optimization
-    const fullSystemPrompt = `${identitySection}${contextSection}${participantsContext}${memoryContext}${referencesContext}${extendedContextSection}${chatLogSection}${protocolSection}`;
+    // Note: Image descriptions are now inline in chatLogSection (via <image_descriptions> tags)
+    const fullSystemPrompt = `${identitySection}${contextSection}${participantsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}`;
 
     // Basic prompt composition logging (always)
     const historyLength = serializedHistory?.length ?? 0;
-    const extendedContextLength = extendedContextSection.length;
     logger.info(
-      `[PromptBuilder] Prompt composition: identity=${identitySection.length} context=${contextSection.length} references=${referencesContext.length} extendedMedia=${extendedContextLength} participants=${participantsContext.length} memories=${memoryContext.length} history=${historyLength} protocol=${protocolSection.length} total=${fullSystemPrompt.length} chars`
+      `[PromptBuilder] Prompt composition: identity=${identitySection.length} context=${contextSection.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} history=${historyLength} protocol=${protocolSection.length} total=${fullSystemPrompt.length} chars`
     );
 
     // Detailed prompt assembly logging (development only)

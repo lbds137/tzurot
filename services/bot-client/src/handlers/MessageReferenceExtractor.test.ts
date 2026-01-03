@@ -274,10 +274,12 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
   });
 
   describe('Deduplication', () => {
-    it('should exclude references already in conversation history', async () => {
+    it('should NOT exclude direct REPLY references even if in conversation history', async () => {
+      // Direct replies indicate explicit user intent - they should ALWAYS be included
+      // even if the message is already in conversation history (e.g., via extended context)
       const referencedMessage = createMockMessage({
         id: 'referenced-123',
-        content: 'Already in history',
+        content: 'Already in history but user is replying to it',
         channel: createConfiguredChannel(),
       });
 
@@ -303,7 +305,9 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
 
       const references = await dedupExtractor.extractReferences(message);
 
-      expect(references).toEqual([]); // Should be excluded
+      // Direct reply should be included - user explicitly chose to reply to this message
+      expect(references.length).toBe(1);
+      expect(references[0].discordMessageId).toBe('referenced-123');
     });
   });
 });

@@ -157,9 +157,19 @@ export function convertConversationHistory(
 }
 
 /**
+ * Image description for inline display in chat_log
+ */
+export interface InlineImageDescription {
+  filename: string;
+  description: string;
+}
+
+/**
  * Raw conversation history entry (before BaseMessage conversion)
  */
 export interface RawHistoryEntry {
+  /** Message ID - for extended context messages this IS the Discord message ID */
+  id?: string;
   role: MessageRole | string;
   content: string;
   createdAt?: string;
@@ -171,6 +181,8 @@ export interface RawHistoryEntry {
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
   messageMetadata?: {
     referencedMessages?: StoredReferencedMessage[];
+    /** Image descriptions from extended context preprocessing */
+    imageDescriptions?: InlineImageDescription[];
   };
 }
 
@@ -281,8 +293,23 @@ export function formatSingleHistoryEntryAsXml(
     quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
   }
 
+  // Format image descriptions inline (from extended context preprocessing)
+  let imageSection = '';
+  if (
+    msg.messageMetadata?.imageDescriptions !== undefined &&
+    msg.messageMetadata.imageDescriptions.length > 0
+  ) {
+    const formattedImages = msg.messageMetadata.imageDescriptions
+      .map(
+        img =>
+          `<image filename="${escapeXml(img.filename)}">${escapeXmlContent(img.description)}</image>`
+      )
+      .join('\n');
+    imageSection = `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
+  }
+
   // Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
-  return `<message from="${safeSpeaker}" role="${role}"${timeAttr}>${safeContent}${quotedSection}</message>`;
+  return `<message from="${safeSpeaker}" role="${role}"${timeAttr}>${safeContent}${quotedSection}${imageSection}</message>`;
 }
 
 /**
@@ -439,6 +466,20 @@ export function getFormattedMessageCharLength(
     // Add length for each reference
     for (const ref of msg.messageMetadata.referencedMessages) {
       totalLength += estimateReferenceLength(ref) + 1; // +1 for newline
+    }
+  }
+
+  // Add length for image descriptions if present
+  if (
+    msg.messageMetadata?.imageDescriptions !== undefined &&
+    msg.messageMetadata.imageDescriptions.length > 0
+  ) {
+    // Account for <image_descriptions> wrapper
+    totalLength += '\n<image_descriptions>\n</image_descriptions>'.length;
+
+    // Add length for each image
+    for (const img of msg.messageMetadata.imageDescriptions) {
+      totalLength += `<image filename="${img.filename}">${img.description}</image>\n`.length;
     }
   }
 

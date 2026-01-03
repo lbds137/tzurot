@@ -58,6 +58,8 @@ export const attachmentMetadataSchema = z.object({
   isVoiceMessage: z.boolean().optional(),
   duration: z.number().optional(),
   waveform: z.string().optional(),
+  /** Discord message ID this attachment came from (for inline image descriptions) */
+  sourceDiscordMessageId: z.string().optional(),
 });
 
 /**
