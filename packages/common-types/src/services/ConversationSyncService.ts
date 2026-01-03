@@ -12,6 +12,7 @@
 import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
+import { SYNC_LIMITS } from '../constants/index.js';
 
 const logger = createLogger('ConversationSyncService');
 
@@ -168,6 +169,8 @@ export class ConversationSyncService {
           deletedAt: true,
           createdAt: true,
         },
+        // Bounded query: allow margin for chunked messages, cap at MAX_DISCORD_ID_LOOKUP
+        take: Math.min(discordMessageIds.length * 2, SYNC_LIMITS.MAX_DISCORD_ID_LOOKUP),
       });
 
       // Create a map from Discord message ID to message data
@@ -183,9 +186,11 @@ export class ConversationSyncService {
         }
       >();
 
+      // Use Set for O(1) lookup instead of O(n) array includes
+      const requestedIds = new Set(discordMessageIds);
       for (const msg of messages) {
         for (const discordId of msg.discordMessageId) {
-          if (discordMessageIds.includes(discordId)) {
+          if (requestedIds.has(discordId)) {
             resultMap.set(discordId, msg);
           }
         }
@@ -208,14 +213,14 @@ export class ConversationSyncService {
    * @param channelId Channel ID
    * @param personalityId Personality ID
    * @param since Only get messages after this timestamp
-   * @param limit Maximum number of messages to return (default 200, bounded for safety)
+   * @param limit Maximum number of messages to return (default SYNC_LIMITS.DEFAULT_TIME_WINDOW_LIMIT, bounded for safety)
    * @returns Array of messages with their Discord IDs
    */
   async getMessagesInTimeWindow(
     channelId: string,
     personalityId: string,
     since: Date,
-    limit = 200
+    limit = SYNC_LIMITS.DEFAULT_TIME_WINDOW_LIMIT
   ): Promise<
     {
       id: string;

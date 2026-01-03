@@ -45,6 +45,20 @@ export interface ExtendedContextResolution {
 
 /**
  * Resolves extended context settings with 3-layer cascading
+ *
+ * ## Eventual Consistency Note
+ *
+ * Settings are cached at two levels for performance:
+ * - Admin settings: 60 second TTL (via GatewayClient cache)
+ * - Channel settings: 30 second TTL (via GatewayClient cache)
+ *
+ * This means settings changes may take up to 60 seconds to propagate.
+ * This is acceptable for non-critical configuration changes where:
+ * - Instant propagation isn't required for correct behavior
+ * - The tradeoff favors reduced API gateway load
+ * - Users can wait a minute for settings to take effect
+ *
+ * For time-sensitive operations, callers should bypass the cache.
  */
 export class ExtendedContextResolver {
   constructor(private gatewayClient: GatewayClient) {}

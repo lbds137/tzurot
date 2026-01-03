@@ -55,7 +55,7 @@ describe('ConversationRetentionService', () => {
   });
 
   describe('clearHistory', () => {
-    it('should delete all messages for channel and personality with tombstones', async () => {
+    it('should delete all messages for channel and personality with tombstones using batching', async () => {
       const mockMessages = [
         {
           id: 'msg-1',
@@ -71,15 +71,20 @@ describe('ConversationRetentionService', () => {
         },
       ];
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 42 });
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 2 });
       mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 2 });
 
       const count = await service.clearHistory('channel-123', 'personality-456');
 
-      expect(count).toBe(42);
+      expect(count).toBe(2);
+      // Verify batched query includes pagination params
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { channelId: 'channel-123', personalityId: 'personality-456' },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
+        take: 1000, // SYNC_LIMITS.RETENTION_BATCH_SIZE
+        skip: 0,
+        cursor: undefined,
+        orderBy: { id: 'asc' },
       });
       expect(mockPrismaClient.conversationHistoryTombstone.createMany).toHaveBeenCalledWith({
         data: mockMessages.map(msg => ({
@@ -90,8 +95,9 @@ describe('ConversationRetentionService', () => {
         })),
         skipDuplicates: true,
       });
+      // Batched deletion uses IDs from the batch
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
-        where: { channelId: 'channel-123', personalityId: 'personality-456' },
+        where: { id: { in: ['msg-1', 'msg-2'] } },
       });
     });
 
@@ -124,12 +130,12 @@ describe('ConversationRetentionService', () => {
         },
       ];
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
-      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 10 });
+      mockPrismaClient.conversationHistory.deleteMany.mockResolvedValue({ count: 1 });
       mockPrismaClient.conversationHistoryTombstone.createMany.mockResolvedValue({ count: 1 });
 
       const count = await service.clearHistory('channel-123', 'personality-456', 'persona-789');
 
-      expect(count).toBe(10);
+      expect(count).toBe(1);
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: {
           channelId: 'channel-123',
@@ -137,12 +143,16 @@ describe('ConversationRetentionService', () => {
           personaId: 'persona-789',
         },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
+        take: 1000,
+        skip: 0,
+        cursor: undefined,
+        orderBy: { id: 'asc' },
       });
     });
   });
 
   describe('cleanupOldHistory', () => {
-    it('should delete messages older than specified days and create tombstones', async () => {
+    it('should delete messages older than specified days and create tombstones using batching', async () => {
       vi.useFakeTimers();
       const fixedDate = new Date('2025-11-18T00:00:00Z');
       vi.setSystemTime(fixedDate);
@@ -181,8 +191,9 @@ describe('ConversationRetentionService', () => {
         })),
         skipDuplicates: true,
       });
+      // Batched deletion uses IDs from the batch
       expect(mockPrismaClient.conversationHistory.deleteMany).toHaveBeenCalledWith({
-        where: { createdAt: { lt: expectedCutoff } },
+        where: { id: { in: ['msg-1', 'msg-2'] } },
       });
     });
 
@@ -209,9 +220,14 @@ describe('ConversationRetentionService', () => {
       const expectedCutoff = new Date(fixedDate);
       expectedCutoff.setDate(expectedCutoff.getDate() - 30);
 
+      // Verify batched query includes pagination params
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith({
         where: { createdAt: { lt: expectedCutoff } },
         select: { id: true, channelId: true, personalityId: true, personaId: true },
+        take: 1000,
+        skip: 0,
+        cursor: undefined,
+        orderBy: { id: 'asc' },
       });
     });
 

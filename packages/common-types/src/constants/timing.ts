@@ -173,6 +173,21 @@ export const CLEANUP_DEFAULTS = {
 } as const;
 
 /**
+ * Database sync and retention batch processing limits
+ *
+ * These values are used to bound database queries and prevent OOM errors
+ * when processing large datasets during cleanup and sync operations.
+ */
+export const SYNC_LIMITS = {
+  /** Batch size for retention cleanup operations (prevents OOM on large deletes) */
+  RETENTION_BATCH_SIZE: 1000,
+  /** Maximum messages to fetch when looking up by Discord IDs */
+  MAX_DISCORD_ID_LOOKUP: 500,
+  /** Default limit for time window queries in sync operations */
+  DEFAULT_TIME_WINDOW_LIMIT: 200,
+} as const;
+
+/**
  * External API validation timeouts
  */
 export const VALIDATION_TIMEOUTS = {

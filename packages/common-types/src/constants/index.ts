@@ -25,6 +25,7 @@ export {
   CIRCUIT_BREAKER,
   CACHE_CONTROL,
   CLEANUP_DEFAULTS,
+  SYNC_LIMITS,
   VALIDATION_TIMEOUTS,
 } from './timing.js';
 

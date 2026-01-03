@@ -12,48 +12,72 @@
 import type { PrismaClient } from './prisma.js';
 import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
-import { CLEANUP_DEFAULTS } from '../constants/index.js';
+import { CLEANUP_DEFAULTS, SYNC_LIMITS } from '../constants/index.js';
 
 const logger = createLogger('ConversationRetentionService');
 
 /**
  * Delete messages matching the where clause and create tombstones to prevent db-sync restoration.
+ * Uses cursor-based pagination to process in batches and prevent OOM on large datasets.
  */
 async function deleteMessagesWithTombstones(
   tx: Prisma.TransactionClient,
   where: Prisma.ConversationHistoryWhereInput
 ): Promise<number> {
-  // Fetch messages that will be deleted (need IDs for tombstones)
-  const messagesToDelete = await tx.conversationHistory.findMany({
-    where,
-    select: {
-      id: true,
-      channelId: true,
-      personalityId: true,
-      personaId: true,
-    },
-  });
+  let totalDeleted = 0;
+  let cursor: string | undefined;
 
-  if (messagesToDelete.length === 0) {
-    return 0;
+  while (true) {
+    // Fetch a batch of messages to delete using cursor-based pagination
+    const batch = await tx.conversationHistory.findMany({
+      where,
+      select: {
+        id: true,
+        channelId: true,
+        personalityId: true,
+        personaId: true,
+      },
+      take: SYNC_LIMITS.RETENTION_BATCH_SIZE,
+      skip: cursor !== undefined ? 1 : 0,
+      cursor: cursor !== undefined ? { id: cursor } : undefined,
+      orderBy: { id: 'asc' },
+    });
+
+    if (batch.length === 0) {
+      break;
+    }
+
+    const batchIds = batch.map(msg => msg.id);
+
+    // Create tombstones for this batch
+    // This prevents db-sync from restoring them
+    await tx.conversationHistoryTombstone.createMany({
+      data: batch.map(msg => ({
+        id: msg.id,
+        channelId: msg.channelId,
+        personalityId: msg.personalityId,
+        personaId: msg.personaId,
+      })),
+      skipDuplicates: true, // In case tombstone already exists
+    });
+
+    // Delete this batch of messages
+    const deleteResult = await tx.conversationHistory.deleteMany({
+      where: { id: { in: batchIds } },
+    });
+
+    totalDeleted += deleteResult.count;
+
+    // If we got less than batch size, we're done
+    if (batch.length < SYNC_LIMITS.RETENTION_BATCH_SIZE) {
+      break;
+    }
+
+    // Move cursor to last processed ID
+    cursor = batch[batch.length - 1].id;
   }
 
-  // Create tombstones for all messages being deleted
-  // This prevents db-sync from restoring them
-  await tx.conversationHistoryTombstone.createMany({
-    data: messagesToDelete.map(msg => ({
-      id: msg.id,
-      channelId: msg.channelId,
-      personalityId: msg.personalityId,
-      personaId: msg.personaId,
-    })),
-    skipDuplicates: true, // In case tombstone already exists
-  });
-
-  // Delete the actual messages
-  const deleteResult = await tx.conversationHistory.deleteMany({ where });
-
-  return deleteResult.count;
+  return totalDeleted;
 }
 
 export class ConversationRetentionService {

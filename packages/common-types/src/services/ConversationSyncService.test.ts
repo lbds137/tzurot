@@ -228,6 +228,8 @@ describe('ConversationSyncService', () => {
           deletedAt: true,
           createdAt: true,
         },
+        // Bounded query: Math.min(1 * 2, 500) = 2
+        take: 2,
       });
     });
 

@@ -7,6 +7,7 @@
 import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 import type { TableSyncConfig as SyncTableConfig } from './config/syncTables.js';
+import { assertValidTableName, assertValidColumnName } from './utils/syncValidation.js';
 
 const logger = createLogger('fk-reconciler');
 
@@ -206,6 +207,13 @@ export class ForeignKeyReconciler {
    */
   private async updateFkColumn(options: UpdateFkColumnOptions): Promise<void> {
     const { client, tableName, fkColumn, value, pkColumns, pkValues } = options;
+
+    // Defense-in-depth: validate table and column names before SQL interpolation
+    assertValidTableName(tableName);
+    assertValidColumnName(fkColumn);
+    for (const col of pkColumns) {
+      assertValidColumnName(col);
+    }
 
     const whereClause = pkColumns.map((col, i) => `"${col}" = $${i + 2}::uuid`).join(' AND ');
 
