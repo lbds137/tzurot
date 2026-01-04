@@ -64,7 +64,9 @@ describe('ParticipantFormatter', () => {
       // Check for XML structure with ID binding
       expect(result).toContain('<participant id="persona-123"');
       expect(result).toContain('<name>Alice</name>');
-      expect(result).toContain('<about source="user_input"><![CDATA[A software developer]]></about>');
+      expect(result).toContain(
+        '<about source="user_input"><![CDATA[A software developer]]></about>'
+      );
       expect(result).toContain('</participant>');
       // Single participant should NOT have group note
       expect(result).not.toContain('<note>');
