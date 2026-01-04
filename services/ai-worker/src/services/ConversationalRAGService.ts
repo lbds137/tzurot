@@ -394,6 +394,16 @@ export class ConversationalRAGService {
         userApiKey,
       });
 
+      // Step 5.5: Resolve user references in AI output (shapes.inc format -> readable names)
+      // The AI may have learned the @[username](user:uuid) format from conversation history
+      // and reproduced it in its output. This step converts them back to readable names.
+      const { processedText: resolvedContent } =
+        await this.userReferenceResolver.resolveUserReferences(
+          modelResult.cleanedContent,
+          personality.id
+        );
+      modelResult.cleanedContent = resolvedContent;
+
       // Step 6: Store to long-term memory
       await this.storeToLongTermMemory(
         personality,

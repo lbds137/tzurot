@@ -235,7 +235,19 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
 
     // Build <system_identity> section with identity AND constraints
     // This is the START of the prompt - primacy effect
-    const identityConstraints = this.buildIdentityConstraints(personality.name);
+    // Detect name collision: user's persona name matches personality name (case-insensitive)
+    const activePersonaName = context.activePersonaName ?? '';
+    const discordUsername = context.discordUsername ?? '';
+    const hasNameCollision =
+      activePersonaName.length > 0 &&
+      discordUsername.length > 0 &&
+      activePersonaName.toLowerCase() === personality.name.toLowerCase();
+
+    const collisionInfo = hasNameCollision
+      ? { userName: activePersonaName, discordUsername: discordUsername }
+      : undefined;
+
+    const identityConstraints = this.buildIdentityConstraints(personality.name, collisionInfo);
     const identitySection = `<system_identity>
 <role>
 You are ${personality.name}.
@@ -376,15 +388,28 @@ ${serializedHistory}
    *
    * These constraints are critical for preventing identity bleeding
    * where the AI responds as another participant instead of itself.
+   *
+   * @param personalityName - The AI character's name
+   * @param collisionInfo - Optional info when a user shares the AI's name
    */
-  private buildIdentityConstraints(personalityName: string): string {
-    return `You are ONE participant in this conversation.
+  private buildIdentityConstraints(
+    personalityName: string,
+    collisionInfo?: { userName: string; discordUsername: string }
+  ): string {
+    let constraints = `You are ONE participant in this conversation.
 You are ${personalityName}. You are NEVER any other participant.
 Do not generate dialogue for other users.
 If you see messages from others, reply TO them, do not simulate them.
 Output ONLY your response text.
 NEVER prefix your response with "${personalityName}:" or any name.
 NEVER output XML tags in your response.`;
+
+    // Add explicit instruction when a user shares the AI's name
+    if (collisionInfo !== undefined) {
+      constraints += `\nNote: A user named "${collisionInfo.userName}" shares your name. They appear as "${collisionInfo.userName} (@${collisionInfo.discordUsername})" in the chat log. This is a different person - address them naturally.`;
+    }
+
+    return constraints;
   }
 
   /**

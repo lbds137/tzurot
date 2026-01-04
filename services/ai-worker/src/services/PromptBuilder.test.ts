@@ -872,6 +872,114 @@ describe('PromptBuilder', () => {
           undefined // No discordUsername
         );
       });
+
+      it('should add collision instruction when user name matches personality name (case-insensitive)', () => {
+        // Create a personality with name "Lila" (same as user's activePersonaName)
+        const lilaPersonality: LoadedPersonality = {
+          ...minimalPersonality,
+          id: 'lila-1',
+          slug: 'lila',
+          name: 'Lila', // Same name as user
+          displayName: 'Lila',
+        };
+
+        const contextWithCollision: ConversationContext = {
+          ...minimalContext,
+          activePersonaName: 'Lila', // User's persona name matches personality
+          discordUsername: 'lbds137', // Required for collision detection
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: lilaPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: contextWithCollision,
+        });
+
+        const content = result.content as string;
+
+        // Should include the collision instruction in constraints
+        expect(content).toContain('A user named "Lila" shares your name');
+        expect(content).toContain('Lila (@lbds137)');
+        expect(content).toContain('This is a different person - address them naturally');
+      });
+
+      it('should NOT add collision instruction when names differ', () => {
+        const contextWithDifferentName: ConversationContext = {
+          ...minimalContext,
+          activePersonaName: 'Alice', // Different from TestBot
+          discordUsername: 'alice123',
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: minimalPersonality, // name: "TestBot"
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: contextWithDifferentName,
+        });
+
+        const content = result.content as string;
+
+        // Should NOT include collision instruction
+        expect(content).not.toContain('shares your name');
+        expect(content).not.toContain('This is a different person');
+      });
+
+      it('should handle case-insensitive name matching', () => {
+        const lilaPersonality: LoadedPersonality = {
+          ...minimalPersonality,
+          id: 'lila-1',
+          slug: 'lila',
+          name: 'LILA', // Uppercase
+          displayName: 'LILA',
+        };
+
+        const contextWithLowercaseName: ConversationContext = {
+          ...minimalContext,
+          activePersonaName: 'lila', // lowercase
+          discordUsername: 'lbds137',
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: lilaPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: contextWithLowercaseName,
+        });
+
+        const content = result.content as string;
+
+        // Should detect collision despite case difference
+        expect(content).toContain('shares your name');
+      });
+
+      it('should NOT add collision instruction when discordUsername is missing', () => {
+        const lilaPersonality: LoadedPersonality = {
+          ...minimalPersonality,
+          id: 'lila-1',
+          slug: 'lila',
+          name: 'Lila',
+          displayName: 'Lila',
+        };
+
+        const contextWithoutDiscordUsername: ConversationContext = {
+          ...minimalContext,
+          activePersonaName: 'Lila', // Same name
+          // discordUsername is undefined - can't disambiguate without it
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: lilaPersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: contextWithoutDiscordUsername,
+        });
+
+        const content = result.content as string;
+
+        // Should NOT include collision instruction (no discord username to show)
+        expect(content).not.toContain('shares your name');
+      });
     });
   });
 
