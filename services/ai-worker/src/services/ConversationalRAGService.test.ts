@@ -851,8 +851,11 @@ describe('ConversationalRAGService', () => {
 
       const result = await service.generateResponse(personality, 'Hi alice', context);
 
-      // UserReferenceResolver should be called on the cleaned output
-      expect(getUserReferenceResolverMock().resolveUserReferences).toHaveBeenCalled();
+      // UserReferenceResolver should be called on the cleaned output with correct arguments
+      expect(getUserReferenceResolverMock().resolveUserReferences).toHaveBeenCalledWith(
+        'Hello @[alice](user:user-123)! How are you?',
+        'personality-123'
+      );
 
       // The response should contain the resolved text
       expect(result.content).toBe('Hello @alice! How are you?');
