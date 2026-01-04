@@ -1,142 +1,97 @@
 # Tzurot v3 Documentation
 
-**Last Updated:** 2025-12-08
+**Last Updated:** 2026-01-04
 
-This directory contains all project documentation, organized by category for easy navigation.
+This directory contains all project documentation, organized by lifecycle stage for easy navigation.
 
 ## Documentation Structure
 
-### 📐 [architecture/](architecture/)
+### 📚 [reference/](reference/)
 
-Design decisions, system architecture, and technical patterns.
+**What currently exists** - The source of truth for implemented systems.
 
-**Key docs:**
-
-- `ARCHITECTURE_DECISIONS.md` - Core architectural choices and rationale
-- `group-conversation-design.md` - Multi-participant conversation handling
-- `memory-and-context-redesign.md` - STM/LTM architecture
-- `pantheons-and-memory-scopes.md` - Canon groups and memory scoping
-
-### 🚀 [deployment/](deployment/)
-
-Deployment guides and infrastructure setup.
-
-**Key docs:**
-
-- `RAILWAY_DEPLOYMENT.md` - Railway deployment guide (primary reference)
-- `RAILWAY_SHARED_VARIABLES.md` - Environment variable setup
-- `RAILWAY_VOLUME_SETUP.md` - Persistent storage configuration
-
-### 📖 [guides/](guides/)
-
-Developer guides and how-tos.
+| Subdirectory | Contents |
+|--------------|----------|
+| `architecture/` | Design decisions, system architecture, technical patterns |
+| `deployment/` | Railway deployment guides, environment setup |
+| `operations/` | Runbooks, backup procedures, maintenance |
+| `standards/` | Coding patterns, folder structure, UX conventions |
+| `guides/` | Developer how-tos, testing guides |
+| `features/` | Feature-specific documentation |
+| `testing/` | Test procedures and checklists |
+| `database/` | Schema documentation |
+| `templates/` | Reusable document templates |
 
 **Key docs:**
+- `reference/architecture/ARCHITECTURE_DECISIONS.md` - Core architectural choices
+- `reference/deployment/RAILWAY_DEPLOYMENT.md` - Primary deployment guide
+- `reference/guides/DEVELOPMENT.md` - Local development setup
+- `reference/standards/FOLDER_STRUCTURE.md` - File organization standards
 
-- `DEVELOPMENT.md` - Local development setup
-- `TESTING.md` - Testing procedures and checklist
+### 📋 [proposals/](proposals/)
+
+**What we want to build** - Plans and ideas for future work.
+
+| Subdirectory | Contents |
+|--------------|----------|
+| `active/` | Currently being worked on (on roadmap) |
+| `backlog/` | Ideas not yet scheduled |
+
+**Active proposals:**
+- `proposals/active/TECH_DEBT.md` - Tech debt tracking and metrics
+- `proposals/active/MEMORY_MANAGEMENT_COMMANDS.md` - Phase 2 (LTM) in progress
+- `proposals/active/SHAPES_INC_SLASH_COMMAND_DESIGN.md` - Import feature design
+- `proposals/active/V2_FEATURE_TRACKING.md` - Feature parity tracking
+
+**Backlog proposals:**
+- `proposals/backlog/multi-personality-support.md` - Multi-personality channels
+- `proposals/backlog/ltm-context-separation.md` - Memory isolation improvements
+- `proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md` - Future architecture
+
+### 🔥 [incidents/](incidents/)
+
+**What went wrong** - Post-mortems and lessons learned.
+
+**Key docs:**
+- `incidents/PROJECT_POSTMORTEMS.md` - All v3 development post-mortems
 
 ### 🔄 [migration/](migration/)
 
-Data migration guides and procedures.
+**Active migration guides** - Data migration procedures.
 
 **Key docs:**
+- `migration/PERSONA_MIGRATION_GUIDE.md` - Migrating persona data
+- `migration/SHAPES_INC_IMPORT_PLAN.md` - Importing from Shapes.inc
 
-- `PERSONA_MIGRATION_GUIDE.md` - Migrating persona data
-- `SHAPES_INC_IMPORT_PLAN.md` - Importing from Shapes.inc API
-- `SHAPES_INC_MIGRATION_REFERENCE.md` - Migration details and credentials reference
+---
 
-### 📋 [planning/](planning/)
+## Decision Rules
 
-Project planning, roadmaps, and feature tracking.
-
-**Key docs:**
-
-- `V3_REFINEMENT_ROADMAP.md` - Prioritized improvement roadmap
-- `OPENMEMORY_MIGRATION_PLAN.md` - OpenMemory architecture migration plan
-- `V2_FEATURES_TO_PORT.md` - V2 features awaiting v3 implementation
-- `V2_FEATURE_TRACKING.md` - Status of ported features
-
-### ✨ [features/](features/)
-
-Feature-specific documentation and specs.
-
-**Key docs:**
-
-- `SLASH_COMMAND_UX_FEATURES.md` - Discord slash command design
-
-### 💡 [improvements/](improvements/)
-
-Improvement proposals and enhancement ideas.
-
-**Key docs:**
-
-- `MEMORY_INGESTION_IMPROVEMENTS.md` - LTM storage enhancements
-- `QDRANT_TOOLING_NEEDED.md` - Vector DB tooling wishlist
-
-### ⚙️ [operations/](operations/)
-
-Operational procedures and runbooks.
-
-**Key docs:**
-
-- `DATABASE_BACKUP_STRATEGY.md` - Backup and recovery procedures
-
-### 🔥 [postmortems/](postmortems/)
-
-Incident post-mortems and lessons learned.
-
-**Key docs:**
-
-- `PROJECT_POSTMORTEMS.md` - All v3 development post-mortems and prevention measures
-
-### 📚 [reference/](reference/)
-
-Reference documentation and quick lookups.
-
-**Key docs:**
-
-- `RAILWAY_CLI_REFERENCE.md` - Railway CLI command reference
-- `GITHUB_CLI_REFERENCE.md` - GitHub CLI (gh) command reference with common pitfalls
-
-### 📄 [templates/](templates/)
-
-Reusable document templates.
-
-**Key docs:**
-
-- `MIGRATION_TEMPLATE.md` - Template for migration procedures
-
-### 📏 [standards/](standards/)
-
-Coding standards and UX patterns.
-
-**Key docs:**
-
-- `FOLDER_STRUCTURE.md` - File and folder organization standards
-- `SLASH_COMMAND_UX.md` - Discord slash command UX patterns and best practices
+| Question | Answer |
+|----------|--------|
+| Is it implemented? | → `reference/` |
+| Is it a plan/idea? | → `proposals/` (active or backlog) |
+| Is it done/obsolete? | → Extract learnings, then DELETE (git preserves history) |
+| Is it an incident? | → `incidents/` |
 
 ---
 
 ## Quick Links
 
 **Starting Development:**
-
-1. [Development Setup](guides/DEVELOPMENT.md)
-2. [Architecture Overview](architecture/ARCHITECTURE_DECISIONS.md)
-3. [Deployment Guide](deployment/RAILWAY_DEPLOYMENT.md)
+1. [Development Setup](reference/guides/DEVELOPMENT.md)
+2. [Architecture Overview](reference/architecture/ARCHITECTURE_DECISIONS.md)
+3. [Deployment Guide](reference/deployment/RAILWAY_DEPLOYMENT.md)
 
 **Understanding the System:**
-
-1. [Memory System](architecture/memory-and-context-redesign.md)
-2. [Database Schema](architecture/POSTGRES_SCHEMA.md)
-3. [Group Conversations](architecture/group-conversation-design.md)
+1. [Memory System](reference/architecture/memory-and-context-redesign.md)
+2. [Database Schema](reference/architecture/POSTGRES_SCHEMA.md)
+3. [Group Conversations](reference/architecture/group-conversation-design.md)
 
 **Planning Work:**
-
-1. [Refinement Roadmap](planning/V3_REFINEMENT_ROADMAP.md)
-2. [OpenMemory Migration Plan](planning/OPENMEMORY_MIGRATION_PLAN.md)
-3. [Feature Tracking](planning/V2_FEATURE_TRACKING.md)
+1. [Tech Debt Tracking](proposals/active/TECH_DEBT.md)
+2. [Feature Tracking](proposals/active/V2_FEATURE_TRACKING.md)
+3. [OpenMemory Migration](proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
 
 ---
 
@@ -144,38 +99,30 @@ Coding standards and UX patterns.
 
 ### Where to Put New Docs
 
-| Doc Type              | Location        | Example                            |
-| --------------------- | --------------- | ---------------------------------- |
-| Design decision       | `architecture/` | System architecture, data models   |
-| Deployment procedure  | `deployment/`   | Railway setup, environment config  |
-| Developer guide       | `guides/`       | Local setup, debugging, testing    |
-| Migration procedure   | `migration/`    | Data migrations, imports           |
-| Project planning      | `planning/`     | Roadmaps, feature tracking         |
-| Feature spec          | `features/`     | Detailed feature documentation     |
-| Improvement proposal  | `improvements/` | Not-yet-implemented enhancements   |
-| Operational procedure | `operations/`   | Backups, monitoring, incidents     |
-| Post-mortem           | `postmortems/`  | Incident analysis, lessons learned |
-| Reference doc         | `reference/`    | CLI references, API docs           |
-| Coding standard       | `standards/`    | UX patterns, file organization     |
-| Template              | `templates/`    | Reusable document templates        |
-| One-time/completed    | `archive/`      | Historical records                 |
+| Doc Type | Location | When to Use |
+|----------|----------|-------------|
+| Design decision | `reference/architecture/` | After implementation complete |
+| Deployment procedure | `reference/deployment/` | Railway setup, environment config |
+| Developer guide | `reference/guides/` | How-tos for common tasks |
+| Coding standard | `reference/standards/` | Patterns to follow |
+| Active proposal | `proposals/active/` | On the roadmap, being worked |
+| Future idea | `proposals/backlog/` | Good idea, not scheduled |
+| Post-mortem | `incidents/` | After incident resolution |
+| Migration guide | `migration/` | Active data migrations |
 
 ### Naming Conventions
 
 - Use `UPPERCASE_WITH_UNDERSCORES.md` for major documents
 - Use `lowercase-with-dashes.md` for specific topics
 - Be descriptive: `memory-and-context-redesign.md` not `memory.md`
-- Avoid dates in names (use git history instead)
+- Avoid dates in filenames (use git history or frontmatter instead)
 
-### Cross-References
+### Lifecycle Management
 
-When linking to other docs:
-
-```markdown
-See [Memory Architecture](architecture/memory-and-context-redesign.md)
-```
-
-Use relative paths from the current doc location.
+When a proposal is completed:
+1. Extract any reusable learnings to `reference/` or skills
+2. Update incident docs if issues were discovered
+3. Delete the proposal (git history preserves it)
 
 ---
 
@@ -185,7 +132,7 @@ These docs remain in the project root for visibility:
 
 - `README.md` - Project overview and quick start
 - `CLAUDE.md` - Claude Code instructions
-- `CURRENT_WORK.md` - Current work status
-- `ROADMAP.md` - Project roadmap and sprint planning
+- `CURRENT_WORK.md` - Current work status and session context
+- `ROADMAP.md` - Project roadmap and priorities
 
 **Version History:** See [GitHub Releases](https://github.com/lbds137/tzurot/releases)

@@ -26,6 +26,7 @@ Key areas remaining:
 ## High Priority (Deferred): DRY Message Extraction Refactor
 
 **Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)
+**Tech Debt Tracking**: [`docs/proposals/active/TECH_DEBT.md`](docs/proposals/active/TECH_DEBT.md)
 **Estimated Effort**: 2-3 sessions
 **Status**: Planning complete, deferred until after bugfix release
 
