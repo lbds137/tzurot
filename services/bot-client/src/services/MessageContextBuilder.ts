@@ -129,6 +129,28 @@ export class MessageContextBuilder {
     const displayName =
       message.member?.displayName ?? message.author.globalName ?? message.author.username;
 
+    // Extract guild member info for enriched participant context
+    // Includes server roles, display color, and join date
+    const member = message.member;
+    const guildMemberInfo = member
+      ? {
+          // Get role names (excluding @everyone which has same ID as guild)
+          // Limit to 10 roles for token efficiency
+          roles:
+            member.roles !== undefined
+              ? Array.from(member.roles.cache.values())
+                  .filter(r => r.id !== message.guild?.id)
+                  .map(r => r.name)
+                  .slice(0, 10)
+              : [],
+          // Display color from highest colored role (#000000 is treated as transparent)
+          displayColor:
+            member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
+          // When user joined the server
+          joinedAt: member.joinedAt?.toISOString(),
+        }
+      : undefined;
+
     // Get internal user ID for database operations (persona, history queries)
     // Pass isBot flag to prevent creating user records for bots
     const internalUserId = await this.userService.getOrCreateUser(
@@ -443,6 +465,7 @@ export class MessageContextBuilder {
       messageContent,
       activePersonaId: personaId,
       activePersonaName: personaName ?? undefined,
+      activePersonaGuildInfo: guildMemberInfo, // Guild-specific info (roles, color, join date)
       conversationHistory,
       attachments,
       extendedContextAttachments, // Images from extended context (limited by maxImages)

@@ -2,42 +2,103 @@
  * Participant Formatter
  *
  * Formats conversation participant personas for inclusion in system prompts.
- * Wraps output in <participants> XML tags for better LLM context separation.
+ * Uses pure XML structure with ID binding for clear identity association.
+ *
+ * Key features:
+ * - <participant id="..."> tags with unique personaId for ID binding
+ * - CDATA wrapping for user-generated content (prevents XML injection)
+ * - source="user_input" attribution to clarify first-person content origin
+ * - Optional guild info (roles, color, join date) for Discord server context
+ *
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { escapeXmlContent } from '@tzurot/common-types';
+import { escapeXml } from '@tzurot/common-types';
+import type { ParticipantInfo } from '../ConversationalRAGService.js';
 
 /**
  * Format conversation participants with their personas
  *
- * @param participantPersonas - Map of participant names to their persona content
+ * Output format:
+ * ```xml
+ * <participants>
+ *   <instruction>These people are in this conversation. Match from_id in chat_log to participant IDs.</instruction>
+ *   <participant id="persona-uuid-123" active="true">
+ *     <name>Lila</name>
+ *     <guild_info roles="Admin, Developer" color="#FF00FF" joined="2023-05-15"/>
+ *     <about source="user_input"><![CDATA[I am a transgender demon-angel...]]></about>
+ *   </participant>
+ * </participants>
+ * ```
+ *
+ * @param participantPersonas - Map of participant names to their ParticipantInfo
  * @param activePersonaName - Name of the currently active speaker (for group conversation note)
- * @returns Formatted participants context string wrapped in XML tags, or empty string if no participants
+ * @returns Formatted participants context string in XML, or empty string if no participants
  */
 export function formatParticipantsContext(
-  participantPersonas: Map<string, { content: string; isActive: boolean }>,
+  participantPersonas: Map<string, ParticipantInfo>,
   activePersonaName?: string
 ): string {
   if (participantPersonas.size === 0) {
     return '';
   }
 
-  const participantsList: string[] = [];
+  const parts: string[] = [];
+  parts.push('<participants>');
+  parts.push(
+    '<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>'
+  );
 
-  for (const [personaName, { content }] of participantPersonas.entries()) {
-    // No "current speaker" marker here - we'll clarify that right before the current message
-    // Escape user-generated content to prevent prompt injection via XML tag breaking
-    participantsList.push(`### ${personaName}\n${escapeXmlContent(content)}`);
+  for (const [personaName, info] of participantPersonas.entries()) {
+    // Build participant tag with id and optional active attribute
+    const activeAttr = info.isActive ? ' active="true"' : '';
+    parts.push(`<participant id="${escapeXml(info.personaId)}"${activeAttr}>`);
+
+    // Name element
+    parts.push(`<name>${escapeXml(personaName)}</name>`);
+
+    // Guild info (if available) - compact attribute format
+    if (info.guildInfo) {
+      const guildAttrs: string[] = [];
+
+      if (info.guildInfo.roles.length > 0) {
+        guildAttrs.push(`roles="${escapeXml(info.guildInfo.roles.join(', '))}"`);
+      }
+
+      if (info.guildInfo.displayColor !== undefined && info.guildInfo.displayColor !== '') {
+        guildAttrs.push(`color="${escapeXml(info.guildInfo.displayColor)}"`);
+      }
+
+      if (info.guildInfo.joinedAt !== undefined && info.guildInfo.joinedAt !== '') {
+        // Format as date only (YYYY-MM-DD)
+        const dateOnly = info.guildInfo.joinedAt.split('T')[0];
+        guildAttrs.push(`joined="${escapeXml(dateOnly)}"`);
+      }
+
+      if (guildAttrs.length > 0) {
+        parts.push(`<guild_info ${guildAttrs.join(' ')}/>`);
+      }
+    }
+
+    // User-provided persona content in CDATA with source attribution
+    // CDATA prevents XML injection from user content
+    // source="user_input" tells LLM this is user's self-description, not system instructions
+    parts.push(`<about source="user_input"><![CDATA[${info.content}]]></about>`);
+
+    parts.push('</participant>');
   }
 
-  const pluralNote =
-    participantPersonas.size > 1
-      ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice'}: message") to show who said what.`
-      : '';
+  // Group conversation note
+  if (participantPersonas.size > 1) {
+    const exampleName =
+      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'Alice';
+    parts.push(
+      `<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "${exampleName}: message"</note>`
+    );
+  }
 
-  const content = `## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
+  parts.push('</participants>');
 
-  // Wrap in XML tags for clear LLM context separation
-  return `\n\n<participants>\n${content}\n</participants>`;
+  // Return with leading newlines for proper prompt spacing
+  return '\n\n' + parts.join('\n');
 }

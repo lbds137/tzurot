@@ -16,7 +16,11 @@ import {
   formatMemoryTimestamp,
   type LoadedPersonality,
 } from '@tzurot/common-types';
-import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
+import type {
+  MemoryDocument,
+  ConversationContext,
+  ParticipantInfo,
+} from './ConversationalRAGService.js';
 import { PersonaResolver } from './resolvers/index.js';
 
 const logger = createLogger('MemoryRetriever');
@@ -140,12 +144,18 @@ export class MemoryRetriever {
 
   /**
    * Get ALL participant personas from conversation
-   * Returns a Map of personaName -> persona content for all users in the conversation
+   * Returns a Map of personaName -> ParticipantInfo for all users in the conversation
+   *
+   * The map includes:
+   * - content: User's persona description
+   * - isActive: Whether this is the current speaker
+   * - personaId: UUID for ID binding in chat_log
+   * - guildInfo: Optional guild-specific info (roles, color, join date) for active speaker
    */
   async getAllParticipantPersonas(
     context: ConversationContext
-  ): Promise<Map<string, { content: string; isActive: boolean }>> {
-    const personaMap = new Map<string, { content: string; isActive: boolean }>();
+  ): Promise<Map<string, ParticipantInfo>> {
+    const personaMap = new Map<string, ParticipantInfo>();
 
     if (!context.participants || context.participants.length === 0) {
       logger.debug(`[MemoryRetriever] No participants provided in context`);
@@ -160,9 +170,14 @@ export class MemoryRetriever {
     for (const participant of context.participants) {
       const content = await this.getPersonaContent(participant.personaId);
       if (content !== null && content.length > 0) {
+        // Include guild info only for the active speaker (from context)
+        const guildInfo = participant.isActive ? context.activePersonaGuildInfo : undefined;
+
         personaMap.set(participant.personaName, {
           content,
           isActive: participant.isActive,
+          personaId: participant.personaId,
+          guildInfo,
         });
 
         logger.debug(

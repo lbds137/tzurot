@@ -10,6 +10,18 @@
 
 ---
 
+## TODO: Reduce ESLint Warnings
+
+**Current**: 110 warnings (up from ~84)
+**Target**: Get below 80 warnings
+
+Key areas to address:
+- `max-lines-per-function`, `complexity`, `max-statements` in large functions
+- `@typescript-eslint/no-non-null-assertion` in VoiceContextMerger
+- Consider extracting helper functions or splitting complex files
+
+---
+
 ## High Priority (Deferred): DRY Message Extraction Refactor
 
 **Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)

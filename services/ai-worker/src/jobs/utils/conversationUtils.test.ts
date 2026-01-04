@@ -1244,6 +1244,157 @@ describe('Conversation Utilities', () => {
     });
   });
 
+  describe('from_id Binding (ID Linking)', () => {
+    it('should include from_id attribute when personaId is present for user messages', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Alice',
+          personaId: 'persona-uuid-123',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('from_id="persona-uuid-123"');
+      expect(result).toContain('from="Alice"');
+      expect(result).toContain('role="user"');
+    });
+
+    it('should not include from_id attribute when personaId is missing', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Alice',
+          // No personaId
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('from_id=');
+      expect(result).toContain('from="Alice"');
+    });
+
+    it('should not include from_id attribute when personaId is empty', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Alice',
+          personaId: '',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('from_id=');
+    });
+
+    it('should not include from_id attribute for assistant messages', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Hello!',
+          personaId: 'persona-uuid-123', // Even if present, assistant shouldn't have from_id
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('from_id=');
+      expect(result).toContain('from="TestBot"');
+      expect(result).toContain('role="assistant"');
+    });
+
+    it('should escape special characters in personaId', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Alice',
+          personaId: 'persona&uuid"123',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // personaId should be escaped for use in XML attribute
+      expect(result).toContain('from_id="persona&amp;uuid&quot;123"');
+    });
+
+    it('should include from_id in correct position within message tag', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello!',
+          personaName: 'Alice',
+          personaId: 'persona-uuid-123',
+          createdAt: '2025-01-01T00:00:00Z',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Format should be: <message from="..." from_id="..." role="..." time="...">
+      expect(result).toMatch(/<message from="Alice" from_id="persona-uuid-123" role="user" time="just now">/);
+    });
+
+    it('should include from_id in length calculation (getFormattedMessageCharLength)', () => {
+      const msgWithPersonaId: RawHistoryEntry = {
+        role: 'user',
+        content: 'Hello!',
+        personaName: 'Alice',
+        personaId: 'persona-uuid-123',
+      };
+
+      const msgWithoutPersonaId: RawHistoryEntry = {
+        role: 'user',
+        content: 'Hello!',
+        personaName: 'Alice',
+      };
+
+      const withId = getFormattedMessageCharLength(msgWithPersonaId, 'TestBot');
+      const withoutId = getFormattedMessageCharLength(msgWithoutPersonaId, 'TestBot');
+
+      // With from_id, length should be greater
+      expect(withId).toBeGreaterThan(withoutId);
+      // The difference should be approximately the length of ' from_id="persona-uuid-123"'
+      expect(withId - withoutId).toBeGreaterThan(20);
+    });
+
+    it('should handle multiple messages with different personaIds', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello from Alice!',
+          personaName: 'Alice',
+          personaId: 'alice-uuid',
+        },
+        {
+          role: 'assistant',
+          content: 'Hi Alice!',
+        },
+        {
+          role: 'user',
+          content: 'Hello from Bob!',
+          personaName: 'Bob',
+          personaId: 'bob-uuid',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('from_id="alice-uuid"');
+      expect(result).toContain('from_id="bob-uuid"');
+      // Assistant message should not have from_id
+      const assistantLine = result.split('\n').find(l => l.includes('role="assistant"'));
+      expect(assistantLine).not.toContain('from_id=');
+    });
+  });
+
   describe('Persona/Personality Name Collision Detection', () => {
     it('should disambiguate user messages when persona name matches personality name', () => {
       const history: RawHistoryEntry[] = [

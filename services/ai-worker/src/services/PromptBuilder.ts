@@ -14,7 +14,11 @@ import {
   countTextTokens,
   escapeXmlContent,
 } from '@tzurot/common-types';
-import type { MemoryDocument, ConversationContext } from './ConversationalRAGService.js';
+import type {
+  MemoryDocument,
+  ConversationContext,
+  ParticipantInfo,
+} from './ConversationalRAGService.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
@@ -26,7 +30,7 @@ const config = getConfig();
 /** Options for building a full system prompt */
 export interface BuildFullSystemPromptOptions {
   personality: LoadedPersonality;
-  participantPersonas: Map<string, { content: string; isActive: boolean }>;
+  participantPersonas: Map<string, ParticipantInfo>;
   relevantMemories: MemoryDocument[];
   context: ConversationContext;
   referencedMessagesFormatted?: string;

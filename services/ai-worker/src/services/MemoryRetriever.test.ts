@@ -169,8 +169,16 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context);
 
       expect(result.size).toBe(2);
-      expect(result.get('User One')).toEqual({ content: 'Persona 1 content', isActive: true });
-      expect(result.get('User Two')).toEqual({ content: 'Persona 2 content', isActive: false });
+      expect(result.get('User One')).toEqual({
+        content: 'Persona 1 content',
+        isActive: true,
+        personaId: 'persona-1',
+      });
+      expect(result.get('User Two')).toEqual({
+        content: 'Persona 2 content',
+        isActive: false,
+        personaId: 'persona-2',
+      });
     });
 
     it('should skip participants with no content', async () => {
@@ -189,7 +197,11 @@ describe('MemoryRetriever', () => {
       const result = await retriever.getAllParticipantPersonas(context);
 
       expect(result.size).toBe(1);
-      expect(result.get('Has Content')).toEqual({ content: 'Has content', isActive: true });
+      expect(result.get('Has Content')).toEqual({
+        content: 'Has content',
+        isActive: true,
+        personaId: 'persona-1',
+      });
       expect(result.has('No Content')).toBe(false);
     });
   });

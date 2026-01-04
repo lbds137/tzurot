@@ -54,6 +54,12 @@ export interface ConversationContext {
   activePersonaId?: string;
   activePersonaName?: string;
   discordUsername?: string;
+  /** Guild-specific info about the active speaker (roles, color, join date) */
+  activePersonaGuildInfo?: {
+    roles: string[];
+    displayColor?: string;
+    joinedAt?: string;
+  };
   conversationHistory?: BaseMessage[];
   rawConversationHistory?: {
     /** Message ID - for extended context messages this IS the Discord message ID */
@@ -116,9 +122,26 @@ export interface ProcessedInputs {
   // injected inline into conversation history entries for better context colocation
 }
 
+/**
+ * Participant info for prompt formatting
+ * Keyed by personaName for display, includes personaId for ID binding
+ */
+export interface ParticipantInfo {
+  content: string;
+  isActive: boolean;
+  /** Persona ID for linking to chat_log messages via from_id attribute */
+  personaId: string;
+  /** Guild-specific info (roles, display color, join date) */
+  guildInfo?: {
+    roles: string[];
+    displayColor?: string;
+    joinedAt?: string;
+  };
+}
+
 /** Result of loading personas and resolving user references */
 export interface PersonaLoadResult {
-  participantPersonas: Map<string, { content: string; isActive: boolean }>;
+  participantPersonas: Map<string, ParticipantInfo>;
   processedPersonality: LoadedPersonality;
 }
 
@@ -146,7 +169,7 @@ export interface ModelInvocationResult {
 export interface BudgetAllocationOptions {
   personality: LoadedPersonality;
   processedPersonality: LoadedPersonality;
-  participantPersonas: Map<string, { content: string; isActive: boolean }>;
+  participantPersonas: Map<string, ParticipantInfo>;
   retrievedMemories: MemoryDocument[];
   context: ConversationContext;
   userMessage: string;
@@ -163,7 +186,7 @@ export interface ModelInvocationOptions {
   userMessage: string;
   processedAttachments: ProcessedAttachment[];
   context: ConversationContext;
-  participantPersonas: Map<string, { content: string; isActive: boolean }>;
+  participantPersonas: Map<string, ParticipantInfo>;
   referencedMessagesDescriptions: string | undefined;
   userApiKey?: string;
 }

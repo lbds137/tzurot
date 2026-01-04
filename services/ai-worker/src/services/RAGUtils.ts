@@ -7,6 +7,7 @@
 
 import { createLogger, AttachmentType } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import type { ParticipantInfo } from './ConversationalRAGService.js';
 
 const logger = createLogger('RAGUtils');
 
@@ -70,7 +71,7 @@ export function buildAttachmentDescriptions(
  */
 export function generateStopSequences(
   personalityName: string,
-  participantPersonas: Map<string, { content: string; isActive: boolean }>
+  participantPersonas: Map<string, ParticipantInfo>
 ): string[] {
   // Priority 1: XML tag stop sequences (most critical - prevent format leakage)
   // Must match actual tags used in formatConversationHistoryAsXml()

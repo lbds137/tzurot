@@ -54,6 +54,7 @@ export type {
   DiscordEnvironment,
   ConversationContext,
   RAGResponse,
+  ParticipantInfo,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationalRAGService');
