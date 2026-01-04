@@ -6,9 +6,11 @@
   "description": "API gateway service for Tzurot bot",
   "main": "dist/index.js",
   "scripts": {
+    "clean": "find src -name '*.js' -type f -delete && find src -name '*.js.map' -type f -delete",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "pretest": "npm run clean",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
