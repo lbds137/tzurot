@@ -122,7 +122,9 @@ export async function fetchAllCharacters(
       updatedAt: '',
     } as CharacterData;
 
-    if (p.isOwned) {
+    // Use ownerDiscordId for categorization (not isOwned which is true for bot owner on all)
+    // This ensures bot owner sees proper "Your Characters" vs "Others' Characters" separation
+    if (p.ownerDiscordId === userId) {
       owned.push(charData);
     } else {
       publicOthers.push(charData);
