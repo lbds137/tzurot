@@ -248,7 +248,7 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
     if (namesMatch && discordUsername.length === 0) {
       logger.error(
         { personalityId: personality.id, activePersonaName },
-        '[PromptBuilder] Name collision detected but cannot add instruction (missing discordUsername)'
+        '[PromptBuilder] Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
       );
     }
 
