@@ -65,7 +65,10 @@ export interface JobContext {
   activePersonaName?: string;
   /** Guild-specific info about the active speaker (roles, color, join date) */
   activePersonaGuildInfo?: GuildMemberInfo;
-  /** Guild info for other participants (from extended context, keyed by personaId) */
+  /**
+   * Guild info for other participants (from extended context, keyed by personaId)
+   * @example { 'discord:user-123': { roles: ['Admin', 'Developer'], displayColor: '#FF5733' } }
+   */
   participantGuildInfo?: Record<string, GuildMemberInfo>;
   conversationHistory?: {
     id?: string;
