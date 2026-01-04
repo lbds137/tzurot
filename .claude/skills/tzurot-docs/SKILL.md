@@ -64,12 +64,12 @@ docs/
 
 ## Decision Rules
 
-| Question | Answer |
-|----------|--------|
-| Is it implemented? | → `reference/` |
-| Is it a plan/idea? | → `proposals/` (active or backlog) |
-| Is it done/obsolete? | → Extract learnings, then DELETE |
-| Is it an incident? | → `incidents/` |
+| Question             | Answer                             |
+| -------------------- | ---------------------------------- |
+| Is it implemented?   | → `reference/`                     |
+| Is it a plan/idea?   | → `proposals/` (active or backlog) |
+| Is it done/obsolete? | → Extract learnings, then DELETE   |
+| Is it an incident?   | → `incidents/`                     |
 
 ## Proposal Lifecycle
 
@@ -118,15 +118,15 @@ git commit -m "wip: feature-name - progress description"
 
 ## Documentation Categories
 
-| Type | Location | Purpose |
-|------|----------|---------|
-| Architecture decisions | `docs/reference/architecture/` | Why we built it this way |
-| Deployment guides | `docs/reference/deployment/` | Railway setup, operations |
-| Development guides | `docs/reference/guides/` | How to do X |
-| Coding standards | `docs/reference/standards/` | Patterns to follow |
-| Active proposals | `docs/proposals/active/` | Currently being worked |
-| Future ideas | `docs/proposals/backlog/` | Not yet scheduled |
-| Post-mortems | `docs/incidents/` | Incident analysis |
+| Type                   | Location                       | Purpose                   |
+| ---------------------- | ------------------------------ | ------------------------- |
+| Architecture decisions | `docs/reference/architecture/` | Why we built it this way  |
+| Deployment guides      | `docs/reference/deployment/`   | Railway setup, operations |
+| Development guides     | `docs/reference/guides/`       | How to do X               |
+| Coding standards       | `docs/reference/standards/`    | Patterns to follow        |
+| Active proposals       | `docs/proposals/active/`       | Currently being worked    |
+| Future ideas           | `docs/proposals/backlog/`      | Not yet scheduled         |
+| Post-mortems           | `docs/incidents/`              | Incident analysis         |
 
 ## GitHub Releases Format
 
@@ -152,14 +152,14 @@ git commit -m "wip: feature-name - progress description"
 
 ## Anti-Patterns
 
-| ❌ Don't | ✅ Do |
-|----------|-------|
-| Multiple docs for same topic | One comprehensive guide |
-| Stale CURRENT_WORK.md | Update at session end |
-| README in every directory | One main README |
-| Document obvious things | Document non-obvious |
-| Archive obsolete docs | Delete (extract learnings first) |
-| Date-stamped filenames | Frontmatter dates |
+| ❌ Don't                     | ✅ Do                            |
+| ---------------------------- | -------------------------------- |
+| Multiple docs for same topic | One comprehensive guide          |
+| Stale CURRENT_WORK.md        | Update at session end            |
+| README in every directory    | One main README                  |
+| Document obvious things      | Document non-obvious             |
+| Archive obsolete docs        | Delete (extract learnings first) |
+| Date-stamped filenames       | Frontmatter dates                |
 
 ## Context Preservation
 

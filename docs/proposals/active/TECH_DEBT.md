@@ -14,6 +14,7 @@ This document consolidates all technical debt tracking for Tzurot v3. It replace
 **Target**: Continue reducing where practical
 
 Remaining high-complexity areas:
+
 - `MessageContentBuilder.ts` - `buildMessageContent()` complexity 37 (needs IR pattern refactor, deferred)
 - `SettingsModalFactory.ts` - `parseDurationInput()` complexity 26 (parsing logic inherent)
 
@@ -48,6 +49,7 @@ Remaining high-complexity areas:
 **Solution**: Intermediate Representation (IR) pattern - single extraction function
 
 Recent bugs from this pattern:
+
 - 2026-01-03: Forwarded message attachments not extracted in extended context
 - 2026-01-03: Google API rejected >16 stop sequences
 - Previous: Extended context missing embed images, voice transcript inconsistencies
@@ -74,27 +76,27 @@ Recent bugs from this pattern:
 
 Timer-based cleanup patterns that prevent horizontal scaling:
 
-| File | Pattern | Migration Path |
-|------|---------|----------------|
-| `LlmConfigResolver.ts` | Cache cleanup interval | BullMQ repeatable job |
-| `WebhookManager.ts` | Webhook cleanup interval | BullMQ repeatable job |
-| `DatabaseNotificationListener.ts` | Reconnection timeout | Redis-based coordination |
+| File                              | Pattern                  | Migration Path           |
+| --------------------------------- | ------------------------ | ------------------------ |
+| `LlmConfigResolver.ts`            | Cache cleanup interval   | BullMQ repeatable job    |
+| `WebhookManager.ts`               | Webhook cleanup interval | BullMQ repeatable job    |
+| `DatabaseNotificationListener.ts` | Reconnection timeout     | Redis-based coordination |
 
 ---
 
 ## Completed Large File Refactoring
 
-| File | Before | After | Method |
-|------|--------|-------|--------|
-| `ConversationHistoryService.ts` | 704 | 455 | Extracted ConversationRetentionService |
-| `api-gateway/index.ts` | 558 | 259 | Split into bootstrap/, middleware/, routes/ |
-| `LLMGenerationHandler.ts` | 617 | 131 | Pipeline pattern with 6 steps |
-| `PgvectorMemoryAdapter.ts` | 901 | 529 | Extracted memoryUtils.ts + PgvectorQueryBuilder |
-| `MentionResolver.ts` | 527 | 473 | Extracted MentionResolverTypes.ts |
-| `PromptBuilder.ts` | 627 | 496 | Extracted PersonalityFieldsFormatter |
-| `history.ts` | 554 | 496 | Extracted historyContextResolver |
-| `channel/list.ts` | 512 | 488 | Extracted listTypes.ts |
-| `character/view.ts` | 508 | 478 | Extracted viewTypes.ts |
+| File                            | Before | After | Method                                          |
+| ------------------------------- | ------ | ----- | ----------------------------------------------- |
+| `ConversationHistoryService.ts` | 704    | 455   | Extracted ConversationRetentionService          |
+| `api-gateway/index.ts`          | 558    | 259   | Split into bootstrap/, middleware/, routes/     |
+| `LLMGenerationHandler.ts`       | 617    | 131   | Pipeline pattern with 6 steps                   |
+| `PgvectorMemoryAdapter.ts`      | 901    | 529   | Extracted memoryUtils.ts + PgvectorQueryBuilder |
+| `MentionResolver.ts`            | 527    | 473   | Extracted MentionResolverTypes.ts               |
+| `PromptBuilder.ts`              | 627    | 496   | Extracted PersonalityFieldsFormatter            |
+| `history.ts`                    | 554    | 496   | Extracted historyContextResolver                |
+| `channel/list.ts`               | 512    | 488   | Extracted listTypes.ts                          |
+| `character/view.ts`             | 508    | 478   | Extracted viewTypes.ts                          |
 
 ---
 
