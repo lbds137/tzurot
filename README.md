@@ -226,7 +226,7 @@ pnpm format
 
 **BYOK Enabled**: Users can bring their own API keys via `/wallet` commands. Guest users without keys get access to free models only.
 
-See [Railway Deployment Guide](docs/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
+See [Railway Deployment Guide](docs/reference/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
 
 ```bash
 # Deploy updates (auto-deploys on push to develop)
@@ -256,19 +256,19 @@ pnpm dev
 
 - **[CURRENT_WORK.md](CURRENT_WORK.md)** - Current project status and what's being worked on
 - **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** - Version history and changelogs
-- **[V2 Feature Tracking](docs/planning/V2_FEATURE_TRACKING.md)** - What's been ported from v2
+- **[V2 Feature Tracking](docs/proposals/active/V2_FEATURE_TRACKING.md)** - What's been ported from v2
 
 ### Architecture & Design
 
-- **[Architecture Decisions](docs/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
+- **[Architecture Decisions](docs/reference/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
 - **[Independent Component Timeouts](packages/common-types/src/constants/timing.ts)** - Component-specific timeout configuration
 - **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
 
 ### Development Guides
 
-- **[Development Guide](docs/guides/DEVELOPMENT.md)** - Local development setup
-- **[Testing Guide](docs/guides/TESTING.md)** - Testing philosophy and patterns
-- **[Deployment Guide](docs/deployment/RAILWAY_DEPLOYMENT.md)** - Railway deployment guide
+- **[Development Guide](docs/reference/guides/DEVELOPMENT.md)** - Local development setup
+- **[Testing Guide](docs/reference/guides/TESTING.md)** - Testing philosophy and patterns
+- **[Deployment Guide](docs/reference/deployment/RAILWAY_DEPLOYMENT.md)** - Railway deployment guide
 
 ## Project History
 

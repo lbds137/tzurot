@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2025-12-30
-> **Current Version**: v3.0.0-beta.29
+> **Last Updated**: 2026-01-04
+> **Current Version**: v3.0.0-beta.33
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -18,7 +18,7 @@
 
 **Why first**: User-requested, high retention value. Comprehensive memory control enables privacy features.
 
-**Reference**: [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md)
+**Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
 **Phase 1 - STM (COMPLETE - beta.19):**
 
@@ -98,7 +98,7 @@ Big architecture change for LTM. Waypoint graph with multi-sector storage (episo
 
 **Deferred because**: Scary change that touches core LTM. Wait until we see how users use the simpler LTM improvements first. Agentic scaffolding should come first.
 
-Reference: [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)
+Reference: [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
 
 ### Image Generation + Voice Synthesis
 
@@ -144,7 +144,7 @@ Not needed until post-beta when we care about semantic versioning again.
 
 ### Technical Debt
 
-- [ ] 106 lint warnings (complexity issues) - down from 142
+- [ ] 72 lint warnings (complexity issues) - down from 142
 - [ ] Consolidate `scripts/data/import-personality/` workspace
 - [ ] Increase test coverage for `WebhookManager`
 - [ ] Document `advancedParameters` JSONB structures
@@ -195,6 +195,6 @@ Ideas for later. Resist the shiny object.
 
 ## Related Docs
 
-- [docs/planning/OPENMEMORY_MIGRATION_PLAN.md](docs/planning/OPENMEMORY_MIGRATION_PLAN.md)
-- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md)
+- [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
+- [docs/proposals/active/V2_FEATURE_TRACKING.md](docs/proposals/active/V2_FEATURE_TRACKING.md)
 - [docs/reference/v2-patterns-reference.md](docs/reference/v2-patterns-reference.md)
