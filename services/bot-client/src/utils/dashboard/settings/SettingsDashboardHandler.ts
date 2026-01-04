@@ -33,7 +33,7 @@ import {
   buildSettingMessage,
   getSettingById,
 } from './SettingsDashboardBuilder.js';
-import { buildSettingEditModal } from './SettingsModalFactory.js';
+import { buildSettingEditModal, parseDurationInput } from './SettingsModalFactory.js';
 import { getSessionManager } from '../SessionManager.js';
 
 const logger = createLogger('SettingsDashboardHandler');
@@ -508,75 +508,25 @@ function parseNumericInputValue(
 }
 
 /**
- * Parse duration input value
+ * Parse duration input and convert to simple value format
+ *
+ * Adapts the canonical parseDurationInput from SettingsModalFactory
+ * to the format used by this handler (null=auto, -1=off, number=seconds).
  */
 function parseDurationInputValue(input: string): { value?: number | null; error?: string } {
-  const trimmed = input.trim().toLowerCase();
+  const result = parseDurationInput(input);
 
-  // Empty or "auto" means inherit
-  if (trimmed === '' || trimmed === 'auto') {
-    return { value: null };
+  switch (result.type) {
+    case 'auto':
+      return { value: null };
+    case 'off':
+      // -1 is a sentinel for "off" - the handler interprets this
+      return { value: -1 };
+    case 'value':
+      return { value: result.seconds };
+    case 'error':
+      return { error: result.message };
   }
-
-  // "off" means disabled (null seconds stored as special value)
-  if (trimmed === 'off' || trimmed === 'disabled' || trimmed === 'none') {
-    // Return -1 as a sentinel for "off" - the handler should interpret this
-    return { value: -1 };
-  }
-
-  // Try to parse as duration (e.g., "2h", "30m", "1d")
-  const durationMatch =
-    /^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.exec(
-      trimmed
-    );
-
-  if (durationMatch === null) {
-    return {
-      error: `Invalid duration: "${input}". Use formats like 2h, 30m, 1d, or "off".`,
-    };
-  }
-
-  const value = parseInt(durationMatch[1], 10);
-  const unit = durationMatch[2].toLowerCase();
-
-  let seconds: number;
-  switch (unit) {
-    case 's':
-    case 'sec':
-    case 'secs':
-    case 'second':
-    case 'seconds':
-      seconds = value;
-      break;
-    case 'm':
-    case 'min':
-    case 'mins':
-    case 'minute':
-    case 'minutes':
-      seconds = value * 60;
-      break;
-    case 'h':
-    case 'hr':
-    case 'hrs':
-    case 'hour':
-    case 'hours':
-      seconds = value * 60 * 60;
-      break;
-    case 'd':
-    case 'day':
-    case 'days':
-      seconds = value * 60 * 60 * 24;
-      break;
-    default:
-      return { error: `Unknown time unit: ${unit}` };
-  }
-
-  // Validate minimum (1 minute)
-  if (seconds < 60) {
-    return { error: 'Duration must be at least 1 minute' };
-  }
-
-  return { value: seconds };
 }
 
 // Session storage helpers using existing SessionManager

@@ -63,22 +63,33 @@ export function isVoiceMessage(message: Message): boolean {
  * Check if a message is a bot transcript reply to a voice message
  */
 export function isTranscriptReply(message: Message, botUserId: string): boolean {
+  return getTranscriptVoiceMessageId(message, botUserId) !== null;
+}
+
+/**
+ * Extract voice message ID from a bot transcript reply
+ *
+ * Returns the referenced voice message ID if this is a valid transcript reply,
+ * or null if not. This avoids non-null assertions after isTranscriptReply checks.
+ */
+function getTranscriptVoiceMessageId(message: Message, botUserId: string): string | null {
   // Must be from the bot
   if (message.author.id !== botUserId) {
-    return false;
+    return null;
   }
 
   // Must be a reply to another message
-  if (message.reference?.messageId === undefined) {
-    return false;
+  const voiceMessageId = message.reference?.messageId;
+  if (voiceMessageId === undefined) {
+    return null;
   }
 
   // Must have text content (the transcript)
   if (message.content.length === 0) {
-    return false;
+    return null;
   }
 
-  return true;
+  return voiceMessageId;
 }
 
 /**
@@ -114,8 +125,8 @@ export function mergeVoiceContext(
 
   // First pass: identify transcript replies and store them
   for (const msg of sortedMessages) {
-    if (isTranscriptReply(msg, botUserId)) {
-      const voiceMessageId = msg.reference!.messageId!;
+    const voiceMessageId = getTranscriptVoiceMessageId(msg, botUserId);
+    if (voiceMessageId !== null) {
       pendingTranscripts.set(voiceMessageId, {
         message: msg,
         content: msg.content,
@@ -134,9 +145,9 @@ export function mergeVoiceContext(
   for (const msg of sortedMessages) {
     // Skip bot transcript replies for now - we'll add orphans back at the end
     // We only skip if this transcript is in our pending map (it references a voice message)
-    if (isTranscriptReply(msg, botUserId)) {
-      const voiceMessageId = msg.reference!.messageId!;
-      if (pendingTranscripts.has(voiceMessageId)) {
+    const transcriptVoiceId = getTranscriptVoiceMessageId(msg, botUserId);
+    if (transcriptVoiceId !== null) {
+      if (pendingTranscripts.has(transcriptVoiceId)) {
         // Don't add to result yet - wait to see if voice message is found
         continue;
       }

@@ -19,8 +19,12 @@ Does staleness cause incorrect behavior?
 │         (e.g., channel activations - stale = missed messages)
 │
 └── NO → Is it expensive external API data?
-         ├── YES → Redis with TTL
-         │         (e.g., OpenRouter model list - shared across instances)
+         ├── YES → Must survive Redis restarts?
+         │         ├── YES → Two-tier (L1 Redis + L2 PostgreSQL)
+         │         │         (e.g., vision descriptions - expensive API, immutable)
+         │         │
+         │         └── NO → Redis with TTL
+         │                  (e.g., OpenRouter model list - shared across instances)
          │
          └── NO → Is it read-heavy optimization?
                   ├── YES → In-memory TTL only
@@ -101,7 +105,72 @@ return models;
 - `VoiceTranscriptCache.ts` - Voice transcripts (5min Redis TTL)
 - `RedisDeduplicationCache.ts` - Request dedup (5sec Redis TTL)
 
-### 3. In-Memory TTL Cache
+### 3. Two-Tier Cache (L1 Redis + L2 PostgreSQL)
+
+**Use when**: Data is expensive to compute, shared across instances, and must survive Redis restarts.
+
+**Pattern**: L1 (Redis with TTL) → L2 (PostgreSQL persistent) → API fallback → write to both tiers.
+
+**Example**: Vision description cache (image → text descriptions)
+
+```
+Lookup Flow:
+1. Check L1 (Redis) → cache HIT → return
+2. Check L2 (PostgreSQL) → cache HIT → populate L1 → return
+3. Call vision API → store in both L1 and L2 → return
+```
+
+```typescript
+// L1: VisionDescriptionCache (Redis, 1h TTL)
+const l1Cache = new VisionDescriptionCache(redis);
+
+// L2: PersistentVisionCache (PostgreSQL, no TTL)
+const l2Cache = new PersistentVisionCache(prisma);
+
+// Lookup pattern
+async function getImageDescription(attachmentId: string): Promise<string> {
+  // L1 check
+  const l1Result = await l1Cache.get(attachmentId);
+  if (l1Result) return l1Result;
+
+  // L2 check
+  const l2Result = await l2Cache.get(attachmentId);
+  if (l2Result) {
+    // Populate L1 from L2
+    await l1Cache.set(attachmentId, l2Result.description, l2Result.model);
+    return l2Result.description;
+  }
+
+  // API fallback
+  const description = await callVisionAPI(imageUrl);
+
+  // Write to both tiers
+  await Promise.all([
+    l1Cache.set(attachmentId, description, model),
+    l2Cache.set({ attachmentId, description, model }),
+  ]);
+
+  return description;
+}
+```
+
+**Key strategy**: Uses Discord attachment snowflake IDs (stable) instead of ephemeral CDN URLs (expire after ~24h). This ensures cache hits even when the URL changes.
+
+**Current implementations**:
+
+| Tier | Service                     | Storage    | TTL     | Purpose                     |
+| ---- | --------------------------- | ---------- | ------- | --------------------------- |
+| L1   | `VisionDescriptionCache.ts` | Redis      | 1 hour  | Fast lookup, network-shared |
+| L2   | `PersistentVisionCache.ts`  | PostgreSQL | Forever | Survives Redis restarts     |
+
+**When to use this pattern**:
+
+- API calls are expensive ($$$) or rate-limited
+- Data changes rarely or never (image descriptions are immutable)
+- Redis may restart (Railway deployments)
+- Historical data has long-tail access patterns
+
+### 4. In-Memory TTL Cache
 
 **Use when**: Read-heavy optimization where staleness is acceptable UX (not correctness) issue.
 
@@ -131,7 +200,7 @@ return fresh;
 - `ModelCapabilityChecker.ts` - Vision capability flags (5min TTL)
 - `PersonalityService.ts` cache - Loaded personalities (5min TTL, pub/sub invalidation)
 
-### 4. In-Memory Map (No TTL)
+### 5. In-Memory Map (No TTL)
 
 **Use when**: Rate limiting or cooldowns where local-per-instance is actually **correct**.
 
@@ -182,7 +251,7 @@ function setCooldown(key: string): void {
 | Personality            | `PersonalityService.ts`      | 5 min     | None         | Has pub/sub      |
 | Model Capability       | `ModelCapabilityChecker.ts`  | 5 min     | None         | Reads from Redis |
 | OpenRouter Models      | `OpenRouterModelCache.ts`    | 24h Redis | None         | Redis is truth   |
-| Vision Description     | `VisionDescriptionCache.ts`  | 1 hour    | None         | Redis-backed     |
+| Vision Description     | `VisionDescriptionCache.ts`  | 1 hour    | None         | L1/L2 two-tier   |
 | Voice Transcript       | `VoiceTranscriptCache.ts`    | 5 min     | None         | Redis-backed     |
 | Request Dedup          | `RedisDeduplicationCache.ts` | 5 sec     | None         | Redis-backed     |
 
