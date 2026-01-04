@@ -541,6 +541,101 @@ describe('BullMQ Job Contract Tests', () => {
     });
   });
 
+  describe('JobContext Guild Info Fields', () => {
+    it('should include participantGuildInfo for extended context participants', () => {
+      // This test ensures participantGuildInfo is not lost in the job context
+      // Bug: participantGuildInfo was missing from JobContext, causing guild roles to be lost
+      const validJob: LLMGenerationJobData = {
+        requestId: 'req-guild-info-test',
+        jobType: JobType.LLMGeneration,
+        responseDestination: { type: 'discord', channelId: 'channel-123' },
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+        },
+        message: 'Hello!',
+        context: {
+          userId: 'user-123',
+          activePersonaId: 'persona-123',
+          activePersonaName: 'ActiveUser',
+          // Guild info for the active speaker (from triggering message)
+          activePersonaGuildInfo: {
+            roles: ['Admin', 'Developer'],
+            displayColor: '#FF5733',
+            joinedAt: '2023-05-15T10:30:00.000Z',
+          },
+          // Guild info for OTHER participants (from extended context)
+          // This was previously missing from JobContext schema!
+          participantGuildInfo: {
+            'discord:user-456': {
+              roles: ['Member', 'Verified'],
+              displayColor: '#00FF00',
+              joinedAt: '2024-01-20T08:15:00.000Z',
+            },
+            'discord:user-789': {
+              roles: ['Moderator'],
+              displayColor: '#0000FF',
+            },
+          },
+        },
+      };
+
+      const result = llmGenerationJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Verify participantGuildInfo is preserved
+        expect(result.data.context.participantGuildInfo).toBeDefined();
+        expect(result.data.context.participantGuildInfo?.['discord:user-456']).toEqual({
+          roles: ['Member', 'Verified'],
+          displayColor: '#00FF00',
+          joinedAt: '2024-01-20T08:15:00.000Z',
+        });
+        expect(result.data.context.participantGuildInfo?.['discord:user-789']).toEqual({
+          roles: ['Moderator'],
+          displayColor: '#0000FF',
+        });
+      }
+    });
+
+    it('should accept context without participantGuildInfo (optional field)', () => {
+      const validJob: LLMGenerationJobData = {
+        requestId: 'req-no-guild-info',
+        jobType: JobType.LLMGeneration,
+        responseDestination: { type: 'discord', channelId: 'channel-123' },
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+        },
+        message: 'Hello!',
+        context: {
+          userId: 'user-123',
+          // No activePersonaGuildInfo or participantGuildInfo
+        },
+      };
+
+      const result = llmGenerationJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+    });
+  });
+
   describe('Producer-Consumer Contract', () => {
     it('should document the contract: producer validates, consumer trusts', () => {
       // This test serves as documentation:
