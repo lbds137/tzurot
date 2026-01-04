@@ -242,7 +242,9 @@ describe('Character List', () => {
       vi.mocked(api.fetchUserCharacters).mockRejectedValue(new Error('API error'));
 
       // Should not throw
-      await expect(handleListPagination(mockInteraction, 1, 'date', mockConfig)).resolves.not.toThrow();
+      await expect(
+        handleListPagination(mockInteraction, 1, 'date', mockConfig)
+      ).resolves.not.toThrow();
 
       // Should not call editReply on error (keeps existing content)
       expect(mockInteraction.editReply).not.toHaveBeenCalled();
