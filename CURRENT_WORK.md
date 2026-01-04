@@ -16,6 +16,7 @@
 **Target**: Get below 80 warnings
 
 Key areas to address:
+
 - `max-lines-per-function`, `complexity`, `max-statements` in large functions
 - `@typescript-eslint/no-non-null-assertion` in VoiceContextMerger
 - Consider extracting helper functions or splitting complex files

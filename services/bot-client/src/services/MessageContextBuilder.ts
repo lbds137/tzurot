@@ -144,8 +144,7 @@ export class MessageContextBuilder {
                   .slice(0, 10)
               : [],
           // Display color from highest colored role (#000000 is treated as transparent)
-          displayColor:
-            member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
+          displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
           // When user joined the server
           joinedAt: member.joinedAt?.toISOString(),
         }

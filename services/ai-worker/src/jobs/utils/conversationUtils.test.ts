@@ -1339,7 +1339,9 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       // Format should be: <message from="..." from_id="..." role="..." time="...">
-      expect(result).toMatch(/<message from="Alice" from_id="persona-uuid-123" role="user" time="just now">/);
+      expect(result).toMatch(
+        /<message from="Alice" from_id="persona-uuid-123" role="user" time="just now">/
+      );
     });
 
     it('should include from_id in length calculation (getFormattedMessageCharLength)', () => {
