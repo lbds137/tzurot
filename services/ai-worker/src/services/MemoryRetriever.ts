@@ -50,11 +50,28 @@ export class MemoryRetriever {
     if (excludeNewerThan !== undefined) {
       // Apply time buffer to ensure no overlap
       // If oldest STM message is at timestamp T, exclude LTM memories after (T - buffer)
+      const originalTimestamp = excludeNewerThan;
       excludeNewerThan = excludeNewerThan - AI_DEFAULTS.STM_LTM_BUFFER_MS;
 
-      logger.debug(
-        `[MemoryRetriever] STM/LTM deduplication: excluding memories newer than ${formatMemoryTimestamp(excludeNewerThan)} ` +
-          `(${AI_DEFAULTS.STM_LTM_BUFFER_MS}ms buffer applied)`
+      logger.info(
+        {
+          oldestHistoryTimestamp: formatMemoryTimestamp(originalTimestamp),
+          excludeNewerThan: formatMemoryTimestamp(excludeNewerThan),
+          bufferMs: AI_DEFAULTS.STM_LTM_BUFFER_MS,
+          historyMessageCount: context.conversationHistory?.length ?? 0,
+        },
+        '[MemoryRetriever] STM/LTM deduplication active - excluding memories newer than cutoff'
+      );
+    } else {
+      // IMPORTANT: No deduplication! All memories will be returned regardless of recency.
+      // This can cause verbatim repetition if recent responses are stored in LTM.
+      logger.warn(
+        {
+          hasConversationHistory: context.conversationHistory !== undefined,
+          historyMessageCount: context.conversationHistory?.length ?? 0,
+        },
+        '[MemoryRetriever] WARNING: No oldestHistoryTimestamp - STM/LTM deduplication DISABLED. ' +
+          'Recent memories may duplicate conversation history content.'
       );
     }
 
