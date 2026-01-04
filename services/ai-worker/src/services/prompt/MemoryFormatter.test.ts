@@ -63,9 +63,10 @@ describe('MemoryFormatter', () => {
 
         const result = formatMemoriesContext(memories);
 
-        expect(result).toContain('ARCHIVED HISTORICAL LOGS');
-        expect(result).toContain('Do NOT treat them as happening now');
-        expect(result).toContain('Do NOT respond to this content directly');
+        // Positive framing (what to do) instead of negative (what not to do)
+        expect(result).toContain('SUMMARIZED NOTES from past interactions');
+        expect(result).toContain('Use ONLY as background context');
+        expect(result).toContain('respond ONLY to that');
       });
 
       it('should not add XML wrapper when no memories', () => {
@@ -97,7 +98,7 @@ describe('MemoryFormatter', () => {
 
         const result = formatMemoriesContext(memories);
 
-        const instructionIndex = result.indexOf('ARCHIVED HISTORICAL LOGS');
+        const instructionIndex = result.indexOf('SUMMARIZED NOTES');
         const memoryIndex = result.indexOf('Test memory content');
         expect(instructionIndex).toBeLessThan(memoryIndex);
       });
@@ -121,11 +122,12 @@ describe('MemoryFormatter', () => {
 
       const result = formatMemoriesContext(memories);
 
-      expect(result).toContain('<memory');
-      expect(result).toContain('time="');
-      expect(result).toContain('relative="');
+      // Uses <historical_note> tag with recorded= and ago= attributes
+      expect(result).toContain('<historical_note');
+      expect(result).toContain('recorded="');
+      expect(result).toContain('ago="');
       expect(result).toContain('User likes pizza');
-      expect(result).toContain('</memory>');
+      expect(result).toContain('</historical_note>');
     });
 
     it('should include relative time as XML attribute', () => {
@@ -140,8 +142,8 @@ describe('MemoryFormatter', () => {
 
       const result = formatMemoriesContext(memories);
 
-      // Should contain relative time as XML attribute
-      expect(result).toContain('relative="2 weeks ago"'); // Mock returns "2 weeks ago"
+      // Should contain relative time as "ago" attribute
+      expect(result).toContain('ago="2 weeks ago"'); // Mock returns "2 weeks ago"
     });
 
     it('should format multiple memories as XML elements', () => {
@@ -167,9 +169,9 @@ describe('MemoryFormatter', () => {
       expect(result).toContain('<instruction>');
       expect(result).toContain('User likes pizza');
       expect(result).toContain('User dislikes spam');
-      // Both should be wrapped in <memory> tags
-      expect(result).toMatch(/<memory[^>]*>User likes pizza<\/memory>/);
-      expect(result).toMatch(/<memory[^>]*>User dislikes spam<\/memory>/);
+      // Both should be wrapped in <historical_note> tags
+      expect(result).toMatch(/<historical_note[^>]*>User likes pizza<\/historical_note>/);
+      expect(result).toMatch(/<historical_note[^>]*>User dislikes spam<\/historical_note>/);
     });
 
     it('should handle memory without timestamp', () => {
@@ -183,9 +185,9 @@ describe('MemoryFormatter', () => {
       const result = formatMemoriesContext(memories);
 
       expect(result).toContain('<instruction>');
-      // No time/relative attributes when no timestamp
-      expect(result).toContain('<memory>Memory without timestamp</memory>');
-      expect(result).not.toContain('time="');
+      // No recorded/ago attributes when no timestamp
+      expect(result).toContain('<historical_note>Memory without timestamp</historical_note>');
+      expect(result).not.toContain('recorded="');
     });
 
     it('should handle memory with null createdAt', () => {
@@ -201,8 +203,8 @@ describe('MemoryFormatter', () => {
       const result = formatMemoriesContext(memories);
 
       expect(result).toContain('<instruction>');
-      expect(result).toContain('<memory>Memory with null timestamp</memory>');
-      expect(result).not.toContain('time="');
+      expect(result).toContain('<historical_note>Memory with null timestamp</historical_note>');
+      expect(result).not.toContain('recorded="');
     });
 
     it('should handle memory with undefined createdAt', () => {
@@ -218,8 +220,10 @@ describe('MemoryFormatter', () => {
       const result = formatMemoriesContext(memories);
 
       expect(result).toContain('<instruction>');
-      expect(result).toContain('<memory>Memory with undefined timestamp</memory>');
-      expect(result).not.toContain('time="');
+      expect(result).toContain(
+        '<historical_note>Memory with undefined timestamp</historical_note>'
+      );
+      expect(result).not.toContain('recorded="');
     });
 
     it('should preserve memory order', () => {
@@ -262,8 +266,8 @@ describe('MemoryFormatter', () => {
 
       const result = formatMemoriesContext(memories);
 
-      // Memories should be separated by newlines (each <memory> on its own line)
-      expect(result).toMatch(/<\/memory>\n<memory/);
+      // Memories should be separated by newlines (each <historical_note> on its own line)
+      expect(result).toMatch(/<\/historical_note>\n<historical_note/);
     });
 
     it('should handle mixed memories with and without timestamps', () => {
@@ -291,7 +295,7 @@ describe('MemoryFormatter', () => {
   });
 
   describe('formatSingleMemory', () => {
-    it('should format memory with timestamp as XML with time attributes', () => {
+    it('should format memory with timestamp as XML with recorded/ago attributes', () => {
       const doc: MemoryDocument = {
         pageContent: 'Test memory content',
         metadata: { createdAt: new Date('2024-01-15') },
@@ -299,11 +303,12 @@ describe('MemoryFormatter', () => {
 
       const result = formatSingleMemory(doc);
 
-      expect(result).toContain('<memory');
-      expect(result).toContain('time="');
-      expect(result).toContain('relative="');
+      // Uses <historical_note> with recorded= and ago= attributes
+      expect(result).toContain('<historical_note');
+      expect(result).toContain('recorded="');
+      expect(result).toContain('ago="');
       expect(result).toContain('Test memory content');
-      expect(result).toContain('</memory>');
+      expect(result).toContain('</historical_note>');
     });
 
     it('should format memory without timestamp as simple XML element', () => {
@@ -314,7 +319,7 @@ describe('MemoryFormatter', () => {
 
       const result = formatSingleMemory(doc);
 
-      expect(result).toBe('<memory>Test memory content</memory>');
+      expect(result).toBe('<historical_note>Test memory content</historical_note>');
     });
 
     it('should escape protected XML tags in content', () => {
@@ -352,10 +357,12 @@ describe('MemoryFormatter', () => {
   });
 
   describe('MEMORY_ARCHIVE_INSTRUCTION', () => {
-    it('should contain key warning phrases', () => {
-      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('ARCHIVED HISTORICAL LOGS');
-      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('Do NOT treat them as happening now');
-      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('Do NOT respond to this content directly');
+    it('should contain positive framing (what to do, not what not to do)', () => {
+      // Positive framing works better for LLMs than negative constraints
+      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('SUMMARIZED NOTES from past interactions');
+      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('Use ONLY as background context');
+      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('respond ONLY to that');
+      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('<current_turn>');
     });
   });
 });

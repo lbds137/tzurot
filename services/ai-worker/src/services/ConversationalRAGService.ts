@@ -24,7 +24,7 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
-import { stripResponseArtifacts } from '../utils/responseCleanup.js';
+import { stripResponseArtifacts, removeDuplicateResponse } from '../utils/responseCleanup.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -270,8 +270,11 @@ export class ConversationalRAGService {
 
     const rawContent = response.content as string;
 
+    // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
+    const deduplicatedContent = removeDuplicateResponse(rawContent);
+
     // Strip artifacts
-    let cleanedContent = stripResponseArtifacts(rawContent, personality.name);
+    let cleanedContent = stripResponseArtifacts(deduplicatedContent, personality.name);
 
     // Replace placeholders
     const userName =
@@ -291,9 +294,10 @@ export class ConversationalRAGService {
       {
         rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
         cleanedContentPreview: cleanedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
-        wasStripped: rawContent !== cleanedContent,
+        wasDeduplicated: rawContent !== deduplicatedContent,
+        wasStripped: deduplicatedContent !== cleanedContent,
       },
-      `[RAG] Content stripping check for ${personality.name}`
+      `[RAG] Content cleanup check for ${personality.name}`
     );
 
     logger.info(

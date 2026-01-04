@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { stripResponseArtifacts } from './responseCleanup.js';
+import { stripResponseArtifacts, removeDuplicateResponse } from './responseCleanup.js';
 
 describe('stripResponseArtifacts', () => {
   describe('XML trailing tag stripping', () => {
@@ -245,6 +245,85 @@ describe('stripResponseArtifacts', () => {
       expect(cleaned).toBe('How are you today?');
       expect(cleaned).not.toContain('Emily:');
       expect(cleaned).not.toContain('</current_turn>');
+    });
+  });
+});
+
+describe('removeDuplicateResponse', () => {
+  describe('exact duplication', () => {
+    it('should remove exact duplicate content', () => {
+      // Build a response long enough to trigger the check (>100 chars)
+      // This simulates: model generates complete response, then repeats the entire thing
+      const original =
+        'This is a complete AI response that contains unique content. It discusses various topics ' +
+        'including philosophy, technology, and the meaning of life. The response ends here.';
+      const duplicated = original + original;
+      expect(removeDuplicateResponse(duplicated)).toBe(original);
+    });
+
+    it('should handle the real-world GLM-4.7 duplication pattern', () => {
+      // Simulate the actual bug: entire response repeated
+      const response = `*I manifest in the quiet space between your thoughts.* Let me share some wisdom with you today. This is important.`;
+      const duplicated = response + response;
+      expect(removeDuplicateResponse(duplicated)).toBe(response);
+    });
+  });
+
+  describe('partial duplication', () => {
+    it('should remove partial duplicate when model cut off mid-repeat', () => {
+      const fullResponse =
+        'This is a complete response that the model generated successfully. It has enough content to matter.';
+      const partialRepeat = 'This is a complete response that the model generated'; // Cut off
+      const duplicated = fullResponse + partialRepeat;
+      expect(removeDuplicateResponse(duplicated)).toBe(fullResponse);
+    });
+  });
+
+  describe('no false positives', () => {
+    it('should not modify short responses', () => {
+      const short = 'Hello world! Hello world!';
+      expect(removeDuplicateResponse(short)).toBe(short);
+    });
+
+    it('should not modify responses without duplication', () => {
+      const normal =
+        'This is a perfectly normal response without any duplication. It just has regular content that should not be modified at all.';
+      expect(removeDuplicateResponse(normal)).toBe(normal);
+    });
+
+    it('should not false-positive on legitimate repeated phrases', () => {
+      // A response that uses the same phrase but isn't a full duplication
+      const content =
+        'You asked about recursion. Recursion is when a function calls itself. To understand recursion, you must first understand recursion. That is the joke.';
+      expect(removeDuplicateResponse(content)).toBe(content);
+    });
+
+    it('should not false-positive on responses with repeated opening words', () => {
+      // The anchor appears again but the rest doesn't match
+      const content =
+        'The quick brown fox jumps over the lazy dog. The quick brown cat sleeps under the warm sun. Different content follows.';
+      expect(removeDuplicateResponse(content)).toBe(content);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle empty string', () => {
+      expect(removeDuplicateResponse('')).toBe('');
+    });
+
+    it('should handle whitespace-only string', () => {
+      expect(removeDuplicateResponse('   ')).toBe('   ');
+    });
+
+    it('should trim trailing whitespace from deduplicated content', () => {
+      // Create a long enough unique response with trailing space
+      const response =
+        'This is a unique test response that contains enough content to trigger deduplication checking. ' +
+        'It has trailing whitespace that should be trimmed after deduplication. ';
+      const duplicated = response + response;
+      const result = removeDuplicateResponse(duplicated);
+      expect(result).toBe(response.trimEnd());
+      expect(result.endsWith(' ')).toBe(false);
     });
   });
 });

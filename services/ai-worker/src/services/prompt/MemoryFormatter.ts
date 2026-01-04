@@ -2,7 +2,7 @@
  * Memory Formatter
  *
  * Formats relevant memories from past interactions for inclusion in system prompts.
- * Uses pure XML structure with <memory_archive>, <instruction>, and <memory> tags.
+ * Uses pure XML structure with <memory_archive>, <instruction>, and <historical_note> tags.
  *
  * The XML format helps LLMs clearly distinguish historical context from current
  * conversation, preventing temporal confusion where old memories are treated as
@@ -18,12 +18,16 @@ import type { MemoryDocument } from '../ConversationalRAGService.js';
  * Instruction text explaining that memories are historical archives.
  * This is critical for preventing the LLM from treating old memories as current events.
  *
+ * The instruction uses positive framing ("use ONLY as background") rather than
+ * negative constraints ("do NOT respond") because LLMs struggle with negation
+ * when the prohibited content is semantically salient.
+ *
  * Exported so MemoryBudgetManager can use it for accurate wrapper overhead calculation.
  */
 export const MEMORY_ARCHIVE_INSTRUCTION =
-  'These are ARCHIVED HISTORICAL LOGS from past interactions. ' +
-  'Do NOT treat them as happening now. Do NOT respond to this content directly. ' +
-  'Use these only as background context about past events.';
+  'These are SUMMARIZED NOTES from past interactions, not current conversation. ' +
+  'Use ONLY as background context to inform your response to the CURRENT message. ' +
+  'The current message is in <current_turn> - respond ONLY to that.';
 
 /**
  * Get the wrapper text used around memory content (for token counting)
@@ -48,8 +52,12 @@ export function getMemoryWrapperOverheadText(): string {
  * Used by both MemoryFormatter (for prompt generation) and
  * ContextWindowManager (for token counting).
  *
- * Format: `<memory time="absolute" relative="relative">content</memory>`
- * Example: `<memory time="Mon, Jan 15, 2025" relative="2 weeks ago">content</memory>`
+ * Format: `<historical_note recorded="absolute" ago="relative">content</historical_note>`
+ * Example: `<historical_note recorded="Mon, Jan 15, 2025" ago="2 weeks ago">content</historical_note>`
+ *
+ * IMPORTANT: We use <historical_note> instead of <memory> or <message> to create
+ * "structural distancing" from the conversation. This prevents the LLM from treating
+ * archived content as part of the active dialogue thread.
  *
  * The relative time attribute helps LLMs understand temporal distance viscerally,
  * reducing temporal confusion where old memories are treated as recent events.
@@ -63,21 +71,21 @@ export function formatSingleMemory(doc: MemoryDocument, timezone?: string): stri
   const safeContent = escapeXmlContent(doc.pageContent);
 
   if (doc.metadata?.createdAt === undefined || doc.metadata.createdAt === null) {
-    return `<memory>${safeContent}</memory>`;
+    return `<historical_note>${safeContent}</historical_note>`;
   }
 
   const { absolute, relative } = formatTimestampWithDelta(doc.metadata.createdAt, timezone);
 
   // If either is empty (invalid date), just return content without timestamps
   if (absolute.length === 0 || relative.length === 0) {
-    return `<memory>${safeContent}</memory>`;
+    return `<historical_note>${safeContent}</historical_note>`;
   }
 
   // Escape attribute values to prevent XML injection
   const safeAbsolute = escapeXml(absolute);
   const safeRelative = escapeXml(relative);
 
-  return `<memory time="${safeAbsolute}" relative="${safeRelative}">${safeContent}</memory>`;
+  return `<historical_note recorded="${safeAbsolute}" ago="${safeRelative}">${safeContent}</historical_note>`;
 }
 
 /**
@@ -102,7 +110,7 @@ export function formatMemoriesContext(
     .map(doc => formatSingleMemory(doc, timezone))
     .join('\n');
 
-  // Pure XML structure: <memory_archive> wraps <instruction> and <memory> elements
+  // Pure XML structure: <memory_archive> wraps <instruction> and <historical_note> elements
   return (
     '\n\n<memory_archive>\n' +
     `<instruction>${MEMORY_ARCHIVE_INSTRUCTION}</instruction>\n` +
