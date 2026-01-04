@@ -23,11 +23,14 @@ vi.mock('@tzurot/common-types', () => ({
   },
 }));
 
-// Mock MemoryFormatter (now uses XML format)
+// Mock MemoryFormatter (now uses XML format with <historical_note> for structural distancing)
 vi.mock('../prompt/MemoryFormatter.js', () => ({
-  formatSingleMemory: vi.fn((doc: MemoryDocument) => `<memory>${doc.pageContent}</memory>`),
+  formatSingleMemory: vi.fn(
+    (doc: MemoryDocument) => `<historical_note>${doc.pageContent}</historical_note>`
+  ),
   getMemoryWrapperOverheadText: vi.fn(
-    () => '<memory_archive>\n<instruction>ARCHIVED HISTORICAL LOGS</instruction>\n</memory_archive>'
+    () =>
+      '<memory_archive>\n<instruction>SUMMARIZED NOTES from past interactions</instruction>\n</memory_archive>'
   ),
 }));
 

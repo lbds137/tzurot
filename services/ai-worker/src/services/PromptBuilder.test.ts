@@ -338,7 +338,10 @@ describe('PromptBuilder', () => {
       expect(result.message.content).toContain('<current_turn>');
       expect(result.message.content).toContain('sender="Alice"');
       expect(result.message.content).toContain('<instruction>');
-      expect(result.message.content).toContain('Respond to Alice now');
+      // Strengthened instruction explicitly mentions memory_archive is background only
+      expect(result.message.content).toContain("RESPOND ONLY to Alice's message above");
+      expect(result.message.content).toContain('memory_archive');
+      expect(result.message.content).toContain('background context only');
       expect(result.message.content).toContain('Hello');
 
       // Storage should NOT have XML wrapper

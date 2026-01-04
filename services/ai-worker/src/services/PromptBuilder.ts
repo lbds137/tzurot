@@ -179,12 +179,14 @@ export class PromptBuilder {
     // Escape the message content to prevent XML injection
     const safeContent = escapeXmlContent(messageContent);
 
+    // Instruction explicitly directs attention to incoming_message and away from memory_archive
+    // This prevents the AI from responding to LTM content instead of the current conversation
     const wrappedMessage = `<current_turn>
 <incoming_message sender="${senderName}">
 ${safeContent}
 </incoming_message>
 <instruction>
-Respond to ${senderName} now. Do not simulate other users. Stop after your response.
+RESPOND ONLY to ${senderName}'s message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless ${senderName} explicitly asks about the past. Do not simulate other users. Stop after your response.
 </instruction>
 </current_turn>`;
 

@@ -20,8 +20,17 @@ export const mockMultimodalProcessor: { processAttachments: Mock } = {
  */
 export const mockStripResponseArtifacts: Mock = vi.fn((content: string) => content);
 
-export const mockResponseCleanup: { stripResponseArtifacts: Mock } = {
+/**
+ * Mock for responseCleanup.removeDuplicateResponse
+ */
+export const mockRemoveDuplicateResponse: Mock = vi.fn((content: string) => content);
+
+export const mockResponseCleanup: {
+  stripResponseArtifacts: Mock;
+  removeDuplicateResponse: Mock;
+} = {
   stripResponseArtifacts: mockStripResponseArtifacts,
+  removeDuplicateResponse: mockRemoveDuplicateResponse,
 };
 
 /**
@@ -50,6 +59,7 @@ export const mockErrorHandling: { logAndThrow: Mock } = {
 export function resetUtilityMocks(): void {
   mockProcessAttachments.mockReset().mockResolvedValue([]);
   mockStripResponseArtifacts.mockReset().mockImplementation((content: string) => content);
+  mockRemoveDuplicateResponse.mockReset().mockImplementation((content: string) => content);
   mockReplacePromptPlaceholders.mockReset().mockImplementation((content: string) => content);
   mockLogAndThrow
     .mockReset()
