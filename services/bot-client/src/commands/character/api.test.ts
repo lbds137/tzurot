@@ -146,7 +146,7 @@ describe('Character API Client', () => {
               isOwned: true,
               isPublic: false,
               ownerId: 'owner-1',
-              ownerDiscordId: 'discord-1',
+              ownerDiscordId: 'discord-user-123', // Matches mockUserId - should be in "owned"
             },
             {
               id: 'char-2',
@@ -156,7 +156,7 @@ describe('Character API Client', () => {
               isOwned: false,
               isPublic: true,
               ownerId: 'owner-2',
-              ownerDiscordId: 'discord-2',
+              ownerDiscordId: 'other-discord-id', // Different - should be in "publicOthers"
             },
           ],
         },
@@ -200,7 +200,7 @@ describe('Character API Client', () => {
               isOwned: true,
               isPublic: false,
               ownerId: 'owner-1',
-              ownerDiscordId: 'discord-1',
+              ownerDiscordId: 'discord-user-123', // Matches mockUserId
             },
             {
               id: 'char-2',
@@ -210,7 +210,7 @@ describe('Character API Client', () => {
               isOwned: false,
               isPublic: true,
               ownerId: 'owner-2',
-              ownerDiscordId: 'discord-2',
+              ownerDiscordId: 'other-discord-id',
             },
           ],
         },
@@ -239,7 +239,7 @@ describe('Character API Client', () => {
               isOwned: true,
               isPublic: false,
               ownerId: 'owner-1',
-              ownerDiscordId: 'discord-1',
+              ownerDiscordId: 'discord-user-123', // Matches mockUserId - should be in "owned"
             },
             {
               id: 'char-2',
@@ -249,7 +249,7 @@ describe('Character API Client', () => {
               isOwned: false,
               isPublic: true,
               ownerId: 'owner-2',
-              ownerDiscordId: 'discord-2',
+              ownerDiscordId: 'other-discord-id', // Different - should be in "publicOthers"
             },
           ],
         },

@@ -121,10 +121,31 @@ function buildCharacterListPage(
     }
     const othersCount = publicCharacters.filter(c => c.ownerId !== userId).length;
     if (startIdx <= ownCharacters.length) {
-      lines.push(`**🌍 Global Characters (${othersCount})**`);
+      lines.push(`**🌍 Other Users' Characters (${othersCount})**`);
     }
+
+    // Group by owner for cleaner display
+    const byOwner = new Map<string, CharacterData[]>();
     for (const item of publicOnPage) {
-      lines.push(formatCharacterLine(item.char, creatorNames, true));
+      const ownerId = item.char.ownerId ?? 'system';
+      const existing = byOwner.get(ownerId) ?? [];
+      existing.push(item.char);
+      byOwner.set(ownerId, existing);
+    }
+
+    // Sort owners by name and display grouped
+    const sortedOwners = [...byOwner.entries()].sort((a, b) => {
+      const nameA = creatorNames.get(a[0]) ?? 'Unknown';
+      const nameB = creatorNames.get(b[0]) ?? 'Unknown';
+      return nameA.localeCompare(nameB);
+    });
+
+    for (const [ownerId, chars] of sortedOwners) {
+      const ownerName = ownerId === 'system' ? 'System' : (creatorNames.get(ownerId) ?? 'Unknown');
+      lines.push(`\n__${escapeMarkdown(ownerName)}__`);
+      for (const char of chars) {
+        lines.push(formatCharacterLine(char));
+      }
     }
   }
 
