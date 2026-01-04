@@ -44,4 +44,10 @@ export const MESSAGE_LIMITS = {
    * These are merged with DB history for broader channel awareness
    */
   MAX_EXTENDED_CONTEXT: 100,
+  /**
+   * Maximum number of Discord server roles to include per participant
+   * Sorted by position (highest priority first), excluding @everyone
+   * Balances context richness vs token usage
+   */
+  MAX_GUILD_ROLES: 5,
 } as const;
