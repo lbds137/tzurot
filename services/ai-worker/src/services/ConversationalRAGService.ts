@@ -193,6 +193,7 @@ export class ConversationalRAGService {
             participantPersonas.set(persona.personaName, {
               content: persona.content,
               isActive: false,
+              personaId: persona.personaId,
             });
             logger.debug(
               { personaName: persona.personaName },
