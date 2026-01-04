@@ -23,6 +23,9 @@ export const CUSTOM_ID_DELIMITER = '::';
 // CHARACTER COMMAND
 // ============================================================================
 
+/** Sort options for character list */
+export type CharacterListSortType = 'date' | 'name';
+
 /** Result type for CharacterCustomIds.parse */
 interface CharacterParseResult {
   command: 'character';
@@ -32,14 +35,20 @@ interface CharacterParseResult {
   page?: number;
   viewPage?: number;
   fieldName?: string;
+  sort?: CharacterListSortType;
 }
 
 /** Parse list action parameters */
 function parseListAction(parts: string[], result: CharacterParseResult): void {
+  // Format: character::list::{page}::{sort} or character::list::info
   if (parts[2] !== 'info' && parts[2] !== undefined) {
     const pageNum = parseInt(parts[2], 10);
     if (!isNaN(pageNum)) {
       result.page = pageNum;
+    }
+    // Parse sort type from parts[3]
+    if (parts[3] === 'date' || parts[3] === 'name') {
+      result.sort = parts[3];
     }
   }
 }
@@ -82,11 +91,22 @@ export const CharacterCustomIds = {
   /** Build refresh button customId */
   refresh: (characterId: string) => `character::refresh::${characterId}` as const,
 
-  /** Build list pagination button customId */
-  listPage: (page: number) => `character::list::${page}` as const,
+  /**
+   * Build list pagination button customId
+   * Format: character::list::{page}::{sort}
+   */
+  listPage: (page: number, sort: CharacterListSortType) =>
+    `character::list::${page}::${sort}` as const,
 
   /** Build list page info button customId (disabled) */
   listInfo: () => 'character::list::info' as const,
+
+  /**
+   * Build sort toggle button customId
+   * Format: character::sort::{page}::{newSort}
+   */
+  sortToggle: (page: number, newSort: CharacterListSortType) =>
+    `character::sort::${page}::${newSort}` as const,
 
   /** Build view pagination button customId */
   viewPage: (slug: string, page: number) => `character::view::${slug}::${page}` as const,
@@ -113,7 +133,8 @@ export const CharacterCustomIds = {
     const action = parts[1];
     const result: CharacterParseResult = { command: 'character', action };
 
-    if (action === 'list') {
+    if (action === 'list' || action === 'sort') {
+      // Both list and sort use same format: character::{action}::{page}::{sort}
       parseListAction(parts, result);
     } else if (action === 'view') {
       parseViewAction(parts, result);

@@ -26,6 +26,7 @@ import {
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesDeferred } from '../../utils/permissions.js';
 import { ChannelCustomIds, type ChannelListSortType } from '../../utils/customIds.js';
+import { createListComparator, type ListSortType } from '../../utils/listSorting.js';
 import {
   CHANNELS_PER_PAGE,
   CHANNELS_PER_PAGE_ALL_SERVERS,
@@ -49,8 +50,24 @@ function formatChannelSettings(settings: ChannelSettings): string {
 }
 
 /**
- * Sort channel settings by the specified sort type
- * When isAllServers=true, groups by guild first, then sorts within each guild
+ * Create a channel comparator with access to client cache for name lookups.
+ * Uses shared listSorting utility for consistent sort behavior.
+ */
+function createChannelComparator(
+  client: Client
+): (sortType: ListSortType) => (a: ChannelSettings, b: ChannelSettings) => number {
+  // Helper to get channel name for sorting (needs client for cache lookup)
+  const getChannelName = (s: ChannelSettings): string => {
+    const channel = client.channels.cache.get(s.channelId) as TextChannel | undefined;
+    return channel?.name ?? s.channelId;
+  };
+
+  return createListComparator<ChannelSettings>(getChannelName, s => s.createdAt);
+}
+
+/**
+ * Sort channel settings by the specified sort type.
+ * When isAllServers=true, groups by guild first, then sorts within each guild.
  */
 function sortChannelSettings(
   settings: ChannelSettings[],
@@ -59,12 +76,7 @@ function sortChannelSettings(
   isAllServers = false
 ): ChannelSettings[] {
   const sorted = [...settings];
-
-  // Helper to get channel name for sorting
-  const getChannelName = (s: ChannelSettings): string => {
-    const channel = client.channels.cache.get(s.channelId) as TextChannel | undefined;
-    return channel?.name ?? s.channelId;
-  };
+  const comparator = createChannelComparator(client);
 
   // Helper to get guild name for sorting
   const getGuildName = (s: ChannelSettings): string => {
@@ -75,15 +87,6 @@ function sortChannelSettings(
     return guild?.name ?? s.guildId;
   };
 
-  // Secondary sort function (within guild or for single-guild mode)
-  const secondarySort = (a: ChannelSettings, b: ChannelSettings): number => {
-    if (sortType === 'name') {
-      return getChannelName(a).localeCompare(getChannelName(b));
-    } else {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-  };
-
   if (isAllServers) {
     // Group by guild first, then sort within each guild
     sorted.sort((a, b) => {
@@ -91,11 +94,11 @@ function sortChannelSettings(
       if (guildCompare !== 0) {
         return guildCompare;
       }
-      return secondarySort(a, b);
+      return comparator(sortType)(a, b);
     });
   } else {
-    // Single guild mode - just use secondary sort
-    sorted.sort(secondarySort);
+    // Single guild mode - use shared comparator directly
+    sorted.sort(comparator(sortType));
   }
 
   return sorted;

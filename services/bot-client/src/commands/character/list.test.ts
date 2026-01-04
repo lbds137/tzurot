@@ -220,23 +220,29 @@ describe('Character List', () => {
     });
 
     it('should defer update on pagination', async () => {
-      await handleListPagination(mockInteraction, 1, mockConfig);
+      await handleListPagination(mockInteraction, 1, 'date', mockConfig);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
     });
 
     it('should refresh data on pagination', async () => {
-      await handleListPagination(mockInteraction, 1, mockConfig);
+      await handleListPagination(mockInteraction, 1, 'date', mockConfig);
 
       expect(api.fetchUserCharacters).toHaveBeenCalledWith('user-123', mockConfig);
       expect(api.fetchPublicCharacters).toHaveBeenCalledWith('user-123', mockConfig);
+    });
+
+    it('should use default sort when sortType is undefined', async () => {
+      await handleListPagination(mockInteraction, 1, undefined, mockConfig);
+
+      expect(api.fetchUserCharacters).toHaveBeenCalledWith('user-123', mockConfig);
     });
 
     it('should handle errors gracefully without crashing', async () => {
       vi.mocked(api.fetchUserCharacters).mockRejectedValue(new Error('API error'));
 
       // Should not throw
-      await expect(handleListPagination(mockInteraction, 1, mockConfig)).resolves.not.toThrow();
+      await expect(handleListPagination(mockInteraction, 1, 'date', mockConfig)).resolves.not.toThrow();
 
       // Should not call editReply on error (keeps existing content)
       expect(mockInteraction.editReply).not.toHaveBeenCalled();
