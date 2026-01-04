@@ -243,9 +243,10 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
       activePersonaName.toLowerCase() === personality.name.toLowerCase();
     const hasNameCollision = namesMatch && discordUsername.length > 0;
 
-    // Warn if collision detected but can't add instruction (no discordUsername to disambiguate)
+    // Error if collision detected but can't add instruction (no discordUsername to disambiguate)
+    // This is elevated to error because it represents a real UX issue - the AI can't distinguish users
     if (namesMatch && discordUsername.length === 0) {
-      logger.warn(
+      logger.error(
         { personalityId: personality.id, activePersonaName },
         '[PromptBuilder] Name collision detected but cannot add instruction (missing discordUsername)'
       );
