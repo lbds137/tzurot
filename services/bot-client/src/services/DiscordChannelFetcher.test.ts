@@ -935,6 +935,47 @@ describe('DiscordChannelFetcher', () => {
       expect(roles).toEqual(['Role7', 'Role6', 'Role5', 'Role4', 'Role3']);
     });
 
+    it('should limit participants to MAX_EXTENDED_CONTEXT_PARTICIPANTS, keeping most recent', async () => {
+      const guildId = 'guild123';
+
+      // Create 25 messages from 25 different users (exceeds limit of 20)
+      const messages = [];
+      for (let i = 1; i <= 25; i++) {
+        messages.push(
+          createMockMessage({
+            id: String(i),
+            content: `Message from user ${i}`,
+            authorId: `user${i}`,
+            authorUsername: `user${i}`,
+            memberDisplayName: `User ${i}`,
+            memberRoles: [{ id: `role${i}`, name: `Role${i}`, position: 1 }],
+            guildId,
+            // Spread over time so ordering is clear
+            createdAt: new Date(`2024-01-01T12:${String(i).padStart(2, '0')}:00Z`),
+          })
+        );
+      }
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      const participantIds = Object.keys(result.participantGuildInfo!);
+
+      // Should be limited to 20 participants
+      expect(participantIds).toHaveLength(20);
+
+      // Should keep the most recent 20 (users 6-25, not 1-20)
+      // Most recent users are those closest to the triggering message
+      expect(participantIds).not.toContain('discord:user1');
+      expect(participantIds).not.toContain('discord:user5');
+      expect(participantIds).toContain('discord:user6');
+      expect(participantIds).toContain('discord:user25');
+    });
+
     it('should not include displayColor if it is #000000', async () => {
       const guildId = 'guild123';
 

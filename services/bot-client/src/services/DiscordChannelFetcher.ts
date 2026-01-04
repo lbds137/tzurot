@@ -215,6 +215,23 @@ export class DiscordChannelFetcher {
   }
 
   /**
+   * Limit participantGuildInfo to most recent N participants
+   * Object keys maintain insertion order, so last entries are most recent
+   */
+  private limitParticipants(
+    participantGuildInfo: Record<string, ParticipantGuildInfo>
+  ): Record<string, ParticipantGuildInfo> {
+    const entries = Object.entries(participantGuildInfo);
+    if (entries.length <= MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT_PARTICIPANTS) {
+      return participantGuildInfo;
+    }
+
+    // Keep only the last N entries (most recent participants)
+    const limited = entries.slice(-MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT_PARTICIPANTS);
+    return Object.fromEntries(limited);
+  }
+
+  /**
    * Extract guild member info from a Discord message
    * Used to collect guild info for extended context participants
    */
@@ -224,23 +241,32 @@ export class DiscordChannelFetcher {
       return { roles: [] };
     }
 
-    // Get role names, sorted by position (highest first), excluding @everyone
-    const roles =
-      member.roles !== undefined
-        ? Array.from(member.roles.cache.values())
-            .filter(r => r.id !== msg.guild?.id)
-            .sort((a, b) => b.position - a.position)
-            .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
-            .map(r => r.name)
-        : [];
+    try {
+      // Get role names, sorted by position (highest first), excluding @everyone
+      const roles =
+        member.roles !== undefined
+          ? Array.from(member.roles.cache.values())
+              .filter(r => r.id !== msg.guild?.id)
+              .sort((a, b) => b.position - a.position)
+              .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
+              .map(r => r.name)
+          : [];
 
-    return {
-      roles,
-      // Display color from highest colored role (#000000 is treated as transparent)
-      displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
-      // When user joined the server
-      joinedAt: member.joinedAt?.toISOString(),
-    };
+      return {
+        roles,
+        // Display color from highest colored role (#000000 is treated as transparent)
+        displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
+        // When user joined the server
+        joinedAt: member.joinedAt?.toISOString(),
+      };
+    } catch (error) {
+      // Discord.js can throw when accessing member properties in edge cases
+      logger.warn(
+        { err: error, memberId: member.id },
+        '[DiscordChannelFetcher] Failed to extract guild info, returning empty'
+      );
+      return { roles: [] };
+    }
   }
 
   /**
@@ -310,17 +336,19 @@ export class DiscordChannelFetcher {
         }
 
         // Collect guild info for user participants (not bots)
-        // Only collect once per participant (keyed by personaId)
+        // Always update to track most recent occurrence (for limiting to most recent N)
         const personaId = conversionResult.message.personaId;
-        if (
-          conversionResult.message.role === MessageRole.User &&
-          participantGuildInfo[personaId] === undefined &&
-          msg.member
-        ) {
+        if (conversionResult.message.role === MessageRole.User && msg.member) {
+          // Delete and re-add to move to end of object (maintains recency order)
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete participantGuildInfo[personaId];
           participantGuildInfo[personaId] = this.extractGuildInfo(msg);
         }
       }
     }
+
+    // Limit to most recent N participants (last entries in object are most recent)
+    const limitedParticipantGuildInfo = this.limitParticipants(participantGuildInfo);
 
     // Return messages in reverse order (newest first) to match conversation history format
     // Image attachments stay in chronological order (oldest message's images first, preserving
@@ -328,7 +356,7 @@ export class DiscordChannelFetcher {
     return this.processMessagesResult(
       result.reverse(),
       collectedImageAttachments,
-      participantGuildInfo
+      limitedParticipantGuildInfo
     );
   }
 
