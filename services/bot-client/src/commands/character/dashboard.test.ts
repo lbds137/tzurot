@@ -281,15 +281,37 @@ describe('Character Dashboard', () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
         action: 'list',
         page: 2,
+        sort: 'date',
       });
 
-      const mockInteraction = createMockButtonInteraction('character:list:2');
+      const mockInteraction = createMockButtonInteraction('character::list::2::date');
 
       await handleButton(mockInteraction);
 
       expect(listModule.handleListPagination).toHaveBeenCalledWith(
         mockInteraction,
         2,
+        'date',
+        expect.any(Object)
+      );
+    });
+
+    it('should handle sort toggle button and reset to page 0', async () => {
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        action: 'sort',
+        page: 3,
+        sort: 'name',
+      });
+
+      const mockInteraction = createMockButtonInteraction('character::sort::3::name');
+
+      await handleButton(mockInteraction);
+
+      // Sort action should reset to page 0
+      expect(listModule.handleListPagination).toHaveBeenCalledWith(
+        mockInteraction,
+        0,
+        'name',
         expect.any(Object)
       );
     });

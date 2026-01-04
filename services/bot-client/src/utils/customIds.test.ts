@@ -53,13 +53,18 @@ describe('customIds', () => {
         expect(CharacterCustomIds.refresh('abc123')).toBe('character::refresh::abc123');
       });
 
-      it('should build listPage customId with page number', () => {
-        expect(CharacterCustomIds.listPage(0)).toBe('character::list::0');
-        expect(CharacterCustomIds.listPage(5)).toBe('character::list::5');
+      it('should build listPage customId with page number and sort', () => {
+        expect(CharacterCustomIds.listPage(0, 'date')).toBe('character::list::0::date');
+        expect(CharacterCustomIds.listPage(5, 'name')).toBe('character::list::5::name');
       });
 
       it('should build listInfo customId', () => {
         expect(CharacterCustomIds.listInfo()).toBe('character::list::info');
+      });
+
+      it('should build sortToggle customId with page and sort', () => {
+        expect(CharacterCustomIds.sortToggle(0, 'name')).toBe('character::sort::0::name');
+        expect(CharacterCustomIds.sortToggle(2, 'date')).toBe('character::sort::2::date');
       });
 
       it('should build viewPage customId with slug and page', () => {
@@ -141,16 +146,37 @@ describe('customIds', () => {
         });
       });
 
-      it('should parse list customId with page number', () => {
-        const result = CharacterCustomIds.parse('character::list::3');
+      it('should parse list customId with page number and sort', () => {
+        const result = CharacterCustomIds.parse('character::list::3::date');
         expect(result).toEqual({
           command: 'character',
           action: 'list',
           page: 3,
+          sort: 'date',
         });
       });
 
-      it('should parse list info customId (no page)', () => {
+      it('should parse list customId with name sort', () => {
+        const result = CharacterCustomIds.parse('character::list::5::name');
+        expect(result).toEqual({
+          command: 'character',
+          action: 'list',
+          page: 5,
+          sort: 'name',
+        });
+      });
+
+      it('should parse sort toggle customId', () => {
+        const result = CharacterCustomIds.parse('character::sort::0::name');
+        expect(result).toEqual({
+          command: 'character',
+          action: 'sort',
+          page: 0,
+          sort: 'name',
+        });
+      });
+
+      it('should parse list info customId (no page or sort)', () => {
         const result = CharacterCustomIds.parse('character::list::info');
         expect(result).toEqual({
           command: 'character',

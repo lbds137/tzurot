@@ -202,15 +202,17 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   const config = getConfig();
   const customId = interaction.customId;
 
-  // Handle list pagination buttons using centralized customId parser
+  // Handle list pagination and sort toggle buttons using centralized customId parser
   const characterParsed = CharacterCustomIds.parse(customId);
-  if (characterParsed?.action === 'list') {
+  if (characterParsed?.action === 'list' || characterParsed?.action === 'sort') {
     // Info button is disabled, shouldn't be clickable
     if (characterParsed.page === undefined) {
       return;
     }
 
-    await handleListPagination(interaction, characterParsed.page, config);
+    // Reset to page 0 when changing sort
+    const page = characterParsed.action === 'sort' ? 0 : characterParsed.page;
+    await handleListPagination(interaction, page, characterParsed.sort, config);
     return;
   }
 
