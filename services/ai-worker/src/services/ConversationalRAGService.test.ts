@@ -59,6 +59,10 @@ vi.mock('../utils/errorHandling.js', async () => {
   const { mockErrorHandling } = await import('../test/mocks/utils.mock.js');
   return mockErrorHandling;
 });
+vi.mock('./UserReferenceResolver.js', async () => {
+  const { mockUserReferenceResolver } = await import('../test/mocks/UserReferenceResolver.mock.js');
+  return mockUserReferenceResolver;
+});
 
 // Import mock accessors and fixtures (after vi.mock declarations)
 import {
@@ -68,6 +72,7 @@ import {
   getContextWindowManagerMock,
   getLongTermMemoryServiceMock,
   getReferencedMessageFormatterMock,
+  getUserReferenceResolverMock,
   mockProcessAttachments,
   mockReplacePromptPlaceholders,
   createMockPersonality,
@@ -824,6 +829,103 @@ describe('ConversationalRAGService', () => {
         'TestBot',
         undefined
       );
+    });
+  });
+
+  describe('user reference resolution in output', () => {
+    it('should resolve user references in AI output', async () => {
+      // Mock the LLM to return content with shapes.inc format user reference
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'Hello @[alice](user:user-123)! How are you?',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+      });
+
+      // Mock UserReferenceResolver to transform the output
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Hello @alice! How are you?',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Hi alice', context);
+
+      // UserReferenceResolver should be called on the cleaned output
+      expect(getUserReferenceResolverMock().resolveUserReferences).toHaveBeenCalled();
+
+      // The response should contain the resolved text
+      expect(result.content).toBe('Hello @alice! How are you?');
+    });
+
+    it('should resolve multiple user references in output', async () => {
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'Hi @[alice](user:user-1) and @[bob](user:user-2)!',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Hi @alice and @bob!',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Hello both', context);
+
+      expect(result.content).toBe('Hi @alice and @bob!');
+    });
+
+    it('should store resolved content in LTM', async () => {
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'Message for @[alice](user:user-123)',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Message for @alice',
+        resolvedPersonas: [],
+      });
+
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Tell alice something', context);
+
+      // LTM should receive the resolved content
+      expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
+        personality,
+        expect.any(String),
+        'Message for @alice', // resolved content
+        context,
+        'persona-123'
+      );
+    });
+
+    it('should handle output without user references gracefully', async () => {
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'Just a normal response',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+      });
+
+      // UserReferenceResolver returns input unchanged when no references
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Just a normal response',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Hello', context);
+
+      expect(result.content).toBe('Just a normal response');
     });
   });
 
