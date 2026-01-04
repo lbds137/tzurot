@@ -65,6 +65,8 @@ export interface JobContext {
   activePersonaName?: string;
   /** Guild-specific info about the active speaker (roles, color, join date) */
   activePersonaGuildInfo?: GuildMemberInfo;
+  /** Guild info for other participants (from extended context, keyed by personaId) */
+  participantGuildInfo?: Record<string, GuildMemberInfo>;
   conversationHistory?: {
     id?: string;
     role: MessageRole;
@@ -297,6 +299,7 @@ export const jobContextSchema = z.object({
   activePersonaId: z.string().optional(),
   activePersonaName: z.string().optional(),
   activePersonaGuildInfo: guildMemberInfoSchema.optional(),
+  participantGuildInfo: z.record(z.string(), guildMemberInfoSchema).optional(),
   conversationHistory: z.array(apiConversationMessageSchema).optional(),
   attachments: z.array(attachmentMetadataSchema).optional(),
   extendedContextAttachments: z.array(attachmentMetadataSchema).optional(),
