@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { AttachmentType } from '@tzurot/common-types';
 import { buildAttachmentDescriptions, generateStopSequences } from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
+import type { ParticipantInfo } from './ConversationalRAGService.js';
 
 describe('RAGUtils', () => {
   describe('buildAttachmentDescriptions', () => {
@@ -157,7 +158,7 @@ describe('RAGUtils', () => {
 
   describe('generateStopSequences', () => {
     it('should generate stop sequence for personality name', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>();
+      const participantPersonas = new Map<string, ParticipantInfo>();
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
@@ -165,9 +166,9 @@ describe('RAGUtils', () => {
     });
 
     it('should generate stop sequences for all participants', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
-        ['Alice', { content: 'User persona', isActive: true }],
-        ['Bob', { content: 'Another user', isActive: false }],
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        ['Alice', { content: 'User persona', isActive: true, personaId: 'persona-1' }],
+        ['Bob', { content: 'Another user', isActive: false, personaId: 'persona-2' }],
       ]);
 
       const result = generateStopSequences('Lilith', participantPersonas);
@@ -178,7 +179,7 @@ describe('RAGUtils', () => {
     });
 
     it('should include XML tag stop sequences', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>();
+      const participantPersonas = new Map<string, ParticipantInfo>();
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
@@ -195,9 +196,9 @@ describe('RAGUtils', () => {
     });
 
     it('should return stop sequences in priority order (XML first, then personality, then participants)', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
-        ['Alice', { content: '', isActive: true }],
-        ['Bob', { content: '', isActive: true }],
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        ['Alice', { content: '', isActive: true, personaId: 'persona-1' }],
+        ['Bob', { content: '', isActive: true, personaId: 'persona-2' }],
       ]);
 
       const result = generateStopSequences('Lilith', participantPersonas);
@@ -215,8 +216,8 @@ describe('RAGUtils', () => {
     });
 
     it('should return correct total count of stop sequences', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
-        ['Alice', { content: 'User persona', isActive: true }],
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        ['Alice', { content: 'User persona', isActive: true, personaId: 'persona-1' }],
       ]);
 
       const result = generateStopSequences('Lilith', participantPersonas);
@@ -226,7 +227,7 @@ describe('RAGUtils', () => {
     });
 
     it('should handle empty participant map', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>();
+      const participantPersonas = new Map<string, ParticipantInfo>();
 
       const result = generateStopSequences('TestBot', participantPersonas);
 
@@ -238,15 +239,15 @@ describe('RAGUtils', () => {
     it('should cap stop sequences at 16 (Google API limit)', () => {
       // Create many participants to exceed the limit
       // Max is 16, with 10 XML + 1 personality = 11 reserved, leaving 5 for participants
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
-        ['User1', { content: '', isActive: true }],
-        ['User2', { content: '', isActive: true }],
-        ['User3', { content: '', isActive: true }],
-        ['User4', { content: '', isActive: true }],
-        ['User5', { content: '', isActive: true }],
-        ['User6', { content: '', isActive: true }], // Should be truncated
-        ['User7', { content: '', isActive: true }], // Should be truncated
-        ['User8', { content: '', isActive: true }], // Should be truncated
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
+        ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
+        ['User3', { content: '', isActive: true, personaId: 'persona-3' }],
+        ['User4', { content: '', isActive: true, personaId: 'persona-4' }],
+        ['User5', { content: '', isActive: true, personaId: 'persona-5' }],
+        ['User6', { content: '', isActive: true, personaId: 'persona-6' }], // Should be truncated
+        ['User7', { content: '', isActive: true, personaId: 'persona-7' }], // Should be truncated
+        ['User8', { content: '', isActive: true, personaId: 'persona-8' }], // Should be truncated
       ]);
 
       const result = generateStopSequences('Lilith', participantPersonas);
@@ -272,10 +273,10 @@ describe('RAGUtils', () => {
     });
 
     it('should not truncate when under the limit', () => {
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
-        ['User1', { content: '', isActive: true }],
-        ['User2', { content: '', isActive: true }],
-        ['User3', { content: '', isActive: true }],
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
+        ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
+        ['User3', { content: '', isActive: true, personaId: 'persona-3' }],
       ]);
 
       const result = generateStopSequences('Lilith', participantPersonas);
@@ -289,12 +290,12 @@ describe('RAGUtils', () => {
 
     it('should not truncate when exactly at the limit (16)', () => {
       // 5 participants + 1 personality + 10 XML = exactly 16 (the limit)
-      const participantPersonas = new Map<string, { content: string; isActive: boolean }>([
-        ['User1', { content: '', isActive: true }],
-        ['User2', { content: '', isActive: true }],
-        ['User3', { content: '', isActive: true }],
-        ['User4', { content: '', isActive: true }],
-        ['User5', { content: '', isActive: true }],
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
+        ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
+        ['User3', { content: '', isActive: true, personaId: 'persona-3' }],
+        ['User4', { content: '', isActive: true, personaId: 'persona-4' }],
+        ['User5', { content: '', isActive: true, personaId: 'persona-5' }],
       ]);
 
       const result = generateStopSequences('Lilith', participantPersonas);
@@ -312,6 +313,30 @@ describe('RAGUtils', () => {
       // Personality and XML should be present
       expect(result).toContain('\nLilith:');
       expect(result).toContain('<message ');
+    });
+
+    it('should work with participants that have guildInfo', () => {
+      const participantPersonas = new Map<string, ParticipantInfo>([
+        [
+          'Alice',
+          {
+            content: 'Developer',
+            isActive: true,
+            personaId: 'persona-1',
+            guildInfo: {
+              roles: ['Admin', 'Developer'],
+              displayColor: '#FF00FF',
+              joinedAt: '2023-05-15T10:30:00Z',
+            },
+          },
+        ],
+      ]);
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // Should still generate correct stop sequences regardless of guildInfo
+      expect(result).toContain('\nAlice:');
+      expect(result).toContain('\nLilith:');
     });
   });
 });

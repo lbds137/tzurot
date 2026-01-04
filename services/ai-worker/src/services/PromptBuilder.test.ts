@@ -625,10 +625,10 @@ describe('PromptBuilder', () => {
       expect(content).toContain('How can I help?');
     });
 
-    it('should include conversation participants', () => {
+    it('should include conversation participants with XML structure', () => {
       const participants = new Map([
-        ['Alice', { content: 'A software developer', isActive: true }],
-        ['Bob', { content: 'A designer', isActive: false }],
+        ['Alice', { content: 'A software developer', isActive: true, personaId: 'persona-1' }],
+        ['Bob', { content: 'A designer', isActive: false, personaId: 'persona-2' }],
       ]);
 
       const result = promptBuilder.buildFullSystemPrompt({
@@ -640,17 +640,22 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('## Conversation Participants');
-      expect(content).toContain('### Alice');
-      expect(content).toContain('A software developer');
-      expect(content).toContain('### Bob');
-      expect(content).toContain('A designer');
-      expect(content).toContain('Note: This is a group conversation');
+      // Check for new XML structure with ID binding
+      expect(content).toContain('<participants>');
+      expect(content).toContain('</participants>');
+      expect(content).toContain('<participant id="persona-1"');
+      expect(content).toContain('<name>Alice</name>');
+      expect(content).toContain('<![CDATA[A software developer]]>');
+      expect(content).toContain('<participant id="persona-2"');
+      expect(content).toContain('<name>Bob</name>');
+      expect(content).toContain('<![CDATA[A designer]]>');
+      // Group conversation note for multiple participants
+      expect(content).toContain('<note>This is a group conversation');
     });
 
-    it('should show singular form for single participant', () => {
+    it('should not show group note for single participant', () => {
       const participants = new Map([
-        ['Alice', { content: 'A software developer', isActive: true }],
+        ['Alice', { content: 'A software developer', isActive: true, personaId: 'persona-1' }],
       ]);
 
       const result = promptBuilder.buildFullSystemPrompt({
@@ -662,8 +667,10 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      expect(content).toContain('person is involved');
-      expect(content).not.toContain('Note: This is a group conversation');
+      // Should have participant but no group note
+      expect(content).toContain('<participant id="persona-1"');
+      expect(content).toContain('<name>Alice</name>');
+      expect(content).not.toContain('<note>This is a group conversation');
     });
 
     it('should include relevant memories with timestamps', () => {

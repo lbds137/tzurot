@@ -280,6 +280,13 @@ export function formatSingleHistoryEntryAsXml(
   // Escape speaker name for use in attribute (quotes could break the XML)
   const safeSpeaker = escapeXml(speakerName);
 
+  // Add from_id attribute for ID binding to participants (user messages only)
+  // This links chat_log messages to <participant id="..."> definitions
+  const fromIdAttr =
+    msg.role === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
+      ? ` from_id="${escapeXml(msg.personaId)}"`
+      : '';
+
   // Format referenced messages from messageMetadata (user messages only)
   let quotedSection = '';
   if (
@@ -308,8 +315,9 @@ export function formatSingleHistoryEntryAsXml(
     imageSection = `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
   }
 
-  // Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
-  return `<message from="${safeSpeaker}" role="${role}"${timeAttr}>${safeContent}${quotedSection}${imageSection}</message>`;
+  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago">content</message>
+  // from_id links to <participant id="..."> for identity binding
+  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${safeContent}${quotedSection}${imageSection}</message>`;
 }
 
 /**
@@ -445,13 +453,20 @@ export function getFormattedMessageCharLength(
   }
 
   // Approximate the formatted length
-  // Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
+  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago">content</message>
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
       ? ` time="${formatRelativeTime(msg.createdAt)}"`
       : '';
 
-  const overhead = `<message from="${speakerName}" role="${role}"${timeAttr}></message>`.length;
+  // Account for from_id attribute (user messages with personaId)
+  const fromIdAttr =
+    msg.role === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
+      ? ` from_id="${msg.personaId}"`
+      : '';
+
+  const overhead =
+    `<message from="${speakerName}"${fromIdAttr} role="${role}"${timeAttr}></message>`.length;
   let totalLength = overhead + msg.content.length;
 
   // Add length for referenced messages if present (user messages only)
