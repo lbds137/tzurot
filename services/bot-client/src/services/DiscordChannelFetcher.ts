@@ -225,13 +225,12 @@ export class DiscordChannelFetcher {
     }
 
     // Get role names, sorted by position (highest first), excluding @everyone
-    // Limit to top 5 for token efficiency
     const roles =
       member.roles !== undefined
         ? Array.from(member.roles.cache.values())
             .filter(r => r.id !== msg.guild?.id)
             .sort((a, b) => b.position - a.position)
-            .slice(0, 5)
+            .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
             .map(r => r.name)
         : [];
 
@@ -422,8 +421,12 @@ export class DiscordChannelFetcher {
       role,
       content,
       createdAt: msg.createdAt,
-      // For extended context messages, use a placeholder persona ID
-      // These are transient and not stored in the database
+      // Extended context persona ID format: 'discord:{discordUserId}'
+      // This is intentionally NOT a UUID - extended context participants are transient:
+      // - Not stored in database (no persona record exists)
+      // - Used only for prompt ID binding (linking <participant> to <message from_id>)
+      // - Used as key for participantGuildInfo lookup
+      // DB history participants use proper UUID persona IDs from the database.
       personaId: role === MessageRole.User ? `discord:${msg.author.id}` : 'assistant',
       personaName: role === MessageRole.User ? authorName : options.personalityName,
       discordUsername: msg.author.username,

@@ -135,13 +135,13 @@ export class MessageContextBuilder {
     const guildMemberInfo = member
       ? {
           // Get role names (excluding @everyone which has same ID as guild)
-          // Sort by position (highest first) and limit to top 5 for token efficiency
+          // Sort by position (highest first), limit per MESSAGE_LIMITS.MAX_GUILD_ROLES
           roles:
             member.roles !== undefined
               ? Array.from(member.roles.cache.values())
                   .filter(r => r.id !== message.guild?.id)
                   .sort((a, b) => b.position - a.position)
-                  .slice(0, 5)
+                  .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
                   .map(r => r.name)
               : [],
           // Display color from highest colored role (#000000 is treated as transparent)

@@ -235,7 +235,7 @@ export const referencedChannelSchema = z.object({
  * Used for enriching participant context in prompts
  */
 export const guildMemberInfoSchema = z.object({
-  /** User's top server roles (up to 5, sorted by position, excluding @everyone) */
+  /** User's top server roles (sorted by position, excluding @everyone). Limit: MESSAGE_LIMITS.MAX_GUILD_ROLES */
   roles: z.array(z.string()).max(5),
   /** Display color from highest colored role (hex, e.g., '#FF00FF') */
   displayColor: z.string().optional(),
