@@ -135,13 +135,14 @@ export class MessageContextBuilder {
     const guildMemberInfo = member
       ? {
           // Get role names (excluding @everyone which has same ID as guild)
-          // Limit to 10 roles for token efficiency
+          // Sort by position (highest first) and limit to top 5 for token efficiency
           roles:
             member.roles !== undefined
               ? Array.from(member.roles.cache.values())
                   .filter(r => r.id !== message.guild?.id)
+                  .sort((a, b) => b.position - a.position)
+                  .slice(0, 5)
                   .map(r => r.name)
-                  .slice(0, 10)
               : [],
           // Display color from highest colored role (#000000 is treated as transparent)
           displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
@@ -224,6 +225,9 @@ export class MessageContextBuilder {
     // Extended context: fetch recent messages from Discord channel
     // This provides broader context beyond just bot conversations stored in DB
     let extendedContextAttachments: AttachmentMetadata[] | undefined;
+    let participantGuildInfo:
+      | Record<string, { roles: string[]; displayColor?: string; joinedAt?: string }>
+      | undefined;
 
     if (options.extendedContext?.enabled === true && options.botUserId !== undefined) {
       // Check if channel supports message fetching
@@ -288,6 +292,18 @@ export class MessageContextBuilder {
                 selectedImages: extendedContextAttachments.length,
               },
               '[MessageContextBuilder] Collected extended context images for processing'
+            );
+          }
+
+          // Capture guild info for extended context participants
+          if (fetchResult.participantGuildInfo) {
+            participantGuildInfo = fetchResult.participantGuildInfo;
+            logger.debug(
+              {
+                channelId: message.channel.id,
+                participantCount: Object.keys(participantGuildInfo).length,
+              },
+              '[MessageContextBuilder] Collected participant guild info from extended context'
             );
           }
 
@@ -465,6 +481,7 @@ export class MessageContextBuilder {
       activePersonaId: personaId,
       activePersonaName: personaName ?? undefined,
       activePersonaGuildInfo: guildMemberInfo, // Guild-specific info (roles, color, join date)
+      participantGuildInfo, // Guild info for other participants (from extended context)
       conversationHistory,
       attachments,
       extendedContextAttachments, // Images from extended context (limited by maxImages)

@@ -27,6 +27,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+// Mock role interface for testing
+interface MockRole {
+  id: string;
+  name: string;
+  position: number;
+}
+
 // Helper to create mock Discord messages
 function createMockMessage(
   overrides: Partial<{
@@ -36,6 +43,10 @@ function createMockMessage(
     authorUsername: string;
     authorGlobalName: string | null;
     memberDisplayName: string | null;
+    memberRoles: MockRole[] | null;
+    memberDisplayHexColor: string | null;
+    memberJoinedAt: Date | null;
+    guildId: string | null;
     isBot: boolean;
     type: MessageType;
     createdAt: Date;
@@ -49,6 +60,10 @@ function createMockMessage(
     authorUsername: 'testuser',
     authorGlobalName: null,
     memberDisplayName: null,
+    memberRoles: null,
+    memberDisplayHexColor: null,
+    memberJoinedAt: null,
+    guildId: null,
     isBot: false,
     type: MessageType.Default,
     createdAt: new Date('2024-01-01T12:00:00Z'),
@@ -56,6 +71,24 @@ function createMockMessage(
   };
 
   const config = { ...defaults, ...overrides };
+
+  // Build member object with optional guild info
+  let member = null;
+  if (config.memberDisplayName !== null || config.memberRoles !== null) {
+    const rolesCache = new Collection<string, MockRole>();
+    if (config.memberRoles) {
+      for (const role of config.memberRoles) {
+        rolesCache.set(role.id, role);
+      }
+    }
+
+    member = {
+      displayName: config.memberDisplayName ?? config.authorUsername,
+      roles: config.memberRoles ? { cache: rolesCache } : undefined,
+      displayHexColor: config.memberDisplayHexColor ?? '#000000',
+      joinedAt: config.memberJoinedAt,
+    };
+  }
 
   return {
     id: config.id,
@@ -66,7 +99,8 @@ function createMockMessage(
       globalName: config.authorGlobalName,
       bot: config.isBot,
     },
-    member: config.memberDisplayName ? { displayName: config.memberDisplayName } : null,
+    member,
+    guild: config.guildId ? { id: config.guildId } : null,
     type: config.type,
     createdAt: config.createdAt,
     createdTimestamp: config.createdAt.getTime(),
@@ -705,6 +739,248 @@ describe('DiscordChannelFetcher', () => {
 
       expect(result.updated).toBe(0);
       expect(result.deleted).toBe(0);
+    });
+  });
+
+  describe('participantGuildInfo', () => {
+    it('should collect guild info for user participants', async () => {
+      const guildId = 'guild123';
+      const joinDate = new Date('2023-06-15T10:00:00Z');
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello from Alice',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [
+            { id: 'role1', name: 'Admin', position: 10 },
+            { id: 'role2', name: 'Moderator', position: 5 },
+            { id: guildId, name: '@everyone', position: 0 }, // Should be excluded
+          ],
+          memberDisplayHexColor: '#FF0000',
+          memberJoinedAt: joinDate,
+          guildId,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      expect(result.participantGuildInfo!['discord:user1']).toEqual({
+        roles: ['Admin', 'Moderator'], // Sorted by position, @everyone excluded
+        displayColor: '#FF0000',
+        joinedAt: joinDate.toISOString(),
+      });
+    });
+
+    it('should collect guild info for multiple participants', async () => {
+      const guildId = 'guild123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [{ id: 'role1', name: 'Member', position: 1 }],
+          memberDisplayHexColor: '#00FF00',
+          guildId,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Hi there',
+          authorId: 'user2',
+          authorUsername: 'bob',
+          memberDisplayName: 'Bob',
+          memberRoles: [{ id: 'role2', name: 'VIP', position: 5 }],
+          memberDisplayHexColor: '#0000FF',
+          guildId,
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      expect(Object.keys(result.participantGuildInfo!)).toHaveLength(2);
+      expect(result.participantGuildInfo!['discord:user1'].roles).toContain('Member');
+      expect(result.participantGuildInfo!['discord:user2'].roles).toContain('VIP');
+    });
+
+    it('should not collect guild info for bot messages', async () => {
+      const guildId = 'guild123';
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'User message',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [{ id: 'role1', name: 'Member', position: 1 }],
+          guildId,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Bot response',
+          authorId: botUserId,
+          authorUsername: 'TestBot',
+          memberDisplayName: 'TestBot',
+          memberRoles: [{ id: 'role2', name: 'Bot', position: 3 }],
+          isBot: true,
+          guildId,
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      // Only user1 should have guild info, not the bot
+      expect(Object.keys(result.participantGuildInfo!)).toHaveLength(1);
+      expect(result.participantGuildInfo!['discord:user1']).toBeDefined();
+      expect(result.participantGuildInfo!['assistant']).toBeUndefined();
+    });
+
+    it('should collect guild info only once per participant', async () => {
+      const guildId = 'guild123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'First message',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [{ id: 'role1', name: 'Member', position: 1 }],
+          guildId,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Second message from same user',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [{ id: 'role1', name: 'Member', position: 1 }],
+          guildId,
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      // Should only have one entry for user1
+      expect(Object.keys(result.participantGuildInfo!)).toHaveLength(1);
+    });
+
+    it('should limit roles to top 5 sorted by position', async () => {
+      const guildId = 'guild123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [
+            { id: 'role1', name: 'Role1', position: 1 },
+            { id: 'role2', name: 'Role2', position: 2 },
+            { id: 'role3', name: 'Role3', position: 3 },
+            { id: 'role4', name: 'Role4', position: 4 },
+            { id: 'role5', name: 'Role5', position: 5 },
+            { id: 'role6', name: 'Role6', position: 6 },
+            { id: 'role7', name: 'Role7', position: 7 },
+          ],
+          guildId,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      const roles = result.participantGuildInfo!['discord:user1'].roles;
+      expect(roles).toHaveLength(5);
+      // Should be sorted by position (highest first) and limited to 5
+      expect(roles).toEqual(['Role7', 'Role6', 'Role5', 'Role4', 'Role3']);
+    });
+
+    it('should not include displayColor if it is #000000', async () => {
+      const guildId = 'guild123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          memberRoles: [{ id: 'role1', name: 'Member', position: 1 }],
+          memberDisplayHexColor: '#000000', // Transparent/default
+          guildId,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeDefined();
+      expect(result.participantGuildInfo!['discord:user1'].displayColor).toBeUndefined();
+    });
+
+    it('should return undefined participantGuildInfo when no users with guild info', async () => {
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          // No member info (DM or unavailable)
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.participantGuildInfo).toBeUndefined();
     });
   });
 });

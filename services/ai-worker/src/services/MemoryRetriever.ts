@@ -150,7 +150,9 @@ export class MemoryRetriever {
    * - content: User's persona description
    * - isActive: Whether this is the current speaker
    * - personaId: UUID for ID binding in chat_log
-   * - guildInfo: Optional guild-specific info (roles, color, join date) for active speaker
+   * - guildInfo: Optional guild-specific info (roles, color, join date)
+   *   - Active speaker: from activePersonaGuildInfo
+   *   - Other participants: from participantGuildInfo (when extended context is enabled)
    */
   async getAllParticipantPersonas(
     context: ConversationContext
@@ -170,8 +172,15 @@ export class MemoryRetriever {
     for (const participant of context.participants) {
       const content = await this.getPersonaContent(participant.personaId);
       if (content !== null && content.length > 0) {
-        // Include guild info only for the active speaker (from context)
-        const guildInfo = participant.isActive ? context.activePersonaGuildInfo : undefined;
+        // Include guild info:
+        // - For active speaker: use activePersonaGuildInfo (from triggering message)
+        // - For other participants: look up in participantGuildInfo (from extended context)
+        let guildInfo;
+        if (participant.isActive) {
+          guildInfo = context.activePersonaGuildInfo;
+        } else if (context.participantGuildInfo) {
+          guildInfo = context.participantGuildInfo[participant.personaId];
+        }
 
         personaMap.set(participant.personaName, {
           content,
