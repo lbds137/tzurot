@@ -24,6 +24,15 @@ import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 const logger = createLogger('DiscordChannelFetcher');
 
 /**
+ * Guild member info for participant context
+ */
+export interface ParticipantGuildInfo {
+  roles: string[];
+  displayColor?: string;
+  joinedAt?: string;
+}
+
+/**
  * Result of fetching channel messages
  */
 export interface FetchResult {
@@ -37,6 +46,8 @@ export interface FetchResult {
   rawMessages?: Collection<string, Message>;
   /** Image attachments collected from extended context messages (newest first) */
   imageAttachments?: AttachmentMetadata[];
+  /** Guild info for participants (keyed by personaId, e.g., 'discord:123456789') */
+  participantGuildInfo?: Record<string, ParticipantGuildInfo>;
 }
 
 /**
@@ -149,12 +160,14 @@ export class DiscordChannelFetcher {
       // Filter and convert messages (async for transcript retrieval)
       const processResult = await this.processMessages(messagesToProcess, options);
 
+      const participantCount = Object.keys(processResult.participantGuildInfo).length;
       logger.info(
         {
           channelId: channel.id,
           fetchedCount: discordMessages.size,
           filteredCount: processResult.messages.length,
           imageAttachmentCount: processResult.imageAttachments.length,
+          participantGuildInfoCount: participantCount,
         },
         '[DiscordChannelFetcher] Fetched and processed channel messages'
       );
@@ -166,6 +179,7 @@ export class DiscordChannelFetcher {
         rawMessages: discordMessages, // For opportunistic sync
         imageAttachments:
           processResult.imageAttachments.length > 0 ? processResult.imageAttachments : undefined,
+        participantGuildInfo: participantCount > 0 ? processResult.participantGuildInfo : undefined,
       };
     } catch (error) {
       logger.error(
@@ -190,9 +204,44 @@ export class DiscordChannelFetcher {
    */
   private processMessagesResult(
     messages: ConversationMessage[],
-    imageAttachments: AttachmentMetadata[]
-  ): { messages: ConversationMessage[]; imageAttachments: AttachmentMetadata[] } {
-    return { messages, imageAttachments };
+    imageAttachments: AttachmentMetadata[],
+    participantGuildInfo: Record<string, ParticipantGuildInfo>
+  ): {
+    messages: ConversationMessage[];
+    imageAttachments: AttachmentMetadata[];
+    participantGuildInfo: Record<string, ParticipantGuildInfo>;
+  } {
+    return { messages, imageAttachments, participantGuildInfo };
+  }
+
+  /**
+   * Extract guild member info from a Discord message
+   * Used to collect guild info for extended context participants
+   */
+  private extractGuildInfo(msg: Message): ParticipantGuildInfo {
+    const member = msg.member;
+    if (!member) {
+      return { roles: [] };
+    }
+
+    // Get role names, sorted by position (highest first), excluding @everyone
+    // Limit to top 5 for token efficiency
+    const roles =
+      member.roles !== undefined
+        ? Array.from(member.roles.cache.values())
+            .filter(r => r.id !== msg.guild?.id)
+            .sort((a, b) => b.position - a.position)
+            .slice(0, 5)
+            .map(r => r.name)
+        : [];
+
+    return {
+      roles,
+      // Display color from highest colored role (#000000 is treated as transparent)
+      displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
+      // When user joined the server
+      joinedAt: member.joinedAt?.toISOString(),
+    };
   }
 
   /**
@@ -209,9 +258,14 @@ export class DiscordChannelFetcher {
   private async processMessages(
     messages: Message[],
     options: FetchOptions
-  ): Promise<{ messages: ConversationMessage[]; imageAttachments: AttachmentMetadata[] }> {
+  ): Promise<{
+    messages: ConversationMessage[];
+    imageAttachments: AttachmentMetadata[];
+    participantGuildInfo: Record<string, ParticipantGuildInfo>;
+  }> {
     const result: ConversationMessage[] = [];
     const collectedImageAttachments: AttachmentMetadata[] = [];
+    const participantGuildInfo: Record<string, ParticipantGuildInfo> = {};
 
     // Sort by timestamp ascending (oldest first), then reverse for newest first
     const sortedMessages = [...messages].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
@@ -255,13 +309,28 @@ export class DiscordChannelFetcher {
             }));
           collectedImageAttachments.push(...images);
         }
+
+        // Collect guild info for user participants (not bots)
+        // Only collect once per participant (keyed by personaId)
+        const personaId = conversionResult.message.personaId;
+        if (
+          conversionResult.message.role === MessageRole.User &&
+          participantGuildInfo[personaId] === undefined &&
+          msg.member
+        ) {
+          participantGuildInfo[personaId] = this.extractGuildInfo(msg);
+        }
       }
     }
 
     // Return messages in reverse order (newest first) to match conversation history format
     // Image attachments stay in chronological order (oldest message's images first, preserving
     // attachment order within each message) so Image 1 = first attachment, not last
-    return this.processMessagesResult(result.reverse(), collectedImageAttachments);
+    return this.processMessagesResult(
+      result.reverse(),
+      collectedImageAttachments,
+      participantGuildInfo
+    );
   }
 
   /**

@@ -204,6 +204,122 @@ describe('MemoryRetriever', () => {
       });
       expect(result.has('No Content')).toBe(false);
     });
+
+    it('should apply activePersonaGuildInfo to active participant', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce('Persona content');
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [{ personaId: 'persona-1', personaName: 'User One', isActive: true }],
+        activePersonaGuildInfo: {
+          roles: ['Admin', 'Moderator'],
+          displayColor: '#FF0000',
+          joinedAt: '2023-06-15T10:00:00.000Z',
+        },
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context);
+
+      expect(result.size).toBe(1);
+      expect(result.get('User One')).toEqual({
+        content: 'Persona content',
+        isActive: true,
+        personaId: 'persona-1',
+        guildInfo: {
+          roles: ['Admin', 'Moderator'],
+          displayColor: '#FF0000',
+          joinedAt: '2023-06-15T10:00:00.000Z',
+        },
+      });
+    });
+
+    it('should apply participantGuildInfo to non-active participants', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt
+        .mockResolvedValueOnce('Active user content')
+        .mockResolvedValueOnce('Inactive user content');
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'discord:user1', personaName: 'Active User', isActive: true },
+          { personaId: 'discord:user2', personaName: 'Inactive User', isActive: false },
+        ],
+        activePersonaGuildInfo: {
+          roles: ['Admin'],
+          displayColor: '#FF0000',
+        },
+        participantGuildInfo: {
+          'discord:user2': {
+            roles: ['Member'],
+            displayColor: '#00FF00',
+          },
+        },
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context);
+
+      expect(result.size).toBe(2);
+      // Active user gets activePersonaGuildInfo
+      expect(result.get('Active User')?.guildInfo).toEqual({
+        roles: ['Admin'],
+        displayColor: '#FF0000',
+      });
+      // Inactive user gets info from participantGuildInfo
+      expect(result.get('Inactive User')?.guildInfo).toEqual({
+        roles: ['Member'],
+        displayColor: '#00FF00',
+      });
+    });
+
+    it('should return undefined guildInfo for inactive participants not in participantGuildInfo', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt
+        .mockResolvedValueOnce('Active user content')
+        .mockResolvedValueOnce('Inactive user content');
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'discord:user1', personaName: 'Active User', isActive: true },
+          { personaId: 'db-persona-uuid', personaName: 'DB History User', isActive: false },
+        ],
+        activePersonaGuildInfo: {
+          roles: ['Admin'],
+        },
+        participantGuildInfo: {
+          // Only discord:user3 has info, not db-persona-uuid
+          'discord:user3': { roles: ['VIP'] },
+        },
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context);
+
+      expect(result.size).toBe(2);
+      expect(result.get('Active User')?.guildInfo).toBeDefined();
+      // DB history user has no guild info (not from extended context)
+      expect(result.get('DB History User')?.guildInfo).toBeUndefined();
+    });
+
+    it('should handle missing participantGuildInfo gracefully', async () => {
+      mockPersonaResolver.getPersonaContentForPrompt
+        .mockResolvedValueOnce('Active user content')
+        .mockResolvedValueOnce('Inactive user content');
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'discord:user1', personaName: 'Active User', isActive: true },
+          { personaId: 'discord:user2', personaName: 'Inactive User', isActive: false },
+        ],
+        activePersonaGuildInfo: { roles: ['Admin'] },
+        // No participantGuildInfo provided
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context);
+
+      expect(result.size).toBe(2);
+      expect(result.get('Active User')?.guildInfo).toEqual({ roles: ['Admin'] });
+      expect(result.get('Inactive User')?.guildInfo).toBeUndefined();
+    });
   });
 
   describe('retrieveRelevantMemories', () => {

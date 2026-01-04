@@ -60,6 +60,15 @@ export interface ConversationContext {
     displayColor?: string;
     joinedAt?: string;
   };
+  /** Guild info for other participants (from extended context, keyed by personaId) */
+  participantGuildInfo?: Record<
+    string,
+    {
+      roles: string[];
+      displayColor?: string;
+      joinedAt?: string;
+    }
+  >;
   conversationHistory?: BaseMessage[];
   rawConversationHistory?: {
     /** Message ID - for extended context messages this IS the Discord message ID */

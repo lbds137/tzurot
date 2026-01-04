@@ -235,8 +235,8 @@ export const referencedChannelSchema = z.object({
  * Used for enriching participant context in prompts
  */
 export const guildMemberInfoSchema = z.object({
-  /** User's server roles (up to 10, excluding @everyone) */
-  roles: z.array(z.string()).max(10),
+  /** User's top server roles (up to 5, sorted by position, excluding @everyone) */
+  roles: z.array(z.string()).max(5),
   /** Display color from highest colored role (hex, e.g., '#FF00FF') */
   displayColor: z.string().optional(),
   /** When user joined the server (ISO 8601) */
@@ -264,6 +264,9 @@ export const requestContextSchema = z.object({
   activePersonaName: z.string().optional(),
   // Guild-specific info about the active speaker (roles, color, join date)
   activePersonaGuildInfo: guildMemberInfoSchema.optional(),
+  // Guild info for other participants (from extended context, keyed by personaId)
+  // Note: Only available for extended context participants; DB history doesn't store guild info
+  participantGuildInfo: z.record(z.string(), guildMemberInfoSchema).optional(),
   // Conversation history
   conversationHistory: z.array(apiConversationMessageSchema).optional(),
   // Attachments (from triggering message)
