@@ -4,7 +4,7 @@
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.31
+**Version**: v3.0.0-beta.33
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
@@ -133,7 +133,7 @@ Non-blocking suggestions to address when convenient:
 
 **Merged** - Redis pub/sub invalidation for channel activation cache
 
-- ✅ Comprehensive caching audit - [docs/architecture/CACHING_AUDIT.md](docs/architecture/CACHING_AUDIT.md)
+- ✅ Comprehensive caching audit - [docs/reference/architecture/CACHING_AUDIT.md](docs/reference/architecture/CACHING_AUDIT.md)
 - ✅ `ChannelActivationCacheInvalidationService` - cross-instance cache invalidation
 - ✅ `tzurot-caching` skill - cache patterns and horizontal scaling guidance
 
@@ -185,7 +185,7 @@ All `/channel list` improvements done:
 
 ## Active: Memory Management Commands
 
-**Reference**: [docs/planning/MEMORY_MANAGEMENT_COMMANDS.md](docs/planning/MEMORY_MANAGEMENT_COMMANDS.md)
+**Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
 **Phase 1 (STM) - COMPLETE** (shipped in beta.19):
 
@@ -228,6 +228,8 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.33**: Identity/memory bug fixes (name collision instruction, legacy user reference format), pretest clean hooks for CJS/ESM conflicts, immutable modelResult refactor
+- **beta.32**: Pure XML prompt architecture (from_id binding), inline image descriptions in chat_log, character list UX fixes, BYOK vision fix, stop sequences capped at 16
 - **beta.31**: Inline image descriptions in chat_log (better AI context), BYOK vision API key fix, stop sequences capped at 16, forwarded message attachment extraction, qs vulnerability patch
 - **beta.30**: Extended Context Improvements - time gap markers, interactive settings dashboards, persistent vision cache (L2), maxImages enforcement
 - **beta.29**: LTM null handling fix, modal command deferral fix, Node 25 upgrade, typescript-eslint 8.51.0
