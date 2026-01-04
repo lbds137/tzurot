@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: Documentation maintenance for Tzurot v3 - Updating CURRENT_WORK.md, folder structure, and keeping docs current. Use at session end or when documentation needs updating.
-lastUpdated: '2025-12-20'
+lastUpdated: '2026-01-04'
 ---
 
 # Tzurot v3 Documentation Maintenance
@@ -41,19 +41,44 @@ lastUpdated: '2025-12-20'
 
 **Root files only:** README.md, CLAUDE.md, CURRENT_WORK.md, ROADMAP.md. Everything else → `docs/`
 
-## Documentation Structure
+## Documentation Structure (Time-State Architecture)
 
 ```
 docs/
-├── architecture/    # Design decisions
-├── deployment/      # Railway, infrastructure
-├── guides/          # How-to guides
-├── features/        # Feature specs
-├── improvements/    # Enhancement proposals
-├── planning/        # Roadmaps, tracking
-├── reference/       # CLI, API docs
-└── templates/       # Reusable templates
+├── reference/           # THE TRUTH - What currently exists
+│   ├── architecture/    # Design decisions, system architecture
+│   ├── deployment/      # Railway, infrastructure setup
+│   ├── operations/      # Runbooks, backup procedures
+│   ├── standards/       # Coding patterns, folder structure
+│   ├── guides/          # Developer how-tos
+│   ├── features/        # Feature documentation
+│   ├── testing/         # Test procedures
+│   ├── database/        # Schema documentation
+│   └── templates/       # Reusable document templates
+├── proposals/           # THE PLANS - What we want to build
+│   ├── active/          # On roadmap, being worked on
+│   └── backlog/         # Ideas not yet scheduled
+├── incidents/           # Postmortems and lessons learned
+└── migration/           # Active migration guides
 ```
+
+## Decision Rules
+
+| Question | Answer |
+|----------|--------|
+| Is it implemented? | → `reference/` |
+| Is it a plan/idea? | → `proposals/` (active or backlog) |
+| Is it done/obsolete? | → Extract learnings, then DELETE |
+| Is it an incident? | → `incidents/` |
+
+## Proposal Lifecycle
+
+1. **New idea** → `proposals/backlog/`
+2. **Scheduled for work** → Move to `proposals/active/`
+3. **Implementation complete**:
+   - Extract learnings to `reference/` docs or skills
+   - Update incident docs if issues found
+   - DELETE the proposal (git preserves history)
 
 ## Session Handoff Protocol
 
@@ -80,6 +105,7 @@ git commit -m "wip: feature-name - progress description"
 - Use YYYY-MM-DD date format
 - Link between related docs with relative paths
 - Delete obsolete docs (git preserves history)
+- Use frontmatter for dates, not filenames
 
 ### ❌ Don't
 
@@ -87,16 +113,20 @@ git commit -m "wip: feature-name - progress description"
 - Let CURRENT_WORK.md get stale
 - Create README files in every directory
 - Document obvious things
+- Keep archive folders (delete instead)
+- Put dates in filenames
 
 ## Documentation Categories
 
-| Type                   | Location             | Purpose                   |
-| ---------------------- | -------------------- | ------------------------- |
-| Architecture decisions | `docs/architecture/` | Why we built it this way  |
-| Deployment guides      | `docs/deployment/`   | Railway setup, operations |
-| Development guides     | `docs/guides/`       | How to do X               |
-| Feature specs          | `docs/features/`     | What we're building       |
-| Reference docs         | `docs/reference/`    | CLI, API documentation    |
+| Type | Location | Purpose |
+|------|----------|---------|
+| Architecture decisions | `docs/reference/architecture/` | Why we built it this way |
+| Deployment guides | `docs/reference/deployment/` | Railway setup, operations |
+| Development guides | `docs/reference/guides/` | How to do X |
+| Coding standards | `docs/reference/standards/` | Patterns to follow |
+| Active proposals | `docs/proposals/active/` | Currently being worked |
+| Future ideas | `docs/proposals/backlog/` | Not yet scheduled |
+| Post-mortems | `docs/incidents/` | Incident analysis |
 
 ## GitHub Releases Format
 
@@ -122,12 +152,14 @@ git commit -m "wip: feature-name - progress description"
 
 ## Anti-Patterns
 
-| ❌ Don't                     | ✅ Do                   |
-| ---------------------------- | ----------------------- |
+| ❌ Don't | ✅ Do |
+|----------|-------|
 | Multiple docs for same topic | One comprehensive guide |
-| Stale CURRENT_WORK.md        | Update at session end   |
-| README in every directory    | One main README         |
-| Document obvious things      | Document non-obvious    |
+| Stale CURRENT_WORK.md | Update at session end |
+| README in every directory | One main README |
+| Document obvious things | Document non-obvious |
+| Archive obsolete docs | Delete (extract learnings first) |
+| Date-stamped filenames | Frontmatter dates |
 
 ## Context Preservation
 
@@ -140,7 +172,7 @@ git commit -m "wip: feature-name - progress description"
 ## Related Skills
 
 - **tzurot-git-workflow** - Commit documentation updates
-- **tzurot-gemini-collab** - When to update vs create docs
+- **tzurot-council-mcp** - When to consult for doc structure
 - **tzurot-architecture** - Document architectural decisions
 
 ## References
@@ -148,3 +180,4 @@ git commit -m "wip: feature-name - progress description"
 - Documentation structure: `docs/README.md`
 - Current project status: `CURRENT_WORK.md`
 - Project guidelines: `CLAUDE.md`
+- Tech debt tracking: `docs/proposals/active/TECH_DEBT.md`

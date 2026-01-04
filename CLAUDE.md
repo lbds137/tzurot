@@ -294,7 +294,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 | 2025-12-05 | Direct fetch broke /character | Use gateway clients             |
 | 2025-12-06 | API contract mismatch         | Use shared Zod schemas          |
 
-**Full details**: [docs/postmortems/PROJECT_POSTMORTEMS.md](docs/postmortems/PROJECT_POSTMORTEMS.md)
+**Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 
 ## Railway Deployment
 
@@ -304,7 +304,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 - **Auto-deploy**: Push to develop branch
 - **Cost Model**: BYOK (users provide API keys via `/wallet`)
 
-**📚 See**: `tzurot-deployment` for operations, `docs/reference/RAILWAY_CLI_REFERENCE.md` for CLI
+**📚 See**: `tzurot-deployment` skill for operations, `docs/reference/RAILWAY_CLI_REFERENCE.md` for CLI
 
 ## Tool Permissions
 
@@ -321,6 +321,7 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 ## Key References
 
 - **CLI**: `docs/reference/RAILWAY_CLI_REFERENCE.md`, `docs/reference/GITHUB_CLI_REFERENCE.md`
-- **Folder Structure**: `docs/standards/FOLDER_STRUCTURE.md`
-- **Tri-State Pattern**: `docs/standards/TRI_STATE_PATTERN.md` (for cascading settings)
-- **v2 Feature Status**: `docs/planning/V2_FEATURE_TRACKING.md`
+- **Folder Structure**: `docs/reference/standards/FOLDER_STRUCTURE.md`
+- **Tri-State Pattern**: `docs/reference/standards/TRI_STATE_PATTERN.md` (for cascading settings)
+- **v2 Feature Status**: `docs/proposals/active/V2_FEATURE_TRACKING.md`
+- **Tech Debt**: `docs/proposals/active/TECH_DEBT.md`
