@@ -184,7 +184,9 @@ export default tseslint.config(
       ],
 
       // Enforce maximum cyclomatic complexity
-      complexity: ['warn', { max: 15 }],
+      // Bumped from 15 to 20 per MCP council review: Discord bots and AI pipelines
+      // are inherently branch-heavy due to command routing and data validation
+      complexity: ['warn', { max: 20 }],
 
       // Enforce maximum depth of nested blocks
       'max-depth': ['warn', { max: 4 }],
@@ -193,7 +195,9 @@ export default tseslint.config(
       'max-params': ['warn', { max: 5 }],
 
       // Enforce maximum number of statements in a function
-      'max-statements': ['warn', { max: 30 }],
+      // Bumped from 30 to 50 per MCP council review: orchestrator functions in
+      // microservices naturally have many sequential steps (validate, fetch, process, save)
+      'max-statements': ['warn', { max: 50 }],
 
       // Enforce maximum nested callbacks
       'max-nested-callbacks': ['warn', { max: 3 }],
