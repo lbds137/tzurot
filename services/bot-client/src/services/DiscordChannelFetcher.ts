@@ -215,8 +215,9 @@ export class DiscordChannelFetcher {
   }
 
   /**
-   * Limit participantGuildInfo to most recent N participants
-   * Object keys maintain insertion order, so last entries are most recent
+   * Limit participantGuildInfo to most recent N participants.
+   * Relies on ES2015+ object key insertion order guarantee (string keys preserve order).
+   * We delete and re-add entries on update to maintain recency ordering.
    */
   private limitParticipants(
     participantGuildInfo: Record<string, ParticipantGuildInfo>
