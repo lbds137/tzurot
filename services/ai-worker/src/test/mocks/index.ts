@@ -89,6 +89,13 @@ export {
   type MockReferencedMessageFormatterInstance,
 } from './ReferencedMessageFormatter.mock.js';
 
+export {
+  mockUserReferenceResolver,
+  getUserReferenceResolverMock,
+  resetUserReferenceResolverMock,
+  type MockUserReferenceResolverInstance,
+} from './UserReferenceResolver.mock.js';
+
 // Utility function mocks
 export {
   mockProcessAttachments,
@@ -112,6 +119,7 @@ import { resetPromptBuilderMock } from './PromptBuilder.mock.js';
 import { resetContextWindowManagerMock } from './ContextWindowManager.mock.js';
 import { resetLongTermMemoryServiceMock } from './LongTermMemoryService.mock.js';
 import { resetReferencedMessageFormatterMock } from './ReferencedMessageFormatter.mock.js';
+import { resetUserReferenceResolverMock } from './UserReferenceResolver.mock.js';
 import { resetUtilityMocks } from './utils.mock.js';
 
 /**
@@ -126,5 +134,6 @@ export function resetAllMocks(): void {
   resetContextWindowManagerMock();
   resetLongTermMemoryServiceMock();
   resetReferencedMessageFormatterMock();
+  resetUserReferenceResolverMock();
   resetUtilityMocks();
 }

@@ -25,24 +25,43 @@ export class ContextStep implements IPipelineStep {
       throw new Error('[ContextStep] ConfigStep must run before ContextStep');
     }
 
-    // Calculate oldest timestamp from conversation history (for LTM deduplication)
+    // Calculate oldest timestamp from conversation history AND referenced messages
+    // (for LTM deduplication - prevents verbatim repetition when replying to AI messages)
     let oldestHistoryTimestamp: number | undefined;
+    const allTimestamps: number[] = [];
+
+    // Timestamps from conversation history
     if (jobContext.conversationHistory && jobContext.conversationHistory.length > 0) {
-      const timestamps = jobContext.conversationHistory
+      const historyTimestamps = jobContext.conversationHistory
         .map(msg =>
           msg.createdAt !== undefined && msg.createdAt.length > 0
             ? new Date(msg.createdAt).getTime()
             : null
         )
         .filter((t): t is number => t !== null);
+      allTimestamps.push(...historyTimestamps);
+    }
 
-      if (timestamps.length > 0) {
-        oldestHistoryTimestamp = Math.min(...timestamps);
-        logger.debug(
-          { jobId: job.id, oldestTimestamp: new Date(oldestHistoryTimestamp).toISOString() },
-          '[ContextStep] Oldest conversation message timestamp'
-        );
-      }
+    // Timestamps from referenced messages (replies, message links)
+    // These should also be excluded from LTM to prevent the AI from echoing
+    // the content of messages being replied to
+    if (jobContext.referencedMessages && jobContext.referencedMessages.length > 0) {
+      const refTimestamps = jobContext.referencedMessages
+        .map(ref =>
+          ref.timestamp !== undefined && ref.timestamp.length > 0
+            ? new Date(ref.timestamp).getTime()
+            : null
+        )
+        .filter((t): t is number => t !== null);
+      allTimestamps.push(...refTimestamps);
+    }
+
+    if (allTimestamps.length > 0) {
+      oldestHistoryTimestamp = Math.min(...allTimestamps);
+      logger.debug(
+        { jobId: job.id, oldestTimestamp: new Date(oldestHistoryTimestamp).toISOString() },
+        '[ContextStep] Oldest timestamp (includes referenced messages)'
+      );
     }
 
     // Extract unique participants BEFORE converting to BaseMessage

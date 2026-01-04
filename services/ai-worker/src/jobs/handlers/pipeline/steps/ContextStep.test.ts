@@ -324,5 +324,192 @@ describe('ContextStep', () => {
       expect(result.preparedContext?.rawConversationHistory).toEqual(conversationHistory);
       expect(result.preparedContext?.conversationHistory).toHaveLength(2);
     });
+
+    describe('referenced message timestamps in deduplication', () => {
+      it('should include referenced message timestamps in oldestHistoryTimestamp', () => {
+        // Conversation history with recent messages
+        const conversationHistory = [
+          { role: 'user', content: 'Recent message', createdAt: '2024-01-01T14:00:00Z' },
+        ];
+
+        // Referenced message is older than conversation history
+        const referencedMessages = [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'ref-msg-1',
+            discordUserId: 'user-123',
+            authorUsername: 'alice',
+            authorDisplayName: 'Alice',
+            content: 'An old message being referenced',
+            embeds: '',
+            timestamp: '2024-01-01T10:00:00Z', // Older than conversation history
+            locationContext: 'Server/Channel',
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', conversationHistory, referencedMessages },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Oldest timestamp should be from the referenced message, not conversation history
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-01T10:00:00Z').getTime()
+        );
+      });
+
+      it('should use conversation history timestamp if older than referenced messages', () => {
+        const conversationHistory = [
+          { role: 'user', content: 'Old message', createdAt: '2024-01-01T08:00:00Z' },
+          { role: 'assistant', content: 'Reply', createdAt: '2024-01-01T08:05:00Z' },
+        ];
+
+        const referencedMessages = [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'ref-msg-1',
+            discordUserId: 'user-123',
+            authorUsername: 'bob',
+            authorDisplayName: 'Bob',
+            content: 'A newer referenced message',
+            embeds: '',
+            timestamp: '2024-01-01T12:00:00Z', // Newer than conversation history
+            locationContext: 'Server/Channel',
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', conversationHistory, referencedMessages },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Oldest timestamp should be from conversation history
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-01T08:00:00Z').getTime()
+        );
+      });
+
+      it('should handle referenced messages without timestamps', () => {
+        const conversationHistory = [
+          { role: 'user', content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
+        ];
+
+        const referencedMessages = [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'ref-msg-1',
+            discordUserId: 'user-123',
+            authorUsername: 'charlie',
+            authorDisplayName: 'Charlie',
+            content: 'Referenced without timestamp',
+            embeds: '',
+            timestamp: '', // Empty timestamp
+            locationContext: 'Server/Channel',
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', conversationHistory, referencedMessages },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Should use conversation history timestamp when referenced message has no timestamp
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-01T12:00:00Z').getTime()
+        );
+      });
+
+      it('should handle only referenced messages (no conversation history)', () => {
+        const referencedMessages = [
+          {
+            referenceNumber: 1,
+            discordMessageId: 'ref-msg-1',
+            discordUserId: 'user-123',
+            authorUsername: 'dave',
+            authorDisplayName: 'Dave',
+            content: 'Only a referenced message',
+            embeds: '',
+            timestamp: '2024-01-01T15:00:00Z',
+            locationContext: 'Server/Channel',
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', conversationHistory: [], referencedMessages },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Should use referenced message timestamp
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-01T15:00:00Z').getTime()
+        );
+      });
+
+      it('should handle empty referenced messages array gracefully', () => {
+        const conversationHistory = [
+          { role: 'user', content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', conversationHistory, referencedMessages: [] },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Should use conversation history timestamp
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-01T12:00:00Z').getTime()
+        );
+      });
+    });
   });
 });
