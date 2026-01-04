@@ -238,10 +238,18 @@ Respond to ${senderName} now. Do not simulate other users. Stop after your respo
     // Detect name collision: user's persona name matches personality name (case-insensitive)
     const activePersonaName = context.activePersonaName ?? '';
     const discordUsername = context.discordUsername ?? '';
-    const hasNameCollision =
+    const namesMatch =
       activePersonaName.length > 0 &&
-      discordUsername.length > 0 &&
       activePersonaName.toLowerCase() === personality.name.toLowerCase();
+    const hasNameCollision = namesMatch && discordUsername.length > 0;
+
+    // Warn if collision detected but can't add instruction (no discordUsername to disambiguate)
+    if (namesMatch && discordUsername.length === 0) {
+      logger.warn(
+        { personalityId: personality.id, activePersonaName },
+        '[PromptBuilder] Name collision detected but cannot add instruction (missing discordUsername)'
+      );
+    }
 
     const collisionInfo = hasNameCollision
       ? { userName: activePersonaName, discordUsername: discordUsername }
