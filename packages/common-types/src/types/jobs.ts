@@ -17,6 +17,7 @@ import type {
   AttachmentMetadata,
   DiscordEnvironment,
   LLMGenerationResult,
+  GuildMemberInfo,
 } from './schemas.js';
 import {
   loadedPersonalitySchema,
@@ -26,6 +27,7 @@ import {
   apiConversationMessageSchema,
   referencedMessageSchema,
   discordEnvironmentSchema,
+  guildMemberInfoSchema,
 } from './schemas.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
@@ -61,6 +63,8 @@ export interface JobContext {
   isProxyMessage?: boolean;
   activePersonaId?: string;
   activePersonaName?: string;
+  /** Guild-specific info about the active speaker (roles, color, join date) */
+  activePersonaGuildInfo?: GuildMemberInfo;
   conversationHistory?: {
     id?: string;
     role: MessageRole;
@@ -292,6 +296,7 @@ export const jobContextSchema = z.object({
   isProxyMessage: z.boolean().optional(),
   activePersonaId: z.string().optional(),
   activePersonaName: z.string().optional(),
+  activePersonaGuildInfo: guildMemberInfoSchema.optional(),
   conversationHistory: z.array(apiConversationMessageSchema).optional(),
   attachments: z.array(attachmentMetadataSchema).optional(),
   extendedContextAttachments: z.array(attachmentMetadataSchema).optional(),

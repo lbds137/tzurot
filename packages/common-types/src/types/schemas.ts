@@ -230,6 +230,20 @@ export const referencedChannelSchema = z.object({
 });
 
 /**
+ * Guild member info schema
+ * Discord server-specific information about a user
+ * Used for enriching participant context in prompts
+ */
+export const guildMemberInfoSchema = z.object({
+  /** User's server roles (up to 10, excluding @everyone) */
+  roles: z.array(z.string()).max(10),
+  /** Display color from highest colored role (hex, e.g., '#FF00FF') */
+  displayColor: z.string().optional(),
+  /** When user joined the server (ISO 8601) */
+  joinedAt: z.string().optional(),
+});
+
+/**
  * Request context schema
  * Includes all contextual information about a message
  */
@@ -248,6 +262,8 @@ export const requestContextSchema = z.object({
   // Active speaker persona
   activePersonaId: z.string().optional(),
   activePersonaName: z.string().optional(),
+  // Guild-specific info about the active speaker (roles, color, join date)
+  activePersonaGuildInfo: guildMemberInfoSchema.optional(),
   // Conversation history
   conversationHistory: z.array(apiConversationMessageSchema).optional(),
   // Attachments (from triggering message)
@@ -456,6 +472,7 @@ export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSche
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
+export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;

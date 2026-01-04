@@ -2,27 +2,48 @@
  * Environment Formatter
  *
  * Formats Discord environment context (DM vs guild) for inclusion in system prompts.
+ * Uses pure XML structure for clear LLM context separation.
+ *
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { createLogger, escapeXmlContent } from '@tzurot/common-types';
+import { createLogger, escapeXml } from '@tzurot/common-types';
 import type { DiscordEnvironment } from '../ConversationalRAGService.js';
 
 const logger = createLogger('EnvironmentFormatter');
 
 /**
  * Format Discord environment context for inclusion in system prompt.
- * Wraps output in <current_situation> XML tags for better LLM context separation.
+ * Uses pure XML structure with semantic tags for clear LLM understanding.
+ *
+ * DM output:
+ * ```xml
+ * <current_situation>
+ *   <location type="dm">Direct Message (private one-on-one chat)</location>
+ * </current_situation>
+ * ```
+ *
+ * Guild output:
+ * ```xml
+ * <current_situation>
+ *   <location type="guild">
+ *     <server name="Test Server"/>
+ *     <category name="General"/>
+ *     <channel name="chat" type="text"/>
+ *     <thread name="discussion"/>
+ *   </location>
+ * </current_situation>
+ * ```
  */
 export function formatEnvironmentContext(environment: DiscordEnvironment): string {
   logger.debug({ environment }, '[EnvironmentFormatter] Formatting environment context');
 
-  let content: string;
+  const parts: string[] = [];
+  parts.push('<current_situation>');
 
   if (environment.type === 'dm') {
     logger.info('[EnvironmentFormatter] Environment type: DM');
-    content =
-      '## Conversation Location\nThis conversation is taking place in a **Direct Message** (private one-on-one chat).';
+    parts.push('<location type="dm">Direct Message (private one-on-one chat)</location>');
   } else {
     logger.info(
       {
@@ -33,13 +54,11 @@ export function formatEnvironmentContext(environment: DiscordEnvironment): strin
       '[EnvironmentFormatter] Environment type: Guild'
     );
 
-    const parts: string[] = [];
-    parts.push('## Conversation Location');
-    parts.push('This conversation is taking place in a Discord server:\n');
+    parts.push('<location type="guild">');
 
     // Guild name - escape to prevent prompt injection via malicious server names
     if (environment.guild !== undefined && environment.guild !== null) {
-      parts.push(`**Server**: ${escapeXmlContent(environment.guild.name)}`);
+      parts.push(`<server name="${escapeXml(environment.guild.name)}"/>`);
     }
 
     // Category (if exists) - escape to prevent prompt injection
@@ -48,22 +67,23 @@ export function formatEnvironmentContext(environment: DiscordEnvironment): strin
       environment.category !== null &&
       environment.category.name.length > 0
     ) {
-      parts.push(`**Category**: ${escapeXmlContent(environment.category.name)}`);
+      parts.push(`<category name="${escapeXml(environment.category.name)}"/>`);
     }
 
     // Channel - escape to prevent prompt injection
     parts.push(
-      `**Channel**: #${escapeXmlContent(environment.channel.name)} (${environment.channel.type})`
+      `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"/>`
     );
 
     // Thread (if exists) - escape to prevent prompt injection
     if (environment.thread !== undefined && environment.thread !== null) {
-      parts.push(`**Thread**: ${escapeXmlContent(environment.thread.name)}`);
+      parts.push(`<thread name="${escapeXml(environment.thread.name)}"/>`);
     }
 
-    content = parts.join('\n');
+    parts.push('</location>');
   }
 
-  // Wrap in XML tags for clear LLM context separation
-  return `<current_situation>\n${content}\n</current_situation>`;
+  parts.push('</current_situation>');
+
+  return parts.join('\n');
 }
