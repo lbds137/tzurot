@@ -248,6 +248,8 @@ describe('UserReferenceResolver', () => {
               },
             },
           },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
         });
       });
 

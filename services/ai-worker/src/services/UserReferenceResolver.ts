@@ -155,6 +155,12 @@ export class UserReferenceResolver {
       return { processedText: text ?? '', resolvedPersonas: [] };
     }
 
+    // Early exit: skip expensive regex if no reference patterns possible
+    // This is a hot path optimization - most AI responses don't contain references
+    if (!text.includes('@') && !text.includes('<@')) {
+      return { processedText: text, resolvedPersonas: [] };
+    }
+
     const ctx: MatchContext = {
       currentText: text,
       seenPersonaIds: new Set<string>(),
@@ -331,6 +337,8 @@ export class UserReferenceResolver {
             },
           },
         },
+        orderBy: { createdAt: 'asc' }, // Stable ordering per CLAUDE.md bounded data access
+        take: 1,
       });
 
       if (!user?.defaultPersona) {
