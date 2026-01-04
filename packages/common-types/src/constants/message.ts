@@ -50,4 +50,10 @@ export const MESSAGE_LIMITS = {
    * Balances context richness vs token usage
    */
   MAX_GUILD_ROLES: 5,
+  /**
+   * Maximum number of unique participants to include guild info for
+   * Keeps the most recently active participants (closest to triggering message)
+   * Prevents unbounded growth in busy public channels
+   */
+  MAX_EXTENDED_CONTEXT_PARTICIPANTS: 20,
 } as const;
