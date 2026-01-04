@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2026-01-03
+> Last updated: 2026-01-04
 
 ## Status: Public Beta Live
 
@@ -12,13 +12,13 @@
 
 ## TODO: Reduce ESLint Warnings
 
-**Current**: 110 warnings (up from ~84)
-**Target**: Get below 80 warnings
+**Current**: 72 warnings ✅ (was 110, target was 80)
+**Target**: Continue reducing where practical
 
-Key areas to address:
+Key areas remaining:
 
-- `max-lines-per-function`, `complexity`, `max-statements` in large functions
-- `@typescript-eslint/no-non-null-assertion` in VoiceContextMerger
+- `MessageContentBuilder.ts` - `buildMessageContent()` has complexity 37 (deferred: needs IR pattern refactor)
+- `SettingsModalFactory.ts` - `parseDurationInput()` complexity 26 (parsing logic inherent)
 - Consider extracting helper functions or splitting complex files
 
 ---
@@ -79,7 +79,7 @@ Non-blocking suggestions to address when convenient:
 
 - [ ] Add ESLint rule to detect `findMany` without `take` limit
 - [ ] Add integration test for large messageIds arrays in ConversationSyncService
-- [ ] Document vision cache L1/L2 strategy in `tzurot-caching` skill
+- [x] Document vision cache L1/L2 strategy in `tzurot-caching` skill
 - [ ] Consider removing `@default(uuid())` from Prisma schema (make deterministic UUID usage explicit)
 
 ---
