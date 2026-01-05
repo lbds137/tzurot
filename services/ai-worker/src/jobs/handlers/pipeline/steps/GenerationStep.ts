@@ -196,9 +196,7 @@ export class GenerationStep implements IPipelineStep {
       );
 
       // Get previous assistant message for cross-turn duplicate detection
-      const lastAssistantMessage = getLastAssistantMessage(
-        preparedContext.rawConversationHistory
-      );
+      const lastAssistantMessage = getLastAssistantMessage(preparedContext.rawConversationHistory);
 
       // Generate response with automatic retry on cross-turn duplication
       const { response, duplicateRetries } = await this.generateWithDuplicateRetry({
