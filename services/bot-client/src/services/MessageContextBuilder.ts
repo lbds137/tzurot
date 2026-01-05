@@ -33,8 +33,7 @@ import type {
 } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
-import { extractAttachments } from '../utils/attachmentExtractor.js';
-import { extractEmbedImages } from '../utils/embedImageExtractor.js';
+import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
@@ -452,14 +451,13 @@ export class MessageContextBuilder {
       messageMetadata: msg.messageMetadata,
     }));
 
-    // Extract attachments (images, audio, etc) from direct attachments
-    const regularAttachments = extractAttachments(message.attachments);
-
-    // Extract images from embeds (e.g., Reddit links with images)
-    const embedImages = extractEmbedImages(message.embeds);
-
-    // Combine both types of attachments
-    const allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
+    // Extract attachments using unified buildMessageContent
+    // This ensures forwarded message snapshot attachments are included (DRY principle)
+    // Voice transcripts are handled upstream (passed in via content parameter)
+    const { attachments: allAttachments } = await buildMessageContent(message, {
+      includeEmbeds: false, // Embeds parsed by reference extraction, not needed here
+      includeAttachments: false, // We only need attachment metadata, not text descriptions
+    });
     const attachments = allAttachments.length > 0 ? allAttachments : undefined;
 
     // Extract Discord environment context

@@ -6,56 +6,7 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 
 ---
 
-## Priority 1: CRITICAL
-
-### DRY Message Extraction Refactor
-
-**Plan**: `.claude/plans/rustling-churning-pike.md`
-
-**Problem**: Two parallel message processing paths (main vs extended context) keep diverging, causing recurring bugs.
-
-**Recent bugs from this pattern**:
-
-- 2026-01-03: Forwarded message attachments not extracted in extended context
-- 2026-01-03: Google API rejected >16 stop sequences
-- Previous: Extended context missing embed images, voice transcript inconsistencies
-
-**Solution**: Intermediate Representation (IR) pattern - single extraction pipeline:
-
-```
-RawDiscordMessage → NormalizedMessage → PromptContext
-```
-
-Both main and extended context flows consume `NormalizedMessage`.
-
-**Prerequisite**: Snapshot tests for PromptBuilder (see Priority 2) must exist first as a safety net.
-
----
-
-## Priority 2: HIGH
-
-### ~~Snapshot Tests for PromptBuilder~~ ✅ COMPLETE
-
-**Problem**: Prompt changes can silently break AI behavior. Manual testing is impossible at scale.
-
-**Solution**: Snapshot the exact prompt string sent to the LLM (not the response).
-
-**Completed scenarios** (16 snapshots in `PromptBuilder.test.ts`):
-
-- [x] Minimal system prompt (baseline)
-- [x] Multiple participants (8 participants - stop sequence scenario)
-- [x] Memories + guild environment
-- [x] Referenced messages
-- [x] Voice transcripts
-- [x] Image attachments
-- [x] Forwarded message context
-- [x] Complex combinations (attachments + refs + persona)
-- [x] Search query with pronoun resolution
-- [x] Search query with voice + refs + history
-
-**Now safe to**: Proceed with DRY Message Extraction refactor.
-
----
+## Priority 1: HIGH
 
 ### Timer Patterns Blocking Horizontal Scaling
 
@@ -71,7 +22,7 @@ Both main and extended context flows consume `NormalizedMessage`.
 
 ---
 
-## Priority 3: MEDIUM
+## Priority 2: MEDIUM
 
 ### Basic Observability
 
@@ -90,16 +41,15 @@ Log these events:
 
 ---
 
-## Priority 4: LOW
+## Priority 3: LOW
 
 ### Large File Reduction
 
 **Target**: No production files >400 lines
 
-| File                       | Current | Target | Approach                      |
-| -------------------------- | ------- | ------ | ----------------------------- |
-| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic  |
-| `MessageContentBuilder.ts` | ~400    | <400   | IR pattern refactor will help |
+| File                       | Current | Target | Approach                     |
+| -------------------------- | ------- | ------ | ---------------------------- |
+| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic |
 
 **Why low priority**: Large files slow AI assistants but don't directly cause bugs.
 
@@ -121,6 +71,31 @@ These items are optimizations for problems we don't have at current scale:
 ---
 
 ## Completed
+
+### DRY Message Extraction ✅
+
+**Problem**: Two parallel message processing paths (main vs extended context) kept diverging, causing bugs:
+
+- Forwarded message attachments not extracted in main path
+- Embed images missing in certain flows
+- Voice transcript inconsistencies
+
+**Solution**: Refactored `MessageContextBuilder.ts` to use `buildMessageContent()` (the single source of truth) instead of direct extraction functions. Both main and extended context paths now use the same extraction pipeline.
+
+### Snapshot Tests for PromptBuilder ✅
+
+16 snapshots in `PromptBuilder.test.ts` covering:
+
+- Minimal system prompt (baseline)
+- Multiple participants (8 participants - stop sequence scenario)
+- Memories + guild environment
+- Referenced messages
+- Voice transcripts
+- Image attachments
+- Forwarded message context
+- Complex combinations (attachments + refs + persona)
+- Search query with pronoun resolution
+- Search query with voice + refs + history
 
 ### Large File Refactoring
 
