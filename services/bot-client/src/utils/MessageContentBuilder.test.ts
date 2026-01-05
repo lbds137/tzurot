@@ -351,6 +351,58 @@ describe('MessageContentBuilder', () => {
       expect(result.isForwarded).toBe(true);
     });
 
+    it('should handle forwarded voice message when no transcript is available', async () => {
+      // Test the fallback path when getTranscript returns null
+      const snapshotAttachments = new Collection<string, Attachment>();
+      snapshotAttachments.set(
+        'voice-1',
+        createMockAttachment({
+          id: 'voice-1',
+          name: 'voice-message.ogg',
+          contentType: 'audio/ogg',
+          duration: 8.2,
+          url: 'https://cdn.discord.com/attachments/123/voice-no-transcript.ogg',
+        })
+      );
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: '',
+        embeds: [],
+        attachments: snapshotAttachments,
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        id: 'forwarded-msg-no-transcript',
+        content: '',
+        reference: {
+          type: MessageReferenceType.Forward,
+          messageId: 'original-voice-msg-456',
+        } as Message['reference'],
+        messageSnapshots,
+      });
+
+      // Transcript not available (returns null)
+      const getTranscript = vi.fn().mockResolvedValue(null);
+
+      const result = await buildMessageContent(message, { getTranscript });
+
+      // Should still attempt lookup
+      expect(getTranscript).toHaveBeenCalledWith(
+        'original-voice-msg-456',
+        'https://cdn.discord.com/attachments/123/voice-no-transcript.ogg'
+      );
+
+      // No transcript in content (since none was found)
+      expect(result.content).not.toContain('[Voice transcript]');
+      // Voice message attachment should be in the attachments list
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments[0].isVoiceMessage).toBe(true);
+      expect(result.hasVoiceMessage).toBe(true);
+      expect(result.isForwarded).toBe(true);
+    });
+
     it('should combine text content with attachments and embeds', async () => {
       const attachments = new Collection<string, Attachment>();
       attachments.set('1', createMockAttachment({ name: 'photo.jpg', contentType: 'image/jpeg' }));
