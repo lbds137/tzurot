@@ -15,6 +15,7 @@ import {
   USER_ERROR_MESSAGES,
 } from '@tzurot/common-types';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
+import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
 import { JobTracker } from '../services/JobTracker.js';
@@ -43,6 +44,16 @@ export class MessageHandler {
    */
   async handleMessage(message: Message): Promise<void> {
     try {
+      // Skip system messages (thread creation, pinned messages, user joins, etc.)
+      // Only process user-generated content (Default, Reply, Forward)
+      if (!isUserContentMessage(message)) {
+        logger.debug(
+          { messageId: message.id, messageType: message.type },
+          '[MessageHandler] Ignoring system message'
+        );
+        return;
+      }
+
       logger.debug(
         { messageId: message.id, authorTag: message.author.tag },
         '[MessageHandler] Processing message'
