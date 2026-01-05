@@ -425,7 +425,7 @@ describe('DependencyStep', () => {
         }),
         // Auth context populated by AuthStep (which runs before DependencyStep)
         auth: {
-          apiKey: 'sk-user-byok-key-12345',
+          apiKey: 'test-byok-key-for-unit-tests',
           isGuestMode: false,
           provider: AIProvider.OpenRouter,
         },
@@ -439,7 +439,7 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/dog.jpg' })],
         TEST_PERSONALITY,
         false, // isGuestMode from auth context
-        'sk-user-byok-key-12345' // userApiKey from auth context (BYOK)
+        'test-byok-key-for-unit-tests' // userApiKey from auth context (BYOK)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -571,6 +571,55 @@ describe('DependencyStep', () => {
 
       expect(mockProcessAttachments).not.toHaveBeenCalled();
       expect(result.preprocessing?.extendedContextAttachments).toBeUndefined();
+    });
+
+    it('should log warning and use system key fallback when auth context is missing', async () => {
+      const processedAttachment = {
+        type: AttachmentType.Image,
+        description: 'An image processed without BYOK',
+        originalUrl: 'https://example.com/noauth.jpg',
+        metadata: {
+          url: 'https://example.com/noauth.jpg',
+          name: 'noauth.jpg',
+          contentType: 'image/jpeg',
+          size: 1024,
+        },
+      };
+
+      // Reset the mock completely before setting up
+      mockProcessAttachments.mockReset();
+      mockProcessAttachments.mockResolvedValue([processedAttachment]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/noauth.jpg',
+                name: 'noauth.jpg',
+                contentType: 'image/jpeg',
+                size: 1024,
+              },
+            ],
+          },
+        }),
+        // NOTE: No auth context - simulates edge case where AuthStep failed/was skipped
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Verify processAttachments uses fallback values (false, undefined)
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/noauth.jpg' })],
+        TEST_PERSONALITY,
+        false, // isGuestMode defaults to false when auth missing
+        undefined // userApiKey is undefined (system key fallback)
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
   });
 });
