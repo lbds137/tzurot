@@ -1,90 +1,128 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-04
+> Last updated: 2026-01-05
 
-This document consolidates all technical debt tracking for Tzurot v3. It replaces the previous `TECH_DEBT_SPRINT.md` and `TECH_DEBT_PRIORITIZATION_2025-11-20.md` documents.
-
----
-
-## Active Work
-
-### Code Quality (ESLint Warnings)
-
-**Current**: 72 warnings (down from 110)
-**Target**: Continue reducing where practical
-
-Remaining high-complexity areas:
-
-- `MessageContentBuilder.ts` - `buildMessageContent()` complexity 37 (needs IR pattern refactor, deferred)
-- `SettingsModalFactory.ts` - `parseDurationInput()` complexity 26 (parsing logic inherent)
-
-### Phase 1: Quick Wins ✅ COMPLETE
-
-- [x] ESLint rules enhancement (no-explicit-any set to error)
-- [x] Document ESLint flat config vs legacy in CLAUDE.md
-- [x] Test coverage for entry points (api-gateway, ai-worker, bot-client)
-- [x] Address TODO comments (health check, callback URL, rate limiting)
-
-### Phase 2: Architectural Improvements ✅ COMPLETE
-
-- [x] Split api-gateway/index.ts (558 → 259 lines, -51%)
-- [x] Split LLMGenerationHandler.ts (617 → 131 lines, -79%) - Pipeline pattern
-- [x] Migrate in-memory caches to Redis (deduplication, rate limiting)
-
-### Phase 3: Testing & Reliability (Partial)
-
-- [ ] Add schema versioning to BullMQ job payloads
-- [ ] Add contract tests for HTTP API responses
-- [ ] Consider Dependency Cruiser for architecture linting
-- [ ] Snapshot tests for PromptBuilder outputs
+Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
 ---
 
-## High Priority Backlog
+## Priority 1: CRITICAL
 
 ### DRY Message Extraction Refactor
 
 **Plan**: `.claude/plans/rustling-churning-pike.md`
-**Problem**: Two parallel message processing paths (main vs extended context) keep diverging
-**Solution**: Intermediate Representation (IR) pattern - single extraction function
 
-Recent bugs from this pattern:
+**Problem**: Two parallel message processing paths (main vs extended context) keep diverging, causing recurring bugs.
+
+**Recent bugs from this pattern**:
 
 - 2026-01-03: Forwarded message attachments not extracted in extended context
 - 2026-01-03: Google API rejected >16 stop sequences
 - Previous: Extended context missing embed images, voice transcript inconsistencies
 
-### Performance Optimization
+**Solution**: Intermediate Representation (IR) pattern - single extraction pipeline:
 
-- [ ] Redis pipelining for deduplication (currently 2 calls per request)
-- [ ] Pre-compile Lua script for rate limiter
-- [ ] Return TTL from Lua script (avoid extra Redis call when rate limited)
-- [ ] Batch fetching for sibling chunks in PgvectorMemoryAdapter
+```
+RawDiscordMessage → NormalizedMessage → PromptContext
+```
 
-### Monitoring & Observability
+Both main and extended context flows consume `NormalizedMessage`.
 
-- [x] Add error.stack to pipeline metadata
-- [ ] Track metrics: rate limit hit rate, deduplication cache hit rate, pipeline step failure distribution
-
-### BYOK Improvements
-
-- [ ] Update `lastUsedAt` on actual API key usage (not just /wallet test)
+**Prerequisite**: Snapshot tests for PromptBuilder (see Priority 2) must exist first as a safety net.
 
 ---
 
-## Known Scaling Blockers (Timer Patterns)
+## Priority 2: HIGH
 
-Timer-based cleanup patterns that prevent horizontal scaling:
+### ~~Snapshot Tests for PromptBuilder~~ ✅ COMPLETE
 
-| File                              | Pattern                  | Migration Path           |
+**Problem**: Prompt changes can silently break AI behavior. Manual testing is impossible at scale.
+
+**Solution**: Snapshot the exact prompt string sent to the LLM (not the response).
+
+**Completed scenarios** (16 snapshots in `PromptBuilder.test.ts`):
+
+- [x] Minimal system prompt (baseline)
+- [x] Multiple participants (8 participants - stop sequence scenario)
+- [x] Memories + guild environment
+- [x] Referenced messages
+- [x] Voice transcripts
+- [x] Image attachments
+- [x] Forwarded message context
+- [x] Complex combinations (attachments + refs + persona)
+- [x] Search query with pronoun resolution
+- [x] Search query with voice + refs + history
+
+**Now safe to**: Proceed with DRY Message Extraction refactor.
+
+---
+
+### Timer Patterns Blocking Horizontal Scaling
+
+**Problem**: `setInterval` patterns prevent running multiple instances (race conditions, double-processing).
+
+| File                              | Pattern                  | Migration                |
 | --------------------------------- | ------------------------ | ------------------------ |
 | `LlmConfigResolver.ts`            | Cache cleanup interval   | BullMQ repeatable job    |
 | `WebhookManager.ts`               | Webhook cleanup interval | BullMQ repeatable job    |
 | `DatabaseNotificationListener.ts` | Reconnection timeout     | Redis-based coordination |
 
+**Solution**: Create a "SystemQueue" in BullMQ with repeatable jobs. Use deterministic job IDs to prevent duplicate cron jobs on restart.
+
 ---
 
-## Completed Large File Refactoring
+## Priority 3: MEDIUM
+
+### Basic Observability
+
+**Problem**: No way to answer "Is the bot slow?" or "Why did it ignore that message?" without reading logs manually.
+
+**Solution**: Structured logging with event types (not a full metrics stack yet).
+
+Log these events:
+
+- [ ] `event="rate_limit_hit"` - when rate limiter triggers
+- [ ] `event="dedup_cache_hit"` - when deduplication prevents reprocessing
+- [ ] `event="pipeline_step_failed"` - with step name and error
+- [ ] `event="llm_request"` - with latency and token counts
+
+**Note**: Defer Prometheus/Grafana until log volume makes grep impractical.
+
+---
+
+## Priority 4: LOW
+
+### Large File Reduction
+
+**Target**: No production files >400 lines
+
+| File                       | Current | Target | Approach                      |
+| -------------------------- | ------- | ------ | ----------------------------- |
+| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic  |
+| `MessageContentBuilder.ts` | ~400    | <400   | IR pattern refactor will help |
+
+**Why low priority**: Large files slow AI assistants but don't directly cause bugs.
+
+---
+
+## Deferred (Not Worth It Yet)
+
+These items are optimizations for problems we don't have at current scale:
+
+| Item                              | Why Deferred                                                 |
+| --------------------------------- | ------------------------------------------------------------ |
+| Schema versioning for BullMQ jobs | No breaking changes yet, add when needed                     |
+| Contract tests for HTTP API       | Single consumer (bot-client), integration tests catch breaks |
+| Redis pipelining (2 calls → 1)    | Redis is fast enough at current traffic                      |
+| Lua script pre-compilation        | Negligible perf gain                                         |
+| BYOK `lastUsedAt` on actual usage | Nice-to-have, not breaking anything                          |
+| Dependency Cruiser                | ESLint already catches most issues                           |
+
+---
+
+## Completed
+
+### Large File Refactoring
 
 | File                            | Before | After | Method                                          |
 | ------------------------------- | ------ | ----- | ----------------------------------------------- |
@@ -92,37 +130,22 @@ Timer-based cleanup patterns that prevent horizontal scaling:
 | `api-gateway/index.ts`          | 558    | 259   | Split into bootstrap/, middleware/, routes/     |
 | `LLMGenerationHandler.ts`       | 617    | 131   | Pipeline pattern with 6 steps                   |
 | `PgvectorMemoryAdapter.ts`      | 901    | 529   | Extracted memoryUtils.ts + PgvectorQueryBuilder |
-| `MentionResolver.ts`            | 527    | 473   | Extracted MentionResolverTypes.ts               |
 | `PromptBuilder.ts`              | 627    | 496   | Extracted PersonalityFieldsFormatter            |
-| `history.ts`                    | 554    | 496   | Extracted historyContextResolver                |
-| `channel/list.ts`               | 512    | 488   | Extracted listTypes.ts                          |
-| `character/view.ts`             | 508    | 478   | Extracted viewTypes.ts                          |
+
+### Code Quality
+
+- [x] ESLint `no-explicit-any` set to error
+- [x] Test coverage for all entry points
+- [x] Redis-backed rate limiter and deduplication
+- [x] All TODOs resolved or tracked
 
 ---
 
-## Success Metrics
+## ESLint Status
 
-- [x] All entry points have basic smoke tests
-- [x] Redis-backed rate limiter and deduplication (horizontal scaling ready)
-- [x] All TODOs resolved or converted to tracked issues
-- [ ] No files > 400 lines in production code (closest: PgvectorMemoryAdapter.ts at 529)
-- [ ] `any` usage reduced by 50% (692 instances, mostly test files)
+**Current**: 72 warnings (down from 110)
 
----
+High-complexity functions (acceptable, inherent complexity):
 
-## Key Insights (from Code Quality Audit)
-
-1. **Pipeline Pattern for LLM Generation** - Break handler into composable steps
-2. **Gateway Decomposition** - Strict Route-Controller-Service layers
-3. **Memory Adapter Split** - Separate storage mechanism from domain logic
-4. **Shadow Mode for Refactoring** - Run old and new code in parallel for validation
-5. **BullMQ for Scheduled Cleanup** - Replace setInterval with repeatable jobs
-
----
-
-## Positive Findings
-
-- No circular cross-service imports (good service boundaries)
-- Constants centralized in @tzurot/common-types/constants
-- Strong Zod validation throughout
-- Route extraction patterns already established
+- `MessageContentBuilder.ts:buildMessageContent()` - complexity 37
+- `SettingsModalFactory.ts:parseDurationInput()` - complexity 26
