@@ -334,8 +334,15 @@ export class ReferencedMessageFormatter {
   private async processImageAttachment(
     options: ProcessImageOptions
   ): Promise<ProcessedAttachmentResult> {
-    const { attachment, index, referenceNumber, personality, isGuestMode, preprocessed, userApiKey } =
-      options;
+    const {
+      attachment,
+      index,
+      referenceNumber,
+      personality,
+      isGuestMode,
+      preprocessed,
+      userApiKey,
+    } = options;
     if (preprocessed?.description !== undefined && preprocessed.description !== '') {
       logger.debug(
         { referenceNumber, url: attachment.url },
@@ -346,7 +353,12 @@ export class ReferencedMessageFormatter {
 
     try {
       logger.info(
-        { referenceNumber, url: attachment.url, name: attachment.name, hasUserApiKey: userApiKey !== undefined },
+        {
+          referenceNumber,
+          url: attachment.url,
+          name: attachment.name,
+          hasUserApiKey: userApiKey !== undefined,
+        },
         '[ReferencedMessageFormatter] Processing image (inline fallback)'
       );
       const result = await withRetry(
