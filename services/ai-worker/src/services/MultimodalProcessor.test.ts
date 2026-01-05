@@ -445,7 +445,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const userApiKey = 'sk-user-byok-key-12345';
+      const userApiKey = 'test-byok-key-not-a-real-secret';
       const promise = processAttachments(attachments, mockPersonality, false, userApiKey);
 
       await vi.runAllTimersAsync();
@@ -478,7 +478,7 @@ describe('MultimodalProcessor', () => {
       expect(mockChatOpenAIConstructor).toHaveBeenCalled();
       // The apiKey should NOT be the user's key (it's undefined, so system key is used)
       const constructorArg = mockChatOpenAIConstructor.mock.calls[0][0];
-      expect(constructorArg.apiKey).not.toBe('sk-user-byok-key-12345');
+      expect(constructorArg.apiKey).not.toBe('test-byok-key-not-a-real-secret');
     });
 
     it('should pass isGuestMode flag through for guest users', async () => {
@@ -511,7 +511,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const userApiKey = 'sk-byok-user-key-67890';
+      const userApiKey = 'test-byok-key-also-fake';
       const promise = processAttachments(attachments, mockPersonality, false, userApiKey);
 
       await vi.runAllTimersAsync();
