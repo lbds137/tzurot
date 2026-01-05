@@ -4,7 +4,7 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
-import { createLogger, MessageContent } from '@tzurot/common-types';
+import { createLogger, MessageContent, RETRY_CONFIG } from '@tzurot/common-types';
 import type {
   ConversationalRAGService,
   RAGResponse,
@@ -82,73 +82,83 @@ export class GenerationStep implements IPipelineStep {
   constructor(private readonly ragService: ConversationalRAGService) {}
 
   /**
-   * Check for cross-turn duplication and retry once if detected.
-   * Returns the final response and whether a retry occurred.
+   * Generate response with cross-turn duplication retry.
+   * Treats duplicate responses as retryable failures, matching LLM retry pattern.
+   * Uses RETRY_CONFIG.MAX_ATTEMPTS (3 attempts = 1 initial + 2 retries).
    */
-  private async handleCrossTurnDuplication(opts: {
-    response: RAGResponse;
-    preparedContext: PreparedContext;
+  private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
     message: MessageContent;
     conversationContext: ConversationContext;
+    lastAssistantMessage: string | undefined;
     apiKey: string | undefined;
     isGuestMode: boolean;
     jobId: string | undefined;
-  }): Promise<{ finalResponse: RAGResponse; didRetry: boolean }> {
+  }): Promise<{ response: RAGResponse; duplicateRetries: number }> {
     const {
-      response,
-      preparedContext,
       personality,
       message,
       conversationContext,
+      lastAssistantMessage,
       apiKey,
       isGuestMode,
       jobId,
     } = opts;
-    const lastAssistantMessage = getLastAssistantMessage(preparedContext.rawConversationHistory);
 
-    // No previous assistant message or response is unique - no retry needed
-    if (
-      lastAssistantMessage === undefined ||
-      !isCrossTurnDuplicate(response.content, lastAssistantMessage)
-    ) {
-      return { finalResponse: response, didRetry: false };
+    let duplicateRetries = 0;
+    const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Generate response - each call gets new request_id via entropy injection
+      const response = await this.ragService.generateResponse(
+        personality,
+        message,
+        conversationContext,
+        apiKey,
+        isGuestMode
+      );
+
+      // If no previous message to compare, or response is unique, we're done
+      if (
+        lastAssistantMessage === undefined ||
+        !isCrossTurnDuplicate(response.content, lastAssistantMessage)
+      ) {
+        if (duplicateRetries > 0) {
+          logger.info(
+            { jobId, modelUsed: response.modelUsed, attempt, duplicateRetries },
+            '[GenerationStep] Retry succeeded - got unique response'
+          );
+        }
+        return { response, duplicateRetries };
+      }
+
+      // Duplicate detected - retry if attempts remain
+      duplicateRetries++;
+
+      if (attempt < maxAttempts) {
+        logger.warn(
+          {
+            jobId,
+            modelUsed: response.modelUsed,
+            isGuestMode,
+            responseLength: response.content.length,
+            attempt,
+            remainingAttempts: maxAttempts - attempt,
+          },
+          '[GenerationStep] Cross-turn duplication detected. Retrying with new request_id...'
+        );
+      } else {
+        // Last attempt still produced duplicate - log error but return it anyway
+        logger.error(
+          { jobId, modelUsed: response.modelUsed, isGuestMode, totalAttempts: maxAttempts },
+          '[GenerationStep] All retries produced duplicate responses. Using last response.'
+        );
+        return { response, duplicateRetries };
+      }
     }
 
-    logger.warn(
-      {
-        jobId,
-        modelUsed: response.modelUsed,
-        isGuestMode,
-        responseLength: response.content.length,
-      },
-      '[GenerationStep] Cross-turn duplication detected. Retrying with new request_id...'
-    );
-
-    // Retry once - entropy injection generates new request_id to bypass API caching
-    const retryResponse = await this.ragService.generateResponse(
-      personality,
-      message,
-      conversationContext,
-      apiKey,
-      isGuestMode
-    );
-
-    const retryStillDuplicate = isCrossTurnDuplicate(retryResponse.content, lastAssistantMessage);
-
-    if (retryStillDuplicate) {
-      logger.error(
-        { jobId, modelUsed: retryResponse.modelUsed, isGuestMode },
-        '[GenerationStep] Retry also produced duplicate response. Using retry response anyway.'
-      );
-    } else {
-      logger.info(
-        { jobId, modelUsed: retryResponse.modelUsed },
-        '[GenerationStep] Retry succeeded - got unique response'
-      );
-    }
-
-    return { finalResponse: retryResponse, didRetry: true };
+    // This is unreachable but TypeScript needs it for exhaustiveness
+    throw new Error('[GenerationStep] Unexpected: no response generated');
   }
 
   async process(context: GenerationContext): Promise<GenerationContext> {
@@ -185,22 +195,17 @@ export class GenerationStep implements IPipelineStep {
         preprocessing
       );
 
-      // Generate response using RAG
-      const response = await this.ragService.generateResponse(
-        effectivePersonality,
-        message as MessageContent,
-        conversationContext,
-        apiKey,
-        isGuestMode
+      // Get previous assistant message for cross-turn duplicate detection
+      const lastAssistantMessage = getLastAssistantMessage(
+        preparedContext.rawConversationHistory
       );
 
-      // Check for cross-turn duplication and retry if detected
-      const { finalResponse, didRetry } = await this.handleCrossTurnDuplication({
-        response,
-        preparedContext,
+      // Generate response with automatic retry on cross-turn duplication
+      const { response, duplicateRetries } = await this.generateWithDuplicateRetry({
         personality: effectivePersonality,
         message: message as MessageContent,
         conversationContext,
+        lastAssistantMessage,
         apiKey,
         isGuestMode,
         jobId: job.id,
@@ -208,7 +213,7 @@ export class GenerationStep implements IPipelineStep {
 
       const processingTimeMs = Date.now() - startTime;
       logger.info(
-        { jobId: job.id, processingTimeMs, didRetryForDuplication: didRetry },
+        { jobId: job.id, processingTimeMs, duplicateRetries },
         '[GenerationStep] Generation completed'
       );
 
@@ -217,19 +222,19 @@ export class GenerationStep implements IPipelineStep {
         result: {
           requestId,
           success: true,
-          content: finalResponse.content,
-          attachmentDescriptions: finalResponse.attachmentDescriptions,
-          referencedMessagesDescriptions: finalResponse.referencedMessagesDescriptions,
+          content: response.content,
+          attachmentDescriptions: response.attachmentDescriptions,
+          referencedMessagesDescriptions: response.referencedMessagesDescriptions,
           metadata: {
-            retrievedMemories: finalResponse.retrievedMemories,
-            tokensIn: finalResponse.tokensIn,
-            tokensOut: finalResponse.tokensOut,
+            retrievedMemories: response.retrievedMemories,
+            tokensIn: response.tokensIn,
+            tokensOut: response.tokensOut,
             processingTimeMs,
-            modelUsed: finalResponse.modelUsed,
+            modelUsed: response.modelUsed,
             providerUsed: provider,
             configSource,
             isGuestMode,
-            crossTurnDuplicateDetected: didRetry,
+            crossTurnDuplicateDetected: duplicateRetries > 0,
           },
         },
       };

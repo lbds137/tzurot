@@ -530,26 +530,35 @@ describe('GenerationStep', () => {
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
 
-      it('should use retry response even if retry also produces duplicate', async () => {
-        // Both calls return duplicates
+      it('should use last response if all retries produce duplicates', async () => {
+        // All 3 calls return duplicates (matches RETRY_CONFIG.MAX_ATTEMPTS = 3)
+        // Each response must be >85% similar to previousBotResponse to trigger retry
         const duplicateResponse1: RAGResponse = {
-          content: '*slow smile* I accept that victory graciously. Well played!',
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
           retrievedMemories: 2,
           tokensIn: 100,
           tokensOut: 50,
         };
 
         const duplicateResponse2: RAGResponse = {
-          content: '*slow smile* I accept that victory graciously. Well done!',
+          content: '*slow smile* I accept that victory graciously. Well played, my dear friend.',
           retrievedMemories: 2,
           tokensIn: 100,
           tokensOut: 48,
+        };
+
+        const duplicateResponse3: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, dear friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 47,
           modelUsed: 'test-model',
         };
 
         vi.mocked(mockRAGService.generateResponse)
           .mockResolvedValueOnce(duplicateResponse1)
-          .mockResolvedValueOnce(duplicateResponse2);
+          .mockResolvedValueOnce(duplicateResponse2)
+          .mockResolvedValueOnce(duplicateResponse3);
 
         const contextWithHistory: PreparedContext = {
           ...basePreparedContext,
@@ -570,11 +579,13 @@ describe('GenerationStep', () => {
         const result = await step.process(context);
 
         expect(result.result?.success).toBe(true);
-        // Should use the retry response (even though it's also a duplicate)
-        expect(result.result?.content).toBe(duplicateResponse2.content);
+        // Should use the last response (even though it's also a duplicate)
+        expect(result.result?.content).toBe(
+          '*slow smile* I accept that victory graciously. Well played, dear friend.'
+        );
         expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
-        // Should only retry once
-        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+        // Should try 3 times (1 initial + 2 retries, matching RETRY_CONFIG.MAX_ATTEMPTS)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(3);
       });
 
       it('should not retry when no previous assistant message exists', async () => {
