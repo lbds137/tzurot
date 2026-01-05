@@ -740,6 +740,115 @@ describe('DiscordChannelFetcher', () => {
       expect(result.updated).toBe(0);
       expect(result.deleted).toBe(0);
     });
+
+    it('should collate chunked messages and strip footer before sync comparison', async () => {
+      // Scenario: A long response was split into 2 Discord messages (chunks)
+      // The last chunk has a footer that should be stripped during sync
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord-chunk-1',
+        createMockMessage({
+          id: 'discord-chunk-1',
+          content: 'This is the first chunk of a long response. ',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+      discordMessages.set(
+        'discord-chunk-2',
+        createMockMessage({
+          id: 'discord-chunk-2',
+          content: 'This is the second chunk.\n-# Model: [test-model](<https://example.com>)',
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+        })
+      );
+
+      // Both Discord IDs point to the same DB record
+      const dbMsgData = {
+        id: 'db-msg-1',
+        content: 'This is the first chunk of a long response. This is the second chunk.',
+        discordMessageId: ['discord-chunk-1', 'discord-chunk-2'],
+        deletedAt: null,
+        createdAt: new Date('2024-01-01T12:00:00Z'),
+      };
+
+      const mockSyncService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            ['discord-chunk-1', dbMsgData],
+            ['discord-chunk-2', dbMsgData],
+          ])
+        ),
+        updateMessageContent: vi.fn().mockResolvedValue(true),
+        softDeleteMessages: vi.fn().mockResolvedValue(0),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockSyncService as never
+      );
+
+      // Should NOT update because the collated content (with footer stripped) matches DB
+      expect(result.updated).toBe(0);
+      expect(mockSyncService.updateMessageContent).not.toHaveBeenCalled();
+    });
+
+    it('should update when collated chunked content differs from DB', async () => {
+      // Scenario: User edited one of the chunks in Discord
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord-chunk-1',
+        createMockMessage({
+          id: 'discord-chunk-1',
+          content: 'First chunk was EDITED. ',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+      discordMessages.set(
+        'discord-chunk-2',
+        createMockMessage({
+          id: 'discord-chunk-2',
+          content: 'Second chunk unchanged.\n-# Model: [test-model](<https://example.com>)',
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+        })
+      );
+
+      const dbMsgData = {
+        id: 'db-msg-1',
+        content: 'First chunk original. Second chunk unchanged.',
+        discordMessageId: ['discord-chunk-1', 'discord-chunk-2'],
+        deletedAt: null,
+        createdAt: new Date('2024-01-01T12:00:00Z'),
+      };
+
+      const mockSyncService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            ['discord-chunk-1', dbMsgData],
+            ['discord-chunk-2', dbMsgData],
+          ])
+        ),
+        updateMessageContent: vi.fn().mockResolvedValue(true),
+        softDeleteMessages: vi.fn().mockResolvedValue(0),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockSyncService as never
+      );
+
+      // Should update with the collated content (footer stripped)
+      expect(result.updated).toBe(1);
+      expect(mockSyncService.updateMessageContent).toHaveBeenCalledWith(
+        'db-msg-1',
+        'First chunk was EDITED. Second chunk unchanged.'
+      );
+    });
   });
 
   describe('participantGuildInfo', () => {

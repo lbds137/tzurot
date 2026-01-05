@@ -567,25 +567,47 @@ export class DiscordChannelFetcher {
         return result;
       }
 
-      // Check for edits
+      // Check for edits - group Discord messages by their DB record first
+      // This handles chunked messages correctly (one DB record -> multiple Discord messages)
+      const dbRecordToChunks = new Map<
+        string,
+        { dbMsg: (typeof dbMessages extends Map<string, infer V> ? V : never); chunks: Message[] }
+      >();
+
       for (const [discordId, discordMsg] of discordMessages) {
         const dbMsg = dbMessages.get(discordId);
         if (dbMsg?.deletedAt === null) {
-          // Message exists in both - check for edit
-          // Note: Discord content may have prefix from our conversion, so we compare raw content
-          const discordContent = discordMsg.content;
-          // DB content might have [DisplayName]: prefix, extract the raw part for comparison
-          // This is a heuristic - we check if content has changed significantly
-          if (this.contentsDiffer(discordContent, dbMsg.content)) {
-            // Update the message content in DB
-            const updated = await conversationSync.updateMessageContent(dbMsg.id, discordContent);
-            if (updated) {
-              result.updated++;
-              logger.debug(
-                { messageId: dbMsg.id, discordId },
-                '[DiscordChannelFetcher] Synced edited message'
-              );
-            }
+          const existing = dbRecordToChunks.get(dbMsg.id);
+          if (existing) {
+            existing.chunks.push(discordMsg);
+          } else {
+            dbRecordToChunks.set(dbMsg.id, { dbMsg, chunks: [discordMsg] });
+          }
+        }
+      }
+
+      // Process each unique DB record
+      for (const [dbId, { dbMsg, chunks }] of dbRecordToChunks) {
+        // Sort chunks by their order in the DB's discordMessageId array
+        const orderMap = new Map(dbMsg.discordMessageId.map((id, idx) => [id, idx]));
+        chunks.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+
+        // Concatenate all chunk contents
+        let collatedContent = chunks.map(c => c.content).join('');
+
+        // Strip the footer pattern (added only for Discord display, not stored in DB)
+        // Footer format: \n-# Model: [model-name](<url>)
+        collatedContent = collatedContent.replace(/\n-# Model: \[[^\]]+\]\(<[^>]+>\)$/, '');
+
+        // Compare and update
+        if (this.contentsDiffer(collatedContent, dbMsg.content)) {
+          const updated = await conversationSync.updateMessageContent(dbId, collatedContent);
+          if (updated) {
+            result.updated++;
+            logger.debug(
+              { messageId: dbId, chunkCount: chunks.length },
+              '[DiscordChannelFetcher] Synced edited message'
+            );
           }
         }
       }

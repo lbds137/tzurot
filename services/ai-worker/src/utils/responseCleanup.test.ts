@@ -285,6 +285,56 @@ describe('removeDuplicateResponse', () => {
     });
   });
 
+  describe('near-duplicate detection (similarity-based)', () => {
+    it('should detect near-duplicates where model restarts with same opening but slight variations later', () => {
+      // Real-world pattern: model restarts with same opening, minor changes in middle/end
+      // The anchor (first 30 chars) appears again, but content differs slightly later
+      const firstPart =
+        '*I lean forward thoughtfully* This topic deserves careful consideration. Let me share my deep perspective on this important matter.';
+      const secondPart =
+        '*I lean forward thoughtfully* This topic deserves careful consideration. Let me share my thoughtful perspective on this crucial matter.';
+      const duplicated = firstPart + secondPart;
+
+      const result = removeDuplicateResponse(duplicated);
+      // Should keep the first part - similarity-based detection catches the near-duplicate
+      expect(result).toBe(firstPart);
+    });
+
+    it('should detect near-duplicates with minor wording changes', () => {
+      // Same opening (anchor matches), different words later
+      const firstPart =
+        'The ancient scrolls speak of wisdom. They tell us that patience is the key to understanding the deeper truths of our existence.';
+      const secondPart =
+        'The ancient scrolls speak of wisdom. They tell us that patience is the path to understanding the deeper meanings of our existence.';
+      const duplicated = firstPart + secondPart;
+
+      const result = removeDuplicateResponse(duplicated);
+      expect(result).toBe(firstPart);
+    });
+  });
+
+  describe('triple/runaway duplicate detection', () => {
+    it('should detect triple duplicates [A][A][A] using first-prefix detection', () => {
+      // Model goes into runaway loop, outputs same content 3 times
+      const singleResponse =
+        '*I manifest in the quiet space* Here is my wisdom for you today. Please consider it carefully.';
+      const tripled = singleResponse + singleResponse + singleResponse;
+
+      const result = removeDuplicateResponse(tripled);
+      // Should detect at first split point and return just the first occurrence
+      expect(result).toBe(singleResponse);
+    });
+
+    it('should detect quadruple duplicates', () => {
+      const singleResponse =
+        'The stars shine bright tonight. Let me tell you about the ancient wisdom of the cosmos and its mysteries.';
+      const quadrupled = singleResponse + singleResponse + singleResponse + singleResponse;
+
+      const result = removeDuplicateResponse(quadrupled);
+      expect(result).toBe(singleResponse);
+    });
+  });
+
   describe('no false positives', () => {
     it('should not modify short responses', () => {
       const short = 'Hello world! Hello world!';
