@@ -89,12 +89,19 @@ export class ConversationalRAGService {
 
   /**
    * Process input attachments and format messages for AI consumption
+   *
+   * @param personality - Personality configuration
+   * @param message - User's message content
+   * @param context - Conversation context
+   * @param isGuestMode - Whether user is in guest mode (uses free models)
+   * @param userApiKey - User's BYOK API key (for BYOK users)
    */
   private async processInputs(
     personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
-    isGuestMode: boolean
+    isGuestMode: boolean,
+    userApiKey?: string
   ): Promise<ProcessedInputs> {
     // Use pre-processed attachments from dependency jobs if available
     let processedAttachments: ProcessedAttachment[] = [];
@@ -106,7 +113,13 @@ export class ConversationalRAGService {
       );
     } else if (context.attachments && context.attachments.length > 0) {
       // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
-      processedAttachments = await processAttachments(context.attachments, personality);
+      // Pass isGuestMode and userApiKey for BYOK support
+      processedAttachments = await processAttachments(
+        context.attachments,
+        personality,
+        isGuestMode,
+        userApiKey
+      );
       logger.info(
         { count: processedAttachments.length },
         'Processed attachments to text descriptions (inline fallback)'
@@ -117,13 +130,15 @@ export class ConversationalRAGService {
     const userMessage = this.promptBuilder.formatUserMessage(message, context);
 
     // Format referenced messages (with vision/transcription)
+    // Pass userApiKey for BYOK support in inline fallback processing
     const referencedMessagesDescriptions =
       context.referencedMessages && context.referencedMessages.length > 0
         ? await this.referencedMessageFormatter.formatReferencedMessages(
             context.referencedMessages,
             personality,
             isGuestMode,
-            context.preprocessedReferenceAttachments
+            context.preprocessedReferenceAttachments,
+            userApiKey
           )
         : undefined;
 
@@ -349,7 +364,8 @@ export class ConversationalRAGService {
   ): Promise<RAGResponse> {
     try {
       // Step 1: Process inputs (attachments, messages, search query)
-      const inputs = await this.processInputs(personality, message, context, isGuestMode);
+      // Pass userApiKey for BYOK support in fallback vision processing
+      const inputs = await this.processInputs(personality, message, context, isGuestMode, userApiKey);
 
       // Step 1.5: Inject image descriptions into history for inline display
       // This replaces the separate <recent_channel_images> section with inline descriptions

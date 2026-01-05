@@ -43,8 +43,17 @@ export class DependencyStep implements IPipelineStep {
   readonly name = 'DependencyResolution';
 
   async process(context: GenerationContext): Promise<GenerationContext> {
-    const { job } = context;
+    const { job, auth } = context;
     const { dependencies, context: jobContext, personality } = job.data;
+
+    // Auth should be available (AuthStep runs before DependencyStep)
+    // If not available, log warning and continue without BYOK (fallback to system key)
+    if (!auth) {
+      logger.warn(
+        { jobId: job.id },
+        '[DependencyStep] Auth context not available - inline processing will use system API key'
+      );
+    }
 
     // Build initial preprocessing results from dependency jobs
     let preprocessing: PreprocessingResults = {
@@ -69,6 +78,7 @@ export class DependencyStep implements IPipelineStep {
     }
 
     // Process extended context attachments inline (not from dependency jobs)
+    // Pass auth context for BYOK support (user's API key if available)
     if (
       jobContext?.extendedContextAttachments &&
       jobContext.extendedContextAttachments.length > 0
@@ -76,7 +86,9 @@ export class DependencyStep implements IPipelineStep {
       const extendedContextAttachments = await this.processExtendedContextAttachments(
         jobContext.extendedContextAttachments,
         personality,
-        job.id
+        job.id,
+        auth?.isGuestMode ?? false,
+        auth?.apiKey
       );
       preprocessing.extendedContextAttachments = extendedContextAttachments;
     }
@@ -165,11 +177,19 @@ export class DependencyStep implements IPipelineStep {
   /**
    * Process extended context attachments inline using MultimodalProcessor
    * These are images from extended context messages (limited by maxImages setting)
+   *
+   * @param attachments - Attachments to process
+   * @param personality - Personality configuration for vision processing
+   * @param jobId - Job ID for logging
+   * @param isGuestMode - Whether user is in guest mode (uses free models)
+   * @param userApiKey - User's BYOK API key (for BYOK users)
    */
   private async processExtendedContextAttachments(
     attachments: AttachmentMetadata[],
     personality: GenerationContext['job']['data']['personality'],
-    jobId: string | undefined
+    jobId: string | undefined,
+    isGuestMode: boolean,
+    userApiKey?: string
   ): Promise<ProcessedAttachment[]> {
     // Filter to only images
     const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
@@ -178,7 +198,7 @@ export class DependencyStep implements IPipelineStep {
     }
 
     logger.info(
-      { jobId, imageCount: imageAttachments.length },
+      { jobId, imageCount: imageAttachments.length, isGuestMode, hasUserApiKey: userApiKey !== undefined },
       '[DependencyStep] Processing extended context images inline'
     );
 
@@ -187,7 +207,13 @@ export class DependencyStep implements IPipelineStep {
       const { processAttachments } = await import('../../../../services/MultimodalProcessor.js');
 
       // Process images using MultimodalProcessor (uses VisionDescriptionCache)
-      const processed = await processAttachments(imageAttachments, personality);
+      // Pass auth context for BYOK support
+      const processed = await processAttachments(
+        imageAttachments,
+        personality,
+        isGuestMode,
+        userApiKey
+      );
 
       logger.info(
         { jobId, processedCount: processed.length },

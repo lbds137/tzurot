@@ -48,6 +48,8 @@ interface ProcessSingleAttachmentOptions {
   isGuestMode: boolean;
   /** Pre-processed attachments for this reference (optional) */
   preprocessedAttachments?: ProcessedAttachment[];
+  /** User's BYOK API key (for BYOK users) */
+  userApiKey?: string;
 }
 
 /**
@@ -60,6 +62,8 @@ interface ProcessImageOptions {
   personality: LoadedPersonality;
   isGuestMode: boolean;
   preprocessed?: ProcessedAttachment;
+  /** User's BYOK API key (for BYOK users) */
+  userApiKey?: string;
 }
 
 /**
@@ -116,13 +120,15 @@ export class ReferencedMessageFormatter {
    * @param personality - Personality configuration for vision/transcription models
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
+   * @param userApiKey - User's BYOK API key (for BYOK users)
    * @returns Formatted string ready for prompt
    */
   async formatReferencedMessages(
     references: ReferencedMessage[],
     personality: LoadedPersonality,
     isGuestMode = false,
-    preprocessedAttachments?: Record<number, ProcessedAttachment[]>
+    preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
+    userApiKey?: string
   ): Promise<string> {
     const referenceElements: string[] = [];
 
@@ -175,7 +181,8 @@ export class ReferencedMessageFormatter {
           ref.referenceNumber,
           personality,
           isGuestMode,
-          preprocessedForRef
+          preprocessedForRef,
+          userApiKey
         );
 
         if (attachmentLines.length > 0) {
@@ -220,6 +227,7 @@ export class ReferencedMessageFormatter {
    * @param personality - Personality configuration
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments for this reference (optional)
+   * @param userApiKey - User's BYOK API key (for BYOK users)
    * @returns Array of formatted attachment lines
    */
   private async processAttachmentsParallel(
@@ -227,7 +235,8 @@ export class ReferencedMessageFormatter {
     referenceNumber: number,
     personality: LoadedPersonality,
     isGuestMode: boolean,
-    preprocessedAttachments?: ProcessedAttachment[]
+    preprocessedAttachments?: ProcessedAttachment[],
+    userApiKey?: string
   ): Promise<string[]> {
     if (!attachments || attachments.length === 0) {
       return [];
@@ -242,6 +251,7 @@ export class ReferencedMessageFormatter {
         personality,
         isGuestMode,
         preprocessedAttachments,
+        userApiKey,
       })
     );
 
@@ -324,7 +334,8 @@ export class ReferencedMessageFormatter {
   private async processImageAttachment(
     options: ProcessImageOptions
   ): Promise<ProcessedAttachmentResult> {
-    const { attachment, index, referenceNumber, personality, isGuestMode, preprocessed } = options;
+    const { attachment, index, referenceNumber, personality, isGuestMode, preprocessed, userApiKey } =
+      options;
     if (preprocessed?.description !== undefined && preprocessed.description !== '') {
       logger.debug(
         { referenceNumber, url: attachment.url },
@@ -335,14 +346,17 @@ export class ReferencedMessageFormatter {
 
     try {
       logger.info(
-        { referenceNumber, url: attachment.url, name: attachment.name },
+        { referenceNumber, url: attachment.url, name: attachment.name, hasUserApiKey: userApiKey !== undefined },
         '[ReferencedMessageFormatter] Processing image (inline fallback)'
       );
-      const result = await withRetry(() => describeImage(attachment, personality, isGuestMode), {
-        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        logger,
-        operationName: `Image description (reference ${referenceNumber})`,
-      });
+      const result = await withRetry(
+        () => describeImage(attachment, personality, isGuestMode, userApiKey),
+        {
+          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          logger,
+          operationName: `Image description (reference ${referenceNumber})`,
+        }
+      );
       return { index, line: `- Image (${attachment.name}): ${result.value}` };
     } catch (error) {
       logger.error(
@@ -369,6 +383,7 @@ export class ReferencedMessageFormatter {
       personality,
       isGuestMode,
       preprocessedAttachments,
+      userApiKey,
     } = options;
     const preprocessed = this.findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
@@ -390,6 +405,7 @@ export class ReferencedMessageFormatter {
         personality,
         isGuestMode,
         preprocessed,
+        userApiKey,
       });
     }
 
