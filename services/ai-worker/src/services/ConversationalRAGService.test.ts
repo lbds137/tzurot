@@ -300,10 +300,12 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Reply to this', context);
 
+      // Includes preprocessedAttachments (undefined) and userApiKey (undefined) for BYOK support
       expect(getReferencedMessageFormatterMock().formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
         personality,
         false,
+        undefined,
         undefined
       );
     });
@@ -413,7 +415,8 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'What is this?', context);
 
-      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality);
+      // Includes isGuestMode (false) and userApiKey (undefined) for BYOK support
+      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality, false, undefined);
     });
 
     it('should process audio attachments', async () => {
@@ -432,7 +435,8 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
-      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality);
+      // Includes isGuestMode (false) and userApiKey (undefined) for BYOK support
+      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality, false, undefined);
     });
 
     it('should include processed attachments in search query', async () => {

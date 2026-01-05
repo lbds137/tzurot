@@ -7,6 +7,7 @@ import type { Job } from 'bullmq';
 import {
   JobType,
   AttachmentType,
+  AIProvider,
   REDIS_KEY_PREFIXES,
   type LLMGenerationJobData,
   type LoadedPersonality,
@@ -378,14 +379,121 @@ describe('DependencyStep', () => {
 
       const result = await step.process(context);
 
+      // Now includes isGuestMode (false) and userApiKey (undefined) since auth context is not set
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/cat.jpg' })],
-        TEST_PERSONALITY
+        TEST_PERSONALITY,
+        false,
+        undefined
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
       expect(result.preprocessing?.extendedContextAttachments?.[0].description).toBe(
         'A cat sitting on a couch'
       );
+    });
+
+    it('should pass BYOK userApiKey from auth context to processAttachments', async () => {
+      const processedAttachment = {
+        type: AttachmentType.Image,
+        description: 'A dog playing fetch',
+        originalUrl: 'https://example.com/dog.jpg',
+        metadata: {
+          url: 'https://example.com/dog.jpg',
+          name: 'dog.jpg',
+          contentType: 'image/jpeg',
+          size: 2048,
+        },
+      };
+
+      mockProcessAttachments.mockResolvedValueOnce([processedAttachment]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'byok-user-789',
+            userName: 'BYOKUser',
+            channelId: 'channel-456',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/dog.jpg',
+                name: 'dog.jpg',
+                contentType: 'image/jpeg',
+                size: 2048,
+              },
+            ],
+          },
+        }),
+        // Auth context populated by AuthStep (which runs before DependencyStep)
+        auth: {
+          apiKey: 'sk-user-byok-key-12345',
+          isGuestMode: false,
+          provider: AIProvider.OpenRouter,
+        },
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Verify BYOK key is passed through to processAttachments
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/dog.jpg' })],
+        TEST_PERSONALITY,
+        false, // isGuestMode from auth context
+        'sk-user-byok-key-12345' // userApiKey from auth context (BYOK)
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
+    it('should pass isGuestMode=true when auth indicates guest user', async () => {
+      const processedAttachment = {
+        type: AttachmentType.Image,
+        description: 'A bird in flight',
+        originalUrl: 'https://example.com/bird.jpg',
+        metadata: {
+          url: 'https://example.com/bird.jpg',
+          name: 'bird.jpg',
+          contentType: 'image/jpeg',
+          size: 1536,
+        },
+      };
+
+      mockProcessAttachments.mockResolvedValueOnce([processedAttachment]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'guest-user-123',
+            userName: 'GuestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/bird.jpg',
+                name: 'bird.jpg',
+                contentType: 'image/jpeg',
+                size: 1536,
+              },
+            ],
+          },
+        }),
+        // Auth context for guest user (no BYOK key)
+        auth: {
+          apiKey: 'system-openrouter-key', // System key used for guests
+          isGuestMode: true,
+          provider: AIProvider.OpenRouter,
+        },
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Verify guest mode is passed through (uses free models, no user key)
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/bird.jpg' })],
+        TEST_PERSONALITY,
+        true, // isGuestMode = true for guest users
+        'system-openrouter-key' // System key (guests don't have BYOK)
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
 
     it('should filter out non-image attachments from extended context', async () => {

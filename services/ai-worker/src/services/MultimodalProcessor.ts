@@ -39,13 +39,20 @@ export interface ProcessedAttachment {
 
 /**
  * Process a single attachment (helper function for retry logic)
+ *
+ * @param attachment - Attachment metadata to process
+ * @param personality - Personality configuration for vision/transcription
+ * @param isGuestMode - Whether user is in guest mode (uses free models)
+ * @param userApiKey - User's BYOK API key (for BYOK users)
  */
 async function processSingleAttachment(
   attachment: AttachmentMetadata,
-  personality: LoadedPersonality
+  personality: LoadedPersonality,
+  isGuestMode: boolean,
+  userApiKey?: string
 ): Promise<ProcessedAttachment | null> {
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    const description = await describeImage(attachment, personality);
+    const description = await describeImage(attachment, personality, isGuestMode, userApiKey);
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,
@@ -73,16 +80,25 @@ async function processSingleAttachment(
 /**
  * Process all attachments to extract text descriptions
  * Uses retryService for consistent parallel retry behavior (RETRY_CONFIG.MAX_ATTEMPTS = 3)
+ *
+ * @param attachments - Attachments to process
+ * @param personality - Personality configuration for vision/transcription
+ * @param isGuestMode - Whether user is in guest mode (uses free models)
+ * @param userApiKey - User's BYOK API key (for BYOK users)
  */
 export async function processAttachments(
   attachments: AttachmentMetadata[],
-  personality: LoadedPersonality
+  personality: LoadedPersonality,
+  isGuestMode = false,
+  userApiKey?: string
 ): Promise<ProcessedAttachment[]> {
   logger.info(
     {
       attachmentCount: attachments.length,
       personalityModel: personality.model,
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      isGuestMode,
+      hasUserApiKey: userApiKey !== undefined,
     },
     '[MultimodalProcessor] Processing attachments in parallel'
   );
@@ -90,7 +106,7 @@ export async function processAttachments(
   // Use retryService for consistent retry behavior
   const results = await withParallelRetry(
     attachments,
-    attachment => processSingleAttachment(attachment, personality),
+    attachment => processSingleAttachment(attachment, personality, isGuestMode, userApiKey),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
