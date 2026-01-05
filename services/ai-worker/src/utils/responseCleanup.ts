@@ -30,13 +30,25 @@ const ANCHOR_LENGTH = 30;
 
 /**
  * Similarity threshold for intra-turn duplicate detection.
- * Higher than cross-turn because we expect near-exact duplicates.
+ *
+ * Set at 0.8 (80%) because intra-turn duplicates from stop-token failures
+ * may have slight variations (trailing punctuation, whitespace differences).
+ * We want to catch "almost exact" duplicates without false positives on
+ * genuinely similar but distinct content.
+ *
+ * Example: "Hello! How are you?" duplicated as "Hello! How are you" (missing ?)
+ * would still be caught at 0.8 threshold.
  */
 const INTRA_TURN_SIMILARITY_THRESHOLD = 0.8;
 
 /**
  * Default threshold for considering responses "too similar" (cross-turn).
- * 0.85 means 85% of bigrams match between the two strings.
+ *
+ * Set at 0.85 (85%) to balance catching genuine duplicates vs. false positives:
+ * - Higher than intra-turn (0.8) because cross-turn duplicates should be more exact
+ * - Below 0.9 to catch paraphrased duplicates where the model rewrites the same idea
+ * - Empirically tuned: 0.85 catches "The answer is 42" vs "The answer is 42."
+ *   while allowing legitimate similar responses to different questions
  */
 const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
 

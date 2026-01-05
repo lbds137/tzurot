@@ -24,6 +24,19 @@ import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 const logger = createLogger('DiscordChannelFetcher');
 
 /**
+ * Regex to strip the model footer from Discord messages.
+ *
+ * When the bot sends chunked messages to Discord, it appends a footer showing
+ * which AI model generated the response (e.g., "\n-# Model: [claude-3](<url>)").
+ * This footer is for Discord display only and is NOT stored in the database.
+ *
+ * During sync, we must strip this footer before comparing Discord content
+ * with the database, otherwise edits that only touch the footer would
+ * trigger unnecessary content updates.
+ */
+const MODEL_FOOTER_REGEX = /\n-# Model: \[[^\]]+\]\(<[^>]+>\)$/;
+
+/**
  * Guild member info for participant context
  */
 export interface ParticipantGuildInfo {
@@ -595,9 +608,8 @@ export class DiscordChannelFetcher {
         // Concatenate all chunk contents
         let collatedContent = chunks.map(c => c.content).join('');
 
-        // Strip the footer pattern (added only for Discord display, not stored in DB)
-        // Footer format: \n-# Model: [model-name](<url>)
-        collatedContent = collatedContent.replace(/\n-# Model: \[[^\]]+\]\(<[^>]+>\)$/, '');
+        // Strip the model footer (only exists in Discord, not in DB)
+        collatedContent = collatedContent.replace(MODEL_FOOTER_REGEX, '');
 
         // Compare and update
         if (this.contentsDiffer(collatedContent, dbMsg.content)) {
