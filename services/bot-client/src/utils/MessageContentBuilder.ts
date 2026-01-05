@@ -150,10 +150,44 @@ export async function buildMessageContent(
 
   // Check for voice messages and retrieve transcripts
   let hasVoiceMessage = false;
-  if (regularAttachments && regularAttachments.length > 0) {
-    const voiceTranscripts: string[] = [];
-    const nonVoiceAttachments: AttachmentMetadata[] = [];
+  const voiceTranscripts: string[] = [];
+  const nonVoiceAttachments: AttachmentMetadata[] = [];
 
+  // Process forwarded voice messages first (use original message ID for DB lookup)
+  if (isForwarded && snapshotAttachments.length > 0 && getTranscript !== undefined) {
+    const originalMessageId = message.reference?.messageId;
+
+    for (const attachment of snapshotAttachments) {
+      if (attachment.isVoiceMessage === true) {
+        hasVoiceMessage = true;
+
+        // Use original message ID for forwarded voice messages
+        // This ensures DB lookup works even after Redis cache expires
+        if (originalMessageId !== undefined) {
+          const transcript = await getTranscript(originalMessageId, attachment.url);
+          if (transcript !== null && transcript.length > 0) {
+            voiceTranscripts.push(transcript);
+            continue;
+          }
+        }
+
+        // No transcript available
+        nonVoiceAttachments.push(attachment);
+        logger.debug(
+          { messageId: message.id, originalMessageId, duration: attachment.duration },
+          '[MessageContentBuilder] Forwarded voice message without transcript'
+        );
+      } else {
+        nonVoiceAttachments.push(attachment);
+      }
+    }
+  } else {
+    // Non-forwarded: add snapshot attachments directly to non-voice list
+    nonVoiceAttachments.push(...snapshotAttachments);
+  }
+
+  // Process regular attachments (direct message voice messages)
+  if (regularAttachments && regularAttachments.length > 0) {
     for (const attachment of regularAttachments) {
       if (attachment.isVoiceMessage === true) {
         hasVoiceMessage = true;
@@ -168,7 +202,6 @@ export async function buildMessageContent(
         }
 
         // No transcript available - include in non-voice attachments
-        // The attachment metadata already has duration for display
         nonVoiceAttachments.push(attachment);
         logger.debug(
           { messageId: message.id, duration: attachment.duration },
@@ -178,27 +211,24 @@ export async function buildMessageContent(
         nonVoiceAttachments.push(attachment);
       }
     }
+  }
 
-    // Add voice transcripts to content
-    if (voiceTranscripts.length > 0) {
-      const transcriptText = voiceTranscripts.join('\n\n');
-      contentParts.push(`[Voice transcript]: ${transcriptText}`);
-    }
+  // Add embed images to non-voice attachments
+  if (embedImages && embedImages.length > 0) {
+    nonVoiceAttachments.push(...embedImages);
+  }
 
-    // Add attachment descriptions for non-voice attachments
-    if (includeAttachments && nonVoiceAttachments.length > 0) {
-      const attachmentDescriptions = nonVoiceAttachments.map(a => {
-        const type = a.contentType ?? 'file';
-        const name = a.name ?? 'attachment';
-        return `[${type}: ${name}]`;
-      });
-      contentParts.push(`[Attachments: ${attachmentDescriptions.join(', ')}]`);
-    }
-  } else if (includeAttachments && allAttachments.length > 0) {
-    // Only embed images, no regular attachments
-    const attachmentDescriptions = allAttachments.map(a => {
-      const type = a.contentType ?? 'image';
-      const name = a.name ?? 'embed-image';
+  // Add voice transcripts to content
+  if (voiceTranscripts.length > 0) {
+    const transcriptText = voiceTranscripts.join('\n\n');
+    contentParts.push(`[Voice transcript]: ${transcriptText}`);
+  }
+
+  // Add attachment descriptions for non-voice attachments
+  if (includeAttachments && nonVoiceAttachments.length > 0) {
+    const attachmentDescriptions = nonVoiceAttachments.map(a => {
+      const type = a.contentType ?? 'file';
+      const name = a.name ?? 'attachment';
       return `[${type}: ${name}]`;
     });
     contentParts.push(`[Attachments: ${attachmentDescriptions.join(', ')}]`);
