@@ -23,10 +23,14 @@ import { MessageType, MessageReferenceType } from 'discord.js';
  *
  * Returns false for system messages:
  * - ThreadCreated (18) - "X started a thread"
+ * - ThreadStarterMessage (21) - thread starter system message
  * - ChannelPinnedMessage (6) - "X pinned a message"
  * - UserJoin (7) - "X joined the server"
  * - GuildBoost (8-11) - boost notifications
  * - And all other system message types
+ *
+ * Note: ChatInputCommand (20) and ContextMenuCommand (23) are NOT filtered here
+ * because they don't come through MessageCreate events - they use InteractionCreate.
  *
  * @param message - Discord message to check
  * @returns true if the message is user-generated content
@@ -39,11 +43,8 @@ export function isUserContentMessage(message: Message): boolean {
 
   // Also allow forwarded messages (have Forward reference type with snapshots)
   // Forwarded messages may have a different MessageType but contain user content
-  if (
-    message.reference?.type === MessageReferenceType.Forward &&
-    message.messageSnapshots !== undefined &&
-    message.messageSnapshots.size > 0
-  ) {
+  // The ?.size check handles both undefined and size > 0 (0 is falsy)
+  if (message.reference?.type === MessageReferenceType.Forward && message.messageSnapshots?.size) {
     return true;
   }
 
