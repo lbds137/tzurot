@@ -571,7 +571,7 @@ export class DiscordChannelFetcher {
       // This handles chunked messages correctly (one DB record -> multiple Discord messages)
       const dbRecordToChunks = new Map<
         string,
-        { dbMsg: (typeof dbMessages extends Map<string, infer V> ? V : never); chunks: Message[] }
+        { dbMsg: typeof dbMessages extends Map<string, infer V> ? V : never; chunks: Message[] }
       >();
 
       for (const [discordId, discordMsg] of discordMessages) {
