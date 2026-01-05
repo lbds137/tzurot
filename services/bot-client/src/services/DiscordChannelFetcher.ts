@@ -18,7 +18,6 @@ import {
 } from '@tzurot/common-types';
 import type { ConversationMessage, AttachmentMetadata } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
-import { mergeVoiceContext } from '../utils/VoiceContextMerger.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 
 const logger = createLogger('DiscordChannelFetcher');
@@ -127,25 +126,10 @@ export class DiscordChannelFetcher {
 
       const discordMessages = await channel.messages.fetch(fetchOptions);
 
-      // Merge voice message transcripts using the Reverse Zipper algorithm
-      // This injects transcript text into voice messages and removes bot transcript replies
-      const mergeResult = mergeVoiceContext(discordMessages, options.botUserId);
-
-      if (mergeResult.mergedCount > 0 || mergeResult.orphanTranscripts > 0) {
-        logger.debug(
-          {
-            channelId: channel.id,
-            mergedCount: mergeResult.mergedCount,
-            unmergedCount: mergeResult.unmergedCount,
-            orphanTranscripts: mergeResult.orphanTranscripts,
-          },
-          '[DiscordChannelFetcher] Voice context merged'
-        );
-      }
-
-      // Resolve Discord message links in history (if enabled)
-      // This injects linked message content inline and manages the budget
-      let messagesToProcess = mergeResult.messages;
+      // Convert Collection to array for processing
+      // Note: Voice transcripts are now handled by TranscriptRetriever in buildMessageContent
+      // (single source of truth from DB), not by channel scraping
+      let messagesToProcess = [...discordMessages.values()];
       const shouldResolveLinks = options.resolveLinks !== false;
 
       if (shouldResolveLinks && messagesToProcess.length > 0) {
@@ -320,6 +304,15 @@ export class DiscordChannelFetcher {
         continue;
       }
 
+      // Skip bot transcript replies - these are replies the bot sends after transcribing
+      // a voice message. We don't want them in extended context because:
+      // 1. The transcript is already stored in DB and retrieved via TranscriptRetriever
+      // 2. Including them would duplicate the transcript content
+      // Detection: bot message + reply reference + has text content
+      if (this.isBotTranscriptReply(msg, options.botUserId)) {
+        continue;
+      }
+
       // Skip messages before context epoch (user has cleared history)
       if (options.contextEpoch !== undefined && msg.createdAt < options.contextEpoch) {
         continue;
@@ -398,6 +391,38 @@ export class DiscordChannelFetcher {
     }
 
     return false;
+  }
+
+  /**
+   * Check if a message is a bot transcript reply to a voice message
+   *
+   * Bot transcript replies are messages the bot sends after transcribing a voice message.
+   * They're identified by:
+   * 1. Being from the bot
+   * 2. Being a reply to another message (the voice message)
+   * 3. Having text content (the transcript)
+   *
+   * We filter these out because:
+   * - Transcripts are stored in DB and retrieved via TranscriptRetriever
+   * - Including them would duplicate content in extended context
+   */
+  private isBotTranscriptReply(msg: Message, botUserId: string): boolean {
+    // Must be from the bot
+    if (msg.author.id !== botUserId) {
+      return false;
+    }
+
+    // Must be a reply to another message
+    if (msg.reference?.messageId === undefined) {
+      return false;
+    }
+
+    // Must have text content (the transcript text)
+    if (msg.content.length === 0) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
