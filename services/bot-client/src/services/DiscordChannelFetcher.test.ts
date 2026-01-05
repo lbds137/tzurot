@@ -51,6 +51,7 @@ function createMockMessage(
     type: MessageType;
     createdAt: Date;
     attachments: Map<string, { contentType: string | null; name: string | null }>;
+    reference: { messageId: string } | null;
   }>
 ): Message {
   const defaults = {
@@ -68,6 +69,7 @@ function createMockMessage(
     type: MessageType.Default,
     createdAt: new Date('2024-01-01T12:00:00Z'),
     attachments: new Map(),
+    reference: null,
   };
 
   const config = { ...defaults, ...overrides };
@@ -105,6 +107,7 @@ function createMockMessage(
     createdAt: config.createdAt,
     createdTimestamp: config.createdAt.getTime(),
     attachments: new Collection(config.attachments),
+    reference: config.reference,
   } as unknown as Message;
 }
 
@@ -1131,6 +1134,129 @@ describe('DiscordChannelFetcher', () => {
       });
 
       expect(result.participantGuildInfo).toBeUndefined();
+    });
+  });
+
+  describe('bot transcript reply filtering', () => {
+    it('should filter out bot transcript replies from extended context', async () => {
+      // Bot transcript replies are: bot message + reply reference + has text content
+      // They should be filtered out because transcripts are retrieved via TranscriptRetriever
+      const messages = [
+        // Bot transcript reply (should be FILTERED OUT)
+        createMockMessage({
+          id: 'transcript-reply-1',
+          content: 'This is the transcript of the voice message',
+          authorId: 'bot123', // From the bot
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+          reference: { messageId: 'voice-msg-1' }, // Replying to voice message
+        }),
+        // Regular user message (should be included)
+        createMockMessage({
+          id: 'user-msg-1',
+          content: 'Hello everyone!',
+          authorId: 'user2',
+          authorUsername: 'bob',
+          createdAt: new Date('2024-01-01T12:00:02Z'),
+        }),
+        // Bot response NOT a reply (should be included)
+        createMockMessage({
+          id: 'bot-response-1',
+          content: 'Hi there! How can I help?',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:03Z'),
+          // No reference - not a reply
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // Should have 2 messages (user msg, bot response)
+      // Should NOT have transcript reply
+      expect(result.filteredCount).toBe(2);
+      expect(result.messages.some(m => m.content.includes('transcript of the voice'))).toBe(false);
+      expect(result.messages.some(m => m.content.includes('Hello everyone'))).toBe(true);
+      expect(result.messages.some(m => m.content.includes('How can I help'))).toBe(true);
+    });
+
+    it('should NOT filter bot messages without reply reference', async () => {
+      // Bot messages without a reply reference are normal responses, not transcript replies
+      const messages = [
+        createMockMessage({
+          id: 'bot-msg-1',
+          content: 'I am a bot response without reply reference',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          // No reference
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages[0].content).toContain('bot response without reply reference');
+    });
+
+    it('should NOT filter bot reply messages with empty content', async () => {
+      // Bot reply without text content (e.g., just an attachment) is not a transcript reply
+      const messages = [
+        createMockMessage({
+          id: 'bot-reply-1',
+          content: '', // Empty content
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          reference: { messageId: 'some-msg' },
+          attachments: new Map([['1', { contentType: 'image/png', name: 'image.png' }]]),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // Should still be included (has attachment, not a text transcript reply)
+      expect(result.filteredCount).toBe(1);
+    });
+
+    it('should NOT filter user reply messages', async () => {
+      // User replies with text content should NOT be filtered (only bot transcript replies)
+      const messages = [
+        createMockMessage({
+          id: 'user-reply-1',
+          content: 'This is a user reply to something',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          reference: { messageId: 'some-msg' },
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages[0].content).toContain('user reply');
     });
   });
 });

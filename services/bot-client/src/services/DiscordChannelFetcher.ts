@@ -347,7 +347,6 @@ export class DiscordChannelFetcher {
         const personaId = conversionResult.message.personaId;
         if (conversionResult.message.role === MessageRole.User && msg.member) {
           // Delete and re-add to move to end of object (maintains recency order)
-          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete participantGuildInfo[personaId];
           participantGuildInfo[personaId] = this.extractGuildInfo(msg);
         }
