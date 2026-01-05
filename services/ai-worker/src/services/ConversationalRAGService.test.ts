@@ -416,7 +416,12 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'What is this?', context);
 
       // Includes isGuestMode (false) and userApiKey (undefined) for BYOK support
-      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality, false, undefined);
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        attachments,
+        personality,
+        false,
+        undefined
+      );
     });
 
     it('should process audio attachments', async () => {
@@ -436,7 +441,12 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, '', context);
 
       // Includes isGuestMode (false) and userApiKey (undefined) for BYOK support
-      expect(mockProcessAttachments).toHaveBeenCalledWith(attachments, personality, false, undefined);
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        attachments,
+        personality,
+        false,
+        undefined
+      );
     });
 
     it('should include processed attachments in search query', async () => {
