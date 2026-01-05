@@ -1136,4 +1136,277 @@ describe('PromptBuilder', () => {
       expect(result).toBeGreaterThan(0);
     });
   });
+
+  /**
+   * SNAPSHOT TESTS
+   *
+   * These tests capture the full prompt output to detect unintentional regressions.
+   * If a snapshot changes, review carefully - prompt changes can silently break AI behavior.
+   *
+   * Focus scenarios based on recent bugs:
+   * - Forwarded messages with attachments
+   * - Many participants (stop sequence generation)
+   * - Extended context with image descriptions
+   * - Voice transcripts
+   */
+  describe('Prompt Snapshots', () => {
+    // Fixed date for deterministic snapshots
+    const FIXED_DATE = new Date('2024-06-15T14:30:00Z');
+
+    beforeEach(() => {
+      vi.setSystemTime(FIXED_DATE);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const basePersonality: LoadedPersonality = {
+      id: 'snapshot-personality-1',
+      slug: 'snapshot-bot',
+      name: 'SnapshotBot',
+      systemPrompt: 'You are a helpful assistant. Always be kind and helpful.',
+      characterInfo: 'A friendly AI assistant for testing',
+      personalityTraits: 'Helpful, patient, thorough',
+      displayName: 'Snapshot Bot',
+      ownerId: 'owner-1',
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+    };
+
+    const baseContext: ConversationContext = {
+      conversationId: 'snapshot-conv-1',
+      channelId: 'snapshot-channel-1',
+      activePersonaName: 'TestUser',
+    };
+
+    describe('buildFullSystemPrompt snapshots', () => {
+      it('should match snapshot for minimal prompt', () => {
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: basePersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: baseContext,
+        });
+
+        // Normalize request_id which contains random entropy
+        const content = (result.content as string).replace(
+          /<request_id>[^<]+<\/request_id>/g,
+          '<request_id>NORMALIZED</request_id>'
+        );
+
+        expect(content).toMatchSnapshot();
+      });
+
+      it('should match snapshot with multiple participants (stop sequence scenario)', () => {
+        // This scenario triggered the >16 stop sequences bug with Google API
+        const manyParticipants = new Map([
+          ['Alice', { content: 'Software developer who loves TypeScript', isActive: true, personaId: 'p-alice' }],
+          ['Bob', { content: 'UX designer focused on accessibility', isActive: false, personaId: 'p-bob' }],
+          ['Charlie', { content: 'DevOps engineer managing infrastructure', isActive: false, personaId: 'p-charlie' }],
+          ['Diana', { content: 'Product manager setting priorities', isActive: false, personaId: 'p-diana' }],
+          ['Eve', { content: 'Security researcher finding vulnerabilities', isActive: false, personaId: 'p-eve' }],
+          ['Frank', { content: 'Backend developer working on APIs', isActive: false, personaId: 'p-frank' }],
+          ['Grace', { content: 'Data scientist building ML models', isActive: false, personaId: 'p-grace' }],
+          ['Henry', { content: 'QA engineer ensuring quality', isActive: false, personaId: 'p-henry' }],
+        ]);
+
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: basePersonality,
+          participantPersonas: manyParticipants,
+          relevantMemories: [],
+          context: baseContext,
+        });
+
+        const content = (result.content as string).replace(
+          /<request_id>[^<]+<\/request_id>/g,
+          '<request_id>NORMALIZED</request_id>'
+        );
+
+        expect(content).toMatchSnapshot();
+      });
+
+      it('should match snapshot with memories and guild environment', () => {
+        const memories: MemoryDocument[] = [
+          {
+            pageContent: 'User mentioned they prefer dark mode interfaces',
+            metadata: { id: 'mem-1', createdAt: new Date('2024-06-10T10:00:00Z') },
+          },
+          {
+            pageContent: 'User is working on a Discord bot project',
+            metadata: { id: 'mem-2', createdAt: new Date('2024-06-12T15:30:00Z') },
+          },
+        ];
+
+        const contextWithGuild: ConversationContext = {
+          ...baseContext,
+          environment: {
+            type: 'guild',
+            guild: { id: 'guild-1', name: 'Dev Community' },
+            channel: { id: 'channel-1', name: 'bot-testing', type: 'text' },
+            category: { id: 'cat-1', name: 'Development' },
+          },
+        };
+
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: basePersonality,
+          participantPersonas: new Map([
+            ['TestUser', { content: 'A developer testing the bot', isActive: true, personaId: 'p-test' }],
+          ]),
+          relevantMemories: memories,
+          context: contextWithGuild,
+        });
+
+        const content = (result.content as string).replace(
+          /<request_id>[^<]+<\/request_id>/g,
+          '<request_id>NORMALIZED</request_id>'
+        );
+
+        expect(content).toMatchSnapshot();
+      });
+
+      it('should match snapshot with referenced messages', () => {
+        const result = promptBuilder.buildFullSystemPrompt({
+          personality: basePersonality,
+          participantPersonas: new Map(),
+          relevantMemories: [],
+          context: baseContext,
+          referencedMessagesFormatted: `<contextual_references>
+<referenced_message type="reply" author="Alice">
+I was wondering about the performance implications of using pgvector
+</referenced_message>
+</contextual_references>`,
+        });
+
+        const content = (result.content as string).replace(
+          /<request_id>[^<]+<\/request_id>/g,
+          '<request_id>NORMALIZED</request_id>'
+        );
+
+        expect(content).toMatchSnapshot();
+      });
+    });
+
+    describe('buildHumanMessage snapshots', () => {
+      it('should match snapshot for simple message', () => {
+        const result = promptBuilder.buildHumanMessage('Hello, how are you today?', []);
+        expect(result.message.content).toMatchSnapshot();
+        expect(result.contentForStorage).toMatchSnapshot();
+      });
+
+      it('should match snapshot with voice transcript', () => {
+        const voiceAttachment: ProcessedAttachment[] = [
+          {
+            type: 'audio',
+            description: 'Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.',
+            url: 'https://cdn.discord.com/attachments/123/456/voice.ogg',
+          },
+        ];
+
+        const result = promptBuilder.buildHumanMessage('Hello', voiceAttachment, 'VoiceUser');
+        expect(result.message.content).toMatchSnapshot();
+        expect(result.contentForStorage).toMatchSnapshot();
+      });
+
+      it('should match snapshot with image attachments', () => {
+        const imageAttachments: ProcessedAttachment[] = [
+          {
+            type: 'image',
+            description: 'A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.',
+            url: 'https://cdn.discord.com/attachments/123/456/error.png',
+          },
+          {
+            type: 'image',
+            description: 'A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker".',
+            url: 'https://cdn.discord.com/attachments/123/456/architecture.png',
+          },
+        ];
+
+        const result = promptBuilder.buildHumanMessage(
+          'Can you explain what went wrong here?',
+          imageAttachments,
+          'DebugUser'
+        );
+        expect(result.message.content).toMatchSnapshot();
+        expect(result.contentForStorage).toMatchSnapshot();
+      });
+
+      it('should match snapshot with forwarded/referenced message context', () => {
+        const references = `**Forwarded from Alice:**
+This is the original message that was forwarded. It contains important context about the discussion.
+
+**Attached Image:** [Screenshot of a code snippet showing a TypeScript interface]`;
+
+        const result = promptBuilder.buildHumanMessage(
+          'What do you think about this?',
+          [],
+          'ForwardUser',
+          references
+        );
+        expect(result.message.content).toMatchSnapshot();
+        expect(result.contentForStorage).toMatchSnapshot();
+      });
+
+      it('should match snapshot with complex combination (attachments + references + persona)', () => {
+        const attachments: ProcessedAttachment[] = [
+          {
+            type: 'image',
+            description: 'A flowchart showing the message processing pipeline',
+            url: 'https://cdn.discord.com/attachments/123/456/flow.png',
+          },
+        ];
+
+        const references = `<contextual_references>
+<referenced_message type="reply" author="PreviousUser">
+I tried implementing this but got stuck on the async handling
+</referenced_message>
+</contextual_references>`;
+
+        const result = promptBuilder.buildHumanMessage(
+          'Here is my updated implementation based on your feedback',
+          attachments,
+          'ImplementerUser',
+          references
+        );
+        expect(result.message.content).toMatchSnapshot();
+        expect(result.contentForStorage).toMatchSnapshot();
+      });
+    });
+
+    describe('buildSearchQuery snapshots', () => {
+      it('should match snapshot for pronoun resolution with history', () => {
+        const recentHistory = `User: I've been working on a React project with TypeScript
+Assistant: That sounds interesting! What features are you implementing?
+User: Mainly authentication and user profiles`;
+
+        const result = promptBuilder.buildSearchQuery(
+          'What do you think about that approach?',
+          [],
+          undefined,
+          recentHistory
+        );
+
+        expect(result).toMatchSnapshot();
+      });
+
+      it('should match snapshot with voice + references + history', () => {
+        const voiceAttachment: ProcessedAttachment[] = [
+          {
+            type: 'audio',
+            description: 'I want to add real-time notifications to my app',
+            url: 'https://cdn.discord.com/voice.ogg',
+          },
+        ];
+
+        const result = promptBuilder.buildSearchQuery(
+          'Hello', // Fallback that should be replaced by transcription
+          voiceAttachment,
+          'Previous discussion about WebSocket implementations',
+          'User: How should I handle reconnection?\nAssistant: You should implement exponential backoff'
+        );
+
+        expect(result).toMatchSnapshot();
+      });
+    });
+  });
 });

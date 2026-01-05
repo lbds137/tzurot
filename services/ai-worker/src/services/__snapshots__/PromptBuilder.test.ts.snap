@@ -1,0 +1,295 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > should match snapshot for minimal prompt 1`] = `
+"<system_identity>
+<role>
+You are SnapshotBot.
+</role>
+<character>
+<display_name>Snapshot Bot</display_name>
+<character_info>A friendly AI assistant for testing</character_info>
+<personality_traits>Helpful, patient, thorough</personality_traits>
+</character>
+<constraints>
+You are ONE participant in this conversation.
+You are SnapshotBot. You are NEVER any other participant.
+Do not generate dialogue for other users.
+If you see messages from others, reply TO them, do not simulate them.
+Output ONLY your response text.
+NEVER prefix your response with "SnapshotBot:" or any name.
+NEVER output XML tags in your response.
+</constraints>
+</system_identity>
+
+<context>
+<datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<location>Direct Message (private chat)</location>
+<request_id>NORMALIZED</request_id>
+</context>
+
+<protocol>
+You are a helpful assistant. Always be kind and helpful.
+</protocol>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > should match snapshot with memories and guild environment 1`] = `
+"<system_identity>
+<role>
+You are SnapshotBot.
+</role>
+<character>
+<display_name>Snapshot Bot</display_name>
+<character_info>A friendly AI assistant for testing</character_info>
+<personality_traits>Helpful, patient, thorough</personality_traits>
+</character>
+<constraints>
+You are ONE participant in this conversation.
+You are SnapshotBot. You are NEVER any other participant.
+Do not generate dialogue for other users.
+If you see messages from others, reply TO them, do not simulate them.
+Output ONLY your response text.
+NEVER prefix your response with "SnapshotBot:" or any name.
+NEVER output XML tags in your response.
+</constraints>
+</system_identity>
+
+<context>
+<datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<location>Server: Dev Community, Category: Development, Channel: #bot-testing (text)</location>
+<request_id>NORMALIZED</request_id>
+</context>
+
+<participants>
+<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
+<participant id="p-test" active="true">
+<name>TestUser</name>
+<about source="user_input"><![CDATA[A developer testing the bot]]></about>
+</participant>
+</participants>
+
+<memory_archive>
+<instruction>These are SUMMARIZED NOTES from past interactions, not current conversation. Use ONLY as background context to inform your response to the CURRENT message. The current message is in <current_turn> - respond ONLY to that.</instruction>
+<historical_note recorded="Mon, Jan 15, 2024" ago="2 weeks ago">User mentioned they prefer dark mode interfaces</historical_note>
+<historical_note recorded="Mon, Jan 15, 2024" ago="2 weeks ago">User is working on a Discord bot project</historical_note>
+</memory_archive>
+
+<protocol>
+You are a helpful assistant. Always be kind and helpful.
+</protocol>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > should match snapshot with multiple participants (stop sequence scenario) 1`] = `
+"<system_identity>
+<role>
+You are SnapshotBot.
+</role>
+<character>
+<display_name>Snapshot Bot</display_name>
+<character_info>A friendly AI assistant for testing</character_info>
+<personality_traits>Helpful, patient, thorough</personality_traits>
+</character>
+<constraints>
+You are ONE participant in this conversation.
+You are SnapshotBot. You are NEVER any other participant.
+Do not generate dialogue for other users.
+If you see messages from others, reply TO them, do not simulate them.
+Output ONLY your response text.
+NEVER prefix your response with "SnapshotBot:" or any name.
+NEVER output XML tags in your response.
+</constraints>
+</system_identity>
+
+<context>
+<datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<location>Direct Message (private chat)</location>
+<request_id>NORMALIZED</request_id>
+</context>
+
+<participants>
+<instruction>These people are in this conversation. Match from_id attribute in chat_log messages to participant id attribute.</instruction>
+<participant id="p-alice" active="true">
+<name>Alice</name>
+<about source="user_input"><![CDATA[Software developer who loves TypeScript]]></about>
+</participant>
+<participant id="p-bob">
+<name>Bob</name>
+<about source="user_input"><![CDATA[UX designer focused on accessibility]]></about>
+</participant>
+<participant id="p-charlie">
+<name>Charlie</name>
+<about source="user_input"><![CDATA[DevOps engineer managing infrastructure]]></about>
+</participant>
+<participant id="p-diana">
+<name>Diana</name>
+<about source="user_input"><![CDATA[Product manager setting priorities]]></about>
+</participant>
+<participant id="p-eve">
+<name>Eve</name>
+<about source="user_input"><![CDATA[Security researcher finding vulnerabilities]]></about>
+</participant>
+<participant id="p-frank">
+<name>Frank</name>
+<about source="user_input"><![CDATA[Backend developer working on APIs]]></about>
+</participant>
+<participant id="p-grace">
+<name>Grace</name>
+<about source="user_input"><![CDATA[Data scientist building ML models]]></about>
+</participant>
+<participant id="p-henry">
+<name>Henry</name>
+<about source="user_input"><![CDATA[QA engineer ensuring quality]]></about>
+</participant>
+<note>This is a group conversation. Messages use from_id to indicate the speaker. Example: "TestUser: message"</note>
+</participants>
+
+<protocol>
+You are a helpful assistant. Always be kind and helpful.
+</protocol>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildFullSystemPrompt snapshots > should match snapshot with referenced messages 1`] = `
+"<system_identity>
+<role>
+You are SnapshotBot.
+</role>
+<character>
+<display_name>Snapshot Bot</display_name>
+<character_info>A friendly AI assistant for testing</character_info>
+<personality_traits>Helpful, patient, thorough</personality_traits>
+</character>
+<constraints>
+You are ONE participant in this conversation.
+You are SnapshotBot. You are NEVER any other participant.
+Do not generate dialogue for other users.
+If you see messages from others, reply TO them, do not simulate them.
+Output ONLY your response text.
+NEVER prefix your response with "SnapshotBot:" or any name.
+NEVER output XML tags in your response.
+</constraints>
+</system_identity>
+
+<context>
+<datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
+<location>Direct Message (private chat)</location>
+<request_id>NORMALIZED</request_id>
+</context>
+
+<contextual_references>
+<referenced_message type="reply" author="Alice">
+I was wondering about the performance implications of using pgvector
+</referenced_message>
+</contextual_references>
+
+<protocol>
+You are a helpful assistant. Always be kind and helpful.
+</protocol>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot for simple message 1`] = `
+"<current_turn>
+<incoming_message sender="User">
+Hello, how are you today?
+</incoming_message>
+<instruction>
+RESPOND ONLY to User's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless User explicitly asks about the past. Do not simulate other users. Stop after your response.
+</instruction>
+</current_turn>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot for simple message 2`] = `"Hello, how are you today?"`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 1`] = `
+"<current_turn>
+<incoming_message sender="ImplementerUser">
+Here is my updated implementation based on your feedback
+
+A flowchart showing the message processing pipeline
+
+&lt;contextual_references&gt;
+<referenced_message type="reply" author="PreviousUser">
+I tried implementing this but got stuck on the async handling
+</referenced_message>
+&lt;/contextual_references&gt;
+</incoming_message>
+<instruction>
+RESPOND ONLY to ImplementerUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless ImplementerUser explicitly asks about the past. Do not simulate other users. Stop after your response.
+</instruction>
+</current_turn>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 2`] = `
+"Here is my updated implementation based on your feedback
+
+A flowchart showing the message processing pipeline"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with forwarded/referenced message context 1`] = `
+"<current_turn>
+<incoming_message sender="ForwardUser">
+What do you think about this?
+
+**Forwarded from Alice:**
+This is the original message that was forwarded. It contains important context about the discussion.
+
+**Attached Image:** [Screenshot of a code snippet showing a TypeScript interface]
+</incoming_message>
+<instruction>
+RESPOND ONLY to ForwardUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless ForwardUser explicitly asks about the past. Do not simulate other users. Stop after your response.
+</instruction>
+</current_turn>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with forwarded/referenced message context 2`] = `"What do you think about this?"`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with image attachments 1`] = `
+"<current_turn>
+<incoming_message sender="DebugUser">
+Can you explain what went wrong here?
+
+A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.
+
+A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker".
+</incoming_message>
+<instruction>
+RESPOND ONLY to DebugUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless DebugUser explicitly asks about the past. Do not simulate other users. Stop after your response.
+</instruction>
+</current_turn>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with image attachments 2`] = `
+"Can you explain what went wrong here?
+
+A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.
+
+A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker"."
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 1`] = `
+"<current_turn>
+<incoming_message sender="VoiceUser">
+Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.
+</incoming_message>
+<instruction>
+RESPOND ONLY to VoiceUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless VoiceUser explicitly asks about the past. Do not simulate other users. Stop after your response.
+</instruction>
+</current_turn>"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 2`] = `"Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildSearchQuery snapshots > should match snapshot for pronoun resolution with history 1`] = `
+"User: I've been working on a React project with TypeScript
+Assistant: That sounds interesting! What features are you implementing?
+User: Mainly authentication and user profiles
+
+What do you think about that approach?"
+`;
+
+exports[`PromptBuilder > Prompt Snapshots > buildSearchQuery snapshots > should match snapshot with voice + references + history 1`] = `
+"User: How should I handle reconnection?
+Assistant: You should implement exponential backoff
+
+I want to add real-time notifications to my app
+
+Previous discussion about WebSocket implementations"
+`;
