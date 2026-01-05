@@ -365,7 +365,13 @@ export class ConversationalRAGService {
     try {
       // Step 1: Process inputs (attachments, messages, search query)
       // Pass userApiKey for BYOK support in fallback vision processing
-      const inputs = await this.processInputs(personality, message, context, isGuestMode, userApiKey);
+      const inputs = await this.processInputs(
+        personality,
+        message,
+        context,
+        isGuestMode,
+        userApiKey
+      );
 
       // Step 1.5: Inject image descriptions into history for inline display
       // This replaces the separate <recent_channel_images> section with inline descriptions

@@ -198,7 +198,12 @@ export class DependencyStep implements IPipelineStep {
     }
 
     logger.info(
-      { jobId, imageCount: imageAttachments.length, isGuestMode, hasUserApiKey: userApiKey !== undefined },
+      {
+        jobId,
+        imageCount: imageAttachments.length,
+        isGuestMode,
+        hasUserApiKey: userApiKey !== undefined,
+      },
       '[DependencyStep] Processing extended context images inline'
     );
 
