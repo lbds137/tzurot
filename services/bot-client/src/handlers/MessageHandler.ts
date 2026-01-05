@@ -6,7 +6,7 @@
  * Implements full dependency injection for testability and flexibility.
  */
 
-import type { Message } from 'discord.js';
+import { MessageType, type Message } from 'discord.js';
 import {
   createLogger,
   type LLMGenerationResult,
@@ -48,7 +48,11 @@ export class MessageHandler {
       // Only process user-generated content (Default, Reply, Forward)
       if (!isUserContentMessage(message)) {
         logger.debug(
-          { messageId: message.id, messageType: message.type },
+          {
+            messageId: message.id,
+            messageType: message.type,
+            messageTypeName: MessageType[message.type],
+          },
           '[MessageHandler] Ignoring system message'
         );
         return;
