@@ -1201,14 +1201,58 @@ describe('PromptBuilder', () => {
       it('should match snapshot with multiple participants (stop sequence scenario)', () => {
         // This scenario triggered the >16 stop sequences bug with Google API
         const manyParticipants = new Map([
-          ['Alice', { content: 'Software developer who loves TypeScript', isActive: true, personaId: 'p-alice' }],
-          ['Bob', { content: 'UX designer focused on accessibility', isActive: false, personaId: 'p-bob' }],
-          ['Charlie', { content: 'DevOps engineer managing infrastructure', isActive: false, personaId: 'p-charlie' }],
-          ['Diana', { content: 'Product manager setting priorities', isActive: false, personaId: 'p-diana' }],
-          ['Eve', { content: 'Security researcher finding vulnerabilities', isActive: false, personaId: 'p-eve' }],
-          ['Frank', { content: 'Backend developer working on APIs', isActive: false, personaId: 'p-frank' }],
-          ['Grace', { content: 'Data scientist building ML models', isActive: false, personaId: 'p-grace' }],
-          ['Henry', { content: 'QA engineer ensuring quality', isActive: false, personaId: 'p-henry' }],
+          [
+            'Alice',
+            {
+              content: 'Software developer who loves TypeScript',
+              isActive: true,
+              personaId: 'p-alice',
+            },
+          ],
+          [
+            'Bob',
+            {
+              content: 'UX designer focused on accessibility',
+              isActive: false,
+              personaId: 'p-bob',
+            },
+          ],
+          [
+            'Charlie',
+            {
+              content: 'DevOps engineer managing infrastructure',
+              isActive: false,
+              personaId: 'p-charlie',
+            },
+          ],
+          [
+            'Diana',
+            {
+              content: 'Product manager setting priorities',
+              isActive: false,
+              personaId: 'p-diana',
+            },
+          ],
+          [
+            'Eve',
+            {
+              content: 'Security researcher finding vulnerabilities',
+              isActive: false,
+              personaId: 'p-eve',
+            },
+          ],
+          [
+            'Frank',
+            { content: 'Backend developer working on APIs', isActive: false, personaId: 'p-frank' },
+          ],
+          [
+            'Grace',
+            { content: 'Data scientist building ML models', isActive: false, personaId: 'p-grace' },
+          ],
+          [
+            'Henry',
+            { content: 'QA engineer ensuring quality', isActive: false, personaId: 'p-henry' },
+          ],
         ]);
 
         const result = promptBuilder.buildFullSystemPrompt({
@@ -1251,7 +1295,10 @@ describe('PromptBuilder', () => {
         const result = promptBuilder.buildFullSystemPrompt({
           personality: basePersonality,
           participantPersonas: new Map([
-            ['TestUser', { content: 'A developer testing the bot', isActive: true, personaId: 'p-test' }],
+            [
+              'TestUser',
+              { content: 'A developer testing the bot', isActive: true, personaId: 'p-test' },
+            ],
           ]),
           relevantMemories: memories,
           context: contextWithGuild,
@@ -1298,7 +1345,8 @@ I was wondering about the performance implications of using pgvector
         const voiceAttachment: ProcessedAttachment[] = [
           {
             type: 'audio',
-            description: 'Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.',
+            description:
+              'Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.',
             url: 'https://cdn.discord.com/attachments/123/456/voice.ogg',
           },
         ];
@@ -1312,12 +1360,14 @@ I was wondering about the performance implications of using pgvector
         const imageAttachments: ProcessedAttachment[] = [
           {
             type: 'image',
-            description: 'A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.',
+            description:
+              'A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.',
             url: 'https://cdn.discord.com/attachments/123/456/error.png',
           },
           {
             type: 'image',
-            description: 'A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker".',
+            description:
+              'A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker".',
             url: 'https://cdn.discord.com/attachments/123/456/architecture.png',
           },
         ];
