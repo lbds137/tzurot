@@ -278,9 +278,14 @@ ${identityConstraints}
         ? this.formatLocationForContext(context.environment)
         : 'Direct Message (private chat)';
 
+    // Unique request ID to break API-level prompt caching (OpenRouter/free models)
+    // This ensures each request is treated as unique even if context is similar
+    const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
     const contextSection = `\n\n<context>
 <datetime>${datetime}</datetime>
 <location>${locationInfo}</location>
+<request_id>${requestId}</request_id>
 </context>`;
 
     // Conversation participants - ALL people involved (excluding self)

@@ -585,6 +585,7 @@ describe('PromptBuilder', () => {
       // Context now in <context> section
       expect(content).toContain('<context>');
       expect(content).toContain('<datetime>');
+      expect(content).toContain('<request_id>'); // Entropy injection to break API caching
       // Protocol section
       expect(content).toContain('<protocol>');
       expect(content).toContain('You are a helpful assistant');

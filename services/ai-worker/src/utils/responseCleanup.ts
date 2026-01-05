@@ -213,3 +213,157 @@ export function removeDuplicateResponse(content: string): string {
   // No duplication detected
   return content;
 }
+
+// ============================================================================
+// Cross-Turn Duplication Detection
+// ============================================================================
+// The above `removeDuplicateResponse` handles INTRA-turn duplication (same response
+// repeated within a single LLM output due to stop-token failure).
+//
+// The functions below handle CROSS-turn duplication (same response given to
+// different user inputs across conversation turns - typically caused by
+// API-level caching on free-tier models).
+// ============================================================================
+
+/**
+ * Minimum response length to check for cross-turn similarity.
+ * Short responses like "Thank you!" may legitimately repeat.
+ */
+const MIN_LENGTH_FOR_SIMILARITY_CHECK = 30;
+
+/**
+ * Default threshold for considering responses "too similar".
+ * 0.85 means 85% of bigrams match between the two strings.
+ */
+const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
+
+/**
+ * Calculate similarity ratio between two strings using Dice coefficient on bigrams.
+ *
+ * Uses bigram-based comparison which is O(n) and effective for near-duplicate detection.
+ * This is similar to Python's difflib.SequenceMatcher but optimized for our use case.
+ *
+ * @param a First string to compare
+ * @param b Second string to compare
+ * @returns Similarity ratio between 0 (completely different) and 1 (identical)
+ *
+ * @example
+ * ```typescript
+ * stringSimilarity("hello world", "hello world") // 1.0
+ * stringSimilarity("hello world", "hello there") // ~0.5
+ * stringSimilarity("abc", "xyz") // 0
+ * ```
+ */
+export function stringSimilarity(a: string, b: string): number {
+  // Exact match
+  if (a === b) {
+    return 1;
+  }
+
+  // Normalize: lowercase and trim
+  const s1 = a.toLowerCase().trim();
+  const s2 = b.toLowerCase().trim();
+
+  if (s1 === s2) {
+    return 1;
+  }
+
+  // Handle edge cases
+  if (s1.length === 0 || s2.length === 0) {
+    return 0;
+  }
+  if (s1.length === 1 || s2.length === 1) {
+    return s1 === s2 ? 1 : 0;
+  }
+
+  // Generate bigrams (2-character sequences)
+  const bigrams1 = new Map<string, number>();
+  for (let i = 0; i < s1.length - 1; i++) {
+    const bigram = s1.substring(i, i + 2);
+    bigrams1.set(bigram, (bigrams1.get(bigram) ?? 0) + 1);
+  }
+
+  // Count matching bigrams
+  let matches = 0;
+  let bigrams2Count = 0;
+  for (let i = 0; i < s2.length - 1; i++) {
+    const bigram = s2.substring(i, i + 2);
+    bigrams2Count++;
+
+    const count = bigrams1.get(bigram);
+    if (count !== undefined && count > 0) {
+      matches++;
+      bigrams1.set(bigram, count - 1);
+    }
+  }
+
+  // Dice coefficient: 2 * matches / (total bigrams in both strings)
+  const totalBigrams = s1.length - 1 + bigrams2Count;
+  return (2 * matches) / totalBigrams;
+}
+
+/**
+ * Check if a new response is too similar to a previous response.
+ *
+ * This detects cross-turn duplication where the LLM gives the same response
+ * to different user inputs (typically caused by API-level caching).
+ *
+ * @param newResponse The newly generated response
+ * @param previousResponse The previous bot response from conversation history
+ * @param threshold Similarity threshold (default 0.85 = 85% similar)
+ * @returns true if the responses are too similar (likely a cache hit)
+ */
+export function isCrossTurnDuplicate(
+  newResponse: string,
+  previousResponse: string,
+  threshold = DEFAULT_SIMILARITY_THRESHOLD
+): boolean {
+  // Short responses may legitimately repeat (e.g., "Thank you!", "Got it!")
+  if (
+    newResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK ||
+    previousResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK
+  ) {
+    return false;
+  }
+
+  const similarity = stringSimilarity(newResponse, previousResponse);
+  const isDuplicate = similarity >= threshold;
+
+  if (isDuplicate) {
+    logger.warn(
+      {
+        similarity: similarity.toFixed(3),
+        threshold,
+        newResponseLength: newResponse.length,
+        previousResponseLength: previousResponse.length,
+      },
+      '[ResponseCleanup] Cross-turn duplication detected. ' +
+        'Response is too similar to previous turn. Possible API-level caching.'
+    );
+  }
+
+  return isDuplicate;
+}
+
+/**
+ * Get the last assistant message from raw conversation history.
+ *
+ * @param history Raw conversation history entries
+ * @returns The last assistant message content, or undefined if none found
+ */
+export function getLastAssistantMessage(
+  history: { role: string; content: string }[] | undefined
+): string | undefined {
+  if (!history || history.length === 0) {
+    return undefined;
+  }
+
+  // Find the last assistant message (iterate from end)
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'assistant') {
+      return history[i].content;
+    }
+  }
+
+  return undefined;
+}

@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { stripResponseArtifacts, removeDuplicateResponse } from './responseCleanup.js';
+import {
+  stripResponseArtifacts,
+  removeDuplicateResponse,
+  stringSimilarity,
+  isCrossTurnDuplicate,
+  getLastAssistantMessage,
+} from './responseCleanup.js';
 
 describe('stripResponseArtifacts', () => {
   describe('XML trailing tag stripping', () => {
@@ -325,5 +331,121 @@ describe('removeDuplicateResponse', () => {
       expect(result).toBe(response.trimEnd());
       expect(result.endsWith(' ')).toBe(false);
     });
+  });
+});
+
+// ============================================================================
+// Cross-Turn Duplication Detection Tests
+// ============================================================================
+
+describe('stringSimilarity', () => {
+  it('should return 1 for identical strings', () => {
+    expect(stringSimilarity('hello world', 'hello world')).toBe(1);
+  });
+
+  it('should return 1 for identical strings after normalization', () => {
+    expect(stringSimilarity('Hello World', 'hello world')).toBe(1);
+    expect(stringSimilarity('  hello  ', 'hello')).toBe(1);
+  });
+
+  it('should return 0 for completely different strings', () => {
+    expect(stringSimilarity('abc', 'xyz')).toBe(0);
+  });
+
+  it('should return 0 for empty strings', () => {
+    expect(stringSimilarity('', 'hello')).toBe(0);
+    expect(stringSimilarity('hello', '')).toBe(0);
+  });
+
+  it('should handle single character strings', () => {
+    expect(stringSimilarity('a', 'a')).toBe(1);
+    expect(stringSimilarity('a', 'b')).toBe(0);
+  });
+
+  it('should return high similarity for nearly identical strings', () => {
+    const s1 = '*slow smile* I accept that victory graciously.';
+    const s2 = '*slow smile* I accept that victory graciously.';
+    expect(stringSimilarity(s1, s2)).toBe(1);
+  });
+
+  it('should return high similarity for strings with minor differences', () => {
+    const s1 = 'The quick brown fox jumps over the lazy dog';
+    const s2 = 'The quick brown fox jumps over the lazy cat';
+    const similarity = stringSimilarity(s1, s2);
+    expect(similarity).toBeGreaterThan(0.8);
+  });
+
+  it('should return moderate similarity for strings with significant differences', () => {
+    const s1 = 'Hello, how are you today?';
+    const s2 = 'Hello, what is your name?';
+    const similarity = stringSimilarity(s1, s2);
+    expect(similarity).toBeLessThan(0.6);
+    expect(similarity).toBeGreaterThan(0.2);
+  });
+});
+
+describe('isCrossTurnDuplicate', () => {
+  it('should return false for short responses', () => {
+    // Short responses (< 30 chars) should not be flagged
+    expect(isCrossTurnDuplicate('Thank you!', 'Thank you!')).toBe(false);
+    expect(isCrossTurnDuplicate('Got it!', 'Got it!')).toBe(false);
+  });
+
+  it('should return true for identical long responses', () => {
+    const response = '*slow smile* I accept that victory graciously. Well played.';
+    expect(isCrossTurnDuplicate(response, response)).toBe(true);
+  });
+
+  it('should return true for very similar long responses', () => {
+    const r1 = '*slow smile* I accept that victory graciously. Well played.';
+    const r2 = '*slow smile* I accept that victory graciously. Well done.';
+    expect(isCrossTurnDuplicate(r1, r2)).toBe(true);
+  });
+
+  it('should return false for different responses', () => {
+    const r1 = '*slow smile* I accept that victory graciously. Well played.';
+    const r2 = 'Oh interesting, tell me more about your thoughts on that topic.';
+    expect(isCrossTurnDuplicate(r1, r2)).toBe(false);
+  });
+
+  it('should respect custom threshold', () => {
+    const r1 = 'The quick brown fox jumps over the lazy dog and runs away';
+    const r2 = 'The quick brown fox jumps over the lazy cat and walks away';
+    // These are similar but not extremely similar
+    expect(isCrossTurnDuplicate(r1, r2, 0.95)).toBe(false); // Very high threshold
+    expect(isCrossTurnDuplicate(r1, r2, 0.7)).toBe(true); // Lower threshold
+  });
+});
+
+describe('getLastAssistantMessage', () => {
+  it('should return undefined for empty history', () => {
+    expect(getLastAssistantMessage([])).toBeUndefined();
+    expect(getLastAssistantMessage(undefined)).toBeUndefined();
+  });
+
+  it('should return the last assistant message', () => {
+    const history = [
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'Hi there!' },
+      { role: 'user', content: 'How are you?' },
+      { role: 'assistant', content: 'I am doing well!' },
+    ];
+    expect(getLastAssistantMessage(history)).toBe('I am doing well!');
+  });
+
+  it('should return undefined if no assistant messages exist', () => {
+    const history = [
+      { role: 'user', content: 'Hello' },
+      { role: 'user', content: 'Anyone there?' },
+    ];
+    expect(getLastAssistantMessage(history)).toBeUndefined();
+  });
+
+  it('should find assistant message even if last message is from user', () => {
+    const history = [
+      { role: 'assistant', content: 'First response' },
+      { role: 'user', content: 'Last message from user' },
+    ];
+    expect(getLastAssistantMessage(history)).toBe('First response');
   });
 });

@@ -347,6 +347,8 @@ export const generationPayloadSchema = z.object({
       configSource: z.enum(['personality', 'user-personality', 'user-default']).optional(),
       /** Whether response was generated using guest mode (free model, no API key) */
       isGuestMode: z.boolean().optional(),
+      /** Whether cross-turn duplication was detected (same response as previous turn) */
+      crossTurnDuplicateDetected: z.boolean().optional(),
       /** Pipeline step that failed (only set on error) */
       failedStep: z.string().optional(),
       /** Last successfully completed pipeline step (only set on error) */
