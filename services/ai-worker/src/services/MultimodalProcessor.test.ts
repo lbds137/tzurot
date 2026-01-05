@@ -10,6 +10,7 @@ import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
   mockChatOpenAIInvoke,
+  mockChatOpenAIConstructor,
   mockWhisperCreate,
   mockGetVoiceTranscript,
   mockCheckModelVisionSupport,
@@ -17,6 +18,7 @@ const {
   mockVisionCacheStore,
 } = vi.hoisted(() => ({
   mockChatOpenAIInvoke: vi.fn(),
+  mockChatOpenAIConstructor: vi.fn(),
   mockWhisperCreate: vi.fn(),
   mockGetVoiceTranscript: vi.fn(),
   mockCheckModelVisionSupport: vi.fn(),
@@ -28,6 +30,9 @@ const {
 vi.mock('@langchain/openai', () => ({
   ChatOpenAI: class MockChatOpenAI {
     invoke = mockChatOpenAIInvoke;
+    constructor(config: { modelName?: string; apiKey?: string; configuration?: object }) {
+      mockChatOpenAIConstructor(config);
+    }
   },
 }));
 
@@ -417,6 +422,107 @@ describe('MultimodalProcessor', () => {
       const results = await processAttachments(attachments, mockPersonality);
 
       expect(results).toHaveLength(0);
+    });
+  });
+
+  describe('BYOK API key integration', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mockChatOpenAIConstructor.mockClear();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should pass userApiKey to ChatOpenAI constructor for image processing', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://example.com/image.png',
+          name: 'image.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+
+      const userApiKey = 'sk-user-byok-key-12345';
+      const promise = processAttachments(attachments, mockPersonality, false, userApiKey);
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // Verify ChatOpenAI was constructed with the user's API key
+      expect(mockChatOpenAIConstructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: userApiKey,
+        })
+      );
+    });
+
+    it('should use system key when userApiKey is undefined', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://example.com/image.png',
+          name: 'image.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+
+      const promise = processAttachments(attachments, mockPersonality, false, undefined);
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // Verify ChatOpenAI was constructed (with system key from config)
+      expect(mockChatOpenAIConstructor).toHaveBeenCalled();
+      // The apiKey should NOT be the user's key (it's undefined, so system key is used)
+      const constructorArg = mockChatOpenAIConstructor.mock.calls[0][0];
+      expect(constructorArg.apiKey).not.toBe('sk-user-byok-key-12345');
+    });
+
+    it('should pass isGuestMode flag through for guest users', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://example.com/image.png',
+          name: 'image.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+
+      // Guest mode with no user API key
+      const promise = processAttachments(attachments, mockPersonality, true, undefined);
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // Guest mode should still process images (using free vision models)
+      expect(mockChatOpenAIConstructor).toHaveBeenCalled();
+    });
+
+    it('should use BYOK key even when isGuestMode is false', async () => {
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://example.com/image.png',
+          name: 'image.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+
+      const userApiKey = 'sk-byok-user-key-67890';
+      const promise = processAttachments(attachments, mockPersonality, false, userApiKey);
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // BYOK user should have their key used
+      expect(mockChatOpenAIConstructor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: userApiKey,
+        })
+      );
     });
   });
 });
