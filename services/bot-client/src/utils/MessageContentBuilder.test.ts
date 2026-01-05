@@ -301,6 +301,56 @@ describe('MessageContentBuilder', () => {
       expect(result.attachments[1].name).toBe('on-main-message.gif');
     });
 
+    it('should use original message ID for forwarded voice message transcript lookup', async () => {
+      // Create forwarded voice message - the key is that getTranscript should be called
+      // with the ORIGINAL message ID (from reference.messageId), not the forwarded message ID
+      const snapshotAttachments = new Collection<string, Attachment>();
+      snapshotAttachments.set(
+        'voice-1',
+        createMockAttachment({
+          id: 'voice-1',
+          name: 'voice-message.ogg',
+          contentType: 'audio/ogg',
+          duration: 5.5, // Voice messages have duration
+          url: 'https://cdn.discord.com/attachments/123/voice.ogg',
+        })
+      );
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: '',
+        embeds: [],
+        attachments: snapshotAttachments,
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        id: 'forwarded-msg-999', // The forwarded message's ID
+        content: '',
+        reference: {
+          type: MessageReferenceType.Forward,
+          messageId: 'original-voice-msg-123', // The ORIGINAL voice message ID
+        } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const getTranscript = vi.fn().mockResolvedValue('Hello from the voice message');
+
+      const result = await buildMessageContent(message, { getTranscript });
+
+      // CRITICAL: getTranscript should be called with ORIGINAL message ID, not forwarded message ID
+      // This ensures DB lookup works even when Redis cache is cold
+      expect(getTranscript).toHaveBeenCalledWith(
+        'original-voice-msg-123', // Original message ID
+        'https://cdn.discord.com/attachments/123/voice.ogg'
+      );
+      expect(getTranscript).not.toHaveBeenCalledWith('forwarded-msg-999', expect.any(String));
+
+      expect(result.content).toContain('[Voice transcript]: Hello from the voice message');
+      expect(result.hasVoiceMessage).toBe(true);
+      expect(result.isForwarded).toBe(true);
+    });
+
     it('should combine text content with attachments and embeds', async () => {
       const attachments = new Collection<string, Attachment>();
       attachments.set('1', createMockAttachment({ name: 'photo.jpg', contentType: 'image/jpeg' }));
