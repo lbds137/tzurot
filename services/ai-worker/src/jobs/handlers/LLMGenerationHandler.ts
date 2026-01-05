@@ -83,7 +83,18 @@ export class LLMGenerationHandler {
   ) {
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
-    // Config → Auth → Dependency ensures API key is available for fallback vision processing
+    //
+    // Pipeline Order Rationale:
+    // - ValidationStep: Must be first to validate job data before any processing
+    // - ConfigStep: Resolves LLM config (needed by AuthStep for BYOK validation)
+    // - AuthStep: Resolves API key (BYOK/system) and guest mode flags
+    // - DependencyStep: Fetches preprocessing results AND processes extended context attachments.
+    //   Runs after AuthStep because extended context vision processing needs the user's BYOK key
+    //   to avoid leaking system API keys (see PR #447 for BYOK security fix).
+    //   DependencyStep only reads from Redis (preprocessing jobs) and calls MultimodalProcessor,
+    //   neither of which depend on running before Config/Auth.
+    // - ContextStep: Builds conversation history (needs preprocessing from DependencyStep)
+    // - GenerationStep: Calls RAG service (needs all prior context)
     this.pipeline = [
       new ValidationStep(),
       new ConfigStep(configResolver),
