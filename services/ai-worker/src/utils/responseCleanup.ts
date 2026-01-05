@@ -32,7 +32,7 @@ const ANCHOR_LENGTH = 30;
  * Similarity threshold for intra-turn duplicate detection.
  * Higher than cross-turn because we expect near-exact duplicates.
  */
-const INTRA_TURN_SIMILARITY_THRESHOLD = 0.80;
+const INTRA_TURN_SIMILARITY_THRESHOLD = 0.8;
 
 /**
  * Default threshold for considering responses "too similar" (cross-turn).
