@@ -79,7 +79,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **beta.34**: Documentation restructure (time-state architecture), duplicate response fix, LTM/STM confusion prevention
+- **beta.34**: Documentation restructure, cross-turn duplication detection (entropy injection + retry), LTM/STM confusion prevention
 - **beta.33**: Identity/memory bug fixes, pretest clean hooks for CJS/ESM conflicts
 - **beta.32**: Pure XML prompt architecture (from_id binding), inline image descriptions
 - **beta.31**: BYOK vision fix, stop sequences capped at 16
