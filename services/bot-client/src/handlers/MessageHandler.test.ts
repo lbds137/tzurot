@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageType } from 'discord.js';
 import { MessageHandler } from './MessageHandler.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
@@ -58,6 +59,7 @@ describe('MessageHandler', () => {
     function createMockMessage(overrides = {}): Message {
       return {
         id: 'msg-123',
+        type: MessageType.Default, // Required for system message filtering
         author: {
           tag: 'TestUser#1234',
           bot: false,
@@ -154,6 +156,73 @@ describe('MessageHandler', () => {
       expect(mockProcessor1.process).toHaveBeenCalledWith(message);
       expect(mockProcessor2.process).not.toHaveBeenCalled();
       expect(mockProcessor3.process).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleMessage - System Message Filtering', () => {
+    function createMockMessage(overrides = {}): Message {
+      return {
+        id: 'msg-123',
+        type: MessageType.Default,
+        author: {
+          tag: 'TestUser#1234',
+          bot: false,
+        },
+        reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
+        ...overrides,
+      } as unknown as Message;
+    }
+
+    it('should ignore ThreadCreated system messages', async () => {
+      const message = createMockMessage({ type: MessageType.ThreadCreated });
+
+      await messageHandler.handleMessage(message);
+
+      // No processors should be called for system messages
+      expect(mockProcessor1.process).not.toHaveBeenCalled();
+      expect(mockProcessor2.process).not.toHaveBeenCalled();
+      expect(mockProcessor3.process).not.toHaveBeenCalled();
+    });
+
+    it('should ignore ChannelPinnedMessage system messages', async () => {
+      const message = createMockMessage({ type: MessageType.ChannelPinnedMessage });
+
+      await messageHandler.handleMessage(message);
+
+      expect(mockProcessor1.process).not.toHaveBeenCalled();
+    });
+
+    it('should ignore UserJoin system messages', async () => {
+      const message = createMockMessage({ type: MessageType.UserJoin });
+
+      await messageHandler.handleMessage(message);
+
+      expect(mockProcessor1.process).not.toHaveBeenCalled();
+    });
+
+    it('should ignore GuildBoost system messages', async () => {
+      const message = createMockMessage({ type: MessageType.GuildBoost });
+
+      await messageHandler.handleMessage(message);
+
+      expect(mockProcessor1.process).not.toHaveBeenCalled();
+    });
+
+    it('should process Default messages normally', async () => {
+      const message = createMockMessage({ type: MessageType.Default });
+
+      await messageHandler.handleMessage(message);
+
+      // Processors should be called for normal messages
+      expect(mockProcessor1.process).toHaveBeenCalledWith(message);
+    });
+
+    it('should process Reply messages normally', async () => {
+      const message = createMockMessage({ type: MessageType.Reply });
+
+      await messageHandler.handleMessage(message);
+
+      expect(mockProcessor1.process).toHaveBeenCalledWith(message);
     });
   });
 

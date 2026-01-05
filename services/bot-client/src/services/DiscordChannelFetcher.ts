@@ -9,7 +9,6 @@
  */
 
 import type { Message, TextChannel, DMChannel, NewsChannel, Collection } from 'discord.js';
-import { MessageType, MessageReferenceType } from 'discord.js';
 import {
   createLogger,
   MessageRole,
@@ -18,6 +17,7 @@ import {
 } from '@tzurot/common-types';
 import type { ConversationMessage, AttachmentMetadata } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
+import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 
 const logger = createLogger('DiscordChannelFetcher');
@@ -295,7 +295,7 @@ export class DiscordChannelFetcher {
 
     for (const msg of sortedMessages) {
       // Skip system messages (but allow forwarded messages)
-      if (!this.isNormalMessage(msg)) {
+      if (!isUserContentMessage(msg)) {
         continue;
       }
 
@@ -364,32 +364,6 @@ export class DiscordChannelFetcher {
       collectedImageAttachments,
       limitedParticipantGuildInfo
     );
-  }
-
-  /**
-   * Check if a message is a normal user/bot message (not a system message)
-   *
-   * Includes:
-   * - Default messages
-   * - Reply messages
-   * - Forwarded messages (detected via reference type, not message type)
-   */
-  private isNormalMessage(msg: Message): boolean {
-    // Allow DEFAULT and REPLY message types
-    if (msg.type === MessageType.Default || msg.type === MessageType.Reply) {
-      return true;
-    }
-
-    // Also allow forwarded messages (have Forward reference type with snapshots)
-    if (
-      msg.reference?.type === MessageReferenceType.Forward &&
-      msg.messageSnapshots !== undefined &&
-      msg.messageSnapshots.size > 0
-    ) {
-      return true;
-    }
-
-    return false;
   }
 
   /**
