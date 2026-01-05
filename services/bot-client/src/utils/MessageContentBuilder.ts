@@ -33,6 +33,129 @@ import { EmbedParser } from './EmbedParser.js';
 const logger = createLogger('MessageContentBuilder');
 
 /**
+ * Result of processing voice attachments
+ */
+interface VoiceProcessingResult {
+  /** Whether any voice message was found */
+  hasVoiceMessage: boolean;
+  /** Retrieved voice transcripts */
+  voiceTranscripts: string[];
+  /** Attachments that are not voice messages (or voice without transcript) */
+  nonVoiceAttachments: AttachmentMetadata[];
+}
+
+/**
+ * Options for processing voice attachments
+ */
+interface VoiceProcessingOptions {
+  /** The message ID (used for regular voice messages) */
+  messageId: string;
+  /** The original message ID for forwarded messages */
+  originalMessageId: string | undefined;
+  /** Attachments from forwarded message snapshots */
+  snapshotAttachments: AttachmentMetadata[];
+  /** Regular message attachments (may be undefined if none) */
+  regularAttachments: AttachmentMetadata[] | undefined;
+  /** Images extracted from embeds (may be undefined if none) */
+  embedImages: AttachmentMetadata[] | undefined;
+  /** Whether this is a forwarded message */
+  isForwarded: boolean;
+  /** Optional transcript retriever function */
+  getTranscript?: (discordMessageId: string, attachmentUrl: string) => Promise<string | null>;
+}
+
+/**
+ * Process attachments to extract voice transcripts and categorize attachments
+ *
+ * Handles both forwarded voice messages (using original message ID for DB lookup)
+ * and regular voice messages (using message ID).
+ *
+ * @param options - Voice processing options
+ * @returns Voice processing result with transcripts and categorized attachments
+ */
+async function processVoiceAttachments(
+  options: VoiceProcessingOptions
+): Promise<VoiceProcessingResult> {
+  const {
+    messageId,
+    originalMessageId,
+    snapshotAttachments,
+    regularAttachments,
+    embedImages,
+    isForwarded,
+    getTranscript,
+  } = options;
+  let hasVoiceMessage = false;
+  const voiceTranscripts: string[] = [];
+  const nonVoiceAttachments: AttachmentMetadata[] = [];
+
+  // Process forwarded voice messages first (use original message ID for DB lookup)
+  if (isForwarded && snapshotAttachments.length > 0 && getTranscript !== undefined) {
+    for (const attachment of snapshotAttachments) {
+      if (attachment.isVoiceMessage === true) {
+        hasVoiceMessage = true;
+
+        // Use original message ID for forwarded voice messages
+        // This ensures DB lookup works even after Redis cache expires
+        if (originalMessageId !== undefined) {
+          const transcript = await getTranscript(originalMessageId, attachment.url);
+          if (transcript !== null && transcript.length > 0) {
+            voiceTranscripts.push(transcript);
+            continue;
+          }
+        }
+
+        // No transcript available
+        nonVoiceAttachments.push(attachment);
+        logger.debug(
+          { messageId, originalMessageId, duration: attachment.duration },
+          '[MessageContentBuilder] Forwarded voice message without transcript'
+        );
+      } else {
+        nonVoiceAttachments.push(attachment);
+      }
+    }
+  } else {
+    // Non-forwarded: add snapshot attachments directly to non-voice list
+    nonVoiceAttachments.push(...snapshotAttachments);
+  }
+
+  // Process regular attachments (direct message voice messages)
+  if (regularAttachments && regularAttachments.length > 0) {
+    for (const attachment of regularAttachments) {
+      if (attachment.isVoiceMessage === true) {
+        hasVoiceMessage = true;
+
+        // Try to get transcript if retriever is provided
+        if (getTranscript !== undefined) {
+          const transcript = await getTranscript(messageId, attachment.url);
+          if (transcript !== null && transcript.length > 0) {
+            voiceTranscripts.push(transcript);
+            continue;
+          }
+        }
+
+        // No transcript available - include in non-voice attachments
+        nonVoiceAttachments.push(attachment);
+        logger.debug(
+          { messageId, duration: attachment.duration },
+          '[MessageContentBuilder] Voice message without transcript'
+        );
+      } else {
+        nonVoiceAttachments.push(attachment);
+      }
+    }
+  }
+
+  // Add embed images to non-voice attachments
+  if (embedImages && embedImages.length > 0) {
+    nonVoiceAttachments.push(...embedImages);
+  }
+
+  return { hasVoiceMessage, voiceTranscripts, nonVoiceAttachments };
+}
+
+/**
  * Options for building message content
  */
 export interface BuildContentOptions {
@@ -148,75 +271,16 @@ export async function buildMessageContent(
     ...(embedImages ?? []),
   ];
 
-  // Check for voice messages and retrieve transcripts
-  let hasVoiceMessage = false;
-  const voiceTranscripts: string[] = [];
-  const nonVoiceAttachments: AttachmentMetadata[] = [];
-
-  // Process forwarded voice messages first (use original message ID for DB lookup)
-  if (isForwarded && snapshotAttachments.length > 0 && getTranscript !== undefined) {
-    const originalMessageId = message.reference?.messageId;
-
-    for (const attachment of snapshotAttachments) {
-      if (attachment.isVoiceMessage === true) {
-        hasVoiceMessage = true;
-
-        // Use original message ID for forwarded voice messages
-        // This ensures DB lookup works even after Redis cache expires
-        if (originalMessageId !== undefined) {
-          const transcript = await getTranscript(originalMessageId, attachment.url);
-          if (transcript !== null && transcript.length > 0) {
-            voiceTranscripts.push(transcript);
-            continue;
-          }
-        }
-
-        // No transcript available
-        nonVoiceAttachments.push(attachment);
-        logger.debug(
-          { messageId: message.id, originalMessageId, duration: attachment.duration },
-          '[MessageContentBuilder] Forwarded voice message without transcript'
-        );
-      } else {
-        nonVoiceAttachments.push(attachment);
-      }
-    }
-  } else {
-    // Non-forwarded: add snapshot attachments directly to non-voice list
-    nonVoiceAttachments.push(...snapshotAttachments);
-  }
-
-  // Process regular attachments (direct message voice messages)
-  if (regularAttachments && regularAttachments.length > 0) {
-    for (const attachment of regularAttachments) {
-      if (attachment.isVoiceMessage === true) {
-        hasVoiceMessage = true;
-
-        // Try to get transcript if retriever is provided
-        if (getTranscript !== undefined) {
-          const transcript = await getTranscript(message.id, attachment.url);
-          if (transcript !== null && transcript.length > 0) {
-            voiceTranscripts.push(transcript);
-            continue;
-          }
-        }
-
-        // No transcript available - include in non-voice attachments
-        nonVoiceAttachments.push(attachment);
-        logger.debug(
-          { messageId: message.id, duration: attachment.duration },
-          '[MessageContentBuilder] Voice message without transcript'
-        );
-      } else {
-        nonVoiceAttachments.push(attachment);
-      }
-    }
-  }
-
-  // Add embed images to non-voice attachments
-  if (embedImages && embedImages.length > 0) {
-    nonVoiceAttachments.push(...embedImages);
-  }
+  // Process voice messages and categorize attachments
+  const { hasVoiceMessage, voiceTranscripts, nonVoiceAttachments } = await processVoiceAttachments({
+    messageId: message.id,
+    originalMessageId: message.reference?.messageId,
+    snapshotAttachments,
+    regularAttachments,
+    embedImages,
+    isForwarded,
+    getTranscript,
+  });
 
   // Add voice transcripts to content
   if (voiceTranscripts.length > 0) {
