@@ -443,5 +443,204 @@ describe('GenerationStep', () => {
         expect(result.result?.errorInfo?.category).toBe('unknown');
       });
     });
+
+    describe('cross-turn duplication detection and retry', () => {
+      const previousBotResponse =
+        '*slow smile* I accept that victory graciously. Well played, my friend.';
+
+      it('should not retry when response is different from previous', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'This is a completely different response about something else entirely.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponse },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe(ragResponse.content);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(false);
+        // Should only call generateResponse once (no retry)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+
+      it('should retry when response is too similar to previous turn', async () => {
+        // First call returns duplicate, second call returns unique
+        const duplicateResponse: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+        };
+
+        const uniqueResponse: RAGResponse = {
+          content: 'Ah, you have bested me this time! A worthy opponent indeed.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 45,
+          modelUsed: 'test-model',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateResponse)
+          .mockResolvedValueOnce(uniqueResponse);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponse },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // Should use the retry response
+        expect(result.result?.content).toBe(uniqueResponse.content);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
+        // Should call generateResponse twice (original + retry)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+
+      it('should use retry response even if retry also produces duplicate', async () => {
+        // Both calls return duplicates
+        const duplicateResponse1: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played!',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+        };
+
+        const duplicateResponse2: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well done!',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 48,
+          modelUsed: 'test-model',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateResponse1)
+          .mockResolvedValueOnce(duplicateResponse2);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponse },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // Should use the retry response (even though it's also a duplicate)
+        expect(result.result?.content).toBe(duplicateResponse2.content);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
+        // Should only retry once
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+
+      it('should not retry when no previous assistant message exists', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'Hello! Nice to meet you.',
+          retrievedMemories: 0,
+          tokensIn: 50,
+          tokensOut: 20,
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        // History with only user messages
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [{ role: 'user', content: 'Hello!' }],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(false);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not retry for short responses that may legitimately repeat', async () => {
+        const shortResponse: RAGResponse = {
+          content: 'Thank you!',
+          retrievedMemories: 0,
+          tokensIn: 50,
+          tokensOut: 10,
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(shortResponse);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Thanks for your help!' },
+            { role: 'assistant', content: 'Thank you!' },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // Short responses should not trigger retry even if identical
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(false);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });
