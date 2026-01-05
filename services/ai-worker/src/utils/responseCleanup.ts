@@ -29,6 +29,101 @@ const MIN_LENGTH_FOR_DUPLICATION_CHECK = 100;
 const ANCHOR_LENGTH = 30;
 
 /**
+ * Similarity threshold for intra-turn duplicate detection.
+ * Higher than cross-turn because we expect near-exact duplicates.
+ */
+const INTRA_TURN_SIMILARITY_THRESHOLD = 0.80;
+
+/**
+ * Default threshold for considering responses "too similar" (cross-turn).
+ * 0.85 means 85% of bigrams match between the two strings.
+ */
+const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
+
+/**
+ * Minimum response length to check for cross-turn similarity.
+ * Short responses like "Thank you!" may legitimately repeat.
+ */
+const MIN_LENGTH_FOR_SIMILARITY_CHECK = 30;
+
+// ============================================================================
+// Shared Similarity Function (used by both intra-turn and cross-turn detection)
+// ============================================================================
+
+/**
+ * Calculate similarity ratio between two strings using Dice coefficient on bigrams.
+ *
+ * Uses bigram-based comparison which is O(n) and effective for near-duplicate detection.
+ * This is similar to Python's difflib.SequenceMatcher but optimized for our use case.
+ *
+ * Used by both:
+ * - Intra-turn detection: comparing first half vs second half of a response
+ * - Cross-turn detection: comparing new response vs previous response
+ *
+ * @param a First string to compare
+ * @param b Second string to compare
+ * @returns Similarity ratio between 0 (completely different) and 1 (identical)
+ *
+ * @example
+ * ```typescript
+ * stringSimilarity("hello world", "hello world") // 1.0
+ * stringSimilarity("hello world", "hello there") // ~0.5
+ * stringSimilarity("abc", "xyz") // 0
+ * ```
+ */
+export function stringSimilarity(a: string, b: string): number {
+  // Exact match
+  if (a === b) {
+    return 1;
+  }
+
+  // Normalize: lowercase and trim
+  const s1 = a.toLowerCase().trim();
+  const s2 = b.toLowerCase().trim();
+
+  if (s1 === s2) {
+    return 1;
+  }
+
+  // Handle edge cases
+  if (s1.length === 0 || s2.length === 0) {
+    return 0;
+  }
+  if (s1.length === 1 || s2.length === 1) {
+    return s1 === s2 ? 1 : 0;
+  }
+
+  // Generate bigrams (2-character sequences)
+  const bigrams1 = new Map<string, number>();
+  for (let i = 0; i < s1.length - 1; i++) {
+    const bigram = s1.substring(i, i + 2);
+    bigrams1.set(bigram, (bigrams1.get(bigram) ?? 0) + 1);
+  }
+
+  // Count matching bigrams
+  let matches = 0;
+  let bigrams2Count = 0;
+  for (let i = 0; i < s2.length - 1; i++) {
+    const bigram = s2.substring(i, i + 2);
+    bigrams2Count++;
+
+    const count = bigrams1.get(bigram);
+    if (count !== undefined && count > 0) {
+      matches++;
+      bigrams1.set(bigram, count - 1);
+    }
+  }
+
+  // Dice coefficient: 2 * matches / (total bigrams in both strings)
+  const totalBigrams = s1.length - 1 + bigrams2Count;
+  return (2 * matches) / totalBigrams;
+}
+
+// ============================================================================
+// Artifact Stripping
+// ============================================================================
+
+/**
  * Build artifact patterns for a given personality name
  */
 function buildArtifactPatterns(personalityName: string): RegExp[] {
@@ -123,17 +218,16 @@ export function stripResponseArtifacts(content: string, personalityName: string)
  * generation properly, causing the model to "forget" what it wrote and
  * regenerate the same response again, resulting in concatenated duplicates.
  *
- * This function detects when the response contains an exact (or near-exact)
- * duplication of itself and removes the duplicate portion.
+ * This function detects when the response contains a duplicate (or near-duplicate)
+ * of itself and removes the duplicate portion.
  *
  * Algorithm:
  * 1. Take an "anchor" (first N characters) from the start of the response
  * 2. Search for that anchor appearing later in the text
- * 3. If found at index k, verify that text[k:] matches text[0:len-k] using O(1) memory
- * 4. If it matches, return only the first occurrence (text[:k])
+ * 3. If found at index k, verify using stringSimilarity (same algo as cross-turn detection)
+ * 4. If similarity >= threshold, return only the first occurrence (text[:k])
  *
- * Performance: O(N) time with zero heap allocations in the comparison loop.
- * Uses charCodeAt for direct memory access instead of string slicing.
+ * Uses the same stringSimilarity function as cross-turn detection (DRY).
  *
  * @param content - The AI-generated response content
  * @returns Deduplicated content (or original if no duplication detected)
@@ -144,9 +238,9 @@ export function stripResponseArtifacts(content: string, personalityName: string)
  * removeDuplicateResponse('Hello world! Hello world!')
  * // Returns: 'Hello world!'
  *
- * // Partial duplication (model cut off mid-repeat)
- * removeDuplicateResponse('Hello world! Hello wor')
- * // Returns: 'Hello world!'
+ * // Near-duplication with variations (model restarts with slight changes)
+ * removeDuplicateResponse('*waves* Hello there! *waves excitedly* Hello there!')
+ * // Returns: '*waves* Hello there!'
  * ```
  */
 export function removeDuplicateResponse(content: string): string {
@@ -161,52 +255,77 @@ export function removeDuplicateResponse(content: string): string {
   const anchorLength = Math.min(ANCHOR_LENGTH, Math.floor(len / 3));
   const anchor = content.substring(0, anchorLength);
 
-  // Search for the anchor appearing later in the text
-  let candidateIdx = content.indexOf(anchor, 1);
+  // Start searching AFTER the anchor itself to avoid self-overlapping matches
+  let candidateIdx = content.indexOf(anchor, anchorLength);
 
   while (candidateIdx !== -1) {
     // Found a potential split point
-    // The text might be: Part_A (length candidateIdx) + Part_A (or partial)
-    const suffixStart = candidateIdx;
-    const suffixLength = len - suffixStart;
+    // The text might be: Part_A (length candidateIdx) + Part_A (or variation/multiple of Part_A)
+    const firstPartRaw = content.substring(0, candidateIdx);
+    const secondPartRaw = content.substring(candidateIdx);
 
-    // OPTIMIZATION 1: Quick fail check
-    // Compare the last character first - if it doesn't match, skip the full comparison
-    // This fails fast for the vast majority of false positives
-    if (content.charCodeAt(len - 1) !== content.charCodeAt(suffixLength - 1)) {
-      candidateIdx = content.indexOf(anchor, candidateIdx + 1);
-      continue;
+    // Trim for comparison only (preserve original whitespace in return value)
+    const firstPart = firstPartRaw.trim();
+    const secondPart = secondPartRaw.trim();
+
+    // Skip if second part is empty (we're at the end)
+    if (secondPart.length === 0) {
+      break;
     }
 
-    // OPTIMIZATION 2: Zero-allocation comparison using charCodeAt
-    // Compare characters directly without creating new string objects
-    let isMatch = true;
-    for (let i = 0; i < suffixLength; i++) {
-      if (content.charCodeAt(suffixStart + i) !== content.charCodeAt(i)) {
-        isMatch = false;
-        break;
+    const firstLower = firstPart.toLowerCase();
+    const secondLower = secondPart.toLowerCase();
+
+    // Check 1: Partial duplicate (model cut off mid-repeat)
+    // "Hello world" vs "Hello" → firstPart starts with secondPart
+    const isSecondPrefixOfFirst = firstLower.startsWith(secondLower);
+
+    // Check 2: Runaway duplicate (model output [A][A][A])
+    // "Hello" vs "Hello Hello" → secondPart starts with firstPart
+    const isFirstPrefixOfSecond = secondLower.startsWith(firstLower);
+
+    // Check 3: Similarity-based match
+    // Skip expensive similarity check if lengths are vastly different (>2x ratio)
+    // because Dice coefficient fails on mismatched lengths anyway
+    let similarity = 0;
+    let detectionMethod: 'second-prefix' | 'first-prefix' | 'similarity' | 'none' = 'none';
+
+    if (isSecondPrefixOfFirst) {
+      similarity = 1.0;
+      detectionMethod = 'second-prefix';
+    } else if (isFirstPrefixOfSecond) {
+      similarity = 1.0;
+      detectionMethod = 'first-prefix';
+    } else {
+      // Length ratio gate: only run similarity if lengths are within 0.5x to 2x
+      const lengthRatio = firstPart.length / secondPart.length;
+      if (lengthRatio > 0.5 && lengthRatio < 2.0) {
+        similarity = stringSimilarity(firstPart, secondPart);
+        detectionMethod = 'similarity';
       }
     }
 
-    if (isMatch) {
-      // Confirmed duplication! Only allocate memory here, once.
-      const deduplicated = content.substring(0, suffixStart).trimEnd();
-
+    if (similarity >= INTRA_TURN_SIMILARITY_THRESHOLD) {
+      // Confirmed duplication!
       logger.warn(
         {
           originalLength: len,
-          deduplicatedLength: deduplicated.length,
-          duplicateLength: suffixLength,
-          splitPoint: suffixStart,
+          deduplicatedLength: firstPartRaw.trimEnd().length,
+          duplicateLength: secondPartRaw.length,
+          splitPoint: candidateIdx,
+          similarity: similarity.toFixed(3),
+          detectionMethod,
         },
-        '[ResponseCleanup] Detected and removed duplicate response content. ' +
+        '[ResponseCleanup] Detected and removed intra-turn duplicate response content. ' +
           'Model likely experienced stop-token failure.'
       );
 
-      return deduplicated;
+      // Return raw first part with only trailing whitespace trimmed
+      // (preserves intentional formatting in the valid portion)
+      return firstPartRaw.trimEnd();
     }
 
-    // Not a match - try the next occurrence of the anchor
+    // Not similar enough - try the next occurrence of the anchor
     candidateIdx = content.indexOf(anchor, candidateIdx + 1);
   }
 
@@ -220,87 +339,12 @@ export function removeDuplicateResponse(content: string): string {
 // The above `removeDuplicateResponse` handles INTRA-turn duplication (same response
 // repeated within a single LLM output due to stop-token failure).
 //
-// The functions below handle CROSS-turn duplication (same response given to
+// The function below handles CROSS-turn duplication (same response given to
 // different user inputs across conversation turns - typically caused by
 // API-level caching on free-tier models).
+//
+// Both use the shared `stringSimilarity` function defined at the top of this file.
 // ============================================================================
-
-/**
- * Minimum response length to check for cross-turn similarity.
- * Short responses like "Thank you!" may legitimately repeat.
- */
-const MIN_LENGTH_FOR_SIMILARITY_CHECK = 30;
-
-/**
- * Default threshold for considering responses "too similar".
- * 0.85 means 85% of bigrams match between the two strings.
- */
-const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
-
-/**
- * Calculate similarity ratio between two strings using Dice coefficient on bigrams.
- *
- * Uses bigram-based comparison which is O(n) and effective for near-duplicate detection.
- * This is similar to Python's difflib.SequenceMatcher but optimized for our use case.
- *
- * @param a First string to compare
- * @param b Second string to compare
- * @returns Similarity ratio between 0 (completely different) and 1 (identical)
- *
- * @example
- * ```typescript
- * stringSimilarity("hello world", "hello world") // 1.0
- * stringSimilarity("hello world", "hello there") // ~0.5
- * stringSimilarity("abc", "xyz") // 0
- * ```
- */
-export function stringSimilarity(a: string, b: string): number {
-  // Exact match
-  if (a === b) {
-    return 1;
-  }
-
-  // Normalize: lowercase and trim
-  const s1 = a.toLowerCase().trim();
-  const s2 = b.toLowerCase().trim();
-
-  if (s1 === s2) {
-    return 1;
-  }
-
-  // Handle edge cases
-  if (s1.length === 0 || s2.length === 0) {
-    return 0;
-  }
-  if (s1.length === 1 || s2.length === 1) {
-    return s1 === s2 ? 1 : 0;
-  }
-
-  // Generate bigrams (2-character sequences)
-  const bigrams1 = new Map<string, number>();
-  for (let i = 0; i < s1.length - 1; i++) {
-    const bigram = s1.substring(i, i + 2);
-    bigrams1.set(bigram, (bigrams1.get(bigram) ?? 0) + 1);
-  }
-
-  // Count matching bigrams
-  let matches = 0;
-  let bigrams2Count = 0;
-  for (let i = 0; i < s2.length - 1; i++) {
-    const bigram = s2.substring(i, i + 2);
-    bigrams2Count++;
-
-    const count = bigrams1.get(bigram);
-    if (count !== undefined && count > 0) {
-      matches++;
-      bigrams1.set(bigram, count - 1);
-    }
-  }
-
-  // Dice coefficient: 2 * matches / (total bigrams in both strings)
-  const totalBigrams = s1.length - 1 + bigrams2Count;
-  return (2 * matches) / totalBigrams;
-}
 
 /**
  * Check if a new response is too similar to a previous response.
