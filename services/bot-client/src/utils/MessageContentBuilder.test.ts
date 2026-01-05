@@ -403,6 +403,55 @@ describe('MessageContentBuilder', () => {
       expect(result.isForwarded).toBe(true);
     });
 
+    it('should handle forwarded voice message when originalMessageId is undefined', async () => {
+      // Edge case: forwarded message without reference.messageId
+      // This can happen with certain Discord API edge cases
+      const snapshotAttachments = new Collection<string, Attachment>();
+      snapshotAttachments.set(
+        'voice-1',
+        createMockAttachment({
+          id: 'voice-1',
+          name: 'voice-message.ogg',
+          contentType: 'audio/ogg',
+          duration: 3.5,
+          url: 'https://cdn.discord.com/attachments/123/voice-no-ref.ogg',
+        })
+      );
+
+      const messageSnapshots = new Collection<string, MessageSnapshot>();
+      messageSnapshots.set('1', {
+        content: '',
+        embeds: [],
+        attachments: snapshotAttachments,
+        createdTimestamp: Date.now(),
+      } as unknown as MessageSnapshot);
+
+      const message = createMockMessage({
+        id: 'forwarded-msg-no-ref',
+        content: '',
+        reference: {
+          type: MessageReferenceType.Forward,
+          // messageId is intentionally missing!
+        } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const getTranscript = vi.fn().mockResolvedValue('Should not be called');
+
+      const result = await buildMessageContent(message, { getTranscript });
+
+      // getTranscript should NOT be called since we don't have originalMessageId
+      expect(getTranscript).not.toHaveBeenCalled();
+
+      // Voice message should still be detected and included in attachments
+      expect(result.hasVoiceMessage).toBe(true);
+      expect(result.isForwarded).toBe(true);
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments[0].isVoiceMessage).toBe(true);
+      // No transcript in content
+      expect(result.content).not.toContain('[Voice transcript]');
+    });
+
     it('should combine text content with attachments and embeds', async () => {
       const attachments = new Collection<string, Attachment>();
       attachments.set('1', createMockAttachment({ name: 'photo.jpg', contentType: 'image/jpeg' }));
