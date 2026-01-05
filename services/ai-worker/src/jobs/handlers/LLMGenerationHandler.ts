@@ -83,11 +83,12 @@ export class LLMGenerationHandler {
   ) {
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
+    // Config → Auth → Dependency ensures API key is available for fallback vision processing
     this.pipeline = [
       new ValidationStep(),
-      new DependencyStep(),
       new ConfigStep(configResolver),
       new AuthStep(apiKeyResolver, configResolver),
+      new DependencyStep(),
       new ContextStep(),
       new GenerationStep(ragService),
     ];
