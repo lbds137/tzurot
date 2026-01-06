@@ -109,12 +109,14 @@ Log these events:
 **Current Location**: `services/bot-client/src/utils/MessageContentBuilder.ts:processVoiceAttachments()`
 
 **Scenario**:
+
 1. User A sends voice message → transcription job queued (~2-3 sec)
 2. User B immediately forwards it (within seconds)
 3. Bot processes forwarded message before transcription completes
 4. Transcript lookup returns `undefined` → voice appears without transcript
 
 **Potential Solutions**:
+
 - [ ] Add short retry with timeout (e.g., 3 attempts, 1 sec apart)
 - [ ] Return placeholder text: "[Transcript pending...]"
 - [ ] Accept the edge case (rare in practice)
