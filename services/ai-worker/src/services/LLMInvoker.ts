@@ -238,6 +238,10 @@ export class LLMInvoker {
     // Invoke with per-attempt timeout (3 minutes per attempt)
     const response = await model.invoke(messages, invokeOptions);
 
+    // Log finish_reason for completion quality diagnostics
+    // This helps identify models that fail to emit stop tokens (hallucinated turn bug)
+    this.logFinishReason(response, modelName, stopSequences);
+
     // Guard against empty responses (treat as retryable error)
     // Handle both string content and multimodal array content
     const content = Array.isArray(response.content)
@@ -282,5 +286,91 @@ export class LLMInvoker {
     }
 
     return response;
+  }
+
+  /**
+   * Log finish_reason and related metadata for completion quality diagnostics.
+   *
+   * This helps identify:
+   * - Models that hit token limits (finish_reason: "length") - may cause truncated responses
+   * - Models that naturally stopped (finish_reason: "stop") - ideal case
+   * - Stop sequences that triggered (finish_reason: "stop_sequence") - our safety measures working
+   *
+   * Correlation of "length" with the double-response bug would suggest token limit issues.
+   */
+  private logFinishReason(
+    response: BaseMessage,
+    modelName: string,
+    stopSequences?: string[]
+  ): void {
+    // LangChain stores provider-specific metadata in response_metadata
+    // Different providers use different field names, so we check multiple
+    const metadata = (response as { response_metadata?: Record<string, unknown> })
+      .response_metadata;
+
+    if (!metadata) {
+      logger.debug({ modelName }, '[LLMInvoker] No response_metadata available for finish_reason');
+      return;
+    }
+
+    // Extract finish_reason - providers use different field names
+    // OpenAI/OpenRouter: finish_reason
+    // Anthropic: stop_reason
+    // Google: finishReason (camelCase)
+    const finishReason =
+      metadata.finish_reason ?? metadata.stop_reason ?? metadata.finishReason ?? 'unknown';
+
+    // Extract which stop sequence triggered (if any)
+    // OpenAI/OpenRouter: stop (the actual sequence that triggered)
+    // Some providers include this in the finish_reason metadata
+    const stoppedAt = metadata.stop ?? metadata.stop_sequence ?? null;
+
+    // Extract token usage if available
+    const usage = metadata.usage as
+      | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+      | undefined;
+
+    // Build log context
+    const logContext: Record<string, unknown> = {
+      modelName,
+      finishReason,
+    };
+
+    if (stoppedAt !== null) {
+      logContext.stoppedAt = stoppedAt;
+    }
+
+    if (usage !== undefined) {
+      logContext.promptTokens = usage.prompt_tokens;
+      logContext.completionTokens = usage.completion_tokens;
+      logContext.totalTokens = usage.total_tokens;
+    }
+
+    if (stopSequences !== undefined && stopSequences.length > 0) {
+      logContext.stopSequenceCount = stopSequences.length;
+    }
+
+    // Log at different levels based on finish_reason
+    // "length" is a warning sign - model may have been cut off
+    if (finishReason === 'length') {
+      // Use info level with clear WARNING prefix since we don't have an actual error object
+      // This is a diagnostic observation, not an exception
+      logger.info(
+        logContext,
+        '[LLMInvoker] WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
+      );
+    } else if (finishReason === 'stop' || finishReason === 'end_turn' || finishReason === 'STOP') {
+      // Natural completion - ideal case
+      logger.debug(logContext, '[LLMInvoker] Model completed naturally');
+    } else if (stoppedAt !== null) {
+      // Our stop sequence triggered - safety measure worked
+      logger.info(
+        logContext,
+        '[LLMInvoker] Stop sequence triggered - prevented potential identity bleeding or hallucination'
+      );
+    } else {
+      // Unknown finish reason - log for investigation
+      logger.info(logContext, '[LLMInvoker] Model completion with non-standard finish_reason');
+    }
   }
 }
