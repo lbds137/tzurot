@@ -48,6 +48,12 @@ export class DependencyStep implements IPipelineStep {
 
     // Use resolved effective personality from ConfigStep (includes user overrides, free model config, etc.)
     // Fall back to raw job personality only if config wasn't resolved (shouldn't happen in normal flow)
+    if (!config) {
+      logger.warn(
+        { jobId: job.id },
+        '[DependencyStep] Config context missing - using raw personality (ConfigStep may have failed)'
+      );
+    }
     const personality = config?.effectivePersonality ?? job.data.personality;
 
     // Auth should be available (AuthStep runs before DependencyStep)

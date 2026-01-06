@@ -221,17 +221,25 @@ export async function buildMessageContent(
       }
 
       // Extract attachments from snapshot (critical for forwarded images!)
-      if (snapshot.attachments !== undefined && snapshot.attachments !== null) {
-        const extracted = extractAttachments(snapshot.attachments);
-        if (extracted) {
-          snapshotAttachments.push(...extracted);
+      // Wrapped in try-catch to prevent partial failures from breaking the entire loop
+      try {
+        if (snapshot.attachments !== undefined && snapshot.attachments !== null) {
+          const extracted = extractAttachments(snapshot.attachments);
+          if (extracted) {
+            snapshotAttachments.push(...extracted);
+          }
         }
-      }
 
-      // Extract images from snapshot embeds
-      const snapshotEmbedImages = extractEmbedImages(snapshot.embeds);
-      if (snapshotEmbedImages) {
-        snapshotAttachments.push(...snapshotEmbedImages);
+        // Extract images from snapshot embeds
+        const snapshotEmbedImages = extractEmbedImages(snapshot.embeds);
+        if (snapshotEmbedImages) {
+          snapshotAttachments.push(...snapshotEmbedImages);
+        }
+      } catch (error) {
+        logger.warn(
+          { messageId: message.id, error },
+          '[MessageContentBuilder] Failed to extract snapshot attachments'
+        );
       }
 
       // Process snapshot embeds
