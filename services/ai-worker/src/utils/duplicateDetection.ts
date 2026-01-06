@@ -48,7 +48,7 @@ const INTRA_TURN_SIMILARITY_THRESHOLD = 0.8;
  * - Higher than intra-turn (0.8) because cross-turn duplicates should be more exact
  * - Below 0.9 to catch paraphrased duplicates where the model rewrites the same idea
  */
-const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
+export const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
 
 /**
  * Minimum response length to check for cross-turn similarity.
@@ -58,8 +58,11 @@ const MIN_LENGTH_FOR_SIMILARITY_CHECK = 30;
 
 /**
  * Number of recent assistant messages to check for cross-turn duplicates.
- * Set to 5 to catch duplicates that occur across several conversation turns
- * (e.g., when API-level caching returns an older cached response).
+ *
+ * Set to 5 based on production observations (January 2026) showing API-level
+ * caching can return responses from 3-4 turns back, not just the most recent.
+ * The window is about recency - we don't filter out short messages during
+ * collection because that would scan arbitrarily far back in history.
  */
 const MAX_RECENT_ASSISTANT_MESSAGES = 5;
 

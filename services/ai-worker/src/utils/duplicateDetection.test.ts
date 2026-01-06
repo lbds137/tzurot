@@ -13,6 +13,7 @@ import {
   isRecentDuplicate,
   getLastAssistantMessage,
   getRecentAssistantMessages,
+  DEFAULT_SIMILARITY_THRESHOLD,
 } from './duplicateDetection.js';
 
 describe('removeDuplicateResponse', () => {
@@ -221,9 +222,11 @@ describe('isCrossTurnDuplicate', () => {
   it('should respect custom threshold', () => {
     const r1 = 'The quick brown fox jumps over the lazy dog and runs away';
     const r2 = 'The quick brown fox jumps over the lazy cat and walks away';
-    // These are similar but not extremely similar
-    expect(isCrossTurnDuplicate(r1, r2, 0.95)).toBe(false); // Very high threshold
-    expect(isCrossTurnDuplicate(r1, r2, 0.7)).toBe(true); // Lower threshold
+    // These are similar (~0.8) but below DEFAULT_SIMILARITY_THRESHOLD (0.85)
+    // Verify custom thresholds work by testing above and below default
+    expect(isCrossTurnDuplicate(r1, r2, 0.95)).toBe(false); // Above default: not a match
+    expect(isCrossTurnDuplicate(r1, r2, DEFAULT_SIMILARITY_THRESHOLD)).toBe(false); // At default: not a match
+    expect(isCrossTurnDuplicate(r1, r2, 0.7)).toBe(true); // Below default: matches
   });
 });
 
@@ -382,9 +385,13 @@ describe('isRecentDuplicate', () => {
   it('should respect custom threshold', () => {
     const r1 = 'The quick brown fox jumps over the lazy dog and runs away fast';
     const r2 = 'The quick brown fox jumps over the lazy cat and walks away slow';
-    // High threshold - should not match
+    // These are similar (~0.75) but below DEFAULT_SIMILARITY_THRESHOLD (0.85)
+    // Verify custom thresholds work by testing above and below default
     expect(isRecentDuplicate(r1, [r2], 0.95)).toEqual({ isDuplicate: false, matchIndex: -1 });
-    // Lower threshold - should match
+    expect(isRecentDuplicate(r1, [r2], DEFAULT_SIMILARITY_THRESHOLD)).toEqual({
+      isDuplicate: false,
+      matchIndex: -1,
+    });
     expect(isRecentDuplicate(r1, [r2], 0.7)).toEqual({ isDuplicate: true, matchIndex: 0 });
   });
 });
