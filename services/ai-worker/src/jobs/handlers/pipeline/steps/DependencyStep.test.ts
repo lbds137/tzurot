@@ -59,6 +59,13 @@ const TEST_PERSONALITY: LoadedPersonality = {
   personalityTraits: 'Helpful, friendly',
 };
 
+// Guest mode personality with free model and free vision model (simulates resolved config for guest users)
+const GUEST_EFFECTIVE_PERSONALITY: LoadedPersonality = {
+  ...TEST_PERSONALITY,
+  model: 'google/gemma-3-27b-it:free',
+  visionModel: 'google/gemma-3-27b-it:free', // Free vision model from resolved guest config
+};
+
 function createValidJobData(overrides: Partial<LLMGenerationJobData> = {}): LLMGenerationJobData {
   return {
     requestId: 'test-req-001',
@@ -343,7 +350,7 @@ describe('DependencyStep', () => {
   });
 
   describe('extended context attachments', () => {
-    it('should process extended context image attachments', async () => {
+    it('should process extended context image attachments using effective personality', async () => {
       const processedAttachment = {
         type: AttachmentType.Image,
         description: 'A cat sitting on a couch',
@@ -374,12 +381,17 @@ describe('DependencyStep', () => {
             ],
           },
         }),
+        // Config context from ConfigStep (now required for consistent behavior)
+        config: {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        },
         startTime: Date.now(),
       };
 
       const result = await step.process(context);
 
-      // Now includes isGuestMode (false) and userApiKey (undefined) since auth context is not set
+      // Uses effectivePersonality from config context
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/cat.jpg' })],
         TEST_PERSONALITY,
@@ -423,6 +435,11 @@ describe('DependencyStep', () => {
             ],
           },
         }),
+        // Config context from ConfigStep
+        config: {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'user-personality',
+        },
         // Auth context populated by AuthStep (which runs before DependencyStep)
         auth: {
           apiKey: 'user-test-key-12345',
@@ -444,7 +461,7 @@ describe('DependencyStep', () => {
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
 
-    it('should pass isGuestMode=true when auth indicates guest user', async () => {
+    it('should use guest effective personality with free visionModel for guest users', async () => {
       const processedAttachment = {
         type: AttachmentType.Image,
         description: 'A bird in flight',
@@ -475,6 +492,12 @@ describe('DependencyStep', () => {
             ],
           },
         }),
+        // Config context with FREE effective personality (resolved by ConfigStep for guest users)
+        // This is the key difference: guest users get effectivePersonality with free visionModel
+        config: {
+          effectivePersonality: GUEST_EFFECTIVE_PERSONALITY,
+          configSource: 'user-default', // Guest users use default free config
+        },
         // Auth context for guest user (no BYOK key)
         auth: {
           apiKey: 'system-openrouter-key', // System key used for guests
@@ -486,14 +509,19 @@ describe('DependencyStep', () => {
 
       const result = await step.process(context);
 
-      // Verify guest mode is passed through (uses free models, no user key)
+      // Verify processAttachments receives the GUEST effective personality
+      // which has visionModel: 'google/gemma-3-27b-it:free' from the resolved config
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/bird.jpg' })],
-        TEST_PERSONALITY,
+        GUEST_EFFECTIVE_PERSONALITY, // Uses resolved config with free visionModel
         true, // isGuestMode = true for guest users
         'system-openrouter-key' // System key (guests don't have BYOK)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+
+      // Verify the personality passed has the free vision model
+      const passedPersonality = mockProcessAttachments.mock.calls[0][1];
+      expect(passedPersonality.visionModel).toBe('google/gemma-3-27b-it:free');
     });
 
     it('should filter out non-image attachments from extended context', async () => {
@@ -515,6 +543,10 @@ describe('DependencyStep', () => {
             ],
           },
         }),
+        config: {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        },
         startTime: Date.now(),
       };
 
@@ -545,6 +577,10 @@ describe('DependencyStep', () => {
             ],
           },
         }),
+        config: {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        },
         startTime: Date.now(),
       };
 
@@ -564,6 +600,10 @@ describe('DependencyStep', () => {
             extendedContextAttachments: [],
           },
         }),
+        config: {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        },
         startTime: Date.now(),
       };
 
@@ -606,6 +646,11 @@ describe('DependencyStep', () => {
             ],
           },
         }),
+        // Config context is present
+        config: {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        },
         // NOTE: No auth context - simulates edge case where AuthStep failed/was skipped
         startTime: Date.now(),
       };
@@ -618,6 +663,56 @@ describe('DependencyStep', () => {
         TEST_PERSONALITY,
         false, // isGuestMode defaults to false when auth missing
         undefined // userApiKey is undefined (system key fallback)
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
+    it('should fall back to job.data.personality when config context is missing', async () => {
+      const processedAttachment = {
+        type: AttachmentType.Image,
+        description: 'An image processed with fallback personality',
+        originalUrl: 'https://example.com/fallback.jpg',
+        metadata: {
+          url: 'https://example.com/fallback.jpg',
+          name: 'fallback.jpg',
+          contentType: 'image/jpeg',
+          size: 1024,
+        },
+      };
+
+      // Reset the mock completely before setting up
+      mockProcessAttachments.mockReset();
+      mockProcessAttachments.mockResolvedValue([processedAttachment]);
+
+      const context: GenerationContext = {
+        job: createMockJob({
+          context: {
+            userId: 'user-456',
+            userName: 'TestUser',
+            channelId: 'channel-789',
+            extendedContextAttachments: [
+              {
+                url: 'https://example.com/fallback.jpg',
+                name: 'fallback.jpg',
+                contentType: 'image/jpeg',
+                size: 1024,
+              },
+            ],
+          },
+        }),
+        // NOTE: No config context - simulates edge case where ConfigStep failed/was skipped
+        // DependencyStep should fall back to job.data.personality
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      // Verify processAttachments uses job.data.personality as fallback
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/fallback.jpg' })],
+        TEST_PERSONALITY, // Falls back to job.data.personality
+        false,
+        undefined
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
