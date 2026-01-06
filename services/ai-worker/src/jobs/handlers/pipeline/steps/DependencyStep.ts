@@ -43,8 +43,12 @@ export class DependencyStep implements IPipelineStep {
   readonly name = 'DependencyResolution';
 
   async process(context: GenerationContext): Promise<GenerationContext> {
-    const { job, auth } = context;
-    const { dependencies, context: jobContext, personality } = job.data;
+    const { job, auth, config } = context;
+    const { dependencies, context: jobContext } = job.data;
+
+    // Use resolved effective personality from ConfigStep (includes user overrides, free model config, etc.)
+    // Fall back to raw job personality only if config wasn't resolved (shouldn't happen in normal flow)
+    const personality = config?.effectivePersonality ?? job.data.personality;
 
     // Auth should be available (AuthStep runs before DependencyStep)
     // If not available, log warning and continue without BYOK (fallback to system key)
