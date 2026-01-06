@@ -49,6 +49,7 @@ export {
   DISCORD_MENTIONS,
   DISCORD_SNOWFLAKE,
   DISCORD_PROVIDER_CHOICES,
+  BOT_FOOTER_PATTERNS,
   isValidDiscordId,
   filterValidDiscordIds,
   type DiscordProviderChoice,

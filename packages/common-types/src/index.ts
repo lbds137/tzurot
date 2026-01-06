@@ -17,7 +17,7 @@ export * from './types/jobs.js';
 export * from './types/schemas.js';
 
 // Export utilities
-export { splitMessage, truncateText } from './utils/discord.js';
+export { splitMessage, truncateText, stripBotFooters } from './utils/discord.js';
 export { createLogger } from './utils/logger.js';
 export {
   parseRedisUrl,

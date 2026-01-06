@@ -11,7 +11,7 @@
  * response to different user inputs.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, stripBotFooters } from '@tzurot/common-types';
 
 const logger = createLogger('DuplicateDetection');
 
@@ -309,28 +309,37 @@ export function isRecentDuplicate(
   recentMessages: string[],
   threshold = DEFAULT_SIMILARITY_THRESHOLD
 ): { isDuplicate: boolean; matchIndex: number } {
+  // Strip footers from the new response for clean comparison
+  // (New responses shouldn't have footers, but strip just in case)
+  const cleanNewResponse = stripBotFooters(newResponse);
+
   // Short responses may legitimately repeat
-  if (newResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
+  if (cleanNewResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
     return { isDuplicate: false, matchIndex: -1 };
   }
 
   for (let i = 0; i < recentMessages.length; i++) {
-    const previousResponse = recentMessages[i];
+    // Strip footers from historical messages before comparison
+    // Historical context: A sync bug caused footers to be stored in DB.
+    // Without stripping, a clean new response vs dirty history would have
+    // artificially low similarity (e.g., 0.60 instead of 1.0), causing
+    // duplicates to slip through undetected.
+    const cleanPreviousResponse = stripBotFooters(recentMessages[i]);
 
-    // Skip short previous messages
-    if (previousResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
+    // Skip short previous messages (after footer stripping)
+    if (cleanPreviousResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
       continue;
     }
 
-    const similarity = stringSimilarity(newResponse, previousResponse);
+    const similarity = stringSimilarity(cleanNewResponse, cleanPreviousResponse);
 
     if (similarity >= threshold) {
       logger.warn(
         {
           similarity: similarity.toFixed(3),
           threshold,
-          newResponseLength: newResponse.length,
-          previousResponseLength: previousResponse.length,
+          newResponseLength: cleanNewResponse.length,
+          previousResponseLength: cleanPreviousResponse.length,
           matchIndex: i,
           turnsBack: i + 1,
         },

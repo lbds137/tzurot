@@ -175,3 +175,27 @@ export const DISCORD_PROVIDER_CHOICES = [{ name: 'OpenRouter', value: 'openroute
  * Type for provider choice values
  */
 export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['value'];
+
+/**
+ * Bot-added footer patterns for Discord messages.
+ *
+ * The bot appends footer lines to Discord messages (model indicator,
+ * auto-response badge, guest mode notice). These are for display only
+ * and should NOT be stored in the database.
+ *
+ * IMPORTANT: These patterns must match ONLY our bot-added footers, not
+ * user content. Users can legitimately use `-#` for small text formatting.
+ *
+ * Used by:
+ * - stripBotFooters (utils/discord.ts): Utility function to remove footers
+ * - DiscordChannelFetcher: Strips footers during opportunistic sync
+ * - duplicateDetection: Strips footers before similarity comparison
+ */
+export const BOT_FOOTER_PATTERNS = {
+  /** Model indicator (with optional auto badge on same line) */
+  MODEL: /\n-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • 📍 auto)?/g,
+  /** Guest mode notice */
+  GUEST_MODE: /\n-# 🆓 Using free model \(no API key required\)/g,
+  /** Auto-response indicator (standalone) */
+  AUTO_RESPONSE: /\n-# 📍 auto-response/g,
+} as const;
