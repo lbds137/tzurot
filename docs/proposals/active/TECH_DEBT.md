@@ -50,6 +50,7 @@ Log these events:
 **Current Location**: `services/bot-client/src/services/MessageContentBuilder.ts`
 
 **Solution**: Extract helper functions:
+
 - [ ] `extractForwardedContent(message)` - forwarded message extraction (lines 210-254)
 - [ ] `processVoiceAttachment(attachment, options)` - voice message handling
 - [ ] `extractEmbedContent(embeds)` - embed image/content extraction
@@ -65,6 +66,7 @@ Log these events:
 **Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts`
 
 **Items to document**:
+
 - [ ] Why Dice coefficient vs Levenshtein distance (performance vs accuracy tradeoff)
 - [ ] Time/space complexity: O(n) where n is string length
 - [ ] Scaling consideration: If responses grow >10KB, consider MinHash/SimHash for O(1) checks
@@ -80,6 +82,7 @@ Log these events:
 **Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:67`
 
 **Consideration**: Make configurable via personality or system config if:
+
 - Different models exhibit different caching patterns
 - Production data shows duplicates occurring further back than 5 turns
 
@@ -96,6 +99,27 @@ Log these events:
 | `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic |
 
 **Why low priority**: Large files slow AI assistants but don't directly cause bugs.
+
+---
+
+### Voice Transcript Race Condition on Forwarded Messages
+
+**Problem**: When a voice message is forwarded immediately after being sent, the transcript might not be ready yet.
+
+**Current Location**: `services/bot-client/src/utils/MessageContentBuilder.ts:processVoiceAttachments()`
+
+**Scenario**:
+1. User A sends voice message → transcription job queued (~2-3 sec)
+2. User B immediately forwards it (within seconds)
+3. Bot processes forwarded message before transcription completes
+4. Transcript lookup returns `undefined` → voice appears without transcript
+
+**Potential Solutions**:
+- [ ] Add short retry with timeout (e.g., 3 attempts, 1 sec apart)
+- [ ] Return placeholder text: "[Transcript pending...]"
+- [ ] Accept the edge case (rare in practice)
+
+**Why low priority**: Forwarding usually happens after reading/listening, giving transcription time to complete. No user reports of this issue yet.
 
 ---
 
