@@ -25,6 +25,7 @@ import { closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
+import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
 import { ConversationPersistence } from './services/ConversationPersistence.js';
@@ -78,6 +79,7 @@ interface Services {
   gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   resultsListener: ResultsListener;
+  responseOrderingService: ResponseOrderingService;
   webhookManager: WebhookManager;
   personalityService: PersonalityService;
   personaResolver: PersonaResolver;
@@ -110,7 +112,8 @@ function createServices(): Services {
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);
   const webhookManager = new WebhookManager(client);
-  const jobTracker = new JobTracker();
+  const responseOrderingService = new ResponseOrderingService();
+  const jobTracker = new JobTracker(responseOrderingService);
   const resultsListener = new ResultsListener();
 
   // Shared services (used by multiple processors)
@@ -187,6 +190,7 @@ function createServices(): Services {
     gatewayClient,
     jobTracker,
     resultsListener,
+    responseOrderingService,
     webhookManager,
     personalityService,
     personaResolver,
@@ -293,18 +297,31 @@ process.on('unhandledRejection', error => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Shutting down...');
-  services.jobTracker.cleanup();
-  void services.resultsListener.stop();
-  services.webhookManager.destroy();
-  void services.cacheInvalidationService.unsubscribe();
-  void services.personaCacheInvalidationService.unsubscribe();
-  void services.channelActivationCacheInvalidationService.unsubscribe();
-  services.personaResolver.stopCleanup();
-  services.cacheRedis.disconnect();
-  void closeRedis();
-  void client.destroy();
-  void disconnectPrisma();
-  process.exit(0);
+
+  // Deliver any buffered results before shutting down
+  void services.responseOrderingService
+    .shutdown(async (jobId, result) => {
+      try {
+        await services.messageHandler.handleJobResult(jobId, result);
+        await services.gatewayClient.confirmDelivery(jobId);
+      } catch (error) {
+        logger.error({ err: error, jobId }, '[Bot] Error delivering buffered result on shutdown');
+      }
+    })
+    .finally(() => {
+      services.jobTracker.cleanup();
+      void services.resultsListener.stop();
+      services.webhookManager.destroy();
+      void services.cacheInvalidationService.unsubscribe();
+      void services.personaCacheInvalidationService.unsubscribe();
+      void services.channelActivationCacheInvalidationService.unsubscribe();
+      services.personaResolver.stopCleanup();
+      services.cacheRedis.disconnect();
+      void closeRedis();
+      void client.destroy();
+      void disconnectPrisma();
+      process.exit(0);
+    });
 });
 
 /**
@@ -320,13 +337,37 @@ async function verifyDatabaseConnection(): Promise<void> {
 
 /**
  * Start listening for job results and handle delivery to Discord
+ *
+ * Results are routed through ResponseOrderingService to ensure responses
+ * appear in the channel in the same order users sent their messages,
+ * regardless of which model finishes first.
  */
 async function startResultsListener(): Promise<void> {
   logger.info('[Bot] Starting results listener...');
   await services.resultsListener.start(async (jobId, result) => {
     try {
-      await services.messageHandler.handleJobResult(jobId, result);
-      await services.gatewayClient.confirmDelivery(jobId);
+      // Get context to know channel and timing
+      const context = services.jobTracker.getContext(jobId);
+
+      if (!context) {
+        // Job not tracked (shouldn't happen in normal flow)
+        logger.warn({ jobId }, '[Bot] Result for unknown job - delivering immediately');
+        await services.messageHandler.handleJobResult(jobId, result);
+        await services.gatewayClient.confirmDelivery(jobId);
+        return;
+      }
+
+      // Route through ordering service to maintain message order per channel
+      await services.responseOrderingService.handleResult(
+        context.message.channel.id,
+        jobId,
+        result,
+        context.userMessageTime,
+        async (jId, res) => {
+          await services.messageHandler.handleJobResult(jId, res);
+          await services.gatewayClient.confirmDelivery(jId);
+        }
+      );
     } catch (error) {
       logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
     }

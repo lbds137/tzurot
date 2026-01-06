@@ -9,6 +9,7 @@
 import { createLogger, type TypingChannel } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
+import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
 const logger = createLogger('JobTracker');
 
@@ -43,6 +44,15 @@ interface TrackedJob {
 
 export class JobTracker {
   private activeJobs = new Map<string, TrackedJob>();
+  private orderingService?: ResponseOrderingService;
+
+  /**
+   * Create a new JobTracker
+   * @param orderingService - Optional service to ensure responses are delivered in order
+   */
+  constructor(orderingService?: ResponseOrderingService) {
+    this.orderingService = orderingService;
+  }
 
   /**
    * Start tracking a job and maintain typing indicator
@@ -112,6 +122,11 @@ export class JobTracker {
       startTime: Date.now(),
       context,
     });
+
+    // Register with ordering service to ensure responses are delivered in message order
+    if (this.orderingService) {
+      this.orderingService.registerJob(channel.id, jobId, context.userMessageTime);
+    }
 
     logger.info({ jobId, channelId: channel.id }, '[JobTracker] Started tracking job with context');
   }
