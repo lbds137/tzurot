@@ -852,6 +852,47 @@ describe('DiscordChannelFetcher', () => {
         'First chunk was EDITED. Second chunk unchanged.'
       );
     });
+
+    it('should strip multi-line footers (model + guest mode)', async () => {
+      // Scenario: Free model response has both model indicator AND guest mode footer
+      // This caused a bug where the regex didn't match because $ required end-of-string
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord-msg-1',
+        createMockMessage({
+          id: 'discord-msg-1',
+          content:
+            'Hello world!\n-# Model: [meta-llama/llama-3.3-70b-instruct:free](<https://openrouter.ai/meta-llama/llama-3.3-70b-instruct:free>)\n-# 🆓 Using free model (no API key required)',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        })
+      );
+
+      const dbMsgData = {
+        id: 'db-msg-1',
+        content: 'Hello world!', // DB has clean content without any footer
+        discordMessageId: ['discord-msg-1'],
+        deletedAt: null,
+        createdAt: new Date('2024-01-01T12:00:00Z'),
+      };
+
+      const mockSyncService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(new Map([['discord-msg-1', dbMsgData]])),
+        updateMessageContent: vi.fn().mockResolvedValue(true),
+        softDeleteMessages: vi.fn().mockResolvedValue(0),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockSyncService as never
+      );
+
+      // Should NOT update because after stripping ALL footer lines, content matches DB
+      expect(result.updated).toBe(0);
+      expect(mockSyncService.updateMessageContent).not.toHaveBeenCalled();
+    });
   });
 
   describe('participantGuildInfo', () => {

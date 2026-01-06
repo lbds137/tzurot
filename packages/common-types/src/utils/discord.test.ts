@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { truncateText, splitMessage } from './discord.js';
+import { truncateText, splitMessage, stripBotFooters } from './discord.js';
 
 describe('discord utils', () => {
   describe('truncateText', () => {
@@ -180,6 +180,56 @@ Another paragraph here with more content.`;
       result.forEach(chunk => {
         expect(chunk.length).toBeLessThanOrEqual(40);
       });
+    });
+  });
+
+  describe('stripBotFooters', () => {
+    it('should strip model footer', () => {
+      const content =
+        'Hello world!\n-# Model: [meta-llama/llama-3.3-70b-instruct:free](<https://openrouter.ai/meta-llama/llama-3.3-70b-instruct:free>)';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip model footer with auto badge', () => {
+      const content = 'Hello world!\n-# Model: [claude-3](<https://example.com>) • 📍 auto';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip guest mode footer', () => {
+      const content = 'Hello world!\n-# 🆓 Using free model (no API key required)';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip auto-response footer', () => {
+      const content = 'Hello world!\n-# 📍 auto-response';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip combined model + guest mode footers', () => {
+      const content =
+        'Hello world!\n-# Model: [grok-4.1-fast:free](<https://example.com>)\n-# 🆓 Using free model (no API key required)';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip model + auto + guest mode footers', () => {
+      const content =
+        'Hello world!\n-# Model: [model](<url>) • 📍 auto\n-# 🆓 Using free model (no API key required)';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should NOT strip user -# formatting in content', () => {
+      const content = 'Hello\n-# This is small text from user\n\nMore content';
+      expect(stripBotFooters(content)).toBe(content);
+    });
+
+    it('should NOT strip -# in middle of message', () => {
+      const content = 'Start\n-# User subheading\n\nEnd';
+      expect(stripBotFooters(content)).toBe(content);
+    });
+
+    it('should return unchanged content with no footers', () => {
+      const content = 'Just regular content';
+      expect(stripBotFooters(content)).toBe(content);
     });
   });
 });

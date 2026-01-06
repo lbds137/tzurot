@@ -2,6 +2,8 @@
  * Discord-specific utility functions
  */
 
+import { BOT_FOOTER_PATTERNS } from '../constants/discord.js';
+
 const DISCORD_MAX_MESSAGE_LENGTH = 2000;
 
 /** Default ellipsis for truncated text */
@@ -236,4 +238,23 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
   }
 
   return finalChunks;
+}
+
+/**
+ * Strip bot-added footer lines from content.
+ *
+ * Only removes our specific footer patterns (model indicator, guest mode,
+ * auto-response), not user `-#` formatting.
+ *
+ * @param content - Message content that may contain bot footers
+ * @returns Content with bot footers removed
+ */
+export function stripBotFooters(content: string): string {
+  let result = content;
+  for (const pattern of Object.values(BOT_FOOTER_PATTERNS)) {
+    // Reset lastIndex since patterns have 'g' flag
+    pattern.lastIndex = 0;
+    result = result.replace(pattern, '');
+  }
+  return result;
 }
