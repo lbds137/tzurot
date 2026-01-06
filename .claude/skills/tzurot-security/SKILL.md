@@ -1,7 +1,7 @@
 ---
 name: tzurot-security
 description: Security best practices for Tzurot v3 - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permission verification, microservices security, and supply chain integrity. Use when handling secrets, user input, or security-critical code.
-lastUpdated: '2025-12-21'
+lastUpdated: '2026-01-05'
 ---
 
 # Security Skill - Tzurot v3
@@ -39,6 +39,47 @@ railway variables --service <name>
 1. **Rotate immediately** (regenerate in provider dashboard)
 2. Update Railway: `railway variables set KEY=new-value`
 3. Consider git history rewrite if not shared
+
+### GitGuardian False Positives (Test Secrets)
+
+GitGuardian CI checks scan for secrets. Test files with fake API keys can trigger false positives.
+
+**Solution Order of Preference:**
+
+1. **Use low-entropy fake keys** (BEST - scanners naturally ignore these):
+
+   ```typescript
+   // ❌ WRONG - High entropy, triggers GitGuardian
+   const apiKey = 'sk-test-byok-key-abc123xyz789';
+   const apiKey = 'test-byok-key-not-a-real-secret';
+
+   // ✅ CORRECT - Low entropy, obviously fake
+   const apiKey = 'user-test-key-12345';
+   const apiKey = 'fake-key-00000';
+   const apiKey = 'PLACEHOLDER_KEY';
+   ```
+
+2. **Exclude test patterns in `.gitguardian.yaml`** (if format is strict):
+
+   ```yaml
+   # .gitguardian.yaml
+   secret:
+     ignored-paths:
+       - '**/*.test.ts'
+       - '**/*.spec.ts'
+       - '**/test/**'
+       - '**/__mocks__/**'
+   ```
+
+3. **Inline `ggignore` comment** (LAST RESORT - clutters code):
+
+   ```typescript
+   const apiKey = 'must-be-this-exact-format-abc123'; // ggignore
+   ```
+
+**Why low-entropy is best:** GitGuardian uses Shannon entropy to detect secrets. Simple patterns like `12345` or `00000` have low entropy and don't trigger scans. This keeps code clean without config files or comments.
+
+**Reference:** [ggshield documentation](https://docs.gitguardian.com/ggshield-docs/reference/secret/ignore)
 
 ### 2. Environment Variable Management
 

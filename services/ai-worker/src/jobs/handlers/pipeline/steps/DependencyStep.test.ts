@@ -425,7 +425,7 @@ describe('DependencyStep', () => {
         }),
         // Auth context populated by AuthStep (which runs before DependencyStep)
         auth: {
-          apiKey: 'test-byok-key-for-unit-tests',
+          apiKey: 'user-test-key-12345',
           isGuestMode: false,
           provider: AIProvider.OpenRouter,
         },
@@ -439,7 +439,7 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/dog.jpg' })],
         TEST_PERSONALITY,
         false, // isGuestMode from auth context
-        'test-byok-key-for-unit-tests' // userApiKey from auth context (BYOK)
+        'user-test-key-12345' // userApiKey from auth context (BYOK)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
