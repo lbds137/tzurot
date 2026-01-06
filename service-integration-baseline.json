@@ -21,7 +21,8 @@
     "packages/common-types/src/services/ChannelActivationCacheInvalidationService.ts",
     "packages/common-types/src/services/ConversationSyncService.ts",
     "packages/common-types/src/services/LlmConfigCacheInvalidationService.ts",
-    "packages/common-types/src/services/PersonaCacheInvalidationService.ts"
+    "packages/common-types/src/services/PersonaCacheInvalidationService.ts",
+    "services/bot-client/src/services/ResponseOrderingService.ts"
   ],
   "lastUpdated": "2026-01-02T20:45:00.000Z",
   "version": 1
