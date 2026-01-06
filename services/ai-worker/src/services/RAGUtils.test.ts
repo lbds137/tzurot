@@ -157,6 +157,16 @@ describe('RAGUtils', () => {
   });
 
   describe('generateStopSequences', () => {
+    /**
+     * The new stop sequence structure prioritizes hallucination prevention:
+     * Priority 1: XML structure (2 slots) - </message>, <message
+     * Priority 2: Hallucinated turn prevention (4 slots) - \nUser:, \nHuman:, User:, Human:
+     * Priority 3: Instruct format markers (3 slots) - ###, \nAssistant:, <|user|>
+     * Priority 4: Self-labeling prevention (1 slot) - \nAI:
+     * Priority 5: Personality name (1 slot) - \n{name}:
+     * Priority 6: Participants (remaining 5 slots)
+     */
+
     it('should generate stop sequence for personality name', () => {
       const participantPersonas = new Map<string, ParticipantInfo>();
 
@@ -178,24 +188,54 @@ describe('RAGUtils', () => {
       expect(result).toContain('\nLilith:');
     });
 
-    it('should include XML tag stop sequences', () => {
+    it('should include essential XML tag stop sequences', () => {
       const participantPersonas = new Map<string, ParticipantInfo>();
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      expect(result).toContain('<message ');
-      expect(result).toContain('<message>');
+      // Only essential XML tags (2 slots)
       expect(result).toContain('</message>');
-      expect(result).toContain('<chat_log>');
-      expect(result).toContain('</chat_log>');
-      expect(result).toContain('<quoted_messages>');
-      expect(result).toContain('</quoted_messages>');
-      expect(result).toContain('<quote ');
-      expect(result).toContain('<quote>');
-      expect(result).toContain('</quote>');
+      expect(result).toContain('<message');
+
+      // Old XML tags should NOT be present
+      expect(result).not.toContain('<chat_log>');
+      expect(result).not.toContain('</chat_log>');
+      expect(result).not.toContain('<quoted_messages>');
     });
 
-    it('should return stop sequences in priority order (XML first, then personality, then participants)', () => {
+    it('should include hallucination prevention sequences', () => {
+      const participantPersonas = new Map<string, ParticipantInfo>();
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // Primary hallucination prevention (4 slots)
+      expect(result).toContain('\nUser:');
+      expect(result).toContain('\nHuman:');
+      expect(result).toContain('User:');
+      expect(result).toContain('Human:');
+    });
+
+    it('should include instruct format markers', () => {
+      const participantPersonas = new Map<string, ParticipantInfo>();
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // Instruct format markers (3 slots)
+      expect(result).toContain('###');
+      expect(result).toContain('\nAssistant:');
+      expect(result).toContain('<|user|>');
+    });
+
+    it('should include self-labeling prevention', () => {
+      const participantPersonas = new Map<string, ParticipantInfo>();
+
+      const result = generateStopSequences('Lilith', participantPersonas);
+
+      // Self-labeling prevention (1 slot)
+      expect(result).toContain('\nAI:');
+    });
+
+    it('should return stop sequences in priority order', () => {
       const participantPersonas = new Map<string, ParticipantInfo>([
         ['Alice', { content: '', isActive: true, personaId: 'persona-1' }],
         ['Bob', { content: '', isActive: true, personaId: 'persona-2' }],
@@ -203,14 +243,28 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      // XML tags should be first (indices 0-9)
-      expect(result[0]).toBe('<message ');
-      expect(result[9]).toBe('</quote>');
+      // Priority 1: XML structure (indices 0-1)
+      expect(result[0]).toBe('</message>');
+      expect(result[1]).toBe('<message');
 
-      // Personality should be next (index 10)
+      // Priority 2: Hallucination prevention (indices 2-5)
+      expect(result[2]).toBe('\nUser:');
+      expect(result[3]).toBe('\nHuman:');
+      expect(result[4]).toBe('User:');
+      expect(result[5]).toBe('Human:');
+
+      // Priority 3: Instruct format markers (indices 6-8)
+      expect(result[6]).toBe('###');
+      expect(result[7]).toBe('\nAssistant:');
+      expect(result[8]).toBe('<|user|>');
+
+      // Priority 4: Self-labeling prevention (index 9)
+      expect(result[9]).toBe('\nAI:');
+
+      // Priority 5: Personality (index 10)
       expect(result[10]).toBe('\nLilith:');
 
-      // Participants should be last (indices 11+)
+      // Priority 6: Participants (indices 11+)
       expect(result[11]).toBe('\nAlice:');
       expect(result[12]).toBe('\nBob:');
     });
@@ -222,7 +276,7 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      // 1 participant + 1 personality + 10 XML tags = 12
+      // 2 XML + 4 hallucination + 3 instruct + 1 self-label + 1 personality + 1 participant = 12
       expect(result.length).toBe(12);
     });
 
@@ -231,14 +285,15 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('TestBot', participantPersonas);
 
-      // Should still have personality name and XML sequences
+      // Should have all reserved slots: 2 XML + 4 hallucination + 3 instruct + 1 self-label + 1 personality = 11
       expect(result).toContain('\nTestBot:');
-      expect(result.length).toBe(11); // 1 personality + 10 XML tags
+      expect(result.length).toBe(11);
     });
 
     it('should cap stop sequences at 16 (Google API limit)', () => {
       // Create many participants to exceed the limit
-      // Max is 16, with 10 XML + 1 personality = 11 reserved, leaving 5 for participants
+      // Reserved slots: 2 XML + 4 hallucination + 3 instruct + 1 self-label + 1 personality = 11
+      // Available for participants: 16 - 11 = 5
       const participantPersonas = new Map<string, ParticipantInfo>([
         ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
         ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
@@ -255,11 +310,11 @@ describe('RAGUtils', () => {
       // Should be exactly 16 (the max allowed)
       expect(result.length).toBe(16);
 
-      // XML sequences should always be present
-      expect(result).toContain('<message ');
-      expect(result).toContain('</chat_log>');
-
-      // Personality should always be present
+      // All priority sequences should be present
+      expect(result).toContain('</message>');
+      expect(result).toContain('\nUser:');
+      expect(result).toContain('###');
+      expect(result).toContain('\nAI:');
       expect(result).toContain('\nLilith:');
 
       // First 5 participants should be present
@@ -281,7 +336,7 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      // 3 participants + 1 personality + 10 XML = 14 (under limit)
+      // 11 reserved + 3 participants = 14 (under limit)
       expect(result.length).toBe(14);
       expect(result).toContain('\nUser1:');
       expect(result).toContain('\nUser2:');
@@ -289,7 +344,7 @@ describe('RAGUtils', () => {
     });
 
     it('should not truncate when exactly at the limit (16)', () => {
-      // 5 participants + 1 personality + 10 XML = exactly 16 (the limit)
+      // 5 participants + 11 reserved = exactly 16 (the limit)
       const participantPersonas = new Map<string, ParticipantInfo>([
         ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
         ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
@@ -310,9 +365,11 @@ describe('RAGUtils', () => {
       expect(result).toContain('\nUser4:');
       expect(result).toContain('\nUser5:');
 
-      // Personality and XML should be present
+      // Personality and all priority sequences should be present
       expect(result).toContain('\nLilith:');
-      expect(result).toContain('<message ');
+      expect(result).toContain('</message>');
+      expect(result).toContain('\nUser:');
+      expect(result).toContain('###');
     });
 
     it('should work with participants that have guildInfo', () => {
