@@ -298,7 +298,10 @@ process.on('unhandledRejection', error => {
 process.on('SIGINT', () => {
   logger.info('Shutting down...');
 
-  // Deliver any buffered results before shutting down
+  // Stop accepting new results first to prevent race condition during shutdown
+  void services.resultsListener.stop();
+
+  // Then deliver any buffered results
   void services.responseOrderingService
     .shutdown(async (jobId, result) => {
       try {
@@ -310,7 +313,6 @@ process.on('SIGINT', () => {
     })
     .finally(() => {
       services.jobTracker.cleanup();
-      void services.resultsListener.stop();
       services.webhookManager.destroy();
       void services.cacheInvalidationService.unsubscribe();
       void services.personaCacheInvalidationService.unsubscribe();
