@@ -19,9 +19,9 @@ import type {
 import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
-  isCrossTurnDuplicate,
-  getLastAssistantMessage,
-} from '../../../../utils/responseCleanup.js';
+  isRecentDuplicate,
+  getRecentAssistantMessages,
+} from '../../../../utils/duplicateDetection.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';
 
 const logger = createLogger('GenerationStep');
@@ -85,12 +85,15 @@ export class GenerationStep implements IPipelineStep {
    * Generate response with cross-turn duplication retry.
    * Treats duplicate responses as retryable failures, matching LLM retry pattern.
    * Uses RETRY_CONFIG.MAX_ATTEMPTS (3 attempts = 1 initial + 2 retries).
+   *
+   * Checks against multiple recent assistant messages (up to 5) to catch duplicates
+   * of older responses, not just the immediate previous one.
    */
   private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
     message: MessageContent;
     conversationContext: ConversationContext;
-    lastAssistantMessage: string | undefined;
+    recentAssistantMessages: string[];
     apiKey: string | undefined;
     isGuestMode: boolean;
     jobId: string | undefined;
@@ -99,7 +102,7 @@ export class GenerationStep implements IPipelineStep {
       personality,
       message,
       conversationContext,
-      lastAssistantMessage,
+      recentAssistantMessages,
       apiKey,
       isGuestMode,
       jobId,
@@ -118,11 +121,13 @@ export class GenerationStep implements IPipelineStep {
         isGuestMode
       );
 
-      // If no previous message to compare, or response is unique, we're done
-      if (
-        lastAssistantMessage === undefined ||
-        !isCrossTurnDuplicate(response.content, lastAssistantMessage)
-      ) {
+      // If no previous messages to compare, or response is unique, we're done
+      const { isDuplicate, matchIndex } = isRecentDuplicate(
+        response.content,
+        recentAssistantMessages
+      );
+
+      if (!isDuplicate) {
         if (duplicateRetries > 0) {
           logger.info(
             { jobId, modelUsed: response.modelUsed, attempt, duplicateRetries },
@@ -144,13 +149,20 @@ export class GenerationStep implements IPipelineStep {
             responseLength: response.content.length,
             attempt,
             remainingAttempts: maxAttempts - attempt,
+            matchedTurnsBack: matchIndex + 1,
           },
           '[GenerationStep] Cross-turn duplication detected. Retrying with new request_id...'
         );
       } else {
         // Last attempt still produced duplicate - log error but return it anyway
         logger.error(
-          { jobId, modelUsed: response.modelUsed, isGuestMode, totalAttempts: maxAttempts },
+          {
+            jobId,
+            modelUsed: response.modelUsed,
+            isGuestMode,
+            totalAttempts: maxAttempts,
+            matchedTurnsBack: matchIndex + 1,
+          },
           '[GenerationStep] All retries produced duplicate responses. Using last response.'
         );
         return { response, duplicateRetries };
@@ -195,15 +207,18 @@ export class GenerationStep implements IPipelineStep {
         preprocessing
       );
 
-      // Get previous assistant message for cross-turn duplicate detection
-      const lastAssistantMessage = getLastAssistantMessage(preparedContext.rawConversationHistory);
+      // Get recent assistant messages for cross-turn duplicate detection
+      // Checks up to 5 previous messages to catch duplicates of older responses
+      const recentAssistantMessages = getRecentAssistantMessages(
+        preparedContext.rawConversationHistory
+      );
 
       // Generate response with automatic retry on cross-turn duplication
       const { response, duplicateRetries } = await this.generateWithDuplicateRetry({
         personality: effectivePersonality,
         message: message as MessageContent,
         conversationContext,
-        lastAssistantMessage,
+        recentAssistantMessages,
         apiKey,
         isGuestMode,
         jobId: job.id,

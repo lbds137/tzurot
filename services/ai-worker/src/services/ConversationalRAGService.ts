@@ -24,7 +24,8 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
-import { stripResponseArtifacts, removeDuplicateResponse } from '../utils/responseCleanup.js';
+import { stripResponseArtifacts } from '../utils/responseArtifacts.js';
+import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';

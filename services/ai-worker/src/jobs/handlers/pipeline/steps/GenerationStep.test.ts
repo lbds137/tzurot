@@ -652,6 +652,66 @@ describe('GenerationStep', () => {
         expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(false);
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
       });
+
+      it('should retry when response matches an OLDER assistant message (not just the most recent)', async () => {
+        // This is the key bug fix: detecting duplicates of messages from several turns back
+        const olderResponse = '*The darkness ripples* This is wisdom from several turns ago.';
+        const middleResponse = '*The shadows shift* A completely different response in between.';
+        const recentResponse = '*The void speaks* Yet another unique response here.';
+
+        // First call duplicates the OLDEST message in history
+        const duplicateOfOlder: RAGResponse = {
+          content: '*The darkness ripples* This is wisdom from several turns ago.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+        };
+
+        // Second call returns unique response
+        const uniqueResponse: RAGResponse = {
+          content: '*A new whisper emerges* This is a completely fresh response.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 45,
+          modelUsed: 'test-model',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateOfOlder)
+          .mockResolvedValueOnce(uniqueResponse);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            // Older conversation
+            { role: 'user', content: 'First question' },
+            { role: 'assistant', content: olderResponse }, // <- DUPLICATE OF THIS
+            { role: 'user', content: 'Second question' },
+            { role: 'assistant', content: middleResponse },
+            { role: 'user', content: 'Third question' },
+            { role: 'assistant', content: recentResponse }, // <- This is most recent
+            // New user message that triggers generation
+            { role: 'user', content: 'Fourth question' },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // Should detect duplication against the older message and retry
+        expect(result.result?.content).toBe(uniqueResponse.content);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
+        // Should call generateResponse twice (original + retry)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
     });
   });
 });

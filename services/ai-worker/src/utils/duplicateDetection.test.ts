@@ -1,259 +1,19 @@
 /**
- * Tests for Response Cleanup Utilities
+ * Tests for Duplicate Detection Utilities
  *
- * Tests the cleanup of AI-generated responses that may contain
- * learned artifacts from XML-formatted conversation history.
+ * Tests both intra-turn (within single response) and cross-turn
+ * (across conversation) duplicate detection.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
-  stripResponseArtifacts,
-  removeDuplicateResponse,
   stringSimilarity,
+  removeDuplicateResponse,
   isCrossTurnDuplicate,
+  isRecentDuplicate,
   getLastAssistantMessage,
-} from './responseCleanup.js';
-
-describe('stripResponseArtifacts', () => {
-  describe('XML trailing tag stripping', () => {
-    it('should strip trailing </message> tag', () => {
-      expect(stripResponseArtifacts('Hello there!</message>', 'Emily')).toBe('Hello there!');
-    });
-
-    it('should strip trailing </message> with whitespace', () => {
-      expect(stripResponseArtifacts('Hello!</message>\n', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</message>  ', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</message>\n\n', 'Emily')).toBe('Hello!');
-    });
-
-    it('should strip multiple trailing </message> tags', () => {
-      expect(stripResponseArtifacts('Hello!</message></message>', 'Emily')).toBe('Hello!');
-    });
-
-    it('should be case-insensitive for tag', () => {
-      expect(stripResponseArtifacts('Hello!</MESSAGE>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</Message>', 'Emily')).toBe('Hello!');
-    });
-
-    it('should NOT strip </message> in middle of content', () => {
-      const content = 'The </message> tag is used for XML';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-
-    it('should strip trailing </current_turn> tag', () => {
-      expect(stripResponseArtifacts('Hello there!</current_turn>', 'Emily')).toBe('Hello there!');
-    });
-
-    it('should strip trailing </current_turn> with whitespace', () => {
-      expect(stripResponseArtifacts('Hello!</current_turn>\n', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</current_turn>  ', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</current_turn>\n\n', 'Emily')).toBe('Hello!');
-    });
-
-    it('should be case-insensitive for </current_turn> tag', () => {
-      expect(stripResponseArtifacts('Hello!</CURRENT_TURN>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</Current_Turn>', 'Emily')).toBe('Hello!');
-    });
-
-    it('should NOT strip </current_turn> in middle of content', () => {
-      const content = 'The </current_turn> tag is used for XML';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-
-    it('should strip both </message> and </current_turn> if present', () => {
-      expect(stripResponseArtifacts('Hello!</current_turn></message>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</message></current_turn>', 'Emily')).toBe('Hello!');
-    });
-
-    it('should strip trailing </incoming_message> tag', () => {
-      expect(stripResponseArtifacts('Hello there!</incoming_message>', 'Emily')).toBe(
-        'Hello there!'
-      );
-    });
-
-    it('should strip trailing </incoming_message> with whitespace', () => {
-      expect(stripResponseArtifacts('Hello!</incoming_message>\n', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</incoming_message>  ', 'Emily')).toBe('Hello!');
-    });
-
-    it('should be case-insensitive for </incoming_message> tag', () => {
-      expect(stripResponseArtifacts('Hello!</INCOMING_MESSAGE>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</Incoming_Message>', 'Emily')).toBe('Hello!');
-    });
-
-    it('should NOT strip </incoming_message> in middle of content', () => {
-      const content = 'The </incoming_message> tag is used for XML';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-  });
-
-  describe('XML leading tag stripping', () => {
-    it('should strip leading <message> tag with speaker', () => {
-      expect(stripResponseArtifacts('<message speaker="Emily">Hello', 'Emily')).toBe('Hello');
-    });
-
-    it('should strip <message> tag with additional attributes', () => {
-      expect(stripResponseArtifacts('<message speaker="Emily" time="now">Hello', 'Emily')).toBe(
-        'Hello'
-      );
-      expect(stripResponseArtifacts('<message speaker="Emily" time="2m ago">Hello', 'Emily')).toBe(
-        'Hello'
-      );
-    });
-
-    it('should handle single quotes in attributes', () => {
-      expect(stripResponseArtifacts("<message speaker='Emily'>Hello", 'Emily')).toBe('Hello');
-    });
-
-    it('should be case-insensitive for personality name in tag', () => {
-      expect(stripResponseArtifacts('<message speaker="EMILY">Hello', 'Emily')).toBe('Hello');
-      expect(stripResponseArtifacts('<message speaker="emily">Hello', 'Emily')).toBe('Hello');
-    });
-
-    it('should NOT strip if speaker name does not match', () => {
-      const content = '<message speaker="Lilith">Hello';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-
-    it('should NOT strip <message> in middle of content', () => {
-      const content = 'Use <message speaker="test"> for XML';
-      expect(stripResponseArtifacts(content, 'test')).toBe(content);
-    });
-  });
-
-  describe('Combined XML artifacts', () => {
-    it('should strip both leading and trailing XML tags', () => {
-      expect(stripResponseArtifacts('<message speaker="Emily">Hello!</message>', 'Emily')).toBe(
-        'Hello!'
-      );
-    });
-
-    it('should strip leading tag, trailing tag, and preserve content', () => {
-      const input = '<message speaker="Emily" time="now">How are you?</message>\n';
-      expect(stripResponseArtifacts(input, 'Emily')).toBe('How are you?');
-    });
-
-    it('should strip mixed artifact types (name prefix + trailing XML)', () => {
-      // LLM might add legacy "Name:" prefix AND trailing </message>
-      expect(stripResponseArtifacts('Emily: Hello!</message>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Emily: [now] Hi there!</message>', 'Emily')).toBe('Hi there!');
-    });
-  });
-
-  describe('Simple name prefix stripping (legacy)', () => {
-    it('should strip basic Name: prefix', () => {
-      expect(stripResponseArtifacts('Emily: hello', 'Emily')).toBe('hello');
-    });
-
-    it('should strip prefix with timestamp', () => {
-      expect(stripResponseArtifacts('Emily: [now] hello', 'Emily')).toBe('hello');
-      expect(stripResponseArtifacts('Lilith: [2 minutes ago] hey', 'Lilith')).toBe('hey');
-    });
-
-    it('should be case-insensitive for name', () => {
-      expect(stripResponseArtifacts('EMILY: hello', 'Emily')).toBe('hello');
-      expect(stripResponseArtifacts('emily: hello', 'Emily')).toBe('hello');
-    });
-
-    it('should NOT strip if name does not match', () => {
-      expect(stripResponseArtifacts('Emily: hello', 'Lilith')).toBe('Emily: hello');
-    });
-
-    it('should NOT strip name in middle of content', () => {
-      const content = 'Hello! Emily: is my name';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-  });
-
-  describe('Standalone timestamps', () => {
-    it('should strip standalone timestamp at start', () => {
-      expect(stripResponseArtifacts('[2m ago] content here', 'Emily')).toBe('content here');
-      expect(stripResponseArtifacts('[now] hello', 'Emily')).toBe('hello');
-    });
-
-    it('should NOT strip timestamps in middle of content', () => {
-      expect(stripResponseArtifacts('I replied [2m ago] to you', 'Emily')).toBe(
-        'I replied [2m ago] to you'
-      );
-    });
-  });
-
-  describe('Special characters in names', () => {
-    it('should handle names with special regex characters', () => {
-      expect(stripResponseArtifacts('C++Bot: hello', 'C++Bot')).toBe('hello');
-      expect(stripResponseArtifacts('Test.Name: hi', 'Test.Name')).toBe('hi');
-    });
-
-    it('should handle multi-word names', () => {
-      expect(stripResponseArtifacts('Bambi Prime: hello', 'Bambi Prime')).toBe('hello');
-    });
-
-    it('should handle unicode names', () => {
-      expect(stripResponseArtifacts('Amélie: hello', 'Amélie')).toBe('hello');
-    });
-  });
-
-  describe('Edge cases', () => {
-    it('should handle empty content after stripping', () => {
-      expect(stripResponseArtifacts('Emily: ', 'Emily')).toBe('');
-      expect(stripResponseArtifacts('</message>', 'Emily')).toBe('');
-    });
-
-    it('should handle empty string input', () => {
-      expect(stripResponseArtifacts('', 'Emily')).toBe('');
-    });
-
-    it('should return original if no artifacts', () => {
-      const content = 'This is regular content';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-
-    it('should preserve multi-line content', () => {
-      const content = 'Emily: Line 1\n\nLine 2\n\nLine 3';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe('Line 1\n\nLine 2\n\nLine 3');
-    });
-  });
-
-  describe('Real-world scenarios', () => {
-    it('should handle LLM adding </message> to roleplay', () => {
-      const content = '*waves hello* Nice to meet you!</message>';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe('*waves hello* Nice to meet you!');
-    });
-
-    it('should handle full XML wrap around response', () => {
-      const content = '<message speaker="Lilith" time="just now">Hey there!</message>';
-      expect(stripResponseArtifacts(content, 'Lilith')).toBe('Hey there!');
-    });
-
-    it('should handle models that follow instructions (no cleanup needed)', () => {
-      const content = 'Hello! How can I help you today?';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-
-    it('should clean for storage in conversation_history', () => {
-      const rawResponse = '<message speaker="Emily">Hello! How are you?</message>';
-      const cleaned = stripResponseArtifacts(rawResponse, 'Emily');
-      expect(cleaned).toBe('Hello! How are you?');
-      expect(cleaned).not.toContain('<message');
-      expect(cleaned).not.toContain('</message>');
-    });
-
-    it('should strip </current_turn> learned from prompt structure', () => {
-      // LLM sees <current_turn>...</current_turn> wrapper in prompts and learns to append the closing tag
-      const content = '*waves enthusiastically* Hey there!</current_turn>';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe('*waves enthusiastically* Hey there!');
-    });
-
-    it('should clean mixed artifacts from prompt structure', () => {
-      // LLM might combine multiple learned artifacts
-      const rawResponse = 'Emily: How are you today?</current_turn>';
-      const cleaned = stripResponseArtifacts(rawResponse, 'Emily');
-      expect(cleaned).toBe('How are you today?');
-      expect(cleaned).not.toContain('Emily:');
-      expect(cleaned).not.toContain('</current_turn>');
-    });
-  });
-});
+  getRecentAssistantMessages,
+} from './duplicateDetection.js';
 
 describe('removeDuplicateResponse', () => {
   describe('exact duplication', () => {
@@ -497,5 +257,134 @@ describe('getLastAssistantMessage', () => {
       { role: 'user', content: 'Last message from user' },
     ];
     expect(getLastAssistantMessage(history)).toBe('First response');
+  });
+});
+
+describe('getRecentAssistantMessages', () => {
+  it('should return empty array for empty history', () => {
+    expect(getRecentAssistantMessages([])).toEqual([]);
+    expect(getRecentAssistantMessages(undefined)).toEqual([]);
+  });
+
+  it('should return assistant messages in reverse order (most recent first)', () => {
+    const history = [
+      { role: 'user', content: 'Hello' },
+      { role: 'assistant', content: 'First response' },
+      { role: 'user', content: 'Question' },
+      { role: 'assistant', content: 'Second response' },
+      { role: 'user', content: 'Follow-up' },
+      { role: 'assistant', content: 'Third response' },
+    ];
+    expect(getRecentAssistantMessages(history)).toEqual([
+      'Third response',
+      'Second response',
+      'First response',
+    ]);
+  });
+
+  it('should return empty array if no assistant messages exist', () => {
+    const history = [
+      { role: 'user', content: 'Hello' },
+      { role: 'user', content: 'Anyone there?' },
+    ];
+    expect(getRecentAssistantMessages(history)).toEqual([]);
+  });
+
+  it('should respect maxMessages parameter', () => {
+    const history = [
+      { role: 'assistant', content: 'Message 1' },
+      { role: 'user', content: 'User' },
+      { role: 'assistant', content: 'Message 2' },
+      { role: 'user', content: 'User' },
+      { role: 'assistant', content: 'Message 3' },
+      { role: 'user', content: 'User' },
+      { role: 'assistant', content: 'Message 4' },
+      { role: 'user', content: 'User' },
+      { role: 'assistant', content: 'Message 5' },
+      { role: 'user', content: 'User' },
+      { role: 'assistant', content: 'Message 6' },
+    ];
+    // Default is 5
+    expect(getRecentAssistantMessages(history)).toEqual([
+      'Message 6',
+      'Message 5',
+      'Message 4',
+      'Message 3',
+      'Message 2',
+    ]);
+    // Custom limit
+    expect(getRecentAssistantMessages(history, 2)).toEqual(['Message 6', 'Message 5']);
+  });
+
+  it('should handle history ending with user message', () => {
+    const history = [
+      { role: 'assistant', content: 'First response' },
+      { role: 'user', content: 'Last message from user' },
+    ];
+    expect(getRecentAssistantMessages(history)).toEqual(['First response']);
+  });
+});
+
+describe('isRecentDuplicate', () => {
+  const longResponse1 = '*The darkness ripples with amusement* I taste your words, little one.';
+  const longResponse2 = '*The shadows stir* Tell me more about your thoughts on this matter.';
+  const longResponse3 = '*A whisper from the void* The answer lies within your own heart.';
+
+  it('should return no match for empty recent messages', () => {
+    const result = isRecentDuplicate(longResponse1, []);
+    expect(result).toEqual({ isDuplicate: false, matchIndex: -1 });
+  });
+
+  it('should detect duplicate of most recent message (index 0)', () => {
+    const newResponse = '*The darkness ripples with amusement* I taste your words, little one.';
+    const result = isRecentDuplicate(newResponse, [longResponse1, longResponse2, longResponse3]);
+    expect(result).toEqual({ isDuplicate: true, matchIndex: 0 });
+  });
+
+  it('should detect duplicate of older message (index > 0)', () => {
+    // This is the key bug we're fixing: duplicate of an older message, not the most recent
+    const newResponse = '*A whisper from the void* The answer lies within your own heart.';
+    const result = isRecentDuplicate(newResponse, [longResponse1, longResponse2, longResponse3]);
+    expect(result).toEqual({ isDuplicate: true, matchIndex: 2 });
+  });
+
+  it('should detect near-duplicate of older message', () => {
+    const original =
+      '*The darkness ripples with knowing amusement* I taste the truth in your words.';
+    const nearDuplicate = '*The darkness ripples with amusement* I taste the truth in your words.';
+    const result = isRecentDuplicate(nearDuplicate, [longResponse2, longResponse3, original]);
+    expect(result).toEqual({ isDuplicate: true, matchIndex: 2 });
+  });
+
+  it('should return no match when new response is unique', () => {
+    const uniqueResponse = 'This is completely different content that does not match anything.';
+    const result = isRecentDuplicate(uniqueResponse, [longResponse1, longResponse2, longResponse3]);
+    expect(result).toEqual({ isDuplicate: false, matchIndex: -1 });
+  });
+
+  it('should not flag short responses', () => {
+    const shortResponse = 'Thank you!';
+    const result = isRecentDuplicate(shortResponse, ['Thank you!', 'Got it!']);
+    expect(result).toEqual({ isDuplicate: false, matchIndex: -1 });
+  });
+
+  it('should skip short messages in history', () => {
+    // Even if short messages match, they should be skipped
+    const newResponse = '*The darkness speaks* This is a longer message that should be checked.';
+    const result = isRecentDuplicate(newResponse, [
+      'Short',
+      'Also short',
+      '*The darkness speaks* This is a longer message that should be checked.',
+    ]);
+    expect(result).toEqual({ isDuplicate: true, matchIndex: 2 });
+  });
+
+  it('should respect custom threshold', () => {
+    const r1 = 'The quick brown fox jumps over the lazy dog and runs away fast';
+    const r2 = 'The quick brown fox jumps over the lazy cat and walks away slow';
+    // High threshold - should not match
+    expect(isRecentDuplicate(r1, [r2], 0.95)).toEqual({ isDuplicate: false, matchIndex: -1 });
+    // Lower threshold - should match
+    expect(isRecentDuplicate(r1, [r2], 0.7)).toEqual({ isDuplicate: true, matchIndex: 0 });
   });
 });
