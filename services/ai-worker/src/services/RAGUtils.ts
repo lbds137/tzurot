@@ -54,76 +54,104 @@ export function buildAttachmentDescriptions(
 }
 
 /**
- * Generate stop sequences for identity bleeding prevention
+ * Generate stop sequences for LLM generation safety
  *
- * These sequences tell the LLM to stop generating if it starts speaking as another participant.
- * This is a technical kill-switch that works at the API level, complementing the XML structure
- * and prompt instructions.
+ * Stop sequences serve two critical purposes:
+ * 1. **Hallucinated Turn Prevention**: Stop if the model starts a fake "user turn"
+ *    (common failure mode in weaker/free-tier models that fail to emit stop tokens)
+ * 2. **Identity Bleeding Prevention**: Stop if the model speaks as another participant
  *
- * Stop sequences include:
- * - "\nParticipantName:" for each participant (users)
- * - "\nPersonalityName:" for the AI itself (prevent third-person then self-quoting)
- * - "<msg " to prevent outputting XML structure
+ * Priority order (with 16-slot Gemini API limit):
+ * - P1: XML end tag (</message>) - signals valid turn completion
+ * - P2: Generic chat markers (User:, Human:) - catches hallucinated turns
+ * - P3: Instruct format markers (###, <|user|>) - catches model-specific leaks
+ * - P4: Self-labeling prevention (Assistant:, AI:)
+ * - P5: Personality name - prevents self-quoting
+ * - P6: Participant names - prevents speaking as users
  *
  * @param personalityName - Name of the AI personality
  * @param participantPersonas - Map of participant names to their persona info
- * @returns Array of stop sequences
+ * @returns Array of stop sequences (max 16)
  */
 export function generateStopSequences(
   personalityName: string,
   participantPersonas: Map<string, ParticipantInfo>
 ): string[] {
-  // Priority 1: XML tag stop sequences (most critical - prevent format leakage)
-  // Must match actual tags used in formatConversationHistoryAsXml()
-  const xmlStopSequences = [
-    '<message ',
-    '<message>',
-    '</message>',
-    '<chat_log>',
-    '</chat_log>',
-    '<quoted_messages>',
-    '</quoted_messages>',
-    '<quote ',
-    '<quote>',
-    '</quote>',
+  // Priority 1: XML structure (2 slots)
+  // </message> is the king - once generated, the turn is legally over
+  // <message catches if model tries to start a new XML turn immediately
+  const xmlStopSequences = ['</message>', '<message'];
+
+  // Priority 2: Hallucinated turn prevention - PRIMARY defense (4 slots)
+  // When weak models fail to stop, they revert to base instruct format (User:/Human:)
+  // These are the most common culprits for the "two responses concatenated" bug
+  const hallucinationPrimarySequences = [
+    '\nUser:', // Most common hallucination pattern
+    '\nHuman:', // Second most common
+    'User:', // Backup without newline (bad formatting)
+    'Human:', // Backup without newline
   ];
 
-  // Priority 2: Personality name stop sequence (prevent self-quoting)
+  // Priority 3: Instruct format markers (3 slots)
+  // Catches model-specific chat template leaks
+  const instructFormatSequences = [
+    '###', // Llama/Mistral instruct format (### Instruction:, ### User:)
+    '\nAssistant:', // Common self-labeling pattern
+    '<|user|>', // ChatML format (Hermes, Yi)
+  ];
+
+  // Priority 4: Self-labeling prevention (1 slot)
+  const selfLabelSequence = '\nAI:';
+
+  // Priority 5: Personality name (1 slot)
+  // Prevents AI from self-quoting in third person
   const personalityStopSequence = `\n${personalityName}:`;
 
-  // Priority 3: Participant stop sequences (can truncate if many participants)
-  // Use newline prefix to catch the common "Name:" pattern at line start
+  // Priority 6: Participant stop sequences (remaining slots)
+  // Prevents speaking as users in the conversation
   const participantStopSequences = Array.from(participantPersonas.keys()).map(name => `\n${name}:`);
 
   // Calculate available slots for participants
   // Total budget: MAX_STOP_SEQUENCES (16)
-  // Reserved: XML sequences (10) + personality (1) = 11
+  // Reserved: XML (2) + hallucination primary (4) + instruct (3) + self-label (1) + personality (1) = 11
   // Available for participants: 5
-  const reservedCount = xmlStopSequences.length + 1; // XML + personality
+  const reservedCount =
+    xmlStopSequences.length +
+    hallucinationPrimarySequences.length +
+    instructFormatSequences.length +
+    1 + // selfLabelSequence
+    1; // personalityStopSequence
   const availableForParticipants = MAX_STOP_SEQUENCES - reservedCount;
 
-  // Truncate participants if necessary (newest/most recent should be prioritized,
-  // but since we don't have ordering info, just take first N)
+  // Truncate participants if necessary
   const truncatedParticipants = participantStopSequences.slice(0, availableForParticipants);
   const participantsTruncated = participantStopSequences.length - truncatedParticipants.length;
 
   // Combine in priority order (highest priority first)
-  const stopSequences = [...xmlStopSequences, personalityStopSequence, ...truncatedParticipants];
+  const stopSequences = [
+    ...xmlStopSequences,
+    ...hallucinationPrimarySequences,
+    ...instructFormatSequences,
+    selfLabelSequence,
+    personalityStopSequence,
+    ...truncatedParticipants,
+  ];
 
   // Log summary
-  if (stopSequences.length > 0) {
-    logger.info(
-      {
-        count: stopSequences.length,
-        maxAllowed: MAX_STOP_SEQUENCES,
-        participantCount: participantStopSequences.length,
-        participantsTruncated,
-        participants: Array.from(participantPersonas.keys()),
-        personalityName,
-      },
-      '[RAG] Generated stop sequences for identity bleeding prevention'
-    );
-  }
+  logger.info(
+    {
+      count: stopSequences.length,
+      maxAllowed: MAX_STOP_SEQUENCES,
+      xmlCount: xmlStopSequences.length,
+      hallucinationCount: hallucinationPrimarySequences.length,
+      instructCount: instructFormatSequences.length,
+      participantCount: participantStopSequences.length,
+      participantsTruncated,
+      participants: Array.from(participantPersonas.keys()),
+      personalityName,
+    },
+    '[RAG] Generated stop sequences for hallucination and identity bleeding prevention'
+  );
 
   return stopSequences;
 }
