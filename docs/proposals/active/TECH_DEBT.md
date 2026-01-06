@@ -43,6 +43,50 @@ Log these events:
 
 ## Priority 3: LOW
 
+### MessageContentBuilder Complexity Reduction
+
+**Problem**: `buildMessageContent()` has complexity 37 (threshold: 15). It orchestrates multiple extraction paths (text, voice, forwarded messages, attachments) in a single function.
+
+**Current Location**: `services/bot-client/src/services/MessageContentBuilder.ts`
+
+**Solution**: Extract helper functions:
+- [ ] `extractForwardedContent(message)` - forwarded message extraction (lines 210-254)
+- [ ] `processVoiceAttachment(attachment, options)` - voice message handling
+- [ ] `extractEmbedContent(embeds)` - embed image/content extraction
+
+**Why low priority**: Function is well-tested with snapshot tests. Complexity is "inherent" due to IR pattern (single entry point orchestrating multiple paths). Refactoring is for readability, not bug prevention.
+
+---
+
+### Duplicate Detection Documentation
+
+**Problem**: The cross-turn duplicate detection algorithm lacks inline performance documentation.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts`
+
+**Items to document**:
+- [ ] Why Dice coefficient vs Levenshtein distance (performance vs accuracy tradeoff)
+- [ ] Time/space complexity: O(n) where n is string length
+- [ ] Scaling consideration: If responses grow >10KB, consider MinHash/SimHash for O(1) checks
+
+**Why low priority**: Algorithm works correctly and is performant at current scale. Documentation is for future maintainers.
+
+---
+
+### Parameterize MAX_RECENT_ASSISTANT_MESSAGES
+
+**Problem**: The 5-message window for cross-turn duplicate detection is hardcoded.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:67`
+
+**Consideration**: Make configurable via personality or system config if:
+- Different models exhibit different caching patterns
+- Production data shows duplicates occurring further back than 5 turns
+
+**Why low priority**: Current value (5) is based on production observations (January 2026). No evidence yet that it needs tuning per-model or per-personality.
+
+---
+
 ### Large File Reduction
 
 **Target**: No production files >400 lines
