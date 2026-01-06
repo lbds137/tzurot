@@ -1,0 +1,17 @@
+# GitGuardian configuration
+# Excludes test files to prevent false positives on fake API keys used in tests
+# See: https://docs.gitguardian.com/ggshield-docs/configuration
+
+version: 2
+
+secret:
+  # Exclude test files by naming pattern
+  ignored_paths:
+    - '**/*.test.ts'
+    - '**/*.spec.ts'
+    - '**/*.test.js'
+    - '**/*.spec.js'
+    - '**/test/**'
+    - '**/tests/**'
+    - '**/__tests__/**'
+    - '**/__mocks__/**'
