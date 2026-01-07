@@ -313,6 +313,7 @@ process.on('SIGINT', () => {
     })
     .finally(() => {
       services.jobTracker.cleanup();
+      services.responseOrderingService.stopCleanup();
       services.webhookManager.destroy();
       void services.cacheInvalidationService.unsubscribe();
       void services.personaCacheInvalidationService.unsubscribe();

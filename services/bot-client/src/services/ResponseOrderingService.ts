@@ -48,12 +48,56 @@ interface ChannelQueue {
 /** Delivery callback type */
 type DeliverFn = (jobId: string, result: LLMGenerationResult) => Promise<void>;
 
+/** Cleanup interval: 5 minutes (run stale job cleanup periodically) */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 export class ResponseOrderingService {
   /** Channel-scoped queues (different channels are independent) */
   private channelQueues = new Map<string, ChannelQueue>();
 
   /** Safety timeout - matches TIMEOUTS.JOB_WAIT (10 min = 600000ms) */
   private readonly MAX_WAIT_MS = TIMEOUTS.JOB_WAIT;
+
+  /** Periodic cleanup interval handle */
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Create a new ResponseOrderingService
+   * @param enableCleanup - If true, starts periodic stale job cleanup (default: true)
+   */
+  constructor(enableCleanup = true) {
+    if (enableCleanup) {
+      this.startCleanupInterval();
+    }
+  }
+
+  /**
+   * Start periodic cleanup of stale pending jobs.
+   *
+   * NOTE: This setInterval is a known horizontal scaling blocker (see TECH_DEBT.md).
+   * TODO: Migrate to BullMQ repeatable jobs for multi-instance deployments.
+   */
+  private startCleanupInterval(): void {
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupStaleJobs();
+    }, CLEANUP_INTERVAL_MS);
+
+    // Ensure interval doesn't prevent process exit
+    this.cleanupInterval.unref();
+
+    logger.debug('[ResponseOrderingService] Started periodic stale job cleanup');
+  }
+
+  /**
+   * Stop the cleanup interval (call during graceful shutdown)
+   */
+  stopCleanup(): void {
+    if (this.cleanupInterval !== null) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      logger.debug('[ResponseOrderingService] Stopped periodic stale job cleanup');
+    }
+  }
 
   /**
    * Register a new job that will produce a result we need to order.
