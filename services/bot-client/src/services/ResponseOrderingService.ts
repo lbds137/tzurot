@@ -103,7 +103,7 @@ export class ResponseOrderingService {
 
     // Validate that job was registered - if not, deliver immediately
     // This catches programming errors where registerJob wasn't called
-    if (!queue || !queue.pendingJobs.has(jobId)) {
+    if (queue?.pendingJobs.has(jobId) !== true) {
       logger.warn(
         { channelId, jobId, hasQueue: queue !== undefined },
         '[ResponseOrderingService] Result for unregistered job - delivering immediately'
