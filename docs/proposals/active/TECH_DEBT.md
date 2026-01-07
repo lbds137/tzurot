@@ -24,47 +24,6 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 
 ## Priority 2: MEDIUM
 
-### ResponseOrderingService Stale Job Cleanup
-
-**Problem**: If a job is registered but never completes AND never gets cancelled, it stays in `pendingJobs` forever. The 10-minute timeout only applies to buffered results waiting for delivery, not pending jobs that never produce results.
-
-**Current Location**: `services/bot-client/src/services/ResponseOrderingService.ts`
-
-**Scenario**:
-
-1. Job A registered at T+0
-2. Job A's worker crashes before producing a result
-3. Job A is never explicitly cancelled (no BullMQ retry, no explicit cancel)
-4. `pendingJobs` retains Job A indefinitely
-5. Over time, orphaned jobs accumulate (memory leak)
-
-**Solution**: Add periodic cleanup or registration timeout:
-
-```typescript
-// Option 1: Add registration timestamp
-pendingJobs.set(jobId, {
-  userMessageTime,
-  registeredAt: Date.now()
-});
-
-// Option 2: Periodic cleanup (e.g., every 15 minutes)
-private cleanupStaleJobs(): void {
-  const staleThreshold = Date.now() - (this.MAX_WAIT_MS * 1.5);
-  for (const [channelId, queue] of this.channelQueues) {
-    for (const [jobId, job] of queue.pendingJobs) {
-      if (job.registeredAt < staleThreshold) {
-        queue.pendingJobs.delete(jobId);
-        logger.warn({ channelId, jobId }, 'Cleaned up stale pending job');
-      }
-    }
-  }
-}
-```
-
-**Why medium priority**: Unlikely in practice (most jobs complete with success or error results), but could accumulate over long uptimes without restarts.
-
----
-
 ### Basic Observability
 
 **Problem**: No way to answer "Is the bot slow?" or "Why did it ignore that message?" without reading logs manually.
@@ -166,37 +125,6 @@ Log these events:
 
 ---
 
-### ResponseOrderingService Input Validation
-
-**Problem**: `handleResult` doesn't validate that the job was previously registered. If called without prior `registerJob`, it creates a queue but never removes the job from `pendingJobs` (because it was never added).
-
-**Current Location**: `services/bot-client/src/services/ResponseOrderingService.ts:86-92`
-
-**Scenario**:
-
-```typescript
-// Programming error: forgot to register
-await ordering.handleResult(channelId, jobId, result, time, deliverFn);
-// Result is buffered but never delivered (waiting for non-existent pending job)
-```
-
-**Solution**: Add validation and deliver immediately for unregistered jobs:
-
-```typescript
-if (!queue || !queue.pendingJobs.has(jobId)) {
-  logger.error(
-    { channelId, jobId },
-    '[ResponseOrderingService] Result for unregistered job - delivering immediately'
-  );
-  await deliverFn(jobId, result);
-  return;
-}
-```
-
-**Why low priority**: Programming error that should be caught in integration testing. Current code works correctly when used as designed.
-
----
-
 ### Voice Transcript Race Condition on Forwarded Messages
 
 **Problem**: When a voice message is forwarded immediately after being sent, the transcript might not be ready yet.
@@ -278,6 +206,13 @@ These items are optimizations for problems we don't have at current scale:
 - [x] Test coverage for all entry points
 - [x] Redis-backed rate limiter and deduplication
 - [x] All TODOs resolved or tracked
+
+### ResponseOrderingService Memory Safety ✅
+
+Fixed in beta.38:
+
+- **Stale job cleanup**: Added `registeredAt` timestamp and `cleanupStaleJobs()` method to remove orphaned pending jobs (15-minute threshold)
+- **Input validation**: `handleResult()` now validates job was registered, delivers immediately if not (prevents silent buffering failures)
 
 ---
 
