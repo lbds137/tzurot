@@ -211,6 +211,56 @@ function createMockInteraction() {
 }
 ```
 
+### 🔑 Key Distinction: `reply()` vs `editReply()`
+
+**Once an interaction is deferred, you MUST use `editReply()`, NOT `reply()`.**
+
+This is the most common source of `InteractionAlreadyReplied` errors. Discord.js treats `deferReply()` as the initial reply, so calling `reply()` after deferral fails because you can only "reply" once.
+
+| After...                                | Use...              | NOT...      |
+| --------------------------------------- | ------------------- | ----------- |
+| `interaction.deferReply()`              | `editReply()`       | `reply()`   |
+| `interaction.deferUpdate()`             | `editReply()`       | `reply()`   |
+| Nothing (fresh interaction)             | `reply()`           | -           |
+| `interaction.showModal()` then submit   | `reply()`           | -           |
+
+**Ephemerality Note:**
+
+When using `editReply()` after `deferReply()`, ephemerality is set by the deferral, NOT the reply:
+
+```typescript
+// ✅ CORRECT: Ephemerality set at deferral time
+await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+await interaction.editReply({ content: 'Secret message' }); // Automatically ephemeral
+
+// ❌ WRONG: Can't set flags on editReply after deferral
+await interaction.editReply({
+  content: 'This will NOT be ephemeral if not deferred as such',
+  flags: MessageFlags.Ephemeral, // This flag is IGNORED for editReply
+});
+```
+
+### 🛡️ SafeInteraction Wrapper (Runtime Safety Net)
+
+To prevent `InteractionAlreadyReplied` errors from reaching production, a runtime safety wrapper exists in `bot-client/src/utils/safeInteraction.ts`.
+
+**What It Does:**
+
+- Intercepts `reply()` calls on deferred interactions
+- Auto-converts them to `editReply()` at runtime
+- Logs a warning so developers can find and fix the incorrect code
+
+**How It's Applied:**
+
+```typescript
+// In bot-client/src/index.ts
+await interaction.deferReply({ flags: ... });
+const safeInteraction = wrapDeferredInteraction(interaction);
+await commandHandler.handleInteraction(safeInteraction);
+```
+
+**This is a safety net, not a best practice.** Always use `editReply()` directly in deferred command handlers. The wrapper exists to prevent silent failures while bugs are being fixed.
+
 ---
 
 ## File Structure
