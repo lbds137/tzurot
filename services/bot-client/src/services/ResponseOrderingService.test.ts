@@ -466,7 +466,13 @@ describe('ResponseOrderingService', () => {
       service.registerJob(channelId, 'job-1', time1);
 
       // Call handleResult for job-2 which was never registered
-      await service.handleResult(channelId, 'job-2', createResult('Unregistered'), time2, deliverFn);
+      await service.handleResult(
+        channelId,
+        'job-2',
+        createResult('Unregistered'),
+        time2,
+        deliverFn
+      );
 
       // Should be delivered immediately (not buffered)
       expect(deliveredResults).toHaveLength(1);
