@@ -24,11 +24,25 @@ gh pr create --base develop --title "feat: description"
 
 ## 🚨 Critical Rules
 
+### Never Merge Without User Approval
+
+**NEVER merge a PR without explicit user approval.** This is non-negotiable.
+
+- ✅ CI passing is necessary but NOT sufficient for merging
+- ✅ User must explicitly approve/request the merge
+- ❌ NEVER merge just because "CI is green"
+- ❌ NEVER merge to "complete the task"
+
+```bash
+# Only merge with explicit user approval
+gh pr merge <number> --rebase --delete-branch
+```
+
 ### Rebase-Only Workflow
 
-**NO SQUASH. NO MERGE. ONLY REBASE.**
+**NO SQUASH. NO MERGE COMMITS. ONLY REBASE.**
 
-GitHub settings enforce this - rebase and merge is the only option enabled.
+GitHub settings enforce this - rebase and merge is the only option enabled. Merge commits and squash merges are disabled at the repository level.
 
 ### Always Target `develop` for PRs
 
