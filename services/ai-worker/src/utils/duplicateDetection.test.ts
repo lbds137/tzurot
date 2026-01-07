@@ -13,7 +13,9 @@ import {
   isRecentDuplicate,
   getLastAssistantMessage,
   getRecentAssistantMessages,
+  contentHash,
   DEFAULT_SIMILARITY_THRESHOLD,
+  NEAR_MISS_THRESHOLD,
 } from './duplicateDetection.js';
 
 describe('removeDuplicateResponse', () => {
@@ -195,6 +197,37 @@ describe('stringSimilarity', () => {
   });
 });
 
+describe('contentHash', () => {
+  it('should return consistent hash for identical content', () => {
+    const content = 'Hello world, this is a test message.';
+    expect(contentHash(content)).toBe(contentHash(content));
+  });
+
+  it('should normalize case and whitespace', () => {
+    expect(contentHash('Hello World')).toBe(contentHash('hello world'));
+    expect(contentHash('  hello  ')).toBe(contentHash('hello'));
+  });
+
+  it('should return different hashes for different content', () => {
+    expect(contentHash('Hello world')).not.toBe(contentHash('Goodbye world'));
+  });
+
+  it('should return 16-character hex string', () => {
+    const hash = contentHash('test content');
+    expect(hash).toMatch(/^[a-f0-9]{16}$/);
+  });
+});
+
+describe('NEAR_MISS_THRESHOLD', () => {
+  it('should be 0.7 (70%)', () => {
+    expect(NEAR_MISS_THRESHOLD).toBe(0.7);
+  });
+
+  it('should be lower than DEFAULT_SIMILARITY_THRESHOLD', () => {
+    expect(NEAR_MISS_THRESHOLD).toBeLessThan(DEFAULT_SIMILARITY_THRESHOLD);
+  });
+});
+
 describe('isCrossTurnDuplicate', () => {
   it('should return false for short responses', () => {
     // Short responses (< 30 chars) should not be flagged
@@ -336,6 +369,23 @@ describe('isRecentDuplicate', () => {
   it('should return no match for empty recent messages', () => {
     const result = isRecentDuplicate(longResponse1, []);
     expect(result).toEqual({ isDuplicate: false, matchIndex: -1 });
+  });
+
+  describe('exact hash match detection', () => {
+    it('should detect byte-for-byte identical responses via hash (O(1) safety net)', () => {
+      const response = '*The darkness speaks* This is an exact duplicate test response content.';
+      const result = isRecentDuplicate(response, [response]);
+      expect(result.isDuplicate).toBe(true);
+      expect(result.matchIndex).toBe(0);
+    });
+
+    it('should detect exact match even with case differences (normalized)', () => {
+      const response1 = '*The darkness speaks* This is a test response.';
+      const response2 = '*THE DARKNESS SPEAKS* THIS IS A TEST RESPONSE.';
+      const result = isRecentDuplicate(response1, [response2]);
+      // Hash is normalized, so these should match
+      expect(result.isDuplicate).toBe(true);
+    });
   });
 
   it('should detect duplicate of most recent message (index 0)', () => {
