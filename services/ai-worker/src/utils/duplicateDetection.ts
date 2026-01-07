@@ -352,6 +352,70 @@ export interface DuplicateCheckResult {
 }
 
 /**
+ * Log diagnostic info about duplicate detection outcome.
+ * Extracted to keep isRecentDuplicate under complexity/line limits.
+ */
+function logDuplicateCheckResult(params: {
+  outcome: 'NEAR_MISS' | 'PASSED';
+  maxSimilarity: number;
+  threshold: number;
+  maxSimilarityIndex: number;
+  recentMessagesCount: number;
+  newResponseLength: number;
+  newResponseSnippet: string;
+  closestMatchSnippet: string;
+  newResponseHash: string;
+}): void {
+  const {
+    outcome,
+    maxSimilarity,
+    threshold,
+    maxSimilarityIndex,
+    recentMessagesCount,
+    newResponseLength,
+    newResponseSnippet,
+    closestMatchSnippet,
+    newResponseHash,
+  } = params;
+
+  if (outcome === 'NEAR_MISS') {
+    // NEAR-MISS: High similarity but below threshold - potential false negative
+    logger.info(
+      {
+        outcome,
+        maxSimilarity: maxSimilarity.toFixed(3),
+        threshold,
+        nearMissThreshold: NEAR_MISS_THRESHOLD,
+        maxSimilarityIndex,
+        turnsBack: maxSimilarityIndex + 1,
+        recentMessagesCount,
+        newResponseLength,
+        newResponseSnippet,
+        closestMatchSnippet,
+        newResponseHash,
+      },
+      `[DuplicateDetection] NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
+        `is high but below ${(threshold * 100).toFixed(0)}% threshold. Review if this should be a duplicate.`
+    );
+  } else {
+    // Normal case: log summary for every check
+    logger.info(
+      {
+        outcome,
+        maxSimilarity: maxSimilarity.toFixed(3),
+        threshold,
+        maxSimilarityIndex,
+        recentMessagesCount,
+        newResponseLength,
+        newResponseSnippet: snippet(newResponseSnippet, 40),
+        closestMatchSnippet: snippet(closestMatchSnippet, 40),
+      },
+      '[DuplicateDetection] Check complete - no duplicate detected'
+    );
+  }
+}
+
+/**
  * Check if a new response is too similar to ANY of the recent assistant messages.
  *
  * This catches cross-turn duplicates that may match older messages, not just the
@@ -457,42 +521,17 @@ export function isRecentDuplicate(
   // This is crucial for debugging why duplicates slip through
   if (recentMessages.length > 0) {
     const isNearMiss = highestSimilarity >= NEAR_MISS_THRESHOLD && highestSimilarity < threshold;
-
-    if (isNearMiss) {
-      // NEAR-MISS: High similarity but below threshold - potential false negative
-      logger.info(
-        {
-          outcome: 'NEAR_MISS',
-          maxSimilarity: highestSimilarity.toFixed(3),
-          threshold,
-          nearMissThreshold: NEAR_MISS_THRESHOLD,
-          maxSimilarityIndex: highestSimilarityIndex,
-          turnsBack: highestSimilarityIndex + 1,
-          recentMessagesCount: recentMessages.length,
-          newResponseLength: cleanNewResponse.length,
-          newResponseSnippet: snippet(cleanNewResponse),
-          closestMatchSnippet,
-          newResponseHash,
-        },
-        `[DuplicateDetection] NEAR-MISS: Similarity ${(highestSimilarity * 100).toFixed(1)}% ` +
-          `is high but below ${(threshold * 100).toFixed(0)}% threshold. Review if this should be a duplicate.`
-      );
-    } else {
-      // Normal case: log summary for every check
-      logger.info(
-        {
-          outcome: 'PASSED',
-          maxSimilarity: highestSimilarity.toFixed(3),
-          threshold,
-          maxSimilarityIndex: highestSimilarityIndex,
-          recentMessagesCount: recentMessages.length,
-          newResponseLength: cleanNewResponse.length,
-          newResponseSnippet: snippet(cleanNewResponse, 40),
-          closestMatchSnippet: snippet(closestMatchSnippet, 40),
-        },
-        '[DuplicateDetection] Check complete - no duplicate detected'
-      );
-    }
+    logDuplicateCheckResult({
+      outcome: isNearMiss ? 'NEAR_MISS' : 'PASSED',
+      maxSimilarity: highestSimilarity,
+      threshold,
+      maxSimilarityIndex: highestSimilarityIndex,
+      recentMessagesCount: recentMessages.length,
+      newResponseLength: cleanNewResponse.length,
+      newResponseSnippet: snippet(cleanNewResponse),
+      closestMatchSnippet,
+      newResponseHash,
+    });
   }
 
   return { isDuplicate: false, matchIndex: -1 };

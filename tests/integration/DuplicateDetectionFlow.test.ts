@@ -26,6 +26,7 @@ import {
   generatePersonalityUuid,
   generateSystemPromptUuid,
   generatePersonaUuid,
+  generateUserUuid,
 } from '@tzurot/common-types';
 import {
   getRecentAssistantMessages,
@@ -49,6 +50,7 @@ describe('Duplicate Detection Data Flow', () => {
   let conversationService: ConversationHistoryService;
 
   // Test identifiers (deterministic UUIDs for consistency)
+  const testUserId = generateUserUuid('test-duplicate-detection-user');
   const testPersonalityId = generatePersonalityUuid('test-duplicate-detection-personality');
   const testPersonaId = generatePersonaUuid('test-duplicate-detection-persona');
   const testSystemPromptId = generateSystemPromptUuid('test-duplicate-detection-prompt');
@@ -66,6 +68,15 @@ describe('Duplicate Detection Data Flow', () => {
     conversationService = new ConversationHistoryService(prisma);
 
     // Seed required foreign key records
+    // Create user first (required for persona ownership)
+    await prisma.user.create({
+      data: {
+        id: testUserId,
+        discordId: 'test-discord-12345',
+        username: 'test-duplicate-detection-user',
+      },
+    });
+
     await prisma.systemPrompt.create({
       data: {
         id: testSystemPromptId,
@@ -93,6 +104,7 @@ describe('Duplicate Detection Data Flow', () => {
         preferredName: 'Tester',
         isBot: false,
         content: 'Test persona for duplicate detection tests',
+        ownerId: testUserId,
       },
     });
   });
