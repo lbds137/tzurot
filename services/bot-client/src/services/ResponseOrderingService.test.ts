@@ -22,7 +22,8 @@ describe('ResponseOrderingService', () => {
     // Explicitly configure fake timers to include Date and set a fixed start time
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
-    service = new ResponseOrderingService();
+    // Disable cleanup interval in tests to avoid timer interference
+    service = new ResponseOrderingService(false);
     deliveredResults = [];
     deliverFn = vi.fn(async (jobId, result) => {
       deliveredResults.push({ jobId, result });
@@ -619,6 +620,58 @@ describe('ResponseOrderingService', () => {
 
       // job-2 is buffered because job-1 is still pending
       expect(service.getStats().totalBuffered).toBe(1);
+    });
+  });
+
+  describe('cleanup interval', () => {
+    it('should start cleanup interval when enabled (default)', () => {
+      // Spy on setInterval to verify it's called
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      const serviceWithCleanup = new ResponseOrderingService(true);
+
+      // Verify setInterval was called for cleanup
+      expect(setIntervalSpy).toHaveBeenCalled();
+
+      // Clean up
+      serviceWithCleanup.stopCleanup();
+      setIntervalSpy.mockRestore();
+    });
+
+    it('should not start cleanup interval when disabled', () => {
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      const serviceWithoutCleanup = new ResponseOrderingService(false);
+
+      // Verify setInterval was NOT called
+      expect(setIntervalSpy).not.toHaveBeenCalled();
+
+      setIntervalSpy.mockRestore();
+    });
+
+    it('should stop cleanup interval when stopCleanup is called', () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+      const serviceWithCleanup = new ResponseOrderingService(true);
+
+      // Stop the cleanup
+      serviceWithCleanup.stopCleanup();
+
+      // Verify clearInterval was called
+      expect(clearIntervalSpy).toHaveBeenCalled();
+
+      // Calling again should be safe (no-op)
+      expect(() => serviceWithCleanup.stopCleanup()).not.toThrow();
+
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('should be safe to call stopCleanup multiple times', () => {
+      const serviceWithCleanup = new ResponseOrderingService(true);
+
+      // Call stopCleanup multiple times - should not throw
+      expect(() => serviceWithCleanup.stopCleanup()).not.toThrow();
+      expect(() => serviceWithCleanup.stopCleanup()).not.toThrow();
     });
   });
 });
