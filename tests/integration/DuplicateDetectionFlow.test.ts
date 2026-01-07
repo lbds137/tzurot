@@ -205,7 +205,9 @@ describe('Duplicate Detection Data Flow', () => {
       const assistantMessages = getRecentAssistantMessages(history);
 
       expect(assistantMessages).toHaveLength(2);
-      expect(assistantMessages[0]).toBe('Why did the programmer quit? Because they did not get arrays!');
+      expect(assistantMessages[0]).toBe(
+        'Why did the programmer quit? Because they did not get arrays!'
+      );
       expect(assistantMessages[1]).toBe('Hi there, human! How can I help you today?');
     });
 
