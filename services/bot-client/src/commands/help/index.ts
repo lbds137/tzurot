@@ -3,9 +3,12 @@
  * Top-level /help command for discoverability
  *
  * Shows all available commands grouped by category
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
-import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, getConfig } from '@tzurot/common-types';
 import type { Command } from '../../types.js';
@@ -48,9 +51,8 @@ export async function execute(
 ): Promise<void> {
   if (!commands) {
     logger.error({}, 'Commands map not provided to help command');
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Unable to load commands list. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -77,9 +79,8 @@ async function showCommandDetails(
   const command = commands.get(commandName.toLowerCase());
 
   if (!command) {
-    await interaction.reply({
+    await interaction.editReply({
       content: `❌ Unknown command: \`/${commandName}\`\n\nUse \`/help\` to see all available commands.`,
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -109,7 +110,7 @@ async function showCommandDetails(
     }
   }
 
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ embeds: [embed] });
 }
 
 /**
@@ -189,7 +190,7 @@ async function showAllCommands(
     inline: false,
   });
 
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ embeds: [embed] });
 }
 
 /**

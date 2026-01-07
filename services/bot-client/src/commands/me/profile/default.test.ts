@@ -1,11 +1,13 @@
 /**
  * Tests for Profile Default Handler
  * Tests gateway API calls for setting default profile.
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleSetDefaultPersona } from './default.js';
-import { MessageFlags } from 'discord.js';
 import { mockSetDefaultPersonaResponse } from '@tzurot/common-types';
 
 // Mock gateway client
@@ -28,7 +30,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 describe('handleSetDefaultPersona', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,7 +45,7 @@ describe('handleSetDefaultPersona', () => {
           return null;
         },
       },
-      reply: mockReply,
+      editReply: mockEditReply,
     } as any;
   }
 
@@ -65,13 +67,11 @@ describe('handleSetDefaultPersona', () => {
       userId: '123456789',
       method: 'PATCH',
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Alice'),
-      flags: MessageFlags.Ephemeral,
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('now your default'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -89,9 +89,8 @@ describe('handleSetDefaultPersona', () => {
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Work Persona'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -103,9 +102,8 @@ describe('handleSetDefaultPersona', () => {
 
     await handleSetDefaultPersona(createMockInteraction('nonexistent-persona'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile not found'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -123,9 +121,8 @@ describe('handleSetDefaultPersona', () => {
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already your default'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -137,9 +134,8 @@ describe('handleSetDefaultPersona', () => {
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to set default'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -148,9 +144,8 @@ describe('handleSetDefaultPersona', () => {
 
     await handleSetDefaultPersona(createMockInteraction('persona-123'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to set default'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 });

@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags, AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
 
@@ -30,9 +30,8 @@ export async function handleTemplate(
     '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)\n' +
     '**Avatar:** Upload a separate image file when importing using the `avatar` option';
 
-  await interaction.reply({
+  await interaction.editReply({
     content: message,
     files: [jsonAttachment],
-    flags: MessageFlags.Ephemeral,
   });
 }

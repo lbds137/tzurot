@@ -1,11 +1,13 @@
 /**
  * Tests for Profile Settings Handler
  * Tests gateway API calls for settings management.
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleShareLtmSetting } from './share-ltm.js';
-import { MessageFlags } from 'discord.js';
 import { mockUpdatePersonaSettingsResponse } from '@tzurot/common-types';
 
 // Mock gateway client
@@ -28,7 +30,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 describe('handleShareLtmSetting', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,7 +45,7 @@ describe('handleShareLtmSetting', () => {
           return null;
         },
       },
-      reply: mockReply,
+      editReply: mockEditReply,
     } as any;
   }
 
@@ -55,9 +57,8 @@ describe('handleShareLtmSetting', () => {
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have an account"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -69,9 +70,8 @@ describe('handleShareLtmSetting', () => {
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a profile"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -83,9 +83,8 @@ describe('handleShareLtmSetting', () => {
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already sharing'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -97,9 +96,8 @@ describe('handleShareLtmSetting', () => {
 
     await handleShareLtmSetting(createMockInteraction('disable'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already keeping'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -118,9 +116,8 @@ describe('handleShareLtmSetting', () => {
         shareLtmAcrossPersonalities: true,
       },
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('LTM sharing enabled'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -139,9 +136,8 @@ describe('handleShareLtmSetting', () => {
         shareLtmAcrossPersonalities: false,
       },
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('LTM sharing disabled'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -150,9 +146,8 @@ describe('handleShareLtmSetting', () => {
 
     await handleShareLtmSetting(createMockInteraction('enable'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to update'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 });

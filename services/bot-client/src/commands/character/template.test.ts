@@ -1,34 +1,37 @@
 /**
  * Tests for Character Template Subcommand
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTemplate } from './template.js';
-import { MessageFlags, AttachmentBuilder } from 'discord.js';
+import { AttachmentBuilder } from 'discord.js';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
 describe('handleTemplate', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
   const mockConfig = {} as EnvConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockReply.mockResolvedValue(undefined);
+    mockEditReply.mockResolvedValue(undefined);
   });
 
   function createMockInteraction(): ChatInputCommandInteraction {
     return {
-      reply: mockReply,
+      editReply: mockEditReply,
     } as unknown as ChatInputCommandInteraction;
   }
 
   it('should reply with a JSON file attachment', async () => {
     await handleTemplate(createMockInteraction(), mockConfig);
 
-    expect(mockReply).toHaveBeenCalledTimes(1);
-    const replyCall = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalledTimes(1);
+    const replyCall = mockEditReply.mock.calls[0][0];
 
     // Should include files array with one attachment
     expect(replyCall.files).toBeDefined();
@@ -39,7 +42,7 @@ describe('handleTemplate', () => {
   it('should name the file character_card_template.json', async () => {
     await handleTemplate(createMockInteraction(), mockConfig);
 
-    const replyCall = mockReply.mock.calls[0][0];
+    const replyCall = mockEditReply.mock.calls[0][0];
     const attachment = replyCall.files[0] as AttachmentBuilder;
 
     // Check the attachment name
@@ -49,7 +52,7 @@ describe('handleTemplate', () => {
   it('should include the template content in the attachment', async () => {
     await handleTemplate(createMockInteraction(), mockConfig);
 
-    const replyCall = mockReply.mock.calls[0][0];
+    const replyCall = mockEditReply.mock.calls[0][0];
     const attachment = replyCall.files[0] as AttachmentBuilder;
 
     // The attachment should be a Buffer with the template content
@@ -57,17 +60,10 @@ describe('handleTemplate', () => {
     expect(buffer.toString('utf-8')).toBe(CHARACTER_JSON_TEMPLATE);
   });
 
-  it('should reply with ephemeral message', async () => {
-    await handleTemplate(createMockInteraction(), mockConfig);
-
-    const replyCall = mockReply.mock.calls[0][0];
-    expect(replyCall.flags).toBe(MessageFlags.Ephemeral);
-  });
-
   it('should include helpful instructions in the message', async () => {
     await handleTemplate(createMockInteraction(), mockConfig);
 
-    const replyCall = mockReply.mock.calls[0][0];
+    const replyCall = mockEditReply.mock.calls[0][0];
     expect(replyCall.content).toContain('Character Import Template');
     expect(replyCall.content).toContain('Required fields');
     expect(replyCall.content).toContain('Slug format');
