@@ -225,7 +225,18 @@ pnpm bump-version 3.0.0-beta.31  # Bump version in all package.json files
 
 ## Git Workflow
 
-**REBASE-ONLY. NO SQUASH. NO MERGE.**
+**REBASE-ONLY. NO SQUASH. NO MERGE COMMITS.**
+
+GitHub settings enforce rebase-only - merge commits and squash merges are disabled at the repository level.
+
+### 🚨 PR Merge Rules
+
+**NEVER merge a PR without explicit user approval.** This is non-negotiable.
+
+- ✅ CI passing is necessary but NOT sufficient for merging
+- ✅ User must explicitly approve/request the merge
+- ❌ NEVER merge just because "CI is green"
+- ❌ NEVER merge to "complete the task"
 
 ```bash
 # Always target develop for PRs (never main for features)
@@ -233,6 +244,9 @@ gh pr create --base develop --title "feat: description"
 
 # Commit format
 git commit -m "feat(service): description"
+
+# Merge strategy (ONLY with user approval)
+gh pr merge <number> --rebase --delete-branch
 ```
 
 **📚 See**: `tzurot-git-workflow` for complete workflow, hooks, safety protocol
@@ -286,13 +300,14 @@ git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redi
 
 ## Post-Mortems
 
-| Date       | Incident                      | Rule                            |
-| ---------- | ----------------------------- | ------------------------------- |
-| 2025-07-25 | Untested push broke develop   | Always run tests before pushing |
-| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git  |
-| 2025-10-31 | DB URL committed              | Never commit database URLs      |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients             |
-| 2025-12-06 | API contract mismatch         | Use shared Zod schemas          |
+| Date       | Incident                      | Rule                               |
+| ---------- | ----------------------------- | ---------------------------------- |
+| 2026-01-07 | PR merged without approval    | Never merge PRs without user okay  |
+| 2025-07-25 | Untested push broke develop   | Always run tests before pushing    |
+| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git     |
+| 2025-10-31 | DB URL committed              | Never commit database URLs         |
+| 2025-12-05 | Direct fetch broke /character | Use gateway clients                |
+| 2025-12-06 | API contract mismatch         | Use shared Zod schemas             |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 
