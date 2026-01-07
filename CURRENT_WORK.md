@@ -1,10 +1,10 @@
 # Current Work
 
-> Last updated: 2026-01-04
+> Last updated: 2026-01-06
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.34
+**Version**: v3.0.0-beta.38
 **Deployment**: Railway (stable)
 **Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
 
@@ -79,11 +79,12 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **beta.34**: Documentation restructure, cross-turn duplication detection (entropy injection + retry), LTM/STM confusion prevention
+- **beta.38**: Ordered response delivery (responses appear in message order), hallucinated turn prevention via prioritized stop sequences, finish_reason diagnostic logging
+- **beta.37**: BYOK API key leak fix, multi-turn duplicate check (last 5 messages), voice transcript fixes, GitGuardian integration
+- **beta.36**: Chunked message sync fix, DRY duplicate detection refactor, dependency updates (Node 25 types, Zod 4.3)
+- **beta.35**: Cross-turn duplication detection (entropy injection + Dice coefficient), 2-retry strategy for cached responses
+- **beta.34**: Documentation restructure, LTM/STM confusion prevention
 - **beta.33**: Identity/memory bug fixes, pretest clean hooks for CJS/ESM conflicts
-- **beta.32**: Pure XML prompt architecture (from_id binding), inline image descriptions
-- **beta.31**: BYOK vision fix, stop sequences capped at 16
-- **beta.30**: Extended context improvements - time gaps, settings dashboards, vision cache L2
 
 Full release history: [GitHub Releases](https://github.com/lbds137/tzurot/releases)
 
