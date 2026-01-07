@@ -62,6 +62,12 @@ export class ResponseOrderingService {
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   /**
+   * Stored delivery function for processing queues after stale cleanup.
+   * Set by the first call to handleResult() and reused for cleanup.
+   */
+  private storedDeliverFn: DeliverFn | null = null;
+
+  /**
    * Create a new ResponseOrderingService
    * @param enableCleanup - If true, starts periodic stale job cleanup (default: true)
    */
@@ -79,13 +85,28 @@ export class ResponseOrderingService {
    */
   private startCleanupInterval(): void {
     this.cleanupInterval = setInterval(() => {
-      this.cleanupStaleJobs();
+      void this.cleanupStaleJobsAndProcess();
     }, CLEANUP_INTERVAL_MS);
 
     // Ensure interval doesn't prevent process exit
     this.cleanupInterval.unref();
 
     logger.debug('[ResponseOrderingService] Started periodic stale job cleanup');
+  }
+
+  /**
+   * Cleanup stale jobs and process any unblocked queues.
+   * This is the async wrapper called by the interval.
+   */
+  private async cleanupStaleJobsAndProcess(): Promise<void> {
+    const { channelsCleaned } = this.cleanupStaleJobs();
+
+    // If we have a stored delivery function, process queues to deliver unblocked results
+    if (channelsCleaned.length > 0 && this.storedDeliverFn !== null) {
+      for (const channelId of channelsCleaned) {
+        await this.processQueue(channelId, this.storedDeliverFn);
+      }
+    }
   }
 
   /**
@@ -144,6 +165,10 @@ export class ResponseOrderingService {
     deliverFn: DeliverFn
   ): Promise<void> {
     const queue = this.channelQueues.get(channelId);
+
+    // Store the deliverFn for use in stale job cleanup
+    // This allows us to process queues and deliver unblocked results after cleanup
+    this.storedDeliverFn = deliverFn;
 
     // Validate that job was registered - if not, deliver immediately
     // This catches programming errors where registerJob wasn't called
