@@ -102,7 +102,6 @@ describe('Duplicate Detection Data Flow', () => {
         id: testPersonaId,
         name: 'TestUser',
         preferredName: 'Tester',
-        isBot: false,
         content: 'Test persona for duplicate detection tests',
         ownerId: testUserId,
       },
