@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-05
+> Last updated: 2026-01-06
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -23,6 +23,47 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 ---
 
 ## Priority 2: MEDIUM
+
+### ResponseOrderingService Stale Job Cleanup
+
+**Problem**: If a job is registered but never completes AND never gets cancelled, it stays in `pendingJobs` forever. The 10-minute timeout only applies to buffered results waiting for delivery, not pending jobs that never produce results.
+
+**Current Location**: `services/bot-client/src/services/ResponseOrderingService.ts`
+
+**Scenario**:
+
+1. Job A registered at T+0
+2. Job A's worker crashes before producing a result
+3. Job A is never explicitly cancelled (no BullMQ retry, no explicit cancel)
+4. `pendingJobs` retains Job A indefinitely
+5. Over time, orphaned jobs accumulate (memory leak)
+
+**Solution**: Add periodic cleanup or registration timeout:
+
+```typescript
+// Option 1: Add registration timestamp
+pendingJobs.set(jobId, {
+  userMessageTime,
+  registeredAt: Date.now()
+});
+
+// Option 2: Periodic cleanup (e.g., every 15 minutes)
+private cleanupStaleJobs(): void {
+  const staleThreshold = Date.now() - (this.MAX_WAIT_MS * 1.5);
+  for (const [channelId, queue] of this.channelQueues) {
+    for (const [jobId, job] of queue.pendingJobs) {
+      if (job.registeredAt < staleThreshold) {
+        queue.pendingJobs.delete(jobId);
+        logger.warn({ channelId, jobId }, 'Cleaned up stale pending job');
+      }
+    }
+  }
+}
+```
+
+**Why medium priority**: Unlikely in practice (most jobs complete with success or error results), but could accumulate over long uptimes without restarts.
+
+---
 
 ### Basic Observability
 
@@ -99,6 +140,60 @@ Log these events:
 | `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic |
 
 **Why low priority**: Large files slow AI assistants but don't directly cause bugs.
+
+---
+
+### Stop Sequence Participant Limit Documentation
+
+**Problem**: Stop sequences are silently truncated when exceeding Gemini's 16-slot limit. In channels with >5 participants, some users aren't protected from identity bleeding.
+
+**Current Location**: `services/ai-worker/src/services/RAGUtils.ts:126-128`
+
+**Current behavior**:
+
+- 11 slots reserved for XML tags, hallucination prevention, instruct format markers, personality name
+- 5 slots available for participant names
+- Participants beyond 5 are silently truncated (logged at info level, not visible to users)
+
+**Potential solutions**:
+
+- [ ] Prioritize recent/active participants over inactive ones
+- [ ] Warn users when >5 participants are in a channel
+- [ ] Document the 5-participant effective limit in user-facing docs
+- [ ] Consider dynamic priority based on conversation recency
+
+**Why low priority**: Edge case (most conversations have <5 participants). The truncation is logged, and identity bleeding is still caught by other stop sequences (User:, Human:, etc.).
+
+---
+
+### ResponseOrderingService Input Validation
+
+**Problem**: `handleResult` doesn't validate that the job was previously registered. If called without prior `registerJob`, it creates a queue but never removes the job from `pendingJobs` (because it was never added).
+
+**Current Location**: `services/bot-client/src/services/ResponseOrderingService.ts:86-92`
+
+**Scenario**:
+
+```typescript
+// Programming error: forgot to register
+await ordering.handleResult(channelId, jobId, result, time, deliverFn);
+// Result is buffered but never delivered (waiting for non-existent pending job)
+```
+
+**Solution**: Add validation and deliver immediately for unregistered jobs:
+
+```typescript
+if (!queue || !queue.pendingJobs.has(jobId)) {
+  logger.error(
+    { channelId, jobId },
+    '[ResponseOrderingService] Result for unregistered job - delivering immediately'
+  );
+  await deliverFn(jobId, result);
+  return;
+}
+```
+
+**Why low priority**: Programming error that should be caught in integration testing. Current code works correctly when used as designed.
 
 ---
 
