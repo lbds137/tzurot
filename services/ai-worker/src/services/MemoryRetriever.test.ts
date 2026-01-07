@@ -240,7 +240,9 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('resolved-uuid') // First user is registered
         .mockResolvedValueOnce(null); // Second user is NOT registered
-      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce('Registered user content');
+      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce(
+        'Registered user content'
+      );
 
       const context: ConversationContext = {
         userId: 'user-123',

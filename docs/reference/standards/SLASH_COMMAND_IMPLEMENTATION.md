@@ -217,12 +217,12 @@ function createMockInteraction() {
 
 This is the most common source of `InteractionAlreadyReplied` errors. Discord.js treats `deferReply()` as the initial reply, so calling `reply()` after deferral fails because you can only "reply" once.
 
-| After...                                | Use...              | NOT...      |
-| --------------------------------------- | ------------------- | ----------- |
-| `interaction.deferReply()`              | `editReply()`       | `reply()`   |
-| `interaction.deferUpdate()`             | `editReply()`       | `reply()`   |
-| Nothing (fresh interaction)             | `reply()`           | -           |
-| `interaction.showModal()` then submit   | `reply()`           | -           |
+| After...                              | Use...        | NOT...    |
+| ------------------------------------- | ------------- | --------- |
+| `interaction.deferReply()`            | `editReply()` | `reply()` |
+| `interaction.deferUpdate()`           | `editReply()` | `reply()` |
+| Nothing (fresh interaction)           | `reply()`     | -         |
+| `interaction.showModal()` then submit | `reply()`     | -         |
 
 **Ephemerality Note:**
 
