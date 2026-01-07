@@ -27,11 +27,20 @@ interface BufferedResult {
 }
 
 /**
+ * Pending job tracking with registration timestamp for stale cleanup
+ */
+interface PendingJob {
+  userMessageTime: Date;
+  /** When the job was registered (for stale job detection) */
+  registeredAt: number;
+}
+
+/**
  * Per-channel queue state
  */
 interface ChannelQueue {
   /** Jobs we're waiting on (registered but not yet completed) */
-  pendingJobs: Map<string, { userMessageTime: Date }>;
+  pendingJobs: Map<string, PendingJob>;
   /** Results waiting for older jobs to complete first */
   bufferedResults: BufferedResult[];
 }
@@ -61,7 +70,7 @@ export class ResponseOrderingService {
       this.channelQueues.set(channelId, queue);
     }
 
-    queue.pendingJobs.set(jobId, { userMessageTime });
+    queue.pendingJobs.set(jobId, { userMessageTime, registeredAt: Date.now() });
 
     logger.debug(
       {
@@ -92,11 +101,12 @@ export class ResponseOrderingService {
   ): Promise<void> {
     const queue = this.channelQueues.get(channelId);
 
-    if (!queue) {
-      // No queue means no ordering needed (shouldn't happen in normal flow)
+    // Validate that job was registered - if not, deliver immediately
+    // This catches programming errors where registerJob wasn't called
+    if (!queue || !queue.pendingJobs.has(jobId)) {
       logger.warn(
-        { channelId, jobId },
-        '[ResponseOrderingService] No queue found for channel - delivering immediately'
+        { channelId, jobId, hasQueue: queue !== undefined },
+        '[ResponseOrderingService] Result for unregistered job - delivering immediately'
       );
       await deliverFn(jobId, result);
       return;
@@ -262,6 +272,60 @@ export class ResponseOrderingService {
       this.channelQueues.delete(channelId);
       logger.debug({ channelId }, '[ResponseOrderingService] Cleaned up empty channel queue');
     }
+  }
+
+  /**
+   * Clean up stale pending jobs that never produced results.
+   *
+   * This handles the edge case where a job is registered but:
+   * - The worker crashes before producing a result
+   * - BullMQ doesn't retry (exhausted retries, job removed, etc.)
+   * - No explicit cancelJob call is made
+   *
+   * Without cleanup, these orphaned jobs would stay in pendingJobs forever,
+   * causing a slow memory leak over long uptimes.
+   *
+   * Stale threshold: 1.5x MAX_WAIT_MS (15 minutes when MAX_WAIT is 10 min)
+   * This gives plenty of time for normal processing + retries.
+   */
+  cleanupStaleJobs(): { cleanedCount: number; channelsCleaned: string[] } {
+    const staleThreshold = Date.now() - this.MAX_WAIT_MS * 1.5;
+    let cleanedCount = 0;
+    const channelsCleaned: string[] = [];
+
+    for (const [channelId, queue] of this.channelQueues) {
+      const staleJobIds: string[] = [];
+
+      for (const [jobId, job] of queue.pendingJobs) {
+        if (job.registeredAt < staleThreshold) {
+          staleJobIds.push(jobId);
+        }
+      }
+
+      if (staleJobIds.length > 0) {
+        for (const jobId of staleJobIds) {
+          queue.pendingJobs.delete(jobId);
+          cleanedCount++;
+        }
+
+        logger.warn(
+          { channelId, staleJobIds, staleCount: staleJobIds.length },
+          '[ResponseOrderingService] Cleaned up stale pending jobs (never completed)'
+        );
+
+        channelsCleaned.push(channelId);
+        this.cleanupIfEmpty(channelId, queue);
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.info(
+        { cleanedCount, channelsCleaned },
+        '[ResponseOrderingService] Stale job cleanup complete'
+      );
+    }
+
+    return { cleanedCount, channelsCleaned };
   }
 
   /**

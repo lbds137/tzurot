@@ -445,8 +445,8 @@ describe('ResponseOrderingService', () => {
     });
   });
 
-  describe('no queue edge case', () => {
-    it('should deliver immediately if handleResult called without registerJob', async () => {
+  describe('unregistered job handling', () => {
+    it('should deliver immediately if handleResult called without registerJob (no queue)', async () => {
       const channelId = 'channel-1';
       const time = new Date('2024-01-01T10:00:00Z');
 
@@ -455,6 +455,140 @@ describe('ResponseOrderingService', () => {
 
       expect(deliveredResults).toHaveLength(1);
       expect(deliveredResults[0].result.content).toBe('Hello');
+    });
+
+    it('should deliver immediately if handleResult called for unregistered job (queue exists)', async () => {
+      const channelId = 'channel-1';
+      const time1 = new Date('2024-01-01T10:00:00Z');
+      const time2 = new Date('2024-01-01T10:01:00Z');
+
+      // Register job-1, creating a queue
+      service.registerJob(channelId, 'job-1', time1);
+
+      // Call handleResult for job-2 which was never registered
+      await service.handleResult(channelId, 'job-2', createResult('Unregistered'), time2, deliverFn);
+
+      // Should be delivered immediately (not buffered)
+      expect(deliveredResults).toHaveLength(1);
+      expect(deliveredResults[0].jobId).toBe('job-2');
+      expect(deliveredResults[0].result.content).toBe('Unregistered');
+    });
+  });
+
+  describe('cleanupStaleJobs', () => {
+    it('should not clean up jobs within stale threshold', () => {
+      const channelId = 'channel-1';
+      const time = new Date('2024-01-01T10:00:00Z');
+
+      service.registerJob(channelId, 'job-1', time);
+
+      // Advance time but stay within threshold (10 min * 1.5 = 15 min)
+      vi.advanceTimersByTime(14 * 60 * 1000); // 14 minutes
+
+      const result = service.cleanupStaleJobs();
+
+      expect(result.cleanedCount).toBe(0);
+      expect(result.channelsCleaned).toHaveLength(0);
+      expect(service.getStats().totalPending).toBe(1);
+    });
+
+    it('should clean up jobs past stale threshold', () => {
+      const channelId = 'channel-1';
+      const time = new Date('2024-01-01T10:00:00Z');
+
+      service.registerJob(channelId, 'job-1', time);
+
+      // Advance time past threshold (10 min * 1.5 = 15 min)
+      vi.advanceTimersByTime(16 * 60 * 1000); // 16 minutes
+
+      const result = service.cleanupStaleJobs();
+
+      expect(result.cleanedCount).toBe(1);
+      expect(result.channelsCleaned).toContain(channelId);
+      expect(service.getStats().totalPending).toBe(0);
+    });
+
+    it('should clean up stale jobs from multiple channels', () => {
+      const time = new Date('2024-01-01T10:00:00Z');
+
+      service.registerJob('channel-1', 'job-1', time);
+      service.registerJob('channel-2', 'job-2', time);
+      service.registerJob('channel-3', 'job-3', time);
+
+      // Advance time past threshold
+      vi.advanceTimersByTime(16 * 60 * 1000);
+
+      const result = service.cleanupStaleJobs();
+
+      expect(result.cleanedCount).toBe(3);
+      expect(result.channelsCleaned).toHaveLength(3);
+      expect(service.getStats().channelCount).toBe(0);
+    });
+
+    it('should only clean up stale jobs, leaving fresh ones', () => {
+      const channelId = 'channel-1';
+      const time = new Date('2024-01-01T10:00:00Z');
+
+      // Register old job
+      service.registerJob(channelId, 'job-old', time);
+
+      // Advance time past threshold
+      vi.advanceTimersByTime(16 * 60 * 1000);
+
+      // Register new job (after advancing time)
+      const newTime = new Date('2024-01-01T10:20:00Z');
+      service.registerJob(channelId, 'job-new', newTime);
+
+      const result = service.cleanupStaleJobs();
+
+      expect(result.cleanedCount).toBe(1);
+      expect(service.getStats().totalPending).toBe(1); // Only new job remains
+    });
+
+    it('should clean up channel queue if all jobs are stale', () => {
+      const channelId = 'channel-1';
+      const time = new Date('2024-01-01T10:00:00Z');
+
+      service.registerJob(channelId, 'job-1', time);
+
+      // Advance time past threshold
+      vi.advanceTimersByTime(16 * 60 * 1000);
+
+      service.cleanupStaleJobs();
+
+      // Channel queue should be cleaned up
+      expect(service.getStats().channelCount).toBe(0);
+    });
+
+    it('should keep channel queue if buffered results remain after cleanup', async () => {
+      const channelId = 'channel-1';
+      const time1 = new Date('2024-01-01T10:00:00Z');
+      const time2 = new Date('2024-01-01T10:01:00Z');
+
+      // Register both jobs
+      service.registerJob(channelId, 'job-1', time1);
+      service.registerJob(channelId, 'job-2', time2);
+
+      // Job-2 completes (buffered waiting for job-1)
+      await service.handleResult(channelId, 'job-2', createResult('Second'), time2, deliverFn);
+      expect(deliveredResults).toHaveLength(0);
+
+      // Advance time past threshold
+      vi.advanceTimersByTime(16 * 60 * 1000);
+
+      // Clean up stale job-1
+      service.cleanupStaleJobs();
+
+      // Channel queue should still exist (has buffered result)
+      expect(service.getStats().channelCount).toBe(1);
+      expect(service.getStats().totalBuffered).toBe(1);
+    });
+
+    it('should return empty result when no stale jobs exist', () => {
+      const result = service.cleanupStaleJobs();
+
+      expect(result.cleanedCount).toBe(0);
+      expect(result.channelsCleaned).toHaveLength(0);
     });
   });
 
