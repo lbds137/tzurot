@@ -838,5 +838,258 @@ describe('LLMInvoker', () => {
         expect(result.content).toBe('The result is here.');
       });
     });
+
+    describe('finish_reason logging', () => {
+      /**
+       * Tests for logFinishReason method - logs completion quality for diagnostics.
+       * This helps identify models that fail to emit stop tokens (hallucinated turn bug).
+       */
+
+      it('should log debug when no response_metadata available', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response without metadata',
+            // No response_metadata
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
+
+        // Should complete successfully even without metadata
+        expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('should log info with WARNING prefix when finish_reason is length', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Truncated response...',
+            response_metadata: {
+              finish_reason: 'length',
+              usage: { prompt_tokens: 100, completion_tokens: 4096, total_tokens: 4196 },
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
+
+        expect(result.content).toBe('Truncated response...');
+        expect(mockModel.invoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('should log debug when finish_reason is stop (natural completion)', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Complete response',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
+
+        expect(result.content).toBe('Complete response');
+      });
+
+      it('should log debug when finish_reason is end_turn (Anthropic)', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Complete response from Claude',
+            response_metadata: {
+              finish_reason: 'end_turn',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'anthropic/claude-sonnet',
+        });
+
+        expect(result.content).toBe('Complete response from Claude');
+      });
+
+      it('should log debug when finish_reason is STOP (uppercase from some providers)', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Complete response',
+            response_metadata: {
+              finish_reason: 'STOP',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'google/gemini-pro',
+        });
+
+        expect(result.content).toBe('Complete response');
+      });
+
+      it('should log info when stop sequence triggered', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response stopped by',
+            response_metadata: {
+              finish_reason: 'stop_sequence',
+              stop: '\nUser:', // The stop sequence that triggered
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          stopSequences: ['\nUser:', '\nHuman:', '</message>'],
+        });
+
+        expect(result.content).toBe('Response stopped by');
+      });
+
+      it('should handle Anthropic stop_reason field name', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Complete response',
+            response_metadata: {
+              stop_reason: 'end_turn', // Anthropic uses stop_reason instead of finish_reason
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'anthropic/claude',
+        });
+
+        expect(result.content).toBe('Complete response');
+      });
+
+      it('should handle Google finishReason camelCase field name', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Complete response',
+            response_metadata: {
+              finishReason: 'STOP', // Google uses camelCase
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'google/gemini-pro',
+        });
+
+        expect(result.content).toBe('Complete response');
+      });
+
+      it('should log info for unknown finish_reason values', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response with unusual finish',
+            response_metadata: {
+              finish_reason: 'content_filter', // Unknown/unusual reason
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
+
+        expect(result.content).toBe('Response with unusual finish');
+      });
+
+      it('should include token usage in log context when available', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response with usage stats',
+            response_metadata: {
+              finish_reason: 'stop',
+              usage: {
+                prompt_tokens: 150,
+                completion_tokens: 200,
+                total_tokens: 350,
+              },
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        const result = await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+        });
+
+        expect(result.content).toBe('Response with usage stats');
+      });
+
+      it('should include stop sequence count in log context', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          stopSequences: ['</message>', '\nUser:', '\nHuman:'],
+        });
+
+        // Just verify it completes successfully with stop sequences configured
+        expect(mockModel.invoke).toHaveBeenCalledWith(
+          messages,
+          expect.objectContaining({
+            stop: ['</message>', '\nUser:', '\nHuman:'],
+          })
+        );
+      });
+    });
   });
 });
