@@ -182,7 +182,11 @@ export class ConversationalRAGService {
     context: ConversationContext
   ): Promise<PersonaLoadResult> {
     // Fetch ALL participant personas from conversation history
-    const participantPersonas = await this.memoryRetriever.getAllParticipantPersonas(context);
+    // Pass personalityId for resolving per-personality persona overrides
+    const participantPersonas = await this.memoryRetriever.getAllParticipantPersonas(
+      context,
+      personality.id
+    );
     if (participantPersonas.size > 0) {
       logger.info(
         `[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`

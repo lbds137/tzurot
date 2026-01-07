@@ -15,6 +15,7 @@
  */
 
 import { createLogger } from '../../utils/logger.js';
+import { isValidUUID, UUID_REGEX } from '../../constants/service.js';
 import type { PrismaClient } from '../prisma.js';
 import { BaseConfigResolver, type ResolutionResult } from './BaseConfigResolver.js';
 
@@ -249,8 +250,18 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
 
   /**
    * Get persona content formatted for prompt injection
+   *
+   * Accepts either a UUID personaId or a 'discord:XXXX' format ID.
+   * For discord: format, returns null (caller should resolve to UUID first).
    */
   async getPersonaContentForPrompt(personaId: string): Promise<string | null> {
+    // Extended context participants use 'discord:XXXX' format, not UUIDs
+    // These need to be resolved by the caller using resolveDiscordIdToPersona first
+    if (!isValidUUID(personaId)) {
+      // Not a UUID - can't look up directly. Caller should resolve first.
+      return null;
+    }
+
     try {
       const persona = await this.prisma.persona.findUnique({
         where: { id: personaId },
@@ -285,5 +296,47 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       logger.error({ err: error, personaId }, 'Failed to get persona content');
       return null;
     }
+  }
+
+  /**
+   * Resolve a personaId that may be in 'discord:XXXX' format to an actual persona UUID.
+   *
+   * Extended context participants use 'discord:{discordUserId}' format instead of UUIDs.
+   * This method resolves them to actual persona UUIDs if the user is registered.
+   *
+   * @param personaId - Either a UUID or 'discord:XXXX' format ID
+   * @param personalityId - The personality context (needed for per-personality overrides)
+   * @returns The resolved UUID personaId, or null if user has no persona
+   */
+  async resolveToUuid(personaId: string, personalityId: string): Promise<string | null> {
+    // Already a valid UUID - return as-is
+    // Note: Use regex directly to avoid type guard narrowing personaId to 'never' in else branch
+    if (UUID_REGEX.test(personaId)) {
+      return personaId;
+    }
+
+    // Check for discord: prefix format
+    if (personaId.startsWith('discord:')) {
+      const discordUserId = personaId.slice(8); // Remove 'discord:' prefix
+
+      // Resolve using the standard resolution flow
+      const result = await this.resolve(discordUserId, personalityId);
+
+      // If we got a system default (no persona), return null
+      if (result.source === 'system-default' || result.config.personaId === '') {
+        return null;
+      }
+
+      logger.debug(
+        { originalId: personaId, resolvedId: result.config.personaId },
+        'Resolved discord: format personaId to UUID'
+      );
+
+      return result.config.personaId;
+    }
+
+    // Unknown format
+    logger.warn({ personaId }, 'Unknown personaId format - not UUID or discord: prefix');
+    return null;
   }
 }

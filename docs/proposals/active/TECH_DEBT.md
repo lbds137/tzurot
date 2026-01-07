@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-06
+> Last updated: 2026-01-07
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -94,9 +94,12 @@ Log these events:
 
 **Target**: No production files >400 lines
 
-| File                       | Current | Target | Approach                     |
-| -------------------------- | ------- | ------ | ---------------------------- |
-| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic |
+| File                       | Current | Target | Approach                                          |
+| -------------------------- | ------- | ------ | ------------------------------------------------- |
+| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic                      |
+| `DiscordChannelFetcher.ts` | ~550    | <400   | Extract message conversion/mapping logic          |
+| `conversationUtils.ts`     | ~530    | <400   | Extract formatting helpers (XML, time gap, etc.)  |
+| `MessageContextBuilder.ts` | ~520    | <400   | Extract attachment processing to separate helpers |
 
 **Why low priority**: Large files slow AI assistants but don't directly cause bugs.
 
