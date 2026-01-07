@@ -299,6 +299,9 @@ describe('PersonaResolver', () => {
   });
 
   describe('getPersonaContentForPrompt', () => {
+    // Valid UUID format required for database lookup
+    const validPersonaUuid = '12345678-1234-1234-1234-123456789abc';
+
     it('should return formatted content with all fields', async () => {
       mockPrismaClient.persona.findUnique.mockResolvedValue({
         preferredName: 'Alice',
@@ -306,7 +309,7 @@ describe('PersonaResolver', () => {
         content: 'A friendly person who loves coding',
       });
 
-      const result = await resolver.getPersonaContentForPrompt('persona-123');
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
 
       expect(result).toBe('Name: Alice\nPronouns: she/her\nA friendly person who loves coding');
     });
@@ -318,7 +321,7 @@ describe('PersonaResolver', () => {
         content: 'Just content',
       });
 
-      const result = await resolver.getPersonaContentForPrompt('persona-123');
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
 
       expect(result).toBe('Just content');
     });
@@ -330,7 +333,7 @@ describe('PersonaResolver', () => {
         content: '',
       });
 
-      const result = await resolver.getPersonaContentForPrompt('persona-123');
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
 
       expect(result).toBe('Name: Bob');
     });
@@ -338,7 +341,7 @@ describe('PersonaResolver', () => {
     it('should return null if persona not found', async () => {
       mockPrismaClient.persona.findUnique.mockResolvedValue(null);
 
-      const result = await resolver.getPersonaContentForPrompt('persona-123');
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
 
       expect(result).toBeNull();
     });
@@ -350,7 +353,7 @@ describe('PersonaResolver', () => {
         content: null,
       });
 
-      const result = await resolver.getPersonaContentForPrompt('persona-123');
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
 
       expect(result).toBeNull();
     });
@@ -358,9 +361,111 @@ describe('PersonaResolver', () => {
     it('should handle database errors gracefully', async () => {
       mockPrismaClient.persona.findUnique.mockRejectedValue(new Error('DB error'));
 
-      const result = await resolver.getPersonaContentForPrompt('persona-123');
+      const result = await resolver.getPersonaContentForPrompt(validPersonaUuid);
 
       expect(result).toBeNull();
+    });
+
+    it('should return null for non-UUID personaIds (discord: format)', async () => {
+      // discord: format IDs should not hit the database
+      const result = await resolver.getPersonaContentForPrompt('discord:123456789');
+
+      expect(result).toBeNull();
+      expect(mockPrismaClient.persona.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveToUuid', () => {
+    it('should return UUID as-is when personaId is already a valid UUID', async () => {
+      const uuid = '12345678-1234-1234-1234-123456789abc';
+
+      const result = await resolver.resolveToUuid(uuid, 'personality-123');
+
+      expect(result).toBe(uuid);
+      // Should not call resolve() for already-valid UUIDs
+      expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should resolve discord: format to actual persona UUID', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'resolved-persona-uuid',
+        defaultPersona: {
+          id: 'resolved-persona-uuid',
+          preferredName: 'Test User',
+          pronouns: null,
+          content: 'User content',
+          shareLtmAcrossPersonalities: false,
+        },
+        ownedPersonas: [],
+      });
+
+      const result = await resolver.resolveToUuid('discord:123456789', 'personality-123');
+
+      expect(result).toBe('resolved-persona-uuid');
+      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { discordId: '123456789' },
+        })
+      );
+    });
+
+    it('should return null for discord: format when user not found', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      const result = await resolver.resolveToUuid('discord:999999999', 'personality-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null for discord: format when user has no persona', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: null,
+        defaultPersona: null,
+        ownedPersonas: [],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveToUuid('discord:123456789', 'personality-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null for unknown format', async () => {
+      const result = await resolver.resolveToUuid('invalid-format', 'personality-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should use per-personality override when available for discord: format', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'default-persona-uuid',
+        defaultPersona: {
+          id: 'default-persona-uuid',
+          preferredName: 'Default',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
+        ownedPersonas: [],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue({
+        persona: {
+          id: 'override-persona-uuid',
+          preferredName: 'Override',
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
+        },
+      });
+
+      const result = await resolver.resolveToUuid('discord:123456789', 'specific-personality');
+
+      expect(result).toBe('override-persona-uuid');
     });
   });
 

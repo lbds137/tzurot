@@ -213,6 +213,45 @@ export class GenerationStep implements IPipelineStep {
         preparedContext.rawConversationHistory
       );
 
+      // DIAGNOSTIC: Log duplicate detection setup to diagnose production issues
+      // (January 2026 incident: duplicate not detected despite history present)
+      const historyLength = preparedContext.rawConversationHistory?.length ?? 0;
+      if (historyLength > 0 && recentAssistantMessages.length === 0) {
+        // This is the anomaly we're trying to diagnose
+        const roleDistribution = (preparedContext.rawConversationHistory ?? []).reduce(
+          (acc, msg) => {
+            const role = String(msg.role);
+            acc[role] = (acc[role] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>
+        );
+        logger.warn(
+          {
+            jobId: job.id,
+            historyLength,
+            recentAssistantMessages: recentAssistantMessages.length,
+            roleDistribution,
+            sampleRoles: preparedContext.rawConversationHistory?.slice(-3).map(m => ({
+              role: m.role,
+              roleType: typeof m.role,
+            })),
+          },
+          '[GenerationStep] ANOMALY: No assistant messages extracted from non-empty history. ' +
+            'Duplicate detection may fail!'
+        );
+      } else {
+        logger.debug(
+          {
+            jobId: job.id,
+            historyLength,
+            recentAssistantMessages: recentAssistantMessages.length,
+            recentMessagesPreview: recentAssistantMessages.slice(0, 2).map(m => m.substring(0, 50)),
+          },
+          '[GenerationStep] Duplicate detection ready'
+        );
+      }
+
       // Generate response with automatic retry on cross-turn duplication
       const { response, duplicateRetries } = await this.generateWithDuplicateRetry({
         personality: effectivePersonality,

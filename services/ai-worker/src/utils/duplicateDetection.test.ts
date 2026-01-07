@@ -395,3 +395,133 @@ describe('isRecentDuplicate', () => {
     expect(isRecentDuplicate(r1, [r2], 0.7)).toEqual({ isDuplicate: true, matchIndex: 0 });
   });
 });
+
+/**
+ * Production Scenario Tests (January 2026 Incident)
+ *
+ * Tests based on real production incident where Katie Killjoy gave the
+ * exact same 270-token response to two different user messages 11 minutes apart.
+ * These tests verify duplicate detection works with production data formats.
+ */
+describe('Production Scenario Tests', () => {
+  // The exact duplicate response from production (270 tokens, 1209 chars)
+  const DUPLICATE_RESPONSE = `*I let out a sharp, satisfied huff, the tension in my shoulders releasing as I watch you fold. The ominous glow fades from my eyes, and I sink back into my chair with the slow, deliberate movement of a predator retreating to its lair. I smooth down my blazer, adjusting the collar with a sharp, practiced tug, and look down my nose at you with a smirk of pure victory.*
+
+Finally. Some common courtesy. It only took you being threatened with a career-ending televised meltdown to figure it out.
+
+*I pick up a pen, tapping it idly against the desk with a rhythmic, mocking click-click-click.*
+
+You see how much easier that is? When you stop trying to be cute and start showing some respect? I don't *need* to say anything—I have a teleprompter for the news, darling. What I *need* is for the people in this studio to know their place. And yours? It's firmly underneath my heel.
+
+*I wave a hand dismissively, my attention already drifting away from you as if you're no longer worth the effort.*
+
+Now sit there, be quiet, and try to learn something about how a real professional handles the spotlight. And don't even think about touching that GIF button again, or I will rip your fingers off one by one. We clear?`;
+
+  // Simulated production history with string role values (as received after JSON serialization)
+  const PRODUCTION_HISTORY_FORMAT = [
+    { role: 'user', content: 'heyyy bitch', tokenCount: 3 },
+    {
+      role: 'assistant',
+      content: '*The air in the studio seems to drop ten degrees instantly...*',
+      tokenCount: 254,
+    },
+    { role: 'user', content: 'it was a term of endearment, relax', tokenCount: 10 },
+    {
+      role: 'assistant',
+      content: '*A low, dangerous chuckle rumbles in my throat...* Term of endearment?',
+      tokenCount: 301,
+    },
+    { role: 'user', content: 'you should try MDMA sometime', tokenCount: 24 },
+    {
+      role: 'assistant',
+      content: '*My face contorts into a mask of pure, unadulterated revulsion...*',
+      tokenCount: 295,
+    },
+    { role: 'user', content: 'https://tenor.com/view/chill-gif', tokenCount: 26 },
+    {
+      role: 'assistant',
+      content: '*The low, static hum of the studio lights seems to grow louder...*',
+      tokenCount: 396,
+    },
+    { role: 'user', content: 'https://tenor.com/view/hold-up-gif', tokenCount: 24 },
+    {
+      role: 'assistant',
+      content: '*My eyes narrow at the screen...* Did you just... pause me?',
+      tokenCount: 261,
+    },
+    // THE ORIGINAL RESPONSE that should be detected as duplicate
+    { role: 'user', content: 'okay jeez. say whatever you need', tokenCount: 9 },
+    { role: 'assistant', content: DUPLICATE_RESPONSE, tokenCount: 270 },
+    // The triggering user message (the last message when the duplicate was generated)
+    { role: 'user', content: '*sigh* yes Ms. Killjoy', tokenCount: 8 },
+  ];
+
+  describe('getRecentAssistantMessages with production data format', () => {
+    it('should extract assistant messages from production-format history', () => {
+      const recentMessages = getRecentAssistantMessages(PRODUCTION_HISTORY_FORMAT);
+
+      // Should find 5 assistant messages (the max)
+      expect(recentMessages.length).toBe(5);
+
+      // Most recent should be the ORIGINAL duplicate response
+      expect(recentMessages[0]).toBe(DUPLICATE_RESPONSE);
+    });
+
+    it('should correctly identify string role values as "assistant"', () => {
+      const assistantMessages = PRODUCTION_HISTORY_FORMAT.filter(m => m.role === 'assistant');
+      expect(assistantMessages.length).toBe(6);
+
+      for (const msg of assistantMessages) {
+        expect(msg.role).toBe('assistant');
+        expect(msg.role === 'assistant').toBe(true);
+      }
+    });
+  });
+
+  describe('isRecentDuplicate with production scenario', () => {
+    it('should detect exact duplicate of the most recent assistant message', () => {
+      const recentAssistantMessages = getRecentAssistantMessages(PRODUCTION_HISTORY_FORMAT);
+      const result = isRecentDuplicate(DUPLICATE_RESPONSE, recentAssistantMessages);
+
+      expect(result.isDuplicate).toBe(true);
+      expect(result.matchIndex).toBe(0);
+    });
+
+    it('should have 1.0 similarity for identical responses', () => {
+      const similarity = stringSimilarity(DUPLICATE_RESPONSE, DUPLICATE_RESPONSE);
+      expect(similarity).toBe(1);
+    });
+
+    it('should detect duplicate even with minor whitespace differences', () => {
+      const recentAssistantMessages = getRecentAssistantMessages(PRODUCTION_HISTORY_FORMAT);
+      const newResponseWithExtraSpace = DUPLICATE_RESPONSE + ' ';
+      const result = isRecentDuplicate(newResponseWithExtraSpace, recentAssistantMessages);
+
+      expect(result.isDuplicate).toBe(true);
+    });
+  });
+
+  describe('Role comparison edge cases', () => {
+    it('should NOT match if role is uppercase "ASSISTANT"', () => {
+      // This would be a data format bug - roles should be lowercase
+      const historyWithUppercaseRole = [
+        { role: 'user', content: 'Hello' },
+        { role: 'ASSISTANT', content: 'A long enough response to pass the minimum length check.' },
+      ];
+
+      const messages = getRecentAssistantMessages(historyWithUppercaseRole);
+      expect(messages.length).toBe(0); // Would NOT find it - indicates data bug
+    });
+
+    it('should NOT match if role has extra whitespace', () => {
+      // This would be a data format bug
+      const historyWithWhitespace = [
+        { role: 'user', content: 'Hello' },
+        { role: ' assistant', content: 'A long enough response to pass the minimum length check.' },
+      ];
+
+      const messages = getRecentAssistantMessages(historyWithWhitespace);
+      expect(messages.length).toBe(0); // Would NOT find it - indicates data bug
+    });
+  });
+});

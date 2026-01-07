@@ -16,6 +16,7 @@ import type { PersonaResolver } from './resolvers/index.js';
 const mockPersonaResolver = {
   resolveForMemory: vi.fn(),
   getPersonaContentForPrompt: vi.fn(),
+  resolveToUuid: vi.fn(),
 };
 
 // Mock getPrismaClient (still needed for PersonaResolver's default construction)
@@ -132,13 +133,26 @@ describe('MemoryRetriever', () => {
   });
 
   describe('getAllParticipantPersonas', () => {
+    const testPersonalityId = 'personality-123';
+
+    beforeEach(() => {
+      // Default: resolveToUuid returns the input for UUIDs, null for unknown formats
+      mockPersonaResolver.resolveToUuid.mockImplementation((personaId: string) => {
+        // UUID pattern
+        if (/^[0-9a-f-]{36}$/i.test(personaId) || personaId.startsWith('persona-')) {
+          return Promise.resolve(personaId);
+        }
+        return Promise.resolve(null);
+      });
+    });
+
     it('should return empty map if no participants provided', async () => {
       const context: ConversationContext = {
         userId: 'user-123',
         participants: [],
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(0);
     });
@@ -148,12 +162,15 @@ describe('MemoryRetriever', () => {
         userId: 'user-123',
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(0);
     });
 
-    it('should fetch content for each participant', async () => {
+    it('should fetch content for each participant with UUID personaIds', async () => {
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('persona-1')
+        .mockResolvedValueOnce('persona-2');
       mockPersonaResolver.getPersonaContentForPrompt
         .mockResolvedValueOnce('Persona 1 content')
         .mockResolvedValueOnce('Persona 2 content');
@@ -166,7 +183,7 @@ describe('MemoryRetriever', () => {
         ],
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
       expect(result.get('User One')).toEqual({
@@ -181,7 +198,69 @@ describe('MemoryRetriever', () => {
       });
     });
 
+    it('should resolve discord: format personaIds to UUIDs', async () => {
+      // Simulate resolving discord:123456789 to actual persona UUID
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('resolved-uuid-1')
+        .mockResolvedValueOnce('resolved-uuid-2');
+      mockPersonaResolver.getPersonaContentForPrompt
+        .mockResolvedValueOnce('Grace content')
+        .mockResolvedValueOnce('Other user content');
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'discord:123456789', personaName: 'Grace', isActive: true },
+          { personaId: 'discord:987654321', personaName: 'Other User', isActive: false },
+        ],
+        participantGuildInfo: {
+          'discord:987654321': { roles: ['Member'] },
+        },
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      expect(mockPersonaResolver.resolveToUuid).toHaveBeenCalledWith(
+        'discord:123456789',
+        testPersonalityId
+      );
+      expect(mockPersonaResolver.resolveToUuid).toHaveBeenCalledWith(
+        'discord:987654321',
+        testPersonalityId
+      );
+      expect(result.size).toBe(2);
+      // PersonaId should be the resolved UUID, not the discord: format
+      expect(result.get('Grace')?.personaId).toBe('resolved-uuid-1');
+      expect(result.get('Other User')?.personaId).toBe('resolved-uuid-2');
+      // participantGuildInfo is keyed by original personaId
+      expect(result.get('Other User')?.guildInfo).toEqual({ roles: ['Member'] });
+    });
+
+    it('should skip participants with unresolvable discord: IDs (not registered)', async () => {
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('resolved-uuid') // First user is registered
+        .mockResolvedValueOnce(null); // Second user is NOT registered
+      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce('Registered user content');
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'discord:111111111', personaName: 'Registered User', isActive: true },
+          { personaId: 'discord:222222222', personaName: 'Unregistered User', isActive: false },
+        ],
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      expect(result.size).toBe(1);
+      expect(result.has('Registered User')).toBe(true);
+      expect(result.has('Unregistered User')).toBe(false);
+    });
+
     it('should skip participants with no content', async () => {
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('persona-1')
+        .mockResolvedValueOnce('persona-2');
       mockPersonaResolver.getPersonaContentForPrompt
         .mockResolvedValueOnce('Has content')
         .mockResolvedValueOnce(null);
@@ -194,7 +273,7 @@ describe('MemoryRetriever', () => {
         ],
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(1);
       expect(result.get('Has Content')).toEqual({
@@ -206,6 +285,7 @@ describe('MemoryRetriever', () => {
     });
 
     it('should apply activePersonaGuildInfo to active participant', async () => {
+      mockPersonaResolver.resolveToUuid.mockResolvedValueOnce('persona-1');
       mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce('Persona content');
 
       const context: ConversationContext = {
@@ -218,7 +298,7 @@ describe('MemoryRetriever', () => {
         },
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(1);
       expect(result.get('User One')).toEqual({
@@ -234,6 +314,9 @@ describe('MemoryRetriever', () => {
     });
 
     it('should apply participantGuildInfo to non-active participants', async () => {
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('resolved-uuid-1')
+        .mockResolvedValueOnce('resolved-uuid-2');
       mockPersonaResolver.getPersonaContentForPrompt
         .mockResolvedValueOnce('Active user content')
         .mockResolvedValueOnce('Inactive user content');
@@ -256,7 +339,7 @@ describe('MemoryRetriever', () => {
         },
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
       // Active user gets activePersonaGuildInfo
@@ -264,7 +347,7 @@ describe('MemoryRetriever', () => {
         roles: ['Admin'],
         displayColor: '#FF0000',
       });
-      // Inactive user gets info from participantGuildInfo
+      // Inactive user gets info from participantGuildInfo (keyed by original personaId)
       expect(result.get('Inactive User')?.guildInfo).toEqual({
         roles: ['Member'],
         displayColor: '#00FF00',
@@ -272,6 +355,9 @@ describe('MemoryRetriever', () => {
     });
 
     it('should return undefined guildInfo for inactive participants not in participantGuildInfo', async () => {
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('resolved-uuid-1')
+        .mockResolvedValueOnce('db-persona-uuid');
       mockPersonaResolver.getPersonaContentForPrompt
         .mockResolvedValueOnce('Active user content')
         .mockResolvedValueOnce('Inactive user content');
@@ -291,7 +377,7 @@ describe('MemoryRetriever', () => {
         },
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
       expect(result.get('Active User')?.guildInfo).toBeDefined();
@@ -300,6 +386,9 @@ describe('MemoryRetriever', () => {
     });
 
     it('should handle missing participantGuildInfo gracefully', async () => {
+      mockPersonaResolver.resolveToUuid
+        .mockResolvedValueOnce('resolved-uuid-1')
+        .mockResolvedValueOnce('resolved-uuid-2');
       mockPersonaResolver.getPersonaContentForPrompt
         .mockResolvedValueOnce('Active user content')
         .mockResolvedValueOnce('Inactive user content');
@@ -314,7 +403,7 @@ describe('MemoryRetriever', () => {
         // No participantGuildInfo provided
       };
 
-      const result = await retriever.getAllParticipantPersonas(context);
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
 
       expect(result.size).toBe(2);
       expect(result.get('Active User')?.guildInfo).toEqual({ roles: ['Admin'] });

@@ -4,7 +4,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  JobType,
+  MessageRole,
+  type LLMGenerationJobData,
+  type LoadedPersonality,
+} from '@tzurot/common-types';
 import { GenerationStep } from './GenerationStep.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
 import type {
@@ -710,6 +715,132 @@ describe('GenerationStep', () => {
         expect(result.result?.content).toBe(uniqueResponse.content);
         expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
         // Should call generateResponse twice (original + retry)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+
+      it('should detect duplicates using MessageRole enum values (production format)', async () => {
+        // Production uses MessageRole enum values, not string literals
+        // This test ensures the enum comparison works correctly
+        const previousBotContent =
+          '*Katie adjusts her microphone* Listen here, darling, I do not repeat myself... usually.';
+
+        const duplicateResponse: RAGResponse = {
+          content:
+            '*Katie adjusts her microphone* Listen here, darling, I do not repeat myself... usually.',
+          retrievedMemories: 3,
+          tokensIn: 150,
+          tokensOut: 60,
+        };
+
+        const uniqueResponse: RAGResponse = {
+          content:
+            '*Katie smirks* Oh how the tables have turned! Let me tell you something different now.',
+          retrievedMemories: 3,
+          tokensIn: 150,
+          tokensOut: 55,
+          modelUsed: 'test-model',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateResponse)
+          .mockResolvedValueOnce(uniqueResponse);
+
+        // Use MessageRole enum explicitly (simulates production data from BullMQ)
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: MessageRole.User, content: 'Hello Katie!' },
+            { role: MessageRole.Assistant, content: previousBotContent },
+            { role: MessageRole.User, content: '*sigh* yes Ms. Killjoy' },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // Should detect duplicate and retry
+        expect(result.result?.content).toBe(uniqueResponse.content);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+
+      it('should detect duplicates in 18-message history (production scenario)', async () => {
+        // Simulates the exact production scenario: 18 messages, alternating user/assistant
+        // A duplicate of the most recent assistant message should be detected
+        const longBotResponse =
+          '*The demon queen tilts her head contemplatively* Ah yes, I see what you mean. ' +
+          'The darkness has a way of revealing truths that the light would hide. ' +
+          'Let me share some ancient wisdom with you on this matter.';
+
+        const duplicateResponse: RAGResponse = {
+          content: longBotResponse, // Exact duplicate
+          retrievedMemories: 5,
+          tokensIn: 200,
+          tokensOut: 80,
+        };
+
+        const uniqueResponse: RAGResponse = {
+          content:
+            '*A sinister chuckle escapes* Now that is a completely different perspective entirely!',
+          retrievedMemories: 5,
+          tokensIn: 200,
+          tokensOut: 75,
+          modelUsed: 'test-model',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateResponse)
+          .mockResolvedValueOnce(uniqueResponse);
+
+        // Build 18-message history alternating user/assistant (9 pairs)
+        // Use MessageRole enum like production
+        const history: { role: MessageRole; content: string }[] = [];
+        for (let i = 0; i < 9; i++) {
+          history.push({
+            role: MessageRole.User,
+            content: `User message ${i + 1}: Some question or comment here.`,
+          });
+          if (i < 8) {
+            history.push({
+              role: MessageRole.Assistant,
+              content: `Assistant response ${i + 1}: A unique response to the user.`,
+            });
+          } else {
+            // The 9th (most recent) assistant message is the one we'll duplicate
+            history.push({
+              role: MessageRole.Assistant,
+              content: longBotResponse,
+            });
+          }
+        }
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: history,
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // Should detect duplicate of most recent assistant message and retry
+        expect(result.result?.content).toBe(uniqueResponse.content);
+        expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
     });

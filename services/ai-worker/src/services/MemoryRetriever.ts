@@ -170,9 +170,17 @@ export class MemoryRetriever {
    * - guildInfo: Optional guild-specific info (roles, color, join date)
    *   - Active speaker: from activePersonaGuildInfo
    *   - Other participants: from participantGuildInfo (when extended context is enabled)
+   *
+   * Handles both UUID personaIds (from DB history) and 'discord:XXXX' format
+   * (from extended context). Discord format IDs are resolved to actual persona
+   * UUIDs if the user is registered.
+   *
+   * @param context - Conversation context with participants
+   * @param personalityId - Personality ID for resolving per-personality persona overrides
    */
   async getAllParticipantPersonas(
-    context: ConversationContext
+    context: ConversationContext,
+    personalityId: string
   ): Promise<Map<string, ParticipantInfo>> {
     const personaMap = new Map<string, ParticipantInfo>();
 
@@ -187,11 +195,28 @@ export class MemoryRetriever {
 
     // Fetch content for each participant
     for (const participant of context.participants) {
-      const content = await this.getPersonaContent(participant.personaId);
+      // Resolve personaId - handles both UUID and 'discord:XXXX' formats
+      // Extended context uses 'discord:XXXX', DB history uses UUIDs
+      const resolvedPersonaId = await this.personaResolver.resolveToUuid(
+        participant.personaId,
+        personalityId
+      );
+
+      // If we couldn't resolve to a UUID, user is not registered (transient participant)
+      if (resolvedPersonaId === null) {
+        logger.debug(
+          { personaId: participant.personaId, personaName: participant.personaName },
+          `[MemoryRetriever] Could not resolve personaId - user may not be registered`
+        );
+        continue;
+      }
+
+      const content = await this.getPersonaContent(resolvedPersonaId);
       if (content !== null && content.length > 0) {
         // Include guild info:
         // - For active speaker: use activePersonaGuildInfo (from triggering message)
         // - For other participants: look up in participantGuildInfo (from extended context)
+        // Note: participantGuildInfo is keyed by original personaId (may be discord: format)
         let guildInfo;
         if (participant.isActive) {
           guildInfo = context.activePersonaGuildInfo;
@@ -202,17 +227,17 @@ export class MemoryRetriever {
         personaMap.set(participant.personaName, {
           content,
           isActive: participant.isActive,
-          personaId: participant.personaId,
+          personaId: resolvedPersonaId, // Use resolved UUID for ID binding
           guildInfo,
         });
 
         logger.debug(
-          `[MemoryRetriever] Loaded persona ${participant.personaName} (${participant.personaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+          `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
         );
       } else {
         logger.warn(
           {},
-          `[MemoryRetriever] No content found for participant ${participant.personaName} (${participant.personaId})`
+          `[MemoryRetriever] No content found for participant ${participant.personaName} (${resolvedPersonaId})`
         );
       }
     }

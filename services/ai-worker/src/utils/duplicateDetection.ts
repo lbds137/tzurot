@@ -313,10 +313,29 @@ export function isRecentDuplicate(
   // (New responses shouldn't have footers, but strip just in case)
   const cleanNewResponse = stripBotFooters(newResponse);
 
+  // Debug logging to diagnose duplicate detection issues
+  logger.debug(
+    {
+      recentMessagesCount: recentMessages.length,
+      newResponseLength: cleanNewResponse.length,
+      threshold,
+      recentMessageLengths: recentMessages.map(m => stripBotFooters(m).length),
+    },
+    '[DuplicateDetection] Checking for cross-turn duplicates'
+  );
+
   // Short responses may legitimately repeat
   if (cleanNewResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
+    logger.debug(
+      { newResponseLength: cleanNewResponse.length, minLength: MIN_LENGTH_FOR_SIMILARITY_CHECK },
+      '[DuplicateDetection] Skipping - response too short'
+    );
     return { isDuplicate: false, matchIndex: -1 };
   }
+
+  // Track highest similarity for diagnostics
+  let highestSimilarity = 0;
+  let highestSimilarityIndex = -1;
 
   for (let i = 0; i < recentMessages.length; i++) {
     // Strip footers from historical messages before comparison
@@ -333,6 +352,12 @@ export function isRecentDuplicate(
 
     const similarity = stringSimilarity(cleanNewResponse, cleanPreviousResponse);
 
+    // Track highest similarity for diagnostics
+    if (similarity > highestSimilarity) {
+      highestSimilarity = similarity;
+      highestSimilarityIndex = i;
+    }
+
     if (similarity >= threshold) {
       logger.warn(
         {
@@ -348,6 +373,22 @@ export function isRecentDuplicate(
       );
       return { isDuplicate: true, matchIndex: i };
     }
+  }
+
+  // DIAGNOSTIC: Log when we have messages to compare but no duplicate detected
+  // If highestSimilarity is suspiciously high (e.g., > 0.5) but below threshold,
+  // that might indicate a threshold tuning issue
+  if (recentMessages.length > 0) {
+    logger.debug(
+      {
+        recentMessagesCount: recentMessages.length,
+        newResponseLength: cleanNewResponse.length,
+        highestSimilarity: highestSimilarity.toFixed(3),
+        highestSimilarityIndex,
+        threshold,
+      },
+      '[DuplicateDetection] No duplicate detected after comparing against recent messages'
+    );
   }
 
   return { isDuplicate: false, matchIndex: -1 };
@@ -396,6 +437,7 @@ export function getRecentAssistantMessages(
   maxMessages = MAX_RECENT_ASSISTANT_MESSAGES
 ): string[] {
   if (!history || history.length === 0) {
+    logger.debug('[DuplicateDetection] No history provided for assistant message extraction');
     return [];
   }
 
@@ -406,6 +448,48 @@ export function getRecentAssistantMessages(
     if (history[i].role === 'assistant') {
       messages.push(history[i].content);
     }
+  }
+
+  // Compute role distribution for diagnostics
+  const roleDistribution = history.reduce(
+    (acc, msg) => {
+      acc[msg.role] = (acc[msg.role] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  // DIAGNOSTIC: Log at INFO level when we have history but find no assistant messages
+  // This is the anomaly we're trying to diagnose - duplicate detection failing
+  // because no assistant messages are being found despite history being present
+  if (messages.length === 0 && history.length > 0) {
+    // Sample a few role values to see what they actually are
+    const sampleRoles = history.slice(-5).map(msg => ({
+      role: msg.role,
+      roleType: typeof msg.role,
+      contentLength: msg.content.length,
+    }));
+
+    logger.info(
+      {
+        historyLength: history.length,
+        roleDistribution,
+        sampleRoles,
+        expectedRole: 'assistant',
+      },
+      '[DuplicateDetection] ANOMALY: No assistant messages found in non-empty history. ' +
+        'This may cause duplicate responses to go undetected.'
+    );
+  } else {
+    logger.debug(
+      {
+        historyLength: history.length,
+        assistantMessagesFound: messages.length,
+        roleDistribution,
+        maxMessages,
+      },
+      '[DuplicateDetection] Extracted recent assistant messages from history'
+    );
   }
 
   return messages;
