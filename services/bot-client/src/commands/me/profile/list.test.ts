@@ -1,11 +1,13 @@
 /**
  * Tests for Profile List Handler
  * Tests gateway API calls and response rendering.
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListPersonas } from './list.js';
-import { MessageFlags } from 'discord.js';
 import { mockListPersonasResponse } from '@tzurot/common-types';
 
 // Mock gateway client
@@ -28,7 +30,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 describe('handleListPersonas', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,7 +39,7 @@ describe('handleListPersonas', () => {
   function createMockInteraction() {
     return {
       user: { id: '123456789', username: 'testuser' },
-      reply: mockReply,
+      editReply: mockEditReply,
     } as any;
   }
 
@@ -49,9 +51,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have any profiles yet"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -63,9 +64,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to load'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -92,7 +92,7 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.arrayContaining([
         expect.objectContaining({
           data: expect.objectContaining({
@@ -100,7 +100,6 @@ describe('handleListPersonas', () => {
           }),
         }),
       ]),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -120,8 +119,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     // The field name should contain star for default
     expect(embed.fields[0].name).toContain('⭐');
@@ -158,8 +157,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     expect(embed.description).toContain('3');
     expect(embed.description).toContain('profiles');
@@ -170,9 +169,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to load'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -193,8 +191,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     expect(embed.fields[0].value).toContain('...');
   });
@@ -215,8 +213,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     // Field name should have escaped markdown
     expect(embed.fields[0].name).toContain('\\*\\*Bold\\*\\*');
@@ -239,8 +237,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     const fieldValue = embed.fields[0].value;
 
@@ -265,8 +263,8 @@ describe('handleListPersonas', () => {
 
     await handleListPersonas(createMockInteraction());
 
-    expect(mockReply).toHaveBeenCalled();
-    const call = mockReply.mock.calls[0][0];
+    expect(mockEditReply).toHaveBeenCalled();
+    const call = mockEditReply.mock.calls[0][0];
     const embed = call.embeds[0].data;
     const fieldValue = embed.fields[0].value;
 

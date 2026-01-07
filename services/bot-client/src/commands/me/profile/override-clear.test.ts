@@ -4,11 +4,13 @@
  *
  * Uses validated mock factories from @tzurot/common-types to ensure
  * test mocks match actual gateway API responses.
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleOverrideClear } from './override-clear.js';
-import { MessageFlags } from 'discord.js';
 import { mockClearOverrideResponse } from '@tzurot/common-types';
 
 // Mock gateway client
@@ -31,7 +33,7 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 describe('handleOverrideClear', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -46,7 +48,7 @@ describe('handleOverrideClear', () => {
           return null;
         },
       },
-      reply: mockReply,
+      editReply: mockEditReply,
     } as any;
   }
 
@@ -66,9 +68,8 @@ describe('handleOverrideClear', () => {
       userId: '123456789',
       method: 'DELETE',
     });
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile override cleared'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -84,9 +85,8 @@ describe('handleOverrideClear', () => {
 
     await handleOverrideClear(createMockInteraction('lilith'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a profile override"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -98,9 +98,8 @@ describe('handleOverrideClear', () => {
 
     await handleOverrideClear(createMockInteraction('nonexistent'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Personality "nonexistent" not found'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -112,9 +111,8 @@ describe('handleOverrideClear', () => {
 
     await handleOverrideClear(createMockInteraction('lilith'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have an account yet"),
-      flags: MessageFlags.Ephemeral,
     });
   });
 
@@ -123,9 +121,8 @@ describe('handleOverrideClear', () => {
 
     await handleOverrideClear(createMockInteraction('lilith'));
 
-    expect(mockReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to clear profile override'),
-      flags: MessageFlags.Ephemeral,
     });
   });
 });

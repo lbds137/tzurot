@@ -46,6 +46,7 @@ import { ActivatedChannelProcessor } from './processors/ActivatedChannelProcesso
 import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
+import { wrapDeferredInteraction } from './utils/safeInteraction.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -261,10 +262,14 @@ client.on(Events.InteractionCreate, interaction => {
             logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
             return;
           }
+          // Wrap the interaction to auto-convert reply() to editReply()
+          // This prevents InteractionAlreadyReplied errors in commands
+          const safeInteraction = wrapDeferredInteraction(interaction);
+          await commandHandler.handleInteraction(safeInteraction);
+        } else {
+          // Modal commands are not deferred, pass original interaction
+          await commandHandler.handleInteraction(interaction);
         }
-
-        // Now route to command handler
-        await commandHandler.handleInteraction(interaction);
       } else if (interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
       } else if (interaction.isAutocomplete()) {

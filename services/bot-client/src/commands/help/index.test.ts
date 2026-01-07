@@ -1,9 +1,12 @@
 /**
  * Tests for Help Command
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import { execute, data } from './index.js';
 import type { Command } from '../../types.js';
 
@@ -30,7 +33,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('Help Command', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -56,7 +59,7 @@ describe('Help Command', () => {
         options: {
           getString: vi.fn(() => commandOption),
         },
-        reply: mockReply,
+        editReply: mockEditReply,
       } as unknown as Parameters<typeof execute>[0];
     }
 
@@ -103,9 +106,8 @@ describe('Help Command', () => {
 
       await execute(interaction, undefined);
 
-      expect(mockReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Unable to load commands'),
-        flags: MessageFlags.Ephemeral,
       });
     });
 
@@ -115,13 +117,12 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      expect(mockReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
-        flags: MessageFlags.Ephemeral,
       });
 
       // Verify embed content
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       expect(json.title).toContain('Available Commands');
@@ -135,13 +136,12 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      expect(mockReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
-        flags: MessageFlags.Ephemeral,
       });
 
       // Verify embed shows command details
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       expect(json.title).toBe('/character');
@@ -154,9 +154,8 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      expect(mockReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Unknown command'),
-        flags: MessageFlags.Ephemeral,
       });
     });
 
@@ -166,7 +165,7 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       // Character command has 2 subcommands
@@ -182,7 +181,7 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       const interactionField = json.fields.find((f: { name: string }) =>
@@ -198,7 +197,7 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       const interactionField = json.fields.find((f: { name: string }) =>
@@ -216,7 +215,7 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       const interactionField = json.fields.find((f: { name: string }) =>
@@ -234,7 +233,7 @@ describe('Help Command', () => {
 
       await execute(interaction, commands);
 
-      const embed = mockReply.mock.calls[0][0].embeds[0];
+      const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
 
       // Get category names (stripping emojis)

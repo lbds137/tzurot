@@ -7,7 +7,6 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
@@ -45,18 +44,16 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
     if (!result.ok) {
       // Handle specific errors
       if (result.error?.includes('Personality not found') || result.error?.includes('not found')) {
-        await interaction.reply({
+        await interaction.editReply({
           content: `❌ Personality "${personalitySlug}" not found.`,
-          flags: MessageFlags.Ephemeral,
         });
         return;
       }
 
       if (result.error?.includes('no account') || result.error?.includes('User')) {
-        await interaction.reply({
+        await interaction.editReply({
           content:
             "❌ You don't have an account yet. Send a message to any personality to create one!",
-          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -65,9 +62,8 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
         { userId: discordId, personalitySlug, error: result.error },
         '[Me] Failed to clear override via gateway'
       );
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Failed to clear profile override. Please try again later.',
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -76,9 +72,8 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
     const personalityName = personality.displayName ?? personality.name;
 
     if (!hadOverride) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `ℹ️ You don't have a profile override set for ${personalityName}.`,
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -88,15 +83,13 @@ export async function handleOverrideClear(interaction: ChatInputCommandInteracti
       '[Me] Cleared profile override'
     );
 
-    await interaction.reply({
+    await interaction.editReply({
       content: `✅ **Profile override cleared for ${personalityName}!**\n\nYour default profile will now be used when talking to ${personalityName}.`,
-      flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to clear override');
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Failed to clear profile override. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
   }
 }

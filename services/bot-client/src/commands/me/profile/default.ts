@@ -7,7 +7,6 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
@@ -44,9 +43,8 @@ export async function handleSetDefaultPersona(
     if (!result.ok) {
       // Handle specific error cases
       if (result.error?.includes('not found') || result.error?.includes('Not found')) {
-        await interaction.reply({
+        await interaction.editReply({
           content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
-          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -55,9 +53,8 @@ export async function handleSetDefaultPersona(
         { userId: discordId, personaId, error: result.error },
         '[Me] Failed to set default profile'
       );
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ Failed to set default profile. Please try again later.',
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -67,9 +64,8 @@ export async function handleSetDefaultPersona(
 
     // Check if already default
     if (alreadyDefault === true) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `ℹ️ **${displayName}** is already your default profile.`,
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -79,15 +75,13 @@ export async function handleSetDefaultPersona(
       '[Me] Set default profile'
     );
 
-    await interaction.reply({
+    await interaction.editReply({
       content: `⭐ **${displayName}** is now your default profile.\n\nThis profile will be used when talking to personalities that don't have a specific override set.`,
-      flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to set default profile');
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ Failed to set default profile. Please try again later.',
-      flags: MessageFlags.Ephemeral,
     });
   }
 }
