@@ -48,19 +48,6 @@ CREATE TABLE "admin_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "bot_settings" (
-    "id" UUID NOT NULL,
-    "key" VARCHAR(100) NOT NULL,
-    "value" TEXT NOT NULL,
-    "description" TEXT,
-    "updated_by" UUID,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "bot_settings_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "user_api_keys" (
     "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
@@ -390,9 +377,6 @@ CREATE INDEX "usage_logs_user_id_provider_idx" ON "usage_logs"("user_id", "provi
 CREATE INDEX "usage_logs_user_id_provider_created_at_idx" ON "usage_logs"("user_id", "provider", "created_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bot_settings_key_key" ON "bot_settings"("key");
-
--- CreateIndex
 CREATE INDEX "user_api_keys_user_id_idx" ON "user_api_keys"("user_id");
 
 -- CreateIndex
@@ -565,9 +549,6 @@ ALTER TABLE "usage_logs" ADD CONSTRAINT "usage_logs_user_id_fkey" FOREIGN KEY ("
 
 -- AddForeignKey
 ALTER TABLE "admin_settings" ADD CONSTRAINT "admin_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "bot_settings" ADD CONSTRAINT "bot_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "user_api_keys" ADD CONSTRAINT "user_api_keys_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
