@@ -3,6 +3,11 @@
   "version": "3.0.0-beta.40",
   "private": true,
   "type": "module",
+  "description": "Integration tests for Tzurot services",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
     "@tzurot/ai-worker": "workspace:*",
@@ -11,7 +16,7 @@
     "@tzurot/common-types": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^24.10.4",
+    "@types/node": "^25.0.3",
     "ioredis": "^5.9.0",
     "vitest": "^4.0.16"
   }
