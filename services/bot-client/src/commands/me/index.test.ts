@@ -100,7 +100,7 @@ describe('Me Command Index', () => {
       expect(profileSubcommands).toContain('default');
     });
 
-    it('should have profile, timezone, and model subcommand groups (settings and override merged into profile)', () => {
+    it('should have profile, timezone, and preset subcommand groups (settings and override merged into profile)', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -110,7 +110,7 @@ describe('Me Command Index', () => {
 
       expect(groupNames).toContain('profile');
       expect(groupNames).toContain('timezone');
-      expect(groupNames).toContain('model');
+      expect(groupNames).toContain('preset');
       // settings and override groups were removed - their commands are now under profile
       expect(groupNames).not.toContain('settings');
       expect(groupNames).not.toContain('override');

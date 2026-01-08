@@ -78,7 +78,7 @@ describe('handleClearDefault', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '✅ Default Config Cleared',
+            title: '✅ Default Preset Cleared',
           }),
         }),
       ],
@@ -108,7 +108,7 @@ describe('handleClearDefault', () => {
 
     expect(mockHandleCommandError).toHaveBeenCalledWith(expect.anything(), error, {
       userId: '123456789',
-      command: 'Model Clear-Default',
+      command: 'Preset Clear-Default',
     });
   });
 });

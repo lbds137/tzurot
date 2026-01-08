@@ -235,7 +235,7 @@ describe('handleAutocomplete', () => {
   describe('config autocomplete', () => {
     it('should respond with filtered configs for users with wallet', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: 'claude',
       });
       mockConfigApis(
@@ -268,7 +268,7 @@ describe('handleAutocomplete', () => {
 
     it('should filter by model name', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: 'gpt',
       });
       mockConfigApis(
@@ -300,7 +300,7 @@ describe('handleAutocomplete', () => {
 
     it('should filter by description', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: 'fast',
       });
       mockConfigApis(
@@ -334,7 +334,7 @@ describe('handleAutocomplete', () => {
 
     it('should respond with empty array on API error', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: 'test',
       });
       vi.mocked(callGatewayApi).mockResolvedValue({
@@ -352,7 +352,7 @@ describe('handleAutocomplete', () => {
   describe('guest mode config autocomplete', () => {
     it('should only show free models for guest users', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: '',
       });
       mockConfigApis(
@@ -389,7 +389,7 @@ describe('handleAutocomplete', () => {
 
     it('should add upsell option at the end for guest users', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: '',
       });
       mockConfigApis(
@@ -419,7 +419,7 @@ describe('handleAutocomplete', () => {
 
     it('should not add upsell option for users with wallet', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: '',
       });
       mockConfigApis(
@@ -446,7 +446,7 @@ describe('handleAutocomplete', () => {
 
     it('should add 🆓 badge to free models', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'config',
+        name: 'preset',
         value: '',
       });
       mockConfigApis(

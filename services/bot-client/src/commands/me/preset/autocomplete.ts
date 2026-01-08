@@ -1,6 +1,6 @@
 /**
- * Me Model Command Autocomplete Handler
- * Provides autocomplete suggestions for personality and config options
+ * Me Preset Command Autocomplete Handler
+ * Provides autocomplete suggestions for personality and preset options
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
@@ -27,10 +27,10 @@ interface WalletListResponse {
   }[];
 }
 
-const logger = createLogger('me-model-autocomplete');
+const logger = createLogger('me-preset-autocomplete');
 
 /**
- * Handle autocomplete for /me model commands
+ * Handle autocomplete for /me preset commands
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
@@ -45,8 +45,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         showVisibility: true,
         valueField: 'id',
       });
-    } else if (focusedOption.name === 'config') {
-      await handleConfigAutocomplete(interaction, focusedOption.value, userId);
+    } else if (focusedOption.name === 'preset') {
+      await handlePresetAutocomplete(interaction, focusedOption.value, userId);
     } else {
       await interaction.respond([]);
     }
@@ -61,17 +61,17 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand: interaction.options.getSubcommand(false),
       },
-      '[Me/Model] Autocomplete error'
+      '[Me/Preset] Autocomplete error'
     );
     await interaction.respond([]);
   }
 }
 
 /**
- * Handle config autocomplete
+ * Handle preset autocomplete
  * For guest users (no API key), only shows free models + an upsell option
  */
-async function handleConfigAutocomplete(
+async function handlePresetAutocomplete(
   interaction: AutocompleteInteraction,
   query: string,
   userId: string
@@ -83,7 +83,7 @@ async function handleConfigAutocomplete(
   ]);
 
   if (!configResult.ok) {
-    logger.warn({ userId, error: configResult.error }, '[Me/Model] Failed to fetch configs');
+    logger.warn({ userId, error: configResult.error }, '[Me/Preset] Failed to fetch configs');
     await interaction.respond([]);
     return;
   }

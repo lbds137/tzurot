@@ -25,7 +25,7 @@ extendedContext Boolean? @map("extended_context")
 extendedContext Boolean? @map("extended_context")
 
 // Global default (always has a value, never null)
-// Stored in BotSettings with key pattern: {feature}_default
+// Stored in AdminSettings with typed columns (e.g., extendedContextDefault)
 ```
 
 ## TypeScript Type
@@ -91,7 +91,7 @@ Effective: **{enabled|disabled}** (from {entity|channel|global})
 ## Adding New Tri-State Settings
 
 1. Add field to Prisma schema with `Boolean?` type
-2. Add global default to BotSettings (if applicable)
+2. Add global default column to AdminSettings (if applicable)
 3. Create resolver following the cascade pattern
 4. Add command actions: `enable`, `disable`, `auto`, `status`
 5. Use shared helpers from `triStateHelpers.ts` for message formatting

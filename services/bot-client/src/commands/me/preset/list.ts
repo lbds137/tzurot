@@ -1,6 +1,6 @@
 /**
- * Me Model List Handler
- * Handles /me model list subcommand
+ * Me Preset List Handler
+ * Handles /me preset list subcommand
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
@@ -9,14 +9,14 @@ import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('me-model-list');
+const logger = createLogger('me-preset-list');
 
 interface ListResponse {
   overrides: ModelOverrideSummary[];
 }
 
 /**
- * Handle /me model list
+ * Handle /me preset list
  */
 export async function handleListOverrides(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -25,7 +25,7 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
     const result = await callGatewayApi<ListResponse>('/user/model-override', { userId });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Me/Model] Failed to list overrides');
+      logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to list overrides');
       await replyWithError(interaction, 'Failed to get overrides. Please try again later.');
       return;
     }
@@ -33,13 +33,13 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
     const data = result.data;
 
     const embed = new EmbedBuilder()
-      .setTitle('🎭 Your Model Overrides')
+      .setTitle('🎭 Your Preset Overrides')
       .setColor(DISCORD_COLORS.BLURPLE)
       .setTimestamp();
 
     if (data.overrides.length === 0) {
       embed.setDescription(
-        "You haven't set any model overrides.\n\nUse `/me model set` to override which model a personality uses."
+        "You haven't set any preset overrides.\n\nUse `/me preset set` to override which preset a personality uses."
       );
     } else {
       const lines = data.overrides.map(
@@ -49,14 +49,14 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
 
       embed.setDescription(lines.join('\n'));
       embed.setFooter({
-        text: `${data.overrides.length} override(s) • Use /me model reset to remove`,
+        text: `${data.overrides.length} override(s) • Use /me preset reset to remove`,
       });
     }
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId, count: data.overrides.length }, '[Me/Model] Listed overrides');
+    logger.info({ userId, count: data.overrides.length }, '[Me/Preset] Listed overrides');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Model List' });
+    await handleCommandError(interaction, error, { userId, command: 'Preset List' });
   }
 }

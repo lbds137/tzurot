@@ -94,7 +94,7 @@ describe('Model Command Handlers', () => {
         embeds: [
           expect.objectContaining({
             data: expect.objectContaining({
-              title: '🎭 Your Model Overrides',
+              title: '🎭 Your Preset Overrides',
               description: expect.stringContaining('Lilith'),
             }),
           }),
@@ -139,7 +139,7 @@ describe('Model Command Handlers', () => {
         options: {
           getString: (name: string) => {
             if (name === 'personality') return personalityId;
-            if (name === 'config') return configId;
+            if (name === 'preset') return configId;
             return null;
           },
         },
@@ -192,7 +192,7 @@ describe('Model Command Handlers', () => {
         embeds: [
           expect.objectContaining({
             data: expect.objectContaining({
-              title: '✅ Model Override Set',
+              title: '✅ Preset Override Set',
             }),
           }),
         ],
@@ -211,7 +211,7 @@ describe('Model Command Handlers', () => {
 
       expect(mockReplyWithError).toHaveBeenCalledWith(
         interaction,
-        'Failed to set model: Personality not found'
+        'Failed to set preset: Personality not found'
       );
     });
   });
@@ -244,8 +244,8 @@ describe('Model Command Handlers', () => {
         userId: '123456789',
       });
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
-        '🔄 Model Override Removed',
-        'The personality will now use its default model configuration.'
+        '🔄 Preset Override Removed',
+        'The personality will now use its default preset.'
       );
     });
 
@@ -261,7 +261,7 @@ describe('Model Command Handlers', () => {
 
       expect(mockReplyWithError).toHaveBeenCalledWith(
         interaction,
-        'Failed to reset model: No override found'
+        'Failed to reset preset: No override found'
       );
     });
 
@@ -274,7 +274,7 @@ describe('Model Command Handlers', () => {
 
       expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
         userId: '123456789',
-        command: 'Model Reset',
+        command: 'Preset Reset',
       });
     });
   });
