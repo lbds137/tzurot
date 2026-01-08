@@ -44,6 +44,13 @@ jobs:
 
       - name: Check pglite schema is in sync with Prisma
         run: |
+          # Verify schema file exists
+          if [ ! -f "tests/integration/schema/pglite-schema.sql" ]; then
+            echo "❌ ERROR: tests/integration/schema/pglite-schema.sql not found"
+            echo "Run: ./scripts/testing/regenerate-pglite-schema.sh"
+            exit 1
+          fi
+
           # Generate fresh schema from Prisma
           npx prisma migrate diff \
             --from-empty \
